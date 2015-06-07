@@ -4,8 +4,9 @@ instructions=""
 
 function install_if_not_exists {
   if ! command -v $2 >/dev/null 2>&1; then
-    echo -e "Installing $1\n"
+    echo -e "Installing $1...\n"
     eval $3
+    echo -e "\n$1 Installation Complete!\n"
   fi
 }
 
