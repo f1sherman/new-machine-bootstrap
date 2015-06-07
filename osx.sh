@@ -15,7 +15,7 @@ instructions=""
 function run_with_progress {
   echo -e "${1}...\n"
   eval ${2}
-  echo -e "${1} Complete!\n"
+  echo -e "\n${1} Complete!\n"
 }
 
 function install_if_no_binary {
