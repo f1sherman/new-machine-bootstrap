@@ -90,14 +90,36 @@ fi
 
 # END GENERATE SSH KEY
 
-# SETUP GIT PROJECTS
+# SETUP VIM
+
+if [ ! -d ~/.vim ]; then
+  echo -e "Setting up vim...\n"
+  git clone git@github.com:f1sherman/dotvim.git ~/.vim
+  cd ~/.vim
+  ln -s ~/.vim/vimrc ~/.vimrc
+  ln -s ~/.vim/gvimrc ~/.gvimrc
+  mkdir ~/.vimtmp
+  git clone https://github.com/gmarik/vundle.git ~/.vim/bundle/vundle
+  vim +BundleInstall +qall
+  echo -e "\nvim setup complete!\n"
+else
+  echo -e "Updating vim plugins...\n"
+  cd ~/.vim
+  git pull origin master
+  vim +PluginInstall! +qall
+  echo -e "\nvim plugin update complete!\n"
+fi
+
+# END SETUP VIM
+
+# SETUP DOTFILES
 
 #if [ ! -d "~/projects" ]; then
   #mkdir ~/projects
   #cd ~/projects
 #fi
 
-# END SETUP GIT PROJECTS
+# END SETUP DOTFILES
 
 # ADD MANUAL INSTRUCTIONS
 
