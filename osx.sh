@@ -75,7 +75,7 @@ if [ ! -e ~/.ssh/id_rsa.pub ]; then
   read -s ssh_passphrase
   echo
 
-  ssh-keygen -N "${ssh_passphrase}"
+  ssh-keygen -N "${ssh_passphrase}" -f ~/.ssh/id_rsa
 
   # Improve private key encryption
   mv ~/.ssh/id_rsa{,.old}
