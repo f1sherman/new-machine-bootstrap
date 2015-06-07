@@ -67,6 +67,38 @@ brew_if_not_brewed wget
 
 # END BREW RECIPES
 
+# GENERATE SSH KEY
+
+if [ ! -e ~/.ssh/id_rsa.pub ]; then
+  echo -e "\nGenerating an SSH Key"
+  echo -n "Enter SSH Passphrase:"
+  read -s ssh_passphrase
+  echo
+
+  ssh-keygen -N "${ssh_passphrase}"
+
+  # Improve private key encryption
+  mv ~/.ssh/id_rsa{,.old}
+  openssl pkcs8 -topk8 -v2 des3 -in ~/.ssh/id_rsa.old -out ~/.ssh/id_rsa -passin "pass:${ssh_passphrase}" -passout "pass:${ssh_passphrase}"
+  rm ~/.ssh/id_rsa.old
+
+  echo -e "\nYour SSH key has been generated. Add the below public key to github and press any key to continue when finished..."
+  echo "$(cat ~/.ssh/id_rsa.pub)"
+  read -n 1 -s
+  echo
+fi
+
+# END GENERATE SSH KEY
+
+# SETUP GIT PROJECTS
+
+#if [ ! -d "~/projects" ]; then
+  #mkdir ~/projects
+  #cd ~/projects
+#fi
+
+# END SETUP GIT PROJECTS
+
 # ADD MANUAL INSTRUCTIONS
 
 if [ "$(fdesetup status)" != "FileVault is On." ]; then
