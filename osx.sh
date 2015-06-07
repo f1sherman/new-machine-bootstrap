@@ -16,6 +16,9 @@ function add_instruction {
 
 install_if_not_exists Homebrew brew 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
 
+brew update
+brew upgrade
+
 if [ "$(fdesetup status)" != "FileVault is On." ]; then
   add_instruction 'Setup FileVault'
 fi
