@@ -12,16 +12,18 @@ instructions=""
 
 # FUNCTIONS
 
+function is_binary_installed {
+  if ! command -v ${1} >/dev/null 2>&1; then
+    return 0
+  else
+    return 1
+  fi
+}
+
 function run_with_progress {
   echo -e "${1}...\n"
   eval ${2}
   echo -e "\n${1} Complete!\n"
-}
-
-function install_if_no_binary {
-  if ! command -v ${2} >/dev/null 2>&1; then
-    run_with_progress "Installing ${1}" "${3}"
-  fi
 }
 
 function brew_if_not_brewed {
@@ -36,23 +38,16 @@ function add_instruction {
 
 # END FUNCTIONS
 
-# BINARIES
+# INSTALL/UPDATE HOMEBREW
 
-install_if_no_binary Homebrew brew 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
+if is_binary_installed brew; then
+  run_with_progress "Installing Homebrew" 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
+else
+  run_with_progress "Updating Homebrew" "brew update"
+  run_with_progress "Upgrading Homebrew" "brew upgrade"
+fi
 
-# END BINARIES
-
-# HOMEBREW UPDATE
-
-run_with_progress "Updating Homebrew" "brew update"
-
-# END HOMEBREW UPDATE
-
-# HOMEBREW UPGRADE
-
-run_with_progress "Upgrading Homebrew" "brew upgrade"
-
-# END HOMEBREW UPGRADE
+# END INSTALL/UPDATE HOMEBREW
 
 # BREW RECIPES
 
