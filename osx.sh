@@ -75,6 +75,7 @@ if [ ! -e ~/.ssh/id_rsa.pub ]; then
   # Improve private key encryption
   mv ~/.ssh/id_rsa{,.old}
   openssl pkcs8 -topk8 -v2 des3 -in ~/.ssh/id_rsa.old -out ~/.ssh/id_rsa -passin "pass:${ssh_passphrase}" -passout "pass:${ssh_passphrase}"
+  chmod 600 ~/.ssh/id_rsa
   rm ~/.ssh/id_rsa.old
 
   echo -e "\nYour SSH key has been generated. Add the below public key to github and press any key to continue when finished..."
