@@ -89,7 +89,7 @@ if [ ! -d ~/.vim ]; then
   ln -s ~/.vim/gvimrc ~/.gvimrc
   mkdir ~/.vimtmp
   git clone https://github.com/gmarik/Vundle.vim.git ~/.vim/bundle/Vundle.vim
-  vim +BundleInstall +qall
+  vim +PluginInstall +qall
   echo -e "\nvim setup complete!\n"
 else
   echo -e "Updating vim plugins...\n"
