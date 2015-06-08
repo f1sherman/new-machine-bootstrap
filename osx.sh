@@ -20,8 +20,14 @@ function log_end {
   echo -e "\n${1} Complete!\n"
 }
 
+function run_with_progress {
+  log_start "${1}"
+  eval ${2}
+  log_end "${1}"
+}
+
 function is_binary_installed {
-  if ! command -v ${1} >/dev/null 2>&1; then
+  if command -v ${1} >/dev/null 2>&1; then
     return 0
   else
     return 1
@@ -49,10 +55,10 @@ function add_instruction {
 # INSTALL/UPDATE HOMEBREW
 
 if is_binary_installed brew; then
-  run_with_progress "Installing Homebrew" 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
-else
   run_with_progress "Updating Homebrew" "brew update"
   run_with_progress "Upgrading Homebrew" "brew upgrade"
+else
+  run_with_progress "Installing Homebrew" 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
 fi
 
 # END INSTALL/UPDATE HOMEBREW
