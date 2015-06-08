@@ -34,15 +34,23 @@ function is_binary_installed {
   fi
 }
 
-function run_with_progress {
-  log_start "${1}"
-  eval ${2}
-  log_end "${1}"
+function is_cask_installed {
+  if brew cask list ${1} >/dev/null 2>&1; then
+    return 0
+  else
+    return 1
+  fi
 }
 
 function brew_if_not_brewed {
   if ! brew list ${1} >/dev/null 2>&1; then
     run_with_progress "Brewing ${1}" "brew install ${1}"
+  fi
+}
+
+function cask_if_not_casked {
+  if ! is_cask_installed ${1}; then
+    run_with_progress "Installing Cask ${1}" "brew cask install ${1}"
   fi
 }
 
@@ -149,6 +157,20 @@ log_start "Setting OS X defaults"
 log_end "Setting OS X defaults"
 
 # END SET OS X DEFAULTS
+
+# INSTALL HOMEBREW CASK
+
+if ! brew cask >/dev/null 2>&1; then
+  run_with_progress "Installing Homebrew Cask" "brew install caskroom/cask/brew-cask"
+fi
+
+# END INSTALL HOMEBREW CASK
+
+# INSTALL HOMEBREW CASK RECIPES
+
+cask_if_not_casked google-chrome
+
+# END INSTALL HOMEBREW CASK RECIPES
 
 # ADD MANUAL INSTRUCTIONS
 
