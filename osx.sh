@@ -12,6 +12,14 @@ instructions=""
 
 # FUNCTIONS
 
+function log_start {
+  echo -e "${1}...\n"
+}
+
+function log_end {
+  echo -e "\n${1} Complete!\n"
+}
+
 function is_binary_installed {
   if ! command -v ${1} >/dev/null 2>&1; then
     return 0
@@ -21,9 +29,9 @@ function is_binary_installed {
 }
 
 function run_with_progress {
-  echo -e "${1}...\n"
+  log_start "${1}"
   eval ${2}
-  echo -e "\n${1} Complete!\n"
+  log_end "${1}"
 }
 
 function brew_if_not_brewed {
@@ -65,7 +73,7 @@ brew_if_not_brewed wget
 # GENERATE SSH KEY
 
 if [ ! -e ~/.ssh/id_rsa.pub ]; then
-  echo -e "\nGenerating an SSH Key"
+  log_start "Generating an SSH Key"
   echo -n "Enter SSH Passphrase:"
   read -s ssh_passphrase
   echo
@@ -75,6 +83,7 @@ if [ ! -e ~/.ssh/id_rsa.pub ]; then
   echo "$(cat ~/.ssh/id_rsa.pub)"
   read -n 1 -s
   echo
+  log_end "Generating an SSH Key"
 fi
 
 # END GENERATE SSH KEY
@@ -82,7 +91,7 @@ fi
 # SETUP VIM
 
 if [ ! -d ~/.vim ]; then
-  echo -e "Setting up vim...\n"
+  log_start "Setting up vim"
   git clone git@github.com:f1sherman/dotvim.git ~/.vim
   cd ~/.vim
   ln -s ~/.vim/vimrc ~/.vimrc
@@ -90,13 +99,13 @@ if [ ! -d ~/.vim ]; then
   mkdir ~/.vimtmp
   git clone https://github.com/gmarik/Vundle.vim.git ~/.vim/bundle/Vundle.vim
   vim +PluginInstall +qall
-  echo -e "\nvim setup complete!\n"
+  log_end "Setting up vim"
 else
-  echo -e "Updating vim plugins...\n"
+  log_start "Updating vim plugins"
   cd ~/.vim
   git pull origin master
   vim +PluginInstall! +qall
-  echo -e "\nvim plugin update complete!\n"
+  log_end "Updating vim plugins"
 fi
 
 # END SETUP VIM
