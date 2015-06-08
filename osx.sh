@@ -99,12 +99,14 @@ if [ ! -d ~/.vim ]; then
   mkdir ~/.vimtmp
   git clone https://github.com/gmarik/Vundle.vim.git ~/.vim/bundle/Vundle.vim
   vim +PluginInstall +qall
+  cd -
   log_end "Setting up vim"
 else
   log_start "Updating vim plugins"
   cd ~/.vim
   git pull origin master
   vim +PluginInstall! +qall
+  cd -
   log_end "Updating vim plugins"
 fi
 
@@ -112,12 +114,35 @@ fi
 
 # SETUP DOTFILES
 
-#if [ ! -d "~/projects" ]; then
-  #mkdir ~/projects
-  #cd ~/projects
-#fi
+if [ -d ~/projects ]; then
+  log_start "Updating dotfiles"
+  cd ~/projects/dotfiles
+  git pull origin master
+  cd -
+  log_end "Updating dotfiles"
+else
+  log_start "Setting up dotfiles"
+  mkdir ~/projects
+  git clone git@github.com:f1sherman/dotfiles.git ~/projects/dotfiles
+  cd ~/projects/dotfiles
+  rake install
+  cd -
+  log_end "Setting up dotfiles"
+fi
+
+source ~/.bash_profile
 
 # END SETUP DOTFILES
+
+# SET OS X DEFAULTS
+
+log_start "Setting OS X defaults"
+
+~/projects/dotfiles/osx/set_defaults.sh
+
+log_end "Setting OS X defaults"
+
+# END SET OS X DEFAULTS
 
 # ADD MANUAL INSTRUCTIONS
 
