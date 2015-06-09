@@ -50,7 +50,15 @@ function brew_if_not_brewed {
 
 function cask_if_not_casked {
   if ! is_cask_installed ${1}; then
-    run_with_progress "Installing Cask ${1}" "brew cask install ${1}"
+    log_start "Installing Cask ${1}" 
+    brew cask install ${1}
+
+    instruction="${2:-}"
+
+    if [ ! -z "${instruction}" ]; then
+      add_instruction "${2}"
+    fi
+    log_end "Installing Cask ${1}" 
   fi
 }
 
@@ -168,7 +176,17 @@ fi
 
 # INSTALL HOMEBREW CASK RECIPES
 
+cask_if_not_casked evernote "Login to Evernote"
+cask_if_not_casked firefox
+cask_if_not_casked flux
 cask_if_not_casked google-chrome
+cask_if_not_casked iterm2 "Setup iTerm2 preferences"
+cask_if_not_casked kindle "Login to Kindle"
+cask_if_not_casked lastpass "Login and Setup Lastpass"
+cask_if_not_casked sizeup "Install SizeUp License"
+cask_if_not_casked skitch "Login to Skitch"
+cask_if_not_casked vmware-fusion "Install Fusion License"
+cask_if_not_casked xmarks-safari "Login to Xmarks"
 
 # END INSTALL HOMEBREW CASK RECIPES
 
