@@ -68,6 +68,12 @@ function add_instruction {
 
 # END FUNCTIONS
 
+# SETUP SUDO
+sudo -v
+while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+
+# END SETUP SUDO
+
 # INSTALL/UPDATE HOMEBREW
 
 if is_binary_installed brew; then
