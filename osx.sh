@@ -156,16 +156,6 @@ source ~/.bash_profile
 
 # END SETUP DOTFILES
 
-# SET OS X DEFAULTS
-
-log_start "Setting OS X defaults"
-
-~/projects/dotfiles/osx/set_defaults.sh
-
-log_end "Setting OS X defaults"
-
-# END SET OS X DEFAULTS
-
 # INSTALL HOMEBREW CASK
 
 if ! brew cask >/dev/null 2>&1; then
@@ -189,6 +179,16 @@ cask_if_not_casked vmware-fusion "Install Fusion License"
 cask_if_not_casked xmarks-safari "Login to Xmarks"
 
 # END INSTALL HOMEBREW CASK RECIPES
+
+# SET OS X DEFAULTS
+
+log_start "Setting OS X defaults"
+
+~/projects/dotfiles/osx/set_defaults.sh
+
+log_end "Setting OS X defaults"
+
+# END SET OS X DEFAULTS
 
 # ADD MANUAL INSTRUCTIONS
 
