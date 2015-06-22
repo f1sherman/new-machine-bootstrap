@@ -173,16 +173,15 @@ fi
 # INSTALL HOMEBREW CASK RECIPES
 
 cask_if_not_casked evernote "Login to Evernote"
-cask_if_not_casked firefox "Setup Xmarks plugin for Firefox"
+cask_if_not_casked firefox
 cask_if_not_casked flux
-cask_if_not_casked google-chrome "Setup Xmarks plugin for Chrome"
+cask_if_not_casked google-chrome
 cask_if_not_casked iterm2 "Setup iTerm2 preferences"
 cask_if_not_casked kindle "Login to Kindle, set dark mode"
 cask_if_not_casked lastpass "Login and Setup Lastpass"
 cask_if_not_casked sizeup "Install SizeUp License"
 cask_if_not_casked skitch "Login to Skitch"
 cask_if_not_casked vmware-fusion "Install Fusion License"
-cask_if_not_casked xmarks-safari "Login to Xmarks"
 
 # END INSTALL HOMEBREW CASK RECIPES
 
