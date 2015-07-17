@@ -88,6 +88,7 @@ fi
 # BREW RECIPES
 
 brew_if_not_brewed curl
+brew_if_not_brewed dark-mode
 brew_if_not_brewed git
 brew_if_not_brewed nmap
 brew_if_not_brewed node
@@ -197,6 +198,12 @@ log_start "Setting OS X defaults"
 log_end "Setting OS X defaults"
 
 # END SET OS X DEFAULTS
+
+# ENABLE DARK MODE
+
+dark-mode --mode Dark
+
+# END ENABLE DARK MODE
 
 # ADD MANUAL INSTRUCTIONS
 
