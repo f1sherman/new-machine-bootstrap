@@ -78,7 +78,7 @@ while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 
 if is_binary_installed brew; then
   run_with_progress "Updating Homebrew" "brew update"
-  run_with_progress "Upgrading Homebrew" "brew upgrade"
+  run_with_progress "Upgrading Homebrew" "brew upgrade --all"
 else
   run_with_progress "Installing Homebrew" 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
 fi
