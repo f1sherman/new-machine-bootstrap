@@ -134,7 +134,8 @@ else
   log_start "Updating vim plugins"
   cd ~/.vim
   git pull origin master
-  vim +PluginInstall! +qall
+  vim +PluginUpdate +qall
+  vim +PluginClean +qall
   ~/.vim/bundle/YouCompleteMe/install.sh
   cd -
   log_end "Updating vim plugins"
