@@ -88,6 +88,7 @@ fi
 # BREW RECIPES
 
 brew_if_not_brewed curl
+brew_if_not_brewed dark-mode
 brew_if_not_brewed git
 brew_if_not_brewed ncdu
 brew_if_not_brewed nmap
@@ -128,13 +129,16 @@ if [ ! -d ~/.vim ]; then
   mkdir ~/.vimtmp
   git clone https://github.com/gmarik/Vundle.vim.git ~/.vim/bundle/Vundle.vim
   vim +PluginInstall +qall
+  ~/.vim/bundle/YouCompleteMe/install.sh
   cd -
   log_end "Setting up vim"
 else
   log_start "Updating vim plugins"
   cd ~/.vim
   git pull origin master
-  vim +PluginInstall! +qall
+  vim +PluginUpdate +qall
+  vim +PluginClean +qall
+  ~/.vim/bundle/YouCompleteMe/install.sh
   cd -
   log_end "Updating vim plugins"
 fi
@@ -195,6 +199,12 @@ log_start "Setting OS X defaults"
 log_end "Setting OS X defaults"
 
 # END SET OS X DEFAULTS
+
+# ENABLE DARK MODE
+
+dark-mode --mode Dark
+
+# END ENABLE DARK MODE
 
 # ADD MANUAL INSTRUCTIONS
 
