@@ -97,6 +97,7 @@ brew_if_not_brewed ssh-copy-id
 brew_if_not_brewed tmux
 brew_if_not_brewed vim
 brew_if_not_brewed wget
+brew cleanup
 
 # END BREW RECIPES
 
