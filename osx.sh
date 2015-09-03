@@ -187,7 +187,7 @@ cask_if_not_casked kindle "Login to Kindle, set dark mode"
 cask_if_not_casked lastpass "Login and Setup Lastpass"
 cask_if_not_casked sizeup "Install SizeUp License"
 cask_if_not_casked skitch "Login to Skitch"
-cask_if_not_casked vmware-fusion "Install Fusion License"
+#cask_if_not_casked vmware-fusion "Install Fusion License"
 
 # END INSTALL HOMEBREW CASK RECIPES
 
