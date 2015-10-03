@@ -76,7 +76,7 @@ sudo -v
 
 # INSTALL XCODE COMMAND LINE TOOLS
 
-xcode-select --install || true
+xcode-select --install >/dev/null 2>&1 || true
 
 # END INSTALL XCODE COMMAND LINE TOOLS
 
