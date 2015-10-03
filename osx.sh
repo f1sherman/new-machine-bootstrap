@@ -82,9 +82,9 @@ xcode-select --install >/dev/null 2>&1 || true
 
 # INSTALL/UPDATE HOMEBREW
 
-is_first_run=is_binary_installed brew
+is_first_run=$(is_binary_installed brew)
 
-if if_first_run; then
+if [ "$is_first_run" == 0 ]; then
   run_with_progress "Installing Homebrew" 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
 else
   run_with_progress "Updating Homebrew" "brew update"
@@ -186,7 +186,7 @@ fi
 
 # INSTALL HOMEBREW CASK RECIPES
 
-if is_first_run; then
+if [ "$is_first_run" == 0 ]; then
   # Don't install new versions of apps that auto-update
   cask_if_not_casked evernote "Login to Evernote"
   cask_if_not_casked firefox
