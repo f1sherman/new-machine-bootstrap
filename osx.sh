@@ -82,7 +82,9 @@ xcode-select --install || true
 
 # INSTALL/UPDATE HOMEBREW
 
-if is_binary_installed brew; then
+is_first_run=is_binary_installed brew
+
+if if_first_run; then
   run_with_progress "Updating Homebrew" "brew update"
   run_with_progress "Upgrading Homebrew" "brew upgrade"
 else
@@ -184,16 +186,20 @@ fi
 
 # INSTALL HOMEBREW CASK RECIPES
 
-cask_if_not_casked evernote "Login to Evernote"
-cask_if_not_casked firefox
+if is_first_run; then
+  # Don't install new versions of apps that auto-update
+  cask_if_not_casked evernote "Login to Evernote"
+  cask_if_not_casked firefox
+  cask_if_not_casked google-chrome
+  cask_if_not_casked iterm2 "Setup iTerm2 preferences"
+  cask_if_not_casked lastpass "Login and Setup Lastpass"
+  cask_if_not_casked sizeup "Install SizeUp License"
+  cask_if_not_casked skitch "Login to Skitch"
+  cask_if_not_casked vmware-fusion "Install Fusion License"
+fi
+
 cask_if_not_casked flux
-cask_if_not_casked google-chrome
-cask_if_not_casked iterm2 "Setup iTerm2 preferences"
 cask_if_not_casked kindle "Login to Kindle, set dark mode"
-cask_if_not_casked lastpass "Login and Setup Lastpass"
-cask_if_not_casked sizeup "Install SizeUp License"
-cask_if_not_casked skitch "Login to Skitch"
-#cask_if_not_casked vmware-fusion "Install Fusion License"
 
 # END INSTALL HOMEBREW CASK RECIPES
 
