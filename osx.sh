@@ -85,10 +85,10 @@ xcode-select --install >/dev/null 2>&1 || true
 is_first_run=is_binary_installed brew
 
 if if_first_run; then
+  run_with_progress "Installing Homebrew" 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
+else
   run_with_progress "Updating Homebrew" "brew update"
   run_with_progress "Upgrading Homebrew" "brew upgrade"
-else
-  run_with_progress "Installing Homebrew" 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
 fi
 
 # END INSTALL/UPDATE HOMEBREW
