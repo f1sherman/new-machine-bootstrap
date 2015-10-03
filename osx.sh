@@ -68,11 +68,11 @@ function add_instruction {
 
 # END FUNCTIONS
 
-# SETUP SUDO
-sudo -v
-while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+# INITIALIZE SUDO
 
-# END SETUP SUDO
+sudo -v
+
+# END INITIALIZE SUDO
 
 # INSTALL XCODE COMMAND LINE TOOLS
 
