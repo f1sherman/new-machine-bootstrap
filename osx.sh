@@ -74,6 +74,12 @@ while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 
 # END SETUP SUDO
 
+# INSTALL XCODE COMMAND LINE TOOLS
+
+xcode-select --install || true
+
+# END INSTALL XCODE COMMAND LINE TOOLS
+
 # INSTALL/UPDATE HOMEBREW
 
 if is_binary_installed brew; then
