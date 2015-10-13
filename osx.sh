@@ -4,16 +4,6 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# SUDOERS UPDATE
-# See http://stackoverflow.com/questions/323957/how-do-i-edit-etc-sudoers-from-a-script
-
-if [[ "${1-}" =~ sudoers ]]; then
-  echo "Defaults tty_tickets" >> $1
-  exit 
-fi
-
-# END SUDOERS UPDATE
-
 # VARIABLES
 
 instructions=""
@@ -85,6 +75,12 @@ sudo -v
 # END INITIALIZE SUDO
 
 # UPDATE SUDOERS
+# See http://stackoverflow.com/questions/323957/how-do-i-edit-etc-sudoers-from-a-script
+
+if [[ "${1-}" =~ sudoers ]]; then
+  echo "Defaults tty_tickets" >> $1
+  exit 
+fi
 
 if ! sudo grep --silent 'Defaults tty_tickets' /etc/sudoers; then
   echo "Updating sudoers"
