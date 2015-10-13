@@ -65,7 +65,7 @@ function cask_if_not_casked {
 
     instruction="${2:-}"
 
-    if [ ! -z "${instruction}" ]; then
+    if [[ ! -z "${instruction}" ]]; then
       add_instruction "${2}"
     fi
     log_end "Installing Cask ${1}" 
@@ -102,9 +102,9 @@ xcode-select --install >/dev/null 2>&1 || true
 
 # INSTALL/UPDATE HOMEBREW
 
-is_first_run=$(is_binary_installed brew)
+readonly is_first_run=$(is_binary_installed brew)
 
-if [ "$is_first_run" == 0 ]; then
+if [[ "$is_first_run" == 0 ]]; then
   run_with_progress "Installing Homebrew" 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
 else
   run_with_progress "Updating Homebrew" "brew update"
@@ -131,7 +131,7 @@ brew cleanup
 
 # GENERATE SSH KEY
 
-if [ ! -e ~/.ssh/id_rsa.pub ]; then
+if [[ ! -e ~/.ssh/id_rsa.pub ]]; then
   log_start "Generating an SSH Key"
   echo -n "Enter SSH Passphrase:"
   read -s ssh_passphrase
@@ -149,7 +149,7 @@ fi
 
 # SETUP VIM
 
-if [ ! -d ~/.vim ]; then
+if [[ ! -d ~/.vim ]]; then
   log_start "Setting up vim"
   git clone git@github.com:f1sherman/dotvim.git ~/.vim
   cd ~/.vim
@@ -176,7 +176,7 @@ fi
 
 # SETUP DOTFILES
 
-if [ -d ~/projects ]; then
+if [[ -d ~/projects ]]; then
   log_start "Updating dotfiles"
   cd ~/projects/dotfiles
   git pull origin master
@@ -206,7 +206,7 @@ fi
 
 # INSTALL HOMEBREW CASK RECIPES
 
-if [ "$is_first_run" == 0 ]; then
+if [[ "$is_first_run" == 0 ]]; then
   # Don't install new versions of apps that auto-update
   cask_if_not_casked evernote "Login to Evernote"
   cask_if_not_casked firefox
@@ -241,7 +241,7 @@ dark-mode --mode Dark
 
 # ADD MANUAL INSTRUCTIONS
 
-if [ "$(fdesetup status)" != "FileVault is On." ]; then
+if [[ "$(fdesetup status)" != "FileVault is On." ]]; then
   add_instruction 'Setup FileVault'
 fi
 
@@ -249,7 +249,7 @@ fi
 
 # PRINT MANUAL INSTRUCTIONS
 
-if [ "${instructions}" != "" ]; then
+if [[ "${instructions}" != "" ]]; then
   echo -e ""
   echo -e "---------------------------------"
   echo -e "| Stuff you need to do manually |"
