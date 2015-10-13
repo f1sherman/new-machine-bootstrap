@@ -102,13 +102,11 @@ xcode-select --install >/dev/null 2>&1 || true
 
 # INSTALL/UPDATE HOMEBREW
 
-readonly is_first_run=$(is_binary_installed brew)
-
-if [[ "$is_first_run" == 0 ]]; then
-  run_with_progress "Installing Homebrew" 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
-else
+if is_binary_installed brew; then
   run_with_progress "Updating Homebrew" "brew update"
   run_with_progress "Upgrading Homebrew" "brew upgrade"
+else
+  run_with_progress "Installing Homebrew" 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
 fi
 
 # END INSTALL/UPDATE HOMEBREW
@@ -196,17 +194,11 @@ source ~/.bash_profile
 
 # END SETUP DOTFILES
 
-# INSTALL HOMEBREW CASK
+# INSTALL HOMEBREW CASK AND RECIPES
 
 if ! brew cask >/dev/null 2>&1; then
   run_with_progress "Installing Homebrew Cask" "brew install caskroom/cask/brew-cask"
-fi
 
-# END INSTALL HOMEBREW CASK
-
-# INSTALL HOMEBREW CASK RECIPES
-
-if [[ "$is_first_run" == 0 ]]; then
   # Don't install new versions of apps that auto-update
   cask_if_not_casked evernote "Login to Evernote"
   cask_if_not_casked firefox
@@ -221,7 +213,7 @@ fi
 cask_if_not_casked flux
 cask_if_not_casked kindle "Login to Kindle, set dark mode"
 
-# END INSTALL HOMEBREW CASK RECIPES
+# INSTALL HOMEBREW CASK AND RECIPES
 
 # SET OS X DEFAULTS
 
