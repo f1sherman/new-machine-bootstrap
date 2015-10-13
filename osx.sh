@@ -152,7 +152,7 @@ if [[ ! -d ~/.vim ]]; then
   mkdir ~/.vimtmp
   git clone https://github.com/gmarik/Vundle.vim.git ~/.vim/bundle/Vundle.vim
   vim +PluginInstall +qall
-  ~/.vim/bundle/YouCompleteMe/install.sh
+  ~/.vim/bundle/YouCompleteMe/install.py
   cd -
   log_end "Setting up vim"
 else
@@ -161,7 +161,7 @@ else
   git pull origin master
   vim +PluginUpdate +qall
   vim +PluginClean +qall
-  ~/.vim/bundle/YouCompleteMe/install.sh
+  ~/.vim/bundle/YouCompleteMe/install.py
   cd -
   log_end "Updating vim plugins"
 fi
