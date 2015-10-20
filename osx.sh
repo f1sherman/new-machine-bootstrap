@@ -77,14 +77,16 @@ sudo -v
 # UPDATE SUDOERS
 # See http://stackoverflow.com/questions/323957/how-do-i-edit-etc-sudoers-from-a-script
 
-if [[ "${1-}" =~ sudoers ]]; then
-  echo "Defaults tty_tickets" >> $1
-  exit 
-fi
-
 if ! sudo grep --silent 'Defaults tty_tickets' /etc/sudoers; then
   echo "Updating sudoers"
-  export EDITOR=$0 && sudo -E visudo
+  
+  readonly tmpfile=$(mktemp)
+  echo '#!/usr/bin/env bash' > ${tmpfile}
+  echo 'echo "Defaults tty_tickets" >> $1' >> ${tmpfile}
+  chmod +x ${tmpfile}
+  export EDITOR=${tmpfile} && sudo -E visudo
+  rm ${tmpfile}
+
   echo "Done updating sudoers"
 fi
 
