@@ -200,7 +200,6 @@ if ! brew cask >/dev/null 2>&1; then
   # Don't install new versions of apps that auto-update
   cask_if_not_casked evernote "Login to Evernote"
   cask_if_not_casked firefox
-  cask_if_not_casked google-chrome
   cask_if_not_casked iterm2 "Setup iTerm2 preferences"
   cask_if_not_casked lastpass "Login and Setup Lastpass"
   cask_if_not_casked sizeup "Install SizeUp License"
