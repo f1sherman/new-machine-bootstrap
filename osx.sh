@@ -198,13 +198,11 @@ if ! brew cask >/dev/null 2>&1; then
   run_with_progress "Installing Homebrew Cask" "brew install caskroom/cask/brew-cask"
 
   # Don't install new versions of apps that auto-update
-  cask_if_not_casked evernote "Login to Evernote"
   cask_if_not_casked firefox
   cask_if_not_casked iterm2 "Setup iTerm2 preferences"
   cask_if_not_casked lastpass "Login and Setup Lastpass"
   cask_if_not_casked sizeup "Install SizeUp License"
   cask_if_not_casked skitch "Login to Skitch"
-  cask_if_not_casked vmware-fusion "Install Fusion License"
 fi
 
 cask_if_not_casked flux
