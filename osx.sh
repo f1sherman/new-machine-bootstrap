@@ -89,6 +89,8 @@ fi
 
 # BREW RECIPES
 
+brew_if_not_brewed ag
+brew_if_not_brewed cmake
 brew_if_not_brewed curl
 brew_if_not_brewed dark-mode
 brew_if_not_brewed git
