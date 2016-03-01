@@ -97,6 +97,7 @@ brew_if_not_brewed git
 brew_if_not_brewed ncdu
 brew_if_not_brewed nmap
 brew_if_not_brewed node
+brew_if_not_brewed shellcheck
 brew_if_not_brewed ssh-copy-id
 brew_if_not_brewed tmux
 brew_if_not_brewed vim
