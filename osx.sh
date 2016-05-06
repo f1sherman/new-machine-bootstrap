@@ -34,31 +34,9 @@ function is_binary_installed {
   fi
 }
 
-function is_cask_installed {
-  if brew cask list ${1} >/dev/null 2>&1; then
-    return 0
-  else
-    return 1
-  fi
-}
-
 function brew_if_not_brewed {
   if ! brew list ${1} >/dev/null 2>&1; then
     run_with_progress "Brewing ${1}" "brew install ${1}"
-  fi
-}
-
-function cask_if_not_casked {
-  if ! is_cask_installed ${1}; then
-    log_start "Installing Cask ${1}" 
-    brew cask install ${1}
-
-    instruction="${2:-}"
-
-    if [[ ! -z "${instruction}" ]]; then
-      add_instruction "${2}"
-    fi
-    log_end "Installing Cask ${1}" 
   fi
 }
 
@@ -121,12 +99,16 @@ fi
 
 # BREW RECIPES
 
+brew_if_not_brewed ag
+brew_if_not_brewed cmake
 brew_if_not_brewed curl
 brew_if_not_brewed dark-mode
 brew_if_not_brewed git
 brew_if_not_brewed ncdu
 brew_if_not_brewed nmap
 brew_if_not_brewed node
+brew_if_not_brewed reattach-to-user-namespace
+brew_if_not_brewed shellcheck
 brew_if_not_brewed ssh-copy-id
 brew_if_not_brewed tmux
 brew_if_not_brewed vim
@@ -201,24 +183,6 @@ fi
 source ~/.bash_profile
 
 # END SETUP DOTFILES
-
-# INSTALL HOMEBREW CASK AND RECIPES
-
-if ! brew cask >/dev/null 2>&1; then
-  run_with_progress "Installing Homebrew Cask" "brew install caskroom/cask/brew-cask"
-
-  # Don't install new versions of apps that auto-update
-  cask_if_not_casked firefox
-  cask_if_not_casked iterm2 "Setup iTerm2 preferences"
-  cask_if_not_casked lastpass "Login and Setup Lastpass"
-  cask_if_not_casked sizeup "Install SizeUp License"
-  cask_if_not_casked skitch "Login to Skitch"
-fi
-
-cask_if_not_casked flux
-cask_if_not_casked kindle "Login to Kindle, set dark mode"
-
-# INSTALL HOMEBREW CASK AND RECIPES
 
 # SET OS X DEFAULTS
 
