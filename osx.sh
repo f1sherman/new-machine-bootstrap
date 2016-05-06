@@ -92,6 +92,16 @@ fi
 
 # END UPDATE SUDOERS
 
+# SETUP LOG ROTATION
+
+sudo tee /etc/newsyslog.d/projects.conf > /dev/null <<EOS
+# logfilename          [owner:group]    mode count size when  flags [/pid_file] [sig_num]
+/Users/*/projects/*/log/*.log : 664 10  * \$D0 GN
+/Users/*/projects/*/log/*/*.log : 664 10  * \$D0 GN
+EOS
+
+# END SETUP LOG ROTATION
+
 # INSTALL XCODE COMMAND LINE TOOLS
 
 xcode-select --install >/dev/null 2>&1 || true
