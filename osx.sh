@@ -155,6 +155,7 @@ else
   git pull origin master
   vim +PlugUpdate +qall
   vim +PlugUpgrade +qall
+  vim +PlugClean +qall
   ~/.vim/plugged/YouCompleteMe/install.py
   cd -
   log_end "Updating vim plugins"
