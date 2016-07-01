@@ -105,6 +105,7 @@ brew_if_not_brewed curl
 brew_if_not_brewed dark-mode
 brew_if_not_brewed fzf
 brew_if_not_brewed git
+brew_if_not_brewed htop
 brew_if_not_brewed ncdu
 brew_if_not_brewed nmap
 brew_if_not_brewed node
