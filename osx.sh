@@ -181,7 +181,9 @@ else
   log_end "Setting up dotfiles"
 fi
 
+set +u # FZF references undefined variables
 source ~/.bash_profile
+set -o nounset
 
 # END SETUP DOTFILES
 
