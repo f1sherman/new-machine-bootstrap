@@ -34,9 +34,31 @@ function is_binary_installed {
   fi
 }
 
+function is_cask_installed {
+  if brew cask list ${1} >/dev/null 2>&1; then
+    return 0
+  else
+    return 1
+  fi
+}
+
 function brew_if_not_brewed {
   if ! brew list ${1} >/dev/null 2>&1; then
     run_with_progress "Brewing ${1}" "brew install ${1}"
+  fi
+}
+
+function cask_if_not_casked {
+  if ! is_cask_installed ${1}; then
+    log_start "Installing Cask ${1}" 
+    brew cask install ${1}
+
+    instruction="${2:-}"
+
+    if [[ ! -z "${instruction}" ]]; then
+      add_instruction "${2}"
+    fi
+    log_end "Installing Cask ${1}" 
   fi
 }
 
@@ -57,13 +79,8 @@ sudo -v
 
 if ! sudo grep --silent 'Defaults tty_tickets' /etc/sudoers; then
   echo "Updating sudoers"
-  
-  readonly tmpfile=$(mktemp)
-  echo '#!/usr/bin/env bash' > ${tmpfile}
-  echo 'echo "Defaults tty_tickets" >> $1' >> ${tmpfile}
-  chmod +x ${tmpfile}
-  export EDITOR=${tmpfile} && sudo -E visudo
-  rm ${tmpfile}
+
+  sudo bash -c 'echo "Defaults tty_tickets" | (EDITOR="tee -a" visudo)'
 
   echo "Done updating sudoers"
 fi
@@ -193,6 +210,25 @@ set -o nounset
 /usr/local/opt/fzf/install --all
 
 # END SETUP FZF
+
+# INSTALL HOMEBREW CASK AND RECIPES
+
+if ! brew cask >/dev/null 2>&1; then
+  run_with_progress "Installing Homebrew Cask" "brew install caskroom/cask/brew-cask"
+fi
+
+cask_if_not_casked amazon-music
+cask_if_not_casked firefox
+cask_if_not_casked google-chrome
+cask_if_not_casked iterm2 "Setup iTerm2 preferences"
+cask_if_not_casked lastpass "Login and Setup Lastpass"
+cask_if_not_casked nvalt "Setup nvALT"
+cask_if_not_casked sizeup "Install SizeUp License"
+cask_if_not_casked skitch "Login to Skitch"
+cask_if_not_casked vmware-fusion "Install Fusion License"
+cask_if_not_casked kindle "Login to Kindle, set dark mode"
+
+# END INSTALL HOMEBREW CASK AND RECIPES
 
 # SET OS X DEFAULTS
 
