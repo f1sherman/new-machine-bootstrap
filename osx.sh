@@ -217,7 +217,6 @@ if ! brew cask >/dev/null 2>&1; then
   run_with_progress "Installing Homebrew Cask" "brew install caskroom/cask/brew-cask"
 fi
 
-cask_if_not_casked amazon-music
 cask_if_not_casked firefox
 cask_if_not_casked google-chrome
 cask_if_not_casked iterm2 "Setup iTerm2 preferences"
