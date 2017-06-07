@@ -154,6 +154,22 @@ fi
 
 # END GENERATE SSH KEY
 
+# BOOTSTRAP SSH CONFIG
+
+if [[ ! -s ~/.ssh/config ]]; then
+  log_start "Bootstrapping SSH Config"
+
+  cat > ~/.ssh/config <<EOL
+Host *
+  UseKeychain yes
+  AddKeysToAgent yes
+EOL
+
+  log_end "Bootstrapping SSH Config"
+fi
+
+# BOOTSTRAP SSH CONFIG
+
 # SETUP VIM
 
 if [[ ! -d ~/.vim ]]; then
