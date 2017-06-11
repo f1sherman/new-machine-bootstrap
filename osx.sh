@@ -239,6 +239,7 @@ cask_if_not_casked lastpass "Login and Setup Lastpass"
 cask_if_not_casked nvalt "Setup nvALT"
 cask_if_not_casked sizeup "Install SizeUp License"
 cask_if_not_casked skitch "Login to Skitch"
+cask_if_not_casked slack "Login to Slack"
 cask_if_not_casked kindle "Login to Kindle, set dark mode"
 
 # END INSTALL HOMEBREW CASK AND RECIPES
