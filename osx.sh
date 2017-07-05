@@ -235,7 +235,7 @@ fi
 cask_if_not_casked firefox
 cask_if_not_casked google-chrome
 cask_if_not_casked iterm2 "Setup iTerm2 preferences"
-cask_if_not_casked lastpass "Login and Setup Lastpass"
+cask_if_not_casked lastpass "Login and Setup Lastpass. Install Lastpass Binary (Safari --> Lastpass --> More Options --> About Lastpass --> Install Binary Component)"
 cask_if_not_casked nvalt "Setup nvALT"
 cask_if_not_casked sizeup "Install SizeUp License"
 cask_if_not_casked skitch "Login to Skitch"
