@@ -228,7 +228,7 @@ set -o nounset
 
 # INSTALL HOMEBREW CASK AND RECIPES
 
-if ! brew cask >/dev/null 2>&1; then
+if ! brew cask --version >/dev/null 2>&1; then
   run_with_progress "Installing Homebrew Cask" "brew install caskroom/cask/brew-cask"
 fi
 
