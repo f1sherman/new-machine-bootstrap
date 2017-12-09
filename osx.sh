@@ -42,12 +42,6 @@ function is_cask_installed {
   fi
 }
 
-function brew_if_not_brewed {
-  if ! brew list ${1} >/dev/null 2>&1; then
-    run_with_progress "Brewing ${1}" "brew install ${1}"
-  fi
-}
-
 function cask_if_not_casked {
   if ! is_cask_installed ${1}; then
     log_start "Installing Cask ${1}" 
@@ -103,39 +97,6 @@ xcode-select --install >/dev/null 2>&1 || true
 
 # END INSTALL XCODE COMMAND LINE TOOLS
 
-# INSTALL/UPDATE HOMEBREW
-
-if is_binary_installed brew; then
-  run_with_progress "Updating Homebrew" "brew update"
-  run_with_progress "Upgrading Homebrew" "brew upgrade"
-else
-  run_with_progress "Installing Homebrew" 'ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
-fi
-
-# END INSTALL/UPDATE HOMEBREW
-
-# BREW RECIPES
-
-brew_if_not_brewed ag
-brew_if_not_brewed cmake
-brew_if_not_brewed curl
-brew_if_not_brewed dark-mode
-brew_if_not_brewed fzf
-brew_if_not_brewed git
-brew_if_not_brewed htop
-brew_if_not_brewed ncdu
-brew_if_not_brewed nmap
-brew_if_not_brewed node
-brew_if_not_brewed reattach-to-user-namespace
-brew_if_not_brewed shellcheck
-brew_if_not_brewed ssh-copy-id
-brew_if_not_brewed tmux
-brew_if_not_brewed vim
-brew_if_not_brewed wget
-brew cleanup
-
-# END BREW RECIPES
-
 # INSTALL eslint
 
 if ! is_binary_installed eslint; then
@@ -153,7 +114,7 @@ if [[ ! -e ~/.ssh/id_rsa.pub ]]; then
   echo
 
   ssh-keygen -N "${ssh_passphrase}" -f ~/.ssh/id_rsa
-  echo -e "\nYour SSH key has been generated. Add the below public key to github and press any key to continue when finished..."
+  echo -e "\nYour SSH key has been generated. Add the below public key to github and bitbucket and press any key to continue when finished..."
   echo "$(cat ~/.ssh/id_rsa.pub)"
   read -n 1 -s
   echo
@@ -177,6 +138,12 @@ EOL
 fi
 
 # BOOTSTRAP SSH CONFIG
+
+# Run ruby install script
+
+run_with_progress "Running ruby install script", 'bash <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-machine-bootstrap/master/macos)'
+
+# End ruby install script
 
 # SETUP VIM
 

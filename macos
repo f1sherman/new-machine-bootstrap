@@ -1,0 +1,100 @@
+#!/usr/bin/env ruby
+
+require 'fileutils'
+require 'yaml'
+
+class Config
+  PERSONAL = 'personal'
+  WORK = 'work'
+
+  attr_reader :config_dir, :config_path, :settings
+
+  def initialize
+    @config_dir = File.join(Dir.home, '.config')
+    @config_path = File.join(config_dir, 'new-machine-bootstrap.yml')
+    if File.exist?(config_path)
+      @settings = YAML.load_file config_path
+    else
+      FileUtils.mkdir_p config_dir
+      print "\nIs this machine for work (w) or personal (p) use? "
+      work_or_personal = STDIN.gets.chomp
+
+      exit 1 unless %w(w p).include? work_or_personal
+
+      @settings = {}
+      settings['use'] = work_or_personal == 'p' ? PERSONAL : WORK
+      File.open(config_path, 'w') { |f| f.write config.to_yaml }
+    end
+  end
+
+  def personal?
+    settings['use'] == PERSONAL
+  end
+
+  def work?
+    settings['use'] == WORK
+  end
+end
+
+module Provision
+  def self.binary_installed?(binary)
+    system("command -v #{binary} >/dev/null 2>&1")
+  end
+
+  def self.brew(brew_package)
+    return if system("brew list #{brew_package} >/dev/null 2>&1")
+
+    run_command "brew install #{brew_package}"
+  end
+
+  def self.clone_project(project_name)
+    project_dir = File.join(Dir.home, 'projects', project_name)
+    return if File.exist? project_dir
+
+    puts "\nCloning #{project_name}\n"
+    run_command "git clone git@bitbucket.org:f1sherman/#{project_name}.git #{project_dir}"
+    puts "\nDone cloning #{project_name}\n"
+  end
+
+  def self.run_command(command)
+    puts "$ #{command}"
+    success = system command
+    return if success
+
+    puts "\nReceived exit status #{$?.exitstatus}, quitting..."
+    exit 1
+  end
+end
+
+config = Config.new
+
+if Provision.binary_installed? 'brew'
+  Provision.run_command 'brew update'
+  Provision.run_command 'brew upgrade'
+else
+  Provision.run_command '/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
+end
+
+Provision.brew 'ag'
+Provision.brew 'cmake'
+Provision.brew 'curl'
+Provision.brew 'dark-mode'
+Provision.brew 'fzf'
+Provision.brew 'git'
+Provision.brew 'htop'
+Provision.brew 'ncdu'
+Provision.brew 'nmap'
+Provision.brew 'node'
+Provision.brew 'reattach-to-user-namespace'
+Provision.brew 'shellcheck'
+Provision.brew 'ssh-copy-id'
+Provision.brew 'tmux'
+Provision.brew 'vim'
+Provision.brew 'wget'
+
+Provision.run_command 'brew cleanup'
+
+if config.personal?
+  Provision.clone_project 'headwaters-music'
+  Provision.clone_project 'random-scripts'
+end
