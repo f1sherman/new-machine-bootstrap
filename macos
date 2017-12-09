@@ -93,10 +93,7 @@ Provision.brew 'vim'
 Provision.brew 'wget'
 
 if config.personal?
-  Provision.clone_project 'headwaters-music'
   Provision.clone_project 'home-network-provisioning'
-  Provision.clone_project 'random-scripts'
-
   Provision.run_command 'cd ~/projects/home-network-provisioning && bin/provision --limit localhost'
 end
 
