@@ -141,7 +141,7 @@ fi
 
 # Run ruby install script
 
-run_with_progress "Running ruby install script", 'bash <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-machine-bootstrap/master/macos)'
+run_with_progress "Running ruby install script", 'ruby <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-machine-bootstrap/master/macos)'
 
 # End ruby install script
 
