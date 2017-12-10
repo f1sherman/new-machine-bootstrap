@@ -68,24 +68,6 @@ sudo -v
 
 # END INITIALIZE SUDO
 
-# GENERATE SSH KEY
-
-if [[ ! -e ~/.ssh/id_rsa.pub ]]; then
-  log_start "Generating an SSH Key"
-  echo -n "Enter SSH Passphrase:"
-  read -s ssh_passphrase
-  echo
-
-  ssh-keygen -N "${ssh_passphrase}" -f ~/.ssh/id_rsa
-  echo -e "\nYour SSH key has been generated. Add the below public key to github and bitbucket and press any key to continue when finished..."
-  echo "$(cat ~/.ssh/id_rsa.pub)"
-  read -n 1 -s
-  echo
-  log_end "Generating an SSH Key"
-fi
-
-# END GENERATE SSH KEY
-
 # BOOTSTRAP SSH CONFIG
 
 if [[ ! -s ~/.ssh/config ]]; then
