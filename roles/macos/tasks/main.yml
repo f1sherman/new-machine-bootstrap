@@ -1,5 +1,9 @@
 ---
 
+- name: Install XCode Command Line Tools
+  command: xcode-select --install
+  args:
+    creates: /Library/Developer/CommandLineTools
 - name: Setup log rotation
   template:
     backup: yes

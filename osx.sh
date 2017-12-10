@@ -68,12 +68,6 @@ sudo -v
 
 # END INITIALIZE SUDO
 
-# INSTALL XCODE COMMAND LINE TOOLS
-
-xcode-select --install >/dev/null 2>&1 || true
-
-# END INSTALL XCODE COMMAND LINE TOOLS
-
 # INSTALL eslint
 
 if ! is_binary_installed eslint; then
