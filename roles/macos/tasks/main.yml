@@ -1,0 +1,21 @@
+---
+
+- homebrew:
+    name:  '{{ item }}'
+  with_items:
+    - ag
+    - cmake
+    - curl
+    - dark-mode
+    - fzf
+    - git
+    - htop
+    - ncdu
+    - nmap
+    - node
+    - reattach-to-user-namespace
+    - shellcheck
+    - ssh-copy-id
+    - tmux
+    - vim
+    - wget

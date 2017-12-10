@@ -75,24 +75,9 @@ else
   Provision.run_command '/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
 end
 
-Provision.brew 'ag'
-Provision.brew 'cmake'
-Provision.brew 'curl'
-Provision.brew 'dark-mode'
-Provision.brew 'fzf'
-Provision.brew 'git'
-Provision.brew 'htop'
-Provision.brew 'ncdu'
-Provision.brew 'nmap'
-Provision.brew 'node'
-Provision.brew 'reattach-to-user-namespace'
-Provision.brew 'shellcheck'
-Provision.brew 'ssh-copy-id'
-Provision.brew 'tmux'
-Provision.brew 'vim'
-Provision.brew 'wget'
-
+Provision.brew 'ansible'
 Provision.clone_project 'new-machine-bootstrap'
+Provision.run_command 'cd ~/projects/new-machine-bootstrap && bin/provision'
 
 if config.personal?
   Provision.clone_project 'home-network-provisioning', remote: 'bitbucket.org'
