@@ -68,14 +68,6 @@ sudo -v
 
 # END INITIALIZE SUDO
 
-# INSTALL eslint
-
-if ! is_binary_installed eslint; then
-  run_with_progress "Installing eslint", "npm install --global eslint"
-fi
-
-# END INSTALL eslint
-
 # GENERATE SSH KEY
 
 if [[ ! -e ~/.ssh/id_rsa.pub ]]; then
