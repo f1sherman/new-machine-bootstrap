@@ -1,5 +1,12 @@
 ---
 
+- name: Bootstrap ssh config
+  template:
+    backup: yes
+    force: no
+    dest: '{{ ansible_env.HOME }}/.ssh/config'
+    src: ssh/config
+    mode: 0600
 - name: Install XCode Command Line Tools
   command: xcode-select --install
   args:

@@ -68,22 +68,6 @@ sudo -v
 
 # END INITIALIZE SUDO
 
-# BOOTSTRAP SSH CONFIG
-
-if [[ ! -s ~/.ssh/config ]]; then
-  log_start "Bootstrapping SSH Config"
-
-  cat > ~/.ssh/config <<EOL
-Host *
-  UseKeychain yes
-  AddKeysToAgent yes
-EOL
-
-  log_end "Bootstrapping SSH Config"
-fi
-
-# BOOTSTRAP SSH CONFIG
-
 # Run ruby install script
 
 run_with_progress "Running ruby install script", 'ruby <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-machine-bootstrap/master/macos)'
