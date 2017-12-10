@@ -68,19 +68,6 @@ sudo -v
 
 # END INITIALIZE SUDO
 
-# UPDATE SUDOERS
-# See http://stackoverflow.com/questions/323957/how-do-i-edit-etc-sudoers-from-a-script
-
-if ! sudo grep --silent 'Defaults tty_tickets' /etc/sudoers; then
-  echo "Updating sudoers"
-
-  sudo bash -c 'echo "Defaults tty_tickets" | (EDITOR="tee -a" visudo)'
-
-  echo "Done updating sudoers"
-fi
-
-# END UPDATE SUDOERS
-
 # SETUP LOG ROTATION
 
 sudo tee /etc/newsyslog.d/projects.conf > /dev/null <<EOS
