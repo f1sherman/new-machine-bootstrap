@@ -164,14 +164,6 @@ dark-mode --mode Dark
 
 # END ENABLE DARK MODE
 
-# ADD MANUAL INSTRUCTIONS
-
-if [[ "$(fdesetup status)" != "FileVault is On." ]]; then
-  add_instruction 'Setup FileVault'
-fi
-
-# END ADD MANUAL INSTRUCTIONS
-
 # PRINT MANUAL INSTRUCTIONS
 
 if [[ "${instructions}" != "" ]]; then
