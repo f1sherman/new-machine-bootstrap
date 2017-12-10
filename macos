@@ -77,7 +77,7 @@ end
 
 Provision.brew 'ansible'
 Provision.clone_project 'new-machine-bootstrap'
-Provision.run_command 'cd ~/projects/new-machine-bootstrap && bin/provision'
+Provision.run_command 'cd ~/projects/new-machine-bootstrap && bin/provision --ask-become-pass'
 
 if config.personal?
   Provision.clone_project 'home-network-provisioning', remote: 'bitbucket.org'

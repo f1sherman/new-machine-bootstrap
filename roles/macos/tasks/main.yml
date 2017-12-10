@@ -1,5 +1,13 @@
 ---
 
+- name: Setup log rotation
+  template:
+    backup: yes
+    dest: /etc/newsyslog.d/projects.conf
+    src: newsyslog/projects.conf
+    owner: root
+    mode: 0644
+  become: true
 - homebrew:
     name:  '{{ item }}'
   with_items:
