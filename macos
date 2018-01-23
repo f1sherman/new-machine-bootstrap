@@ -23,7 +23,7 @@ class Config
 
       @settings = {}
       settings['use'] = work_or_personal == 'p' ? PERSONAL : WORK
-      File.open(config_path, 'w') { |f| f.write config.to_yaml }
+      File.open(config_path, 'w') { |f| f.write settings.to_yaml }
     end
   end
 
