@@ -47,13 +47,18 @@ module Provision
     run_command "brew install #{brew_package}"
   end
 
-  def self.clone_project(project_name, remote: 'github.com')
+  def self.update_project(project_name, remote: 'github.com')
     project_dir = File.join(Dir.home, 'projects', project_name)
-    return if File.exist? project_dir
-
-    puts "\nCloning #{project_name}\n"
-    run_command "git clone git@#{remote}:f1sherman/#{project_name}.git #{project_dir}"
-    puts "\nDone cloning #{project_name}\n"
+    
+    if File.exist? project_dir
+      puts "\nUpdating #{project_name}\n"
+      run_command "cd #{project_dir} && git pull"    
+      puts "\nDone updating #{project_name}\n"
+    else
+      puts "\nCloning #{project_name}\n"
+      run_command "git clone git@#{remote}:f1sherman/#{project_name}.git #{project_dir}"
+      puts "\nDone cloning #{project_name}\n"
+    end
   end
 
   def self.run_command(command)
@@ -97,11 +102,11 @@ else
 end
 
 Provision.brew 'ansible'
-Provision.clone_project 'new-machine-bootstrap'
+Provision.update_project 'new-machine-bootstrap'
 Provision.run_command 'cd ~/projects/new-machine-bootstrap && bin/provision --ask-become-pass'
 
 if config.personal?
-  Provision.clone_project 'home-network-provisioning', remote: 'bitbucket.org'
+  Provision.update_project 'home-network-provisioning', remote: 'bitbucket.org'
   Provision.run_command 'cd ~/projects/home-network-provisioning && bin/provision --limit localhost'
 end
 
