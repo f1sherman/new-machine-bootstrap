@@ -137,7 +137,7 @@ log_end "Installing FZF"
 # INSTALL HOMEBREW CASK AND RECIPES
 
 if ! brew cask --version >/dev/null 2>&1; then
-  run_with_progress "Installing Homebrew Cask" "brew install caskroom/cask/brew-cask"
+  run_with_progress "Installing Homebrew Cask" "brew tap caskroom/cask"
 fi
 
 cask_if_not_casked firefox
