@@ -118,15 +118,19 @@ else
   log_end "Setting up dotfiles"
 fi
 
-set +u # FZF references undefined variables
-source ~/.bash_profile
-set -o nounset
-
 # END SETUP DOTFILES
 
 # SETUP FZF
 
+log_start "Installing FZF"
+
+set +u # FZF references undefined variables
+source ~/.bash_profile
+set -o nounset
+
 /usr/local/opt/fzf/install --all
+
+log_end "Installing FZF"
 
 # END SETUP FZF
 
