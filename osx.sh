@@ -112,24 +112,6 @@ log_end "Installing FZF"
 
 # END SETUP FZF
 
-# INSTALL HOMEBREW CASK AND RECIPES
-
-if ! brew cask --version >/dev/null 2>&1; then
-  run_with_progress "Installing Homebrew Cask" "brew tap caskroom/cask"
-fi
-
-cask_if_not_casked firefox
-cask_if_not_casked google-chrome
-cask_if_not_casked istat-menus "Install iStat Menus License"
-cask_if_not_casked iterm2 "Setup iTerm2 preferences"
-cask_if_not_casked lastpass "Login and Setup Lastpass. Install Lastpass Binary (Safari --> Lastpass --> More Options --> About Lastpass --> Install Binary Component)"
-cask_if_not_casked nvalt "Setup nvALT"
-cask_if_not_casked sizeup "Install SizeUp License"
-cask_if_not_casked slack "Login to Slack"
-cask_if_not_casked kindle "Login to Kindle, set dark mode"
-
-# END INSTALL HOMEBREW CASK AND RECIPES
-
 # SET OS X DEFAULTS
 
 log_start "Setting OS X defaults"

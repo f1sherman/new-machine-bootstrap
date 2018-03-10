@@ -37,6 +37,18 @@
     - tmux
     - vim
     - wget
+- homebrew_cask:
+    name: '{{ item }}'
+  with_items:
+    - firefox
+    - google-chrome
+    - istat-menus
+    - iterm2
+    - kindle
+    - lastpass
+    - nvalt
+    - sizeup
+    - slack
 - name: Install eslint
   npm:
     name: eslint
