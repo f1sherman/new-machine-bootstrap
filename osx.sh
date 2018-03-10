@@ -34,28 +34,6 @@ function is_binary_installed {
   fi
 }
 
-function is_cask_installed {
-  if brew cask list ${1} >/dev/null 2>&1; then
-    return 0
-  else
-    return 1
-  fi
-}
-
-function cask_if_not_casked {
-  if ! is_cask_installed ${1}; then
-    log_start "Installing Cask ${1}" 
-    brew cask install ${1}
-
-    instruction="${2:-}"
-
-    if [[ ! -z "${instruction}" ]]; then
-      add_instruction "${2}"
-    fi
-    log_end "Installing Cask ${1}" 
-  fi
-}
-
 function add_instruction {
   instructions="${instructions}\n${1}"
 }
@@ -147,7 +125,6 @@ cask_if_not_casked iterm2 "Setup iTerm2 preferences"
 cask_if_not_casked lastpass "Login and Setup Lastpass. Install Lastpass Binary (Safari --> Lastpass --> More Options --> About Lastpass --> Install Binary Component)"
 cask_if_not_casked nvalt "Setup nvALT"
 cask_if_not_casked sizeup "Install SizeUp License"
-cask_if_not_casked skitch "Login to Skitch"
 cask_if_not_casked slack "Login to Slack"
 cask_if_not_casked kindle "Login to Kindle, set dark mode"
 
