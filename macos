@@ -94,10 +94,7 @@ end
 
 config = Config.new
 
-if Provision.binary_installed? 'brew'
-  Provision.run_command 'brew update'
-  Provision.run_command 'brew upgrade'
-else
+unless Provision.binary_installed? 'brew'
   Provision.run_command '/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
 end
 

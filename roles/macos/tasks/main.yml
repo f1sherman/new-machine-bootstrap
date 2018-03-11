@@ -21,6 +21,8 @@
   become: true
 - homebrew:
     name:  '{{ item }}'
+    update_homebrew: yes
+    upgrade_all: yes
   with_items:
     - ag
     - cmake
