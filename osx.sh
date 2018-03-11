@@ -4,12 +4,6 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# VARIABLES
-
-instructions=""
-
-# END VARIABLES
-
 # FUNCTIONS
 
 function log_start {
@@ -32,10 +26,6 @@ function is_binary_installed {
   else
     return 1
   fi
-}
-
-function add_instruction {
-  instructions="${instructions}\n${1}"
 }
 
 # END FUNCTIONS
@@ -127,16 +117,3 @@ log_end "Setting OS X defaults"
 dark-mode --mode Dark
 
 # END ENABLE DARK MODE
-
-# PRINT MANUAL INSTRUCTIONS
-
-if [[ "${instructions}" != "" ]]; then
-  echo -e ""
-  echo -e "---------------------------------"
-  echo -e "| Stuff you need to do manually |"
-  echo -e "---------------------------------"
-  echo -e "${instructions}"
-  echo -e ""
-fi
-
-# END PRINT MANUAL INSTRUCTIONS
