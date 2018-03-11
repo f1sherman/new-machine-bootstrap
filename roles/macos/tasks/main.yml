@@ -43,6 +43,7 @@
     name: '{{ item }}'
   with_items:
     - firefox
+    - google-backup-and-sync
     - google-chrome
     - istat-menus
     - iterm2
