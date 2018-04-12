@@ -114,6 +114,6 @@ log_end "Setting OS X defaults"
 
 # ENABLE DARK MODE
 
-dark-mode --mode Dark
+dark-mode on
 
 # END ENABLE DARK MODE
