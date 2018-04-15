@@ -41,13 +41,3 @@ sudo -v
 run_with_progress "Running ruby install script", 'ruby <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-machine-bootstrap/master/macos)'
 
 # End ruby install script
-
-# SET OS X DEFAULTS
-
-log_start "Setting OS X defaults"
-
-~/projects/dotfiles/osx/set_defaults.sh
-
-log_end "Setting OS X defaults"
-
-# END SET OS X DEFAULTS
