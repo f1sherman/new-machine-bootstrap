@@ -82,3 +82,17 @@
     - vim +PlugUpgrade +qall
     - vim +PlugClean +qall
     - '{{ ansible_env.HOME }}/.vim/plugged/YouCompleteMe/install.py'
+- name: Create projects directory
+  file:
+    path: '{{ ansible_env.HOME }}/projects'
+    state: directory
+- name: Clone dotfiles repository
+  git:
+    dest: '{{ ansible_env.HOME }}/projects/dotfiles'
+    repo: 'ssh://git@github.com/f1sherman/dotfiles.git'
+- name: Install dotfiles
+  command: rake install
+  args:
+    chdir: '{{ ansible_env.HOME }}/projects/dotfiles'
+    creates: '{{ ansible_env.HOME }}/.ackrc'
+

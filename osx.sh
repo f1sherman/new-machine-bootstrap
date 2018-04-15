@@ -42,26 +42,6 @@ run_with_progress "Running ruby install script", 'ruby <(curl -fsSL https://raw.
 
 # End ruby install script
 
-# SETUP DOTFILES
-
-if [[ -d ~/projects ]]; then
-  log_start "Updating dotfiles"
-  cd ~/projects/dotfiles
-  git pull origin master
-  cd -
-  log_end "Updating dotfiles"
-else
-  log_start "Setting up dotfiles"
-  mkdir ~/projects
-  git clone git@github.com:f1sherman/dotfiles.git ~/projects/dotfiles
-  cd ~/projects/dotfiles
-  rake install
-  cd -
-  log_end "Setting up dotfiles"
-fi
-
-# END SETUP DOTFILES
-
 # SETUP FZF
 
 log_start "Installing FZF"
