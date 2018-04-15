@@ -11,6 +11,9 @@
   command: xcode-select --install
   args:
     creates: /Library/Developer/CommandLineTools
+- name: Use Cloudflare DNS
+  command: networksetup -setdnsservers Wi-Fi 1.1.1.1 1.0.0.1
+  changed_when: false
 - name: Setup log rotation
   template:
     backup: yes
