@@ -60,3 +60,25 @@
   npm:
     name: eslint
     global: yes
+- name: Clone vim config repository
+  git:
+    dest: '{{ ansible_env.HOME }}/.vim'
+    repo: 'ssh://git@github.com/f1sherman/dotvim.git'
+- name: Link .vimrc
+  file:
+    dest: '{{ ansible_env.HOME }}/.vimrc'
+    src: '{{ ansible_env.HOME }}/.vim/vimrc'
+    state: link
+- name: Create .vimtmp directory
+  file:
+    path: '{{ ansible_env.HOME }}/.vimtmp'
+    state: directory
+- name: Initialize vim and install/update plugins
+  command: '{{ item }}'
+  changed_when: false
+  with_items:
+    - vim +qall
+    - vim +PlugUpdate +qall
+    - vim +PlugUpgrade +qall
+    - vim +PlugClean +qall
+    - '{{ ansible_env.HOME }}/.vim/plugged/YouCompleteMe/install.py'

@@ -42,32 +42,6 @@ run_with_progress "Running ruby install script", 'ruby <(curl -fsSL https://raw.
 
 # End ruby install script
 
-# SETUP VIM
-
-if [[ ! -d ~/.vim ]]; then
-  log_start "Setting up vim"
-  git clone git@github.com:f1sherman/dotvim.git ~/.vim
-  cd ~/.vim
-  ln -s ~/.vim/vimrc ~/.vimrc
-  ln -s ~/.vim/gvimrc ~/.gvimrc
-  mkdir ~/.vimtmp
-  vim +qall
-  cd -
-  log_end "Setting up vim"
-fi
-
-log_start "Updating vim plugins"
-cd ~/.vim
-git pull origin master
-vim +PlugUpdate +qall
-vim +PlugUpgrade +qall
-vim +PlugClean +qall
-~/.vim/plugged/YouCompleteMe/install.py
-cd -
-log_end "Updating vim plugins"
-
-# END SETUP VIM
-
 # SETUP DOTFILES
 
 if [[ -d ~/projects ]]; then
