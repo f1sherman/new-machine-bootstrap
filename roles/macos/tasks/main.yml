@@ -81,7 +81,13 @@
     - vim +PlugUpdate +qall
     - vim +PlugUpgrade +qall
     - vim +PlugClean +qall
-    - '{{ ansible_env.HOME }}/.vim/plugged/YouCompleteMe/install.py'
+- name: Check YouCompleteMe modification time
+  stat:
+    path: '{{ ansible_env.HOME }}/.vim/plugged/YouCompleteMe'
+  register: youcompleteme
+- name: Compile YouCompleteMe
+  command: '{{ ansible_env.HOME }}/.vim/plugged/YouCompleteMe/install.py'
+  when: ansible_date_time.epoch|float - youcompleteme.stat.mtime < 30 * 60
 - name: Create projects directory
   file:
     path: '{{ ansible_env.HOME }}/projects'
@@ -95,4 +101,3 @@
   args:
     chdir: '{{ ansible_env.HOME }}/projects/dotfiles'
     creates: '{{ ansible_env.HOME }}/.ackrc'
-
