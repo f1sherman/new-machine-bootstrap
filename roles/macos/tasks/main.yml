@@ -104,3 +104,7 @@
 - name: Install FZF
   shell: 'source {{ ansible_env.HOME }}/.bash_profile && /usr/local/opt/fzf/install --all'
   changed_when: false
+- name: Enable Dark Mode
+  command: dark-mode on
+  changed_when: false
+

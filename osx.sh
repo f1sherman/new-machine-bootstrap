@@ -51,9 +51,3 @@ log_start "Setting OS X defaults"
 log_end "Setting OS X defaults"
 
 # END SET OS X DEFAULTS
-
-# ENABLE DARK MODE
-
-dark-mode on
-
-# END ENABLE DARK MODE
