@@ -42,20 +42,6 @@ run_with_progress "Running ruby install script", 'ruby <(curl -fsSL https://raw.
 
 # End ruby install script
 
-# SETUP FZF
-
-log_start "Installing FZF"
-
-set +u # FZF references undefined variables
-source ~/.bash_profile
-set -o nounset
-
-/usr/local/opt/fzf/install --all
-
-log_end "Installing FZF"
-
-# END SETUP FZF
-
 # SET OS X DEFAULTS
 
 log_start "Setting OS X defaults"

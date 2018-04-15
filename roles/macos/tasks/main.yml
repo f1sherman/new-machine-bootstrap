@@ -101,3 +101,6 @@
   args:
     chdir: '{{ ansible_env.HOME }}/projects/dotfiles'
     creates: '{{ ansible_env.HOME }}/.ackrc'
+- name: Install FZF
+  shell: 'source {{ ansible_env.HOME }}/.bash_profile && /usr/local/opt/fzf/install --all'
+  changed_when: false
