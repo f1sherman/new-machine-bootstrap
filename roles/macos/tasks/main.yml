@@ -54,6 +54,7 @@
     - nvalt
     - sizeup
     - slack
+    - snagit
 - name: Install eslint
   npm:
     name: eslint
