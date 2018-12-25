@@ -33,6 +33,7 @@
     - ncdu
     - nmap
     - node
+    - openvpn
     - reattach-to-user-namespace
     - shellcheck
     - ssh-copy-id
