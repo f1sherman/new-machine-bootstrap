@@ -100,7 +100,7 @@ end
 
 Provision.brew 'ansible'
 Provision.update_project 'new-machine-bootstrap'
-Provision.run_command 'cd ~/projects/new-machine-bootstrap && bin/provision --ask-become-pass'
+Provision.run_command 'cd ~/projects/new-machine-bootstrap && bin/provision'
 
 if config.personal?
   Provision.update_project 'home-network-provisioning', remote: 'bitbucket.org'
