@@ -20,44 +20,11 @@
     mode: 0644
   become: true
 - homebrew:
-    name:  '{{ item }}'
+    name: ['ag', 'cmake', 'curl', 'dark-mode', 'fzf', 'git', 'ncdu', 'nmap', 'node', 'openvpn', 'reattach-to-user-namespace', 'shellcheck', 'ssh-copy-id', 'tmux', 'tree', 'vim', 'wget']
     update_homebrew: yes
     upgrade_all: yes
-  with_items:
-    - ag
-    - cmake
-    - curl
-    - dark-mode
-    - fzf
-    - git
-    - ncdu
-    - nmap
-    - node
-    - openvpn
-    - reattach-to-user-namespace
-    - shellcheck
-    - ssh-copy-id
-    - tmux
-    - tree
-    - vim
-    - wget
 - homebrew_cask:
-    name: '{{ item }}'
-  with_items:
-    - blockblock
-    - firefox
-    - google-backup-and-sync
-    - google-chrome
-    - intel-power-gadget
-    - istat-menus
-    - iterm2
-    - kindle
-    - lastpass
-    - little-snitch
-    - nvalt
-    - sizeup
-    - slack
-    - snagit
+    name: ['blockblock', 'firefox', 'google-backup-and-sync', 'google-chrome', 'intel-power-gadget', 'istat-menus', 'iterm2', 'kindle', 'lastpass', 'little-snitch', 'nvalt', 'sizeup', 'slack', 'snagit']
 - name: Install eslint
   npm:
     name: eslint
