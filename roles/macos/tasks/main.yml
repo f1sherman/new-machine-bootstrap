@@ -49,7 +49,7 @@
     - vim +qall
     - vim +PlugUpdate +qall
     - vim +PlugUpgrade +qall
-    - vim +PlugClean +qall
+    - vim +PlugClean! +qall
 - name: Check YouCompleteMe modification time
   stat:
     path: '{{ ansible_env.HOME }}/.vim/plugged/YouCompleteMe'
