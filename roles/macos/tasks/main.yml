@@ -24,7 +24,7 @@
     update_homebrew: yes
     upgrade_all: yes
 - homebrew_cask:
-    name: ['blockblock', 'firefox', 'google-backup-and-sync', 'google-chrome', 'intel-power-gadget', 'istat-menus', 'iterm2', 'kindle', 'lastpass', 'little-snitch', 'nvalt', 'sizeup', 'slack', 'snagit', 'tunnelblick']
+    name: ['blockblock', 'firefox', 'google-chrome', 'intel-power-gadget', 'istat-menus', 'iterm2', 'kindle', 'lastpass', 'little-snitch', 'nvalt', 'sizeup', 'slack', 'snagit', 'tunnelblick']
 - name: Install eslint
   npm:
     name: eslint
