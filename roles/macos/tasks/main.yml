@@ -25,6 +25,13 @@
     upgrade_all: yes
 - homebrew_cask:
     name: ['blockblock', 'firefox', 'google-chrome', 'intel-power-gadget', 'istat-menus', 'iterm2', 'kindle', 'lastpass', 'little-snitch', 'nvalt', 'sizeup', 'slack', 'snagit', 'tunnelblick']
+- name: Create nvm directory
+  file:
+    path: '{{ ansible_env.HOME }}/.nvm'
+    state: directory
+- name: Install node
+  shell: 'source {{ ansible_env.HOME }}/.nvm/nvm.sh && nvm install stable'
+  changed_when: false
 - name: Install eslint
   npm:
     name: eslint
