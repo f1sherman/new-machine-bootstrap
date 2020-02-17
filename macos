@@ -73,7 +73,7 @@ end
 
 filevault_status = %x(fdesetup status)
 unless filevault_status == "FileVault is On.\n"
-  puts 'It looks like FileValue is not turned on. Before doing anything else please enable FileVault and ensure that it has completed.'
+  puts 'It looks like FileVault is not turned on. Before doing anything else please enable FileVault and ensure that it has completed.'
   exit
 end
 
