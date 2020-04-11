@@ -20,7 +20,7 @@
     mode: 0644
   become: true
 - homebrew:
-    name: ['ag', 'cmake', 'curl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'hub', 'ncdu', 'nmap', 'nvm', 'reattach-to-user-namespace', 'shellcheck', 'ssh-copy-id', 'tmux', 'tree', 'vim', 'wget']
+    name: ['cmake', 'curl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'hub', 'ncdu', 'nmap', 'nvm', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tmux', 'tree', 'vim', 'wget']
     update_homebrew: yes
     upgrade_all: yes
 - homebrew_cask:
