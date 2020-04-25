@@ -25,26 +25,6 @@ export CLICOLOR='true'
 # Use solorized colors in ls
 export LSCOLORS='gxfxbEaEBxxEhEhBaDaCaD'
 
-### Alias ###
-# View HTTP traffic
-alias sniff="sudo ngrep -d 'en1' -t '^(GET|POST) ' 'tcp and port 80'"
-alias httpdump="sudo tcpdump -i en1 -n -s 0 -w - | grep -a -o -E \"Host\: .*|GET \/.*\""
-# Scan ports on a host
-alias portscan="nmap -Pn -p1-65535"
-# List TCP connections
-alias lstcp="lsof -i TCP -P"
-# Fix solarized theme in tmux
-alias tmux="TERM=screen-256color-bce tmux"
-# Shortcut for updating
-alias update='ruby <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-machine-bootstrap/master/macos)'
-# Shortcut for committing
-alias c='git commit'
-# Shortcut for git status
-alias s='git status'
-# Show Disk Use of subdirectories, sort by size
-alias duss="du -d 1 -h | sort -hr | egrep -v ^0"
-### End Alias ###
-
 # Be more intelligent when autocompleting by also looking at the text after
 # the cursor. For example, when the current line is "cd ~/src/mozil", and
 # the cursor is on the "z", pressing Tab will not autocomplete it to "cd
@@ -158,6 +138,25 @@ function b() {
   branch=$(echo "$branches" | fzf +m) &&
   git checkout "$(echo "${branch}" | awk '{print $1}' | sed "s/.* //")"
 }
+
+### Alias ###
+# View HTTP traffic
+alias sniff="sudo ngrep -d 'en1' -t '^(GET|POST) ' 'tcp and port 80'"
+alias httpdump="sudo tcpdump -i en1 -n -s 0 -w - | grep -a -o -E \"Host\: .*|GET \/.*\""
+# Scan ports on a host
+alias portscan="nmap -Pn -p1-65535"
+# List TCP connections
+alias lstcp="lsof -i TCP -P"
+# Fix solarized theme in tmux
+alias tmux="TERM=screen-256color-bce tmux"
+# Shortcut for updating
+alias update='ruby <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-machine-bootstrap/master/macos)'
+# Shortcut for committing
+alias c='git commit'
 # Shortcut for viewing diffs
-unalias d
 alias d='git d'
+# Shortcut for git status
+alias s='git status'
+# Show Disk Use of subdirectories, sort by size
+alias duss="du -d 1 -h | sort -hr | egrep -v ^0"
+### End Alias ###
