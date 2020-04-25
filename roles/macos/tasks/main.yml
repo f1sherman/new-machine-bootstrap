@@ -32,7 +32,7 @@
 - name: Install node
   shell: 'source /usr/local/opt/nvm/nvm.sh && nvm install stable'
   register: nvm_install_result
-  changed_when: "'is already installed.' not in nvm_install_result.stdout"
+  changed_when: "'is already installed.' not in nvm_install_result.stderr"
 - name: Install eslint
   npm:
     name: eslint
