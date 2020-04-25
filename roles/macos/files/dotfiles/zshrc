@@ -127,9 +127,6 @@ if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
 fi
 
-# Shortcut for pushing
-alias p='git publish'
-
 # Switch branches using fzf
 unalias b
 function b() {
@@ -155,6 +152,8 @@ alias update='ruby <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-
 alias c='git commit'
 # Shortcut for viewing diffs
 alias d='git d'
+# Shortcut for pushing
+alias p='git publish'
 # Shortcut for git status
 alias s='git status'
 # Show Disk Use of subdirectories, sort by size
