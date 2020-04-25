@@ -1,0 +1,16 @@
+spec/reports
+spec/reports/*
+test/reports
+test/reports/*
+tmp/
+public/i18n
+public/i18n/*
+.git/
+*.log
+log/*
+public/assets
+public/assets/*
+public/assets-test
+public/assets-test/*
+vendor/assets
+vendor/assets/*

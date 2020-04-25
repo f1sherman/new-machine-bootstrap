@@ -1,0 +1,10 @@
+--type-add=ruby=rake
+
+--type-set=haml=haml
+--type-set=sass=sass
+
+--ignore-dir=spec/reports
+--ignore-dir=test/reports
+--ignore-dir=tmp/
+--ignore-dir=public/i18n
+--ignore-dir=public/assets

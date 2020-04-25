@@ -69,15 +69,22 @@
   file:
     path: '{{ ansible_env.HOME }}/projects'
     state: directory
-- name: Clone dotfiles repository
-  git:
-    dest: '{{ ansible_env.HOME }}/projects/dotfiles'
-    repo: 'ssh://git@github.com/f1sherman/dotfiles.git'
 - name: Install dotfiles
-  command: rake install
-  args:
-    chdir: '{{ ansible_env.HOME }}/projects/dotfiles'
-    creates: '{{ ansible_env.HOME }}/.ackrc'
+  copy:
+    backup: yes
+    dest: '{{ ansible_env.HOME }}/.{{ item }}'
+    src: 'dotfiles/{{ item }}'
+    mode: 0600
+  with_items:
+    - ackrc
+    - bash_profile
+    - gitconfig
+    - gitignore
+    - pryrc
+    - rgignore
+    - tmux.conf
+    - zpreztorc
+    - zshrc
 - name: Install FZF
   shell: '/usr/local/opt/fzf/install --all'
   changed_when: false
@@ -96,7 +103,7 @@
     dest: '{{ ansible_env.HOME }}/.{{ item | basename }}'
     state: link
   with_fileglob:
-    - '{{ ansible_env.HOME }}/.zprezto/runcoms/^(README.md|zshrc)'
+    - '{{ ansible_env.HOME }}/.zprezto/runcoms/^(README.md|zshrc|zpreztorc)'
 - name: Set default shell to zsh
   user:
     name: '{{ ansible_env.USER }}'

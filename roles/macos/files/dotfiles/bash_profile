@@ -1,0 +1,168 @@
+#!/bin/bash
+# vi:filetype=sh
+# vi:syntax=sh
+
+# use vim to edit files
+export EDITOR=vim
+
+# Don't require merge commit editing for conflict-free merges, see http://git-blame.blogspot.com/2012/02/updates-to-git-merge-in-upcoming-1710.html
+export GIT_MERGE_AUTOEDIT=no
+
+# Increase bash history
+export HISTSIZE='32768';
+export HISTFILESIZE="${HISTSIZE}"
+
+# Use UTF-8
+export LANG='en_US.UTF-8'
+export LC_ALL='en_US.UTF-8'
+
+# Enable colors in grep
+export GREP_OPTIONS='--color=auto'
+
+# Enable colors in ls
+export CLICOLOR='true'
+
+# Use solorized colors in ls
+export LSCOLORS='gxfxbEaEBxxEhEhBaDaCaD'
+
+### Alias ###
+# View HTTP traffic
+alias sniff="sudo ngrep -d 'en1' -t '^(GET|POST) ' 'tcp and port 80'"
+alias httpdump="sudo tcpdump -i en1 -n -s 0 -w - | grep -a -o -E \"Host\: .*|GET \/.*\""
+# Scan ports on a host
+alias portscan="nmap -Pn -p1-65535"
+# List TCP connections
+alias lstcp="lsof -i TCP -P"
+# Fix solarized theme in tmux
+alias tmux="TERM=screen-256color-bce tmux"
+# Shortcut for updating
+alias update='ruby <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-machine-bootstrap/master/macos)'
+# Shortcut for committing
+alias c='git commit'
+# Shortcut for viewing diffs
+alias d='git d'
+# Shortcut for pushing
+alias p='git publish'
+# Shortcut for git status
+alias s='git status'
+# Show Disk Use of subdirectories, sort by size
+alias duss="du -d 1 -h | sort -hr | egrep -v ^0"
+### End Alias ###
+
+# Be more intelligent when autocompleting by also looking at the text after
+# the cursor. For example, when the current line is "cd ~/src/mozil", and
+# the cursor is on the "z", pressing Tab will not autocomplete it to "cd
+# ~/src/mozillail", but to "cd ~/src/mozilla". (This is supported by the
+# Readline used by Bash 4.)
+set skip-completed-text on
+
+# Make Tab autocomplete regardless of filename case
+set completion-ignore-case on
+
+# Immediately add a trailing slash when autocompleting symlinks to directories
+set mark-symlinked-directories on
+
+# Autocorrect typos in path names when using `cd`
+shopt -s cdspell
+
+# Use emacs mode at the command line
+set -o emacs
+
+# Print cheatsheet for a command
+cheat() {
+  curl cht.sh/"${1}"
+}
+
+# Check which process uses port
+port() {
+  lsof -i tcp:"${1}"
+}
+
+# Convenience functions for encrypting and decrypting files
+encrypt() { openssl des3 -salt -in "$1" -out "$1.enc"; }
+decrypt() { openssl des3 -d -salt -in "$1" -out "${1//\.enc/}"; }
+
+# Add to path avoiding duplicates
+pathadd() {
+  local newdir=${1%/}
+  if [ -d "${1}" ] && ! echo "${PATH}" | grep --extended-regexp --quiet "(^|:)$newdir($|:)"; then
+    PATH="${newdir}:${PATH}"
+  fi
+}
+
+pathadd "${HOME}/bin"
+
+# Switch branches using fzf
+b() {
+  local branches branch
+  branches=$(git --no-pager branch) &&
+  branch=$(echo "$branches" | fzf +m) &&
+  git checkout "$(echo "${branch}" | awk '{print $1}' | sed "s/.* //")"
+}
+
+# Use rg for FZF for speed and to respect .gitignore, .ignore
+export FZF_DEFAULT_COMMAND='rg --files'
+
+# Load any machine-specific customizations
+if [ -f ~/.bash_profile.local ]; then
+  # shellcheck disable=SC1090
+  . ~/.bash_profile.local
+fi
+
+# Setup git completion and git bash prompt
+GIT_COMPLETION_DIRECTORY="/usr/local/etc/bash_completion.d"
+
+if [ -d "$GIT_COMPLETION_DIRECTORY" ]; then
+  # shellcheck disable=SC1090
+  source "$GIT_COMPLETION_DIRECTORY/git-completion.bash"
+  # shellcheck disable=SC1090
+  source "$GIT_COMPLETION_DIRECTORY/git-prompt.sh"
+  export GIT_PS1_SHOWDIRTYSTATE=true
+  export GIT_PS1_SHOWSTASHSTATE=true
+  export GIT_PS1_SHOWUNTRACKEDFILES=true
+  export GIT_PS1_SHOWUPSTREAM="auto"
+else
+  echo "Warning: unable to find git completion directory, git bash completion and prompt will not work"
+fi
+
+# Search the current bundle
+bgrep() {
+  # shellcheck disable=SC2046
+  rg "$@" $(bundle show --paths)
+}
+
+export PROMPT_COMMAND=__prompt
+
+function __prompt() {
+  local LAST_EXIT="$?"
+  PS1=""
+
+  local REGULAR="\[\e[0m\]"
+  local RED='\[\e[0;31m\]'
+
+  # Make the prompt red if the last command failed
+  if [ "$LAST_EXIT" != 0 ]; then
+    PS1+="${RED}"
+  fi
+
+  PS1+="\w$(__git_ps1 " (%s)")\$${REGULAR} "
+}
+
+if [ -f ~/.bashrc ]; then
+  # shellcheck disable=SC1090
+  source ~/.bashrc
+fi
+
+# Load SSH keys into the keychain - http://stackoverflow.com/a/39715149/961521
+ssh-add -A 2>/dev/null;
+
+# Install NVM
+if [ -z "${NVM_DIR}" ]; then
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "/usr/local/opt/nvm/nvm.sh" ] && . "/usr/local/opt/nvm/nvm.sh"  # This loads nvm
+  # shellcheck disable=SC1091
+  [ -s "/usr/local/opt/nvm/etc/bash_completion" ] && . "/usr/local/opt/nvm/etc/bash_completion"  # This loads nvm bash_completion
+fi
+
+# Setup rbenv
+if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi # enable shims and autocompletion for rbenv
