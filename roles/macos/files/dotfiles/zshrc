@@ -89,9 +89,9 @@ pathadd "${HOME}/bin"
 export FZF_DEFAULT_COMMAND='rg --files'
 
 # Load any machine-specific customizations
-if [ -f ~/.bash_profile.local ]; then
+if [ -f ~/.zshrc.local ]; then
   # shellcheck disable=SC1090
-  . ~/.bash_profile.local
+  . ~/.zshrc.local
 fi
 
 if type brew &>/dev/null; then
@@ -161,4 +161,3 @@ function b() {
 # Shortcut for viewing diffs
 unalias d
 alias d='git d'
-
