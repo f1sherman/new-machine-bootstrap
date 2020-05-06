@@ -21,7 +21,7 @@
   become: true
 - name: 'Install Brew packages'
   homebrew:
-    name: ['cmake', 'curl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'hub', 'ncdu', 'nmap', 'nvm', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
+    name: ['cmake', 'curl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'hub', 'ncdu', 'nmap', 'nvm', 'python', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
     update_homebrew: yes
     upgrade_all: yes
 - name: 'Install Brew casks'
@@ -114,6 +114,7 @@
 - name: Install sqlparse
   pip:
     name: sqlparse
+    executable: pip3
 - name: '{{ item.name }}'
   become: yes
   command: '{{ item.command }}'
