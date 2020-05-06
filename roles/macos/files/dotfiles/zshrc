@@ -89,23 +89,6 @@ bgrep() {
   rg "$@" $(bundle show --paths)
 }
 
-export PROMPT_COMMAND=__prompt
-
-function __prompt() {
-local LAST_EXIT="$?"
-PS1=""
-
-local REGULAR="\[\e[0m\]"
-local RED='\[\e[0;31m\]'
-
-  # Make the prompt red if the last command failed
-  if [ "$LAST_EXIT" != 0 ]; then
-    PS1+="${RED}"
-  fi
-
-  PS1+="\w$(__git_ps1 " (%s)")\$${REGULAR} "
-}
-
 # Load SSH keys into the keychain - http://stackoverflow.com/a/39715149/961521
 ssh-add -A 2>/dev/null;
 
