@@ -92,11 +92,11 @@ bgrep() {
 export PROMPT_COMMAND=__prompt
 
 function __prompt() {
-  local LAST_EXIT="$?"
-  PS1=""
+local LAST_EXIT="$?"
+PS1=""
 
-  local REGULAR="\[\e[0m\]"
-  local RED='\[\e[0;31m\]'
+local REGULAR="\[\e[0m\]"
+local RED='\[\e[0;31m\]'
 
   # Make the prompt red if the last command failed
   if [ "$LAST_EXIT" != 0 ]; then
@@ -120,21 +120,21 @@ fi
 # Setup rbenv
 if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi # enable shims and autocompletion for rbenv
 
-[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
-
 # Source Prezto.
 if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
 fi
+
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
 # Switch branches using fzf
 unalias b
 function b() {
   local branches branch
   branches=$(git --no-pager branch) &&
-  branch=$(echo "$branches" | fzf +m) &&
-  git checkout "$(echo "${branch}" | awk '{print $1}' | sed "s/.* //")"
-}
+    branch=$(echo "$branches" | fzf +m) &&
+    git checkout "$(echo "${branch}" | awk '{print $1}' | sed "s/.* //")"
+  }
 
 ### Alias ###
 # View HTTP traffic
