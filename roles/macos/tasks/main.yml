@@ -84,6 +84,7 @@
     - gitignore
     - pryrc
     - rgignore
+    - ripgreprc
     - tmux.conf
     - zpreztorc
     - zshrc
