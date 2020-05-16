@@ -5,7 +5,7 @@
 --max-columns=100
 
 # Sort results by path (disables parallelism, might be slower)
---sort path
+--sort=path
 
 # Try to guess which regex engine to use
---engine auto
+--engine=auto
