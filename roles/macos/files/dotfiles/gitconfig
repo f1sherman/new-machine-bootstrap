@@ -46,3 +46,5 @@
 [user]
   email = brian@brianjohn.com
   name = Brian John
+[pull]
+	rebase = false
