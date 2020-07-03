@@ -40,7 +40,8 @@ zstyle ':prezto:load' pmodule \
   'completion' \
   'prompt' \
   'git' \
-  'node'
+  'node' \
+  'syntax-highlighting'
 
 #
 # Autosuggestions
