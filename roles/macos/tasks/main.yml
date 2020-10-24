@@ -80,6 +80,7 @@
   with_items:
     - ackrc
     - bash_profile
+    - gitattributes
     - gitconfig
     - gitignore
     - pryrc

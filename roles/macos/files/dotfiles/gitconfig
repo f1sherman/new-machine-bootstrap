@@ -17,6 +17,7 @@
   status = auto
   ui = auto
 [core]
+  attributesfile = ~/.gitattributes
   excludesfile = ~/.gitignore
   editor = vim
 [credential]
@@ -25,7 +26,7 @@
   algorithm = patience
   colorMoved = plain
   guitool = mvimdiff
-	indentHeuristic = true
+  indentHeuristic = true
   renames = copy
   tool = vimdiff
 [difftool]
@@ -40,11 +41,11 @@
 [push]
   default = simple # when using 'git push' with no refspec push only to the upstream branch (req git >= 1.7.11)
 [rerere]
-	enabled = true
+  enabled = true
 [status]
   showUntrackedFiles = all
 [user]
   email = brian@brianjohn.com
   name = Brian John
 [pull]
-	rebase = false
+  rebase = false
