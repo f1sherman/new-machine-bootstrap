@@ -88,6 +88,7 @@
     - ripgreprc
     - tmux.conf
     - zpreztorc
+    - zshenv
     - zshrc
 - name: Install FZF
   shell: '/usr/local/opt/fzf/install --all'

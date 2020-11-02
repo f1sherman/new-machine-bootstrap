@@ -2,29 +2,6 @@
 # vi:filetype=zsh
 # vi:syntax=zsh
 
-# use vim to edit files
-export EDITOR=vim
-
-# Don't require merge commit editing for conflict-free merges, see http://git-blame.blogspot.com/2012/02/updates-to-git-merge-in-upcoming-1710.html
-export GIT_MERGE_AUTOEDIT=no
-
-# Increase bash history
-export HISTSIZE='32768';
-export HISTFILESIZE="${HISTSIZE}"
-
-# Use UTF-8
-export LANG='en_US.UTF-8'
-export LC_ALL='en_US.UTF-8'
-
-# Enable colors in ls
-export CLICOLOR='true'
-
-# Use solorized colors in ls
-export LSCOLORS='gxfxbEaEBxxEhEhBaDaCaD'
-
-# Allow use of a ripgrep configuration file
-export RIPGREP_CONFIG_PATH="${HOME}/.ripgreprc"
-
 # Be more intelligent when autocompleting by also looking at the text after
 # the cursor. For example, when the current line is "cd ~/src/mozil", and
 # the cursor is on the "z", pressing Tab will not autocomplete it to "cd
@@ -54,16 +31,6 @@ port() {
 # Convenience functions for encrypting and decrypting files
 encrypt() { openssl des3 -salt -in "$1" -out "$1.enc"; }
 decrypt() { openssl des3 -d -salt -in "$1" -out "${1//\.enc/}"; }
-
-# Add to path avoiding duplicates
-pathadd() {
-  local newdir=${1%/}
-  if [ -d "${1}" ] && ! echo "${PATH}" | grep --extended-regexp --quiet "(^|:)$newdir($|:)"; then
-    PATH="${newdir}:${PATH}"
-  fi
-}
-
-pathadd "${HOME}/bin"
 
 # Use rg for FZF for speed and to respect .gitignore, .ignore
 export FZF_DEFAULT_COMMAND='rg --files'
@@ -99,9 +66,6 @@ if [ -z "${NVM_DIR}" ]; then
   # shellcheck disable=SC1091
   [ -s "/usr/local/opt/nvm/etc/bash_completion" ] && . "/usr/local/opt/nvm/etc/bash_completion"  # This loads nvm bash_completion
 fi
-
-# Setup rbenv
-if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi # enable shims and autocompletion for rbenv
 
 # Source Prezto.
 if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then

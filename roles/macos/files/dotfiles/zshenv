@@ -1,0 +1,35 @@
+# use vim to edit files
+export EDITOR=vim
+
+# Don't require merge commit editing for conflict-free merges, see http://git-blame.blogspot.com/2012/02/updates-to-git-merge-in-upcoming-1710.html
+export GIT_MERGE_AUTOEDIT=no
+
+# Increase bash history
+export HISTSIZE='32768';
+export HISTFILESIZE="${HISTSIZE}"
+
+# Use UTF-8
+export LANG='en_US.UTF-8'
+export LC_ALL='en_US.UTF-8'
+
+# Enable colors in ls
+export CLICOLOR='true'
+
+# Use solorized colors in ls
+export LSCOLORS='gxfxbEaEBxxEhEhBaDaCaD'
+
+# Allow use of a ripgrep configuration file
+export RIPGREP_CONFIG_PATH="${HOME}/.ripgreprc"
+
+# Add to path avoiding duplicates
+pathadd() {
+  local newdir=${1%/}
+  if [ -d "${1}" ] && ! echo "${PATH}" | grep --extended-regexp --quiet "(^|:)$newdir($|:)"; then
+    PATH="${newdir}:${PATH}"
+  fi
+}
+
+pathadd "${HOME}/bin"
+
+# Setup rbenv
+if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi # enable shims and autocompletion for rbenv
