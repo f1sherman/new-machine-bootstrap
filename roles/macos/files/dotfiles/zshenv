@@ -1,6 +1,3 @@
-# use vim to edit files
-export EDITOR=vim
-
 # Don't require merge commit editing for conflict-free merges, see http://git-blame.blogspot.com/2012/02/updates-to-git-merge-in-upcoming-1710.html
 export GIT_MERGE_AUTOEDIT=no
 
