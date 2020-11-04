@@ -109,3 +109,6 @@ alias s='git status'
 # Show Disk Use of subdirectories, sort by size
 alias duss="du -d 1 -h | sort -hr | egrep -v ^0"
 ### End Alias ###
+
+# Setup rbenv
+if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi # enable shims and autocompletion for rbenv
