@@ -1,0 +1,3 @@
+# Initialize rbenv for login shells. This is the last init script that is run
+# after login.
+if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi

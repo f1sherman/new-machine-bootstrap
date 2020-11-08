@@ -110,5 +110,8 @@ alias s='git status'
 alias duss="du -d 1 -h | sort -hr | egrep -v ^0"
 ### End Alias ###
 
-# Setup rbenv
-if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi # enable shims and autocompletion for rbenv
+# Only initialize rbenv here for non-login shells. For login shells, it will be
+# initialized in zlogin
+if [[ ! -o login ]]; then
+  if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi
+fi
