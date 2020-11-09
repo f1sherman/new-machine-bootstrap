@@ -7,6 +7,21 @@
     dest: '{{ ansible_env.HOME }}/.ssh/config'
     src: ssh/config
     mode: 0600
+- name: Configure sshd
+  lineinfile:
+    backup: yes
+    dest: /etc/ssh/sshd_config
+    line: '{{ item.line }}'
+    regexp: '{{ item.regexp }}'
+  with_items:
+    - { line: 'PermitRootLogin no', regexp: '^#?PermitRootLogin ' }
+    - { line: 'PasswordAuthentication no', regexp: '^#?PasswordAuthentication ' }
+    - { line: 'ChallengeResponseAuthentication no', regexp: '^#?ChallengeResponseAuthentication ' }
+  become: true
+- name: Enable sshd
+  command: launchctl load -w /System/Library/LaunchDaemons/ssh.plist
+  changed_when: false
+  become: true
 - name: Install XCode Command Line Tools
   command: xcode-select --install
   args:
