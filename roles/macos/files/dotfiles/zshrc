@@ -78,7 +78,7 @@ fi
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
 # Switch branches using fzf
-unalias b
+alias b > /dev/null && unalias b
 function b() {
   local branches branch
   branches=$(git --no-pager branch) &&
