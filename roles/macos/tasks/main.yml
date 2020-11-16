@@ -252,3 +252,9 @@
     - { name: 'Chrome: Use the system-native print preview dialog (2)', command: 'defaults write com.google.Chrome.canary DisablePrintPreview -bool true' }
     - { name: 'Chrome: Expand the print dialog by default', command: 'defaults write com.google.Chrome PMPrintingExpandedStateForPrint2 -bool true' }
     - { name: 'Chrome: Expand the print dialog by default (2)', command: 'defaults write com.google.Chrome.canary PMPrintingExpandedStateForPrint2 -bool true' }
+- name: Install Pi-hole disable script
+  copy:
+    backup: yes
+    dest: '{{ ansible_env.HOME }}/bin/disable-pihole'
+    src: 'bin/disable-pihole'
+    mode: 0700
