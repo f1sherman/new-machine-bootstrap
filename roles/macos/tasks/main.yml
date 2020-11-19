@@ -255,6 +255,21 @@
 - name: Install Pi-hole disable script
   copy:
     backup: yes
-    dest: '{{ ansible_env.HOME }}/bin/disable-pihole'
+    dest: '/usr/local/bin/disable-pihole'
     src: 'bin/disable-pihole'
-    mode: 0700
+    mode: 0755
+  become: true
+- name: Install flushdns script
+  copy:
+    backup: yes
+    dest: '/usr/local/bin/flushdns'
+    src: 'bin/flushdns'
+    mode: 0744
+  become: true
+- name: Allow flushdns to be run as root without password
+  lineinfile:
+   path: /etc/sudoers
+   state: present
+   regexp: 'flushdns'
+   line: '%admin    ALL = (root) NOPASSWD: /usr/local/bin/flushdns'
+  become: true

@@ -108,10 +108,8 @@ alias p='git publish'
 alias s='git status'
 # Show Disk Use of subdirectories, sort by size
 alias duss="du -d 1 -h | sort -hr | egrep -v ^0"
-# Flush DNS
-alias flushdns="sudo killall -HUP mDNSResponder"
 # Disable Pi-hole and Flush DNS
-alias trackme="~/bin/disable-pihole && flushdns"
+alias trackme="disable-pihole && sudo flushdns"
 ### End Alias ###
 
 # Only initialize rbenv here for non-login shells. For login shells, it will be
