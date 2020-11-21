@@ -244,12 +244,16 @@
     - { name: 'Safari: Hide bookmarks bar by default', command: 'defaults write com.apple.Safari ShowFavoritesBar -bool false' }
     - { name: 'Safari: Enable debug menu', command: 'defaults write com.apple.Safari IncludeInternalDebugMenu -bool true' }
     - { name: 'Safari: Add a context menu item for showing the Web Inspector in web views', command: 'defaults write NSGlobalDomain WebKitDeveloperExtras -bool true' }
+    - { name: 'Brave: Disable the all too sensitive backswipe on trackpads', command: 'defaults write com.brave.Browser AppleEnableSwipeNavigateWithScrolls -bool false' }
     - { name: 'Chrome: Disable the all too sensitive backswipe on trackpads', command: 'defaults write com.google.Chrome AppleEnableSwipeNavigateWithScrolls -bool false' }
     - { name: 'Chrome: Disable the all too sensitive backswipe on trackpads (2)', command: 'defaults write com.google.Chrome.canary AppleEnableSwipeNavigateWithScrolls -bool false' }
+    - { name: 'Brave: Disable the all too sensitive backswipe on Magic Mouse', command: 'defaults write com.brave.Browser AppleEnableMouseSwipeNavigateWithScrolls -bool false' }
     - { name: 'Chrome: Disable the all too sensitive backswipe on Magic Mouse', command: 'defaults write com.google.Chrome AppleEnableMouseSwipeNavigateWithScrolls -bool false' }
     - { name: 'Chrome: Disable the all too sensitive backswipe on Magic Mouse (2)', command: 'defaults write com.google.Chrome.canary AppleEnableMouseSwipeNavigateWithScrolls -bool false' }
+    - { name: 'Brave: Use the system-native print preview dialog', command: 'defaults write com.brave.Browser DisablePrintPreview -bool true' }
     - { name: 'Chrome: Use the system-native print preview dialog', command: 'defaults write com.google.Chrome DisablePrintPreview -bool true' }
     - { name: 'Chrome: Use the system-native print preview dialog (2)', command: 'defaults write com.google.Chrome.canary DisablePrintPreview -bool true' }
+    - { name: 'Brave: Expand the print dialog by default', command: 'defaults write com.brave.Browser PMPrintingExpandedStateForPrint2 -bool true' }
     - { name: 'Chrome: Expand the print dialog by default', command: 'defaults write com.google.Chrome PMPrintingExpandedStateForPrint2 -bool true' }
     - { name: 'Chrome: Expand the print dialog by default (2)', command: 'defaults write com.google.Chrome.canary PMPrintingExpandedStateForPrint2 -bool true' }
 - name: Install Pi-hole disable script
