@@ -36,9 +36,13 @@
   become: true
 - name: 'Install Brew packages'
   homebrew:
-    name: ['cmake', 'curl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'hub', 'ncdu', 'nmap', 'nvm', 'python', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
+    name: ['cmake', 'curl-openssl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'hub', 'ncdu', 'nmap', 'nvm', 'python', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
     update_homebrew: yes
     upgrade_all: yes
+- name: 'Remove Brew packages'
+  homebrew:
+    name: ['curl']
+    state: absent
 - name: 'Install Brew casks'
   homebrew_cask:
     name: ['brave-browser', 'firefox', 'google-chrome', 'intel-power-gadget', 'istat-menus', 'iterm2', 'kindle', 'lastpass', 'little-snitch', 'nvalt', 'sizeup', 'slack', 'snagit', 'tunnelblick']

@@ -27,6 +27,7 @@ pathadd() {
 }
 
 pathadd "${HOME}/bin"
+pathadd "/usr/local/opt/curl-openssl/bin"
 
 # Initialize rbenv for non-login non-interactive shells. Otherwise it will be
 # initialized in either zlogin or zshrc.
