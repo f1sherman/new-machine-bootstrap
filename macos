@@ -49,10 +49,10 @@ module Provision
 
   def self.update_project(project_name, remote: 'github.com')
     project_dir = File.join(Dir.home, 'projects', project_name)
-    
+
     if File.exist? project_dir
       puts "\nUpdating #{project_name}\n"
-      run_command "cd #{project_dir} && git pull"    
+      run_command "cd #{project_dir} && git pull"
       puts "\nDone updating #{project_name}\n"
     else
       puts "\nCloning #{project_name}\n"
@@ -82,7 +82,7 @@ unless File.exist? ssh_public_key
   puts %q(No ssh key found. You'll now have a chance to generate a key if you'd like. If you'd rather generate it manually or copy it from somewhere, answer "n" at this prompt and restart this script after you've added it.)
   print "\nWould you like to generate an ssh key now (y/n)? "
   exit unless STDIN.gets.chomp == "y"
-  
+
   require 'io/console'
   print "\nEnter ssh passphrase:"
   ssh_passphrase = STDIN.noecho(&:gets)
@@ -95,7 +95,7 @@ end
 config = Config.new
 
 unless Provision.binary_installed? 'brew'
-  Provision.run_command '/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"'
+  Provision.run_command '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
 end
 
 Provision.brew 'ansible'
