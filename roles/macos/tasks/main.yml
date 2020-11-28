@@ -45,7 +45,11 @@
     state: absent
 - name: 'Install Brew casks'
   homebrew_cask:
-    name: ['brave-browser', 'firefox', 'google-chrome', 'intel-power-gadget', 'istat-menus', 'iterm2', 'kindle', 'lastpass', 'little-snitch', 'nvalt', 'sizeup', 'slack', 'snagit', 'tunnelblick']
+    name: ['brave-browser', 'firefox', 'google-chrome', 'intel-power-gadget', 'istat-menus', 'iterm2', 'kindle', 'lastpass', 'nvalt', 'sizeup', 'slack', 'snagit', 'tunnelblick']
+- name: 'Install Brew casks for Big Sur'
+  homebrew_cask:
+    name: ['little-snitch']
+  when: ansible_distribution_major_version | int >= 11
 - name: Create nvm directory
   file:
     path: '{{ ansible_env.HOME }}/.nvm'
