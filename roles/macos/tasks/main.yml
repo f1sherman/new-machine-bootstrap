@@ -45,7 +45,7 @@
     state: absent
 - name: 'Install Brew casks'
   homebrew_cask:
-    name: ['brave-browser', 'charles', 'firefox', 'google-chrome', 'intel-power-gadget', 'istat-menus', 'iterm2', 'kindle', 'lastpass', 'nvalt', 'sizeup', 'slack', 'snagit', 'tunnelblick']
+    name: ['bitwarden', 'brave-browser', 'charles', 'firefox', 'google-chrome', 'intel-power-gadget', 'istat-menus', 'iterm2', 'kindle', 'lastpass', 'nvalt', 'sizeup', 'slack', 'snagit', 'tunnelblick']
 - name: 'Install Brew casks for Big Sur'
   homebrew_cask:
     name: ['little-snitch']
