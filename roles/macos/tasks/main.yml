@@ -36,12 +36,12 @@
   become: true
 - name: 'Install Brew packages'
   homebrew:
-    name: ['cmake', 'curl-openssl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'hub', 'ncdu', 'nmap', 'nvm', 'python', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
+    name: ['asdf', 'cmake', 'curl-openssl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'hub', 'ncdu', 'nmap', 'python', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
     update_homebrew: yes
     upgrade_all: yes
 - name: 'Remove Brew packages'
   homebrew:
-    name: ['curl']
+    name: ['curl', 'nvm', 'rbenv']
     state: absent
 - name: 'Install Brew casks'
   homebrew_cask:
@@ -50,14 +50,32 @@
   homebrew_cask:
     name: ['little-snitch']
   when: ansible_distribution_major_version | int >= 11
-- name: Create nvm directory
-  file:
-    path: '{{ ansible_env.HOME }}/.nvm'
-    state: directory
-- name: Install node
-  shell: 'source /usr/local/opt/nvm/nvm.sh && nvm install stable'
-  register: nvm_install_result
-  changed_when: "'is already installed.' not in nvm_install_result.stderr"
+- name: List asdf plugins installed
+  shell: asdf plugin list
+  register: asdf_plugin_list
+  changed_when: false
+  failed_when: false
+- name: Install asdf plugins
+  command: 'asdf plugin add {{ item }}'
+  with_items: '{{ asdf_plugins }}'
+  when: "item not in asdf_plugin_list.stdout"
+- name: Update asdf plugins
+  command: 'asdf plugin update {{ item }}'
+  with_items: '{{ asdf_plugins }}'
+  register: update_asdf_plugins
+  changed_when: "'Your branch is up to date' not in update_asdf_plugins.stdout"
+- name: Import asdf-nodejs pgp keys
+  shell: bash -c '${ASDF_DATA_DIR:=$HOME/.asdf}/plugins/nodejs/bin/import-release-team-keyring'
+  changed_when: false
+- name: Install latest language versions
+  shell: 'asdf install {{ item }} latest'
+  register: asdf_language_version_install_result
+  with_items: '{{ asdf_plugins }}'
+  changed_when: "'is already installed' not in asdf_language_version_install_result.stdout"
+- name: Set current language version to the latest
+  shell: 'asdf global {{ item }} $(asdf latest {{ item }})'
+  with_items: '{{ asdf_plugins }}'
+  changed_when: false
 - name: Install eslint
   npm:
     name: eslint
