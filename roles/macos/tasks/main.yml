@@ -36,12 +36,12 @@
   become: true
 - name: 'Install Brew packages'
   homebrew:
-    name: ['asdf', 'cmake', 'curl-openssl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'hub', 'ncdu', 'nmap', 'python', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
+    name: ['asdf', 'cmake', 'curl-openssl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'gpg', 'hub', 'ncdu', 'nmap', 'python', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
     update_homebrew: yes
     upgrade_all: yes
 - name: 'Remove Brew packages'
   homebrew:
-    name: ['curl', 'nvm', 'rbenv']
+    name: ['curl', 'nvm', 'rbenv', 'rbenv-bundler-ruby-version', 'rbenv-default-gems']
     state: absent
 - name: 'Install Brew casks'
   homebrew_cask:
