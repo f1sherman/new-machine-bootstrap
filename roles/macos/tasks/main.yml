@@ -34,9 +34,12 @@
     owner: root
     mode: 0644
   become: true
+- name: 'Tap homebrew/cask-drivers'
+  homebrew_tap:
+    name: 'homebrew/cask-drivers'
 - name: 'Install Brew packages'
   homebrew:
-    name: ['asdf', 'cmake', 'curl-openssl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'gpg', 'hub', 'ncdu', 'nmap', 'python', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
+    name: ['asdf', 'cmake', 'curl-openssl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'gpg', 'hub', 'ncdu', 'nmap', 'python', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsa-wally', 'zsh']
     update_homebrew: yes
     upgrade_all: yes
 - name: 'Remove Brew packages'
@@ -45,7 +48,7 @@
     state: absent
 - name: 'Install Brew casks'
   homebrew_cask:
-    name: ['bitwarden', 'brave-browser', 'charles', 'firefox', 'google-chrome', 'intel-power-gadget', 'istat-menus', 'iterm2', 'kindle', 'lastpass', 'nvalt', 'sizeup', 'slack', 'snagit', 'tunnelblick']
+    name: ['amazon-music', 'bitwarden', 'brave-browser', 'charles', 'firefox', 'google-chrome', 'intel-power-gadget', 'istat-menus', 'iterm2', 'kindle', 'lastpass', 'nvalt', 'sizeup', 'slack', 'snagit', 'tunnelblick']
 - name: 'Install Brew casks for Big Sur'
   homebrew_cask:
     name: ['little-snitch']
