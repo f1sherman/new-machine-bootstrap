@@ -112,8 +112,9 @@ alias duss="du -d 1 -h | sort -hr | egrep -v ^0"
 alias trackme="disable-pihole && sudo flushdns"
 ### End Alias ###
 
-# Only initialize rbenv here for non-login shells. For login shells, it will be
+# Only initialize nodenv and rbenv here for non-login shells. For login shells, it will be
 # initialized in zlogin
 if [[ ! -o login ]]; then
+  if command -v nodenv > /dev/null; then eval "$(nodenv init -)"; fi
   if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi
 fi

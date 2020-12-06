@@ -29,8 +29,9 @@ pathadd() {
 pathadd "${HOME}/bin"
 pathadd "/usr/local/opt/curl-openssl/bin"
 
-# Initialize rbenv for non-login non-interactive shells. Otherwise it will be
+# Initialize nodenv and rbenv for non-login non-interactive shells. Otherwise it will be
 # initialized in either zlogin or zshrc.
 if [[ ! -o login && ! -o interactive ]]; then
+  if command -v nodenv > /dev/null; then eval "$(nodenv init -)"; fi
   if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi
 fi
