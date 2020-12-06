@@ -34,12 +34,9 @@
     owner: root
     mode: 0644
   become: true
-- name: 'Tap homebrew/cask-drivers'
-  homebrew_tap:
-    name: 'homebrew/cask-drivers'
 - name: 'Install Brew packages'
   homebrew:
-    name: ['asdf', 'cmake', 'curl-openssl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'gpg', 'hub', 'ncdu', 'nmap', 'python', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsa-wally', 'zsh']
+    name: ['asdf', 'cmake', 'curl-openssl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'gpg', 'hub', 'ncdu', 'nmap', 'python', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
     update_homebrew: yes
     upgrade_all: yes
 - name: 'Remove Brew packages'
