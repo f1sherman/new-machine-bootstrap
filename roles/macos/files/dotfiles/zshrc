@@ -62,6 +62,14 @@ bgrep() {
 # Load SSH keys into the keychain - http://stackoverflow.com/a/39715149/961521
 ssh-add -A 2>/dev/null;
 
+# Install NVM
+if [ -z "${NVM_DIR}" ]; then
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "/usr/local/opt/nvm/nvm.sh" ] && . "/usr/local/opt/nvm/nvm.sh"  # This loads nvm
+  # shellcheck disable=SC1091
+  [ -s "/usr/local/opt/nvm/etc/bash_completion" ] && . "/usr/local/opt/nvm/etc/bash_completion"  # This loads nvm bash_completion
+fi
+
 # Source Prezto.
 if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
@@ -104,8 +112,8 @@ alias duss="du -d 1 -h | sort -hr | egrep -v ^0"
 alias trackme="disable-pihole && sudo flushdns"
 ### End Alias ###
 
-# Only initialize asdf here for non-login shells. For login shells, it will be
+# Only initialize rbenv here for non-login shells. For login shells, it will be
 # initialized in zlogin
-if [[ ! -o login && -z "${ASDF_DIR}" ]]; then
-  if command -v asdf > /dev/null; then source $(brew --prefix asdf)/asdf.sh; fi
+if [[ ! -o login ]]; then
+  if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi
 fi

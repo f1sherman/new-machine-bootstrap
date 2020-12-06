@@ -29,8 +29,8 @@ pathadd() {
 pathadd "${HOME}/bin"
 pathadd "/usr/local/opt/curl-openssl/bin"
 
-# Initialize asdf for non-login non-interactive shells. Otherwise it will be
+# Initialize rbenv for non-login non-interactive shells. Otherwise it will be
 # initialized in either zlogin or zshrc.
-if [[ ! -o login && ! -o interactive && -z "${ASDF_DIR}" ]]; then
-  if command -v asdf > /dev/null; then source $(brew --prefix asdf)/asdf.sh; fi
+if [[ ! -o login && ! -o interactive ]]; then
+  if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi
 fi

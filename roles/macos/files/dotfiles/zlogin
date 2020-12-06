@@ -1,5 +1,3 @@
-# Initialize asdf for login shells. This is the last init script that is run
+# Initialize rbenv for login shells. This is the last init script that is run
 # after login.
-if [[ -z "${ASDF_DIR}" ]]; then
-  if command -v asdf > /dev/null; then source $(brew --prefix asdf)/asdf.sh; fi
-fi
+if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi
