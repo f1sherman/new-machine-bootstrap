@@ -106,6 +106,6 @@ alias trackme="disable-pihole && sudo flushdns"
 
 # Only initialize asdf here for non-login shells. For login shells, it will be
 # initialized in zlogin
-if [[ ! -o login ]]; then
+if [[ ! -o login && -z "${ASDF_DIR}" ]]; then
   if command -v asdf > /dev/null; then source $(brew --prefix asdf)/asdf.sh; fi
 fi

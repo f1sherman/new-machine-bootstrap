@@ -1,3 +1,5 @@
 # Initialize asdf for login shells. This is the last init script that is run
 # after login.
-if command -v asdf > /dev/null; then source $(brew --prefix asdf)/asdf.sh; fi
+if [[ -z "${ASDF_DIR}" ]]; then
+  if command -v asdf > /dev/null; then source $(brew --prefix asdf)/asdf.sh; fi
+fi

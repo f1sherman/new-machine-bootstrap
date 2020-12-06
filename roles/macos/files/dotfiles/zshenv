@@ -31,6 +31,6 @@ pathadd "/usr/local/opt/curl-openssl/bin"
 
 # Initialize asdf for non-login non-interactive shells. Otherwise it will be
 # initialized in either zlogin or zshrc.
-if [[ ! -o login && ! -o interactive ]]; then
+if [[ ! -o login && ! -o interactive && -z "${ASDF_DIR}" ]]; then
   if command -v asdf > /dev/null; then source $(brew --prefix asdf)/asdf.sh; fi
 fi
