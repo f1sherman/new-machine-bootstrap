@@ -34,8 +34,12 @@ alias lstcp="lsof -i TCP -P"
 alias tmux="TERM=screen-256color-bce tmux"
 # Shortcut for updating
 alias update='ruby <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-machine-bootstrap/master/macos)'
-# Shortcut for committing
+# Shortcuts for committing
 alias c='git commit'
+alias ca='git commit --all'
+alias cm='git commit --message'
+alias cam='git commit --all --message'
+alias am='git add . && git commit --amend --no-edit'
 # Shortcut for viewing diffs
 alias d='git d'
 # Shortcut for pushing
