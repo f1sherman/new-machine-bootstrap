@@ -37,8 +37,6 @@
 - name: 'Install Brew packages'
   homebrew:
     name: ['cmake', 'curl-openssl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'hub', 'ncdu', 'nmap', 'nodenv', 'python', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
-    update_homebrew: yes
-    upgrade_all: yes
 - name: 'Remove Brew packages'
   homebrew:
     name: ['curl', 'nvm']

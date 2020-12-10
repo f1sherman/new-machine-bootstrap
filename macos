@@ -98,6 +98,7 @@ unless Provision.binary_installed? 'brew'
   Provision.run_command '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
 end
 
+Provision.run_command 'brew upgrade'
 Provision.brew 'ansible'
 Provision.update_project 'new-machine-bootstrap'
 Provision.run_command 'cd ~/projects/new-machine-bootstrap && bin/provision'
