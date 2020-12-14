@@ -36,7 +36,7 @@
   become: true
 - name: 'Install Brew packages'
   homebrew:
-    name: ['cmake', 'curl-openssl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'hub', 'ncdu', 'nmap', 'nodenv', 'python', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
+    name: ['cmake', 'curl-openssl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'hub', 'ncdu', 'nmap', 'nodenv', 'nodenv/nodenv/nodenv-default-packages', 'python', 'rbenv', 'rbenv-default-gems', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
 - name: 'Remove Brew packages'
   homebrew:
     name: ['curl', 'nvm']
@@ -48,6 +48,18 @@
   homebrew_cask:
     name: ['little-snitch']
   when: ansible_distribution_major_version | int >= 11
+- name: Create nodenv default-packages file
+  copy:
+    backup: yes
+    dest: '{{ ansible_env.HOME }}/.nodenv/default-packages'
+    src: 'nodenv/default-packages'
+    mode: 0600
+- name: Create rbenv default-gems file
+  copy:
+    backup: yes
+    dest: '{{ ansible_env.HOME }}/.rbenv/default-gems'
+    src: 'rbenv/default-gems'
+    mode: 0600
 - name: Clone vim config repository
   git:
     dest: '{{ ansible_env.HOME }}/.vim'
