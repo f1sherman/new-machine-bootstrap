@@ -36,7 +36,7 @@
   become: true
 - name: 'Install Brew packages'
   homebrew:
-    name: ['cmake', 'curl-openssl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'hub', 'ncdu', 'nmap', 'nodenv', 'nodenv/nodenv/nodenv-default-packages', 'python', 'rbenv', 'rbenv-default-gems', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
+    name: ['bat', 'cmake', 'curl-openssl', 'dark-mode', 'fzf', 'git', 'gnu-sed', 'hub', 'ncdu', 'nmap', 'nodenv', 'nodenv/nodenv/nodenv-default-packages', 'python', 'rbenv', 'rbenv-default-gems', 'reattach-to-user-namespace', 'rg', 'shellcheck', 'ssh-copy-id', 'tldr', 'tmux', 'tree', 'vim', 'wget', 'zsh']
 - name: 'Remove Brew packages'
   homebrew:
     name: ['curl', 'nvm']
