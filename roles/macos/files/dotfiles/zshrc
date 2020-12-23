@@ -89,6 +89,38 @@ function b() {
     git checkout "$(echo "${branch}" | awk '{print $1}' | sed "s/.* //")"
   }
 
+# Run specs for changed files
+function specs {
+  setopt local_options BASH_REMATCH
+
+  local app_regexp='^app(\/.*)\.rb$'
+  local spec_regexp='^spec\/.*\_spec\.rb$'
+  local spec_files=()
+
+  for file in $(git status --porcelain | awk '{print substr($0, 4)}'); do
+    if [[ $file =~ $spec_regexp ]]; then
+      spec_files+=($file)
+    elif [[ $file =~ $app_regexp ]]; then
+      local converted_file=spec${BASH_REMATCH[2]}_spec.rb
+      spec_files+=($converted_file)
+    else
+      echo "WARNING: unable to determine spec file for ${file}"
+    fi
+  done
+
+  local checked_files=()
+
+  for spec_file in $spec_files; do
+    if [[ -f "${spec_file}" ]]; then
+      checked_files+=${spec_file}
+    else
+      echo "WARNING: ${spec_file} does not exist"
+    fi
+  done
+ 
+  bin/rspec $checked_files
+}
+
 ### Alias ###
 # View HTTP traffic
 alias sniff="sudo ngrep -d 'en1' -t '^(GET|POST) ' 'tcp and port 80'"
