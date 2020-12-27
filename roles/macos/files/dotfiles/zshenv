@@ -18,6 +18,8 @@ export LSCOLORS='gxfxbEaEBxxEhEhBaDaCaD'
 # Allow use of a ripgrep configuration file
 export RIPGREP_CONFIG_PATH="${HOME}/.ripgreprc"
 
+export THOR_MERGE=vimdiff
+
 # Add to path avoiding duplicates
 pathadd() {
   local newdir=${1%/}
