@@ -56,7 +56,7 @@ fi
 # Search the current bundle
 bgrep() {
   # shellcheck disable=SC2046
-  rg "$@" $(bundle show --paths)
+  rg "$@" $(bundle list --paths)
 }
 
 # Load SSH keys into the keychain - http://stackoverflow.com/a/39715149/961521
