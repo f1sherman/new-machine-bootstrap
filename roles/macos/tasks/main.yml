@@ -50,7 +50,6 @@
       'git',
       'gnu-sed',
       'google-chrome',
-      'hub',
       'intel-power-gadget',
       'istat-menus',
       'iterm2',
@@ -74,7 +73,6 @@
       'tldr',
       'tmux',
       'tree',
-      'tunnelblick'
       'vim',
       'wget',
       'zsh',
