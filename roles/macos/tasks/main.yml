@@ -37,52 +37,55 @@
 - name: 'Install Brew packages'
   homebrew:
     name: [
-      'amazon-music',
       'bat',
-      'bitwarden',
-      'brave-browser',
-      'charles',
       'cmake',
       'curl-openssl',
       'dark-mode',
-      'firefox',
       'fzf',
       'git',
       'gnu-sed',
-      'google-chrome',
-      'intel-power-gadget',
-      'istat-menus',
-      'iterm2',
-      'kindle',
-      'lastpass',
       'ncdu',
       'nmap',
       'nodenv',
       'nodenv/nodenv/nodenv-default-packages',
-      'nvalt',
       'python',
       'rbenv',
       'rbenv-default-gems',
       'reattach-to-user-namespace',
       'rg',
       'shellcheck',
-      'sizeup',
-      'slack',
-      'snagit',
       'ssh-copy-id',
-      'tldr',
       'tmux',
       'tree',
       'vim',
       'wget',
-      'zsh',
+      'zsh'
     ]
 - name: 'Remove Brew packages'
   homebrew:
     name: ['curl', 'nvm']
     state: absent
-- name: 'Install Brew casks for Big Sur and above'
-  homebrew:
+- name: 'Install Brew casks'
+  homebrew_cask:
+    name: [
+      'amazon-music',
+      'bitwarden',
+      'brave-browser',
+      'charles',
+      'firefox',
+      'google-chrome',
+      'intel-power-gadget',
+      'istat-menus',
+      'iterm2',
+      'kindle',
+      'lastpass',
+      'nvalt',
+      'sizeup',
+      'slack',
+      'snagit'
+    ]
+- name: 'Install Brew casks for Big Sur'
+  homebrew_cask:
     name: ['little-snitch']
   when: ansible_distribution_major_version | int >= 11
 - name: Create nodenv default-packages file
