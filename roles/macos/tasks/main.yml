@@ -81,7 +81,7 @@
   homebrew:
     name: ['curl', 'nvm']
     state: absent
-- name: 'Install Brew casks for Big Sur'
+- name: 'Install Brew casks for Big Sur and above'
   homebrew:
     name: ['little-snitch']
   when: ansible_distribution_major_version | int >= 11
