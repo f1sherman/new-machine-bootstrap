@@ -1,5 +1,3 @@
 #!/bin/bash
 
-ansible-galaxy collection install community.general
-
 ansible-playbook --ask-become-pass --inventory "localhost," --connection local playbook.yml "$@"
