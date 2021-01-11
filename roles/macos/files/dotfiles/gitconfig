@@ -28,6 +28,7 @@
   guitool = mvimdiff
   indentHeuristic = true
   renames = copy
+  renameLimit = 128000
   tool = vimdiff
 [difftool]
   prompt = false
