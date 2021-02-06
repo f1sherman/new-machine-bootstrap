@@ -34,6 +34,25 @@
     owner: root
     mode: 0644
   become: true
+- name: Create .nodenv and .rbenv directories
+  file:
+    dest: '{{ ansible_env.HOME }}/.{{ item }}'
+    state: directory
+  with_items:
+    - nodenv
+    - rbenv
+- name: Create nodenv default-packages file
+  copy:
+    backup: yes
+    dest: '{{ ansible_env.HOME }}/.nodenv/default-packages'
+    src: 'nodenv/default-packages'
+    mode: 0600
+- name: Create rbenv default-gems file
+  copy:
+    backup: yes
+    dest: '{{ ansible_env.HOME }}/.rbenv/default-gems'
+    src: 'rbenv/default-gems'
+    mode: 0600
 - name: 'Install Brew packages'
   homebrew:
     name: [
@@ -88,18 +107,6 @@
   homebrew_cask:
     name: ['little-snitch']
   when: ansible_distribution_major_version | int >= 11
-- name: Create nodenv default-packages file
-  copy:
-    backup: yes
-    dest: '{{ ansible_env.HOME }}/.nodenv/default-packages'
-    src: 'nodenv/default-packages'
-    mode: 0600
-- name: Create rbenv default-gems file
-  copy:
-    backup: yes
-    dest: '{{ ansible_env.HOME }}/.rbenv/default-gems'
-    src: 'rbenv/default-gems'
-    mode: 0600
 - name: Clone vim config repository
   git:
     dest: '{{ ansible_env.HOME }}/.vim'
