@@ -2,7 +2,7 @@
 --smart-case
 
 # Don't clog-up terminal with super long lines
---max-columns=200
+--max-columns=250
 
 # Try to guess which regex engine to use
 --engine=auto
