@@ -6,3 +6,9 @@
 
 # Try to guess which regex engine to use
 --engine=auto
+
+# Search hidden files
+--hidden
+
+# Search files that are ignored by git
+--no-ignore-vcs
