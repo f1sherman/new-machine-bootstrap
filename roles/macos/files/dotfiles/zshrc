@@ -94,6 +94,7 @@ function specs {
   setopt local_options BASH_REMATCH
 
   local app_regexp='^app(\/.*)\.rb$'
+  local other_regexp='^([^\/]*)(\/.*)\.rb$'
   local spec_regexp='^spec\/.*\_spec\.rb$'
   local spec_files=()
 
@@ -102,6 +103,9 @@ function specs {
       spec_files+=($file)
     elif [[ $file =~ $app_regexp ]]; then
       local converted_file=spec${BASH_REMATCH[2]}_spec.rb
+      spec_files+=($converted_file)
+    elif [[ $file =~ $other_regexp ]]; then
+      local converted_file=spec/${BASH_REMATCH[2]}${BASH_REMATCH[3]}_spec.rb
       spec_files+=($converted_file)
     else
       echo "WARNING: unable to determine spec file for ${file}"
@@ -117,8 +121,14 @@ function specs {
       echo "WARNING: ${spec_file} does not exist"
     fi
   done
- 
-  bin/rspec $checked_files
+
+  if [ ${#spec_files[@]} -gt 0 ]; then
+    echo "Running specs: ${checked_files}"
+
+    bin/rspec $checked_files
+  else
+    echo "No spec files found, aborting"
+  fi
 }
 
 ### Alias ###
