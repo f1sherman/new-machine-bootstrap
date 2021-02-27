@@ -33,7 +33,7 @@ alias lstcp="lsof -i TCP -P"
 # Fix solarized theme in tmux
 alias tmux="TERM=screen-256color-bce tmux"
 # Shortcut for updating
-alias update='ruby <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-machine-bootstrap/master/macos)'
+alias update='ruby <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-machine-bootstrap/main/macos)'
 # Shortcuts for committing
 alias c='git commit'
 alias ca='git commit --all'
