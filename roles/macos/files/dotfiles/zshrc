@@ -18,8 +18,8 @@ set completion-ignore-case on
 # Immediately add a trailing slash when autocompleting symlinks to directories
 set mark-symlinked-directories on
 
-# Use emacs mode at the command line
-set -o emacs
+# Use vim mode at the command line
+set -o vim
 
 # Print cheatsheet for a command
 cheat() {
