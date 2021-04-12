@@ -19,7 +19,7 @@ set completion-ignore-case on
 set mark-symlinked-directories on
 
 # Use vim mode at the command line
-set -o vim
+set -o vi
 
 # Print cheatsheet for a command
 cheat() {
