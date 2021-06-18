@@ -56,7 +56,6 @@
 - name: 'Install Brew packages'
   homebrew:
     name: [
-      'alt-tab',
       'bat',
       'cmake',
       'curl-openssl',
@@ -88,6 +87,7 @@
 - name: 'Install Brew casks'
   homebrew_cask:
     name: [
+      'alt-tab'
       'amazon-music',
       'bitwarden',
       'brave-browser',
