@@ -87,7 +87,7 @@
 - name: 'Install Brew casks'
   homebrew_cask:
     name: [
-      'alt-tab'
+      'alt-tab',
       'amazon-music',
       'bitwarden',
       'brave-browser',
