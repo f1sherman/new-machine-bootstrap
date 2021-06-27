@@ -20,7 +20,7 @@ if token.nil?
   end
 end
 
-uri = URI("https://pihole.brianjohn.com/admin/api.php?disable=#{DISABLE_SECONDS}&auth=#{token}")
+uri = URI("https://pihole01.brianjohn.com/admin/api.php?disable=#{DISABLE_SECONDS}&auth=#{token}")
 
 response = Net::HTTP.get(uri)
 response_status = JSON.parse(response)['status'] rescue nil
