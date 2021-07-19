@@ -82,6 +82,11 @@ if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   unsetopt histverify
 fi
 
+# Enable Ctrl-N and Ctrl-P to scroll command history
+bindkey "^N" down-line-or-search
+bindkey "^P" up-line-or-search
+
+
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
 # Switch branches using fzf
