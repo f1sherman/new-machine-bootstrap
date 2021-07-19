@@ -38,6 +38,10 @@ decrypt() { openssl des3 -d -salt -in "$1" -out "${1//\.enc/}"; }
 # Use rg for FZF for speed and to respect .gitignore, .ignore
 export FZF_DEFAULT_COMMAND='rg --files'
 
+# Don't list vcs-ignored files when using Ctrl-T because it can be very slow and we probably don't want it most of the
+# time
+export FZF_CTRL_T_COMMAND='rg --files --ignore-vcs'
+
 # Load any machine-specific customizations
 if [ -f ~/.zshrc.local ]; then
   # shellcheck disable=SC1090
