@@ -131,8 +131,13 @@ function specs {
     fi
   done
 
-  if [ ${#spec_files[@]} -gt 0 ]; then
-    echo "Running specs: ${checked_files}"
+  if grep --quiet parallel_tests Gemfile && [ ${#spec_files[@]} -gt 1 ]; then
+    echo "Running ${#spec_files[@]} specs in parallel: ${checked_files}"
+
+    # ${(j[|])checked_files} joins all elements in the array into a single string with a pipe (|)
+    bin/rake parallel:prepare "parallel:spec[${(j[|])checked_files}]" RAILS_ENV=test
+  elif [ ${#spec_files[@]} -gt 0 ]; then
+    echo "Running ${#spec_files[@]} specs synchronously: ${checked_files}"
 
     bin/rspec $checked_files
   else
