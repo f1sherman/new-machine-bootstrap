@@ -108,16 +108,21 @@ function specs {
   local spec_files=()
 
   for file in $(git status --porcelain | awk '{print substr($0, 4)}'); do
+    local spec_file=''
     if [[ $file =~ $spec_regexp ]]; then
-      spec_files+=($file)
+      spec_file=$file
     elif [[ $file =~ $app_regexp ]]; then
-      local converted_file=spec${BASH_REMATCH[2]}_spec.rb
-      spec_files+=($converted_file)
+      spec_file=spec${BASH_REMATCH[2]}_spec.rb
     elif [[ $file =~ $other_regexp ]]; then
-      local converted_file=spec/${BASH_REMATCH[2]}${BASH_REMATCH[3]}_spec.rb
-      spec_files+=($converted_file)
+      spec_file=spec/${BASH_REMATCH[2]}${BASH_REMATCH[3]}_spec.rb
     else
       echo "WARNING: unable to determine spec file for ${file}"
+    fi
+
+    # This checks to see if the spec file already
+    # exists in the array
+    if ((!$spec_files[(Ie)$spec_file])); then
+      spec_files+=($spec_file)
     fi
   done
 
