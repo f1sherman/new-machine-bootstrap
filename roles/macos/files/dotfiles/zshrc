@@ -136,7 +136,7 @@ function specs {
     fi
   done
 
-  if grep --quiet parallel_tests Gemfile && [ ${#spec_files[@]} -gt 1 ]; then
+  if grep --quiet parallel_tests Gemfile && [ ${#spec_files[@]} -gt 10 ]; then
     echo "Running ${#spec_files[@]} specs in parallel: ${checked_files}"
 
     # ${(j[|])checked_files} joins all elements in the array into a single string with a pipe (|)
