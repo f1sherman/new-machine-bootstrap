@@ -111,7 +111,7 @@ if [ -f ~/.bash_profile.local ]; then
 fi
 
 # Setup git completion and git bash prompt
-GIT_COMPLETION_DIRECTORY="/usr/local/etc/bash_completion.d"
+GIT_COMPLETION_DIRECTORY="{{ brew_prefix }}/etc/bash_completion.d"
 
 if [ -d "$GIT_COMPLETION_DIRECTORY" ]; then
   # shellcheck disable=SC1090
@@ -160,9 +160,9 @@ ssh-add -A 2>/dev/null;
 # Install NVM
 if [ -z "${NVM_DIR}" ]; then
   export NVM_DIR="$HOME/.nvm"
-  [ -s "/usr/local/opt/nvm/nvm.sh" ] && . "/usr/local/opt/nvm/nvm.sh"  # This loads nvm
+  [ -s "{{ brew_prefix }}/opt/nvm/nvm.sh" ] && . "{{ brew_prefix }}/opt/nvm/nvm.sh"  # This loads nvm
   # shellcheck disable=SC1091
-  [ -s "/usr/local/opt/nvm/etc/bash_completion" ] && . "/usr/local/opt/nvm/etc/bash_completion"  # This loads nvm bash_completion
+  [ -s "{{ brew_prefix }}/opt/nvm/etc/bash_completion" ] && . "{{ brew_prefix }}/opt/nvm/etc/bash_completion"  # This loads nvm bash_completion
 fi
 
 # Setup rbenv

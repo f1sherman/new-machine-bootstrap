@@ -1,5 +1,11 @@
 ---
 
+- name: Set brew prefix
+  shell: 'brew --prefix'
+  register: brew_prefix_output
+  changed_when: false
+- set_fact:
+    brew_prefix: "{{ brew_prefix_output.stdout }}"
 - name: Bootstrap ssh config
   template:
     backup: yes
@@ -88,21 +94,18 @@
   homebrew_cask:
     name: [
       'alt-tab',
-      'amazon-music',
       'bitwarden',
       'brave-browser',
       'charles',
       'firefox',
       'google-chrome',
-      'intel-power-gadget',
       'istat-menus',
       'iterm2',
       'kindle',
-      'lastpass',
-      'nvalt',
       'sizeup',
       'slack',
-      'snagit'
+      'snagit',
+      'yt-music'
     ]
 - name: 'Install Brew casks for Big Sur'
   homebrew_cask:
@@ -141,7 +144,7 @@
     path: '{{ ansible_env.HOME }}/projects'
     state: directory
 - name: Install dotfiles
-  copy:
+  template:
     backup: yes
     dest: '{{ ansible_env.HOME }}/.{{ item }}'
     src: 'dotfiles/{{ item }}'
@@ -160,8 +163,16 @@
     - zlogin
     - zshenv
     - zshrc
+- name: Create /opt/local/bin directory
+  file:
+    path: '/opt/local/bin'
+    mode: 0775
+    state: directory
+    owner: root
+    recurse: yes
+  become: yes
 - name: Install FZF
-  shell: '/usr/local/opt/fzf/install --all'
+  shell: '{{ brew_prefix }}/opt/fzf/install --all'
   changed_when: false
 - name: Enable Dark Mode
   command: dark-mode on
@@ -182,7 +193,7 @@
 - name: Set default shell to zsh
   user:
     name: '{{ ansible_env.USER }}'
-    shell: /usr/local/bin/zsh
+    shell: '{{ brew_prefix }}/bin/zsh'
   become: yes
 - name: Install sqlparse
   pip:
@@ -337,14 +348,14 @@
 - name: Install Pi-hole disable script
   copy:
     backup: yes
-    dest: '/usr/local/bin/disable-pihole'
+    dest: '/opt/local/bin/disable-pihole'
     src: 'bin/disable-pihole'
     mode: 0755
   become: true
 - name: Install flushdns script
   copy:
     backup: yes
-    dest: '/usr/local/bin/flushdns'
+    dest: '/opt/local/bin/flushdns'
     src: 'bin/flushdns'
     mode: 0744
   become: true
@@ -353,5 +364,5 @@
    path: /etc/sudoers
    state: present
    regexp: 'flushdns'
-   line: '%admin    ALL = (root) NOPASSWD: /usr/local/bin/flushdns'
+   line: '%admin    ALL = (root) NOPASSWD: /opt/local/bin/flushdns'
   become: true

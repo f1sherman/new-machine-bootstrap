@@ -2,6 +2,20 @@
 # vi:filetype=zsh
 # vi:syntax=zsh
 
+# Prepend to path avoiding duplicates
+pathprepend() {
+  local newdir=${1%/}
+  if [ -d "${1}" ]; then
+    PATH=$(ruby -e "path = ENV['PATH'].split(':'); path.delete('${1}'); path.prepend('${1}'); puts path.join(':')")
+  fi
+}
+
+pathprepend "${HOME}/bin"
+pathprepend "/opt/local/bin"
+pathprepend "/opt/homebrew/bin"
+pathprepend "/opt/homebrew/opt/curl-openssl/bin"
+eval "$(/opt/homebrew/bin/brew shellenv)"
+
 # use vim to edit files
 export EDITOR=vim
 
@@ -69,9 +83,9 @@ ssh-add -A 2>/dev/null;
 # Install NVM
 if [ -z "${NVM_DIR}" ]; then
   export NVM_DIR="$HOME/.nvm"
-  [ -s "/usr/local/opt/nvm/nvm.sh" ] && . "/usr/local/opt/nvm/nvm.sh"  # This loads nvm
+  [ -s "{{ brew_prefix }}/opt/nvm/nvm.sh" ] && . "{{ brew_prefix }}/opt/nvm/nvm.sh"  # This loads nvm
   # shellcheck disable=SC1091
-  [ -s "/usr/local/opt/nvm/etc/bash_completion" ] && . "/usr/local/opt/nvm/etc/bash_completion"  # This loads nvm bash_completion
+  [ -s "{{ brew_prefix }}/opt/nvm/etc/bash_completion" ] && . "{{ brew_prefix }}/opt/nvm/etc/bash_completion"  # This loads nvm bash_completion
 fi
 
 # Source Prezto.
@@ -136,6 +150,7 @@ function specs {
     fi
   done
 
+  {% raw %}
   if grep --quiet parallel_tests Gemfile && [ ${#spec_files[@]} -gt 10 ]; then
     echo "Running ${#spec_files[@]} specs in parallel: ${checked_files}"
 
@@ -148,6 +163,7 @@ function specs {
   else
     echo "No spec files found, aborting"
   fi
+  {% endraw %}
 }
 
 ### Alias ###

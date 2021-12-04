@@ -19,14 +19,3 @@ export LSCOLORS='gxfxbEaEBxxEhEhBaDaCaD'
 export RIPGREP_CONFIG_PATH="${HOME}/.ripgreprc"
 
 export THOR_MERGE=vimdiff
-
-# Add to path avoiding duplicates
-pathadd() {
-  local newdir=${1%/}
-  if [ -d "${1}" ] && ! echo "${PATH}" | grep --extended-regexp --quiet "(^|:)$newdir($|:)"; then
-    PATH="${newdir}:${PATH}"
-  fi
-}
-
-pathadd "${HOME}/bin"
-pathadd "/usr/local/opt/curl-openssl/bin"
