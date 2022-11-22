@@ -113,8 +113,8 @@ function b() {
   }
 
 # Delete branches using fzf
-alias db > /dev/null && unalias d
-function d() {
+alias db > /dev/null && unalias db
+function db() {
   local branches branch
   branches=$(git --no-pager branch) &&
     branch=$(echo "$branches" | fzf +m) &&
