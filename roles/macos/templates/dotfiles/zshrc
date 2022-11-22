@@ -112,6 +112,15 @@ function b() {
     git checkout "$(echo "${branch}" | awk '{print $1}' | sed "s/.* //")"
   }
 
+# Delete branches using fzf
+alias d > /dev/null && unalias d
+function d() {
+  local branches branch
+  branches=$(git --no-pager branch) &&
+    branch=$(echo "$branches" | fzf +m) &&
+    git branch -D "$(echo "${branch}" | awk '{print $1}' | sed "s/.* //")"
+  }
+
 # Run specs for changed files
 function specs {
   setopt local_options BASH_REMATCH
