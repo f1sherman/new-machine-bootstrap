@@ -64,7 +64,7 @@
     name: [
       'bat',
       'cmake',
-      'curl-openssl',
+      'curl',
       'dark-mode',
       'fzf',
       'git',
