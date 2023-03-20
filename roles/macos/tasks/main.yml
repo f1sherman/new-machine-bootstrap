@@ -102,10 +102,17 @@
       'iterm2',
       'kindle',
       'sizeup',
-      'slack',
       'snagit',
       'yt-music'
     ]
+- name: Check whether Slack is installed
+  stat:
+    path: '/Applications/Slack.app'
+  register: slack
+- name: 'Install Slack'
+  homebrew_cask:
+    name: slack
+  when: not slack.stat.exists
 - name: 'Install Brew casks for Big Sur'
   homebrew_cask:
     name: ['little-snitch']
