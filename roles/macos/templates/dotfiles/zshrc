@@ -208,6 +208,6 @@ alias trackme="disable-pihole && sudo flushdns"
 # Only initialize nodenv and rbenv here for non-login shells. For login shells, it will be
 # initialized in zlogin
 if [[ ! -o login ]]; then
-  if command -v nodenv > /dev/null; then eval "$(nodenv init -)"; fi
+  if command -v nodenv > /dev/null && [[ ":$PATH:" == *":nodenv:"* ]]; then echo "adding nodenv to path" && eval "$(nodenv init -)"; fi
   if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi
 fi

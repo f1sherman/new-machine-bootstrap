@@ -1,4 +1,4 @@
 # Initialize nodenv and rbenv for login shells. This is the last init script that is run
 # after login.
-if command -v nodenv > /dev/null; then eval "$(nodenv init -)"; fi
+if command -v nodenv > /dev/null && [[ ":$PATH:" == *":nodenv:"* ]]; then eval "$(nodenv init -)"; fi
 if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi
