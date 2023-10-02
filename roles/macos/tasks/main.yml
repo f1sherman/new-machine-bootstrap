@@ -146,7 +146,7 @@
   register: youcompleteme
 - name: Compile YouCompleteMe
   command: '{{ ansible_env.HOME }}/.vim/plugged/YouCompleteMe/install.py'
-  when: ansible_date_time.epoch|float - youcompleteme.stat.mtime < 30 * 60
+  when: youcompleteme.stat.exists and ansible_date_time.epoch|float - youcompleteme.stat.mtime < 30 * 60
 - name: Create projects directory
   file:
     path: '{{ ansible_env.HOME }}/projects'
