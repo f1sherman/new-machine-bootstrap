@@ -56,6 +56,9 @@ export FZF_DEFAULT_COMMAND='rg --files'
 # time
 export FZF_CTRL_T_COMMAND='rg --files --ignore-vcs'
 
+# make CTRL-R paste the current query when there's no match
+export FZF_CTRL_R_OPTS='--bind enter:accept-or-print-query'
+
 # Load any machine-specific customizations
 if [ -f ~/.zshrc.local ]; then
   # shellcheck disable=SC1090
