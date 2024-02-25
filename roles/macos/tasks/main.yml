@@ -79,6 +79,7 @@
       'reattach-to-user-namespace',
       'rg',
       'shellcheck',
+      'sqlparse',
       'ssh-copy-id',
       'tmux',
       'tree',
@@ -203,10 +204,6 @@
     name: '{{ ansible_env.USER }}'
     shell: '{{ brew_prefix }}/bin/zsh'
   become: yes
-- name: Install sqlparse
-  pip:
-    name: sqlparse
-    executable: pip3
 - name: '{{ item.name }}'
   become: yes
   command: '{{ item.command }}'
