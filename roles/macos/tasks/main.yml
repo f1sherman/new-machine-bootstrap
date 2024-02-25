@@ -326,7 +326,6 @@
     - { name: 'Make Dock icons of hidden applications translucent', command: 'defaults write com.apple.dock showhidden -bool true' }
     - { name: 'Show only open applications in the Dock', command: 'defaults write com.apple.dock static-only -bool true' }
     - { name: 'Spaces span displays instead of having separate spaces per display', command: 'defaults write com.apple.spaces spans-displays -bool TRUE' }
-    - { name: 'Safari: Enable the Develop menu and the Web Inspector', command: 'defaults write com.apple.Safari IncludeDevelopMenu -bool true' }
     - { name: 'Safari: Add a context menu item for showing the Web Inspector in web views', command: 'defaults write NSGlobalDomain WebKitDeveloperExtras -bool true' }
     - { name: 'Brave: Disable the all too sensitive backswipe on trackpads', command: 'defaults write com.brave.Browser AppleEnableSwipeNavigateWithScrolls -bool false' }
     - { name: 'Chrome: Disable the all too sensitive backswipe on trackpads', command: 'defaults write com.google.Chrome AppleEnableSwipeNavigateWithScrolls -bool false' }
