@@ -233,7 +233,6 @@
     - { name: 'Only use UTF-8 in Terminal.app', command: 'defaults write com.apple.terminal StringEncodings -array 4' }
     - { name: 'Set the Pro theme by default in Terminal.app', command: 'defaults write com.apple.Terminal "Default Window Settings" -string "Pro"' }
     - { name: 'Set the Pro theme on startup in Terminal.app', command: 'defaults write com.apple.Terminal "Startup Window Settings" -string "Pro"' }
-    - { name: 'Copy email addresses as `foo@example.com` instead of `Foo Bar <foo@example.com>` in Mail.app', command: 'defaults write com.apple.mail AddressesIncludeNameOnPasteboard -bool false' }
     - { name: 'Enable the automatic update check', command: 'defaults write com.apple.SoftwareUpdate AutomaticCheckEnabled -bool true' }
     - { name: 'Check for software updates every day instead of once a week', command: 'defaults write com.apple.SoftwareUpdate ScheduleFrequency -int 1' }
     - { name: 'Download newly available updates in background', command: 'defaults write com.apple.SoftwareUpdate AutomaticDownload -int 1' }
@@ -251,7 +250,6 @@
     - { name: 'Automatically quit printer app once the print jobs complete', command: 'defaults write com.apple.print.PrintingPrefs "Quit When Finished" -bool true' }
     - { name: 'Disable smart quotes as they’re annoying when typing code', command: 'defaults write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled -bool false' }
     - { name: 'Disable smart dashes as they’re annoying when typing code', command: 'defaults write NSGlobalDomain NSAutomaticDashSubstitutionEnabled -bool false' }
-    - { name: 'Add the keyboard shortcut ⌘ + Enter to send an email in Mail.app', command: 'defaults write com.apple.mail NSUserKeyEquivalents -dict-add "Send" -string "@\\U21a9"' }
     - { name: "Don't open Photos when a device is plugged in", command: 'defaults -currentHost write com.apple.ImageCapture disableHotPlug -bool true' }
     - { name: 'Disable the over-the-top focus ring animation', command: 'defaults write NSGlobalDomain NSUseAnimatedFocusRing -bool false' }
     - { name: 'Show amount of time VPN has been connected', command: 'defaults write com.apple.networkConnect VPNShowTime -int 1' }
