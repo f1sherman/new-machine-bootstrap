@@ -46,8 +46,8 @@ port() {
 }
 
 # Convenience functions for encrypting and decrypting files
-encrypt() { openssl des3 -salt -in "$1" -out "$1.enc"; }
-decrypt() { openssl des3 -d -salt -in "$1" -out "${1//\.enc/}"; }
+encrypt() { gpg --symmetric "$1"; }
+decrypt() { gpg -o "${1//\.enc/}" -d "$1"; }
 
 # Use rg for FZF for speed and to respect .gitignore, .ignore
 export FZF_DEFAULT_COMMAND='rg --files'
