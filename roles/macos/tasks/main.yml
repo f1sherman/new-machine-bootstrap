@@ -45,8 +45,15 @@
     dest: '{{ ansible_env.HOME }}/.{{ item }}'
     state: directory
   with_items:
+    - bundle
     - nodenv
     - rbenv
+- name: Create bundler config file
+  copy:
+    backup: yes
+    dest: '{{ ansible_env.HOME }}/.bundle/config'
+    src: 'bundler/config'
+    mode: 0600
 - name: Create nodenv default-packages file
   copy:
     backup: yes
