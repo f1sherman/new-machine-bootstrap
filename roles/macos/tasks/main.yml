@@ -364,3 +364,8 @@
    regexp: 'flushdns'
    line: '%admin    ALL = (root) NOPASSWD: /opt/local/bin/flushdns'
   become: true
+- name: Create "murder" script to try to gracefully kill processes
+  template:
+    dest: '{{ ansible_env.HOME }}/bin/murder'
+    src: templates/murder
+    mode: '0755'

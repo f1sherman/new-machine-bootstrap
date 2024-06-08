@@ -1,0 +1,153 @@
+#!/usr/bin/env ruby
+# This script attempts to gracefully kill a process by PID, name, or port.
+# If the process does not shut down gracefully, it forcefully kills it.
+
+require 'optparse'
+require 'time'
+
+def timestamp
+  Time.now.iso8601
+end
+
+def log_info(msg)
+  STDOUT.puts "[#{timestamp}] INFO: #{msg}"
+end
+
+def log_error(msg)
+  STDERR.puts "[#{timestamp}] ERROR: #{msg}"
+end
+
+def log_warn(msg)
+  STDOUT.puts "[#{timestamp}] WARN: #{msg}"
+end
+
+def log_error_and_exit(msg, exception = nil)
+  log_error(msg)
+  log_error("#{exception.message}\n#{exception.backtrace.join("\n")}") if exception
+  exit 1
+end
+
+# Check if a process is alive
+def process_alive?(pid)
+  Process.getpgid(pid)
+  true
+rescue Errno::ESRCH
+  false
+rescue StandardError => e
+  log_error_and_exit("Failed to check if process #{pid} is alive", e)
+end
+
+# Kill a process with a specified signal
+def kill_process(pid, signal)
+  Process.kill(signal, pid)
+rescue Errno::ESRCH
+  log_error_and_exit("Process #{pid} does not exist.")
+rescue StandardError => e
+  log_error_and_exit("Failed to kill process #{pid} with signal #{signal}", e)
+end
+
+# Find process ID(s) by name
+def find_pids_by_name(name)
+  pids = `pgrep -fl #{name}`.split("\n").select { |line| line.include?(name) && !line.include?("grep") }.map { |line| line.split.first.to_i }
+  log_error_and_exit("No process found with the name '#{name}'.") if pids.empty?
+  pids
+rescue StandardError => e
+  log_error_and_exit("Failed to find process by name '#{name}'", e)
+end
+
+# Find process ID(s) by port
+def find_pids_by_port(port)
+  pids = `lsof -t -i:#{port}`.split.map(&:to_i)
+  log_error_and_exit("No process found running on port #{port}.") if pids.empty?
+  pids
+rescue StandardError => e
+  log_error_and_exit("Failed to find process by port #{port}", e)
+end
+
+# Get process details
+def get_process_details(pid)
+  details = `ps -p #{pid} -o pid,args,etime,%cpu,%mem`.strip
+  log_error_and_exit("No details found for process #{pid}.") if details.empty?
+  details
+rescue StandardError => e
+  log_error_and_exit("Failed to get process details for #{pid}", e)
+end
+
+# Confirm with the user before killing the process
+def confirm_kill(pid)
+  details = get_process_details(pid)
+  puts "Process details:\n#{details}"
+  puts "Do you really want to kill this process? (y/n)"
+  response = STDIN.gets.strip.downcase
+  unless response.start_with?('y')
+    log_info("Process kill aborted by user.")
+    return false
+  end
+  true
+end
+
+# Resolve process IDs based on input type
+def resolve_pids(input)
+  if input =~ /^\d+$/
+    [input.to_i]
+  elsif input =~ /^:(\d+)$/
+    find_pids_by_port($1.to_i)
+  else
+    find_pids_by_name(input)
+  end
+end
+
+# Attempt to kill the process gracefully, then forcefully if needed
+def terminate_process(pid, force)
+  return unless force || confirm_kill(pid)
+
+  log_info("Attempting to gracefully kill process #{pid}...")
+  kill_process(pid, "TERM")
+
+  20.times do
+    sleep 0.5
+    break unless process_alive?(pid)
+  end
+
+  if process_alive?(pid)
+    log_warn("Process #{pid} is still running. Forcibly killing process...")
+    kill_process(pid, "KILL")
+  else
+    log_info("Process #{pid} terminated gracefully.")
+  end
+end
+
+# Command-line option parsing
+force = false
+
+OptionParser.new do |parser|
+  parser.banner = <<~BANNER
+    Usage: murder [options] <pid|process_name|:port>
+    Examples:
+      murder 1234          # Kill process with PID 1234
+      murder myapp         # Kill process named 'myapp'
+      murder :3000         # Kill process running on port 3000
+  BANNER
+
+  parser.on('-f', '--force', 'Force kill without confirmation') do
+    force = true
+  end
+
+  parser.on('-h', '--help', 'Prints this help') do
+    puts parser
+    exit
+  end
+end.parse!
+
+# Ensure the correct number of arguments are provided
+if ARGV.length != 1
+  puts OptionParser.new.banner
+  exit 1
+end
+
+input = ARGV[0]
+pids = resolve_pids(input)
+
+pids.each do |pid|
+  terminate_process(pid, force)
+end
