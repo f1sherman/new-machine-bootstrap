@@ -369,3 +369,89 @@
     dest: '{{ ansible_env.HOME }}/bin/murder'
     src: templates/murder
     mode: '0755'
+
+- name: Ensure Hammerspoon is installed
+  homebrew:
+    name: hammerspoon
+    state: present
+
+- name: Create Hammerspoon configuration directory if it does not exist
+  file:
+    path: ~/.hammerspoon
+    state: directory
+    mode: '0755'
+
+- name: Configure Hammerspoon for Apple Music shortcuts
+  copy:
+    content: |
+       -- init.lua
+        local appleMusic = "Music"
+
+        -- Function to create a hotkey for Apple Music only
+        local function bindAppleMusicHotkey(modifiers, key, action)
+          local musicHotkey = hs.hotkey.new(modifiers, key, function()
+            local frontApp = hs.application.frontmostApplication():name()
+            if frontApp == appleMusic then
+              hs.notify.new({title="Hammerspoon", informativeText="Apple Music Hotkey Triggered: " .. key}):send()
+              action()
+            end
+          end)
+          -- Watch for application focus changes
+          hs.application.watcher.new(function(name, event, app)
+            if event == hs.application.watcher.activated then
+              if name == appleMusic then
+                hs.notify.new({title="Hammerspoon", informativeText="Apple Music Focused"}):send()
+                musicHotkey:enable()
+              else
+                musicHotkey:disable()
+              end
+            end
+          end):start()
+        end
+
+        -- AppleScript for favoriting the current song
+        local function favoriteCurrentSong()
+          local script = [[
+            tell application "Music"
+              try
+                set currentTrack to current track
+                set favorited of currentTrack to true
+                return "Success"
+              on error errMsg
+                return "Error: " & errMsg
+              end try
+            end tell
+          ]]
+          local success, result = hs.osascript.applescript(script)
+          hs.notify.new({title="Hammerspoon", informativeText="Favorite Song Result: " .. result}):send()
+        end
+
+        -- AppleScript for suggesting less and skipping the current song
+        local function suggestLessAndSkip()
+          local script = [[
+            tell application "Music"
+              try
+                set currentTrack to current track
+                set favorited of currentTrack to false
+                next track
+                return "Success"
+              on error errMsg
+                return "Error: " & errMsg
+              end try
+            end tell
+          ]]
+          local success, result = hs.osascript.applescript(script)
+          hs.notify.new({title="Hammerspoon", informativeText="Suggest Less and Skip Result: " .. result}):send()
+        end
+
+        -- Bind the hotkeys for Apple Music
+        bindAppleMusicHotkey({"cmd"}, "L", favoriteCurrentSong)
+        bindAppleMusicHotkey({"cmd"}, "D", suggestLessAndSkip)
+    dest: ~/.hammerspoon/init.lua
+    mode: '0644'
+
+- name: Reload Hammerspoon configuration
+  shell: osascript -e 'tell application "Hammerspoon" to reload config'
+  args:
+    executable: /bin/bash
+  ignore_errors: yes
