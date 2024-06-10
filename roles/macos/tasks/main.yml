@@ -392,7 +392,9 @@
 - name: Configure Hammerspoon for Apple Music shortcuts
   copy:
     content: |
-       -- init.lua
+        -- init.lua
+        hs.ipc.cliInstall()
+
         local appleMusic = "Music"
 
         -- Function to create a hotkey for Apple Music only
