@@ -456,8 +456,15 @@
     dest: ~/.hammerspoon/init.lua
     mode: '0644'
 
-- name: Reload Hammerspoon configuration
-  shell: hs -c 'hs.reload()'
+- name: Copy Hammerspoon reload script
+  copy:
+    content: |
+      hs.timer.doAfter(1, function()
+          hs.reload()
+      end)
+    dest: "{{ ansible_env.HOME }}/bin/reload_hammerspoon.lua"
+
+- name: Execute Hammerspoon reload script
+  shell: hs -c "dofile('{{ ansible_env.HOME }}/bin/reload_hammerspoon.lua')"
   args:
     executable: /bin/zsh
-  ignore_errors: yes
