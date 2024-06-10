@@ -457,7 +457,7 @@
     mode: '0644'
 
 - name: Reload Hammerspoon configuration
-  shell: hs -c "hs.reload()"
+  shell: hs -c 'hs.reload()'
   args:
-    executable: /bin/bash
+    executable: /bin/zsh
   ignore_errors: yes
