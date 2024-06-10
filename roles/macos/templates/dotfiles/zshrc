@@ -17,7 +17,10 @@ pathprepend "{{ brew_prefix }}/opt/curl/bin"
 eval "$({{ brew_prefix }}/bin/brew shellenv)"
 
 # use vim to edit files
-export EDITOR=vim
+export EDITOR=nvim
+
+# use nvim instead of vim
+alias vim=nvim
 
 # Be more intelligent when autocompleting by also looking at the text after
 # the cursor. For example, when the current line is "cd ~/src/mozil", and
