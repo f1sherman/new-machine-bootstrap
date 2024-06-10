@@ -402,7 +402,6 @@
           local musicHotkey = hs.hotkey.new(modifiers, key, function()
             local frontApp = hs.application.frontmostApplication():name()
             if frontApp == appleMusic then
-              hs.notify.new({title="Hammerspoon", informativeText="Apple Music Hotkey Triggered: " .. key}):send()
               action()
             end
           end)
@@ -410,7 +409,6 @@
           hs.application.watcher.new(function(name, event, app)
             if event == hs.application.watcher.activated then
               if name == appleMusic then
-                hs.notify.new({title="Hammerspoon", informativeText="Apple Music Focused"}):send()
                 musicHotkey:enable()
               else
                 musicHotkey:disable()
@@ -433,7 +431,6 @@
             end tell
           ]]
           local success, result = hs.osascript.applescript(script)
-          hs.notify.new({title="Hammerspoon", informativeText="Favorite Song Result: " .. result}):send()
         end
 
         -- AppleScript for suggesting less and skipping the current song
@@ -451,7 +448,6 @@
             end tell
           ]]
           local success, result = hs.osascript.applescript(script)
-          hs.notify.new({title="Hammerspoon", informativeText="Suggest Less and Skip Result: " .. result}):send()
         end
 
         -- Bind the hotkeys for Apple Music
