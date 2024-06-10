@@ -112,8 +112,7 @@
       'popclip',
       'rocket-typist',
       'sizeup',
-      'snagit',
-      'yt-music'
+      'snagit'
     ]
 - name: Check whether Slack is installed
   stat:
