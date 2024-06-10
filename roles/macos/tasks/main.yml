@@ -457,7 +457,7 @@
     mode: '0644'
 
 - name: Reload Hammerspoon configuration
-  shell: osascript -e 'tell application "Hammerspoon" to reload config'
+  shell: hs -c "hs.reload()"
   args:
     executable: /bin/bash
   ignore_errors: yes
