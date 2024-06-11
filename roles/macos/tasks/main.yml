@@ -350,6 +350,8 @@
     - { name: 'Brave: Expand the print dialog by default', command: 'defaults write com.brave.Browser PMPrintingExpandedStateForPrint2 -bool true' }
     - { name: 'Chrome: Expand the print dialog by default', command: 'defaults write com.google.Chrome PMPrintingExpandedStateForPrint2 -bool true' }
     - { name: 'Chrome: Expand the print dialog by default (2)', command: 'defaults write com.google.Chrome.canary PMPrintingExpandedStateForPrint2 -bool true' }
+    - { name: 'Set mouse speed to 5 out of 7', command: 'defaults write .GlobalPreferences com.apple.mouse.scaling 5' }
+
 - name: Install Pi-hole disable script
   copy:
     backup: yes
