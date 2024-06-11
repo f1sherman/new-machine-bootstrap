@@ -17,5 +17,3 @@ export LSCOLORS='gxfxbEaEBxxEhEhBaDaCaD'
 
 # Allow use of a ripgrep configuration file
 export RIPGREP_CONFIG_PATH="${HOME}/.ripgreprc"
-
-export THOR_MERGE=vimdiff
