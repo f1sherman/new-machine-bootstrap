@@ -29,7 +29,7 @@
   indentHeuristic = true
   renames = copy
   renameLimit = 128000
-  tool = vimdiff
+  tool = nvimdiff
 [difftool]
   prompt = false
 [github]
@@ -38,7 +38,7 @@
   templatedir = ~/.git_template
 [merge]
   conflictstyle = diff3
-  tool = vimdiff
+  tool = nvimdiff
 [push]
   default = simple # when using 'git push' with no refspec push only to the upstream branch (req git >= 1.7.11)
 	autoSetupRemote = true
@@ -46,6 +46,8 @@
   enabled = true
 [status]
   showUntrackedFiles = all
+[difftool "nvimdiff"]
+  cmd = "nvim -d \"$LOCAL\" \"$REMOTE\""
 [user]
   email = brian@brianjohn.com
   name = Brian John
