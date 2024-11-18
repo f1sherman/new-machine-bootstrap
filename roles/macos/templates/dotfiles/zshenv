@@ -19,3 +19,6 @@ export LSCOLORS='gxfxbEaEBxxEhEhBaDaCaD'
 export RIPGREP_CONFIG_PATH="${HOME}/.ripgreprc"
 
 export THOR_MERGE=vimdiff
+
+# `-S` truncates long lines for scrolling instead of wrapping them, good for reading tables
+export PAGER='less -S'
