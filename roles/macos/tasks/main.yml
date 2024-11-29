@@ -123,10 +123,6 @@
   homebrew_cask:
     name: slack
   when: not slack.stat.exists
-- name: 'Install Brew casks for Big Sur'
-  homebrew_cask:
-    name: ['little-snitch']
-  when: ansible_distribution_major_version | int >= 11
 - name: Clone vim config repository
   git:
     dest: '{{ ansible_env.HOME }}/.vim'
