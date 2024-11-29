@@ -11,9 +11,11 @@ pathprepend() {
 }
 
 pathprepend "${HOME}/bin"
+pathprepend "${HOME}/.local/bin"
 pathprepend "/opt/local/bin"
 pathprepend "{{ brew_prefix }}/bin"
 pathprepend "{{ brew_prefix }}/opt/curl/bin"
+
 eval "$({{ brew_prefix }}/bin/brew shellenv)"
 
 # use vim to edit files

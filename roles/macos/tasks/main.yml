@@ -80,6 +80,7 @@
       'nodenv',
       'nodenv/nodenv/nodenv-default-packages',
       'nvim',
+      'pipx',
       'python',
       'rbenv',
       'rbenv-default-gems',
