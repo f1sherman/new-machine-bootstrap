@@ -210,6 +210,46 @@
     state: link
   with_fileglob:
     - '{{ ansible_env.HOME }}/.zprezto/runcoms/^(README.md|zshrc|zpreztorc)'
+- name: Check if open-interpreter is already installed
+  ansible.builtin.command: pipx list
+  register: pipx_list
+  changed_when: false
+  failed_when: false
+- name: Install open-interpreter using pipx if not installed
+  ansible.builtin.command:
+    cmd: pipx install open-interpreter
+    creates: ~/.local/bin/open-interpreter
+  when: "'open-interpreter' not in pipx_list.stdout"
+
+- name: Fetch latest Fabric version URL
+  shell: |
+    curl -s https://api.github.com/repos/danielmiessler/fabric/releases/latest | grep '"browser_download_url"' | grep 'fabric-darwin-amd64' | awk -F '"' '{print $4}'
+  register: fabric_latest_url
+  changed_when: false
+- name: Get the latest version tag from GitHub
+  shell: |
+    curl -s https://api.github.com/repos/danielmiessler/fabric/releases/latest | grep '"tag_name"' | awk -F '"' '{print $4}'
+  register: fabric_latest_version
+  changed_when: false
+- name: Check if Fabric is already installed
+  stat:
+    path: /opt/local/bin/fabric
+  register: fabric_stat
+  changed_when: false
+- name: Get the installed Fabric version (if exists)
+  shell: |
+    /opt/local/bin/fabric --version || echo "not_installed"
+  register: installed_fabric_version
+  when: fabric_stat.stat.exists
+  changed_when: false
+- name: Install or upgrade Fabric if needed
+  shell: |
+    curl -L {{ fabric_latest_url.stdout }} -o /opt/local/bin/fabric && chmod +x /opt/local/bin/fabric
+  when: >
+    (not fabric_stat.stat.exists) or
+    (installed_fabric_version.stdout != fabric_latest_version.stdout)
+  become: true
+
 - name: Set default shell to zsh
   user:
     name: '{{ ansible_env.USER }}'
