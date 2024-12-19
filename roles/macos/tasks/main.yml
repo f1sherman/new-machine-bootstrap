@@ -132,6 +132,11 @@
     dest: '{{ ansible_env.HOME }}/.vimrc'
     src: '{{ ansible_env.HOME }}/.vim/vimrc'
     state: link
+- name: Link .config/nvim/init.vim
+  file:
+    dest: '{{ ansible_env.HOME }}/.config/nvim/init.vim'
+    src: '{{ ansible_env.HOME }}/.vim/vimrc'
+    state: link
 - name: Create .vimtmp directory
   file:
     path: '{{ ansible_env.HOME }}/.vimtmp'
