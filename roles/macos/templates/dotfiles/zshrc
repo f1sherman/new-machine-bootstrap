@@ -108,6 +108,33 @@ fi
 bindkey "^N" down-line-or-search
 bindkey "^P" up-line-or-search
 
+# Check if the 'fabric' command is available
+if command -v fabric &>/dev/null; then
+  # Check if the patterns directory exists
+  patterns_dir="$HOME/.config/fabric/patterns"
+  if [ -d "$patterns_dir" ]; then
+    # Loop through all files in the patterns directory
+    for pattern_file in "$patterns_dir"/*; do
+      # Ensure the file exists (in case the directory is empty)
+      [ -e "$pattern_file" ] || continue
+
+      # Get the base name of the file (i.e., remove the directory path)
+      pattern_name=$(basename "$pattern_file")
+
+      # Create an alias in the form: alias pattern_name="fabric --pattern pattern_name"
+      alias_command="alias $pattern_name='fabric --pattern $pattern_name'"
+
+      # Evaluate the alias command to add it to the current shell
+      eval "$alias_command"
+    done
+  fi
+
+  # Define the 'yt' function
+  yt() {
+    local video_link="$1"
+    fabric -y "$video_link" --transcript
+  }
+fi
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
