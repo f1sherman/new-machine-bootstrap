@@ -500,3 +500,4 @@
   shell: hs -c "dofile('{{ ansible_env.HOME }}/bin/reload_hammerspoon.lua')"
   args:
     executable: /bin/zsh
+  changed_when: false
