@@ -112,16 +112,14 @@
       'popclip',
       'rocket-typist',
       'sizeup',
+      'slack',
       'snagit'
     ]
-- name: Check whether Slack is installed
-  stat:
-    path: '/Applications/Slack.app'
-  register: slack
-- name: 'Install Slack'
-  homebrew_cask:
-    name: slack
-  when: not slack.stat.exists
+  register: brew_output
+  failed_when: >
+    brew_output is failed and
+    (brew_output.msg is not search("It seems there is already an App at"))
+
 - name: Clone vim config repository
   git:
     dest: '{{ ansible_env.HOME }}/.vim'
