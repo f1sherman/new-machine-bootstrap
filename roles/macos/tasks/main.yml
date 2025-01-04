@@ -86,6 +86,7 @@
       'rbenv-default-gems',
       'reattach-to-user-namespace',
       'rg',
+      'rust',
       'shellcheck',
       'sqlparse',
       'ssh-copy-id',
