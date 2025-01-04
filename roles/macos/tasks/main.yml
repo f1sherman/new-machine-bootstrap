@@ -390,13 +390,6 @@
     - { name: 'Chrome: Expand the print dialog by default (2)', command: 'defaults write com.google.Chrome.canary PMPrintingExpandedStateForPrint2 -bool true' }
     - { name: 'Set mouse speed to 5 out of 7', command: 'defaults write .GlobalPreferences com.apple.mouse.scaling 5' }
 
-- name: Install Pi-hole disable script
-  copy:
-    backup: yes
-    dest: '/opt/local/bin/disable-pihole'
-    src: 'bin/disable-pihole'
-    mode: 0755
-  become: true
 - name: Install flushdns script
   copy:
     backup: yes
