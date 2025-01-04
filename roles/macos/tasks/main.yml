@@ -188,7 +188,6 @@
 - name: Create /opt/local/bin directory
   file:
     path: '/opt/local/bin'
-    mode: 0775
     state: directory
     owner: root
     recurse: yes
