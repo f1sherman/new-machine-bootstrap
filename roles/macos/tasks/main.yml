@@ -395,7 +395,7 @@
     backup: yes
     dest: '/opt/local/bin/flushdns'
     src: 'bin/flushdns'
-    mode: 0744
+    mode: 0755
   become: true
 - name: Allow flushdns to be run as root without password
   lineinfile:
