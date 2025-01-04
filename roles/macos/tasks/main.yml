@@ -197,6 +197,11 @@
     owner: root
     recurse: yes
   become: yes
+- name: Create ~/bin directory
+  file:
+    path: '{{ ansible_env.HOME }}/bin'
+    dest: '/.ssh/config'
+    state: directory
 - name: Install FZF
   shell: '{{ brew_prefix }}/opt/fzf/install --all'
   changed_when: false
