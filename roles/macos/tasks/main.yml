@@ -40,6 +40,8 @@
     owner: root
     mode: 0644
   become: true
+  vars:
+    owner: "{{ ansible_env.USER | default(ansible_user_id) }}"
 - name: Create .nodenv and .rbenv directories
   file:
     dest: '{{ ansible_env.HOME }}/.{{ item }}'
