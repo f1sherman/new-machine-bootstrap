@@ -123,6 +123,41 @@
     brew_output is failed and
     (brew_output.msg is not search("It seems there is already an App at"))
 
+- name: Check if global node version is set
+  command: nodenv global
+  register: nodenv_global_version
+  changed_when: false
+
+- name: Get installable node versions
+  command: nodenv install -l
+  register: nodenv_installable_versions
+  changed_when: false
+
+- name: Extract latest LTS version
+  set_fact:
+    latest_lts: >-
+      {{ (nodenv_installable_versions.stdout_lines |
+          select('match', '^\d+\.\d+\.\d+$') |
+          select('match', '^(\d*[02468])\.\d+\.\d+$') |
+          list)[-1] }}
+
+- name: Get currently installed versions
+  command: nodenv versions --bare
+  register: installed_versions
+  changed_when: false
+
+- name: Install latest LTS node version if not installed
+  command: nodenv install {{ latest_lts }}
+  when: latest_lts not in installed_versions.stdout_lines
+
+- name: Set global node version if not set or outdated
+  command: nodenv global {{ latest_lts }}
+  when: nodenv_global_version.stdout != latest_lts
+
+- name: Rehash nodenv
+  command: nodenv rehash
+  when: nodenv_global_version.stdout != latest_lts or latest_lts not in installed_versions.stdout_lines
+
 - name: Clone vim config repository
   git:
     dest: '{{ ansible_env.HOME }}/.vim'
