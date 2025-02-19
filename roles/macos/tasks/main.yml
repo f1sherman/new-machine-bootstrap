@@ -262,9 +262,16 @@
   register: pipx_list
   changed_when: false
   failed_when: false
+
+# https://github.com/OpenInterpreter/open-interpreter/issues/1539
+- name: Ensure Python@3.12 is installed (needed for open-interpreter)
+  homebrew:
+    name: python@3.12
+    state: present
+
 - name: Install open-interpreter using pipx if not installed
   ansible.builtin.command:
-    cmd: pipx install open-interpreter
+    cmd: pipx install open-interpreter --python /opt/homebrew/opt/python@3.12/bin/python3.12
     creates: ~/.local/bin/open-interpreter
   when: "'open-interpreter' not in pipx_list.stdout"
 
