@@ -464,6 +464,11 @@
     dest: '{{ ansible_env.HOME }}/bin/murder'
     src: templates/murder
     mode: '0755'
+- name: Create pick-files script to select files in the current directory via tmux
+  template:
+    dest: '{{ ansible_env.HOME }}/bin/pick-files'
+    src: templates/pick-files
+    mode: '0755'
 
 - name: Ensure Hammerspoon is installed
   homebrew:
