@@ -101,6 +101,7 @@ unless File.exist?(openai_key_path)
   openai_api_key = STDIN.gets.chomp
   File.open(openai_key_path, 'w') { |f| f.write(openai_api_key) }
 end
+File.chmod(0600, openai_key_path)
 
 Provision.run_command 'softwareupdate --all --install --force'
 
