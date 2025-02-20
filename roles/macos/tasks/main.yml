@@ -71,6 +71,7 @@
 - name: 'Install Brew packages'
   homebrew:
     name: [
+      'aider',
       'bat',
       'curl',
       'dark-mode',
