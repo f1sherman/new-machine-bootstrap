@@ -94,6 +94,14 @@ end
 
 config = Config.new
 
+openai_key_path = File.join(Dir.home, '.config', 'api-keys', 'openai')
+unless File.exist?(openai_key_path)
+  FileUtils.mkdir_p(File.dirname(openai_key_path))
+  print "\nEnter your OpenAI API Key: "
+  openai_api_key = STDIN.gets.chomp
+  File.open(openai_key_path, 'w') { |f| f.write(openai_api_key) }
+end
+
 Provision.run_command 'softwareupdate --all --install --force'
 
 unless Provision.binary_installed? 'brew'
