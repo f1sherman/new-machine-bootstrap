@@ -73,8 +73,10 @@
     name: [
       'aider',
       'bat',
+      'coreutils',
       'curl',
       'dark-mode',
+      'fd',
       'fzf',
       'git',
       'gnu-sed',
