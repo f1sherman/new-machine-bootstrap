@@ -7,17 +7,28 @@ puts "Setting identifier for pane #{current_pane}"
 # Use set-option to mark this pane
 system("tmux set-option -p -t #{current_pane} @is_aider 1")
 
-# Build the Aider command with all specified options
+# Retrieve the AIDER_MODEL environment variable, default to '4o' if not set
+model_value = ENV['AIDER_MODEL'] || '4o'
+
+# Retrieve the AIDER_REASONING_EFFORT environment variable
+reasoning_effort_value = ENV['AIDER_REASONING_EFFORT']
 aider_command = [
   'aider',
   '--no-gitignore',
   '--architect',
-  '--model', '4o',
-  '--reasoning-effort', 'high',
+  '--model', model_value,
   '--no-auto-commit',
   '--watch-files',
   '--dark-mode'
-].join(' ')
+]
+
+# Conditionally add --reasoning-effort if AIDER_REASONING_EFFORT is set
+if reasoning_effort_value
+  aider_command << '--reasoning-effort' << reasoning_effort_value
+end
+
+# Join the command array into a single string
+aider_command = aider_command.join(' ')
 
 # Execute Aider
 exec(aider_command)
