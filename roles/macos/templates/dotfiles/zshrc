@@ -1,6 +1,5 @@
 #!/bin/zsh
-# vi:filetype=zsh
-# vi:syntax=zsh
+# vim: set filetype=zsh syntax=zsh
 
 # Prepend to path avoiding duplicates
 pathprepend() {
