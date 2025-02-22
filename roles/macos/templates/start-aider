@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+
+# Get current pane ID
+current_pane = `tmux display-message -p "\#{pane_id}"`.strip
+puts "Setting identifier for pane #{current_pane}"
+
+# Use set-option to mark this pane
+system("tmux set-option -p -t #{current_pane} @is_aider 1")
+
+# Build the Aider command with all specified options
+aider_command = [
+  'aider',
+  '--no-gitignore',
+  '--architect',
+  '--model', '4o',
+  '--reasoning-effort', 'high',
+  '--no-auto-commit',
+  '--watch-files',
+  '--dark-mode'
+].join(' ')
+
+# Execute Aider
+exec(aider_command)
