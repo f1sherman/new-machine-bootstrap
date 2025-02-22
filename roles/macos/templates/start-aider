@@ -19,7 +19,8 @@ aider_command = [
   '--model', model_value,
   '--no-auto-commit',
   '--watch-files',
-  '--dark-mode'
+  '--dark-mode',
+  '--vim'
 ]
 
 # Conditionally add --reasoning-effort if AIDER_REASONING_EFFORT is set
