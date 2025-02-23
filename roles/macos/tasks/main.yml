@@ -50,6 +50,10 @@
     - bundle
     - nodenv
     - rbenv
+- name: Create fzf config directory
+  file:
+    dest: '{{ ansible_env.HOME }}/.config/fzf'
+    state: directory
 - name: Create bundler config file
   copy:
     backup: yes

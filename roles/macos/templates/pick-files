@@ -22,6 +22,9 @@ fi
 selected_files=$(
 	fd --type f |
 		fzf --multi \
+      --history "${HOME}/.config/fzf/history" \
+      --scheme history \
+      --tmux 95% \
 			--reverse \
 			--preview 'bat --style=numbers --color=always {}' |
 		while read -r file; do
@@ -33,4 +36,3 @@ if [ -n "$selected_files" ]; then
 	files_oneline=$(echo "$selected_files" | tr '\n' ' ' | sed 's/ $//')
 	tmux send-keys -t "$pane_id" "$files_oneline"
 fi
-
