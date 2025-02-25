@@ -285,7 +285,7 @@
 
 - name: Fetch latest Fabric version URL
   shell: |
-    curl -s https://api.github.com/repos/danielmiessler/fabric/releases/latest | grep '"browser_download_url"' | grep 'fabric-darwin-amd64' | awk -F '"' '{print $4}'
+    curl -s https://api.github.com/repos/danielmiessler/fabric/releases/latest | grep '"browser_download_url"' | grep 'fabric-darwin-arm64' | awk -F '"' '{print $4}'
   register: fabric_latest_url
   changed_when: false
 - name: Get the latest version tag from GitHub
