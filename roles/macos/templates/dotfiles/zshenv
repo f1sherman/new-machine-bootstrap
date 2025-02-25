@@ -20,7 +20,10 @@ export RIPGREP_CONFIG_PATH="${HOME}/.ripgreprc"
 
 export PAGER='less -S'
 
-OPENAI_API_KEY_FILE="${HOME}/.config/api-keys/openai"
-if [ -f "$OPENAI_API_KEY_FILE" ]; then
-  export OPENAI_API_KEY=$(<"$OPENAI_API_KEY_FILE")
-fi
+# Sets ANTHROPIC_API_KEY and OPENAI_API_KEY
+for API_NAME in "openai" "anthropic"; do
+  API_KEY_FILE="${HOME}/.config/api-keys/${API_NAME}"
+  if [ -f "$API_KEY_FILE" ] && [ -s "$API_KEY_FILE" ]; then
+    export "${API_NAME^^}_API_KEY"=$(<"$API_KEY_FILE")
+  fi
+done

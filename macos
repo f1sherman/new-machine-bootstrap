@@ -94,14 +94,22 @@ end
 
 config = Config.new
 
-openai_key_path = File.join(Dir.home, '.config', 'api-keys', 'openai')
-unless File.exist?(openai_key_path)
-  FileUtils.mkdir_p(File.dirname(openai_key_path))
-  print "\nEnter your OpenAI API Key: "
-  openai_api_key = STDIN.gets.chomp
-  File.open(openai_key_path, 'w') { |f| f.write(openai_api_key) }
+api_providers = ['openai', 'anthropic']
+config_dir = File.join(Dir.home, '.config', 'api-keys')
+
+FileUtils.mkdir_p(config_dir) unless Dir.exist?(config_dir)
+
+api_providers.each do |provider|
+  key_path = File.join(config_dir, provider)
+
+  unless File.exist?(key_path)
+    print "\nEnter your #{provider.capitalize} API Key (hit ENTER for none): "
+    api_key = STDIN.gets.chomp
+    File.open(key_path, 'w') { |f| f.write(api_key) }
+  end
+
+  File.chmod(0600, key_path) if File.exist?(key_path)
 end
-File.chmod(0600, openai_key_path)
 
 Provision.run_command 'softwareupdate --all --install --force'
 
