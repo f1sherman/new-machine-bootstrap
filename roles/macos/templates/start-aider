@@ -1,16 +1,12 @@
 #!/usr/bin/env ruby
 
-# Get current pane ID
 current_pane = `tmux display-message -p "\#{pane_id}"`.strip
 puts "Setting identifier for pane #{current_pane}"
 
-# Use set-option to mark this pane
 system("tmux set-option -p -t #{current_pane} @is_aider 1")
 
-# Retrieve the AIDER_MODEL environment variable, default to '4o' if not set
-model_value = ENV['AIDER_MODEL'] || '4o'
+model_value = ENV['AIDER_MODEL'] || 'sonnet'
 
-# Retrieve the AIDER_REASONING_EFFORT environment variable
 reasoning_effort_value = ENV['AIDER_REASONING_EFFORT']
 aider_command = [
   'aider',
@@ -23,13 +19,10 @@ aider_command = [
   '--vim'
 ]
 
-# Conditionally add --reasoning-effort if AIDER_REASONING_EFFORT is set
 if reasoning_effort_value
   aider_command << '--reasoning-effort' << reasoning_effort_value
 end
 
-# Join the command array into a single string
 aider_command = aider_command.join(' ')
 
-# Execute Aider
 exec(aider_command)
