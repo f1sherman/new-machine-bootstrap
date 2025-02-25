@@ -24,6 +24,6 @@ export PAGER='less -S'
 for API_NAME in "openai" "anthropic"; do
   API_KEY_FILE="${HOME}/.config/api-keys/${API_NAME}"
   if [ -f "$API_KEY_FILE" ] && [ -s "$API_KEY_FILE" ]; then
-    export "${API_NAME^^}_API_KEY"=$(<"$API_KEY_FILE")
+    export "${(U)API_NAME}_API_KEY"=$(<"$API_KEY_FILE")
   fi
 done
