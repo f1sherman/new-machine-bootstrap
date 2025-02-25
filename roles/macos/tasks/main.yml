@@ -319,7 +319,7 @@
   failed_when: false
 
 - name: Install Aider via uv tool if not already installed
-  command: uv tool install --force --python python3.12 aider@latest
+  command: uv tool install --force --python python3.12 aider-chat@latest
   when: aider_check.rc != 0
 
 - name: Check if boto3 is installed in Aider's environment
