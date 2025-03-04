@@ -10,19 +10,27 @@ model_value = ENV['AIDER_MODEL'] || 'sonnet'
 reasoning_effort_value = ENV['AIDER_REASONING_EFFORT']
 aider_command = [
   'aider',
-  '--no-gitignore',
   '--architect',
-  '--model', model_value,
-  '--no-auto-commit',
-  '--watch-files',
   '--dark-mode',
-  '--vim'
+  '--model', model_value,
+  '--no-analytics',
+  '--no-auto-commit',
+  '--no-gitignore',
+  '--vim',
+  '--watch-files'
 ]
+
+if model_value =~ 'sonnet'
+  aider_command << '--cache-prompts'
+  aider_command << '--cache-keepalive-pings 2' # Keep cache alive for 15 min instead of the default 5 min
+end
 
 if reasoning_effort_value
   aider_command << '--reasoning-effort' << reasoning_effort_value
 end
 
 aider_command = aider_command.join(' ')
+
+puts "Running aider with options: #{aider_command}"
 
 exec(aider_command)
