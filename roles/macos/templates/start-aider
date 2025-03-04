@@ -20,7 +20,7 @@ aider_command = [
   '--watch-files'
 ]
 
-if model_value =~ 'sonnet'
+if model_value =~ /sonnet/
   aider_command << '--cache-prompts'
   aider_command << '--cache-keepalive-pings 2' # Keep cache alive for 15 min instead of the default 5 min
 end
