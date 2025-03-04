@@ -25,6 +25,10 @@ if model_value =~ 'sonnet'
   aider_command << '--cache-keepalive-pings 2' # Keep cache alive for 15 min instead of the default 5 min
 end
 
+if File.exist?('.aider/CONVENTIONS.md')
+  aider_command << '--read' << '.aider/CONVENTIONS.md'
+end
+
 if reasoning_effort_value
   aider_command << '--reasoning-effort' << reasoning_effort_value
 end
