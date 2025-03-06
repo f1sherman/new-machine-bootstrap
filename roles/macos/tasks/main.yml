@@ -518,7 +518,6 @@
     content: |
         -- init.lua
         hs.ipc.cliInstall()
-
         local appleMusic = "Music"
 
         -- Function to create a hotkey for Apple Music only
@@ -529,8 +528,12 @@
               action()
             end
           end)
+
+          -- Initially disable the hotkey
+          musicHotkey:disable()
+
           -- Watch for application focus changes
-          hs.application.watcher.new(function(name, event, app)
+          local watcher = hs.application.watcher.new(function(name, event, app)
             if event == hs.application.watcher.activated then
               if name == appleMusic then
                 musicHotkey:enable()
@@ -538,7 +541,19 @@
                 musicHotkey:disable()
               end
             end
-          end):start()
+          end)
+
+          -- Start the watcher
+          watcher:start()
+
+          -- Check if Music is already running and active
+          local currentApp = hs.application.frontmostApplication():name()
+          if currentApp == appleMusic then
+            musicHotkey:enable()
+          end
+
+          -- Return both objects so they don't get garbage collected
+          return {hotkey = musicHotkey, watcher = watcher}
         end
 
         -- AppleScript for favoriting the current song
@@ -575,8 +590,8 @@
         end
 
         -- Bind the hotkeys for Apple Music
-        bindAppleMusicHotkey({"cmd"}, "L", favoriteCurrentSong)
-        bindAppleMusicHotkey({"cmd"}, "D", suggestLessAndSkip)
+        local likeHotkeyObjects = bindAppleMusicHotkey({"cmd"}, "L", favoriteCurrentSong)
+        local dislikeHotkeyObjects = bindAppleMusicHotkey({"cmd"}, "D", suggestLessAndSkip)
     dest: ~/.hammerspoon/init.lua
     mode: '0644'
 
