@@ -15,6 +15,7 @@ aider_command = [
   '--model', model_value,
   '--no-analytics',
   '--no-auto-commit',
+  '--no-auto-lint',
   '--no-gitignore',
   '--vim',
   '--watch-files'
