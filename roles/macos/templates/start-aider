@@ -8,6 +8,8 @@ system("tmux set-option -p -t #{current_pane} @is_aider 1")
 model_value = ENV['AIDER_MODEL'] || 'sonnet'
 
 reasoning_effort_value = ENV['AIDER_REASONING_EFFORT']
+thinking_tokens_value = ENV['AIDER_THINKING_TOKENS']
+
 aider_command = [
   'aider',
   '--architect',
@@ -32,6 +34,10 @@ end
 
 if reasoning_effort_value
   aider_command << '--reasoning-effort' << reasoning_effort_value
+end
+
+if thinking_tokens_value
+  aider_command << '--thinking-tokens' << thinking_tokens_value
 end
 
 aider_command = aider_command.join(' ')
