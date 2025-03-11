@@ -20,6 +20,8 @@ export RIPGREP_CONFIG_PATH="${HOME}/.ripgreprc"
 
 export PAGER='less -S'
 
+alias assume=". assume"
+
 # Sets ANTHROPIC_API_KEY and OPENAI_API_KEY
 for API_NAME in "openai" "anthropic"; do
   API_KEY_FILE="${HOME}/.config/api-keys/${API_NAME}"
