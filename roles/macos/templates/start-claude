@@ -1,0 +1,5 @@
+#!/bin/bash
+
+unset USER # For some reason having this set makes the Enter key not work
+
+claude

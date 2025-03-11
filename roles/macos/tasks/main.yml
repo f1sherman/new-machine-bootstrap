@@ -496,6 +496,11 @@
     dest: '{{ ansible_env.HOME }}/bin/pick-files'
     src: templates/pick-files
     mode: '0755'
+- name: Create start-claude script
+  template:
+    dest: '{{ ansible_env.HOME }}/bin/start-claude'
+    src: templates/start-claude
+    mode: '0755'
 - name: Create start-aider script to start aider with the `AIDER_PANE` env var
   template:
     dest: '{{ ansible_env.HOME }}/bin/start-aider'
