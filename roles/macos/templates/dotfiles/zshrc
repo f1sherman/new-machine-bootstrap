@@ -182,6 +182,15 @@ function specs {
   {% endraw %}
 }
 
+# Interactive rebase against main branch
+function rebase() {
+  git checkout main
+  git pull
+  git checkout -
+  git pull
+  git rebase -i main
+}
+
 ### Alias ###
 # View HTTP traffic
 alias sniff="sudo ngrep -d 'en1' -t '^(GET|POST) ' 'tcp and port 80'"
@@ -210,6 +219,7 @@ alias s='git status'
 alias duss="du -d 1 -h | sort -hr | egrep -v ^0"
 # Disable Pi-hole and Flush DNS
 alias trackme="disable-pihole && sudo flushdns"
+
 ### End Alias ###
 
 # Only initialize nodenv and rbenv here for non-login shells. For login shells, it will be
