@@ -1,3 +1,25 @@
+# Prepend to path avoiding duplicates
+pathprepend() {
+  local newdir=${1%/}
+  if [ -d "${1}" ]; then
+    PATH=$(ruby -e "path = ENV['PATH'].split(':'); path.delete('${1}'); path.prepend('${1}'); puts path.join(':')")
+  fi
+}
+
+pathprepend "${HOME}/bin"
+pathprepend "${HOME}/.local/bin"
+pathprepend "/opt/local/bin"
+pathprepend "{{ brew_prefix }}/bin"
+pathprepend "{{ brew_prefix }}/opt/curl/bin"
+
+# Load any machine-specific customizations
+if [ -f ~/.zshrc.local ]; then
+  # shellcheck disable=SC1090
+  . ~/.zshrc.local
+fi
+
+eval "$({{ brew_prefix }}/bin/brew shellenv)"
+
 # Don't require merge commit editing for conflict-free merges, see http://git-blame.blogspot.com/2012/02/updates-to-git-merge-in-upcoming-1710.html
 export GIT_MERGE_AUTOEDIT=no
 
