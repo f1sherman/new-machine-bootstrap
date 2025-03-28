@@ -2,7 +2,17 @@
 pathprepend() {
   local newdir=${1%/}
   if [ -d "${1}" ]; then
-    PATH=$(ruby -e "path = ENV['PATH'].split(':'); path.delete('${1}'); path.prepend('${1}'); puts path.join(':')")
+    if [[ ":$PATH:" != *":${1}:"* ]]; then
+      PATH="${1}:$PATH"
+    else
+      # Remove the directory from PATH
+      PATH=":$PATH:"
+      PATH=${PATH//:${1}:/:}
+      PATH=${PATH#:}
+      PATH=${PATH%:}
+      # Add it to the beginning
+      PATH="${1}:$PATH"
+    fi
   fi
 }
 
