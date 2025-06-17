@@ -42,14 +42,12 @@
   become: true
   vars:
     owner: "{{ ansible_env.USER | default(ansible_user_id) }}"
-- name: Create .nodenv and .rbenv directories
+- name: Create directories
   file:
     dest: '{{ ansible_env.HOME }}/.{{ item }}'
     state: directory
   with_items:
     - bundle
-    - nodenv
-    - rbenv
 - name: Create fzf config directory
   file:
     dest: '{{ ansible_env.HOME }}/.config/fzf'
@@ -60,17 +58,17 @@
     dest: '{{ ansible_env.HOME }}/.bundle/config'
     src: 'bundler/config'
     mode: 0600
-- name: Create nodenv default-packages file
+- name: Create mise default-packages file
   copy:
     backup: yes
-    dest: '{{ ansible_env.HOME }}/.nodenv/default-packages'
-    src: 'nodenv/default-packages'
+    dest: '{{ ansible_env.HOME }}/.default-npm-packages'
+    src: 'mise/default-npm-packages'
     mode: 0600
-- name: Create rbenv default-gems file
+- name: Create mise default-gems file
   copy:
     backup: yes
-    dest: '{{ ansible_env.HOME }}/.rbenv/default-gems'
-    src: 'rbenv/default-gems'
+    dest: '{{ ansible_env.HOME }}/.default-gems'
+    src: 'mise/default-ruby-gems'
     mode: 0600
 - name: 'Install Brew packages'
   homebrew:
@@ -84,15 +82,12 @@
       'git',
       'gnu-sed',
       'llm',
+      'mise',
       'ncdu',
       'nmap',
-      'nodenv',
-      'nodenv/nodenv/nodenv-default-packages',
       'nvim',
       'pipx',
       'python',
-      'rbenv',
-      'rbenv-default-gems',
       'reattach-to-user-namespace',
       'rg',
       'rust',
@@ -108,7 +103,7 @@
     ]
 - name: 'Remove Brew packages'
   homebrew:
-    name: ['curl', 'nvm']
+    name: ['curl', 'nodenv', 'nvm', 'rbenv']
     state: absent
 - name: 'Install Brew casks'
   homebrew_cask:
@@ -131,40 +126,42 @@
     brew_output is failed and
     (brew_output.msg is not search("It seems there is already an App at"))
 
-- name: Check if global node version is set
-  command: nodenv global
-  register: nodenv_global_version
+- name: Get resolved Node.js version via `mise use node`
+  command: mise use node
+  register: mise_node_use
   changed_when: false
+  failed_when: false
+
+- name: Extract Node.js version from `mise use node` output
+  set_fact:
+    mise_global_node_version: >-
+      {{ (mise_node_use.stdout | regex_findall('node@([0-9.]+)'))[0] | default('') }}
 
 - name: Get installable node versions
-  command: nodenv install -l
-  register: nodenv_installable_versions
+  command: mise ls-remote node
+  register: mise_node_installable_versions
   changed_when: false
 
 - name: Extract latest LTS version
   set_fact:
     latest_lts: >-
-      {{ (nodenv_installable_versions.stdout_lines |
+      {{ (mise_node_installable_versions.stdout_lines |
           select('match', '^\d+\.\d+\.\d+$') |
           select('match', '^(\d*[02468])\.\d+\.\d+$') |
           list)[-1] }}
 
-- name: Get currently installed versions
-  command: nodenv versions --bare
-  register: installed_versions
+- name: Get currently installed Node.js versions via mise
+  command: mise ls node
+  register: installed_node_versions
   changed_when: false
 
 - name: Install latest LTS node version if not installed
-  command: nodenv install {{ latest_lts }}
-  when: latest_lts not in installed_versions.stdout_lines
+  command: mise use node@{{ latest_lts }}
+  when: latest_lts not in installed_node_versions.stdout_lines
 
-- name: Set global node version if not set or outdated
-  command: nodenv global {{ latest_lts }}
-  when: nodenv_global_version.stdout != latest_lts
-
-- name: Rehash nodenv
-  command: nodenv rehash
-  when: nodenv_global_version.stdout != latest_lts or latest_lts not in installed_versions.stdout_lines
+- name: Set global Node.js version via mise if not set or outdated
+  command: mise use --global node@{{ latest_lts }}
+  when: mise_global_node_version == "" or mise_global_node_version != latest_lts
 
 - name: Clone vim config repository
   git:

@@ -165,5 +165,5 @@ if [ -z "${NVM_DIR}" ]; then
   [ -s "{{ brew_prefix }}/opt/nvm/etc/bash_completion" ] && . "{{ brew_prefix }}/opt/nvm/etc/bash_completion"  # This loads nvm bash_completion
 fi
 
-# Setup rbenv
-if command -v rbenv > /dev/null; then eval "$(rbenv init -)"; fi # enable shims and autocompletion for rbenv
+# Setup mise
+if command -v mise > /dev/null; then eval "$(mise activate bash)"; fi
