@@ -319,16 +319,6 @@
   command: uv tool install --force --python python3.12 aider-chat@latest
   when: aider_check.rc != 0
 
-- name: Check if boto3 is installed in Aider's environment
-  command: uv tool run --from aider-chat pip show boto3
-  register: boto3_check
-  changed_when: false
-  failed_when: false
-
-- name: Install boto3 in Aider's environment if not installed
-  command: uv tool run --from aider-chat pip install boto3
-  when: boto3_check.rc != 0
-
 - name: Set default shell to zsh
   user:
     name: '{{ ansible_env.USER }}'
