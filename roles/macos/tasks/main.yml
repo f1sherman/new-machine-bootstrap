@@ -601,3 +601,17 @@
   args:
     executable: /bin/zsh
   changed_when: false
+
+- name: Create ~/.claude directory
+  file:
+    path: '{{ ansible_env.HOME }}/.claude'
+    state: directory
+    mode: '0700'
+
+- name: Create ~/.claude/CLAUDE.md file
+  copy:
+    content: |
+      Add code comments sparingly. Focus on why something is done, especially for complex logic, rather than what is done. Only add high-value comments if necessary for clarity or if requested by the user. Do not edit comments that are separate from the code you are changing. NEVER talk to the user or describe your changes through comments.
+    dest: '{{ ansible_env.HOME }}/.claude/CLAUDE.md'
+    mode: '0600'
+    backup: yes

@@ -165,7 +165,15 @@ function rebase() {
   git checkout main
   git pull
   git checkout -
-  git pull
+  
+  # Set up origin tracking if not already configured
+  local current_branch=$(git branch --show-current)
+  if ! git config --get branch.${current_branch}.remote > /dev/null 2>&1; then
+    git push -u origin ${current_branch}
+  else
+    git pull
+  fi
+  
   git rebase -i main
 }
 
