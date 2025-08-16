@@ -458,6 +458,7 @@
     - { name: 'Chrome: Expand the print dialog by default (2)', command: 'defaults write com.google.Chrome.canary PMPrintingExpandedStateForPrint2 -bool true' }
     - { name: 'Set mouse speed to 5 out of 7', command: 'defaults write .GlobalPreferences com.apple.mouse.scaling 5' }
     - { name: "Don't reset windows on external monitors every time the laptop goes to sleep", command: 'defaults write com.apple.spaces spans-displays -bool false' }
+    - { name: "Disable swipe to go back in Safari", command: 'defaults write NSGlobalDomain AppleEnableSwipeNavigateWithScrolls -bool false' }
 
 - name: Install flushdns script
   copy:
