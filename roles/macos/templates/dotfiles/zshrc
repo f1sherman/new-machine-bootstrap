@@ -209,6 +209,12 @@ alias trackme="disable-pihole && sudo flushdns"
 
 ### End Alias ###
 
+# Load any machine-specific customizations
+if [ -f ~/.zshrc.local ]; then
+  # shellcheck disable=SC1090
+  . ~/.zshrc.local
+fi
+
 # Only initialize mise here for non-login shells. For login shells, it will be
 # initialized in zlogin
 if [[ ! -o login ]]; then

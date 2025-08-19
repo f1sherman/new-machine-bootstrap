@@ -28,9 +28,9 @@ pathprepend "{{ brew_prefix }}/bin"
 pathprepend "{{ brew_prefix }}/opt/curl/bin"
 
 # Load any machine-specific customizations
-if [ -f ~/.zshrc.local ]; then
+if [ -f ~/.zshenv.local ]; then
   # shellcheck disable=SC1090
-  . ~/.zshrc.local
+  . ~/.zshenv.local
 fi
 
 eval "$({{ brew_prefix }}/bin/brew shellenv)"
