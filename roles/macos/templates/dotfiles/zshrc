@@ -48,9 +48,9 @@ export FZF_CTRL_T_COMMAND='rg --files --ignore-vcs'
 export FZF_CTRL_R_OPTS='--bind enter:accept-or-print-query'
 
 if type brew &>/dev/null; then
-  chmod go-w "$(brew --prefix)/share"
+  chmod go-w "{{ brew_prefix }}/share"
 
-  FPATH=$(brew --prefix)/share/zsh-completions:$FPATH
+  FPATH={{ brew_prefix }}/share/zsh-completions:$FPATH
 
   # compinit disabled for faster startup
   # autoload -Uz compinit
