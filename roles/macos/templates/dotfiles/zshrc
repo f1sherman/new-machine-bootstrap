@@ -52,8 +52,9 @@ if type brew &>/dev/null; then
 
   FPATH=$(brew --prefix)/share/zsh-completions:$FPATH
 
-  autoload -Uz compinit
-  compinit
+  # compinit disabled for faster startup
+  # autoload -Uz compinit
+  # compinit
 fi
 
 # Search the current bundle
