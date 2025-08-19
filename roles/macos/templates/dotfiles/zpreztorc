@@ -29,7 +29,7 @@ zstyle ':prezto:*:*' color 'yes'
 
 # Set the Prezto modules to load (browse modules).
 # The order matters.
-# Note: 'utility', 'completion', and 'git' modules removed due to slow startup performance
+# Note: 'utility', 'completion', 'git', and 'autosuggestions' modules removed due to slow startup performance
 zstyle ':prezto:load' pmodule \
   'environment' \
   'terminal' \
@@ -38,8 +38,7 @@ zstyle ':prezto:load' pmodule \
   'directory' \
   'spectrum' \
   'prompt' \
-  'syntax-highlighting' \
-  'autosuggestions'
+  'syntax-highlighting'
 
 #
 # Autosuggestions
