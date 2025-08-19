@@ -1,3 +1,8 @@
+if [[ -n "$ZSH_ENV_LOADED" ]]; then
+  return 0  # Already loaded, skip rest of file
+fi
+export ZSH_ENV_LOADED=1
+
 # Prepend to path avoiding duplicates
 pathprepend() {
   local newdir=${1%/}
