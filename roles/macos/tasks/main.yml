@@ -190,18 +190,16 @@
   file:
     path: '{{ ansible_env.HOME }}/.vimtmp'
     state: directory
-- name: Configure ghostty terminal type
+- name: Configure ghostty
   lineinfile:
     path: '{{ ansible_env.HOME }}/.config/ghostty/config'
-    line: 'term = xterm-256color'
+    line: '{{ item }}'
     create: yes
     mode: 0644
-- name: Configure ghostty command
-  lineinfile:
-    path: '{{ ansible_env.HOME }}/.config/ghostty/config'
-    line: 'command = /opt/homebrew/bin/tmux'
-    create: yes
-    mode: 0644
+  with_items:
+    - 'term = xterm-256color'
+    - 'command = /opt/homebrew/bin/tmux'
+    - 'copy-on-select = clipboard'
 - name: Initialize vim and install/update plugins
   command: '{{ item }}'
   changed_when: false
