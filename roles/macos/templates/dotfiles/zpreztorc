@@ -29,6 +29,7 @@ zstyle ':prezto:*:*' color 'yes'
 
 # Set the Prezto modules to load (browse modules).
 # The order matters.
+# Note: 'utility' module removed due to slow startup performance
 zstyle ':prezto:load' pmodule \
   'environment' \
   'terminal' \
@@ -36,7 +37,6 @@ zstyle ':prezto:load' pmodule \
   'history' \
   'directory' \
   'spectrum' \
-  'utility' \
   'completion' \
   'prompt' \
   'git' \
@@ -227,4 +227,4 @@ zstyle ':prezto:module:prompt' theme 'paradox'
 # Safe options. This aliases cp, ln, mv and rm so that they prompt
 # before deleting or overwriting files. Set to 'no' to disable this safer
 # behavior.
-zstyle ':prezto:module:utility' safe-ops 'no'
+# zstyle ':prezto:module:utility' safe-ops 'no'
