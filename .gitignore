@@ -1,2 +1,3 @@
 playbook.retry
 .aider*
+.claude/settings.local.json
