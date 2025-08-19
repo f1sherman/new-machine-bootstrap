@@ -157,11 +157,11 @@
   changed_when: false
 
 - name: Install latest LTS node version if not installed
-  command: mise use node@{{ latest_lts }}
+  command: mise use node@lts
   when: latest_lts not in installed_node_versions.stdout_lines
 
 - name: Set global Node.js version via mise if not set or outdated
-  command: mise use --global node@{{ latest_lts }}
+  command: mise use --global node@lts
   when: mise_global_node_version == "" or mise_global_node_version != latest_lts
 
 - name: Clone vim config repository
