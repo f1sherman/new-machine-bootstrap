@@ -199,6 +199,7 @@
     - 'term = xterm-256color'
     - 'command = /opt/homebrew/bin/tmux'
     - 'copy-on-select = clipboard'
+    - 'confirm-close-surface = false'
 - name: Initialize vim and install/update plugins
   command: '{{ item }}'
   changed_when: false
