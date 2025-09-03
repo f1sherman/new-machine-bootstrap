@@ -178,7 +178,7 @@
     state: directory
 - name: Create ghostty config directory
   file:
-    dest: '{{ ansible_env.HOME }}/.config/ghostty'
+    dest: '{{ ansible_env.HOME }}/Library/Application Support/com.mitchellh.ghostty'
     state: directory
 - name: Link .config/nvim/init.vim
   file:
@@ -191,7 +191,7 @@
     state: directory
 - name: Configure ghostty
   lineinfile:
-    path: '{{ ansible_env.HOME }}/.config/ghostty/config'
+    path: '{{ ansible_env.HOME }}/Library/Application Support/com.mitchellh.ghostty/config'
     line: '{{ item }}'
     create: yes
     mode: 0644
