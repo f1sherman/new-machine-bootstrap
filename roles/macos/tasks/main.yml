@@ -330,7 +330,7 @@
     - { name: 'Display login window as name and password instead of list of users', command: 'defaults write /Library/Preferences/com.apple.loginwindow SHOWFULLNAME -bool true' }
     - { name: 'Disable guest account login', command: 'defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool false' }
     - { name: 'Disable hibernation (speeds up entering sleep mode)', command: 'pmset -a hibernatemode 0' }
-    - { name: 'Disable the sudden motion sensor as it's not useful for SSDs', command: 'pmset -a sms 0' }
+    - { name: "Disable the sudden motion sensor as it's not useful for SSDs", command: 'pmset -a sms 0' }
     - { name: 'Show the /Volumes folder', command: 'chflags nohidden /Volumes' }
   loop_control:
     label: "{{ item.name }}"
