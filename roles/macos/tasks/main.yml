@@ -331,22 +331,24 @@
     name: '{{ ansible_env.USER }}'
     shell: '{{ brew_prefix }}/bin/zsh'
   become: yes
-- name: '{{ item.name }}'
+- name: Configure system settings (requires sudo)
   become: yes
   command: '{{ item.command }}'
   changed_when: false
-  with_items:
+  loop:
     - { name: 'Disable the sound effects on boot', command: 'nvram SystemAudioVolume=" "' }
     - { name: 'Restart automatically if the computer freezes', command: 'systemsetup -setrestartfreeze on' }
     - { name: 'Display login window as name and password instead of list of users', command: 'defaults write /Library/Preferences/com.apple.loginwindow SHOWFULLNAME -bool true' }
     - { name: 'Disable guest account login', command: 'defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool false' }
     - { name: 'Disable hibernation (speeds up entering sleep mode)', command: 'pmset -a hibernatemode 0' }
-    - { name: 'Disable the sudden motion sensor as it’s not useful for SSDs', command: 'pmset -a sms 0' }
+    - { name: 'Disable the sudden motion sensor as it's not useful for SSDs', command: 'pmset -a sms 0' }
     - { name: 'Show the /Volumes folder', command: 'chflags nohidden /Volumes' }
-- name: '{{ item.name }}'
+  loop_control:
+    label: "{{ item.name }}"
+- name: Configure user preferences
   command: '{{ item.command }}'
   changed_when: false
-  with_items:
+  loop:
     - { name: 'Always show scrollbars', command: 'defaults write NSGlobalDomain AppleShowScrollBars -string "Always"' }
     - { name: 'Increase window resize speed for Cocoa applications', command: 'defaults write NSGlobalDomain NSWindowResizeTime -float 0.001' }
     - { name: 'Disable automatic termination of inactive apps', command: 'defaults write NSGlobalDomain NSDisableAutomaticTermination -bool true' }
@@ -466,6 +468,8 @@
     - { name: 'Set mouse speed to 5 out of 7', command: 'defaults write .GlobalPreferences com.apple.mouse.scaling 5' }
     - { name: "Don't reset windows on external monitors every time the laptop goes to sleep", command: 'defaults write com.apple.spaces spans-displays -bool false' }
     - { name: "Disable swipe to go back in Safari", command: 'defaults write NSGlobalDomain AppleEnableSwipeNavigateWithScrolls -bool false' }
+  loop_control:
+    label: "{{ item.name }}"
 
 - name: Install flushdns script
   copy:
