@@ -85,10 +85,10 @@
       'mise',
       'ncdu',
       'nmap',
-      'nvim',
+      'neovim',
       'pipx',
-      'python',
-      'rg',
+      'python@3.13',
+      'ripgrep',
       'rust',
       'shellcheck',
       'sqlparse',
@@ -100,10 +100,26 @@
       'wget',
       'zsh'
     ]
+    state: present
+    update_homebrew: no
+
+- name: Check which packages to remove are actually linked (not keg-only)
+  shell: |
+    for pkg in curl nodenv nvm rbenv; do
+      if brew list --formula -1 2>/dev/null | grep -q "^${pkg}$"; then
+        if ! brew info "$pkg" 2>/dev/null | grep -q 'keg-only'; then
+          echo "$pkg"
+        fi
+      fi
+    done
+  register: brew_packages_to_remove
+  changed_when: false
+
 - name: 'Remove Brew packages'
   homebrew:
-    name: ['curl', 'nodenv', 'nvm', 'rbenv']
+    name: "{{ brew_packages_to_remove.stdout_lines }}"
     state: absent
+  when: brew_packages_to_remove.stdout_lines | length > 0
 - name: 'Install Brew casks'
   homebrew_cask:
     name: [
@@ -137,31 +153,36 @@
     mise_global_node_version: >-
       {{ (mise_node_use.stdout | regex_findall('node@([0-9.]+)'))[0] | default('') }}
 
-- name: Get installable node versions
-  command: mise ls-remote node
-  register: mise_node_installable_versions
+- name: Get latest LTS Node.js version
+  command: mise latest node@lts
+  register: mise_latest_lts
   changed_when: false
 
-- name: Extract latest LTS version
+- name: Set latest LTS version
   set_fact:
-    latest_lts: >-
-      {{ (mise_node_installable_versions.stdout_lines |
-          select('match', '^\d+\.\d+\.\d+$') |
-          select('match', '^(\d*[02468])\.\d+\.\d+$') |
-          list)[-1] }}
+    latest_lts: "{{ mise_latest_lts.stdout | trim }}"
 
 - name: Get currently installed Node.js versions via mise
   command: mise ls node
   register: installed_node_versions
   changed_when: false
 
+- name: Check if latest LTS is installed
+  set_fact:
+    lts_installed: "{{ ('node  ' ~ latest_lts) in installed_node_versions.stdout }}"
+
 - name: Install latest LTS node version if not installed
-  command: mise use node@lts
-  when: latest_lts not in installed_node_versions.stdout_lines
+  command: mise install node@{{ latest_lts }}
+  when: not lts_installed
+
+- name: Get current global Node.js version from mise config
+  shell: grep '^node = ' ~/.config/mise/config.toml 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo ""
+  register: current_global_node
+  changed_when: false
 
 - name: Set global Node.js version via mise if not set or outdated
-  command: mise use --global node@lts
-  when: mise_global_node_version == "" or mise_global_node_version != latest_lts
+  command: mise use --global node@{{ latest_lts }}
+  when: current_global_node.stdout != latest_lts
 
 - name: Clone vim config repository
   git:
