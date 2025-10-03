@@ -142,17 +142,6 @@
     brew_output is failed and
     (brew_output.msg is not search("It seems there is already an App at"))
 
-- name: Get resolved Node.js version via `mise use node`
-  command: mise use node
-  register: mise_node_use
-  changed_when: false
-  failed_when: false
-
-- name: Extract Node.js version from `mise use node` output
-  set_fact:
-    mise_global_node_version: >-
-      {{ (mise_node_use.stdout | regex_findall('node@([0-9.]+)'))[0] | default('') }}
-
 - name: Get latest LTS Node.js version
   command: mise latest node@lts
   register: mise_latest_lts
