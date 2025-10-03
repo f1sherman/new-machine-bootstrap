@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # https://github.com/Aider-AI/aider/issues/2156
 
+set -e  # Exit on error
+
 pane_dir=$(tmux display-message -p '#{pane_current_path}')
 pane_id=$(tmux display-message -p '#{pane_id}')
-cd "$pane_dir" || exit
-git_root=$(git rev-parse --show-toplevel)
+cd "$pane_dir" || { echo "Failed to cd to $pane_dir"; read -p "Press enter to close"; exit 1; }
+git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$pane_dir")
 
 # gnu coreutils realpath is needed to make the paths relative to the currently active
 # tmux pane relative to the git repo root, because aider always wants paths relative
@@ -24,7 +26,6 @@ selected_files=$(
 		fzf --multi \
       --history "${HOME}/.config/fzf/history" \
       --scheme history \
-      --tmux 95% \
 			--reverse \
 			--preview 'bat --style=numbers --color=always {}' |
 		while read -r file; do
