@@ -1,6 +1,12 @@
 #!/bin/zsh
 # vim: set filetype=zsh syntax=zsh
 
+# Use user-owned temp directory to avoid permission issues with system temp dir.
+# After reboot, macOS sometimes creates /var/folders/*/T/ owned by root, which
+# breaks tools like fzf that need to create temp files.
+export TMPDIR="$HOME/.tmp"
+mkdir -p "$TMPDIR"
+
 # use vim to edit files
 export EDITOR=nvim
 
