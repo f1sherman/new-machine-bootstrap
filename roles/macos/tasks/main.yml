@@ -227,26 +227,21 @@
   file:
     path: '{{ ansible_env.HOME }}/projects'
     state: directory
+- name: Create dotfile subdirectories
+  file:
+    path: '{{ ansible_env.HOME }}/.{{ item.path }}'
+    state: directory
+    mode: 0700
+  with_filetree: templates/dotfiles/
+  when: item.state == 'directory'
 - name: Install dotfiles
   template:
     backup: yes
-    dest: '{{ ansible_env.HOME }}/.{{ item }}'
-    src: 'dotfiles/{{ item }}'
+    dest: '{{ ansible_env.HOME }}/.{{ item.path }}'
+    src: '{{ item.src }}'
     mode: 0600
-  with_items:
-    - ackrc
-    - bash_profile
-    - gitattributes
-    - gitconfig
-    - gitignore
-    - pryrc
-    - rgignore
-    - ripgreprc
-    - tmux.conf
-    - zpreztorc
-    - zlogin
-    - zshenv
-    - zshrc
+  with_filetree: templates/dotfiles/
+  when: item.state == 'file'
 - name: Create /opt/local/bin directory
   file:
     path: '/opt/local/bin'
