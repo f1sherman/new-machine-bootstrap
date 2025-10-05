@@ -479,6 +479,17 @@
     dest: '{{ ansible_env.HOME }}/bin/pick-files'
     src: templates/pick-files
     mode: '0755'
+- name: Create claude bin directory
+  file:
+    dest: '{{ ansible_env.HOME }}/bin/claude'
+    state: directory
+- name: Install spec-metadata script
+  copy:
+    backup: yes
+    dest: '{{ ansible_env.HOME }}/bin/claude/spec-metadata'
+    src: 'bin/claude/spec-metadata'
+    mode: 0755
+  become: true
 - name: Create start-claude script
   template:
     dest: '{{ ansible_env.HOME }}/bin/start-claude'
