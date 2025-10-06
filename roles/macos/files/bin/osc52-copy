@@ -1,0 +1,7 @@
+#!/usr/bin/env ruby
+require "base64"
+data = STDIN.read || ""
+Base64.strict_encode64(data).scan(/.{1,75000}/m) do |chunk|
+  print "\e]52;c;#{chunk}\a"
+  $stdout.flush
+end

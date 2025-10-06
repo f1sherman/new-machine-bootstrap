@@ -210,6 +210,8 @@
     - 'command = /opt/homebrew/bin/tmux'
     - 'copy-on-select = clipboard'
     - 'confirm-close-surface = false'
+    - 'clipboard-write = allow'
+    - 'clipboard-read = ask'
 - name: Initialize vim and install/update plugins
   command: '{{ item }}'
   changed_when: false
@@ -237,26 +239,21 @@
   file:
     path: '{{ ansible_env.HOME }}/projects'
     state: directory
+- name: Create dotfile subdirectories
+  file:
+    path: '{{ ansible_env.HOME }}/.{{ item.path }}'
+    state: directory
+    mode: 0700
+  with_filetree: templates/dotfiles/
+  when: item.state == 'directory'
 - name: Install dotfiles
   template:
     backup: yes
-    dest: '{{ ansible_env.HOME }}/.{{ item }}'
-    src: 'dotfiles/{{ item }}'
+    dest: '{{ ansible_env.HOME }}/.{{ item.path }}'
+    src: '{{ item.src }}'
     mode: 0600
-  with_items:
-    - ackrc
-    - bash_profile
-    - gitattributes
-    - gitconfig
-    - gitignore
-    - pryrc
-    - rgignore
-    - ripgreprc
-    - tmux.conf
-    - zpreztorc
-    - zlogin
-    - zshenv
-    - zshrc
+  with_filetree: templates/dotfiles/
+  when: item.state == 'file'
 - name: Create /opt/local/bin directory
   file:
     path: '/opt/local/bin'
@@ -484,6 +481,23 @@
     dest: '{{ ansible_env.HOME }}/bin/pick-files'
     src: templates/pick-files
     mode: '0755'
+- name: Create claude bin directory
+  file:
+    dest: '{{ ansible_env.HOME }}/bin/claude'
+    state: directory
+- name: Install spec-metadata script
+  copy:
+    backup: yes
+    dest: '{{ ansible_env.HOME }}/bin/claude/spec-metadata'
+    src: 'bin/claude/spec-metadata'
+    mode: 0755
+  become: true
+- name: Install osc52-copy script
+  copy:
+    backup: yes
+    dest: '{{ ansible_env.HOME }}/bin/osc52-copy'
+    src: 'bin/osc52-copy'
+    mode: 0755
 - name: Create start-claude script
   template:
     dest: '{{ ansible_env.HOME }}/bin/start-claude'
