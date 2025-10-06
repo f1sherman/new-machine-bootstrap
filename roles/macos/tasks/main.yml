@@ -210,6 +210,8 @@
     - 'command = /opt/homebrew/bin/tmux'
     - 'copy-on-select = clipboard'
     - 'confirm-close-surface = false'
+    - 'clipboard-write = allow'
+    - 'clipboard-read = ask'
 - name: Initialize vim and install/update plugins
   command: '{{ item }}'
   changed_when: false
@@ -490,6 +492,12 @@
     src: 'bin/claude/spec-metadata'
     mode: 0755
   become: true
+- name: Install osc52-copy script
+  copy:
+    backup: yes
+    dest: '{{ ansible_env.HOME }}/bin/osc52-copy'
+    src: 'bin/osc52-copy'
+    mode: 0755
 - name: Create start-claude script
   template:
     dest: '{{ ansible_env.HOME }}/bin/start-claude'
