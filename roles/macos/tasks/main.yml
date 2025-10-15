@@ -248,7 +248,7 @@
   when: item.state == 'directory'
 - name: Install dotfiles
   template:
-    backup: yes
+    backup: no
     dest: '{{ ansible_env.HOME }}/.{{ item.path }}'
     src: '{{ item.src }}'
     mode: 0600
@@ -487,7 +487,7 @@
     state: directory
 - name: Install spec-metadata script
   copy:
-    backup: yes
+    backup: no
     dest: '{{ ansible_env.HOME }}/bin/claude/spec-metadata'
     src: 'bin/claude/spec-metadata'
     mode: 0755
