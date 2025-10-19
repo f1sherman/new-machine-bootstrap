@@ -40,15 +40,17 @@ end
 # Kill a process with a specified signal
 def kill_process(pid, signal)
   Process.kill(signal, pid)
+  true
 rescue Errno::ESRCH
-  log_error_and_exit("Process #{pid} does not exist.")
+  log_warn("Process #{pid} does not exist (may have already terminated).")
+  false
 rescue StandardError => e
   log_error_and_exit("Failed to kill process #{pid} with signal #{signal}", e)
 end
 
 # Find process ID(s) by name
 def find_pids_by_name(name)
-  pids = `pgrep -fl #{name}`.split("\n").select { |line| line.include?(name) && !line.include?("grep") }.map { |line| line.split.first.to_i }
+  pids = `pgrep -fli #{name}`.split("\n").select { |line| line.downcase.include?(name.downcase) && !line.include?("grep") }.map { |line| line.split.first.to_i }
   log_error_and_exit("No process found with the name '#{name}'.") if pids.empty?
   pids
 rescue StandardError => e
@@ -67,7 +69,7 @@ end
 # Get process details
 def get_process_details(pid)
   details = `ps -p #{pid} -o pid,args,etime,%cpu,%mem`.strip
-  log_error_and_exit("No details found for process #{pid}.") if details.empty?
+  return nil if details.empty? || details.lines.count <= 1
   details
 rescue StandardError => e
   log_error_and_exit("Failed to get process details for #{pid}", e)
@@ -76,6 +78,9 @@ end
 # Confirm with the user before killing the process
 def confirm_kill(pid)
   details = get_process_details(pid)
+  if details.nil?
+    return false
+  end
   puts "Process details:\n#{details}"
   puts "Do you really want to kill this process? (y/n)"
   response = STDIN.gets.strip.downcase
@@ -99,10 +104,17 @@ end
 
 # Attempt to kill the process gracefully, then forcefully if needed
 def terminate_process(pid, force)
+  unless process_alive?(pid)
+    log_warn("Process #{pid} is not running (may have already been terminated).")
+    return
+  end
+
   return unless force || confirm_kill(pid)
 
   log_info("Attempting to gracefully kill process #{pid}...")
-  kill_process(pid, "TERM")
+  killed = kill_process(pid, "TERM")
+
+  return unless killed
 
   20.times do
     sleep 0.5
