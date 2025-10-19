@@ -1,3 +1,7 @@
+---
+description: Execute approved implementation plans from the plans directory with progress tracking
+---
+
 # Implement Plan
 
 You are tasked with implementing an approved technical plan from `plans/`. These plans contain phases with specific changes and success criteria.
