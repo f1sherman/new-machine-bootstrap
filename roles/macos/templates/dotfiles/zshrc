@@ -13,6 +13,13 @@ export EDITOR=nvim
 # use nvim instead of vim
 alias vim=nvim
 
+memusage() {
+    ps aux | grep -i "$1" | grep -v grep | while read -r line; do
+        pid=$(echo "$line" | awk '{print $2}')
+        ps -p "$pid" -o pid=,comm=,%mem=,rss= | awk '{printf "PID: %s  Command: %s  Mem: %s  RSS: %.2f MB\n", $1, $2, $3, $4/1024}'
+    done
+}
+
 # Be more intelligent when autocompleting by also looking at the text after
 # the cursor. For example, when the current line is "cd ~/src/mozil", and
 # the cursor is on the "z", pressing Tab will not autocomplete it to "cd

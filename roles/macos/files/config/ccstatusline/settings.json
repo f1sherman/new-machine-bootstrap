@@ -14,8 +14,8 @@
       },
       {
         "id": "3",
-        "type": "block-timer",
-        "color": "yellow"
+        "type": "context-percentage-usable",
+        "color": "brightBlack"
       },
       {
         "id": "4",
@@ -24,8 +24,8 @@
       },
       {
         "id": "5",
-        "type": "context-percentage-usable",
-        "color": "brightBlack"
+        "type": "block-timer",
+        "color": "yellow"
       }
     ],
     [],
