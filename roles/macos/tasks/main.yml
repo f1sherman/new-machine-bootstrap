@@ -499,6 +499,11 @@
     dest: '{{ ansible_env.HOME }}/bin/osc52-copy'
     src: 'bin/osc52-copy'
     mode: 0755
+- name: Install ocr script
+  copy:
+    dest: '{{ ansible_env.HOME }}/bin/ocr'
+    src: 'bin/ocr'
+    mode: 0755
 - name: Create start-claude script
   template:
     dest: '{{ ansible_env.HOME }}/bin/start-claude'

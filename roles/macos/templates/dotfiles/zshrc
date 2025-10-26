@@ -43,6 +43,23 @@ port() {
 encrypt() { gpg --symmetric "$1"; }
 decrypt() { gpg -o "${1//\.enc/}" -d "$1"; }
 
+# Create directory and change into it
+mkcd() {
+  \mkdir -p "$1"
+  cd "$1"
+}
+
+# Create secure temporary directory and optionally a subdirectory within it
+tempe() {
+  cd "$(mktemp -d)"
+  chmod -R 0700 .
+  if [[ $# -eq 1 ]]; then
+    \mkdir -p "$1"
+    cd "$1"
+    chmod -R 0700 .
+  fi
+}
+
 # Use rg for FZF for speed and to respect .gitignore, .ignore
 export FZF_DEFAULT_COMMAND='rg --files'
 
