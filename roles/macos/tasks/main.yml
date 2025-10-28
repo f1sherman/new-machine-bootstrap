@@ -87,6 +87,7 @@
       'ncdu',
       'nmap',
       'neovim',
+      'pandoc',
       'pipx',
       'python@3.13',
       'ripgrep',

@@ -67,6 +67,15 @@ tempe() {
   fi
 }
 
+# Convert web page to markdown using readability-cli and pandoc
+2markdown() {
+  if [[ $# -eq 0 ]]; then
+    echo "Usage: 2markdown <url>"
+    return 1
+  fi
+  npx readability-cli "$1" | pandoc --from html --to gfm --wrap=none --output page.md
+}
+
 # Use rg for FZF for speed and to respect .gitignore, .ignore
 export FZF_DEFAULT_COMMAND='rg --files'
 
