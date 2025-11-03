@@ -15,7 +15,10 @@
       {
         "id": "3",
         "type": "context-percentage-usable",
-        "color": "brightBlack"
+        "color": "brightBlack",
+        "metadata": {
+          "inverse": "true"
+        }
       },
       {
         "id": "4",
