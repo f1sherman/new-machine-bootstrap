@@ -139,10 +139,10 @@ enable_byobu() {
     sudo chsh -s "$(command -v zsh)" "$(whoami)" || log_warn "Failed to change shell to zsh"
   fi
 
-  # Add zsh auto-launch to .bash_profile (SSH creates login shells)
-  if ! grep -q 'exec zsh' "${HOME}/.bash_profile" 2>/dev/null; then
-    log_info "Adding zsh auto-launch to .bash_profile"
-    cat >> "${HOME}/.bash_profile" <<'BASH_ZSH'
+  # Add zsh auto-launch to .bashrc
+  if ! grep -q 'exec zsh' "${HOME}/.bashrc" 2>/dev/null; then
+    log_info "Adding zsh auto-launch to .bashrc"
+    cat >> "${HOME}/.bashrc" <<'BASH_ZSH'
 
 # Added by dotfiles installer - launch zsh
 exec zsh
