@@ -133,17 +133,16 @@ enable_byobu() {
     return
   fi
 
-  # Change default shell to zsh
+  # Change default shell to zsh (for future logins)
   if [ "$SHELL" != "$(command -v zsh)" ]; then
     log_info "Changing default shell to zsh"
     sudo chsh -s "$(command -v zsh)" "$(whoami)" || log_warn "Failed to change shell to zsh"
   fi
 
-  # Add byobu launch to .zshrc.local (sourced by our .zshrc)
-  local zshrc_local="${HOME}/.zshrc.local"
-  if ! grep -q 'BYOBU_SESSION' "$zshrc_local" 2>/dev/null; then
-    log_info "Adding byobu auto-launch to .zshrc.local"
-    cat >> "$zshrc_local" <<'BYOBU'
+  # Add byobu launch to .bashrc (for first login before chsh takes effect)
+  if ! grep -q 'BYOBU_SESSION' "${HOME}/.bashrc" 2>/dev/null; then
+    log_info "Adding byobu auto-launch to .bashrc"
+    cat >> "${HOME}/.bashrc" <<'BYOBU_BASH'
 
 # Added by dotfiles installer - launch byobu with unique session per connection
 # Only launch if not already in a tmux/byobu session
@@ -152,7 +151,23 @@ if [ -z "$TMUX" ]; then
   byobu new-session -d -s "$BYOBU_SESSION" 2>/dev/null || true
   byobu attach-session -t "$BYOBU_SESSION" 2>/dev/null || true
 fi
-BYOBU
+BYOBU_BASH
+  fi
+
+  # Add byobu launch to .zshrc.local (for subsequent logins once chsh takes effect)
+  local zshrc_local="${HOME}/.zshrc.local"
+  if ! grep -q 'BYOBU_SESSION' "$zshrc_local" 2>/dev/null; then
+    log_info "Adding byobu auto-launch to .zshrc.local"
+    cat >> "$zshrc_local" <<'BYOBU_ZSH'
+
+# Added by dotfiles installer - launch byobu with unique session per connection
+# Only launch if not already in a tmux/byobu session
+if [ -z "$TMUX" ]; then
+  BYOBU_SESSION="ssh-$(date +%s)-$$"
+  byobu new-session -d -s "$BYOBU_SESSION" 2>/dev/null || true
+  byobu attach-session -t "$BYOBU_SESSION" 2>/dev/null || true
+fi
+BYOBU_ZSH
     log_info "Byobu auto-launch configured"
   else
     log_info "Byobu already configured in .zshrc.local"
