@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 if [[ -n "$ZSH_ENV_LOADED" ]]; then
   return 0  # Already loaded, skip rest of file
 fi
@@ -5,35 +7,43 @@ export ZSH_ENV_LOADED=1
 
 # Prepend to path avoiding duplicates
 pathprepend() {
-  local newdir=${1%/}
-  if [ -d "${1}" ]; then
-    if [[ ":$PATH:" != *":${1}:"* ]]; then
-      PATH="${1}:$PATH"
+  local dir="${1%/}"
+  if [ -d "${dir}" ]; then
+    if [[ ":$PATH:" != *":${dir}:"* ]]; then
+      PATH="${dir}:$PATH"
     else
       # Remove the directory from PATH
       PATH=":$PATH:"
-      PATH=${PATH//:${1}:/:}
+      PATH=${PATH//:${dir}:/:}
       PATH=${PATH#:}
       PATH=${PATH%:}
       # Add it to the beginning
-      PATH="${1}:$PATH"
+      PATH="${dir}:$PATH"
     fi
   fi
 }
 
 pathprepend "${HOME}/bin"
 pathprepend "${HOME}/.local/bin"
-pathprepend "/opt/local/bin"
-pathprepend "{{ brew_prefix }}/bin"
-pathprepend "{{ brew_prefix }}/opt/curl/bin"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  pathprepend "/opt/local/bin"
+fi
+
+# Homebrew support (works on macOS and Linuxbrew)
+if command -v brew >/dev/null 2>&1; then
+  : "${HOMEBREW_PREFIX:=$(brew --prefix 2>/dev/null)}"
+  if [[ -n "${HOMEBREW_PREFIX}" ]]; then
+    pathprepend "${HOMEBREW_PREFIX}/bin"
+    pathprepend "${HOMEBREW_PREFIX}/opt/curl/bin"
+    eval "$("${HOMEBREW_PREFIX}/bin/brew" shellenv)"
+  fi
+fi
 
 # Load any machine-specific customizations
 if [ -f ~/.zshenv.local ]; then
   # shellcheck disable=SC1090
   . ~/.zshenv.local
 fi
-
-eval "$({{ brew_prefix }}/bin/brew shellenv)"
 
 # Don't require merge commit editing for conflict-free merges, see http://git-blame.blogspot.com/2012/02/updates-to-git-merge-in-upcoming-1710.html
 export GIT_MERGE_AUTOEDIT=no
@@ -63,6 +73,8 @@ alias assume=". assume"
 for API_NAME in "openai" "anthropic"; do
   API_KEY_FILE="${HOME}/.config/api-keys/${API_NAME}"
   if [ -f "$API_KEY_FILE" ] && [ -s "$API_KEY_FILE" ]; then
-    export "${(U)API_NAME}_API_KEY"=$(<"$API_KEY_FILE")
+    API_ENV_NAME="$(printf '%s' "$API_NAME" | tr '[:lower:]' '[:upper:]')_API_KEY"
+    API_ENV_VALUE="$(<"$API_KEY_FILE")"
+    export "${API_ENV_NAME}=${API_ENV_VALUE}"
   fi
 done

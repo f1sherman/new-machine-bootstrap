@@ -86,14 +86,17 @@ export FZF_CTRL_T_COMMAND='rg --files --ignore-vcs'
 # make CTRL-R paste the current query when there's no match
 export FZF_CTRL_R_OPTS='--bind enter:accept-or-print-query'
 
-if type brew &>/dev/null; then
-  chmod go-w "{{ brew_prefix }}/share"
+if command -v brew >/dev/null 2>&1; then
+  : "${HOMEBREW_PREFIX:=$(brew --prefix 2>/dev/null)}"
+  if [[ -n "${HOMEBREW_PREFIX}" ]]; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+      chmod go-w "${HOMEBREW_PREFIX}/share" 2>/dev/null
+    fi
 
-  FPATH={{ brew_prefix }}/share/zsh-completions:$FPATH
-
-  # compinit disabled for faster startup
-  # autoload -Uz compinit
-  # compinit
+    if [ -d "${HOMEBREW_PREFIX}/share/zsh-completions" ]; then
+      FPATH="${HOMEBREW_PREFIX}/share/zsh-completions:$FPATH"
+    fi
+  fi
 fi
 
 # Search the current bundle
@@ -103,14 +106,29 @@ bgrep() {
 }
 
 # Load SSH keys into the keychain - http://stackoverflow.com/a/39715149/961521
-ssh-add -A 2>/dev/null;
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  ssh-add -A 2>/dev/null
+fi
 
 # Install NVM
-if [ -z "${NVM_DIR}" ]; then
+if [ -z "${NVM_DIR:-}" ]; then
   export NVM_DIR="$HOME/.nvm"
-  [ -s "{{ brew_prefix }}/opt/nvm/nvm.sh" ] && . "{{ brew_prefix }}/opt/nvm/nvm.sh"  # This loads nvm
+fi
+
+if [ -s "${NVM_DIR}/nvm.sh" ]; then
   # shellcheck disable=SC1091
-  [ -s "{{ brew_prefix }}/opt/nvm/etc/bash_completion" ] && . "{{ brew_prefix }}/opt/nvm/etc/bash_completion"  # This loads nvm bash_completion
+  . "${NVM_DIR}/nvm.sh"
+elif command -v brew >/dev/null 2>&1; then
+  : "${HOMEBREW_PREFIX:=$(brew --prefix 2>/dev/null)}"
+  # shellcheck disable=SC1091
+  [ -s "${HOMEBREW_PREFIX}/opt/nvm/nvm.sh" ] && . "${HOMEBREW_PREFIX}/opt/nvm/nvm.sh"
+fi
+
+# shellcheck disable=SC1091
+if [ -s "${NVM_DIR}/bash_completion" ]; then
+  . "${NVM_DIR}/bash_completion"
+elif [ -n "${HOMEBREW_PREFIX:-}" ] && [ -s "${HOMEBREW_PREFIX}/opt/nvm/etc/bash_completion" ]; then
+  . "${HOMEBREW_PREFIX}/opt/nvm/etc/bash_completion"
 fi
 
 # Source Prezto.
@@ -219,8 +237,10 @@ function rebase() {
 
 ### Alias ###
 # View HTTP traffic
-alias sniff="sudo ngrep -d 'en1' -t '^(GET|POST) ' 'tcp and port 80'"
-alias httpdump="sudo tcpdump -i en1 -n -s 0 -w - | grep -a -o -E \"Host\: .*|GET \/.*\""
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  alias sniff="sudo ngrep -d 'en1' -t '^(GET|POST) ' 'tcp and port 80'"
+  alias httpdump="sudo tcpdump -i en1 -n -s 0 -w - | grep -a -o -E \"Host\: .*|GET \/.*\""
+fi
 # Scan ports on a host
 alias portscan="nmap -Pn -p1-65535"
 # List TCP connections
@@ -244,7 +264,9 @@ alias s='git status'
 # Show Disk Use of subdirectories, sort by size
 alias duss="du -d 1 -h | sort -hr | egrep -v ^0"
 # Disable Pi-hole and Flush DNS
-alias trackme="disable-pihole && sudo flushdns"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  alias trackme="disable-pihole && sudo flushdns"
+fi
 
 ### End Alias ###
 

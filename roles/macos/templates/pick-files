@@ -5,7 +5,7 @@ set -e  # Exit on error
 
 pane_dir=$(tmux display-message -p '#{pane_current_path}')
 pane_id=$(tmux display-message -p '#{pane_id}')
-cd "$pane_dir" || { echo "Failed to cd to $pane_dir"; read -p "Press enter to close"; exit 1; }
+cd "$pane_dir" || { echo "Failed to cd to $pane_dir"; read -r -p "Press enter to close"; exit 1; }
 git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$pane_dir")
 
 # gnu coreutils realpath is needed to make the paths relative to the currently active
@@ -18,7 +18,14 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 	fi
 	realpath_cmd="grealpath"
 else
-	realpath_cmd="realpath"
+	if command -v realpath >/dev/null 2>&1; then
+		realpath_cmd="realpath"
+	elif command -v python3 >/dev/null 2>&1; then
+		realpath_cmd=""
+	else
+		echo "realpath not found. Install coreutils or ensure python3 is available." >&2
+		exit 1
+	fi
 fi
 
 selected_files=$(
@@ -29,7 +36,11 @@ selected_files=$(
 			--reverse \
 			--preview 'bat --style=numbers --color=always {}' |
 		while read -r file; do
-			"$realpath_cmd" --relative-to="$git_root" "$pane_dir/$file"
+			if [[ -n "$realpath_cmd" ]]; then
+				"$realpath_cmd" --relative-to="$git_root" "$pane_dir/$file"
+			else
+				python3 -c 'import os, sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$pane_dir/$file" "$git_root"
+			fi
 		done
 )
 
