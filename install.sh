@@ -126,32 +126,28 @@ install_helpers() {
 }
 
 enable_byobu() {
-  if grep -q 'byobu-launch' "${HOME}/.bashrc" 2>/dev/null; then
+  if grep -q 'byobu' "${HOME}/.bashrc" 2>/dev/null; then
     log_info "Byobu already enabled"
     return
   fi
 
   log_info "Enabling Byobu auto-launch"
 
-  # Try using byobu-enable first
-  if command_exists byobu-enable; then
-    if byobu-enable 2>&1 | grep -q "Byobu"; then
-      log_info "Byobu enabled successfully"
-      return
-    fi
-  fi
-
-  # Fallback: manually add byobu-launch to .bashrc
-  if command_exists byobu-launch; then
-    log_info "Manually adding byobu-launch to .bashrc"
+  if command_exists byobu; then
+    log_info "Adding byobu auto-launch to .bashrc"
     cat >> "${HOME}/.bashrc" <<'BYOBU'
 
-# Added by dotfiles installer
-_byobu_sourced=1 . /usr/bin/byobu-launch 2>/dev/null || true
+# Added by dotfiles installer - creates new session per SSH connection
+if command -v byobu >/dev/null 2>&1 && [ -n "$SSH_CONNECTION" ]; then
+  # Generate a unique session name based on SSH connection
+  BYOBU_SESSION="ssh-$(date +%s)-$$"
+  byobu new-session -d -s "$BYOBU_SESSION" 2>/dev/null || true
+  byobu attach-session -t "$BYOBU_SESSION" 2>/dev/null || true
+fi
 BYOBU
-    log_info "Byobu auto-launch configured"
+    log_info "Byobu auto-launch configured (new session per SSH connection)"
   else
-    log_warn "byobu-launch command not found; skipping auto-start configuration"
+    log_warn "byobu command not found; skipping auto-start configuration"
   fi
 }
 
