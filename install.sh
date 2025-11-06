@@ -126,18 +126,24 @@ install_helpers() {
 }
 
 enable_byobu() {
-  if grep -q 'byobu' "${HOME}/.bashrc" 2>/dev/null; then
-    log_info "Byobu already enabled"
+  log_info "Enabling Byobu auto-launch"
+
+  if ! command_exists byobu; then
+    log_warn "byobu command not found; skipping auto-start configuration"
     return
   fi
 
-  log_info "Enabling Byobu auto-launch"
+  # Change default shell to zsh
+  if [ "$SHELL" != "$(command -v zsh)" ]; then
+    log_info "Changing default shell to zsh"
+    sudo chsh -s "$(command -v zsh)" "$(whoami)" || log_warn "Failed to change shell to zsh"
+  fi
 
-  if command_exists byobu; then
-    log_info "Adding byobu auto-launch to shell config files"
-
-    # Add to .bashrc for interactive non-login shells
-    cat >> "${HOME}/.bashrc" <<'BYOBU'
+  # Add byobu launch to .zshrc (which we symlinked from dotfiles)
+  local zshrc="${HOME}/.zshrc"
+  if [ -f "$zshrc" ] && ! grep -q 'BYOBU_SESSION' "$zshrc" 2>/dev/null; then
+    log_info "Adding byobu auto-launch to .zshrc"
+    cat >> "$zshrc" <<'BYOBU'
 
 # Added by dotfiles installer - creates new session per SSH connection
 if command -v byobu >/dev/null 2>&1 && [ -n "$SSH_CONNECTION" ]; then
@@ -147,26 +153,9 @@ if command -v byobu >/dev/null 2>&1 && [ -n "$SSH_CONNECTION" ]; then
   byobu attach-session -t "$BYOBU_SESSION" 2>/dev/null || true
 fi
 BYOBU
-
-    # Also add to .bash_profile for login shells (SSH)
-    if [ -f "${HOME}/.bash_profile" ]; then
-      if ! grep -q 'byobu' "${HOME}/.bash_profile" 2>/dev/null; then
-        cat >> "${HOME}/.bash_profile" <<'BYOBU_PROFILE'
-
-# Added by dotfiles installer - creates new session per SSH connection
-if command -v byobu >/dev/null 2>&1 && [ -n "$SSH_CONNECTION" ]; then
-  # Generate a unique session name based on SSH connection
-  BYOBU_SESSION="ssh-$(date +%s)-$$"
-  byobu new-session -d -s "$BYOBU_SESSION" 2>/dev/null || true
-  byobu attach-session -t "$BYOBU_SESSION" 2>/dev/null || true
-fi
-BYOBU_PROFILE
-      fi
-    fi
-
-    log_info "Byobu auto-launch configured (new session per SSH connection)"
+    log_info "Byobu auto-launch configured for zsh (new session per SSH connection)"
   else
-    log_warn "byobu command not found; skipping auto-start configuration"
+    log_info "Byobu already configured in .zshrc or .zshrc not found"
   fi
 }
 
