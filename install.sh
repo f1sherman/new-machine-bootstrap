@@ -126,18 +126,33 @@ install_helpers() {
 }
 
 enable_byobu() {
-  if ! command_exists byobu-enable; then
-    log_warn "byobu-enable command not found; skipping auto-start configuration"
-    return
-  fi
-
   if grep -q 'byobu-launch' "${HOME}/.bashrc" 2>/dev/null; then
     log_info "Byobu already enabled"
     return
   fi
 
   log_info "Enabling Byobu auto-launch"
-  byobu-enable >/dev/null 2>&1 || true
+
+  # Try using byobu-enable first
+  if command_exists byobu-enable; then
+    if byobu-enable 2>&1 | grep -q "Byobu"; then
+      log_info "Byobu enabled successfully"
+      return
+    fi
+  fi
+
+  # Fallback: manually add byobu-launch to .bashrc
+  if command_exists byobu-launch; then
+    log_info "Manually adding byobu-launch to .bashrc"
+    cat >> "${HOME}/.bashrc" <<'BYOBU'
+
+# Added by dotfiles installer
+_byobu_sourced=1 . /usr/bin/byobu-launch 2>/dev/null || true
+BYOBU
+    log_info "Byobu auto-launch configured"
+  else
+    log_warn "byobu-launch command not found; skipping auto-start configuration"
+  fi
 }
 
 finalize_environment() {
