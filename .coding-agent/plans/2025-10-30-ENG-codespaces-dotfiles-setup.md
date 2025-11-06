@@ -167,6 +167,67 @@ Test end-to-end in both macOS and Codespaces; update onboarding docs.
 
 ---
 
+## Phase 6: Fix Remaining Issues
+### Overview
+Address issues discovered during testing in Codespaces environment.
+
+### Issues to Fix
+
+#### 1. Ctrl-p tmux pane behavior
+**Problem**: Ctrl-p in both zsh and vim opens and quickly closes a pane instead of triggering fzf/vim functionality.
+**Likely cause**: Nested tmux sessions may be interfering with the tmux popup behavior.
+**Possible solutions**:
+- Revert to fzf's default non-tmux behavior (no popup)
+- Investigate tmux keybinding conflicts in nested sessions
+- Consider alternative keybinding for pick-files
+
+#### 2. Vim plugin installation
+**Problem**: When vim is opened for the first time, plugins are not installed automatically.
+**Solution**: Run vim plugin installation during bootstrap (e.g., `vim +PlugInstall +qall` or equivalent for the plugin manager being used).
+
+#### 3. Vim colors
+**Problem**: Colors in vim are "really messed up" in Codespaces.
+**Possible causes**:
+- Terminal color support (256 color vs truecolor)
+- Missing colorscheme
+- TERM environment variable misconfiguration
+**Solution**: Investigate and fix terminal/vim color configuration for Codespaces environment.
+
+### Changes Required
+- **File** `roles/macos/templates/dotfiles/zshrc` or tmux config: Fix Ctrl-p behavior for nested tmux
+- **File** `install.sh`: Add vim plugin installation step
+- **File** vim/tmux configs: Fix color support for Codespaces terminal
+
+### Success Criteria
+#### Manual Verification
+- [ ] Ctrl-p in zsh triggers fzf file picker correctly
+- [ ] Ctrl-p in vim triggers appropriate vim functionality
+- [ ] Vim plugins are installed automatically on first bootstrap
+- [ ] Vim colors display correctly in Codespaces
+
+### Implemented Solutions
+
+#### 1. Ctrl-p tmux behavior (FIXED)
+**Solution**: Created Codespaces-specific tmux.conf that uses split-window instead of display-popup.
+- macOS uses `roles/macos/templates/dotfiles/tmux.conf` with display-popup
+- Codespaces uses `codespaces/dotfiles/tmux.conf` with split-window
+- Clean separation, no runtime patching needed
+- **Files**: `codespaces/dotfiles/tmux.conf`, `install.sh:113,116`
+
+#### 2. Vim plugin installation (FIXED)
+**Solution**: Added automatic plugin installation to `sync_dotvim()` function.
+- Runs `vim +PlugInstall +qall` after cloning/updating dotvim
+- Runs silently during bootstrap
+- **File**: `install.sh:98-101`
+
+#### 3. Vim colors (FIXED)
+**Solution**: Enhanced terminal color support in tmux configuration.
+- Added wildcard terminal override for all 256color terminals
+- Added cursor shape support for better terminal compatibility
+- **File**: `roles/macos/templates/dotfiles/tmux.conf:94-98`
+
+---
+
 ## Testing Strategy
 - **Unit**: N/A (shell scripts primarily; rely on shellcheck and targeted script tests).
 - **Integration**: Run full Codespaces install on a fresh codespace, confirm behavior.

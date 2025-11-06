@@ -91,21 +91,29 @@ sync_dotvim() {
     log_info "Cloning dotvim configuration"
     if ! git clone https://github.com/f1sherman/dotvim.git "$vim_dir"; then
       log_warn "Unable to clone dotvim repository; Vim/Neovim configuration will be limited"
+      return
     fi
+  fi
+
+  if [ -f "${vim_dir}/vimrc" ]; then
+    log_info "Installing vim plugins"
+    vim -u "${vim_dir}/vimrc" +PlugInstall +qall > /dev/null 2>&1 || log_warn "Failed to install vim plugins"
   fi
 }
 
 link_dotfiles() {
   local dotfiles_root="${REPO_ROOT}/roles/macos/templates/dotfiles"
+  local codespaces_dotfiles="${REPO_ROOT}/codespaces/dotfiles"
 
   link_file "${dotfiles_root}/zshenv" "${HOME}/.zshenv"
   link_file "${dotfiles_root}/zshrc" "${HOME}/.zshrc"
   link_file "${dotfiles_root}/zlogin" "${HOME}/.zlogin"
   link_file "${dotfiles_root}/zpreztorc" "${HOME}/.zpreztorc"
-  link_file "${dotfiles_root}/tmux.conf" "${HOME}/.tmux.conf"
+
+  link_file "${codespaces_dotfiles}/tmux.conf" "${HOME}/.tmux.conf"
 
   mkdir -p "${HOME}/.byobu"
-  link_file "${dotfiles_root}/tmux.conf" "${HOME}/.byobu/.tmux.conf"
+  link_file "${codespaces_dotfiles}/tmux.conf" "${HOME}/.byobu/.tmux.conf"
 
   mkdir -p "${HOME}/.config/nvim"
   if [ -f "${HOME}/.vim/vimrc" ]; then
