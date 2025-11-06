@@ -139,6 +139,19 @@ enable_byobu() {
     sudo chsh -s "$(command -v zsh)" "$(whoami)" || log_warn "Failed to change shell to zsh"
   fi
 
+  # Add zsh auto-launch to .bashrc (for first login before chsh takes effect)
+  if ! grep -q 'exec zsh' "${HOME}/.bashrc" 2>/dev/null; then
+    log_info "Adding zsh auto-launch to .bashrc for first login"
+    cat >> "${HOME}/.bashrc" <<'BASH_ZSH'
+
+# Added by dotfiles installer - auto-launch zsh if in bash
+if [ -n "$SSH_CONNECTION" ] && command -v zsh >/dev/null 2>&1; then
+  export SHELL=$(command -v zsh)
+  exec zsh
+fi
+BASH_ZSH
+  fi
+
   # Add byobu launch to .zshrc.local (sourced by our .zshrc)
   local zshrc_local="${HOME}/.zshrc.local"
   if ! grep -q 'BYOBU_SESSION' "$zshrc_local" 2>/dev/null; then
