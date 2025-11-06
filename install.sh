@@ -139,11 +139,11 @@ enable_byobu() {
     sudo chsh -s "$(command -v zsh)" "$(whoami)" || log_warn "Failed to change shell to zsh"
   fi
 
-  # Add byobu launch to .zshrc (which we symlinked from dotfiles)
-  local zshrc="${HOME}/.zshrc"
-  if [ -f "$zshrc" ] && ! grep -q 'BYOBU_SESSION' "$zshrc" 2>/dev/null; then
-    log_info "Adding byobu auto-launch to .zshrc"
-    cat >> "$zshrc" <<'BYOBU'
+  # Add byobu launch to .zshrc.local (sourced by our .zshrc)
+  local zshrc_local="${HOME}/.zshrc.local"
+  if ! grep -q 'BYOBU_SESSION' "$zshrc_local" 2>/dev/null; then
+    log_info "Adding byobu auto-launch to .zshrc.local"
+    cat >> "$zshrc_local" <<'BYOBU'
 
 # Added by dotfiles installer - creates new session per SSH connection
 if command -v byobu >/dev/null 2>&1 && [ -n "$SSH_CONNECTION" ]; then
@@ -155,7 +155,7 @@ fi
 BYOBU
     log_info "Byobu auto-launch configured for zsh (new session per SSH connection)"
   else
-    log_info "Byobu already configured in .zshrc or .zshrc not found"
+    log_info "Byobu already configured in .zshrc.local"
   fi
 }
 
