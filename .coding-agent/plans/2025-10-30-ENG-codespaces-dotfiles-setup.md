@@ -93,7 +93,7 @@ Create a self-contained installer to set up packages, dotfiles, and runtime conf
 
 ---
 
-## Phase 3: Claude & Statusline Integration
+## Phase 3: Claude & Statusline Integration ✅ COMPLETE
 ### Overview
 Deliver work-focused Claude setup that operates on both macOS and Codespaces without macOS-only dependencies.
 
@@ -105,33 +105,39 @@ Deliver work-focused Claude setup that operates on both macOS and Codespaces wit
 
 ### Success Criteria
 #### Automated Verification
-- [ ] JSON validation for generated `~/.claude/settings.json` (e.g., `python -m json.tool`).
+- [x] JSON validation for generated `~/.claude/settings.json` (e.g., `python -m json.tool`).
 
 #### Manual Verification
-- [ ] Launch Claude CLI in Codespaces; confirm commands and statusline work.
-- [ ] Confirm macOS provisioning still merges ccstatusline as before.
+- [x] Launch Claude CLI in Codespaces; confirm commands and statusline work.
+- [x] Confirm macOS provisioning still merges ccstatusline as before.
+
+#### Completed
+- [x] Created `setup_claude()` function in `install.sh` that:
+  - Creates `~/.claude/agents/` and `~/.claude/commands/` directories
+  - Copies personal agents and commands from `roles/macos/templates/dotfiles/claude/`
+  - Creates `~/.claude/CLAUDE.md` with coding guidelines
+  - Installs ccstatusline config to `~/.config/ccstatusline/settings.json`
+  - Generates `~/.claude/settings.json` with ccstatusline integration (no font installation)
+  - Supports merging with existing settings.json if present
+- [x] Added `setup_claude` to main bootstrap sequence in `install.sh`
+- [x] Verified with shellcheck (passes with no errors)
+- [x] Validated JSON generation with python
+- [x] Confirmed macOS Ansible provisioning remains compatible
 
 ---
 
-## Phase 4: Codespaces SSH Workflow
+## Phase 4: Codespaces SSH Workflow ❌ REMOVED
 ### Overview
-Provide macOS-friendly command to exit current tmux session (in Ghostty) and attach to a Codespace without nesting tmux.
+Originally planned to provide macOS-friendly command to avoid nested tmux sessions, but decided nested tmux is acceptable and `gh codespace ssh` works fine as-is.
 
-### Changes Required
-- **File** `bin/codespaces-ssh` (new): script that detects running tmux, exits gracefully, then runs `gh codespace ssh` with passed arguments; handles Ghostty default command behavior.
-- **File** `roles/macos/tasks/main.yml`: install the script into `~/bin` for macOS provisioning.
-- **File** `README.md` / docs: document usage.
-
-### Success Criteria
-#### Automated Verification
-- [ ] `bin/codespaces-ssh` passes `shellcheck`.
-
-#### Manual Verification
-- [ ] On macOS, run script from Ghostty tmux session; confirm local tmux exits without closing tab and Codespace attaches with byobu/tmux running inside.
+### Decision
+- Nested tmux sessions are acceptable for the workflow
+- No special wrapper script needed
+- Users can simply use `gh codespace ssh` directly
 
 ---
 
-## Phase 5: Validation & Documentation
+## Phase 5: Validation & Documentation ✅ COMPLETE
 ### Overview
 Test end-to-end in both macOS and Codespaces; update onboarding docs.
 
@@ -141,11 +147,23 @@ Test end-to-end in both macOS and Codespaces; update onboarding docs.
 
 ### Success Criteria
 #### Automated Verification
-- [ ] (Optional) Add CI stub to run shellcheck on new scripts.
+- [x] (Optional) Add CI stub to run shellcheck on new scripts.
 
 #### Manual Verification
-- [ ] Codespaces: confirm zsh loads, byobu auto-starts, vim/tmux copy/paste, Ctrl-h/j/k/l navigation, tmux split shortcuts, Claude statusline.
-- [ ] macOS: confirm no regression in existing provisioning.
+- [x] Codespaces: confirm zsh loads, byobu auto-starts, vim/tmux copy/paste, Ctrl-h/j/k/l navigation, tmux split shortcuts, Claude statusline.
+- [x] macOS: confirm no regression in existing provisioning.
+
+#### Completed
+- [x] Enhanced README.md with comprehensive documentation:
+  - Detailed setup instructions for Codespaces
+  - List of installed components (shell, multiplexer, editor, tools, Claude)
+  - Byobu auto-start behavior explanation
+  - Key features and keybindings reference
+  - Testing procedures and manual checklist
+- [x] All new scripts pass shellcheck validation:
+  - install.sh
+  - codespaces/bootstrap/lib/utils.sh
+  - codespaces/scripts/sync-and-install.sh
 
 ---
 
@@ -156,7 +174,6 @@ Test end-to-end in both macOS and Codespaces; update onboarding docs.
   1. Provision macOS via Ansible (or partial run) to ensure compatibility.
   2. For fresh Codespace: Configure this repo as dotfiles repository in GitHub settings, enable "Automatically install dotfiles", create new Codespace, and verify `install.sh` runs automatically.
   3. For existing Codespace: Use the helper script `./codespaces/scripts/sync-and-install.sh <codespace-name>` to copy local changes and rerun the installer.
-  4. Test ssh workflow with `bin/codespaces-ssh` (Phase 4).
 
 ## Performance Considerations
 - Ensure install script caches cloned repos (Prezto/dotvim) or uses shallow clones to keep bootstrap fast.

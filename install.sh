@@ -174,6 +174,84 @@ BYOBU_ZSH
   fi
 }
 
+setup_claude() {
+  log_info "Setting up Claude configuration"
+
+  local claude_dir="${HOME}/.claude"
+  mkdir -p "${claude_dir}/agents"
+  mkdir -p "${claude_dir}/commands"
+
+  local dotfiles_claude="${REPO_ROOT}/roles/macos/templates/dotfiles/claude"
+
+  if [ -d "${dotfiles_claude}/agents" ]; then
+    log_info "Copying Claude agents"
+    cp -r "${dotfiles_claude}/agents/"* "${claude_dir}/agents/" 2>/dev/null || log_warn "No agents to copy"
+  fi
+
+  if [ -d "${dotfiles_claude}/commands" ]; then
+    log_info "Copying Claude commands"
+    cp -r "${dotfiles_claude}/commands/"* "${claude_dir}/commands/" 2>/dev/null || log_warn "No commands to copy"
+  fi
+
+  log_info "Creating ~/.claude/CLAUDE.md"
+  cat > "${claude_dir}/CLAUDE.md" <<'CLAUDE_MD'
+Add code comments sparingly. Focus on why something is done, especially for complex logic, rather than what is done. Only add high-value comments if necessary for clarity or if requested by the user. Do not edit comments that are separate from the code you are changing. NEVER talk to the user or describe your changes through comments.
+CLAUDE_MD
+
+  local ccstatusline_version="2.0.21"
+  local ccstatusline_config="${REPO_ROOT}/roles/macos/files/config/ccstatusline/settings.json"
+  local ccstatusline_dir="${HOME}/.config/ccstatusline"
+
+  if [ -f "${ccstatusline_config}" ]; then
+    log_info "Installing ccstatusline configuration"
+    mkdir -p "${ccstatusline_dir}"
+    cp "${ccstatusline_config}" "${ccstatusline_dir}/settings.json"
+  fi
+
+  log_info "Generating ~/.claude/settings.json"
+  local settings_file="${claude_dir}/settings.json"
+
+  if [ -f "${settings_file}" ]; then
+    log_info "Merging ccstatusline into existing Claude settings"
+    if command_exists python3; then
+      python3 -c "
+import json
+import sys
+
+try:
+    with open('${settings_file}', 'r') as f:
+        settings = json.load(f)
+except:
+    settings = {}
+
+settings['statusLine'] = {
+    'type': 'command',
+    'command': 'npx -y ccstatusline@${ccstatusline_version}',
+    'padding': 0
+}
+
+with open('${settings_file}', 'w') as f:
+    json.dump(settings, f, indent=2)
+" || log_warn "Failed to merge Claude settings"
+    fi
+  else
+    log_info "Creating new Claude settings.json"
+    cat > "${settings_file}" <<SETTINGS_JSON
+{
+  "statusLine": {
+    "type": "command",
+    "command": "npx -y ccstatusline@${ccstatusline_version}",
+    "padding": 0
+  }
+}
+SETTINGS_JSON
+  fi
+
+  chmod 0700 "${claude_dir}"
+  chmod 0600 "${claude_dir}/CLAUDE.md" 2>/dev/null || true
+  chmod 0600 "${settings_file}" 2>/dev/null || true
+}
+
 finalize_environment() {
   if command_exists pipx; then
     pipx ensurepath >/dev/null 2>&1 || true
@@ -189,6 +267,7 @@ main() {
   sync_dotvim
   link_dotfiles
   install_helpers
+  setup_claude
   enable_byobu
   finalize_environment
 
