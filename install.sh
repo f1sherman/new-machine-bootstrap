@@ -139,16 +139,13 @@ enable_byobu() {
     sudo chsh -s "$(command -v zsh)" "$(whoami)" || log_warn "Failed to change shell to zsh"
   fi
 
-  # Add zsh auto-launch to .bashrc (for first login before chsh takes effect)
-  if ! grep -q 'exec zsh' "${HOME}/.bashrc" 2>/dev/null; then
-    log_info "Adding zsh auto-launch to .bashrc for first login"
-    cat >> "${HOME}/.bashrc" <<'BASH_ZSH'
+  # Add zsh auto-launch to .bash_profile (SSH creates login shells)
+  if ! grep -q 'exec zsh' "${HOME}/.bash_profile" 2>/dev/null; then
+    log_info "Adding zsh auto-launch to .bash_profile"
+    cat >> "${HOME}/.bash_profile" <<'BASH_ZSH'
 
-# Added by dotfiles installer - auto-launch zsh if in bash
-if [ -n "$SSH_CONNECTION" ] && command -v zsh >/dev/null 2>&1; then
-  export SHELL=$(command -v zsh)
-  exec zsh
-fi
+# Added by dotfiles installer - launch zsh
+exec zsh
 BASH_ZSH
   fi
 
@@ -158,15 +155,12 @@ BASH_ZSH
     log_info "Adding byobu auto-launch to .zshrc.local"
     cat >> "$zshrc_local" <<'BYOBU'
 
-# Added by dotfiles installer - creates new session per SSH connection
-if command -v byobu >/dev/null 2>&1 && [ -n "$SSH_CONNECTION" ]; then
-  # Generate a unique session name based on SSH connection
-  BYOBU_SESSION="ssh-$(date +%s)-$$"
-  byobu new-session -d -s "$BYOBU_SESSION" 2>/dev/null || true
-  byobu attach-session -t "$BYOBU_SESSION" 2>/dev/null || true
-fi
+# Added by dotfiles installer - launch byobu with unique session per connection
+BYOBU_SESSION="ssh-$(date +%s)-$$"
+byobu new-session -d -s "$BYOBU_SESSION" 2>/dev/null || true
+byobu attach-session -t "$BYOBU_SESSION" 2>/dev/null || true
 BYOBU
-    log_info "Byobu auto-launch configured for zsh (new session per SSH connection)"
+    log_info "Byobu auto-launch configured"
   else
     log_info "Byobu already configured in .zshrc.local"
   fi
