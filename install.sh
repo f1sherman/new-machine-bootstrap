@@ -241,16 +241,15 @@ BYOBU_ZSH
     log_info "Byobu already configured in .zshrc.local"
   fi
 
-  # Customize prompt colors for Codespaces
+  # Use a different theme for Codespaces (with git branch support)
   local zshrc_local="${HOME}/.zshrc.local"
   if ! grep -q 'Codespaces prompt customization' "$zshrc_local" 2>/dev/null; then
-    log_info "Adding Codespaces prompt color customization"
+    log_info "Adding Codespaces prompt customization"
     cat >> "$zshrc_local" <<'PROMPT_CUSTOM'
 
-# Codespaces prompt customization - use distinct colors
+# Codespaces prompt customization - use pure theme with git info
 if [[ -n "$CODESPACES" ]]; then
-  # Override sorin theme colors
-  zstyle ':prezto:module:prompt:sorin' color 'magenta'
+  prompt pure
 fi
 PROMPT_CUSTOM
   fi
