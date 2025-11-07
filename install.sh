@@ -197,15 +197,14 @@ enable_byobu() {
     sudo chsh -s "$(command -v zsh)" "$(whoami)" || log_warn "Failed to change shell to zsh"
   fi
 
-  # Add byobu launch to TOP of .bashrc (before mise activates)
-  if ! grep -q 'BYOBU_SESSION' "${HOME}/.bashrc" 2>/dev/null; then
-    log_info "Adding byobu auto-launch to .bashrc (at top)"
+  # Add zsh launch to TOP of .bashrc - zsh will then launch byobu
+  if ! grep -q 'exec.*zsh' "${HOME}/.bashrc" 2>/dev/null; then
+    log_info "Adding zsh exec to .bashrc (at top)"
     {
       cat <<'BYOBU_BASH'
-# Added by dotfiles installer - launch byobu with unique session per connection
-# Must be at top before mise/other tools activate
+# Added by dotfiles installer - exec zsh (which will then launch byobu)
 if [ -z "$TMUX" ]; then
-  exec byobu new-session -A -s "codespace-$$" /usr/bin/zsh
+  exec /usr/bin/zsh
 fi
 
 BYOBU_BASH
