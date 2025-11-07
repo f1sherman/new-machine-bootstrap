@@ -96,8 +96,8 @@ sync_dotvim() {
   fi
 
   if [ -f "${vim_dir}/vimrc" ]; then
-    log_info "Installing vim plugins"
-    vim -u "${vim_dir}/vimrc" +PlugInstall +qall > /dev/null 2>&1 || log_warn "Failed to install vim plugins"
+    log_info "Installing vim plugins (this may take a minute)..."
+    vim -u "${vim_dir}/vimrc" +PlugInstall +qall || log_warn "Failed to install vim plugins"
   fi
 }
 

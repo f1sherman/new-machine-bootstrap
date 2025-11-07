@@ -64,7 +64,7 @@ select_codespace() {
   fi
 
   selection=$(printf '%s' "$json" | \
-    jq -r '.[] | [.name, (.displayName // .name), (.repository.nameWithOwner // "")] | @tsv' | \
+    jq -r '.[] | [.name, (.displayName // .name), (.repository // "")] | @tsv' | \
     fzf --delimiter='\t' \
         --with-nth=2,3 \
         --prompt='Select Codespace: ' \
@@ -105,12 +105,14 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 printf '[sync] Updating Codespace %s at %s\n' "$CODESPACE" "$REMOTE_DIR"
 
-gh codespace ssh "$CODESPACE" --command "mkdir -p ${REMOTE_DIR}"
-
-gh codespace cp --recurse "${REPO_ROOT}/." "${CODESPACE}:${REMOTE_DIR}"
+# Use tar to pipe files through ssh (more reliable than gh codespace cp)
+printf '[sync] Syncing files via tar\n'
+(cd "${REPO_ROOT}" && tar --disable-copyfile -czf - .) | \
+  gh codespace ssh -c "$CODESPACE" -- "mkdir -p ${REMOTE_DIR} && cd ${REMOTE_DIR} && tar xzf -"
 
 REMOTE_INSTALL="${REMOTE_DIR}/install.sh"
 
-gh codespace ssh "$CODESPACE" --command "bash ${REMOTE_INSTALL}"
+printf '[sync] Running install script\n'
+gh codespace ssh -c "$CODESPACE" -- "bash ${REMOTE_INSTALL}"
 
 printf '[sync] Codespace %s provisioning complete\n' "$CODESPACE"
