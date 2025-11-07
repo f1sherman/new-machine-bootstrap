@@ -141,7 +141,7 @@ enable_byobu() {
     return
   fi
 
-  # Change default shell to zsh (for future logins)
+  # Change default shell to zsh
   if [ "$SHELL" != "$(command -v zsh)" ]; then
     log_info "Changing default shell to zsh"
     sudo chsh -s "$(command -v zsh)" "$(whoami)" || log_warn "Failed to change shell to zsh"
@@ -156,8 +156,7 @@ enable_byobu() {
 # Only launch if not already in a tmux/byobu session
 if [ -z "$TMUX" ]; then
   BYOBU_SESSION="ssh-$(date +%s)-$$"
-  byobu new-session -d -s "$BYOBU_SESSION" 2>/dev/null || true
-  byobu attach-session -t "$BYOBU_SESSION" 2>/dev/null || true
+  exec byobu new-session -A -s "codespace-$$"
 fi
 BYOBU_BASH
   fi
