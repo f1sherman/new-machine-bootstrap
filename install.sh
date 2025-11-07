@@ -95,9 +95,18 @@ sync_dotvim() {
     fi
   fi
 
-  # Skip automatic plugin installation - vim-plug will auto-install on first launch
   if [ -f "${vim_dir}/vimrc" ]; then
-    log_info "Vim plugins will be installed automatically on first launch"
+    # Install vim-plug for neovim if not already present
+    local plug_path="${HOME}/.local/share/nvim/site/autoload/plug.vim"
+    if [ ! -f "$plug_path" ]; then
+      log_info "Installing vim-plug for neovim"
+      mkdir -p "$(dirname "$plug_path")"
+      curl -fLo "$plug_path" --create-dirs \
+        https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+    fi
+
+    log_info "Installing neovim plugins (this may take a minute)..."
+    nvim --headless +PlugInstall +qall || log_warn "Failed to install neovim plugins"
   fi
 }
 
