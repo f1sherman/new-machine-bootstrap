@@ -108,7 +108,7 @@ printf '[sync] Updating Codespace %s at %s\n' "$CODESPACE" "$REMOTE_DIR"
 # Use tar to pipe files through ssh (more reliable than gh codespace cp)
 printf '[sync] Syncing files via tar\n'
 (cd "${REPO_ROOT}" && tar --disable-copyfile -czf - .) | \
-  gh codespace ssh -c "$CODESPACE" -- "mkdir -p ${REMOTE_DIR} && cd ${REMOTE_DIR} && tar xzf -"
+  gh codespace ssh -c "$CODESPACE" -- "mkdir -p ${REMOTE_DIR} && cd ${REMOTE_DIR} && tar --warning=no-unknown-keyword -xzf -"
 
 REMOTE_INSTALL="${REMOTE_DIR}/install.sh"
 
