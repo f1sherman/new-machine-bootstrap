@@ -147,18 +147,21 @@ enable_byobu() {
     sudo chsh -s "$(command -v zsh)" "$(whoami)" || log_warn "Failed to change shell to zsh"
   fi
 
-  # Add byobu launch to .bashrc (for first login before chsh takes effect)
+  # Add byobu launch to TOP of .bashrc (before mise activates)
   if ! grep -q 'BYOBU_SESSION' "${HOME}/.bashrc" 2>/dev/null; then
-    log_info "Adding byobu auto-launch to .bashrc"
-    cat >> "${HOME}/.bashrc" <<'BYOBU_BASH'
-
+    log_info "Adding byobu auto-launch to .bashrc (at top)"
+    {
+      cat <<'BYOBU_BASH'
 # Added by dotfiles installer - launch byobu with unique session per connection
-# Only launch if not already in a tmux/byobu session
+# Must be at top before mise/other tools activate
 if [ -z "$TMUX" ]; then
-  BYOBU_SESSION="ssh-$(date +%s)-$$"
   exec byobu new-session -A -s "codespace-$$"
 fi
+
 BYOBU_BASH
+      cat "${HOME}/.bashrc"
+    } > "${HOME}/.bashrc.tmp"
+    mv "${HOME}/.bashrc.tmp" "${HOME}/.bashrc"
   fi
 
   # Add byobu launch to .zshrc.local (for subsequent logins once chsh takes effect)
