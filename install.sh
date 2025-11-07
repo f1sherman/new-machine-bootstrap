@@ -182,6 +182,23 @@ BYOBU_ZSH
   else
     log_info "Byobu already configured in .zshrc.local"
   fi
+
+  # Customize prompt colors for Codespaces (makes it visually distinct from local)
+  if ! grep -q 'CODESPACES prompt colors' "$zshrc_local" 2>/dev/null; then
+    log_info "Adding Codespaces prompt color customization"
+    cat >> "$zshrc_local" <<'PROMPT_COLORS'
+
+# CODESPACES prompt colors - make it distinct from local machine
+if [[ -n "$CODESPACES" ]]; then
+  # Override paradox theme colors for Codespaces
+  zstyle ':prezto:module:prompt' theme 'paradox'
+  # Magenta/purple tones for Codespaces to distinguish from local (blue/cyan)
+  PROMPT_PARADOX_COLOR1='magenta'
+  PROMPT_PARADOX_COLOR2='yellow'
+fi
+PROMPT_COLORS
+    log_info "Codespaces prompt colors configured"
+  fi
 }
 
 setup_claude() {
