@@ -164,6 +164,12 @@ BYOBU_BASH
     mv "${HOME}/.bashrc.tmp" "${HOME}/.bashrc"
   fi
 
+  # Remove mise activation from bashrc since we use zsh and exec into byobu
+  if grep -q 'mise activate bash' "${HOME}/.bashrc" 2>/dev/null; then
+    log_info "Removing mise activation from .bashrc (not needed in zsh)"
+    sed -i '/mise activate bash/d' "${HOME}/.bashrc"
+  fi
+
   # Add byobu launch to .zshrc.local (for subsequent logins once chsh takes effect)
   local zshrc_local="${HOME}/.zshrc.local"
   if ! grep -q 'BYOBU_SESSION' "$zshrc_local" 2>/dev/null; then
