@@ -200,10 +200,11 @@ Address issues discovered during testing in Codespaces environment.
 
 ### Success Criteria
 #### Manual Verification
-- [ ] Ctrl-p in zsh triggers fzf file picker correctly
-- [ ] Ctrl-p in vim triggers appropriate vim functionality
-- [ ] Vim plugins are installed automatically on first bootstrap
-- [ ] Vim colors display correctly in Codespaces
+- [x] Ctrl-p in zsh triggers fzf file picker correctly
+- [x] Ctrl-p in vim triggers appropriate vim functionality
+- [x] Vim plugins are installed automatically on first bootstrap
+- [x] Vim colors display correctly in Codespaces
+- [x] "unknown option: --bash" error resolved
 
 ### Implemented Solutions
 
@@ -213,6 +214,10 @@ Address issues discovered during testing in Codespaces environment.
 - Codespaces uses `codespaces/dotfiles/tmux.conf` with split-window
 - Clean separation, no runtime patching needed
 - **Files**: `codespaces/dotfiles/tmux.conf`, `install.sh:113,116`
+
+**Solution 2**: Fixed macOS host intercepting Ctrl-p before it reaches nested Codespace.
+- Modified macOS tmux.conf to pass through Ctrl-p when pane_current_command is "ssh" or "gh"
+- **File**: `roles/macos/templates/dotfiles/tmux.conf:87-90`
 
 #### 2. Vim plugin installation (FIXED)
 **Solution**: Added automatic plugin installation to `sync_dotvim()` function.
@@ -224,7 +229,28 @@ Address issues discovered during testing in Codespaces environment.
 **Solution**: Enhanced terminal color support in tmux configuration.
 - Added wildcard terminal override for all 256color terminals
 - Added cursor shape support for better terminal compatibility
-- **File**: `roles/macos/templates/dotfiles/tmux.conf:94-98`
+- Added COLORTERM=truecolor to Codespaces tmux.conf
+- **Files**: `roles/macos/templates/dotfiles/tmux.conf:94-98`, `codespaces/dotfiles/tmux.conf:92-98`
+
+#### 4. "unknown option: --zsh" error (FIXED)
+**Problem**: Error "unknown option: --zsh" when starting zsh, followed by "unknown option: --bash" in some cases.
+**Root cause**: The `.fzf.zsh` file (created by Codespaces default setup) uses `source <(fzf --zsh)` which requires fzf 0.48.0+, but the debian apt package only provides fzf 0.44.1.
+**Investigation**:
+- Initially thought it was mise-related due to similar error pattern
+- Traced execution with `zsh -x` and found error at `/home/codespace/.fzf.zsh:7`
+- Confirmed fzf 0.44.1 doesn't support `--zsh` flag
+- Found `~/.fzf/` git clone from Codespaces with proper shell integration files
+**Solution**: Replace `.fzf.zsh` with proper integration from `~/.fzf/shell/` directory.
+- Created `fix_fzf_integration()` function that generates proper `.fzf.zsh`
+- Uses completion and key-bindings from `~/.fzf/shell/` instead of `fzf --zsh`
+- **File**: `install.sh:127-161`
+
+#### 5. Codespaces visual distinction (FIXED)
+**Solution**: Added distinct prompt colors for Codespaces.
+- Codespaces uses magenta/yellow prompt colors
+- Local macOS uses default blue/cyan colors
+- Makes it immediately obvious which environment you're in
+- **File**: `install.sh:193-204`
 
 ---
 

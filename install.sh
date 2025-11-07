@@ -124,6 +124,42 @@ link_dotfiles() {
   fi
 }
 
+fix_fzf_integration() {
+  log_info "Fixing fzf shell integration"
+
+  # The debian apt package (0.44.1) doesn't support 'fzf --zsh'
+  # Replace with proper shell integration from ~/.fzf/shell/
+  if [ -d "${HOME}/.fzf/shell" ]; then
+    log_info "Using fzf shell integration from git clone"
+    cat > "${HOME}/.fzf.zsh" <<'FZF_ZSH'
+# Setup fzf
+# ---------
+if [[ ! "$PATH" == *${HOME}/.fzf/bin* ]]; then
+  PATH="${PATH:+${PATH}:}${HOME}/.fzf/bin"
+fi
+
+# Auto-completion
+[[ $- == *i* ]] && source "${HOME}/.fzf/shell/completion.zsh" 2> /dev/null
+
+# Key bindings
+source "${HOME}/.fzf/shell/key-bindings.zsh"
+FZF_ZSH
+  elif command_exists fzf; then
+    log_info "Using fzf without shell integration (--zsh not supported)"
+    cat > "${HOME}/.fzf.zsh" <<'FZF_ZSH'
+# Setup fzf
+# ---------
+# Debian package version doesn't support --zsh flag
+# Basic PATH setup only
+if [[ ! "$PATH" == */usr/bin* ]]; then
+  PATH="${PATH:+${PATH}:}/usr/bin"
+fi
+FZF_ZSH
+  else
+    log_warn "fzf not found; skipping shell integration"
+  fi
+}
+
 install_helpers() {
   local scripts_root="${REPO_ROOT}/roles/macos"
 
@@ -164,10 +200,13 @@ BYOBU_BASH
     mv "${HOME}/.bashrc.tmp" "${HOME}/.bashrc"
   fi
 
-  # Remove mise activation from bashrc since we use zsh and exec into byobu
-  if grep -q 'mise activate bash' "${HOME}/.bashrc" 2>/dev/null; then
-    log_info "Removing mise activation from .bashrc (not needed in zsh)"
-    sed -i '/mise activate bash/d' "${HOME}/.bashrc"
+  # Check if mise is being called from default Codespaces bashrc
+  if [ -f "${HOME}/.bashrc" ]; then
+    # Remove any mise activation from bashrc since we exec into byobu/zsh immediately
+    if grep -q 'mise' "${HOME}/.bashrc" 2>/dev/null; then
+      log_info "Removing mise references from .bashrc"
+      sed -i '/mise/d' "${HOME}/.bashrc"
+    fi
   fi
 
   # Add byobu launch to .zshrc.local (for subsequent logins once chsh takes effect)
@@ -299,6 +338,7 @@ main() {
   sync_prezto
   sync_dotvim
   link_dotfiles
+  fix_fzf_integration
   install_helpers
   setup_claude
   enable_byobu
