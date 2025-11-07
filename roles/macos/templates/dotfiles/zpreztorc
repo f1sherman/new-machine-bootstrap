@@ -118,6 +118,12 @@ zstyle ':prezto:module:editor' key-bindings 'emacs'
 # Setting it to 'random' loads a random theme.
 # Auto set to 'off' on dumb terminals.
 
+# Use distinct colors for Codespaces (paradox theme will use these variables)
+if [[ -n "$CODESPACES" ]]; then
+  export PROMPT_PARADOX_COLOR1='magenta'
+  export PROMPT_PARADOX_COLOR2='yellow'
+fi
+
 zstyle ':prezto:module:prompt' theme 'paradox'
 
 # Set the working directory prompt display length.

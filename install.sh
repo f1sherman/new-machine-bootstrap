@@ -241,30 +241,14 @@ BYOBU_ZSH
     log_info "Byobu already configured in .zshrc.local"
   fi
 
-  # Customize paradox theme colors for Codespaces
-  local zshrc_local="${HOME}/.zshrc.local"
-  if ! grep -q 'prompt_paradox_build_prompt' "$zshrc_local" 2>/dev/null; then
-    log_info "Adding Codespaces prompt color customization"
-    cat >> "$zshrc_local" <<'PROMPT_COLORS'
-
-# Override paradox theme colors for Codespaces
-if [[ -n "$CODESPACES" ]]; then
-  prompt_paradox_build_prompt() {
-    prompt_paradox_start_segment black default '%(?::%F{red}✘ )%(!:%F{yellow}⚡ :)%(1j:%F{cyan}⚙ :)%F{blue}%n%F{red}@%F{green}%m%f'
-    prompt_paradox_start_segment magenta black '$_prompt_paradox_pwd'
-
-    if [[ -n "$git_info" ]]; then
-      prompt_paradox_start_segment yellow black '${(e)git_info[ref]}${(e)git_info[status]}'
-    fi
-
-    if [[ -n "$python_info" ]]; then
-      prompt_paradox_start_segment white black '${(e)python_info[virtualenv]}'
-    fi
-
-    prompt_paradox_end_segment
-  }
-fi
-PROMPT_COLORS
+  # Patch paradox theme to support color customization via environment variables
+  local paradox_theme="${HOME}/.zprezto/modules/prompt/functions/prompt_paradox_setup"
+  if [ -f "$paradox_theme" ] && ! grep -q 'PROMPT_PARADOX_COLOR1' "$paradox_theme"; then
+    log_info "Patching paradox theme to support color customization"
+    # Replace hardcoded 'blue' with variable that defaults to blue
+    sed -i "s/prompt_paradox_start_segment blue black/prompt_paradox_start_segment \${PROMPT_PARADOX_COLOR1:-blue} black/" "$paradox_theme"
+    # Replace hardcoded 'green' (for git) with variable that defaults to green
+    sed -i "s/prompt_paradox_start_segment green black/prompt_paradox_start_segment \${PROMPT_PARADOX_COLOR2:-green} black/" "$paradox_theme"
   fi
 }
 
