@@ -119,6 +119,14 @@ zstyle ':prezto:module:editor' key-bindings 'emacs'
 # Auto set to 'off' on dumb terminals.
 zstyle ':prezto:module:prompt' theme 'sorin'
 
+# Enable git info in prompt
+zstyle ':prezto:module:git:info' verbose 'yes'
+zstyle ':prezto:module:git:info:branch' format ' %b'
+zstyle ':prezto:module:git:info:dirty' format ' ✗'
+zstyle ':prezto:module:git:info:clean' format ' ✓'
+zstyle ':prezto:module:git:info:keys' format \
+  'prompt' ' on %F{cyan}%b%f%C%D'
+
 # Set the working directory prompt display length.
 # By default, it is set to 'short'. Set it to 'long' (without '~' expansion)
 # for longer or 'full' (with '~' expansion) for even longer prompt display.
