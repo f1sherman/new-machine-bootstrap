@@ -205,7 +205,7 @@ enable_byobu() {
 # Added by dotfiles installer - launch byobu with unique session per connection
 # Must be at top before mise/other tools activate
 if [ -z "$TMUX" ]; then
-  exec byobu new-session -A -s "codespace-$$"
+  exec byobu new-session -A -s "codespace-$$" /usr/bin/zsh
 fi
 
 BYOBU_BASH
