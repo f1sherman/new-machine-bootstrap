@@ -241,7 +241,31 @@ BYOBU_ZSH
     log_info "Byobu already configured in .zshrc.local"
   fi
 
-  # Prompt colors are configured in .zpreztorc (loaded before prompt initialization)
+  # Customize paradox theme colors for Codespaces
+  local zshrc_local="${HOME}/.zshrc.local"
+  if ! grep -q 'prompt_paradox_build_prompt' "$zshrc_local" 2>/dev/null; then
+    log_info "Adding Codespaces prompt color customization"
+    cat >> "$zshrc_local" <<'PROMPT_COLORS'
+
+# Override paradox theme colors for Codespaces
+if [[ -n "$CODESPACES" ]]; then
+  prompt_paradox_build_prompt() {
+    prompt_paradox_start_segment black default '%(?::%F{red}✘ )%(!:%F{yellow}⚡ :)%(1j:%F{cyan}⚙ :)%F{blue}%n%F{red}@%F{green}%m%f'
+    prompt_paradox_start_segment magenta black '$_prompt_paradox_pwd'
+
+    if [[ -n "$git_info" ]]; then
+      prompt_paradox_start_segment yellow black '${(e)git_info[ref]}${(e)git_info[status]}'
+    fi
+
+    if [[ -n "$python_info" ]]; then
+      prompt_paradox_start_segment white black '${(e)python_info[virtualenv]}'
+    fi
+
+    prompt_paradox_end_segment
+  }
+fi
+PROMPT_COLORS
+  fi
 }
 
 setup_claude() {
