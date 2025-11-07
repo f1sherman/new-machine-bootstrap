@@ -66,6 +66,11 @@ ensure_tool_aliases() {
     ln -sfn "$(command -v batcat)" "${HOME}/.local/bin/bat"
     log_info "Created bat alias pointing to batcat"
   fi
+
+  if command_exists nvim; then
+    ln -sfn "$(command -v nvim)" "${HOME}/.local/bin/vim"
+    log_info "Created vim alias pointing to nvim"
+  fi
 }
 
 sync_prezto() {
