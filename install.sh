@@ -95,9 +95,9 @@ sync_dotvim() {
     fi
   fi
 
+  # Skip automatic plugin installation - vim-plug will auto-install on first launch
   if [ -f "${vim_dir}/vimrc" ]; then
-    log_info "Installing vim plugins (this may take a minute)..."
-    vim -u "${vim_dir}/vimrc" +PlugInstall +qall || log_warn "Failed to install vim plugins"
+    log_info "Vim plugins will be installed automatically on first launch"
   fi
 }
 
