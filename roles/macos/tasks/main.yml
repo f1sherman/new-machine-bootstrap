@@ -208,12 +208,14 @@
     create: yes
     mode: 0644
   with_items:
-    - 'term = xterm-256color'
-    - 'command = /opt/homebrew/bin/tmux'
-    - 'copy-on-select = clipboard'
-    - 'confirm-close-surface = false'
-    - 'clipboard-write = allow'
     - 'clipboard-read = ask'
+    - 'clipboard-write = allow'
+    - 'command = /opt/homebrew/bin/tmux'
+    - 'confirm-close-surface = false'
+    - 'copy-on-select = clipboard'
+    - 'mouse-scroll-multiplier = 0.01'
+    - 'scrollback-limit = 0'
+    - 'term = xterm-256color'
 - name: Initialize vim and install/update plugins
   command: '{{ item }}'
   changed_when: false
