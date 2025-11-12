@@ -1,0 +1,125 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'json'
+require 'yaml'
+require 'open3'
+
+def command_exists?(cmd)
+  system("command -v #{cmd} >/dev/null 2>&1")
+end
+
+def run_command(cmd, error_message: nil)
+  stdout, stderr, status = Open3.capture3(cmd)
+  unless status.success?
+    puts "Error: #{error_message || "Command failed: #{cmd}"}"
+    puts stderr unless stderr.empty?
+    exit 1
+  end
+  stdout
+end
+
+def ensure_gh_installed
+  return if command_exists?('gh')
+
+  puts "Error: gh CLI is required but not installed"
+  puts "Install it with: brew install gh"
+  exit 1
+end
+
+def check_work_machine
+  config_path = File.expand_path('~/.config/new-machine-bootstrap.yml')
+
+  unless File.exist?(config_path)
+    puts "Error: Configuration file not found at #{config_path}"
+    puts "This script requires machine configuration to be set up first."
+    exit 1
+  end
+
+  config = YAML.load_file(config_path)
+
+  unless config['use'] == 'work'
+    puts "Error: This script only works on work machines for security reasons."
+    puts "Current machine type: #{config['use']}"
+    exit 1
+  end
+end
+
+def sync_claude_config(codespace_name)
+  claude_json = File.expand_path('~/.claude.json')
+
+  unless File.exist?(claude_json)
+    puts "Warning: Claude configuration not found at #{claude_json}"
+    puts "Skipping Claude config sync."
+    return
+  end
+
+  check_result = `gh codespace ssh -c #{codespace_name} -- 'test -f ~/.claude.json && echo "exists" || echo "missing"'`.strip
+
+  if check_result == "exists"
+    puts "==> Claude configuration already exists in Codespace, skipping sync"
+    return
+  end
+
+  puts "==> Syncing Claude configuration to Codespace..."
+
+  puts "    - Copying .claude.json"
+  unless system("cat #{claude_json} | gh codespace ssh -c #{codespace_name} -- 'cat > ~/.claude.json && chmod 600 ~/.claude.json'")
+    puts "Warning: Failed to copy .claude.json"
+  end
+
+  puts "==> Claude configuration synced!"
+end
+
+def main
+  ensure_gh_installed
+  check_work_machine
+
+  puts "==> Finding available Codespaces..."
+
+  codespaces_json = run_command(
+    'gh codespace list --json name,repository,state',
+    error_message: 'Failed to list Codespaces'
+  )
+
+  codespaces = JSON.parse(codespaces_json)
+    .select { |cs| cs['state'] == 'Available' }
+
+  if codespaces.empty?
+    puts "Error: No running Codespaces found"
+    puts "Create a Codespace first: gh codespace create"
+    exit 1
+  end
+
+  codespace_name = if codespaces.size == 1
+    puts "==> Found Codespace: #{codespaces[0]['name']}"
+    codespaces[0]['name']
+  else
+    unless command_exists?('fzf')
+      puts "Error: Multiple Codespaces found, but fzf is not installed"
+      puts "Install fzf: brew install fzf"
+      exit 1
+    end
+
+    puts "==> Multiple Codespaces found, please select one:"
+    names = codespaces.map { |cs| cs['name'] }.join("\n")
+    stdout, stderr, status = Open3.capture3('fzf --prompt="Select Codespace: "', stdin_data: names)
+
+    unless status.success?
+      puts "Error: No Codespace selected"
+      exit 1
+    end
+
+    stdout.strip
+  end
+
+  sync_claude_config(codespace_name)
+
+  puts ""
+  puts "==> Connecting to Codespace: #{codespace_name}"
+  puts ""
+
+  exec("gh codespace ssh -c #{codespace_name}")
+end
+
+main
