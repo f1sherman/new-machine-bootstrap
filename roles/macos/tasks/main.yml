@@ -175,28 +175,10 @@
   command: mise use --global node@{{ latest_lts }}
   when: current_global_node.stdout != latest_lts
 
-- name: Clone vim config repository
-  git:
-    dest: '{{ ansible_env.HOME }}/.vim'
-    repo: 'ssh://git@github.com/f1sherman/dotvim.git'
-- name: Link .vimrc
-  file:
-    dest: '{{ ansible_env.HOME }}/.vimrc'
-    src: '{{ ansible_env.HOME }}/.vim/vimrc'
-    state: link
-- name: Create nvim config directory
-  file:
-    dest: '{{ ansible_env.HOME }}/.config/nvim'
-    state: directory
 - name: Create ghostty config directory
   file:
     dest: '{{ ansible_env.HOME }}/Library/Application Support/com.mitchellh.ghostty'
     state: directory
-- name: Link .config/nvim/init.vim
-  file:
-    dest: '{{ ansible_env.HOME }}/.config/nvim/init.vim'
-    src: '{{ ansible_env.HOME }}/.vim/vimrc'
-    state: link
 - name: Create .vimtmp directory
   file:
     path: '{{ ansible_env.HOME }}/.vimtmp'
@@ -216,6 +198,10 @@
     - 'mouse-scroll-multiplier = 0.01'
     - 'scrollback-limit = 0'
     - 'term = xterm-256color'
+- name: Create .vimtmp directory
+  file:
+    path: '{{ ansible_env.HOME }}/.vimtmp'
+    state: directory
 - name: Initialize vim and install/update plugins
   command: '{{ item }}'
   changed_when: false
@@ -271,12 +257,6 @@
 - name: Enable Dark Mode
   command: dark-mode on
   changed_when: false
-- name: Clone prezto
-  git:
-    dest: '{{ ansible_env.HOME }}/.zprezto'
-    repo: 'ssh://git@github.com/sorin-ionescu/prezto.git'
-    recursive: yes
-    update: yes
 - name: Install prezto
   file:
     src: '{{item}}'

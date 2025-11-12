@@ -54,7 +54,7 @@
 
 - name: Copy tmux configuration for Codespaces
   copy:
-    src: '{{ playbook_dir }}/codespaces/dotfiles/tmux.conf'
+    src: '{{ playbook_dir }}/roles/codespaces/files/dotfiles/tmux.conf'
     dest: '{{ ansible_env.HOME }}/.tmux.conf'
     mode: 0644
     backup: yes
@@ -67,7 +67,7 @@
 
 - name: Copy tmux configuration for byobu
   copy:
-    src: '{{ playbook_dir }}/codespaces/dotfiles/tmux.conf'
+    src: '{{ playbook_dir }}/roles/codespaces/files/dotfiles/tmux.conf'
     dest: '{{ ansible_env.HOME }}/.byobu/.tmux.conf'
     mode: 0644
     backup: yes
@@ -123,7 +123,7 @@
 
 - name: Check if zsh exec already in .bashrc
   set_fact:
-    zsh_exec_present: "{{ (bashrc_content.content | b64decode | regex_search('exec.*zsh')) is not none if bashrc_content is succeeded else false }}"
+    zsh_exec_present: "{{ (bashrc_content is succeeded and (bashrc_content.content | b64decode | regex_search('exec.*zsh')) is not none) }}"
 
 - name: Prepend zsh exec to .bashrc
   copy:

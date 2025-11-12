@@ -114,7 +114,7 @@
 
 - name: Install ccstatusline widget configuration
   copy:
-    src: '{{ playbook_dir }}/roles/macos/files/config/ccstatusline/settings.json'
+    src: '{{ playbook_dir }}/roles/common/files/config/ccstatusline/settings.json'
     dest: '{{ ansible_env.HOME }}/.config/ccstatusline/settings.json'
     mode: '0600'
 
