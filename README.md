@@ -1,11 +1,26 @@
 # new-machine-bootstrap
-Bootstrap scripts for macOS machines and GitHub Codespaces environments.
+Bootstrap scripts for macOS machines and GitHub Codespaces environments using Ansible.
+
+## Architecture
+
+This repository uses a three-role Ansible structure:
+- **common**: Shared resources (dotfiles, scripts, Claude config) used by both platforms
+- **macos**: macOS-specific configuration and Homebrew packages
+- **codespaces**: Codespaces-specific configuration and apt packages
+
+A unified `playbook.yml` conditionally executes roles based on platform detection:
+- macOS detected via `ansible_os_family == "Darwin"`
+- Codespaces detected via `CODESPACES=true` environment variable
+
+The `bin/provision` script serves as the universal entry point, bootstrapping Ansible and running the playbook on both platforms.
 
 ## macOS
 
 ```shell
 ruby <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-machine-bootstrap/main/macos)
 ```
+
+This Ruby script handles initial macOS setup (FileVault check, SSH keys, API key prompts) before running Ansible provisioning via `bin/provision`.
 
 ## GitHub Codespaces
 
@@ -14,14 +29,14 @@ ruby <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-machine-bootst
 1. Set this repository as your [Codespaces dotfiles](https://docs.github.com/en/codespaces/setting-your-user-preferences/personalizing-github-codespaces-for-your-account#dotfiles) repository.
 2. Enable "Automatically install dotfiles" in your Codespaces settings.
 
-When a new Codespace is created, the `install.sh` script will run automatically, configuring:
+When a new Codespace is created, the `install.sh` script runs automatically, configuring:
 - **Shell**: zsh with Prezto framework
 - **Multiplexer**: tmux and byobu with shared keybindings
 - **Editor**: Neovim and Vim (via dotvim repository)
 - **Tools**: fzf, ripgrep, fd, bat, and helper scripts
 - **Claude**: AI assistant with statusline integration and custom commands
 
-All configurations work without Homebrew, using apt packages and platform-aware dotfiles.
+All configurations use apt packages (no Homebrew).
 
 ### Byobu Auto-Start
 
@@ -49,13 +64,27 @@ Byobu automatically launches when you SSH into a Codespace, creating a new sessi
 
 ### Testing and Development
 
-For iterative testing from your local machine, sync changes and rerun the installer with:
+For rapid iterative testing from your local machine without committing changes:
 
 ```bash
-./codespaces/scripts/sync-and-install.sh [codespace-name]
+bin/sync-to-codespace
 ```
 
-If you omit the codespace name, an interactive fzf menu will let you select from your active Codespaces.
+This script:
+1. Lists your active Codespaces (using `gh codespace list`)
+2. Uses `fzf` for selection if multiple Codespaces exist
+3. Syncs the repository via `tar` over SSH (excluding `.git`, `.coding-agent`, backups)
+4. Runs `install.sh` in the selected Codespace
+5. Shows the connection command when done
+
+**Local Testing**:
+```bash
+# macOS - test before committing
+bin/provision --check --diff
+
+# Simulate Codespaces environment
+CODESPACES=true ansible-playbook playbook.yml --check
+```
 
 **Manual Testing Checklist**:
 - [ ] zsh loads with Prezto

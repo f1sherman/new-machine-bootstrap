@@ -649,7 +649,7 @@ test -f install.sh.backup && echo "Backup exists"
 
 **Tasks**:
 
-- [ ] Update CLAUDE.md project instructions:
+- [x] Update CLAUDE.md project instructions:
   - Add section about Codespaces role
   - Add section about Common role
   - Note that playbook.yml now supports both platforms
@@ -658,22 +658,22 @@ test -f install.sh.backup && echo "Backup exists"
   - Document the three-role structure: common, macos, codespaces
   - Document bin/sync-to-codespace for testing
 
-- [ ] Add header comments to roles/codespaces/tasks/main.yml:
+- [x] Add header comments to roles/codespaces/tasks/main.yml:
   - Explain relationship to install.sh.backup
   - Note Codespaces-specific requirements
   - Reference research document
 
-- [ ] Add header comments to roles/common/tasks/main.yml:
+- [x] Add header comments to roles/common/tasks/main.yml:
   - Explain that this role contains shared resources
   - Note it's used by both macos and codespaces roles
   - List what's included (dotfiles, scripts, Claude config)
 
-- [ ] Update playbook.yml comments:
+- [x] Update playbook.yml comments:
   - Document platform detection logic (CODESPACES env var for Codespaces, ansible_os_family for macOS)
   - Explain role execution order
   - Note that Codespaces detection allows playbook to run on other Debian hosts in the future
 
-- [ ] Update README if one exists (check first)
+- [x] Update README if one exists (check first)
 
 **Success Criteria**:
 - Documentation clearly explains new three-role structure
