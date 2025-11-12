@@ -13,7 +13,6 @@
       - byobu
       - curl
       - fd-find
-      - fzf
       - git
       - neovim
       - python3
@@ -33,6 +32,27 @@
     path: '{{ ansible_env.HOME }}/.local/bin'
     state: directory
     mode: 0755
+
+- name: Get latest fzf release version
+  uri:
+    url: https://api.github.com/repos/junegunn/fzf/releases/latest
+    return_content: yes
+  register: fzf_latest_release
+
+- name: Download and extract fzf binary
+  unarchive:
+    src: "https://github.com/junegunn/fzf/releases/download/{{ fzf_latest_release.json.tag_name }}/fzf-{{ fzf_latest_release.json.tag_name }}-linux_amd64.tar.gz"
+    dest: '{{ ansible_env.HOME }}/.local/bin'
+    remote_src: yes
+    creates: '{{ ansible_env.HOME }}/.local/bin/fzf'
+
+- name: Clone fzf repo for shell integration files
+  git:
+    repo: 'https://github.com/junegunn/fzf.git'
+    dest: '{{ ansible_env.HOME }}/.fzf'
+    depth: 1
+    version: master
+    update: yes
 
 - name: Create fd symlink (fdfind -> fd)
   file:
