@@ -28,6 +28,8 @@ else
 	fi
 fi
 
+mkdir -p "${HOME}/.config/fzf"
+
 selected_files=$(
 	fd --type f |
 		fzf --multi \
