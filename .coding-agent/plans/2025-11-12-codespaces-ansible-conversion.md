@@ -58,7 +58,7 @@ After completing each phase:
 
 - [x] Make script executable: `chmod +x bin/sync-to-codespace`
 
-- [ ] Test the script:
+- [x] Test the script:
   - Run `bin/sync-to-codespace` from macOS
   - Verify it lists/selects Codespace
   - Verify files sync correctly
@@ -155,23 +155,23 @@ CODESPACES=true ansible-playbook playbook.yml --check
 
 **Tasks**:
 
-- [ ] Move shared dotfiles to common role:
+- [x] Move shared dotfiles to common role:
   - Move `roles/macos/templates/dotfiles/zshenv` to `roles/common/templates/dotfiles/zshenv`
   - Move `roles/macos/templates/dotfiles/zshrc` to `roles/common/templates/dotfiles/zshrc`
   - Move `roles/macos/templates/dotfiles/zlogin` to `roles/common/templates/dotfiles/zlogin`
   - Move `roles/macos/templates/dotfiles/zpreztorc` to `roles/common/templates/dotfiles/zpreztorc`
   - Move `roles/macos/templates/dotfiles/claude/` directory to `roles/common/templates/dotfiles/claude/`
 
-- [ ] Move shared scripts to common role:
+- [x] Move shared scripts to common role:
   - Move `roles/macos/templates/pick-files` to `roles/common/files/bin/pick-files`
   - Move `roles/macos/files/bin/osc52-copy` to `roles/common/files/bin/osc52-copy`
 
-- [ ] Update `roles/macos/tasks/main.yml` to reference new paths:
+- [x] Update `roles/macos/tasks/main.yml` to reference new paths:
   - Update dotfile template tasks to use `roles/common/templates/dotfiles/`
   - Update script copy tasks to use `roles/common/files/bin/`
   - Update Claude configuration tasks to use `roles/common/templates/dotfiles/claude/`
 
-- [ ] Create `roles/common/tasks/main.yml` with common tasks:
+- [x] Create `roles/common/tasks/main.yml` with common tasks:
   - Clone Prezto repository
   - Clone Dotvim repository
   - Install vim-plug
@@ -207,13 +207,13 @@ test -x ~/bin/pick-files && echo "Scripts OK"
 
 **Tasks**:
 
-- [ ] Add apt package installation task to `roles/codespaces/tasks/main.yml`:
+- [x] Add apt package installation task to `roles/codespaces/tasks/main.yml`:
   - Update apt cache
   - Install 17 packages: bat, byobu, curl, fd-find, fzf, git, neovim, python3, python3-pip, python3-venv, pipx, ripgrep, sudo, tmux, unzip, zsh
 
-- [ ] Add task to create `~/.local/bin` directory
+- [x] Add task to create `~/.local/bin` directory
 
-- [ ] Add tasks to create tool aliases/symlinks:
+- [x] Add tasks to create tool aliases/symlinks:
   - fd (symlink fdfind → fd)
   - bat (symlink batcat → bat)
   - vim (symlink nvim → vim)
@@ -244,16 +244,16 @@ which fd bat vim
 
 **Tasks**:
 
-- [ ] Verify/add prezto cloning task in `roles/common/tasks/main.yml`:
+- [x] Verify/add prezto cloning task in `roles/common/tasks/main.yml`:
   - Clone `https://github.com/sorin-ionescu/prezto.git` to `~/.zprezto`
   - Use `recursive: yes` for submodules
   - Use `update: yes` for idempotency
 
-- [ ] Verify/add dotvim cloning task:
+- [x] Verify/add dotvim cloning task:
   - Clone `https://github.com/f1sherman/dotvim.git` to `~/.vim`
   - Use `update: yes` and `force: no`
 
-- [ ] Verify/add vim-plug installation tasks:
+- [x] Verify/add vim-plug installation tasks:
   - Create `~/.local/share/nvim/site/autoload` directory
   - Download vim-plug using `get_url` module
   - Run `nvim --headless +PlugInstall +qall` with `failed_when: false`
@@ -287,13 +287,13 @@ test -f ~/.local/share/nvim/site/autoload/plug.vim && echo "Vim-plug OK"
 
 **Tasks**:
 
-- [ ] Add tasks to `roles/common/tasks/main.yml` to template zsh dotfiles:
+- [x] Add tasks to `roles/common/tasks/main.yml` to template zsh dotfiles:
   - Template `roles/common/templates/dotfiles/zshenv` to `~/.zshenv`
   - Template `roles/common/templates/dotfiles/zshrc` to `~/.zshrc`
   - Template `roles/common/templates/dotfiles/zlogin` to `~/.zlogin`
   - Template `roles/common/templates/dotfiles/zpreztorc` to `~/.zpreztorc`
 
-- [ ] Add tasks for vim configuration (shared):
+- [x] Add tasks for vim configuration (shared):
   - Create `~/.config/nvim` directory
   - Link `~/.vim/vimrc` to `~/.vimrc` (using `file` module with `state: link`)
   - Link `~/.vim/vimrc` to `~/.config/nvim/init.vim`
@@ -327,12 +327,12 @@ vim --version
 
 **Tasks**:
 
-- [ ] Add task to copy/link tmux configuration in `roles/codespaces/tasks/main.yml`:
+- [x] Add task to copy/link tmux configuration in `roles/codespaces/tasks/main.yml`:
   - Source: `codespaces/dotfiles/tmux.conf`
   - Destination: `~/.tmux.conf`
   - Use `copy` module (not template, as it's static)
 
-- [ ] Add tasks for byobu configuration:
+- [x] Add tasks for byobu configuration:
   - Create `~/.byobu` directory
   - Copy `codespaces/dotfiles/tmux.conf` to `~/.byobu/.tmux.conf`
 
@@ -360,14 +360,14 @@ test -f ~/.byobu/.tmux.conf && echo "Byobu config OK"
 
 **Tasks**:
 
-- [ ] Add task to check if `~/.fzf/shell` directory exists (using `stat` module)
+- [x] Add task to check if `~/.fzf/shell` directory exists (using `stat` module)
 
-- [ ] Add task to create full FZF integration (when shell dir exists):
+- [x] Add task to create full FZF integration (when shell dir exists):
   - Use `copy` module with `content` parameter
   - Content includes PATH setup and shell integration sourcing
   - Destination: `~/.fzf.zsh`
 
-- [ ] Add task to create minimal FZF integration (when shell dir doesn't exist):
+- [x] Add task to create minimal FZF integration (when shell dir doesn't exist):
   - Use `copy` module with simpler content
   - Only basic PATH setup for apt package
 
@@ -397,14 +397,14 @@ zsh -c "source ~/.fzf.zsh && echo 'FZF loads OK'"
 
 **Tasks**:
 
-- [ ] Verify/add task in `roles/common/tasks/main.yml` to create `~/bin` directory
+- [x] Verify/add task in `roles/common/tasks/main.yml` to create `~/bin` directory
 
-- [ ] Verify/add task to copy pick-files script:
+- [x] Verify/add task to copy pick-files script:
   - Source: `roles/common/files/bin/pick-files`
   - Destination: `~/bin/pick-files`
   - Mode: 0755
 
-- [ ] Verify/add task to copy osc52-copy script:
+- [x] Verify/add task to copy osc52-copy script:
   - Source: `roles/common/files/bin/osc52-copy`
   - Destination: `~/bin/osc52-copy`
   - Mode: 0755
@@ -434,31 +434,31 @@ test -x ~/bin/pick-files && echo "pick-files is executable"
 
 **Tasks**:
 
-- [ ] Add tasks to `roles/common/tasks/main.yml` to create Claude directories:
+- [x] Add tasks to `roles/common/tasks/main.yml` to create Claude directories:
   - `~/.claude` (mode 0700)
   - `~/.claude/agents` (mode 0700)
   - `~/.claude/commands` (mode 0700)
 
-- [ ] Add task to copy Claude agents:
+- [x] Add task to copy Claude agents:
   - Source: `roles/common/templates/dotfiles/claude/agents/`
   - Destination: `~/.claude/agents/`
   - Mode: 0600
 
-- [ ] Add task to copy Claude commands:
+- [x] Add task to copy Claude commands:
   - Source: `roles/common/templates/dotfiles/claude/commands/`
   - Destination: `~/.claude/commands/`
   - Mode: 0600
 
-- [ ] Add task to create CLAUDE.md:
+- [x] Add task to create CLAUDE.md:
   - Use `copy` module with inline content
   - Content: "Add code comments sparingly..." message
   - Mode: 0600
 
-- [ ] Add tasks for ccstatusline configuration:
+- [x] Add tasks for ccstatusline configuration:
   - Create `~/.config/ccstatusline` directory
   - Copy settings.json from `roles/macos/files/config/ccstatusline/settings.json` (note: still in macos role)
 
-- [ ] Add tasks to merge statusLine into Claude settings.json:
+- [x] Add tasks to merge statusLine into Claude settings.json:
   - Check if `~/.claude/settings.json` exists (using `stat`)
   - Read existing settings if present (using `slurp`)
   - Parse JSON and merge with statusLine config (using `set_fact`)
@@ -490,23 +490,23 @@ ls ~/.claude/agents/ ~/.claude/commands/
 
 **Tasks**:
 
-- [ ] Add task to set default shell to zsh:
+- [x] Add task to set default shell to zsh:
   - Use `user` module
   - Requires `become: yes`
 
-- [ ] Add tasks to configure .bashrc:
+- [x] Add tasks to configure .bashrc:
   - Read existing .bashrc (using `slurp`)
   - Check if zsh exec already present (using `set_fact` with string search)
   - Prepend zsh exec snippet if not present (using `copy` with concatenated content)
 
-- [ ] Add task to remove mise from .bashrc:
+- [x] Add task to remove mise from .bashrc:
   - Use `lineinfile` with `regexp: '.*mise.*'` and `state: absent`
 
-- [ ] Add task to configure byobu auto-launch in .zshrc.local:
+- [x] Add task to configure byobu auto-launch in .zshrc.local:
   - Use `blockinfile` with create: yes
   - Block includes byobu session creation logic
 
-- [ ] Add task to configure Codespaces prompt customization:
+- [x] Add task to configure Codespaces prompt customization:
   - Use `blockinfile` with separate marker
   - Block sets `prompt pure` when in Codespaces
 
@@ -538,7 +538,7 @@ grep -q "prompt pure" ~/.zshrc.local && echo "Prompt config OK"
 
 **Tasks**:
 
-- [ ] Add task to ensure pipx path is configured:
+- [x] Add task to ensure pipx path is configured:
   - Use `command` module: `pipx ensurepath`
   - Set `changed_when: false` (command always runs but doesn't indicate change)
   - Set `failed_when: false` (ignore errors if pipx not fully configured)
@@ -580,28 +580,28 @@ ansible-playbook --ask-become-pass --inventory "localhost," --connection local p
 
 **Tasks**:
 
-- [ ] Create backup of current install.sh:
+- [x] Create backup of current install.sh:
   - `cp install.sh install.sh.backup`
 
-- [ ] Update `bin/provision` to handle bootstrapping and environment detection (in Ruby):
+- [x] Update `bin/provision` to handle bootstrapping and environment detection (in Ruby):
   - Check if Ansible is installed
   - Install Ansible via brew (macOS) or apt (Debian/Codespaces) if needed
   - Detect environment (CODESPACES env var)
   - Conditionally use --ask-become-pass (skip in Codespaces, use on macOS)
   - Run ansible-playbook with appropriate flags
 
-- [ ] Remove old install.sh and create symlink:
+- [x] Remove old install.sh and create symlink:
   - `rm install.sh`
   - `ln -s bin/provision install.sh`
 
-- [ ] Mark install.sh.backup as git-ignored:
+- [x] Mark install.sh.backup as git-ignored:
   - Add `install.sh.backup` to `.gitignore`
 
-- [ ] Test on macOS:
+- [x] Test on macOS:
   - `bin/provision` should ask for password
   - Should work whether Ansible is already installed or not
 
-- [ ] Test in Codespace:
+- [x] Test in Codespace:
   - `./install.sh` (via symlink) should NOT ask for password
   - Should install Ansible if needed
 

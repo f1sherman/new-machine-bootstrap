@@ -1,3 +1,39 @@
-#!/bin/bash
+#!/usr/bin/env ruby
+# frozen_string_literal: true
 
-ansible-playbook --ask-become-pass --inventory "localhost," --connection local playbook.yml --diff "$@"
+def command_exists?(cmd)
+  system("command -v #{cmd} > /dev/null 2>&1")
+end
+
+def install_ansible
+  if RUBY_PLATFORM.include?('darwin')
+    puts "Installing Ansible via Homebrew..."
+    system("brew install ansible") || abort("Failed to install Ansible")
+  elsif command_exists?('apt-get')
+    puts "Installing Ansible via apt..."
+    system("sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ansible") || abort("Failed to install Ansible")
+  else
+    abort("Unsupported platform for automatic Ansible installation")
+  end
+end
+
+def in_codespaces?
+  ENV['CODESPACES'] == 'true'
+end
+
+install_ansible unless command_exists?('ansible-playbook')
+
+args = ARGV.dup
+become_pass = in_codespaces? ? [] : ['--ask-become-pass']
+
+command = [
+  'ansible-playbook',
+  *become_pass,
+  '--inventory', 'localhost,',
+  '--connection', 'local',
+  'playbook.yml',
+  '--diff',
+  *args
+]
+
+exec(*command)

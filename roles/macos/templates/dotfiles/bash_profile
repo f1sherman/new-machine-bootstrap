@@ -157,13 +157,5 @@ fi
 # Load SSH keys into the keychain - http://stackoverflow.com/a/39715149/961521
 ssh-add -A 2>/dev/null;
 
-# Install NVM
-if [ -z "${NVM_DIR}" ]; then
-  export NVM_DIR="$HOME/.nvm"
-  [ -s "{{ brew_prefix }}/opt/nvm/nvm.sh" ] && . "{{ brew_prefix }}/opt/nvm/nvm.sh"  # This loads nvm
-  # shellcheck disable=SC1091
-  [ -s "{{ brew_prefix }}/opt/nvm/etc/bash_completion" ] && . "{{ brew_prefix }}/opt/nvm/etc/bash_completion"  # This loads nvm bash_completion
-fi
-
 # Setup mise
 if command -v mise > /dev/null; then eval "$(mise activate bash)"; fi

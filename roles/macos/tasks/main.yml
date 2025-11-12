@@ -265,10 +265,6 @@
     owner: root
     recurse: yes
   become: yes
-- name: Create ~/bin directory
-  file:
-    path: '{{ ansible_env.HOME }}/bin'
-    state: directory
 - name: Install FZF
   shell: '{{ brew_prefix }}/opt/fzf/install --all'
   changed_when: false
@@ -288,33 +284,6 @@
     state: link
   with_fileglob:
     - '{{ ansible_env.HOME }}/.zprezto/runcoms/^(README.md|zshrc|zpreztorc)'
-- name: Check if open-interpreter is already installed
-  ansible.builtin.command: pipx list
-  register: pipx_list
-  changed_when: false
-  failed_when: false
-
-# https://github.com/OpenInterpreter/open-interpreter/issues/1539
-- name: Ensure Python@3.12 is installed (needed for open-interpreter)
-  homebrew:
-    name: python@3.12
-    state: present
-
-- name: Install open-interpreter using pipx if not installed
-  ansible.builtin.command:
-    cmd: pipx install open-interpreter --python /opt/homebrew/opt/python@3.12/bin/python3.12
-    creates: ~/.local/bin/open-interpreter
-  when: "'open-interpreter' not in pipx_list.stdout"
-
-- name: Check if Aider is already installed
-  command: command -v aider
-  register: aider_check
-  changed_when: false
-  failed_when: false
-
-- name: Install Aider via uv tool if not already installed
-  command: uv tool install --force --python python3.12 aider-chat@latest
-  when: aider_check.rc != 0
 
 - name: Set default shell to zsh
   user:
@@ -480,11 +449,6 @@
     dest: '{{ ansible_env.HOME }}/bin/murder'
     src: templates/murder
     mode: '0755'
-- name: Create pick-files script to select files in the current directory via tmux
-  template:
-    dest: '{{ ansible_env.HOME }}/bin/pick-files'
-    src: templates/pick-files
-    mode: '0755'
 - name: Create claude bin directory
   file:
     dest: '{{ ansible_env.HOME }}/bin/claude'
@@ -496,12 +460,6 @@
     src: 'bin/claude/spec-metadata'
     mode: 0755
   become: true
-- name: Install osc52-copy script
-  copy:
-    backup: yes
-    dest: '{{ ansible_env.HOME }}/bin/osc52-copy'
-    src: 'bin/osc52-copy'
-    mode: 0755
 - name: Install ocr script
   copy:
     dest: '{{ ansible_env.HOME }}/bin/ocr'
@@ -511,11 +469,6 @@
   template:
     dest: '{{ ansible_env.HOME }}/bin/start-claude'
     src: templates/start-claude
-    mode: '0755'
-- name: Create start-aider script to start aider with the `AIDER_PANE` env var
-  template:
-    dest: '{{ ansible_env.HOME }}/bin/start-aider'
-    src: templates/start-aider
     mode: '0755'
 
 - name: Ensure Hammerspoon is installed
@@ -625,24 +578,6 @@
     executable: /bin/zsh
   changed_when: false
 
-- name: Create ~/.claude directory
-  file:
-    path: '{{ ansible_env.HOME }}/.claude'
-    state: directory
-    mode: '0700'
-
-- name: Create ~/.claude/CLAUDE.md file
-  copy:
-    content: |
-      Add code comments sparingly. Focus on why something is done, especially for complex logic, rather than what is done. Only add high-value comments if necessary for clarity or if requested by the user. Do not edit comments that are separate from the code you are changing. NEVER talk to the user or describe your changes through comments.
-    dest: '{{ ansible_env.HOME }}/.claude/CLAUDE.md'
-    mode: '0600'
-    backup: yes
-
-- name: Set ccstatusline version
-  set_fact:
-    ccstatusline_version: "2.0.21"
-
 - name: Check if Meslo Powerline fonts are already installed
   stat:
     path: '{{ ansible_env.HOME }}/Library/Fonts/Meslo LG M Regular for Powerline.ttf'
@@ -657,7 +592,7 @@
 
 - name: Install Meslo LG Powerline fonts
   shell: |
-    cp /tmp/powerline-fonts/Meslo\ Slashed/*.ttf {{ ansible_env.HOME }}/Library/Fonts/ && \
+    cp /tmp/powerline-fonts/Meslo\ Slashed/*.ttf {{ ansible_env.HOME}}/Library/Fonts/ && \
     cp /tmp/powerline-fonts/Meslo\ Dotted/*.ttf {{ ansible_env.HOME }}/Library/Fonts/
   when: not meslo_font_check.stat.exists
 
@@ -666,44 +601,3 @@
     path: '/tmp/powerline-fonts'
     state: absent
   when: not meslo_font_check.stat.exists
-
-- name: Create ccstatusline config directory
-  file:
-    path: '{{ ansible_env.HOME }}/.config/ccstatusline'
-    state: directory
-    mode: '0700'
-    owner: '{{ ansible_env.USER | default(ansible_user_id) }}'
-
-- name: Install ccstatusline widget configuration
-  copy:
-    src: 'config/ccstatusline/settings.json'
-    dest: '{{ ansible_env.HOME }}/.config/ccstatusline/settings.json'
-    mode: '0600'
-    owner: '{{ ansible_env.USER | default(ansible_user_id) }}'
-
-- name: Check if Claude settings.json exists
-  stat:
-    path: '{{ ansible_env.HOME }}/.claude/settings.json'
-  register: claude_settings_stat
-
-- name: Read existing Claude settings.json if it exists
-  slurp:
-    src: '{{ ansible_env.HOME }}/.claude/settings.json'
-  register: claude_settings_content
-  when: claude_settings_stat.stat.exists
-
-- name: Parse existing Claude settings or use empty object
-  set_fact:
-    claude_settings: "{{ (claude_settings_content.content | b64decode | from_json) if claude_settings_stat.stat.exists else {} }}"
-
-- name: Merge ccstatusline into Claude settings
-  set_fact:
-    merged_settings: "{{ claude_settings | combine({'statusLine': {'type': 'command', 'command': 'npx -y ccstatusline@' ~ ccstatusline_version, 'padding': 0}}, recursive=True) }}"
-
-- name: Write merged Claude settings.json
-  copy:
-    content: "{{ merged_settings | to_nice_json }}"
-    dest: '{{ ansible_env.HOME }}/.claude/settings.json'
-    mode: '0600'
-    owner: '{{ ansible_env.USER | default(ansible_user_id) }}'
-    backup: yes

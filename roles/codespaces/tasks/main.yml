@@ -1,1 +1,178 @@
 ---
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  become: yes
+
+- name: Install Codespaces packages
+  apt:
+    name:
+      - bat
+      - byobu
+      - curl
+      - fd-find
+      - fzf
+      - git
+      - neovim
+      - python3
+      - python3-pip
+      - python3-venv
+      - pipx
+      - ripgrep
+      - sudo
+      - tmux
+      - unzip
+      - zsh
+    state: present
+  become: yes
+
+- name: Create ~/.local/bin directory
+  file:
+    path: '{{ ansible_env.HOME }}/.local/bin'
+    state: directory
+    mode: 0755
+
+- name: Create fd symlink (fdfind -> fd)
+  file:
+    src: /usr/bin/fdfind
+    dest: '{{ ansible_env.HOME }}/.local/bin/fd'
+    state: link
+
+- name: Create bat symlink (batcat -> bat)
+  file:
+    src: /usr/bin/batcat
+    dest: '{{ ansible_env.HOME }}/.local/bin/bat'
+    state: link
+
+- name: Create vim symlink (nvim -> vim)
+  file:
+    src: /usr/bin/nvim
+    dest: '{{ ansible_env.HOME }}/.local/bin/vim'
+    state: link
+
+- name: Copy tmux configuration for Codespaces
+  copy:
+    src: '{{ playbook_dir }}/codespaces/dotfiles/tmux.conf'
+    dest: '{{ ansible_env.HOME }}/.tmux.conf'
+    mode: 0644
+    backup: yes
+
+- name: Create ~/.byobu directory
+  file:
+    path: '{{ ansible_env.HOME }}/.byobu'
+    state: directory
+    mode: 0755
+
+- name: Copy tmux configuration for byobu
+  copy:
+    src: '{{ playbook_dir }}/codespaces/dotfiles/tmux.conf'
+    dest: '{{ ansible_env.HOME }}/.byobu/.tmux.conf'
+    mode: 0644
+    backup: yes
+
+- name: Check if fzf shell directory exists
+  stat:
+    path: '{{ ansible_env.HOME }}/.fzf/shell'
+  register: fzf_shell_dir
+
+- name: Create full FZF integration (when shell dir exists)
+  copy:
+    content: |
+      # Setup fzf
+      # ---------
+      if [[ ! "$PATH" == *${HOME}/.fzf/bin* ]]; then
+        PATH="${PATH:+${PATH}:}${HOME}/.fzf/bin"
+      fi
+
+      # Auto-completion
+      [[ $- == *i* ]] && source "${HOME}/.fzf/shell/completion.zsh" 2> /dev/null
+
+      # Key bindings
+      source "${HOME}/.fzf/shell/key-bindings.zsh"
+    dest: '{{ ansible_env.HOME }}/.fzf.zsh'
+    mode: 0644
+  when: fzf_shell_dir.stat.exists
+
+- name: Create minimal FZF integration (when shell dir doesn't exist)
+  copy:
+    content: |
+      # Setup fzf
+      # ---------
+      # Debian package version doesn't support --zsh flag
+      # Basic PATH setup only
+      if [[ ! "$PATH" == */usr/bin* ]]; then
+        PATH="${PATH:+${PATH}:}/usr/bin"
+      fi
+    dest: '{{ ansible_env.HOME }}/.fzf.zsh'
+    mode: 0644
+  when: not fzf_shell_dir.stat.exists
+
+- name: Set default shell to zsh
+  user:
+    name: '{{ ansible_user_id }}'
+    shell: /usr/bin/zsh
+  become: yes
+
+- name: Read existing .bashrc
+  slurp:
+    src: '{{ ansible_env.HOME }}/.bashrc'
+  register: bashrc_content
+  ignore_errors: yes
+
+- name: Check if zsh exec already in .bashrc
+  set_fact:
+    zsh_exec_present: "{{ (bashrc_content.content | b64decode | regex_search('exec.*zsh')) is not none if bashrc_content is succeeded else false }}"
+
+- name: Prepend zsh exec to .bashrc
+  copy:
+    content: |
+      # Added by dotfiles installer - exec zsh (which will then launch byobu)
+      if [ -z "$TMUX" ]; then
+        exec /usr/bin/zsh
+      fi
+
+      {{ bashrc_content.content | b64decode }}
+    dest: '{{ ansible_env.HOME }}/.bashrc'
+    mode: 0644
+    backup: yes
+  when: bashrc_content is succeeded and not zsh_exec_present
+
+- name: Remove mise from .bashrc
+  lineinfile:
+    path: '{{ ansible_env.HOME }}/.bashrc'
+    regexp: '.*mise.*'
+    state: absent
+
+- name: Configure byobu auto-launch in .zshrc.local
+  blockinfile:
+    path: '{{ ansible_env.HOME }}/.zshrc.local'
+    create: yes
+    mode: 0644
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
+    block: |
+      # Added by dotfiles installer - launch byobu with unique session per connection
+      # Only launch if not already in a tmux/byobu session
+      if [ -z "$TMUX" ]; then
+        BYOBU_SESSION="ssh-$(date +%s)-$$"
+        byobu new-session -d -s "$BYOBU_SESSION" 2>/dev/null || true
+        byobu attach-session -t "$BYOBU_SESSION" 2>/dev/null || true
+      fi
+
+- name: Configure Codespaces prompt customization
+  blockinfile:
+    path: '{{ ansible_env.HOME }}/.zshrc.local'
+    create: yes
+    mode: 0644
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - PROMPT"
+    block: |
+      # Codespaces prompt customization - use pure theme with git info
+      if [[ -n "$CODESPACES" ]]; then
+        prompt pure
+      fi
+
+- name: Ensure pipx path is configured
+  command: pipx ensurepath
+  changed_when: false
+  failed_when: false
