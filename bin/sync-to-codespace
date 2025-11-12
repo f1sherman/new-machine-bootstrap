@@ -84,12 +84,12 @@ def main
 
   puts ""
   puts "==> Syncing repository to Codespace: #{codespace_name}"
-  puts "    Excluding: .git/, .coding-agent/, *.backup files"
+  puts "    Excluding: .git/, .coding-agent/, *.backup files, macOS resource forks"
   puts ""
 
   Dir.chdir(SCRIPT_DIR)
 
-  tar_cmd = "tar czf - --no-xattrs --exclude='.git' --exclude='.coding-agent' --exclude='*.backup' --exclude='.DS_Store' ."
+  tar_cmd = "tar czf - --no-xattrs --exclude='.git' --exclude='.coding-agent' --exclude='*.backup' --exclude='.DS_Store' --exclude='._*' ."
   ssh_cmd = "gh codespace ssh -c #{codespace_name} -- 'mkdir -p ~/new-machine-bootstrap && cd ~/new-machine-bootstrap && tar xzf -'"
   sync_cmd = "#{tar_cmd} | #{ssh_cmd}"
 

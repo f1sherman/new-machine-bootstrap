@@ -3,3 +3,5 @@ playbook.retry
 .claude/settings.local.json
 dummy.*
 docs/
+._*
+.DS_Store
