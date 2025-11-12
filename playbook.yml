@@ -1,5 +1,9 @@
 ---
-
-- hosts: 'localhost'
+- hosts: localhost
+  connection: local
   roles:
-    - macos
+    - common
+    - role: macos
+      when: ansible_os_family == "Darwin"
+    - role: codespaces
+      when: ansible_env.CODESPACES is defined and ansible_env.CODESPACES == "true"

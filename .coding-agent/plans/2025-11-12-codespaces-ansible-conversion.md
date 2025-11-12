@@ -88,18 +88,18 @@ bin/sync-to-codespace
 
 **Tasks**:
 
-- [ ] Create `roles/codespaces/` directory structure:
+- [x] Create `roles/codespaces/` directory structure:
   - `roles/codespaces/tasks/main.yml`
   - `roles/codespaces/defaults/main.yml` (for variables)
 
-- [ ] Create `roles/common/` directory structure:
+- [x] Create `roles/common/` directory structure:
   - `roles/common/tasks/main.yml`
   - `roles/common/templates/dotfiles/` (for shared dotfiles)
   - `roles/common/files/bin/` (for shared scripts)
 
-- [ ] Read current playbook.yml to understand existing structure
+- [x] Read current playbook.yml to understand existing structure
 
-- [ ] Update `playbook.yml` to support both platforms:
+- [x] Update `playbook.yml` to support both platforms:
   ```yaml
   ---
   - hosts: localhost
@@ -112,7 +112,7 @@ bin/sync-to-codespace
         when: ansible_env.CODESPACES is defined and ansible_env.CODESPACES == "true"
   ```
 
-- [ ] Add basic role metadata to `roles/codespaces/tasks/main.yml`:
+- [x] Add basic role metadata to `roles/codespaces/tasks/main.yml`:
   ```yaml
   ---
   # Codespaces provisioning tasks
@@ -120,7 +120,7 @@ bin/sync-to-codespace
   # Platform: GitHub Codespaces (detected via CODESPACES=true env var)
   ```
 
-- [ ] Add basic role metadata to `roles/common/tasks/main.yml`:
+- [x] Add basic role metadata to `roles/common/tasks/main.yml`:
   ```yaml
   ---
   # Common provisioning tasks shared across all platforms
