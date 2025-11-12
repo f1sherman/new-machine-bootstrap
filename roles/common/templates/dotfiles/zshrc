@@ -36,16 +36,6 @@ set mark-symlinked-directories on
 # Use vim mode at the command line
 set -o vi
 
-# Print cheatsheet for a command
-cheat() {
-  curl cht.sh/"${1}"
-}
-
-# Check which process uses port
-port() {
-  lsof -i tcp:"${1}"
-}
-
 # Convenience functions for encrypting and decrypting files
 encrypt() { gpg --symmetric "$1"; }
 decrypt() { gpg -o "${1//\.enc/}" -d "$1"; }
@@ -110,27 +100,6 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
   ssh-add -A 2>/dev/null
 fi
 
-# Install NVM
-if [ -z "${NVM_DIR:-}" ]; then
-  export NVM_DIR="$HOME/.nvm"
-fi
-
-if [ -s "${NVM_DIR}/nvm.sh" ]; then
-  # shellcheck disable=SC1091
-  . "${NVM_DIR}/nvm.sh"
-elif command -v brew >/dev/null 2>&1; then
-  : "${HOMEBREW_PREFIX:=$(brew --prefix 2>/dev/null)}"
-  # shellcheck disable=SC1091
-  [ -s "${HOMEBREW_PREFIX}/opt/nvm/nvm.sh" ] && . "${HOMEBREW_PREFIX}/opt/nvm/nvm.sh"
-fi
-
-# shellcheck disable=SC1091
-if [ -s "${NVM_DIR}/bash_completion" ]; then
-  . "${NVM_DIR}/bash_completion"
-elif [ -n "${HOMEBREW_PREFIX:-}" ] && [ -s "${HOMEBREW_PREFIX}/opt/nvm/etc/bash_completion" ]; then
-  . "${HOMEBREW_PREFIX}/opt/nvm/etc/bash_completion"
-fi
-
 # Source Prezto.
 if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
@@ -164,66 +133,12 @@ function db() {
     git branch -D "$(echo "${branch}" | awk '{print $1}' | sed "s/.* //")"
   }
 
-# Run specs for changed files
-function specs {
-  setopt local_options BASH_REMATCH
-
-  local app_regexp='^app(\/.*)\.rb$'
-  local other_regexp='^([^\/]*)(\/.*)\.rb$'
-  local spec_regexp='^spec\/.*\_spec\.rb$'
-  local spec_files=()
-
-  for file in $(git status --porcelain | awk '{print substr($0, 4)}'); do
-    local spec_file=''
-    if [[ $file =~ $spec_regexp ]]; then
-      spec_file=$file
-    elif [[ $file =~ $app_regexp ]]; then
-      spec_file=spec${BASH_REMATCH[2]}_spec.rb
-    elif [[ $file =~ $other_regexp ]]; then
-      spec_file=spec/${BASH_REMATCH[2]}${BASH_REMATCH[3]}_spec.rb
-    else
-      echo "WARNING: unable to determine spec file for ${file}"
-    fi
-
-    # This checks to see if the spec file already
-    # exists in the array
-    if ((!$spec_files[(Ie)$spec_file])); then
-      spec_files+=($spec_file)
-    fi
-  done
-
-  local checked_files=()
-
-  for spec_file in $spec_files; do
-    if [[ -f "${spec_file}" ]]; then
-      checked_files+=${spec_file}
-    else
-      echo "WARNING: ${spec_file} does not exist"
-    fi
-  done
-
-  {% raw %}
-  if grep --quiet parallel_tests Gemfile && [ ${#spec_files[@]} -gt 10 ]; then
-    echo "Running ${#spec_files[@]} specs in parallel: ${checked_files}"
-
-    # ${(j[|])checked_files} joins all elements in the array into a single string with a pipe (|)
-    bin/rake parallel:prepare "parallel:spec[${(j[|])checked_files}]" RAILS_ENV=test
-  elif [ ${#spec_files[@]} -gt 0 ]; then
-    echo "Running ${#spec_files[@]} specs synchronously: ${checked_files}"
-
-    bin/rspec $checked_files
-  else
-    echo "No spec files found, aborting"
-  fi
-  {% endraw %}
-}
-
 # Interactive rebase against main branch
 function rebase() {
   git checkout main
   git pull
   git checkout -
-  
+
   # Set up origin tracking if not already configured
   local current_branch=$(git branch --show-current)
   if ! git config --get branch.${current_branch}.remote > /dev/null 2>&1; then
@@ -231,7 +146,7 @@ function rebase() {
   else
     git pull
   fi
-  
+
   git rebase -i main
 }
 
@@ -243,8 +158,6 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 fi
 # Scan ports on a host
 alias portscan="nmap -Pn -p1-65535"
-# List TCP connections
-alias lstcp="lsof -i TCP -P"
 # Fix solarized theme in tmux
 alias tmux="TERM=screen-256color-bce tmux"
 # Shortcut for updating
@@ -263,10 +176,6 @@ alias p='git publish'
 alias s='git status'
 # Show Disk Use of subdirectories, sort by size
 alias duss="du -d 1 -h | sort -hr | egrep -v ^0"
-# Disable Pi-hole and Flush DNS
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  alias trackme="disable-pihole && sudo flushdns"
-fi
 
 ### End Alias ###
 
