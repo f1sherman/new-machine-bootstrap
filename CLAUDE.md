@@ -4,8 +4,7 @@ This repository contains bootstrap scripts for macOS and GitHub Codespaces envir
 
 ## Project Structure
 - `macos` - Ruby bootstrap script for macOS initial setup
-- `bin/provision` - Universal provisioning script (Ruby) that bootstraps Ansible and runs playbook
-- `bin/provision.sh` - Bash version of provision (for Codespaces, since Ruby isn't installed by default)
+- `bin/provision` - Universal provisioning script (Bash) that bootstraps Ansible and runs playbook
 - `bin/codespace-create` - Create and provision a new Codespace
 - `bin/codespace-ssh` - Connect to an available Codespace
 - `bin/sync-to-codespace` - Sync repository to Codespace and run provisioning
@@ -34,7 +33,7 @@ This repository contains bootstrap scripts for macOS and GitHub Codespaces envir
    - Calls `bin/sync-to-codespace` to provision it
 2. `bin/sync-to-codespace` syncs the bootstrap repo and runs provisioning:
    - Syncs repository files to `~/new-machine-bootstrap` (excludes .git, .claude, macOS metadata)
-   - Runs `bin/provision.sh` which bootstraps Ansible via apt if needed
+   - Runs `bin/provision` which bootstraps Ansible via apt/brew if needed
    - Ansible detects Codespaces environment (via `CODESPACES=true` env var)
    - Runs playbook without password prompt (Codespaces has sudo pre-configured)
 

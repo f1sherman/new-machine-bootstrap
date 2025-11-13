@@ -106,7 +106,7 @@ def main
   puts "==> Running provisioning in Codespace..."
   puts ""
 
-  system("gh codespace ssh -c #{codespace_name} -- 'cd ~/new-machine-bootstrap && bash ./bin/provision.sh'")
+  system("gh codespace ssh -c #{codespace_name} -- 'cd ~/new-machine-bootstrap && bash ./bin/provision'")
 
   puts ""
   puts "==> Provisioning complete!"
