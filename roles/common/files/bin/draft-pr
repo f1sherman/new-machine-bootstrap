@@ -1,0 +1,231 @@
+#!/usr/bin/env ruby
+# draft-pr - Script to generate a PR description with Claude and create a draft PR
+
+require 'json'
+require 'optparse'
+require 'tmpdir'
+require 'fileutils'
+
+# Parse command line options
+options = {}
+OptionParser.new do |opts|
+  opts.banner = "Usage: draft-pr [options]"
+  opts.on("-h", "--help", "Show this help message") do
+    puts opts
+    exit
+  end
+end.parse!
+
+# Check for required dependencies
+%w[git gh curl vim].each do |cmd|
+  unless system("which #{cmd} > /dev/null 2>&1")
+    puts "Error: #{cmd} is not installed or not in PATH"
+    exit 1
+  end
+end
+
+# Check for required API key
+unless ENV["ANTHROPIC_API_KEY"]
+  puts "Error: ANTHROPIC_API_KEY environment variable not set"
+  exit 1
+end
+
+# Create a temporary directory
+temp_dir = Dir.mktmpdir
+puts "Working directory for this PR: #{temp_dir}"
+
+# Helper function to run shell commands and handle errors
+def run_command(command, error_message)
+  system(command)
+  unless $?.success?
+    puts "Error: #{error_message}"
+    exit 1
+  end
+end
+
+# Git operations
+puts "Checking origin tracking for current branch..."
+current_branch = `git branch --show-current`.strip
+upstream = `git rev-parse --abbrev-ref #{current_branch}@{upstream} 2>/dev/null`.strip
+if upstream.empty?
+  puts "Setting up origin tracking..."
+  run_command("git push -u origin #{current_branch}", "Failed to set up origin tracking")
+end
+
+puts "Fetching latest main from origin..."
+run_command("git fetch origin main", "Failed to fetch latest main from origin")
+
+puts "Rebasing on latest main..."
+unless system("git rebase origin/main")
+  puts "Error: Failed to rebase on latest main"
+  puts "Please resolve conflicts and run git rebase --continue, then try again"
+  exit 1
+end
+
+puts "Pushing to origin..."
+run_command("git push origin HEAD --force-with-lease", "Failed to push changes")
+
+# Get ticket number from commits (if any)
+ticket = `git log origin/main... | grep 'Connected to' | cut -d ' ' -f 7 | tail -n 1`.strip
+
+# Fallback: extract ticket ID from branch name if not found in commits
+if ticket.empty?
+  branch = `git branch --show-current`.strip
+  ticket_match = branch.match(/^([A-Z]+-\d+)\//)
+  ticket = ticket_match ? ticket_match[1] : ""
+else
+  branch = `git branch --show-current`.strip
+end
+
+# Create title from branch name
+title = branch.gsub(/-/, ' ')
+
+# Create file paths
+commit_file = File.join(temp_dir, "commits.md")
+code_diff_file = File.join(temp_dir, "code_diff.md")
+claude_prompt_file = File.join(temp_dir, "claude_prompt.txt")
+api_request_file = File.join(temp_dir, "api_request.json")
+api_response_file = File.join(temp_dir, "claude_response.json")
+claude_pr_file = File.join(temp_dir, "claude_pr.md")
+pr_template_file = File.join(temp_dir, "pr_template.md")
+
+# Get commit messages
+puts "Getting commit messages..."
+run_command("git log --pretty=format:\"* %s%n%n%b\" --no-merges origin/main...HEAD > #{commit_file}",
+            "Failed to get commit messages")
+
+# Get code diff
+puts "Generating code diff..."
+File.open(code_diff_file, 'w') do |f|
+  f.puts "```diff"
+  f.puts `git diff origin/main...HEAD`
+  f.puts "```"
+end
+
+# Create Claude prompt
+puts "Creating Claude prompt..."
+prompt_template = <<~EOL
+  You are an expert software engineer helping draft a pull request description. Based on these commit messages and code changes, generate a PR description that follows this exact format:
+
+  ## Purpose
+
+  <brief summary of what this PR does and why>
+
+  ## Context
+
+  <more detailed context about the changes, design decisions, and implementation approach>
+
+  ## Guidance
+
+  <specific questions or areas where you want reviewer feedback>
+
+  ## AI Tools Used
+
+  Claude Code
+
+  ## Testing
+
+  <a checklist of testing steps for the author (me) to verify I've completed. Format these as checkboxes like '- [ ] Test item'>
+
+  The PR description should be concise but informative. Focus on explaining the purpose, approach, and impact of the changes. The testing section should include a practical checklist that I (the author) can use to verify my work before requesting review, with each item as a checkbox using markdown '- [ ]' format. Don't include the commits themselves as I'll add those separately.
+EOL
+
+File.open(claude_prompt_file, 'w') do |f|
+  f.puts prompt_template
+  f.puts
+  f.puts "## Commit Messages:"
+  f.puts File.read(commit_file)
+  f.puts
+  f.puts "## Code Changes:"
+  f.puts File.read(code_diff_file)
+end
+
+# Generate API request JSON
+puts "Generating PR description with Claude..."
+request = {
+  model: "claude-sonnet-4-20250514",
+  max_tokens: 1000,
+  messages: [
+    {
+      role: "user",
+      content: File.read(claude_prompt_file)
+    }
+  ]
+}
+
+File.write(api_request_file, JSON.pretty_generate(request))
+
+# Call Claude API
+puts "Sending request to Claude API..."
+curl_command = %Q(curl -s https://api.anthropic.com/v1/messages \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: #{ENV["ANTHROPIC_API_KEY"]}" \\
+  -H "anthropic-version: 2023-06-01" \\
+  --data @"#{api_request_file}" > "#{api_response_file}")
+
+run_command(curl_command, "Failed to call Claude API")
+
+# Parse the API response
+puts "Parsing Claude API response..."
+begin
+  response = JSON.parse(File.read(api_response_file))
+
+  if response["error"]
+    puts "Error from Claude API: #{response["error"]["message"]}"
+    puts "Check #{api_response_file} for the full error details"
+    exit 1
+  end
+
+  claude_pr = response["content"][0]["text"]
+  File.write(claude_pr_file, claude_pr)
+rescue JSON::ParserError => e
+  puts "Failed to parse Claude response: #{e.message}"
+  puts "Check #{api_response_file} for details"
+  exit 1
+rescue => e
+  puts "Unexpected error processing Claude response: #{e.message}"
+  exit 1
+end
+
+# Create the final PR template
+puts "Creating PR template..."
+File.open(pr_template_file, 'w') do |f|
+  f.puts File.read(claude_pr_file)
+  f.puts
+  f.puts "## Artifacts"
+  f.puts
+  f.puts "[#{ticket}](https://betterup.atlassian.net/browse/#{ticket})" unless ticket.empty?
+  f.puts
+  f.puts "## Commits"
+  f.puts
+  f.puts File.read(commit_file)
+end
+
+# Show preview
+puts "Preview of PR template:"
+puts File.read(pr_template_file)
+
+# Open vim for editing
+puts "Opening editor for modifications..."
+run_command("vim #{pr_template_file}", "Failed to open vim")
+
+# Create draft PR using gh CLI
+puts "Creating draft PR..."
+run_command("gh pr create --base main --body-file \"#{pr_template_file}\" --title \"#{title}\" --draft",
+            "Failed to create PR")
+
+# Open the PR in browser
+system("gh pr view --web")
+
+# Keep temporary files for debugging
+puts
+puts "Temporary files kept for debugging in: #{temp_dir}"
+puts "These files will be cleaned up automatically by your system eventually."
+puts "Files available for inspection:"
+puts "  - #{pr_template_file} (Final PR template)"
+puts "  - #{commit_file} (Commit messages)"
+puts "  - #{code_diff_file} (Code diff)"
+puts "  - #{claude_prompt_file} (Claude prompt)"
+puts "  - #{api_request_file} (API request JSON)"
+puts "  - #{api_response_file} (Claude API response)"
+puts "  - #{claude_pr_file} (Claude PR content)"

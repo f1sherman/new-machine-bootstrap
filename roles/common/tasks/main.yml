@@ -92,6 +92,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/osc52-copy'
     mode: 0755
 
+- name: Install draft-pr script
+  copy:
+    backup: yes
+    dest: '{{ ansible_env.HOME }}/bin/draft-pr'
+    src: '{{ playbook_dir }}/roles/common/files/bin/draft-pr'
+    mode: 0755
+
 - name: Create ~/.claude directory
   file:
     path: '{{ ansible_env.HOME }}/.claude'
