@@ -9,9 +9,9 @@ install_ansible() {
   if [[ "$OSTYPE" == "darwin"* ]]; then
     echo "Installing Ansible via Homebrew..."
     brew install ansible || { echo "Failed to install Ansible"; exit 1; }
-  elif command_exists apt-get; then
+  elif command_exists apt; then
     echo "Installing Ansible via apt..."
-    sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ansible || { echo "Failed to install Ansible"; exit 1; }
+    sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt install -y ansible || { echo "Failed to install Ansible"; exit 1; }
   else
     echo "Unsupported platform for automatic Ansible installation"
     exit 1
