@@ -1,4 +1,13 @@
 #!/bin/bash
+# Universal provisioning script for macOS and Codespaces
+#
+# This script is written in Bash (not Ruby) because:
+# - Bash is available by default on both macOS and Codespaces
+# - Ruby is not installed by default in GitHub Codespaces
+# - Mise (which provides Ruby in Codespaces) isn't configured until after this script runs
+#
+# This script bootstraps Ansible and runs the main playbook.
+
 set -e
 
 command_exists() {
