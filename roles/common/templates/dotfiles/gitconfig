@@ -20,8 +20,10 @@
   attributesfile = ~/.gitattributes
   excludesfile = ~/.gitignore
   editor = vim
+{% if ansible_os_family == "Darwin" %}
 [credential]
   helper = osxkeychain
+{% endif %}
 [diff]
   algorithm = patience
   colorMoved = plain
