@@ -1,0 +1,164 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'json'
+require 'optparse'
+
+SCRIPT_DIR = File.expand_path('..', __dir__)
+
+def command_exists?(cmd)
+  system("command -v #{cmd} >/dev/null 2>&1")
+end
+
+def ensure_gh_installed
+  return if command_exists?('gh')
+
+  puts "Error: gh CLI is required but not installed"
+  puts "Install it with: brew install gh"
+  exit 1
+end
+
+def wait_for_codespace(name)
+  puts "\n==> Waiting for Codespace to become available..."
+
+  max_attempts = 60
+  attempt = 0
+
+  loop do
+    output = `gh codespace list --json name,state 2>/dev/null`
+    break unless $?.success?
+
+    codespaces = JSON.parse(output)
+    codespace = codespaces.find { |cs| cs['name'] == name }
+
+    if codespace && codespace['state'] == 'Available'
+      puts "==> Codespace is ready!"
+      return true
+    end
+
+    attempt += 1
+    if attempt >= max_attempts
+      puts "Error: Timeout waiting for Codespace to become available"
+      puts "Check status with: gh codespace list"
+      return false
+    end
+
+    print "."
+    sleep 5
+  end
+
+  false
+end
+
+def main
+  ensure_gh_installed
+
+  options = {}
+
+  parser = OptionParser.new do |opts|
+    opts.banner = "Usage: bin/codespace-create --repo REPOSITORY --machine MACHINE_TYPE --branch BRANCH"
+    opts.separator ""
+    opts.separator "Required options:"
+
+    opts.on("-r", "--repo REPOSITORY", "Repository (owner/name)") do |v|
+      options[:repository] = v
+    end
+
+    opts.on("-m", "--machine MACHINE_TYPE", "Machine type (e.g., premiumLinux)") do |v|
+      options[:machine_type] = v
+    end
+
+    opts.on("-b", "--branch BRANCH", "Branch name") do |v|
+      options[:branch] = v
+    end
+
+    opts.separator ""
+    opts.separator "Examples:"
+    opts.separator "  bin/codespace-create --repo betterup/betterup-monolith --machine premiumLinux --branch main"
+    opts.separator "  bin/codespace-create --repo betterup/betterup-monolith --machine premiumLinux --branch my-feature"
+
+    opts.on("-h", "--help", "Show this help message") do
+      puts opts
+      exit
+    end
+  end
+
+  begin
+    parser.parse!
+  rescue OptionParser::InvalidOption, OptionParser::MissingArgument => e
+    puts "Error: #{e.message}"
+    puts ""
+    puts parser
+    exit 1
+  end
+
+  # Validate required arguments
+  missing = []
+  missing << "--repo" unless options[:repository]
+  missing << "--machine" unless options[:machine_type]
+  missing << "--branch" unless options[:branch]
+
+  unless missing.empty?
+    puts "Error: Missing required arguments: #{missing.join(', ')}"
+    puts ""
+    puts parser
+    exit 1
+  end
+
+  repository = options[:repository]
+  machine_type = options[:machine_type]
+  branch = options[:branch]
+
+  puts "\n==> Creating Codespace..."
+  puts "    Repository: #{repository}"
+  puts "    Machine type: #{machine_type}"
+  puts "    Branch: #{branch}" unless branch.empty?
+  puts ""
+
+  # Build gh command
+  cmd = [
+    'gh', 'codespace', 'create',
+    '--repo', repository,
+    '--machine', machine_type
+  ]
+
+  cmd += ['--branch', branch]
+
+  # Create the codespace
+  output = `#{cmd.join(' ')} 2>&1`
+
+  unless $?.success?
+    puts "Error: Failed to create Codespace"
+    puts output
+    exit 1
+  end
+
+  # Extract codespace name from output
+  # Output format is typically: "✓ Codespaces usage... \n codespace-name"
+  # The last line contains the codespace name
+  codespace_name = output.split("\n").last.strip
+
+  puts "==> Codespace created: #{codespace_name}"
+
+  # Wait for it to be available
+  unless wait_for_codespace(codespace_name)
+    exit 1
+  end
+
+  # Run sync-to-codespace
+  puts "\n==> Running provisioning..."
+
+  sync_script = File.join(SCRIPT_DIR, 'bin', 'sync-to-codespace')
+
+  unless system(sync_script)
+    puts "\nError: Provisioning failed"
+    puts "You can retry with: #{sync_script}"
+    exit 1
+  end
+
+  puts "\n==> Done! Your Codespace is ready."
+  puts "\nTo connect, run:"
+  puts "  codespace-ssh #{codespace_name}"
+end
+
+main

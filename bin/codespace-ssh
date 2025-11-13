@@ -75,42 +75,66 @@ def main
   ensure_gh_installed
   check_work_machine
 
-  puts "==> Finding available Codespaces..."
+  # Check if codespace name was provided as argument
+  codespace_name = ARGV[0]
 
-  codespaces_json = run_command(
-    'gh codespace list --json name,repository,state',
-    error_message: 'Failed to list Codespaces'
-  )
-
-  codespaces = JSON.parse(codespaces_json)
-    .select { |cs| cs['state'] == 'Available' }
-
-  if codespaces.empty?
-    puts "Error: No running Codespaces found"
-    puts "Create a Codespace first: gh codespace create"
-    exit 1
-  end
-
-  codespace_name = if codespaces.size == 1
-    puts "==> Found Codespace: #{codespaces[0]['name']}"
-    codespaces[0]['name']
+  if codespace_name
+    puts "==> Connecting to Codespace: #{codespace_name}"
   else
-    unless command_exists?('fzf')
-      puts "Error: Multiple Codespaces found, but fzf is not installed"
-      puts "Install fzf: brew install fzf"
+    puts "==> Finding available Codespaces..."
+
+    codespaces_json = run_command(
+      'gh codespace list --json name,repository,state',
+      error_message: 'Failed to list Codespaces'
+    )
+
+    all_codespaces = JSON.parse(codespaces_json)
+
+    all_codespaces.each do |cs|
+      case cs['state']
+      when 'Available'
+        puts "Found Codespace #{cs['name']} in state '#{cs['state']}'"
+      when 'Queued', 'Starting'
+        puts "Found Codespace #{cs['name']} but can't SSH to it because it is in state '#{cs['state']}' (still starting up)"
+      when 'Shutdown'
+        puts "Found Codespace #{cs['name']} but can't SSH to it because it is in state '#{cs['state']}' (use 'gh codespace ssh -c #{cs['name']}' to restart)"
+      else
+        puts "Found Codespace #{cs['name']} but can't SSH to it because it is in state '#{cs['state']}'"
+      end
+    end
+
+    available = all_codespaces.select { |cs| cs['state'] == 'Available' }
+
+    if available.empty?
+      puts "\nError: No Codespaces in 'Available' state"
+      puts "Wait for starting Codespaces to finish, or create a new one: gh codespace create"
       exit 1
     end
 
-    puts "==> Multiple Codespaces found, please select one:"
-    names = codespaces.map { |cs| cs['name'] }.join("\n")
-    stdout, stderr, status = Open3.capture3('fzf --prompt="Select Codespace: "', stdin_data: names)
+    puts ""
+    codespaces = available
 
-    unless status.success?
-      puts "Error: No Codespace selected"
-      exit 1
+    codespace_name = if codespaces.size == 1
+      puts "==> Found Codespace: #{codespaces[0]['name']}"
+      codespaces[0]['name']
+    else
+      unless command_exists?('fzf')
+        puts "Error: Multiple Codespaces found, but fzf is not installed"
+        puts "Install fzf: brew install fzf"
+        exit 1
+      end
+
+      puts "==> Multiple Codespaces found, please select one:"
+      names = codespaces.map { |cs| cs['name'] }.join("\n")
+      stdout, stderr, status = Open3.capture3('fzf --prompt="Select Codespace: "', stdin_data: names)
+
+      unless status.success?
+        puts "Error: No Codespace selected"
+        exit 1
+      end
+
+      stdout.strip
     end
-
-    stdout.strip
   end
 
   sync_claude_config(codespace_name)

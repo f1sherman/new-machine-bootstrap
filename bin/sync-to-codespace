@@ -84,12 +84,12 @@ def main
 
   puts ""
   puts "==> Syncing repository to Codespace: #{codespace_name}"
-  puts "    Excluding: .git/, .coding-agent/, *.backup files, macOS resource forks"
+  puts "    Excluding: .git/, .coding-agent/, .claude/, *.backup files, macOS metadata"
   puts ""
 
   Dir.chdir(SCRIPT_DIR)
 
-  tar_cmd = "tar czf - --no-xattrs --exclude='.git' --exclude='.coding-agent' --exclude='*.backup' --exclude='.DS_Store' --exclude='._*' ."
+  tar_cmd = "tar czf - --no-xattrs --exclude='.git' --exclude='.coding-agent' --exclude='.claude' --exclude='*.backup' --exclude='.DS_Store' --exclude='._*' --exclude='.codespace-defaults.yml' ."
   ssh_cmd = "gh codespace ssh -c #{codespace_name} -- 'mkdir -p ~/new-machine-bootstrap && cd ~/new-machine-bootstrap && tar xzf -'"
   sync_cmd = "#{tar_cmd} | #{ssh_cmd}"
 
@@ -103,17 +103,13 @@ def main
   puts ""
   puts "==> Sync complete!"
   puts ""
-  puts "==> Running install.sh in Codespace..."
+  puts "==> Running provisioning in Codespace..."
   puts ""
 
-  system("gh codespace ssh -c #{codespace_name} -- 'cd ~/new-machine-bootstrap && ./install.sh'")
+  system("gh codespace ssh -c #{codespace_name} -- 'cd ~/new-machine-bootstrap && bash ./bin/provision.sh'")
 
   puts ""
-  puts "==> Done!"
-  puts ""
-  puts "To connect to this Codespace:"
-  puts "  gh codespace ssh -c #{codespace_name}"
-  puts ""
+  puts "==> Provisioning complete!"
 end
 
 main

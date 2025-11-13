@@ -33,18 +33,40 @@
     state: directory
     mode: 0755
 
+- name: Remove fzf apt package if installed
+  apt:
+    name: fzf
+    state: absent
+  become: yes
+
+- name: Check if fzf already exists in .local/bin
+  stat:
+    path: '{{ ansible_env.HOME }}/.local/bin/fzf'
+  register: fzf_binary
+
 - name: Get latest fzf release version
   uri:
     url: https://api.github.com/repos/junegunn/fzf/releases/latest
     return_content: yes
   register: fzf_latest_release
+  retries: 3
+  delay: 10
+  until: fzf_latest_release is succeeded
+  when: not fzf_binary.stat.exists
+
+- name: Set fzf version without v prefix
+  set_fact:
+    fzf_version: "{{ fzf_latest_release.json.tag_name | regex_replace('^v', '') }}"
+  when: not fzf_binary.stat.exists
 
 - name: Download and extract fzf binary
   unarchive:
-    src: "https://github.com/junegunn/fzf/releases/download/{{ fzf_latest_release.json.tag_name }}/fzf-{{ fzf_latest_release.json.tag_name }}-linux_amd64.tar.gz"
+    src: "https://github.com/junegunn/fzf/releases/download/{{ fzf_latest_release.json.tag_name }}/fzf-{{ fzf_version }}-linux_amd64.tar.gz"
     dest: '{{ ansible_env.HOME }}/.local/bin'
     remote_src: yes
-    creates: '{{ ansible_env.HOME }}/.local/bin/fzf'
+  retries: 3
+  delay: 10
+  when: not fzf_binary.stat.exists
 
 - name: Clone fzf repo for shell integration files
   git:
@@ -135,29 +157,31 @@
     shell: /usr/bin/zsh
   become: yes
 
-- name: Read existing .bashrc
-  slurp:
-    src: '{{ ansible_env.HOME }}/.bashrc'
-  register: bashrc_content
-  ignore_errors: yes
-
-- name: Check if zsh exec already in .bashrc
-  set_fact:
-    zsh_exec_present: "{{ (bashrc_content is succeeded and (bashrc_content.content | b64decode | regex_search('exec.*zsh')) is not none) }}"
-
-- name: Prepend zsh exec to .bashrc
-  copy:
-    content: |
-      # Added by dotfiles installer - exec zsh (which will then launch byobu)
-      if [ -z "$TMUX" ]; then
-        exec /usr/bin/zsh
+- name: Configure byobu auto-launch in .zprofile
+  blockinfile:
+    path: '{{ ansible_env.HOME }}/.zprofile'
+    create: yes
+    mode: 0644
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
+    block: |
+      # Launch byobu on SSH login
+      if [ -z "$TMUX" ] && [ -n "$SSH_CONNECTION" ]; then
+        exec byobu new-session -A -s main
       fi
 
-      {{ bashrc_content.content | b64decode }}
-    dest: '{{ ansible_env.HOME }}/.bashrc'
+- name: Configure byobu auto-launch in .bashrc
+  blockinfile:
+    path: '{{ ansible_env.HOME }}/.bashrc'
+    create: no
     mode: 0644
-    backup: yes
-  when: bashrc_content is succeeded and not zsh_exec_present
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
+    block: |
+      # Launch byobu with zsh on SSH login, exit SSH when detached
+      if [ -z "$TMUX" ] && [ -n "$SSH_CONNECTION" ]; then
+        export SHELL=/usr/bin/zsh
+        exec byobu new-session -A -s main /usr/bin/zsh -l
+      fi
+    insertafter: BOF
 
 - name: Remove mise from .bashrc
   lineinfile:
@@ -165,20 +189,14 @@
     regexp: '.*mise.*'
     state: absent
 
-- name: Configure byobu auto-launch in .zshrc.local
+- name: Remove byobu auto-launch from .zshrc.local
   blockinfile:
     path: '{{ ansible_env.HOME }}/.zshrc.local'
     create: yes
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
-    block: |
-      # Added by dotfiles installer - launch byobu with unique session per connection
-      # Only launch if not already in a tmux/byobu session
-      if [ -z "$TMUX" ]; then
-        BYOBU_SESSION="ssh-$(date +%s)-$$"
-        byobu new-session -d -s "$BYOBU_SESSION" 2>/dev/null || true
-        byobu attach-session -t "$BYOBU_SESSION" 2>/dev/null || true
-      fi
+    block: ""
+    state: absent
 
 - name: Configure Codespaces prompt customization
   blockinfile:
@@ -196,3 +214,60 @@
   command: pipx ensurepath
   changed_when: false
   failed_when: false
+
+- name: Auto-trust Codespaces workspaces and skip onboarding in .claude.json
+  shell: |
+    python3 -c '
+    import json
+    import glob
+    from datetime import datetime
+
+    try:
+      with open("{{ ansible_env.HOME }}/.claude.json", "r") as f:
+        data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+      data = {}
+
+    if "projects" not in data:
+      data["projects"] = {}
+
+    changed = False
+
+    # Auto-trust all existing workspace directories and enable all MCP servers
+    for workspace_dir in glob.glob("/workspaces/*"):
+      if workspace_dir not in data["projects"]:
+        data["projects"][workspace_dir] = {
+          "hasTrustDialogAccepted": True,
+          "enableAllProjectMcpServers": True,
+          "allowedTools": [],
+          "mcpContextUris": [],
+          "mcpServers": {},
+          "enabledMcpjsonServers": [],
+          "disabledMcpjsonServers": []
+        }
+        changed = True
+      else:
+        if not data["projects"][workspace_dir].get("hasTrustDialogAccepted"):
+          data["projects"][workspace_dir]["hasTrustDialogAccepted"] = True
+          changed = True
+        if not data["projects"][workspace_dir].get("enableAllProjectMcpServers"):
+          data["projects"][workspace_dir]["enableAllProjectMcpServers"] = True
+          changed = True
+
+    # Skip onboarding prompts
+    if not data.get("hasCompletedOnboarding"):
+      data["hasCompletedOnboarding"] = True
+      data["lastOnboardingVersion"] = "2.0.0"
+      data["firstStartTime"] = datetime.utcnow().isoformat() + "Z"
+      changed = True
+
+    if changed:
+      with open("{{ ansible_env.HOME }}/.claude.json", "w") as f:
+        json.dump(data, f, indent=2)
+      print("changed")
+    else:
+      print("unchanged")
+    '
+  register: claude_trust_result
+  changed_when: "'changed' in claude_trust_result.stdout"
+  when: ansible_env.CODESPACES is defined
