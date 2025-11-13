@@ -215,18 +215,25 @@
   changed_when: false
   failed_when: false
 
-- name: Auto-trust Codespaces workspaces and skip onboarding in .claude.json
+- name: Create minimal .claude.json to skip onboarding
+  copy:
+    content: |
+      {
+        "hasCompletedOnboarding": true
+      }
+    dest: '{{ ansible_env.HOME }}/.claude.json'
+    mode: 0600
+    force: no
+  when: ansible_env.CODESPACES is defined
+
+- name: Auto-trust Codespaces workspaces in .claude.json
   shell: |
     python3 -c '
     import json
     import glob
-    from datetime import datetime
 
-    try:
-      with open("{{ ansible_env.HOME }}/.claude.json", "r") as f:
-        data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-      data = {}
+    with open("{{ ansible_env.HOME }}/.claude.json", "r") as f:
+      data = json.load(f)
 
     if "projects" not in data:
       data["projects"] = {}
@@ -254,13 +261,6 @@
           data["projects"][workspace_dir]["enableAllProjectMcpServers"] = True
           changed = True
 
-    # Skip onboarding prompts
-    if not data.get("hasCompletedOnboarding"):
-      data["hasCompletedOnboarding"] = True
-      data["lastOnboardingVersion"] = "2.0.0"
-      data["firstStartTime"] = datetime.utcnow().isoformat() + "Z"
-      changed = True
-
     if changed:
       with open("{{ ansible_env.HOME }}/.claude.json", "w") as f:
         json.dump(data, f, indent=2)
@@ -271,3 +271,15 @@
   register: claude_trust_result
   changed_when: "'changed' in claude_trust_result.stdout"
   when: ansible_env.CODESPACES is defined
+
+- name: Add CLAUDE_CODE_OAUTH_TOKEN to .zshrc.local if provided
+  lineinfile:
+    path: '{{ ansible_env.HOME }}/.zshrc.local'
+    create: yes
+    mode: 0600
+    line: "export CLAUDE_CODE_OAUTH_TOKEN='{{ ansible_env.CLAUDE_CODE_OAUTH_TOKEN }}'"
+    regexp: '^export CLAUDE_CODE_OAUTH_TOKEN='
+  when:
+    - ansible_env.CODESPACES is defined
+    - ansible_env.CLAUDE_CODE_OAUTH_TOKEN is defined
+    - ansible_env.CLAUDE_CODE_OAUTH_TOKEN | length > 0

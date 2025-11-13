@@ -45,32 +45,6 @@ def check_work_machine
   end
 end
 
-def sync_claude_config(codespace_name)
-  claude_json = File.expand_path('~/.claude.json')
-
-  unless File.exist?(claude_json)
-    puts "Warning: Claude configuration not found at #{claude_json}"
-    puts "Skipping Claude config sync."
-    return
-  end
-
-  check_result = `gh codespace ssh -c #{codespace_name} -- 'test -f ~/.claude.json && echo "exists" || echo "missing"'`.strip
-
-  if check_result == "exists"
-    puts "==> Claude configuration already exists in Codespace, skipping sync"
-    return
-  end
-
-  puts "==> Syncing Claude configuration to Codespace..."
-
-  puts "    - Copying .claude.json"
-  unless system("cat #{claude_json} | gh codespace ssh -c #{codespace_name} -- 'cat > ~/.claude.json && chmod 600 ~/.claude.json'")
-    puts "Warning: Failed to copy .claude.json"
-  end
-
-  puts "==> Claude configuration synced!"
-end
-
 def main
   ensure_gh_installed
   check_work_machine
@@ -136,8 +110,6 @@ def main
       stdout.strip
     end
   end
-
-  sync_claude_config(codespace_name)
 
   puts ""
   puts "==> Connecting to Codespace: #{codespace_name}"

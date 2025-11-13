@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'yaml'
 require 'open3'
 
 SCRIPT_DIR = File.expand_path('..', __dir__)
@@ -39,6 +40,14 @@ def ensure_gh_installed
   end
 
   puts "==> gh CLI installed successfully"
+end
+
+def work_machine?
+  config_path = File.expand_path('~/.config/new-machine-bootstrap.yml')
+  return false unless File.exist?(config_path)
+
+  config = YAML.load_file(config_path)
+  config['use'] == 'work'
 end
 
 def main
@@ -111,7 +120,15 @@ def main
   puts "==> Running provisioning in Codespace..."
   puts ""
 
-  system("gh codespace ssh -c #{codespace_name} -- 'cd ~/new-machine-bootstrap && bash ./bin/provision'")
+  # Pass CLAUDE_CODE_OAUTH_TOKEN if on work machine so Ansible can write it to ~/.zshrc.local
+  env_vars = ""
+  if work_machine? && ENV['CLAUDE_CODE_OAUTH_TOKEN']
+    puts "==> Configuring CLAUDE_CODE_OAUTH_TOKEN in Codespace"
+    escaped_token = ENV['CLAUDE_CODE_OAUTH_TOKEN'].gsub("'", "'\\\\''")
+    env_vars = "CLAUDE_CODE_OAUTH_TOKEN='#{escaped_token}' "
+  end
+
+  system("gh codespace ssh -c #{codespace_name} -- 'cd ~/new-machine-bootstrap && #{env_vars}bash ./bin/provision'")
 
   puts ""
   puts "==> Provisioning complete!"
