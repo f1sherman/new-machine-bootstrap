@@ -145,14 +145,14 @@ def main
     exit 1
   end
 
-  # Run sync-to-codespace
+  # Run sync-to-codespace with the codespace name
   puts "\n==> Running provisioning..."
 
   sync_script = File.join(SCRIPT_DIR, 'bin', 'sync-to-codespace')
 
-  unless system(sync_script)
+  unless system(sync_script, codespace_name)
     puts "\nError: Provisioning failed"
-    puts "You can retry with: #{sync_script}"
+    puts "You can retry with: #{sync_script} #{codespace_name}"
     exit 1
   end
 
