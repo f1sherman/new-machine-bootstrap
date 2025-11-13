@@ -1,0 +1,97 @@
+#!/usr/bin/env ruby
+
+require 'json'
+require 'open3'
+
+def run_command(cmd, allow_failure: false)
+  stdout, stderr, status = Open3.capture3(cmd)
+  unless status.success? || allow_failure
+    $stderr.puts "Command failed: #{cmd}"
+    $stderr.puts stderr unless stderr.empty?
+    exit 1
+  end
+  stdout.strip
+end
+
+unless run_command('git rev-parse --git-dir', allow_failure: true) != ''
+  $stderr.puts 'Error: Not in a git repository'
+  exit 1
+end
+
+remote_url = run_command('git config --get remote.origin.url', allow_failure: true)
+if remote_url.empty?
+  $stderr.puts 'Error: No remote.origin.url configured'
+  exit 1
+end
+
+unless remote_url.include?('github.com')
+  $stderr.puts "Error: Remote origin is not GitHub (found: #{remote_url})"
+  exit 1
+end
+
+original_branch = run_command('git rev-parse --abbrev-ref HEAD')
+
+if original_branch != 'main'
+  puts "Switching to main branch..."
+  run_command('git checkout main')
+end
+
+puts "Fetching from origin and pruning deleted branches..."
+run_command('git fetch --prune origin')
+
+branches = run_command("git for-each-ref --format='%(refname:short)' refs/heads/").split("\n")
+puts "Found #{branches.size} local branches (including current branch)"
+puts
+
+owner_repo = remote_url[%r{[:/]([^/]+/[^/]+?)(\.git)?$}, 1]
+puts "Repository: #{owner_repo}"
+puts
+
+deleted_branches = []
+
+branches.each do |branch|
+  next if branch == 'main'
+
+  print "Checking #{branch}... "
+  $stdout.flush
+
+  pr_json = run_command("gh pr list --repo #{owner_repo} --head #{branch} --state all --limit 1 --json state", allow_failure: true)
+  pr_state = JSON.parse(pr_json).first&.dig('state') rescue nil
+
+  if pr_state == 'MERGED'
+    puts "merged PR found, deleting"
+    run_command("git branch -D #{branch}")
+    deleted_branches << branch
+    next
+  end
+
+  last_commit_epoch = run_command("git log -1 --format=%ct #{branch}", allow_failure: true).to_i
+  current_epoch = Time.now.to_i
+  week_in_seconds = 7 * 24 * 60 * 60
+
+  if (current_epoch - last_commit_epoch) > week_in_seconds
+    puts "stale (>1 week old)"
+    last_commit_date = run_command("git log -1 --format=%ci #{branch}")
+    puts "  Last commit: #{last_commit_date}"
+    print "  Delete this branch? (y/N): "
+    response = $stdin.gets.chomp
+
+    if response.match?(/^[Yy]$/)
+      run_command("git branch -D #{branch}")
+      deleted_branches << branch
+      puts "  Deleted"
+    else
+      puts "  Skipped"
+    end
+  else
+    puts "active"
+  end
+end
+
+puts
+puts 'Branch cleanup complete!'
+
+if original_branch != 'main' && !deleted_branches.include?(original_branch)
+  puts "Switching back to #{original_branch}..."
+  run_command("git checkout #{original_branch}")
+end

@@ -457,6 +457,11 @@
     dest: '{{ ansible_env.HOME }}/bin/ocr'
     src: 'bin/ocr'
     mode: 0755
+- name: Install cleanup-branches script
+  copy:
+    dest: '{{ ansible_env.HOME }}/bin/cleanup-branches'
+    src: 'bin/cleanup-branches'
+    mode: 0755
 - name: Create start-claude script
   template:
     dest: '{{ ansible_env.HOME }}/bin/start-claude'
