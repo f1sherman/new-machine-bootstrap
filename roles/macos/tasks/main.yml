@@ -251,6 +251,18 @@
     owner: root
     recurse: yes
   become: yes
+- name: Symlink codespace-create to /opt/local/bin
+  file:
+    src: '{{ playbook_dir }}/bin/codespace-create'
+    dest: '/opt/local/bin/codespace-create'
+    state: link
+  become: yes
+- name: Symlink codespace-ssh to /opt/local/bin
+  file:
+    src: '{{ playbook_dir }}/bin/codespace-ssh'
+    dest: '/opt/local/bin/codespace-ssh'
+    state: link
+  become: yes
 - name: Install FZF
   shell: '{{ brew_prefix }}/opt/fzf/install --all'
   changed_when: false
