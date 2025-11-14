@@ -272,14 +272,3 @@
   changed_when: "'changed' in claude_trust_result.stdout"
   when: ansible_env.CODESPACES is defined
 
-- name: Add CLAUDE_CODE_OAUTH_TOKEN to .zshrc.local if provided
-  lineinfile:
-    path: '{{ ansible_env.HOME }}/.zshrc.local'
-    create: yes
-    mode: 0600
-    line: "export CLAUDE_CODE_OAUTH_TOKEN='{{ ansible_env.CLAUDE_CODE_OAUTH_TOKEN }}'"
-    regexp: '^export CLAUDE_CODE_OAUTH_TOKEN='
-  when:
-    - ansible_env.CODESPACES is defined
-    - ansible_env.CLAUDE_CODE_OAUTH_TOKEN is defined
-    - ansible_env.CLAUDE_CODE_OAUTH_TOKEN | length > 0

@@ -120,15 +120,7 @@ def main
   puts "==> Running provisioning in Codespace..."
   puts ""
 
-  # Pass CLAUDE_CODE_OAUTH_TOKEN if on work machine so Ansible can write it to ~/.zshrc.local
-  env_vars = ""
-  if work_machine? && ENV['CLAUDE_CODE_OAUTH_TOKEN']
-    puts "==> Configuring CLAUDE_CODE_OAUTH_TOKEN in Codespace"
-    escaped_token = ENV['CLAUDE_CODE_OAUTH_TOKEN'].gsub("'", "'\\\\''")
-    env_vars = "CLAUDE_CODE_OAUTH_TOKEN='#{escaped_token}' "
-  end
-
-  system("gh codespace ssh -c #{codespace_name} -- 'cd ~/new-machine-bootstrap && #{env_vars}bash ./bin/provision'")
+  system("gh codespace ssh -c #{codespace_name} -- 'cd ~/new-machine-bootstrap && bash ./bin/provision'")
 
   puts ""
   puts "==> Provisioning complete!"
