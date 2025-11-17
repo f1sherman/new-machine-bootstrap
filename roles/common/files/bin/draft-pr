@@ -214,8 +214,10 @@ puts "Creating draft PR..."
 run_command("gh pr create --base main --body-file \"#{pr_template_file}\" --title \"#{title}\" --draft",
             "Failed to create PR")
 
-# Open the PR in browser
-system("gh pr view --web")
+# Open the PR in browser (skip in Codespaces since we're in SSH)
+unless ENV["CODESPACES"]
+  system("gh pr view --web")
+end
 
 # Keep temporary files for debugging
 puts
