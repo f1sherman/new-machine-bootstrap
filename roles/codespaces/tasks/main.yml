@@ -76,6 +76,18 @@
     version: master
     update: yes
 
+- name: Create ~/.fzf/bin directory for vim plugin compatibility
+  file:
+    path: '{{ ansible_env.HOME }}/.fzf/bin'
+    state: directory
+    mode: 0755
+
+- name: Create fzf symlink for vim plugin
+  file:
+    src: '{{ ansible_env.HOME }}/.local/bin/fzf'
+    dest: '{{ ansible_env.HOME }}/.fzf/bin/fzf'
+    state: link
+
 - name: Create fd symlink (fdfind -> fd)
   file:
     src: /usr/bin/fdfind
@@ -165,8 +177,13 @@
     marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
     block: |
       # Launch byobu on SSH login
+      # Attach to detached session if available, otherwise create new session
       if [ -z "$TMUX" ] && [ -n "$SSH_CONNECTION" ]; then
-        exec byobu new-session -A -s main
+        if byobu list-sessions 2>/dev/null | grep -v '(attached)' | grep -q .; then
+          exec byobu attach
+        else
+          exec byobu new-session
+        fi
       fi
 
 - name: Configure byobu auto-launch in .bashrc
@@ -176,10 +193,15 @@
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
     block: |
-      # Launch byobu with zsh on SSH login, exit SSH when detached
+      # Launch byobu with zsh on SSH login
+      # Attach to detached session if available, otherwise create new session
       if [ -z "$TMUX" ] && [ -n "$SSH_CONNECTION" ]; then
         export SHELL=/usr/bin/zsh
-        exec byobu new-session -A -s main /usr/bin/zsh -l
+        if byobu list-sessions 2>/dev/null | grep -v '(attached)' | grep -q .; then
+          exec byobu attach /usr/bin/zsh -l
+        else
+          exec byobu new-session /usr/bin/zsh -l
+        fi
       fi
     insertafter: BOF
 
