@@ -2,7 +2,6 @@
 # frozen_string_literal: true
 
 require 'json'
-require 'yaml'
 require 'open3'
 
 def command_exists?(cmd)
@@ -27,27 +26,8 @@ def ensure_gh_installed
   exit 1
 end
 
-def check_work_machine
-  config_path = File.expand_path('~/.config/new-machine-bootstrap.yml')
-
-  unless File.exist?(config_path)
-    puts "Error: Configuration file not found at #{config_path}"
-    puts "This script requires machine configuration to be set up first."
-    exit 1
-  end
-
-  config = YAML.load_file(config_path)
-
-  unless config['use'] == 'work'
-    puts "Error: This script only works on work machines for security reasons."
-    puts "Current machine type: #{config['use']}"
-    exit 1
-  end
-end
-
 def main
   ensure_gh_installed
-  check_work_machine
 
   # Check if codespace name was provided as argument
   codespace_name = ARGV[0]
