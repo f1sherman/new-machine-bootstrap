@@ -99,6 +99,19 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/draft-pr'
     mode: 0755
 
+- name: Create ~/bin/claude directory
+  file:
+    path: '{{ ansible_env.HOME }}/bin/claude'
+    state: directory
+    mode: 0755
+
+- name: Install spec-metadata script
+  copy:
+    backup: yes
+    dest: '{{ ansible_env.HOME }}/bin/claude/spec-metadata'
+    src: '{{ playbook_dir }}/roles/common/files/bin/claude/spec-metadata'
+    mode: 0755
+
 - name: Create ~/.claude directory
   file:
     path: '{{ ansible_env.HOME }}/.claude'

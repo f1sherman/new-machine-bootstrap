@@ -441,17 +441,6 @@
     dest: '{{ ansible_env.HOME }}/bin/murder'
     src: templates/murder
     mode: '0755'
-- name: Create claude bin directory
-  file:
-    dest: '{{ ansible_env.HOME }}/bin/claude'
-    state: directory
-- name: Install spec-metadata script
-  copy:
-    backup: no
-    dest: '{{ ansible_env.HOME }}/bin/claude/spec-metadata'
-    src: 'bin/claude/spec-metadata'
-    mode: 0755
-  become: true
 - name: Install ocr script
   copy:
     dest: '{{ ansible_env.HOME }}/bin/ocr'
