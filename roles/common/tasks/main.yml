@@ -71,7 +71,8 @@
     src: '{{ item.src }}'
     mode: 0600
   with_filetree: '{{ playbook_dir }}/roles/common/templates/dotfiles/'
-  when: item.state == 'file'
+  # Exclude macOS AppleDouble metadata files (._*) that store extended attributes
+  when: item.state == 'file' and not item.path.startswith('._')
 
 - name: Create ~/bin directory
   file:
