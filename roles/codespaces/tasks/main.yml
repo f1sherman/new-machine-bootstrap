@@ -232,6 +232,16 @@
         prompt pure
       fi
 
+- name: Enable true color support in Codespaces
+  blockinfile:
+    path: '{{ ansible_env.HOME }}/.zshrc.local'
+    create: yes
+    mode: 0644
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - COLORTERM"
+    block: |
+      # Enable true color support for terminal applications
+      export COLORTERM=truecolor
+
 - name: Ensure pipx path is configured
   command: pipx ensurepath
   changed_when: false
