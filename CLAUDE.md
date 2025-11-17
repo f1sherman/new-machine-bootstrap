@@ -5,9 +5,9 @@ This repository contains bootstrap scripts for macOS and GitHub Codespaces envir
 ## Project Structure
 - `macos` - Ruby bootstrap script for macOS initial setup
 - `bin/provision` - Universal provisioning script (Bash) that bootstraps Ansible and runs playbook
-- `bin/codespace-create` - Create and provision a new Codespace
-- `bin/codespace-ssh` - Connect to an available Codespace
-- `bin/sync-to-codespace` - Sync repository to Codespace and run provisioning
+- `bin/codespace-create` - Create and provision a new Codespace (call as `codespace-create`)
+- `bin/codespace-ssh` - Connect to an available Codespace (call as `codespace-ssh`)
+- `bin/sync-to-codespace` - Sync repository to Codespace and run provisioning (call as `sync-to-codespace`)
 - `playbook.yml` - Main Ansible playbook supporting both macOS and Codespaces platforms
 - `roles/common/` - Shared resources used by both platforms (dotfiles, scripts, Claude config)
 - `roles/macos/` - macOS-specific configuration and applications
@@ -26,12 +26,13 @@ This repository contains bootstrap scripts for macOS and GitHub Codespaces envir
    - Runs the main Ansible provisioning via `bin/provision`
 
 **Codespaces**:
-1. Run `bin/codespace-create` to create and provision a new Codespace:
+1. Run `codespace-create` to create and provision a new Codespace:
    - Specify repository and machine type via command-line flags
    - Creates the Codespace using `gh codespace create`
    - Waits for Codespace to become available
-   - Calls `bin/sync-to-codespace` to provision it
-2. `bin/sync-to-codespace` syncs the bootstrap repo and runs provisioning:
+   - Calls `sync-to-codespace` to provision it
+   - NOTE: Provisioning does NOT run automatically on Codespace creation unless using `codespace-create`
+2. `sync-to-codespace` syncs the bootstrap repo and runs provisioning:
    - Syncs repository files to `~/new-machine-bootstrap` (excludes .git, .claude, macOS metadata)
    - Runs `bin/provision` which bootstraps Ansible via apt/brew if needed
    - Ansible detects Codespaces environment (via `CODESPACES=true` env var)
@@ -99,15 +100,15 @@ ansible-playbook playbook.yml   # Direct invocation
 **Codespaces Workflow**:
 ```bash
 # Create a new Codespace and provision it:
-bin/codespace-create --repo REPOSITORY --machine MACHINE_TYPE --branch BRANCH
-# Example: bin/codespace-create --repo betterup/betterup-monolith --machine premiumLinux --branch main
+codespace-create --repo REPOSITORY --machine MACHINE_TYPE --branch BRANCH
+# Example: codespace-create --repo betterup/betterup-monolith --machine premiumLinux --branch main
 
 # Connect to existing Codespace:
-bin/codespace-ssh [codespace-name]
+codespace-ssh [codespace-name]
 # Auto-selects if only one available, uses fzf if multiple
 
 # Re-provision existing Codespace (e.g., after making changes to bootstrap repo):
-bin/sync-to-codespace
+sync-to-codespace
 # Syncs bootstrap repo and re-runs provisioning
 ```
 
@@ -126,7 +127,6 @@ CODESPACES=true ansible-playbook playbook.yml --check
 
 **Codespaces**:
 - Converted from 360-line bash script to Ansible roles
-- Original bash script preserved as `install.sh.backup` for reference
 - Uses apt packages instead of Homebrew
 - Sudo pre-configured, no password prompt needed
 - Dotfiles are templated (not symlinked) for consistency
