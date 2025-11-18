@@ -4,6 +4,8 @@
 require 'json'
 require 'open3'
 
+require_relative '../lib/coding_agent_syncer'
+
 def command_exists?(cmd)
   system("command -v #{cmd} >/dev/null 2>&1")
 end
@@ -24,6 +26,45 @@ def ensure_gh_installed
   puts "Error: gh CLI is required but not installed"
   puts "Install it with: brew install gh"
   exit 1
+end
+
+def sync_coding_agent_from_codespace(codespace_name)
+  puts "\n==> Disconnected from Codespace"
+
+  local_path = File.join(Dir.pwd, '.coding-agent')
+  unless Dir.exist?(local_path)
+    return
+  end
+
+  stdout, stderr, status = Open3.capture3("gh codespace list --json name,repository --jq '.[] | select(.name==\"#{codespace_name}\")'")
+
+  unless status.success?
+    puts "Warning: Could not query Codespace information"
+    return
+  end
+
+  begin
+    codespace_info = JSON.parse(stdout)
+    repo_full_name = codespace_info.dig('repository', 'fullName')
+
+    unless repo_full_name
+      puts "Warning: Could not determine Codespace repository"
+      return
+    end
+
+    repo_name = repo_full_name.split('/').last
+    remote_path = "/workspaces/#{repo_name}/.coding-agent"
+
+    CodingAgentSyncer.sync_from_codespace(Dir.pwd, codespace_name, remote_path)
+  rescue JSON::ParserError => e
+    puts "Warning: Could not parse Codespace information"
+  rescue CodingAgentSyncer::SyncError => e
+    puts "\nWarning: Failed to sync .coding-agent directory from Codespace"
+    puts e.message
+    puts "You can manually sync later with: bin/sync-coding-agent --from-codespace"
+  rescue StandardError => e
+    puts "\nWarning: Unexpected error during sync: #{e.message}"
+  end
 end
 
 def main
@@ -95,7 +136,12 @@ def main
   puts "==> Connecting to Codespace: #{codespace_name}"
   puts ""
 
-  exec("gh codespace ssh -c #{codespace_name}")
+  system("gh codespace ssh -c #{codespace_name}")
+  ssh_exit_code = $?.exitstatus
+
+  sync_coding_agent_from_codespace(codespace_name)
+
+  exit ssh_exit_code
 end
 
 main

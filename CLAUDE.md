@@ -8,6 +8,8 @@ This repository contains bootstrap scripts for macOS and GitHub Codespaces envir
 - `bin/codespace-create` - Create and provision a new Codespace (call as `codespace-create`)
 - `bin/codespace-ssh` - Connect to an available Codespace (call as `codespace-ssh`)
 - `bin/sync-to-codespace` - Sync repository to Codespace and run provisioning (call as `sync-to-codespace`)
+- `bin/sync-coding-agent` - Manual sync of `.coding-agent` directories between local and Codespace
+- `lib/coding_agent_syncer.rb` - Ruby module for rsync-based `.coding-agent` syncing
 - `playbook.yml` - Main Ansible playbook supporting both macOS and Codespaces platforms
 - `roles/common/` - Shared resources used by both platforms (dotfiles, scripts, Claude config)
 - `roles/macos/` - macOS-specific configuration and applications
@@ -100,22 +102,58 @@ ansible-playbook playbook.yml   # Direct invocation
 **Codespaces Workflow**:
 ```bash
 # Create a new Codespace and provision it:
-codespace-create --repo REPOSITORY --machine MACHINE_TYPE --branch BRANCH
-# Example: codespace-create --repo f1sherman/new-machine-bootstrap --machine premiumLinux --branch main
+bin/codespace-create --repo REPOSITORY --machine MACHINE_TYPE --branch BRANCH
+# Example: bin/codespace-create --repo f1sherman/new-machine-bootstrap --machine premiumLinux --branch main
+# Note: If run from matching repository directory, syncs .coding-agent/ to Codespace
 
 # Connect to existing Codespace:
-codespace-ssh [codespace-name]
+bin/codespace-ssh [codespace-name]
 # Auto-selects if only one available, uses fzf if multiple
+# Note: Syncs .coding-agent/ back to local on disconnect (if in matching repo directory)
 
 # Re-provision existing Codespace (e.g., after making changes to bootstrap repo):
-sync-to-codespace
+bin/sync-to-codespace
 # Syncs bootstrap repo and re-runs provisioning
+
+# Manual .coding-agent sync (if needed):
+bin/sync-coding-agent --to-codespace      # Local → Codespace
+bin/sync-coding-agent --from-codespace    # Codespace → Local
 ```
 
 **Simulating Codespaces Locally**:
 ```bash
 CODESPACES=true ansible-playbook playbook.yml --check
 ```
+
+### .coding-agent Directory Sync
+
+The `.coding-agent` directories (containing plans and research documents) are automatically synced between local and Codespaces:
+
+**Sync Behavior**:
+- **On Codespace creation**: Local `.coding-agent/` → Codespace `/workspaces/repo/.coding-agent/`
+- **On SSH disconnect**: Codespace `.coding-agent/` → Local `.coding-agent/`
+- **Append-only**: Only new files are copied, existing files are never overwritten or deleted
+- **Repository matching**: Only syncs when local repo's git origin matches Codespace repository
+
+**Requirements**:
+- Must run commands from the repository directory (not bootstrap directory)
+- Repository must have GitHub as remote origin
+- Matching Codespace must be available
+- rsync must be installed (available by default on macOS and Codespaces)
+
+**Manual Sync**:
+If automatic sync fails or you need to sync manually:
+```bash
+cd /path/to/repository
+bin/sync-coding-agent --to-codespace      # Upload to Codespace
+bin/sync-coding-agent --from-codespace    # Download from Codespace
+```
+
+**Conflict Handling**:
+The sync is designed to be append-only to avoid conflicts. If you modify the same file in both locations:
+- The existing version is preserved (not overwritten)
+- You'll need to manually reconcile differences
+- Consider deleting one version before syncing to let the other copy over
 
 ## Important Notes
 

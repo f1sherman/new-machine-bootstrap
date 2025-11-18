@@ -1,0 +1,143 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'json'
+require 'optparse'
+require 'open3'
+
+SCRIPT_DIR = File.expand_path('..', __dir__)
+require_relative File.join(SCRIPT_DIR, 'lib', 'coding_agent_syncer')
+
+def find_codespace_for_repo(repo_name)
+  stdout, stderr, status = Open3.capture3("gh codespace list --json name,repository,state")
+
+  unless status.success?
+    $stderr.puts "Error: Failed to list Codespaces"
+    $stderr.puts stderr unless stderr.empty?
+    exit 1
+  end
+
+  codespaces = JSON.parse(stdout)
+    .select { |cs| cs['state'] == 'Available' }
+    .select { |cs| cs.dig('repository', 'fullName')&.end_with?("/#{repo_name}") }
+
+  if codespaces.empty?
+    $stderr.puts "Error: No available Codespace found for repository ending with '/#{repo_name}'"
+    exit 1
+  end
+
+  if codespaces.size > 1
+    $stderr.puts "Error: Multiple Codespaces found for this repository:"
+    codespaces.each { |cs| $stderr.puts "  - #{cs['name']}" }
+    $stderr.puts "\nPlease specify which one: bin/sync-coding-agent DIRECTION CODESPACE_NAME"
+    exit 1
+  end
+
+  codespaces.first['name']
+end
+
+def main
+  direction = nil
+  codespace_name = nil
+
+  parser = OptionParser.new do |opts|
+    opts.banner = "Usage: bin/sync-coding-agent [--to-codespace | --from-codespace] [CODESPACE_NAME]"
+    opts.separator ""
+    opts.separator "Manually sync .coding-agent directory between local and Codespace"
+    opts.separator ""
+    opts.separator "Options:"
+
+    opts.on("--to-codespace", "Sync from local to Codespace") do
+      direction = :to_codespace
+    end
+
+    opts.on("--from-codespace", "Sync from Codespace to local") do
+      direction = :from_codespace
+    end
+
+    opts.separator ""
+    opts.separator "Arguments:"
+    opts.separator "  CODESPACE_NAME    Optional. If not provided, will find Codespace for current directory"
+    opts.separator ""
+    opts.separator "Examples:"
+    opts.separator "  bin/sync-coding-agent --to-codespace"
+    opts.separator "  bin/sync-coding-agent --from-codespace my-codespace-name"
+
+    opts.on("-h", "--help", "Show this help message") do
+      puts opts
+      exit
+    end
+  end
+
+  begin
+    parser.parse!
+    codespace_name = ARGV[0]
+  rescue OptionParser::InvalidOption => e
+    puts "Error: #{e.message}"
+    puts ""
+    puts parser
+    exit 1
+  end
+
+  unless direction
+    puts "Error: Must specify --to-codespace or --from-codespace"
+    puts ""
+    puts parser
+    exit 1
+  end
+
+  local_path = File.join(Dir.pwd, '.coding-agent')
+  unless Dir.exist?(local_path)
+    puts "Error: No .coding-agent directory in current directory"
+    exit 1
+  end
+
+  unless codespace_name
+    repo_name = File.basename(Dir.pwd)
+    codespace_name = find_codespace_for_repo(repo_name)
+  end
+
+  puts "==> Using Codespace: #{codespace_name}"
+
+  stdout, stderr, status = Open3.capture3("gh codespace list --json name,repository --jq '.[] | select(.name==\"#{codespace_name}\")'")
+
+  unless status.success?
+    $stderr.puts "Error: Could not query Codespace information"
+    $stderr.puts stderr unless stderr.empty?
+    exit 1
+  end
+
+  begin
+    codespace_info = JSON.parse(stdout)
+    repo_full_name = codespace_info.dig('repository', 'fullName')
+
+    unless repo_full_name
+      $stderr.puts "Error: Could not determine Codespace repository"
+      exit 1
+    end
+
+    repo_name = repo_full_name.split('/').last
+    remote_path = "/workspaces/#{repo_name}/.coding-agent"
+
+    puts "    Repository: #{repo_full_name}"
+    puts "    Workspace: /workspaces/#{repo_name}"
+
+    case direction
+    when :to_codespace
+      CodingAgentSyncer.sync_to_codespace(Dir.pwd, codespace_name, remote_path)
+    when :from_codespace
+      CodingAgentSyncer.sync_from_codespace(Dir.pwd, codespace_name, remote_path)
+    end
+  rescue JSON::ParserError => e
+    $stderr.puts "Error: Could not parse Codespace information"
+    exit 1
+  rescue CodingAgentSyncer::SyncError => e
+    $stderr.puts "\nError: Sync failed"
+    $stderr.puts e.message
+    exit 1
+  end
+
+  puts "\n==> Done!"
+end
+
+main

@@ -5,6 +5,7 @@ require 'json'
 require 'optparse'
 
 SCRIPT_DIR = File.expand_path('..', __dir__)
+require_relative '../lib/coding_agent_syncer'
 
 def command_exists?(cmd)
   system("command -v #{cmd} >/dev/null 2>&1")
@@ -48,6 +49,24 @@ def wait_for_codespace(name)
   end
 
   false
+end
+
+def sync_coding_agent_to_codespace(codespace_name, repository)
+  local_path = File.join(Dir.pwd, '.coding-agent')
+  unless Dir.exist?(local_path)
+    return
+  end
+
+  repo_name = repository.split('/').last
+  remote_path = "/workspaces/#{repo_name}/.coding-agent"
+
+  begin
+    CodingAgentSyncer.sync_to_codespace(Dir.pwd, codespace_name, remote_path)
+  rescue CodingAgentSyncer::SyncError => e
+    puts "\nWarning: Failed to sync .coding-agent directory"
+    puts e.message
+    puts "You can manually sync later with: bin/sync-coding-agent --to-codespace"
+  end
 end
 
 def main
@@ -155,6 +174,10 @@ def main
     puts "You can retry with: #{sync_script} #{codespace_name}"
     exit 1
   end
+
+  puts "\n==> Provisioning complete!"
+
+  sync_coding_agent_to_codespace(codespace_name, repository)
 
   puts "\n==> Done! Your Codespace is ready."
   puts "\nTo connect, run:"
