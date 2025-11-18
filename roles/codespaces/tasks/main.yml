@@ -247,30 +247,33 @@
   changed_when: false
   failed_when: false
 
-- name: Create minimal .claude.json to skip onboarding
-  copy:
-    content: |
-      {
-        "hasCompletedOnboarding": true
-      }
-    dest: '{{ ansible_env.HOME }}/.claude.json'
-    mode: 0600
-    force: no
-  when: ansible_env.CODESPACES is defined
-
-- name: Auto-trust Codespaces workspaces in .claude.json
+- name: Configure Claude Code settings in .claude.json
   shell: |
     python3 -c '
     import json
     import glob
+    import os
 
-    with open("{{ ansible_env.HOME }}/.claude.json", "r") as f:
-      data = json.load(f)
+    config_file = "{{ ansible_env.HOME }}/.claude.json"
 
-    if "projects" not in data:
-      data["projects"] = {}
+    # Read existing config or create new one
+    if os.path.exists(config_file):
+      with open(config_file, "r") as f:
+        data = json.load(f)
+    else:
+      data = {}
 
     changed = False
+
+    # Set hasCompletedOnboarding
+    if not data.get("hasCompletedOnboarding"):
+      data["hasCompletedOnboarding"] = True
+      changed = True
+
+    # Ensure projects section exists
+    if "projects" not in data:
+      data["projects"] = {}
+      changed = True
 
     # Auto-trust all existing workspace directories and enable all MCP servers
     for workspace_dir in glob.glob("/workspaces/*"):
@@ -294,13 +297,13 @@
           changed = True
 
     if changed:
-      with open("{{ ansible_env.HOME }}/.claude.json", "w") as f:
+      with open(config_file, "w") as f:
         json.dump(data, f, indent=2)
+      os.chmod(config_file, 0o600)
       print("changed")
     else:
       print("unchanged")
     '
-  register: claude_trust_result
-  changed_when: "'changed' in claude_trust_result.stdout"
-  when: ansible_env.CODESPACES is defined
+  register: claude_config_result
+  changed_when: "'changed' in claude_config_result.stdout"
 

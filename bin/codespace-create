@@ -175,8 +175,6 @@ def main
     exit 1
   end
 
-  puts "\n==> Provisioning complete!"
-
   sync_coding_agent_to_codespace(codespace_name, repository)
 
   puts "\n==> Done! Your Codespace is ready."
