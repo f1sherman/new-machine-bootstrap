@@ -74,8 +74,8 @@ def main
 
     opts.separator ""
     opts.separator "Examples:"
-    opts.separator "  bin/codespace-create --repo betterup/betterup-monolith --machine premiumLinux --branch main"
-    opts.separator "  bin/codespace-create --repo betterup/betterup-monolith --machine premiumLinux --branch my-feature"
+    opts.separator "  bin/codespace-create --repo f1sherman/new-machine-bootstrap --machine premiumLinux --branch main"
+    opts.separator "  bin/codespace-create --repo f1sherman/new-machine-bootstrap --machine premiumLinux --branch my-feature"
 
     opts.on("-h", "--help", "Show this help message") do
       puts opts

@@ -101,7 +101,7 @@ ansible-playbook playbook.yml   # Direct invocation
 ```bash
 # Create a new Codespace and provision it:
 codespace-create --repo REPOSITORY --machine MACHINE_TYPE --branch BRANCH
-# Example: codespace-create --repo betterup/betterup-monolith --machine premiumLinux --branch main
+# Example: codespace-create --repo f1sherman/new-machine-bootstrap --machine premiumLinux --branch main
 
 # Connect to existing Codespace:
 codespace-ssh [codespace-name]

@@ -30,7 +30,7 @@ Use the provided script to create and automatically provision a new Codespace:
 
 ```bash
 codespace-create --repo REPOSITORY --machine MACHINE_TYPE --branch BRANCH
-# Example: codespace-create --repo betterup/betterup-monolith --machine premiumLinux --branch main
+# Example: codespace-create --repo f1sherman/new-machine-bootstrap --machine premiumLinux --branch main
 ```
 
 This will create the Codespace and run `bin/provision` to configure:
