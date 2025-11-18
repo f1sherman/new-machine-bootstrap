@@ -31,7 +31,7 @@ fi
 mkdir -p "${HOME}/.config/fzf"
 
 selected_files=$(
-	fd --type f |
+	rg --files |
 		fzf --multi \
       --history "${HOME}/.config/fzf/history" \
       --scheme history \
