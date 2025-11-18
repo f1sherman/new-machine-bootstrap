@@ -34,7 +34,7 @@ selected_files=$(
 	rg --files |
 		fzf --multi \
       --history "${HOME}/.config/fzf/history" \
-      --scheme history \
+      --scheme path \
 			--reverse \
 			--preview 'bat --style=numbers --color=always {}' |
 		while read -r file; do
