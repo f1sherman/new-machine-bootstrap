@@ -73,26 +73,17 @@ def main
     all_codespaces = JSON.parse(codespaces_json)
 
     all_codespaces.each do |cs|
-      case cs['state']
-      when 'Available', 'Shutdown'
-        puts "Found Codespace #{cs['name']} in state '#{cs['state']}'"
-      when 'Queued', 'Starting'
-        puts "Found Codespace #{cs['name']} but can't SSH to it because it is in state '#{cs['state']}' (still starting up)"
-      else
-        puts "Found Codespace #{cs['name']} but can't SSH to it because it is in state '#{cs['state']}'"
-      end
+      puts "Found Codespace #{cs['name']} in state '#{cs['state']}'"
     end
 
-    connectable = all_codespaces.select { |cs| ['Available', 'Shutdown'].include?(cs['state']) }
-
-    if connectable.empty?
-      puts "\nError: No Codespaces in 'Available' or 'Shutdown' state"
-      puts "Wait for starting Codespaces to finish, or create a new one: gh codespace create"
+    if all_codespaces.empty?
+      puts "\nError: No Codespaces found."
+      puts "Create a new one: codespace-create"
       exit 1
     end
 
     puts ""
-    codespaces = connectable
+    codespaces = all_codespaces
 
     selected_display_string = if codespaces.size == 1
       cs = codespaces[0]
