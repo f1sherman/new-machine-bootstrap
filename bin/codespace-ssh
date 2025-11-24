@@ -56,15 +56,17 @@ def main
   ensure_gh_installed
 
   # Check if codespace name was provided as argument
-  codespace_name = ARGV[0]
+  codespace_name_arg = ARGV[0]
+  codespace_name = nil # This will hold the actual codespace name to SSH to
 
-  if codespace_name
+  if codespace_name_arg
+    codespace_name = codespace_name_arg
     puts "==> Connecting to Codespace: #{codespace_name}"
   else
     puts "==> Finding available Codespaces..."
 
     codespaces_json = run_command(
-      'gh codespace list --json name,repository,state',
+      'gh codespace list --json name,repository,state,gitStatus',
       error_message: 'Failed to list Codespaces'
     )
 
@@ -72,31 +74,29 @@ def main
 
     all_codespaces.each do |cs|
       case cs['state']
-      when 'Available'
+      when 'Available', 'Shutdown'
         puts "Found Codespace #{cs['name']} in state '#{cs['state']}'"
       when 'Queued', 'Starting'
         puts "Found Codespace #{cs['name']} but can't SSH to it because it is in state '#{cs['state']}' (still starting up)"
-      when 'Shutdown'
-        puts "Found Codespace #{cs['name']} but can't SSH to it because it is in state '#{cs['state']}' (use 'gh codespace ssh -c #{cs['name']}' to restart)"
       else
         puts "Found Codespace #{cs['name']} but can't SSH to it because it is in state '#{cs['state']}'"
       end
     end
 
-    available = all_codespaces.select { |cs| cs['state'] == 'Available' }
+    connectable = all_codespaces.select { |cs| ['Available', 'Shutdown'].include?(cs['state']) }
 
-    if available.empty?
-      puts "\nError: No Codespaces in 'Available' state"
+    if connectable.empty?
+      puts "\nError: No Codespaces in 'Available' or 'Shutdown' state"
       puts "Wait for starting Codespaces to finish, or create a new one: gh codespace create"
       exit 1
     end
 
     puts ""
-    codespaces = available
+    codespaces = connectable
 
-    codespace_name = if codespaces.size == 1
-      puts "==> Found Codespace: #{codespaces[0]['name']}"
-      codespaces[0]['name']
+    selected_display_string = if codespaces.size == 1
+      cs = codespaces[0]
+      "#{cs['name']} (Branch: #{cs['gitStatus']['ref']}, State: #{cs['state']})"
     else
       unless command_exists?('fzf')
         puts "Error: Multiple Codespaces found, but fzf is not installed"
@@ -105,8 +105,9 @@ def main
       end
 
       puts "==> Multiple Codespaces found, please select one:"
-      names = codespaces.map { |cs| cs['name'] }.join("\n")
-      stdout, stderr, status = Open3.capture3('fzf --prompt="Select Codespace: "', stdin_data: names)
+      names_for_fzf = codespaces.map { |cs| "#{cs['name']} (Branch: #{cs['gitStatus']['ref']}, State: #{cs['state']})" }.join("\n")
+      
+      stdout, stderr, status = Open3.capture3('fzf --prompt="Select Codespace: "', stdin_data: names_for_fzf)
 
       unless status.success?
         puts "Error: No Codespace selected"
@@ -115,9 +116,15 @@ def main
 
       stdout.strip
     end
-
-    puts ""
-    puts "==> Connecting to Codespace: #{codespace_name}"
+    
+    puts "==> Connecting to Codespace: #{selected_display_string}"
+    # Extract the actual codespace name from the fzf output string
+    match = selected_display_string.match(/^(.*?)\s\(/)
+    if match
+      codespace_name = match[1]
+    else
+      codespace_name = selected_display_string # Fallback if for some reason it's just the name
+    end
   end
 
   puts ""
