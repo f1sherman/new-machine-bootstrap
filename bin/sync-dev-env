@@ -6,7 +6,7 @@ require 'optparse'
 require 'open3'
 
 SCRIPT_DIR = File.expand_path('..', __dir__)
-require_relative File.join(SCRIPT_DIR, 'lib', 'coding_agent_syncer')
+require_relative File.join(SCRIPT_DIR, 'lib', 'dev_env_syncer')
 
 def find_codespace_for_repo(repo_name)
   stdout, stderr, status = Open3.capture3("gh codespace list --json name,repository,state")
@@ -29,7 +29,7 @@ def find_codespace_for_repo(repo_name)
   if codespaces.size > 1
     $stderr.puts "Error: Multiple Codespaces found for this repository:"
     codespaces.each { |cs| $stderr.puts "  - #{cs['name']}" }
-    $stderr.puts "\nPlease specify which one: bin/sync-coding-agent DIRECTION CODESPACE_NAME"
+    $stderr.puts "\nPlease specify which one: bin/sync-dev-env DIRECTION CODESPACE_NAME"
     exit 1
   end
 
@@ -41,9 +41,9 @@ def main
   codespace_name = nil
 
   parser = OptionParser.new do |opts|
-    opts.banner = "Usage: bin/sync-coding-agent [--to-codespace | --from-codespace] [CODESPACE_NAME]"
+    opts.banner = "Usage: bin/sync-dev-env [--to-codespace | --from-codespace] [CODESPACE_NAME]"
     opts.separator ""
-    opts.separator "Manually sync .coding-agent directory between local and Codespace"
+    opts.separator "Manually sync .coding-agent directory and other dev env files between local and Codespace"
     opts.separator ""
     opts.separator "Options:"
 
@@ -60,8 +60,8 @@ def main
     opts.separator "  CODESPACE_NAME    Optional. If not provided, will find Codespace for current directory"
     opts.separator ""
     opts.separator "Examples:"
-    opts.separator "  bin/sync-coding-agent --to-codespace"
-    opts.separator "  bin/sync-coding-agent --from-codespace my-codespace-name"
+    opts.separator "  bin/sync-dev-env --to-codespace"
+    opts.separator "  bin/sync-dev-env --from-codespace my-codespace-name"
 
     opts.on("-h", "--help", "Show this help message") do
       puts opts
@@ -124,14 +124,14 @@ def main
 
     case direction
     when :to_codespace
-      CodingAgentSyncer.sync_to_codespace(Dir.pwd, codespace_name, remote_path)
+      DevEnvSyncer.sync_to_codespace(Dir.pwd, codespace_name, remote_path)
     when :from_codespace
-      CodingAgentSyncer.sync_from_codespace(Dir.pwd, codespace_name, remote_path)
+      DevEnvSyncer.sync_from_codespace(Dir.pwd, codespace_name, remote_path)
     end
   rescue JSON::ParserError => e
     $stderr.puts "Error: Could not parse Codespace information"
     exit 1
-  rescue CodingAgentSyncer::SyncError => e
+  rescue DevEnvSyncer::SyncError => e
     $stderr.puts "\nError: Sync failed"
     $stderr.puts e.message
     exit 1

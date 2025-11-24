@@ -4,7 +4,7 @@
 require 'json'
 require 'open3'
 
-require_relative '../lib/coding_agent_syncer'
+require_relative '../lib/dev_env_syncer'
 
 def command_exists?(cmd)
   system("command -v #{cmd} >/dev/null 2>&1")
@@ -28,7 +28,7 @@ def ensure_gh_installed
   exit 1
 end
 
-def sync_coding_agent_from_codespace(codespace_name)
+def sync_dev_env_from_codespace(codespace_name)
   puts "\n==> Disconnected from Codespace"
 
   local_path = File.join(Dir.pwd, '.coding-agent')
@@ -46,7 +46,7 @@ def sync_coding_agent_from_codespace(codespace_name)
     repo_name = repo_full_name.split('/').last
     remote_path = "/workspaces/#{repo_name}/.coding-agent"
 
-    CodingAgentSyncer.sync_from_codespace(Dir.pwd, codespace_name, remote_path)
+    DevEnvSyncer.sync_from_codespace(Dir.pwd, codespace_name, remote_path)
   rescue => e
     puts "Warning: Could not sync .coding-agent directory"
   end
@@ -123,7 +123,7 @@ def main
   system("gh codespace ssh -c #{codespace_name}")
   ssh_exit_code = $?.exitstatus
 
-  sync_coding_agent_from_codespace(codespace_name)
+  sync_dev_env_from_codespace(codespace_name)
 
   exit ssh_exit_code
 end

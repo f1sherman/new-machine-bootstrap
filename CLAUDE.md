@@ -8,8 +8,8 @@ This repository contains bootstrap scripts for macOS and GitHub Codespaces envir
 - `bin/codespace-create` - Create and provision a new Codespace (call as `codespace-create`)
 - `bin/codespace-ssh` - Connect to an available Codespace (call as `codespace-ssh`)
 - `bin/sync-to-codespace` - Sync repository to Codespace and run provisioning (call as `sync-to-codespace`)
-- `bin/sync-coding-agent` - Manual sync of `.coding-agent` directories between local and Codespace
-- `lib/coding_agent_syncer.rb` - Ruby module for rsync-based `.coding-agent` syncing
+- `bin/sync-dev-env` - Manual sync of `.coding-agent` directories between local and Codespace
+- `lib/dev_env_syncer.rb` - Ruby module for rsync-based `.coding-agent` syncing
 - `playbook.yml` - Main Ansible playbook supporting both macOS and Codespaces platforms
 - `roles/common/` - Shared resources used by both platforms (dotfiles, scripts, Claude config)
 - `roles/macos/` - macOS-specific configuration and applications
@@ -116,8 +116,8 @@ bin/sync-to-codespace
 # Syncs bootstrap repo and re-runs provisioning
 
 # Manual .coding-agent sync (if needed):
-bin/sync-coding-agent --to-codespace      # Local → Codespace
-bin/sync-coding-agent --from-codespace    # Codespace → Local
+bin/sync-dev-env --to-codespace      # Local → Codespace
+bin/sync-dev-env --from-codespace    # Codespace → Local
 ```
 
 **Simulating Codespaces Locally**:
@@ -145,8 +145,8 @@ The `.coding-agent` directories (containing plans and research documents) are au
 If automatic sync fails or you need to sync manually:
 ```bash
 cd /path/to/repository
-bin/sync-coding-agent --to-codespace      # Upload to Codespace
-bin/sync-coding-agent --from-codespace    # Download from Codespace
+bin/sync-dev-env --to-codespace      # Upload to Codespace
+bin/sync-dev-env --from-codespace    # Download from Codespace
 ```
 
 **Conflict Handling**:

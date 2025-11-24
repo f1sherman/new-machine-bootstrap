@@ -273,7 +273,7 @@ def sync_coding_agent_to_codespace(codespace_name, repository)
   rescue CodingAgentSyncer::SyncError => e
     puts "\nWarning: Failed to sync .coding-agent directory"
     puts e.message
-    puts "You can manually sync later with: bin/sync-coding-agent --to-codespace"
+    puts "You can manually sync later with: bin/sync-dev-env --to-codespace"
   end
 end
 ```
@@ -364,7 +364,7 @@ def sync_coding_agent_from_codespace(codespace_name)
   rescue CodingAgentSyncer::SyncError => e
     puts "\nWarning: Failed to sync .coding-agent directory from Codespace"
     puts e.message
-    puts "You can manually sync later with: bin/sync-coding-agent --from-codespace"
+    puts "You can manually sync later with: bin/sync-dev-env --from-codespace"
   rescue StandardError => e
     puts "\nWarning: Unexpected error during sync: #{e.message}"
   end
@@ -395,8 +395,8 @@ Create a standalone sync command for manual synchronization when needed.
 
 ### Changes Required:
 
-#### 1. Create `bin/sync-coding-agent`
-**File**: `bin/sync-coding-agent` (new file)
+#### 1. Create `bin/sync-dev-env`
+**File**: `bin/sync-dev-env` (new file)
 **Purpose**: Manual sync command for troubleshooting and special cases
 
 ```ruby
@@ -431,7 +431,7 @@ def find_codespace_for_repo(repo_name)
   if codespaces.size > 1
     $stderr.puts "Error: Multiple Codespaces found for this repository:"
     codespaces.each { |cs| $stderr.puts "  - #{cs['name']}" }
-    $stderr.puts "\nPlease specify which one: bin/sync-coding-agent DIRECTION CODESPACE_NAME"
+    $stderr.puts "\nPlease specify which one: bin/sync-dev-env DIRECTION CODESPACE_NAME"
     exit 1
   end
 
@@ -443,7 +443,7 @@ def main
   codespace_name = nil
 
   parser = OptionParser.new do |opts|
-    opts.banner = "Usage: bin/sync-coding-agent [--to-codespace | --from-codespace] [CODESPACE_NAME]"
+    opts.banner = "Usage: bin/sync-dev-env [--to-codespace | --from-codespace] [CODESPACE_NAME]"
     opts.separator ""
     opts.separator "Manually sync .coding-agent directory between local and Codespace"
     opts.separator ""
@@ -462,8 +462,8 @@ def main
     opts.separator "  CODESPACE_NAME    Optional. If not provided, will find Codespace for current directory"
     opts.separator ""
     opts.separator "Examples:"
-    opts.separator "  bin/sync-coding-agent --to-codespace"
-    opts.separator "  bin/sync-coding-agent --from-codespace my-codespace-name"
+    opts.separator "  bin/sync-dev-env --to-codespace"
+    opts.separator "  bin/sync-dev-env --from-codespace my-codespace-name"
 
     opts.on("-h", "--help", "Show this help message") do
       puts opts
@@ -551,19 +551,19 @@ main
 
 **After creating the file**, make it executable:
 ```bash
-chmod +x bin/sync-coding-agent
+chmod +x bin/sync-dev-env
 ```
 
 ### Success Criteria:
 
 #### Automated Verification:
-- [x] File is executable: `test -x bin/sync-coding-agent`
-- [x] Ruby syntax is valid: `ruby -c bin/sync-coding-agent`
-- [x] Help text displays: `bin/sync-coding-agent --help`
+- [x] File is executable: `test -x bin/sync-dev-env`
+- [x] Ruby syntax is valid: `ruby -c bin/sync-dev-env`
+- [x] Help text displays: `bin/sync-dev-env --help`
 
 #### Manual Verification:
-- [ ] `bin/sync-coding-agent --to-codespace` syncs local → Codespace
-- [ ] `bin/sync-coding-agent --from-codespace` syncs Codespace → local
+- [ ] `bin/sync-dev-env --to-codespace` syncs local → Codespace
+- [ ] `bin/sync-dev-env --from-codespace` syncs Codespace → local
 - [ ] Command auto-detects Codespace based on current directory name
 - [ ] Command accepts explicit Codespace name as argument
 - [ ] Error messages are clear when no `.coding-agent` directory or no match found
@@ -601,8 +601,8 @@ bin/sync-to-codespace
 # Syncs bootstrap repo and re-runs provisioning
 
 # Manual .coding-agent sync (if needed):
-bin/sync-coding-agent --to-codespace      # Local → Codespace
-bin/sync-coding-agent --from-codespace    # Codespace → Local
+bin/sync-dev-env --to-codespace      # Local → Codespace
+bin/sync-dev-env --from-codespace    # Codespace → Local
 ```
 ```
 
@@ -629,8 +629,8 @@ The `.coding-agent` directories (containing plans and research documents) are au
 If automatic sync fails or you need to sync manually:
 ```bash
 cd /path/to/repository
-bin/sync-coding-agent --to-codespace      # Upload to Codespace
-bin/sync-coding-agent --from-codespace    # Download from Codespace
+bin/sync-dev-env --to-codespace      # Upload to Codespace
+bin/sync-dev-env --from-codespace    # Download from Codespace
 ```
 
 **Conflict Handling**:
@@ -686,9 +686,9 @@ Test complete workflows end-to-end:
 3. **Append-only behavior**:
    ```bash
    echo "local version" > .coding-agent/conflict-test.md
-   bin/sync-coding-agent --to-codespace
+   bin/sync-dev-env --to-codespace
    # In Codespace: modify /workspaces/repo/.coding-agent/conflict-test.md
-   bin/sync-coding-agent --from-codespace
+   bin/sync-dev-env --from-codespace
    # Local file should NOT be overwritten (still contains "local version")
    ```
 
@@ -702,7 +702,7 @@ Test complete workflows end-to-end:
 5. **No .coding-agent directory**:
    ```bash
    cd ~/projects/new-repo-without-coding-agent
-   bin/sync-coding-agent --to-codespace
+   bin/sync-dev-env --to-codespace
    # Should print "No .coding-agent directory found, skipping sync"
    ```
 
