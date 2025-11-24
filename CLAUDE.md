@@ -109,15 +109,13 @@ bin/codespace-create --repo REPOSITORY --machine MACHINE_TYPE --branch BRANCH
 # Connect to existing Codespace:
 bin/codespace-ssh [codespace-name]
 # Auto-selects if only one available, uses fzf if multiple
-# Note: Syncs .coding-agent/ back to local on disconnect (if in matching repo directory)
 
 # Re-provision existing Codespace (e.g., after making changes to bootstrap repo):
 bin/sync-to-codespace
 # Syncs bootstrap repo and re-runs provisioning
 
-# Manual .coding-agent sync (if needed):
-bin/sync-dev-env --to-codespace      # Local → Codespace
-bin/sync-dev-env --from-codespace    # Codespace → Local
+# Manual dev environment sync (if needed):
+bin/sync-dev-env [codespace-name]    # Local → Codespace (unidirectional)
 ```
 
 **Simulating Codespaces Locally**:
@@ -125,35 +123,34 @@ bin/sync-dev-env --from-codespace    # Codespace → Local
 CODESPACES=true ansible-playbook playbook.yml --check
 ```
 
-### .coding-agent Directory Sync
+### Development Environment Sync
 
-The `.coding-agent` directories (containing plans and research documents) are automatically synced between local and Codespaces:
+Development environment files (`.coding-agent` and `.claude/settings.local.json`) are synced from local to Codespaces:
 
 **Sync Behavior**:
-- **On Codespace creation**: Local `.coding-agent/` → Codespace `/workspaces/repo/.coding-agent/`
-- **On SSH disconnect**: Codespace `.coding-agent/` → Local `.coding-agent/`
+- **On Codespace creation**: Local → Codespace (automatic if in matching repository)
+- **Unidirectional**: Only syncs from local to Codespace (never back to local)
 - **Append-only**: Only new files are copied, existing files are never overwritten or deleted
 - **Repository matching**: Only syncs when local repo's git origin matches Codespace repository
+
+**What Gets Synced**:
+- `.coding-agent/` directory (plans, research documents)
+- `.claude/settings.local.json` (project-specific Claude Code settings)
 
 **Requirements**:
 - Must run commands from the repository directory (not bootstrap directory)
 - Repository must have GitHub as remote origin
 - Matching Codespace must be available
-- rsync must be installed (available by default on macOS and Codespaces)
 
 **Manual Sync**:
-If automatic sync fails or you need to sync manually:
+To manually sync dev environment to a Codespace:
 ```bash
 cd /path/to/repository
-bin/sync-dev-env --to-codespace      # Upload to Codespace
-bin/sync-dev-env --from-codespace    # Download from Codespace
+bin/sync-dev-env [codespace-name]
 ```
 
-**Conflict Handling**:
-The sync is designed to be append-only to avoid conflicts. If you modify the same file in both locations:
-- The existing version is preserved (not overwritten)
-- You'll need to manually reconcile differences
-- Consider deleting one version before syncing to let the other copy over
+**Why Unidirectional?**:
+Syncing only from local to Codespace prevents accidentally overwriting local work with older Codespace versions. Local is always the source of truth.
 
 ## Important Notes
 

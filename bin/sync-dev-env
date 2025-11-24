@@ -37,31 +37,19 @@ def find_codespace_for_repo(repo_name)
 end
 
 def main
-  direction = nil
   codespace_name = nil
 
   parser = OptionParser.new do |opts|
-    opts.banner = "Usage: bin/sync-dev-env [--to-codespace | --from-codespace] [CODESPACE_NAME]"
+    opts.banner = "Usage: bin/sync-dev-env [CODESPACE_NAME]"
     opts.separator ""
-    opts.separator "Manually sync .coding-agent directory and other dev env files between local and Codespace"
-    opts.separator ""
-    opts.separator "Options:"
-
-    opts.on("--to-codespace", "Sync from local to Codespace") do
-      direction = :to_codespace
-    end
-
-    opts.on("--from-codespace", "Sync from Codespace to local") do
-      direction = :from_codespace
-    end
-
+    opts.separator "Sync .coding-agent directory and other dev env files from local to Codespace"
     opts.separator ""
     opts.separator "Arguments:"
     opts.separator "  CODESPACE_NAME    Optional. If not provided, will find Codespace for current directory"
     opts.separator ""
     opts.separator "Examples:"
-    opts.separator "  bin/sync-dev-env --to-codespace"
-    opts.separator "  bin/sync-dev-env --from-codespace my-codespace-name"
+    opts.separator "  bin/sync-dev-env"
+    opts.separator "  bin/sync-dev-env my-codespace-name"
 
     opts.on("-h", "--help", "Show this help message") do
       puts opts
@@ -74,13 +62,6 @@ def main
     codespace_name = ARGV[0]
   rescue OptionParser::InvalidOption => e
     puts "Error: #{e.message}"
-    puts ""
-    puts parser
-    exit 1
-  end
-
-  unless direction
-    puts "Error: Must specify --to-codespace or --from-codespace"
     puts ""
     puts parser
     exit 1
@@ -122,12 +103,7 @@ def main
     puts "    Repository: #{repo_full_name}"
     puts "    Workspace: /workspaces/#{repo_name}"
 
-    case direction
-    when :to_codespace
-      DevEnvSyncer.sync_to_codespace(Dir.pwd, codespace_name, remote_path)
-    when :from_codespace
-      DevEnvSyncer.sync_from_codespace(Dir.pwd, codespace_name, remote_path)
-    end
+    DevEnvSyncer.sync_to_codespace(Dir.pwd, codespace_name, remote_path)
   rescue JSON::ParserError => e
     $stderr.puts "Error: Could not parse Codespace information"
     exit 1
