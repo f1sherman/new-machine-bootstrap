@@ -1,11 +1,4 @@
 ---
-
-- name: Set brew prefix
-  shell: 'brew --prefix'
-  register: brew_prefix_output
-  changed_when: false
-- set_fact:
-    brew_prefix: "{{ brew_prefix_output.stdout }}"
 - name: Bootstrap ssh config
   template:
     backup: yes
@@ -70,58 +63,7 @@
     dest: '{{ ansible_env.HOME }}/.default-gems'
     src: 'mise/default-ruby-gems'
     mode: 0600
-- name: 'Install Brew packages'
-  homebrew:
-    name: [
-      'bat',
-      'coreutils',
-      'curl',
-      'dark-mode',
-      'fd',
-      'fzf',
-      'gh',
-      'git',
-      'gnu-sed',
-      'llm',
-      'mise',
-      'ncdu',
-      'nmap',
-      'neovim',
-      'pandoc',
-      'pipx',
-      'python@3.13',
-      'ripgrep',
-      'rust',
-      'shellcheck',
-      'sqlparse',
-      'ssh-copy-id',
-      'tmux',
-      'tree',
-      'uv',
-      'vim',
-      'wget',
-      'zsh'
-    ]
-    state: present
-    update_homebrew: no
 
-- name: Check which packages to remove are actually linked (not keg-only)
-  shell: |
-    for pkg in curl nodenv nvm rbenv; do
-      if brew list --formula -1 2>/dev/null | grep -q "^${pkg}$"; then
-        if ! brew info "$pkg" 2>/dev/null | grep -q 'keg-only'; then
-          echo "$pkg"
-        fi
-      fi
-    done
-  register: brew_packages_to_remove
-  changed_when: false
-
-- name: 'Remove Brew packages'
-  homebrew:
-    name: "{{ brew_packages_to_remove.stdout_lines }}"
-    state: absent
-  when: brew_packages_to_remove.stdout_lines | length > 0
 - name: 'Install Brew casks'
   homebrew_cask:
     name: [
@@ -263,9 +205,7 @@
     dest: '/opt/local/bin/codespace-ssh'
     state: link
   become: yes
-- name: Install FZF
-  shell: '{{ brew_prefix }}/opt/fzf/install --all'
-  changed_when: false
+
 - name: Enable Dark Mode
   command: dark-mode on
   changed_when: false

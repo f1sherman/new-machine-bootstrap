@@ -1,0 +1,122 @@
+---
+# Codespaces Package Installation - runs during pre_tasks
+#
+# Installs all packages required by common role:
+# - fzf, git, nvim: required for vim plugin installation
+# - rg, tmux, bat: used by scripts and dotfiles
+# - zsh: required for shell configuration
+#
+# This file is imported during pre_tasks to ensure dependencies
+# are available before the common role runs.
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  become: yes
+
+- name: Install Codespaces packages
+  apt:
+    name:
+      - bat
+      - byobu
+      - curl
+      - fd-find
+      - git
+      - neovim
+      - python3
+      - python3-pip
+      - python3-venv
+      - pipx
+      - ripgrep
+      - sudo
+      - tmux
+      - unzip
+      - zsh
+    state: present
+  become: yes
+
+- name: Create ~/.local/bin directory
+  file:
+    path: '{{ ansible_env.HOME }}/.local/bin'
+    state: directory
+    mode: 0755
+
+- name: Remove fzf apt package if installed
+  apt:
+    name: fzf
+    state: absent
+  become: yes
+
+- name: Check if fzf already exists in .local/bin
+  stat:
+    path: '{{ ansible_env.HOME }}/.local/bin/fzf'
+  register: fzf_binary
+
+- name: Get latest fzf release version
+  uri:
+    url: https://api.github.com/repos/junegunn/fzf/releases/latest
+    return_content: yes
+  register: fzf_latest_release
+  retries: 3
+  delay: 10
+  until: fzf_latest_release is succeeded
+  when: not fzf_binary.stat.exists
+
+- name: Set fzf version without v prefix
+  set_fact:
+    fzf_version: "{{ fzf_latest_release.json.tag_name | regex_replace('^v', '') }}"
+  when: not fzf_binary.stat.exists
+
+- name: Download and extract fzf binary
+  unarchive:
+    src: "https://github.com/junegunn/fzf/releases/download/{{ fzf_latest_release.json.tag_name }}/fzf-{{ fzf_version }}-linux_amd64.tar.gz"
+    dest: '{{ ansible_env.HOME }}/.local/bin'
+    remote_src: yes
+  retries: 3
+  delay: 10
+  when: not fzf_binary.stat.exists
+
+- name: Clone fzf repo for shell integration files
+  git:
+    repo: 'https://github.com/junegunn/fzf.git'
+    dest: '{{ ansible_env.HOME }}/.fzf'
+    depth: 1
+    version: master
+    update: yes
+
+- name: Create ~/.fzf/bin directory for vim plugin compatibility
+  file:
+    path: '{{ ansible_env.HOME }}/.fzf/bin'
+    state: directory
+    mode: 0755
+
+- name: Create fzf symlink for vim plugin
+  file:
+    src: '{{ ansible_env.HOME }}/.local/bin/fzf'
+    dest: '{{ ansible_env.HOME }}/.fzf/bin/fzf'
+    state: link
+
+- name: Create fzf config directory
+  file:
+    path: '{{ ansible_env.HOME }}/.config/fzf'
+    state: directory
+    mode: 0755
+
+- name: Create fd symlink (fdfind -> fd)
+  file:
+    src: /usr/bin/fdfind
+    dest: '{{ ansible_env.HOME }}/.local/bin/fd'
+    state: link
+
+- name: Create bat symlink (batcat -> bat)
+  file:
+    src: /usr/bin/batcat
+    dest: '{{ ansible_env.HOME }}/.local/bin/bat'
+    state: link
+
+- name: Create vim symlink (nvim -> vim)
+  file:
+    src: /usr/bin/nvim
+    dest: '{{ ansible_env.HOME }}/.local/bin/vim'
+    state: link

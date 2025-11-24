@@ -1,0 +1,80 @@
+---
+# macOS Package Installation - runs during pre_tasks
+#
+# Installs all packages required by common role:
+# - fzf, git, nvim: required for vim plugin installation
+# - rg, tmux, bat: used by scripts and dotfiles
+# - zsh, prezto: required for shell configuration
+#
+# This file is imported during pre_tasks to ensure dependencies
+# are available before the common role runs.
+
+- name: Set brew prefix
+  shell: 'brew --prefix'
+  register: brew_prefix_output
+  changed_when: false
+- set_fact:
+    brew_prefix: "{{ brew_prefix_output.stdout }}"
+
+- name: 'Install Brew packages'
+  homebrew:
+    name: [
+      'bat',
+      'coreutils',
+      'curl',
+      'dark-mode',
+      'fd',
+      'fzf',
+      'gh',
+      'git',
+      'gnu-sed',
+      'llm',
+      'mise',
+      'ncdu',
+      'nmap',
+      'neovim',
+      'pandoc',
+      'pipx',
+      'python@3.13',
+      'ripgrep',
+      'rust',
+      'shellcheck',
+      'sqlparse',
+      'ssh-copy-id',
+      'tmux',
+      'tree',
+      'uv',
+      'vim',
+      'wget',
+      'zsh'
+    ]
+    state: present
+    update_homebrew: no
+
+- name: Check which packages to remove are actually linked (not keg-only)
+  shell: |
+    for pkg in curl nodenv nvm rbenv; do
+      if brew list --formula -1 2>/dev/null | grep -q "^${pkg}$"; then
+        if ! brew info "$pkg" 2>/dev/null | grep -q 'keg-only'; then
+          echo "$pkg"
+        fi
+      fi
+    done
+  register: brew_packages_to_remove
+  changed_when: false
+
+- name: 'Remove Brew packages'
+  homebrew:
+    name: "{{ brew_packages_to_remove.stdout_lines }}"
+    state: absent
+  when: brew_packages_to_remove.stdout_lines | length > 0
+
+- name: Create fzf config directory
+  file:
+    path: '{{ ansible_env.HOME }}/.config/fzf'
+    state: directory
+    mode: 0755
+
+- name: Install FZF
+  shell: '{{ brew_prefix }}/opt/fzf/install --all'
+  changed_when: false

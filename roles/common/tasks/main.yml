@@ -1,4 +1,15 @@
 ---
+# Common Role - Shared Configuration
+#
+# DEPENDENCIES (must be installed via pre_tasks):
+# - git: for repository cloning
+# - nvim: for plugin installation
+# - fzf: for vim plugin 'do' hooks
+# - rg (ripgrep): referenced in dotfiles
+# - tmux, bat: used by scripts
+# - python3 or grealpath: used by pick-files
+#
+# This role assumes all tools are available from platform packages.
 
 - name: Clone prezto
   git:
