@@ -107,17 +107,18 @@ module DevEnvSyncer
         return unless File.exist?(local_file)
         puts "==> Syncing #{file_path} to Codespace..."
         remote_dir = File.dirname(remote_file)
-        create_cmd = "gh codespace ssh -c #{codespace_name} -- 'mkdir -p #{remote_dir}'"
+        create_cmd = "gh codespace ssh -c #{codespace_name} -- mkdir -p '#{remote_dir}'"
         system(create_cmd)
         raise SyncError, "Failed to create remote directory: #{remote_dir}" unless $?.success?
-        copy_cmd = "gh codespace cp #{local_file} #{codespace_name}:#{remote_file}"
+
+        copy_cmd = "cat #{local_file} | gh codespace ssh -c #{codespace_name} -- \"cat > #{remote_file}\""
       when :from
         # Check if remote file exists
-        check_cmd = "gh codespace ssh -c #{codespace_name} -- 'test -f #{remote_file}'"
+        check_cmd = "gh codespace ssh -c #{codespace_name} -- test -f #{remote_file}"
         return unless system(check_cmd)
         puts "==> Syncing #{file_path} from Codespace..."
         FileUtils.mkdir_p(File.dirname(local_file))
-        copy_cmd = "gh codespace cp #{codespace_name}:#{remote_file} #{local_file}"
+        copy_cmd = "gh codespace ssh -c #{codespace_name} -- cat #{remote_file} > #{local_file}"
       else
         raise ArgumentError, "Invalid sync direction: #{direction}"
       end

@@ -19,7 +19,7 @@ def find_codespace_for_repo(repo_name)
 
   codespaces = JSON.parse(stdout)
     .select { |cs| cs['state'] == 'Available' }
-    .select { |cs| cs.dig('repository', 'fullName')&.end_with?("/#{repo_name}") }
+    .select { |cs| cs['repository']&.end_with?("/#{repo_name}") }
 
   if codespaces.empty?
     $stderr.puts "Error: No available Codespace found for repository ending with '/#{repo_name}'"
@@ -109,7 +109,7 @@ def main
 
   begin
     codespace_info = JSON.parse(stdout)
-    repo_full_name = codespace_info.dig('repository', 'fullName')
+    repo_full_name = codespace_info['repository']
 
     unless repo_full_name
       $stderr.puts "Error: Could not determine Codespace repository"
