@@ -157,7 +157,7 @@
     import glob
     import os
 
-    config_file = '{{ ansible_facts["user_dir"] }}/.claude.json'
+    config_file = os.environ["CONFIG_FILE"]
 
     # Read existing config or create new one
     if os.path.exists(config_file):
@@ -207,6 +207,8 @@
     else:
       print("unchanged")
     '
+  environment:
+    CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.claude.json'
   register: claude_config_result
   changed_when: "'changed' in claude_config_result.stdout"
 
