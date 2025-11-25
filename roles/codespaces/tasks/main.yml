@@ -135,6 +135,16 @@
       # Enable true color support for terminal applications
       export COLORTERM=truecolor
 
+- name: Add claude alias to avoid API key conflict
+  blockinfile:
+    path: '{{ ansible_facts["user_dir"] }}/.zshrc.local'
+    create: yes
+    mode: 0644
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - CLAUDE ALIAS"
+    block: |
+      # Unset ANTHROPIC_API_KEY when running claude to avoid conflict with OAuth token
+      alias claude='unset ANTHROPIC_API_KEY; claude'
+
 - name: Ensure pipx path is configured
   command: pipx ensurepath
   changed_when: false
