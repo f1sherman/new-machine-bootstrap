@@ -99,6 +99,8 @@ bin/provision --diff            # Show what would change
 ansible-playbook playbook.yml   # Direct invocation
 ```
 
+**Important**: Claude cannot run `bin/provision` directly because it requires a sudo password. Ask the user to run it manually.
+
 **Codespaces Workflow**:
 ```bash
 # Create a new Codespace and provision it:
