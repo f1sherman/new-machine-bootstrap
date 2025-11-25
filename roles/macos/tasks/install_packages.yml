@@ -71,7 +71,7 @@
 
 - name: Create fzf config directory
   file:
-    path: '{{ ansible_env.HOME }}/.config/fzf'
+    path: '{{ ansible_facts["user_dir"] }}/.config/fzf'
     state: directory
     mode: 0755
 

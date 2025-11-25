@@ -2,26 +2,26 @@
 - name: Copy tmux configuration for Codespaces
   copy:
     src: '{{ playbook_dir }}/roles/codespaces/files/dotfiles/tmux.conf'
-    dest: '{{ ansible_env.HOME }}/.tmux.conf'
+    dest: '{{ ansible_facts["user_dir"] }}/.tmux.conf'
     mode: 0644
     backup: yes
 
 - name: Create ~/.byobu directory
   file:
-    path: '{{ ansible_env.HOME }}/.byobu'
+    path: '{{ ansible_facts["user_dir"] }}/.byobu'
     state: directory
     mode: 0755
 
 - name: Copy tmux configuration for byobu
   copy:
     src: '{{ playbook_dir }}/roles/codespaces/files/dotfiles/tmux.conf'
-    dest: '{{ ansible_env.HOME }}/.byobu/.tmux.conf'
+    dest: '{{ ansible_facts["user_dir"] }}/.byobu/.tmux.conf'
     mode: 0644
     backup: yes
 
 - name: Check if fzf shell directory exists
   stat:
-    path: '{{ ansible_env.HOME }}/.fzf/shell'
+    path: '{{ ansible_facts["user_dir"] }}/.fzf/shell'
   register: fzf_shell_dir
 
 - name: Create full FZF integration (when shell dir exists)
@@ -38,7 +38,7 @@
 
       # Key bindings
       source "${HOME}/.fzf/shell/key-bindings.zsh"
-    dest: '{{ ansible_env.HOME }}/.fzf.zsh'
+    dest: '{{ ansible_facts["user_dir"] }}/.fzf.zsh'
     mode: 0644
   when: fzf_shell_dir.stat.exists
 
@@ -52,19 +52,19 @@
       if [[ ! "$PATH" == */usr/bin* ]]; then
         PATH="${PATH:+${PATH}:}/usr/bin"
       fi
-    dest: '{{ ansible_env.HOME }}/.fzf.zsh'
+    dest: '{{ ansible_facts["user_dir"] }}/.fzf.zsh'
     mode: 0644
   when: not fzf_shell_dir.stat.exists
 
 - name: Set default shell to zsh
   user:
-    name: '{{ ansible_user_id }}'
+    name: '{{ ansible_facts["user_id"] }}'
     shell: /usr/bin/zsh
   become: yes
 
 - name: Configure byobu auto-launch in .zprofile
   blockinfile:
-    path: '{{ ansible_env.HOME }}/.zprofile'
+    path: '{{ ansible_facts["user_dir"] }}/.zprofile'
     create: yes
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
@@ -81,7 +81,7 @@
 
 - name: Configure byobu auto-launch in .bashrc
   blockinfile:
-    path: '{{ ansible_env.HOME }}/.bashrc'
+    path: '{{ ansible_facts["user_dir"] }}/.bashrc'
     create: no
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
@@ -100,13 +100,13 @@
 
 - name: Remove mise from .bashrc
   lineinfile:
-    path: '{{ ansible_env.HOME }}/.bashrc'
+    path: '{{ ansible_facts["user_dir"] }}/.bashrc'
     regexp: '.*mise.*'
     state: absent
 
 - name: Remove byobu auto-launch from .zshrc.local
   blockinfile:
-    path: '{{ ansible_env.HOME }}/.zshrc.local'
+    path: '{{ ansible_facts["user_dir"] }}/.zshrc.local'
     create: yes
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
@@ -115,7 +115,7 @@
 
 - name: Configure Codespaces prompt customization
   blockinfile:
-    path: '{{ ansible_env.HOME }}/.zshrc.local'
+    path: '{{ ansible_facts["user_dir"] }}/.zshrc.local'
     create: yes
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - PROMPT"
@@ -127,7 +127,7 @@
 
 - name: Enable true color support in Codespaces
   blockinfile:
-    path: '{{ ansible_env.HOME }}/.zshrc.local'
+    path: '{{ ansible_facts["user_dir"] }}/.zshrc.local'
     create: yes
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - COLORTERM"
@@ -147,7 +147,7 @@
     import glob
     import os
 
-    config_file = "{{ ansible_env.HOME }}/.claude.json"
+    config_file = '{{ ansible_facts["user_dir"] }}/.claude.json'
 
     # Read existing config or create new one
     if os.path.exists(config_file):

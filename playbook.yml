@@ -16,11 +16,11 @@
     # Platform packages must be installed first - common role depends on them
     - name: Install platform packages (macOS)
       import_tasks: roles/macos/tasks/install_packages.yml
-      when: ansible_os_family == "Darwin"
+      when: ansible_facts["os_family"] == "Darwin"
 
     - name: Install platform packages (Codespaces)
       import_tasks: roles/codespaces/tasks/install_packages.yml
-      when: ansible_env.CODESPACES is defined and ansible_env.CODESPACES == "true"
+      when: lookup('env', 'CODESPACES') == 'true'
 
   roles:
     # Common role assumes tools are installed by pre_tasks
@@ -28,6 +28,6 @@
 
     # Platform roles handle platform-specific configuration
     - role: macos
-      when: ansible_os_family == "Darwin"
+      when: ansible_facts["os_family"] == "Darwin"
     - role: codespaces
-      when: ansible_env.CODESPACES is defined and ansible_env.CODESPACES == "true"
+      when: lookup('env', 'CODESPACES') == 'true'

@@ -38,7 +38,7 @@
 
 - name: Create ~/.local/bin directory
   file:
-    path: '{{ ansible_env.HOME }}/.local/bin'
+    path: '{{ ansible_facts["user_dir"] }}/.local/bin'
     state: directory
     mode: 0755
 
@@ -50,7 +50,7 @@
 
 - name: Check if fzf already exists in .local/bin
   stat:
-    path: '{{ ansible_env.HOME }}/.local/bin/fzf'
+    path: '{{ ansible_facts["user_dir"] }}/.local/bin/fzf'
   register: fzf_binary
 
 - name: Get latest fzf release version
@@ -71,7 +71,7 @@
 - name: Download and extract fzf binary
   unarchive:
     src: "https://github.com/junegunn/fzf/releases/download/{{ fzf_latest_release.json.tag_name }}/fzf-{{ fzf_version }}-linux_amd64.tar.gz"
-    dest: '{{ ansible_env.HOME }}/.local/bin'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
     remote_src: yes
   retries: 3
   delay: 10
@@ -80,43 +80,43 @@
 - name: Clone fzf repo for shell integration files
   git:
     repo: 'https://github.com/junegunn/fzf.git'
-    dest: '{{ ansible_env.HOME }}/.fzf'
+    dest: '{{ ansible_facts["user_dir"] }}/.fzf'
     depth: 1
     version: master
     update: yes
 
 - name: Create ~/.fzf/bin directory for vim plugin compatibility
   file:
-    path: '{{ ansible_env.HOME }}/.fzf/bin'
+    path: '{{ ansible_facts["user_dir"] }}/.fzf/bin'
     state: directory
     mode: 0755
 
 - name: Create fzf symlink for vim plugin
   file:
-    src: '{{ ansible_env.HOME }}/.local/bin/fzf'
-    dest: '{{ ansible_env.HOME }}/.fzf/bin/fzf'
+    src: '{{ ansible_facts["user_dir"] }}/.local/bin/fzf'
+    dest: '{{ ansible_facts["user_dir"] }}/.fzf/bin/fzf'
     state: link
 
 - name: Create fzf config directory
   file:
-    path: '{{ ansible_env.HOME }}/.config/fzf'
+    path: '{{ ansible_facts["user_dir"] }}/.config/fzf'
     state: directory
     mode: 0755
 
 - name: Create fd symlink (fdfind -> fd)
   file:
     src: /usr/bin/fdfind
-    dest: '{{ ansible_env.HOME }}/.local/bin/fd'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/fd'
     state: link
 
 - name: Create bat symlink (batcat -> bat)
   file:
     src: /usr/bin/batcat
-    dest: '{{ ansible_env.HOME }}/.local/bin/bat'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/bat'
     state: link
 
 - name: Create vim symlink (nvim -> vim)
   file:
     src: /usr/bin/nvim
-    dest: '{{ ansible_env.HOME }}/.local/bin/vim'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/vim'
     state: link

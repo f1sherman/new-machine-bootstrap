@@ -20,7 +20,7 @@
   attributesfile = ~/.gitattributes
   excludesfile = ~/.gitignore
   editor = vim
-{% if ansible_os_family == "Darwin" %}
+{% if ansible_facts["os_family"] == "Darwin" %}
 [credential]
   helper = osxkeychain
 {% endif %}

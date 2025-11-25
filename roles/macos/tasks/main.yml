@@ -3,7 +3,7 @@
   template:
     backup: yes
     force: no
-    dest: '{{ ansible_env.HOME }}/.ssh/config'
+    dest: '{{ ansible_facts["user_dir"] }}/.ssh/config'
     src: ssh/config
     mode: 0600
 - name: Configure sshd
@@ -34,33 +34,33 @@
     mode: 0644
   become: true
   vars:
-    owner: "{{ ansible_env.USER | default(ansible_user_id) }}"
+    owner: '{{ ansible_facts["user_id"] }}'
 - name: Create directories
   file:
-    dest: '{{ ansible_env.HOME }}/.{{ item }}'
+    dest: '{{ ansible_facts["user_dir"] }}/.{{ item }}'
     state: directory
   with_items:
     - bundle
 - name: Create fzf config directory
   file:
-    dest: '{{ ansible_env.HOME }}/.config/fzf'
+    dest: '{{ ansible_facts["user_dir"] }}/.config/fzf'
     state: directory
 - name: Create bundler config file
   copy:
     backup: yes
-    dest: '{{ ansible_env.HOME }}/.bundle/config'
+    dest: '{{ ansible_facts["user_dir"] }}/.bundle/config'
     src: 'bundler/config'
     mode: 0600
 - name: Create mise default-packages file
   copy:
     backup: yes
-    dest: '{{ ansible_env.HOME }}/.default-npm-packages'
+    dest: '{{ ansible_facts["user_dir"] }}/.default-npm-packages'
     src: 'mise/default-npm-packages'
     mode: 0600
 - name: Create mise default-gems file
   copy:
     backup: yes
-    dest: '{{ ansible_env.HOME }}/.default-gems'
+    dest: '{{ ansible_facts["user_dir"] }}/.default-gems'
     src: 'mise/default-ruby-gems'
     mode: 0600
 
@@ -119,15 +119,15 @@
 
 - name: Create ghostty config directory
   file:
-    dest: '{{ ansible_env.HOME }}/Library/Application Support/com.mitchellh.ghostty'
+    dest: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty'
     state: directory
 - name: Create .vimtmp directory
   file:
-    path: '{{ ansible_env.HOME }}/.vimtmp'
+    path: '{{ ansible_facts["user_dir"] }}/.vimtmp'
     state: directory
 - name: Configure ghostty
   lineinfile:
-    path: '{{ ansible_env.HOME }}/Library/Application Support/com.mitchellh.ghostty/config'
+    path: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty/config'
     line: '{{ item }}'
     create: yes
     mode: 0644
@@ -142,7 +142,7 @@
     - 'term = xterm-256color'
 - name: Create .vimtmp directory
   file:
-    path: '{{ ansible_env.HOME }}/.vimtmp'
+    path: '{{ ansible_facts["user_dir"] }}/.vimtmp'
     state: directory
 - name: Initialize vim and install/update plugins
   command: '{{ item }}'
@@ -154,18 +154,18 @@
     - vim +PlugClean! +qall
 - name: Check YouCompleteMe modification time
   stat:
-    path: '{{ ansible_env.HOME }}/.vim/plugged/YouCompleteMe'
+    path: '{{ ansible_facts["user_dir"] }}/.vim/plugged/YouCompleteMe'
   register: youcompleteme
 - name: Compile YouCompleteMe
-  command: '{{ ansible_env.HOME }}/.vim/plugged/YouCompleteMe/install.py'
-  when: youcompleteme.stat.exists and ansible_date_time.epoch|float - youcompleteme.stat.mtime < 30 * 60
+  command: '{{ ansible_facts["user_dir"] }}/.vim/plugged/YouCompleteMe/install.py'
+  when: youcompleteme.stat.exists and ansible_facts["date_time"]["epoch"]|float - youcompleteme.stat.mtime < 30 * 60
 - name: Create projects directory
   file:
-    path: '{{ ansible_env.HOME }}/projects'
+    path: '{{ ansible_facts["user_dir"] }}/projects'
     state: directory
 - name: Create dotfile subdirectories
   file:
-    path: '{{ ansible_env.HOME }}/.{{ item.path }}'
+    path: '{{ ansible_facts["user_dir"] }}/.{{ item.path }}'
     state: directory
     mode: 0700
   with_filetree: templates/dotfiles/
@@ -173,7 +173,7 @@
 - name: Install dotfiles
   template:
     backup: no
-    dest: '{{ ansible_env.HOME }}/.{{ item.path }}'
+    dest: '{{ ansible_facts["user_dir"] }}/.{{ item.path }}'
     src: '{{ item.src }}'
     mode: 0600
   with_filetree: templates/dotfiles/
@@ -204,14 +204,14 @@
 - name: Install prezto
   file:
     src: '{{item}}'
-    dest: '{{ ansible_env.HOME }}/.{{ item | basename }}'
+    dest: '{{ ansible_facts["user_dir"] }}/.{{ item | basename }}'
     state: link
   with_fileglob:
-    - '{{ ansible_env.HOME }}/.zprezto/runcoms/^(README.md|zshrc|zpreztorc)'
+    - '{{ ansible_facts["user_dir"] }}/.zprezto/runcoms/^(README.md|zshrc|zpreztorc)'
 
 - name: Set default shell to zsh
   user:
-    name: '{{ ansible_env.USER }}'
+    name: '{{ ansible_facts["user_id"] }}'
     shell: '{{ brew_prefix }}/bin/zsh'
   become: yes
 - name: Configure system settings (requires sudo)
@@ -313,7 +313,7 @@
     - { name: 'Finder: Display full POSIX path as window title', command: 'defaults write com.apple.finder _FXShowPosixPathInTitle -bool true' }
     - { name: 'Finder: Show path bar', command: 'defaults write com.apple.finder ShowPathbar -bool true' }
     - { name: 'Finder: Set Downloads as the default location for new windows', command: 'defaults write com.apple.finder NewWindowTarget -string "PfLo"' }
-    - { name: 'Finder: Set Downloads as the default location for new windows (2)', command: 'defaults write com.apple.finder NewWindowTargetPath -string "file://{{ ansible_env.HOME }}/Downloads/"' }
+    - { name: 'Finder: Set Downloads as the default location for new windows (2)', command: 'defaults write com.apple.finder NewWindowTargetPath -string "file://{{ ansible_facts["user_dir"] }}/Downloads/"' }
     - { name: 'Finder: disable window animations and Get Info animations', command: 'defaults write com.apple.finder DisableAllAnimations -bool true' }
     - { name: 'Finder: Disable the warning when changing a file extension', command: 'defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false' }
     - { name: 'Finder: Show all files (i.e. /tmp, /usr, /var directories) in Finder', command: 'defaults write com.apple.Finder AppleShowAllFiles YES' }
@@ -370,22 +370,22 @@
   become: true
 - name: Create "murder" script to try to gracefully kill processes
   template:
-    dest: '{{ ansible_env.HOME }}/bin/murder'
+    dest: '{{ ansible_facts["user_dir"] }}/bin/murder'
     src: templates/murder
     mode: '0755'
 - name: Install ocr script
   copy:
-    dest: '{{ ansible_env.HOME }}/bin/ocr'
+    dest: '{{ ansible_facts["user_dir"] }}/bin/ocr'
     src: 'bin/ocr'
     mode: 0755
 - name: Install cleanup-branches script
   copy:
-    dest: '{{ ansible_env.HOME }}/bin/cleanup-branches'
+    dest: '{{ ansible_facts["user_dir"] }}/bin/cleanup-branches'
     src: 'bin/cleanup-branches'
     mode: 0755
 - name: Create start-claude script
   template:
-    dest: '{{ ansible_env.HOME }}/bin/start-claude'
+    dest: '{{ ansible_facts["user_dir"] }}/bin/start-claude'
     src: templates/start-claude
     mode: '0755'
 
@@ -488,17 +488,17 @@
       hs.timer.doAfter(1, function()
           hs.reload()
       end)
-    dest: "{{ ansible_env.HOME }}/bin/reload_hammerspoon.lua"
+    dest: '{{ ansible_facts["user_dir"] }}/bin/reload_hammerspoon.lua'
 
 - name: Execute Hammerspoon reload script
-  shell: hs -c "dofile('{{ ansible_env.HOME }}/bin/reload_hammerspoon.lua')"
+  shell: hs -c 'dofile("{{ ansible_facts["user_dir"] }}/bin/reload_hammerspoon.lua")'
   args:
     executable: /bin/zsh
   changed_when: false
 
 - name: Check if Meslo Powerline fonts are already installed
   stat:
-    path: '{{ ansible_env.HOME }}/Library/Fonts/Meslo LG M Regular for Powerline.ttf'
+    path: '{{ ansible_facts["user_dir"] }}/Library/Fonts/Meslo LG M Regular for Powerline.ttf'
   register: meslo_font_check
 
 - name: Clone powerline fonts repository
@@ -510,8 +510,8 @@
 
 - name: Install Meslo LG Powerline fonts
   shell: |
-    cp /tmp/powerline-fonts/Meslo\ Slashed/*.ttf {{ ansible_env.HOME}}/Library/Fonts/ && \
-    cp /tmp/powerline-fonts/Meslo\ Dotted/*.ttf {{ ansible_env.HOME }}/Library/Fonts/
+    cp /tmp/powerline-fonts/Meslo\ Slashed/*.ttf {{ ansible_facts["user_dir"]}}/Library/Fonts/ && \
+    cp /tmp/powerline-fonts/Meslo\ Dotted/*.ttf {{ ansible_facts["user_dir"] }}/Library/Fonts/
   when: not meslo_font_check.stat.exists
 
 - name: Remove temporary fonts directory
