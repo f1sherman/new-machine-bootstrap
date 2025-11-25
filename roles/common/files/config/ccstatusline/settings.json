@@ -9,16 +9,16 @@
       },
       {
         "id": "2",
-        "type": "git-branch",
-        "backgroundColor": "bgBlue"
-      },
-      {
-        "id": "3",
         "type": "context-percentage-usable",
         "color": "brightBlack",
         "metadata": {
           "inverse": "true"
         }
+      },
+      {
+        "id": "3",
+        "type": "git-branch",
+        "backgroundColor": "bgBlue"
       },
       {
         "id": "4",
