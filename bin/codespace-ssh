@@ -100,7 +100,8 @@ def main
   system("gh codespace ssh -c #{codespace_name}")
   ssh_exit_code = $?.exitstatus
 
-  puts "\n==> Disconnected from Codespace"
+  puts "\n==> Disconnected from codespace: #{codespace_name}"
+  puts "To reconnect run: codespace-ssh #{codespace_name}"
 
   exit ssh_exit_code
 end
