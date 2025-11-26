@@ -103,7 +103,7 @@ def main
     puts "    Repository: #{repo_full_name}"
     puts "    Workspace: /workspaces/#{repo_name}"
 
-    DevEnvSyncer.sync_to_codespace(Dir.pwd, codespace_name, remote_path)
+    DevEnvSyncer.sync_to_codespace(Dir.pwd, codespace_name, remote_path, codespace_repository: repo_full_name)
   rescue JSON::ParserError => e
     $stderr.puts "Error: Could not parse Codespace information"
     exit 1

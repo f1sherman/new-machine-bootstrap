@@ -61,7 +61,7 @@ def sync_dev_env_to_codespace(codespace_name, repository)
   remote_path = "/workspaces/#{repo_name}/.coding-agent"
 
   begin
-    DevEnvSyncer.sync_to_codespace(Dir.pwd, codespace_name, remote_path)
+    DevEnvSyncer.sync_to_codespace(Dir.pwd, codespace_name, remote_path, codespace_repository: repository)
   rescue DevEnvSyncer::SyncError => e
     puts "\nWarning: Failed to sync .coding-agent directory"
     puts e.message
