@@ -1,4 +1,12 @@
 ---
+- name: Clone tmux plugin manager (tpm)
+  git:
+    repo: 'https://github.com/tmux-plugins/tpm'
+    dest: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tpm'
+    depth: 1
+    version: master
+    update: yes
+
 - name: Copy tmux configuration for Codespaces
   copy:
     src: '{{ playbook_dir }}/roles/codespaces/files/dotfiles/tmux.conf'
@@ -18,6 +26,13 @@
     dest: '{{ ansible_facts["user_dir"] }}/.byobu/.tmux.conf'
     mode: 0644
     backup: yes
+
+- name: Install tmux plugins via tpm
+  shell: |
+    export TMUX_PLUGIN_MANAGER_PATH="{{ ansible_facts["user_dir"] }}/.tmux/plugins/"
+    bash "{{ ansible_facts["user_dir"] }}/.tmux/plugins/tpm/bin/install_plugins"
+  args:
+    creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
 
 - name: Check if fzf shell directory exists
   stat:

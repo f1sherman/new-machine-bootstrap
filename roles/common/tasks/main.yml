@@ -62,6 +62,43 @@
     state: link
   when: dotvim_vimrc.stat.exists
 
+- name: Add vim-obsession plugin to vimrc
+  lineinfile:
+    path: '{{ ansible_facts["user_dir"] }}/.vim/vimrc'
+    line: "Plug 'tpope/vim-obsession'"
+    insertafter: '^call plug#begin'
+    state: present
+  when: dotvim_vimrc.stat.exists
+
+- name: Create nvim sessions directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.local/share/nvim/sessions'
+    state: directory
+    mode: 0755
+
+- name: Add vim-obsession session path function to vimrc
+  blockinfile:
+    path: '{{ ansible_facts["user_dir"] }}/.vim/vimrc'
+    marker: '" {mark} ANSIBLE MANAGED BLOCK - OBSESSION'
+    block: |
+      function! GetSessionFile()
+        let l:session_dir = expand('~/.local/share/nvim/sessions')
+        let l:cwd = getcwd()
+        let l:session_name = substitute(l:cwd, '/', '%', 'g')
+        return l:session_dir . '/' . l:session_name . '.vim'
+      endfunction
+
+      autocmd VimEnter * nested
+        \ if !argc() && empty(v:this_session) |
+        \   let s:session_file = GetSessionFile() |
+        \   if filereadable(s:session_file) |
+        \     execute 'source ' . s:session_file |
+        \   else |
+        \     execute 'Obsession ' . s:session_file |
+        \   endif |
+        \ endif
+  when: dotvim_vimrc.stat.exists
+
 - name: Initialize nvim and install/update plugins
   command: '{{ item }}'
   changed_when: false
