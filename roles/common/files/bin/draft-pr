@@ -17,7 +17,7 @@ OptionParser.new do |opts|
 end.parse!
 
 # Check for required dependencies
-%w[git gh curl vim].each do |cmd|
+%w[git gh curl nvim].each do |cmd|
   unless system("which #{cmd} > /dev/null 2>&1")
     puts "Error: #{cmd} is not installed or not in PATH"
     exit 1
@@ -207,7 +207,7 @@ puts File.read(pr_template_file)
 
 # Open vim for editing
 puts "Opening editor for modifications..."
-run_command("vim #{pr_template_file}", "Failed to open vim")
+run_command("nvim #{pr_template_file}", "Failed to open nvim")
 
 # Create draft PR using gh CLI
 puts "Creating draft PR..."
