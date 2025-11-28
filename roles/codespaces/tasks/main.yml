@@ -1,134 +1,42 @@
 ---
-
-- name: Update apt cache
-  apt:
-    update_cache: yes
-    cache_valid_time: 3600
-  become: yes
-
-- name: Install Codespaces packages
-  apt:
-    name:
-      - bat
-      - byobu
-      - curl
-      - fd-find
-      - git
-      - neovim
-      - python3
-      - python3-pip
-      - python3-venv
-      - pipx
-      - ripgrep
-      - sudo
-      - tmux
-      - unzip
-      - zsh
-    state: present
-  become: yes
-
-- name: Create ~/.local/bin directory
-  file:
-    path: '{{ ansible_env.HOME }}/.local/bin'
-    state: directory
-    mode: 0755
-
-- name: Remove fzf apt package if installed
-  apt:
-    name: fzf
-    state: absent
-  become: yes
-
-- name: Check if fzf already exists in .local/bin
-  stat:
-    path: '{{ ansible_env.HOME }}/.local/bin/fzf'
-  register: fzf_binary
-
-- name: Get latest fzf release version
-  uri:
-    url: https://api.github.com/repos/junegunn/fzf/releases/latest
-    return_content: yes
-  register: fzf_latest_release
-  retries: 3
-  delay: 10
-  until: fzf_latest_release is succeeded
-  when: not fzf_binary.stat.exists
-
-- name: Set fzf version without v prefix
-  set_fact:
-    fzf_version: "{{ fzf_latest_release.json.tag_name | regex_replace('^v', '') }}"
-  when: not fzf_binary.stat.exists
-
-- name: Download and extract fzf binary
-  unarchive:
-    src: "https://github.com/junegunn/fzf/releases/download/{{ fzf_latest_release.json.tag_name }}/fzf-{{ fzf_version }}-linux_amd64.tar.gz"
-    dest: '{{ ansible_env.HOME }}/.local/bin'
-    remote_src: yes
-  retries: 3
-  delay: 10
-  when: not fzf_binary.stat.exists
-
-- name: Clone fzf repo for shell integration files
+- name: Clone tmux plugin manager (tpm)
   git:
-    repo: 'https://github.com/junegunn/fzf.git'
-    dest: '{{ ansible_env.HOME }}/.fzf'
+    repo: 'https://github.com/tmux-plugins/tpm'
+    dest: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tpm'
     depth: 1
     version: master
     update: yes
 
-- name: Create ~/.fzf/bin directory for vim plugin compatibility
-  file:
-    path: '{{ ansible_env.HOME }}/.fzf/bin'
-    state: directory
-    mode: 0755
-
-- name: Create fzf symlink for vim plugin
-  file:
-    src: '{{ ansible_env.HOME }}/.local/bin/fzf'
-    dest: '{{ ansible_env.HOME }}/.fzf/bin/fzf'
-    state: link
-
-- name: Create fd symlink (fdfind -> fd)
-  file:
-    src: /usr/bin/fdfind
-    dest: '{{ ansible_env.HOME }}/.local/bin/fd'
-    state: link
-
-- name: Create bat symlink (batcat -> bat)
-  file:
-    src: /usr/bin/batcat
-    dest: '{{ ansible_env.HOME }}/.local/bin/bat'
-    state: link
-
-- name: Create vim symlink (nvim -> vim)
-  file:
-    src: /usr/bin/nvim
-    dest: '{{ ansible_env.HOME }}/.local/bin/vim'
-    state: link
-
 - name: Copy tmux configuration for Codespaces
   copy:
     src: '{{ playbook_dir }}/roles/codespaces/files/dotfiles/tmux.conf'
-    dest: '{{ ansible_env.HOME }}/.tmux.conf'
+    dest: '{{ ansible_facts["user_dir"] }}/.tmux.conf'
     mode: 0644
     backup: yes
 
 - name: Create ~/.byobu directory
   file:
-    path: '{{ ansible_env.HOME }}/.byobu'
+    path: '{{ ansible_facts["user_dir"] }}/.byobu'
     state: directory
     mode: 0755
 
 - name: Copy tmux configuration for byobu
   copy:
     src: '{{ playbook_dir }}/roles/codespaces/files/dotfiles/tmux.conf'
-    dest: '{{ ansible_env.HOME }}/.byobu/.tmux.conf'
+    dest: '{{ ansible_facts["user_dir"] }}/.byobu/.tmux.conf'
     mode: 0644
     backup: yes
 
+- name: Install tmux plugins via tpm
+  shell: |
+    export TMUX_PLUGIN_MANAGER_PATH="{{ ansible_facts["user_dir"] }}/.tmux/plugins/"
+    bash "{{ ansible_facts["user_dir"] }}/.tmux/plugins/tpm/bin/install_plugins"
+  args:
+    creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
+
 - name: Check if fzf shell directory exists
   stat:
-    path: '{{ ansible_env.HOME }}/.fzf/shell'
+    path: '{{ ansible_facts["user_dir"] }}/.fzf/shell'
   register: fzf_shell_dir
 
 - name: Create full FZF integration (when shell dir exists)
@@ -145,7 +53,7 @@
 
       # Key bindings
       source "${HOME}/.fzf/shell/key-bindings.zsh"
-    dest: '{{ ansible_env.HOME }}/.fzf.zsh'
+    dest: '{{ ansible_facts["user_dir"] }}/.fzf.zsh'
     mode: 0644
   when: fzf_shell_dir.stat.exists
 
@@ -159,19 +67,19 @@
       if [[ ! "$PATH" == */usr/bin* ]]; then
         PATH="${PATH:+${PATH}:}/usr/bin"
       fi
-    dest: '{{ ansible_env.HOME }}/.fzf.zsh'
+    dest: '{{ ansible_facts["user_dir"] }}/.fzf.zsh'
     mode: 0644
   when: not fzf_shell_dir.stat.exists
 
 - name: Set default shell to zsh
   user:
-    name: '{{ ansible_user_id }}'
+    name: '{{ ansible_facts["user_id"] }}'
     shell: /usr/bin/zsh
   become: yes
 
 - name: Configure byobu auto-launch in .zprofile
   blockinfile:
-    path: '{{ ansible_env.HOME }}/.zprofile'
+    path: '{{ ansible_facts["user_dir"] }}/.zprofile'
     create: yes
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
@@ -188,7 +96,7 @@
 
 - name: Configure byobu auto-launch in .bashrc
   blockinfile:
-    path: '{{ ansible_env.HOME }}/.bashrc'
+    path: '{{ ansible_facts["user_dir"] }}/.bashrc'
     create: no
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
@@ -207,13 +115,13 @@
 
 - name: Remove mise from .bashrc
   lineinfile:
-    path: '{{ ansible_env.HOME }}/.bashrc'
+    path: '{{ ansible_facts["user_dir"] }}/.bashrc'
     regexp: '.*mise.*'
     state: absent
 
 - name: Remove byobu auto-launch from .zshrc.local
   blockinfile:
-    path: '{{ ansible_env.HOME }}/.zshrc.local'
+    path: '{{ ansible_facts["user_dir"] }}/.zshrc.local'
     create: yes
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
@@ -222,7 +130,7 @@
 
 - name: Configure Codespaces prompt customization
   blockinfile:
-    path: '{{ ansible_env.HOME }}/.zshrc.local'
+    path: '{{ ansible_facts["user_dir"] }}/.zshrc.local'
     create: yes
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - PROMPT"
@@ -234,7 +142,7 @@
 
 - name: Enable true color support in Codespaces
   blockinfile:
-    path: '{{ ansible_env.HOME }}/.zshrc.local'
+    path: '{{ ansible_facts["user_dir"] }}/.zshrc.local'
     create: yes
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - COLORTERM"
@@ -242,35 +150,48 @@
       # Enable true color support for terminal applications
       export COLORTERM=truecolor
 
+- name: Add claude alias to avoid API key conflict
+  blockinfile:
+    path: '{{ ansible_facts["user_dir"] }}/.zshrc.local'
+    create: yes
+    mode: 0644
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - CLAUDE ALIAS"
+    block: |
+      # Unset ANTHROPIC_API_KEY when running claude to avoid conflict with OAuth token
+      alias claude='unset ANTHROPIC_API_KEY; claude'
+
 - name: Ensure pipx path is configured
   command: pipx ensurepath
   changed_when: false
   failed_when: false
 
-- name: Create minimal .claude.json to skip onboarding
-  copy:
-    content: |
-      {
-        "hasCompletedOnboarding": true
-      }
-    dest: '{{ ansible_env.HOME }}/.claude.json'
-    mode: 0600
-    force: no
-  when: ansible_env.CODESPACES is defined
-
-- name: Auto-trust Codespaces workspaces in .claude.json
+- name: Configure Claude Code settings in .claude.json
   shell: |
     python3 -c '
     import json
     import glob
+    import os
 
-    with open("{{ ansible_env.HOME }}/.claude.json", "r") as f:
-      data = json.load(f)
+    config_file = os.environ["CONFIG_FILE"]
 
-    if "projects" not in data:
-      data["projects"] = {}
+    # Read existing config or create new one
+    if os.path.exists(config_file):
+      with open(config_file, "r") as f:
+        data = json.load(f)
+    else:
+      data = {}
 
     changed = False
+
+    # Set hasCompletedOnboarding
+    if not data.get("hasCompletedOnboarding"):
+      data["hasCompletedOnboarding"] = True
+      changed = True
+
+    # Ensure projects section exists
+    if "projects" not in data:
+      data["projects"] = {}
+      changed = True
 
     # Auto-trust all existing workspace directories and enable all MCP servers
     for workspace_dir in glob.glob("/workspaces/*"):
@@ -294,13 +215,15 @@
           changed = True
 
     if changed:
-      with open("{{ ansible_env.HOME }}/.claude.json", "w") as f:
+      with open(config_file, "w") as f:
         json.dump(data, f, indent=2)
+      os.chmod(config_file, 0o600)
       print("changed")
     else:
       print("unchanged")
     '
-  register: claude_trust_result
-  changed_when: "'changed' in claude_trust_result.stdout"
-  when: ansible_env.CODESPACES is defined
+  environment:
+    CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.claude.json'
+  register: claude_config_result
+  changed_when: "'changed' in claude_config_result.stdout"
 

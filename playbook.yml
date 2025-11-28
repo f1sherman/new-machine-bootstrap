@@ -1,9 +1,33 @@
 ---
+# Bootstrap Playbook - Execution Order:
+# 1. pre_tasks: Install platform-specific packages and tools
+#    - Ensures tools (git, nvim, fzf, etc.) available before common role
+# 2. roles: Configuration using installed tools
+#    - common: Shared configuration (dotfiles, plugins, scripts)
+#    - macos: macOS-specific configuration
+#    - codespaces: Codespaces-specific configuration
+#
+# This architecture ensures dependencies are explicit and tools are available
+# before tasks that need them, avoiding timing issues.
+
 - hosts: localhost
   connection: local
+  pre_tasks:
+    # Platform packages must be installed first - common role depends on them
+    - name: Install platform packages (macOS)
+      import_tasks: roles/macos/tasks/install_packages.yml
+      when: ansible_facts["os_family"] == "Darwin"
+
+    - name: Install platform packages (Codespaces)
+      import_tasks: roles/codespaces/tasks/install_packages.yml
+      when: lookup('env', 'CODESPACES') == 'true'
+
   roles:
+    # Common role assumes tools are installed by pre_tasks
     - common
+
+    # Platform roles handle platform-specific configuration
     - role: macos
-      when: ansible_os_family == "Darwin"
+      when: ansible_facts["os_family"] == "Darwin"
     - role: codespaces
-      when: ansible_env.CODESPACES is defined and ansible_env.CODESPACES == "true"
+      when: lookup('env', 'CODESPACES') == 'true'

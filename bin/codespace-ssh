@@ -2,8 +2,9 @@
 # frozen_string_literal: true
 
 require 'json'
-require 'yaml'
 require 'open3'
+
+require_relative '../lib/dev_env_syncer'
 
 def command_exists?(cmd)
   system("command -v #{cmd} >/dev/null 2>&1")
@@ -27,70 +28,43 @@ def ensure_gh_installed
   exit 1
 end
 
-def check_work_machine
-  config_path = File.expand_path('~/.config/new-machine-bootstrap.yml')
-
-  unless File.exist?(config_path)
-    puts "Error: Configuration file not found at #{config_path}"
-    puts "This script requires machine configuration to be set up first."
-    exit 1
-  end
-
-  config = YAML.load_file(config_path)
-
-  unless config['use'] == 'work'
-    puts "Error: This script only works on work machines for security reasons."
-    puts "Current machine type: #{config['use']}"
-    exit 1
-  end
-end
 
 def main
   ensure_gh_installed
-  check_work_machine
 
   # Check if codespace name was provided as argument
-  codespace_name = ARGV[0]
+  codespace_name_arg = ARGV[0]
+  codespace_name = nil # This will hold the actual codespace name to SSH to
 
-  if codespace_name
+  if codespace_name_arg
+    codespace_name = codespace_name_arg
     puts "==> Connecting to Codespace: #{codespace_name}"
   else
     puts "==> Finding available Codespaces..."
 
     codespaces_json = run_command(
-      'gh codespace list --json name,repository,state',
+      'gh codespace list --json name,repository,state,gitStatus',
       error_message: 'Failed to list Codespaces'
     )
 
     all_codespaces = JSON.parse(codespaces_json)
 
     all_codespaces.each do |cs|
-      case cs['state']
-      when 'Available'
-        puts "Found Codespace #{cs['name']} in state '#{cs['state']}'"
-      when 'Queued', 'Starting'
-        puts "Found Codespace #{cs['name']} but can't SSH to it because it is in state '#{cs['state']}' (still starting up)"
-      when 'Shutdown'
-        puts "Found Codespace #{cs['name']} but can't SSH to it because it is in state '#{cs['state']}' (use 'gh codespace ssh -c #{cs['name']}' to restart)"
-      else
-        puts "Found Codespace #{cs['name']} but can't SSH to it because it is in state '#{cs['state']}'"
-      end
+      puts "Found Codespace #{cs['name']} in state '#{cs['state']}'"
     end
 
-    available = all_codespaces.select { |cs| cs['state'] == 'Available' }
-
-    if available.empty?
-      puts "\nError: No Codespaces in 'Available' state"
-      puts "Wait for starting Codespaces to finish, or create a new one: gh codespace create"
+    if all_codespaces.empty?
+      puts "\nError: No Codespaces found."
+      puts "Create a new one: codespace-create"
       exit 1
     end
 
     puts ""
-    codespaces = available
+    codespaces = all_codespaces
 
-    codespace_name = if codespaces.size == 1
-      puts "==> Found Codespace: #{codespaces[0]['name']}"
-      codespaces[0]['name']
+    selected_display_string = if codespaces.size == 1
+      cs = codespaces[0]
+      "#{cs['name']} (Branch: #{cs['gitStatus']['ref']}, State: #{cs['state']})"
     else
       unless command_exists?('fzf')
         puts "Error: Multiple Codespaces found, but fzf is not installed"
@@ -99,8 +73,9 @@ def main
       end
 
       puts "==> Multiple Codespaces found, please select one:"
-      names = codespaces.map { |cs| cs['name'] }.join("\n")
-      stdout, stderr, status = Open3.capture3('fzf --prompt="Select Codespace: "', stdin_data: names)
+      names_for_fzf = codespaces.map { |cs| "#{cs['name']} (Branch: #{cs['gitStatus']['ref']}, State: #{cs['state']})" }.join("\n")
+      
+      stdout, stderr, status = Open3.capture3('fzf --prompt="Select Codespace: "', stdin_data: names_for_fzf)
 
       unless status.success?
         puts "Error: No Codespace selected"
@@ -109,13 +84,26 @@ def main
 
       stdout.strip
     end
+    
+    puts "==> Connecting to Codespace: #{selected_display_string}"
+    # Extract the actual codespace name from the fzf output string
+    match = selected_display_string.match(/^(.*?)\s\(/)
+    if match
+      codespace_name = match[1]
+    else
+      codespace_name = selected_display_string # Fallback if for some reason it's just the name
+    end
   end
 
   puts ""
-  puts "==> Connecting to Codespace: #{codespace_name}"
-  puts ""
 
-  exec("gh codespace ssh -c #{codespace_name}")
+  system("gh codespace ssh -c #{codespace_name}")
+  ssh_exit_code = $?.exitstatus
+
+  puts "\n==> Disconnected from codespace: #{codespace_name}"
+  puts "To reconnect run: codespace-ssh #{codespace_name}"
+
+  exit ssh_exit_code
 end
 
 main

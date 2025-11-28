@@ -1,64 +1,116 @@
 ---
+# Common Role - Shared Configuration
+#
+# DEPENDENCIES (must be installed via pre_tasks):
+# - git: for repository cloning
+# - nvim: for plugin installation
+# - fzf: for vim plugin 'do' hooks
+# - rg (ripgrep): referenced in dotfiles
+# - tmux, bat: used by scripts
+# - python3 or grealpath: used by pick-files
+#
+# This role assumes all tools are available from platform packages.
 
 - name: Clone prezto
   git:
-    dest: '{{ ansible_env.HOME }}/.zprezto'
+    dest: '{{ ansible_facts["user_dir"] }}/.zprezto'
     repo: 'https://github.com/sorin-ionescu/prezto.git'
     recursive: yes
     update: yes
 
 - name: Clone vim config repository
   git:
-    dest: '{{ ansible_env.HOME }}/.vim'
+    dest: '{{ ansible_facts["user_dir"] }}/.vim'
     repo: 'https://github.com/f1sherman/dotvim.git'
     update: yes
     force: no
 
 - name: Create nvim autoload directory
   file:
-    path: '{{ ansible_env.HOME }}/.local/share/nvim/site/autoload'
+    path: '{{ ansible_facts["user_dir"] }}/.local/share/nvim/site/autoload'
     state: directory
     mode: 0755
 
 - name: Download vim-plug for neovim
   get_url:
     url: https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
-    dest: '{{ ansible_env.HOME }}/.local/share/nvim/site/autoload/plug.vim'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/share/nvim/site/autoload/plug.vim'
     mode: 0644
-
-- name: Install neovim plugins
-  command: nvim --headless +PlugInstall +qall
-  changed_when: false
-  failed_when: false
 
 - name: Create ~/.config/nvim directory
   file:
-    path: '{{ ansible_env.HOME }}/.config/nvim'
+    path: '{{ ansible_facts["user_dir"] }}/.config/nvim'
     state: directory
     mode: 0755
 
 - name: Check if dotvim vimrc exists
   stat:
-    path: '{{ ansible_env.HOME }}/.vim/vimrc'
+    path: '{{ ansible_facts["user_dir"] }}/.vim/vimrc'
   register: dotvim_vimrc
 
 - name: Link vimrc to ~/.vimrc
   file:
-    src: '{{ ansible_env.HOME }}/.vim/vimrc'
-    dest: '{{ ansible_env.HOME }}/.vimrc'
+    src: '{{ ansible_facts["user_dir"] }}/.vim/vimrc'
+    dest: '{{ ansible_facts["user_dir"] }}/.vimrc'
     state: link
   when: dotvim_vimrc.stat.exists
 
 - name: Link vimrc to neovim init.vim
   file:
-    src: '{{ ansible_env.HOME }}/.vim/vimrc'
-    dest: '{{ ansible_env.HOME }}/.config/nvim/init.vim'
+    src: '{{ ansible_facts["user_dir"] }}/.vim/vimrc'
+    dest: '{{ ansible_facts["user_dir"] }}/.config/nvim/init.vim'
     state: link
   when: dotvim_vimrc.stat.exists
 
+- name: Add vim-obsession plugin to vimrc
+  lineinfile:
+    path: '{{ ansible_facts["user_dir"] }}/.vim/vimrc'
+    line: "Plug 'tpope/vim-obsession'"
+    insertafter: '^call plug#begin'
+    state: present
+  when: dotvim_vimrc.stat.exists
+
+- name: Create nvim sessions directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.local/share/nvim/sessions'
+    state: directory
+    mode: 0755
+
+- name: Add vim-obsession session path function to vimrc
+  blockinfile:
+    path: '{{ ansible_facts["user_dir"] }}/.vim/vimrc'
+    marker: '" {mark} ANSIBLE MANAGED BLOCK - OBSESSION'
+    block: |
+      function! GetSessionFile()
+        let l:session_dir = expand('~/.local/share/nvim/sessions')
+        let l:cwd = getcwd()
+        let l:session_name = substitute(l:cwd, '/', '%', 'g')
+        return l:session_dir . '/' . l:session_name . '.vim'
+      endfunction
+
+      autocmd VimEnter * nested
+        \ if !argc() && empty(v:this_session) |
+        \   let s:session_file = GetSessionFile() |
+        \   if filereadable(s:session_file) |
+        \     execute 'source ' . s:session_file |
+        \   else |
+        \     execute 'Obsession ' . s:session_file |
+        \   endif |
+        \ endif
+  when: dotvim_vimrc.stat.exists
+
+- name: Initialize nvim and install/update plugins
+  command: '{{ item }}'
+  changed_when: false
+  with_items:
+    - nvim +qall
+    - nvim +PlugUpdate +qall
+    - nvim +PlugUpgrade +qall
+    - nvim +PlugClean! +qall
+
 - name: Create dotfile subdirectories
   file:
-    path: '{{ ansible_env.HOME }}/.{{ item.path }}'
+    path: '{{ ansible_facts["user_dir"] }}/.{{ item.path }}'
     state: directory
     mode: 0700
   with_filetree: '{{ playbook_dir }}/roles/common/templates/dotfiles/'
@@ -67,55 +119,59 @@
 - name: Install shared dotfiles
   template:
     backup: no
-    dest: '{{ ansible_env.HOME }}/.{{ item.path }}'
+    dest: '{{ ansible_facts["user_dir"] }}/.{{ item.path }}'
     src: '{{ item.src }}'
     mode: 0600
   with_filetree: '{{ playbook_dir }}/roles/common/templates/dotfiles/'
   # Exclude macOS AppleDouble metadata files (._*) that store extended attributes
   when: item.state == 'file' and not item.path.startswith('._')
 
+- name: Remove AppleDouble files from .claude directory
+  command: find {{ ansible_facts["user_dir"] }}/.claude -name '._*' -delete
+  changed_when: false
+
 - name: Create ~/bin directory
   file:
-    path: '{{ ansible_env.HOME }}/bin'
+    path: '{{ ansible_facts["user_dir"] }}/bin'
     state: directory
 
 - name: Install pick-files script
   copy:
     backup: yes
-    dest: '{{ ansible_env.HOME }}/bin/pick-files'
+    dest: '{{ ansible_facts["user_dir"] }}/bin/pick-files'
     src: '{{ playbook_dir }}/roles/common/files/bin/pick-files'
     mode: 0755
 
 - name: Install osc52-copy script
   copy:
     backup: yes
-    dest: '{{ ansible_env.HOME }}/bin/osc52-copy'
+    dest: '{{ ansible_facts["user_dir"] }}/bin/osc52-copy'
     src: '{{ playbook_dir }}/roles/common/files/bin/osc52-copy'
     mode: 0755
 
 - name: Install draft-pr script
   copy:
     backup: yes
-    dest: '{{ ansible_env.HOME }}/bin/draft-pr'
+    dest: '{{ ansible_facts["user_dir"] }}/bin/draft-pr'
     src: '{{ playbook_dir }}/roles/common/files/bin/draft-pr'
     mode: 0755
 
 - name: Create ~/bin/claude directory
   file:
-    path: '{{ ansible_env.HOME }}/bin/claude'
+    path: '{{ ansible_facts["user_dir"] }}/bin/claude'
     state: directory
     mode: 0755
 
 - name: Install spec-metadata script
   copy:
     backup: yes
-    dest: '{{ ansible_env.HOME }}/bin/claude/spec-metadata'
+    dest: '{{ ansible_facts["user_dir"] }}/bin/claude/spec-metadata'
     src: '{{ playbook_dir }}/roles/common/files/bin/claude/spec-metadata'
     mode: 0755
 
 - name: Create ~/.claude directory
   file:
-    path: '{{ ansible_env.HOME }}/.claude'
+    path: '{{ ansible_facts["user_dir"] }}/.claude'
     state: directory
     mode: '0700'
 
@@ -123,30 +179,30 @@
   copy:
     content: |
       Add code comments sparingly. Focus on why something is done, especially for complex logic, rather than what is done. Only add high-value comments if necessary for clarity or if requested by the user. Do not edit comments that are separate from the code you are changing. NEVER talk to the user or describe your changes through comments.
-    dest: '{{ ansible_env.HOME }}/.claude/CLAUDE.md'
+    dest: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md'
     mode: '0600'
     backup: yes
 
 - name: Create ccstatusline config directory
   file:
-    path: '{{ ansible_env.HOME }}/.config/ccstatusline'
+    path: '{{ ansible_facts["user_dir"] }}/.config/ccstatusline'
     state: directory
     mode: '0700'
 
 - name: Install ccstatusline widget configuration
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/ccstatusline/settings.json'
-    dest: '{{ ansible_env.HOME }}/.config/ccstatusline/settings.json'
+    dest: '{{ ansible_facts["user_dir"] }}/.config/ccstatusline/settings.json'
     mode: '0600'
 
 - name: Check if Claude settings.json exists
   stat:
-    path: '{{ ansible_env.HOME }}/.claude/settings.json'
+    path: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
   register: claude_settings_stat
 
 - name: Read existing Claude settings.json if it exists
   slurp:
-    src: '{{ ansible_env.HOME }}/.claude/settings.json'
+    src: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
   register: claude_settings_content
   when: claude_settings_stat.stat.exists
 
@@ -165,6 +221,31 @@
 - name: Write merged Claude settings.json
   copy:
     content: "{{ merged_settings | to_nice_json }}"
-    dest: '{{ ansible_env.HOME }}/.claude/settings.json'
+    dest: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
     mode: '0600'
     backup: yes
+
+- name: Check if Claude Code CLI is installed
+  command: command -v claude
+  register: claude_cli_check
+  changed_when: false
+  failed_when: false
+
+- name: Install Claude Code CLI
+  shell: curl -fsSL https://claude.ai/install.sh | bash
+  args:
+    creates: '{{ ansible_facts["user_dir"] }}/.local/bin/claude'
+  when: claude_cli_check.rc != 0
+
+- name: Check if Codex CLI is installed
+  command: command -v codex
+  register: codex_cli_check
+  changed_when: false
+  failed_when: false
+
+- name: Install Codex CLI via npm
+  npm:
+    name: '@openai/codex'
+    global: yes
+    state: present
+  when: codex_cli_check.rc != 0

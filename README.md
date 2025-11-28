@@ -24,12 +24,16 @@ This Ruby script handles initial macOS setup (FileVault check, SSH keys, API key
 
 ## GitHub Codespaces
 
-### Setup
+### Creating a Codespace
 
-1. Set this repository as your [Codespaces dotfiles](https://docs.github.com/en/codespaces/setting-your-user-preferences/personalizing-github-codespaces-for-your-account#dotfiles) repository.
-2. Enable "Automatically install dotfiles" in your Codespaces settings.
+Use the provided script to create and automatically provision a new Codespace:
 
-When a new Codespace is created, the `install.sh` script runs automatically, configuring:
+```bash
+codespace-create --repo REPOSITORY --machine MACHINE_TYPE --branch BRANCH
+# Example: codespace-create --repo f1sherman/new-machine-bootstrap --machine premiumLinux --branch main
+```
+
+This will create the Codespace and run `bin/provision` to configure:
 - **Shell**: zsh with Prezto framework
 - **Multiplexer**: tmux and byobu with shared keybindings
 - **Editor**: Neovim and Vim (via dotvim repository)
@@ -67,14 +71,14 @@ Byobu automatically launches when you SSH into a Codespace, creating a new sessi
 For rapid iterative testing from your local machine without committing changes:
 
 ```bash
-bin/sync-to-codespace
+sync-to-codespace
 ```
 
 This script:
 1. Lists your active Codespaces (using `gh codespace list`)
 2. Uses `fzf` for selection if multiple Codespaces exist
 3. Syncs the repository via `tar` over SSH (excluding `.git`, `.coding-agent`, backups)
-4. Runs `install.sh` in the selected Codespace
+4. Runs `bin/provision` in the selected Codespace
 5. Shows the connection command when done
 
 **Local Testing**:

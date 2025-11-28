@@ -5,6 +5,7 @@ require 'json'
 require 'optparse'
 
 SCRIPT_DIR = File.expand_path('..', __dir__)
+require_relative '../lib/dev_env_syncer'
 
 def command_exists?(cmd)
   system("command -v #{cmd} >/dev/null 2>&1")
@@ -50,6 +51,24 @@ def wait_for_codespace(name)
   false
 end
 
+def sync_dev_env_to_codespace(codespace_name, repository)
+  local_path = File.join(Dir.pwd, '.coding-agent')
+  unless Dir.exist?(local_path)
+    return
+  end
+
+  repo_name = repository.split('/').last
+  remote_path = "/workspaces/#{repo_name}/.coding-agent"
+
+  begin
+    DevEnvSyncer.sync_to_codespace(Dir.pwd, codespace_name, remote_path, codespace_repository: repository)
+  rescue DevEnvSyncer::SyncError => e
+    puts "\nWarning: Failed to sync .coding-agent directory"
+    puts e.message
+    puts "You can manually sync later with: bin/sync-dev-env --to-codespace"
+  end
+end
+
 def main
   ensure_gh_installed
 
@@ -74,8 +93,8 @@ def main
 
     opts.separator ""
     opts.separator "Examples:"
-    opts.separator "  bin/codespace-create --repo betterup/betterup-monolith --machine premiumLinux --branch main"
-    opts.separator "  bin/codespace-create --repo betterup/betterup-monolith --machine premiumLinux --branch my-feature"
+    opts.separator "  bin/codespace-create --repo f1sherman/new-machine-bootstrap --machine premiumLinux --branch main"
+    opts.separator "  bin/codespace-create --repo f1sherman/new-machine-bootstrap --machine premiumLinux --branch my-feature"
 
     opts.on("-h", "--help", "Show this help message") do
       puts opts
@@ -155,6 +174,8 @@ def main
     puts "You can retry with: #{sync_script} #{codespace_name}"
     exit 1
   end
+
+  sync_dev_env_to_codespace(codespace_name, repository)
 
   puts "\n==> Done! Your Codespace is ready."
   puts "\nTo connect, run:"
