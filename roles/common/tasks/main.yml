@@ -84,7 +84,7 @@
       function! GetSessionFile()
         let l:session_dir = expand('~/.local/share/nvim/sessions')
         let l:cwd = getcwd()
-        let l:session_name = substitute(l:cwd, '/', '%', 'g')
+        let l:session_name = substitute(l:cwd, '/', '-', 'g')
         return l:session_dir . '/' . l:session_name . '.vim'
       endfunction
 
