@@ -1,192 +1,179 @@
-#!/usr/bin/env ruby
+#!/bin/bash
 # Universal provisioning script for macOS and Codespaces
+#
+# This script is written in Bash (not Ruby) because:
+# - Bash is available by default on both macOS and Codespaces
+# - Ruby is not installed by default in GitHub Codespaces
+# - Mise (which provides Ruby in Codespaces) isn't configured until after this script runs
 #
 # This script bootstraps Ansible and runs the main playbook.
 
-require 'rbconfig'
-require 'time'
+set -e
 
-PROVISIONING_START = Time.now.to_i
-LOGFILE_PATH = "/tmp/provision-#{Time.now.strftime('%Y%m%d-%H%M%S')}.log"
-LOGFILE = File.open(LOGFILE_PATH, 'w')
+PROVISIONING_START=$(date +%s)
+LOGFILE_PATH="/tmp/provision-$(date +%Y%m%d-%H%M%S).log"
 
-def timestamp
-  Time.now.iso8601
-end
+timestamp() {
+  date -Iseconds
+}
 
-def log_info(msg)
-  line = "[#{timestamp}] INFO: #{msg}"
-  STDOUT.puts line
-  LOGFILE.puts line
-  LOGFILE.flush
-end
+log_info() {
+  local line="[$(timestamp)] INFO: $1"
+  echo "$line"
+  echo "$line" >> "$LOGFILE_PATH"
+}
 
-def log_error(msg)
-  line = "[#{timestamp}] ERROR: #{msg}"
-  STDERR.puts line
-  LOGFILE.puts line
-  LOGFILE.flush
-end
+log_error() {
+  local line="[$(timestamp)] ERROR: $1"
+  echo "$line" >&2
+  echo "$line" >> "$LOGFILE_PATH"
+}
 
-def mac_os?
-  RbConfig::CONFIG['host_os'] =~ /darwin/
-end
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
 
-def in_codespaces?
-  ENV['CODESPACES'] == 'true'
-end
+mac_os() {
+  [[ "$OSTYPE" == "darwin"* ]]
+}
 
-def command_exists?(cmd)
-  system("command -v #{cmd} >/dev/null 2>&1")
-end
+in_codespaces() {
+  [[ "$CODESPACES" == "true" ]]
+}
 
-def say(str)
-  return unless mac_os?
+say_message() {
+  mac_os && say "$1"
+  return 0
+}
 
-  execute_command("say #{str}")
-end
-
-def execute_command(cmd)
-  log_info("Executing command: #{cmd}")
-  system(cmd)
-  unless $?.success?
-    log_error("Command failed: #{cmd}")
-    say 'provisioning failed'
-    exit $?.exitstatus
-  end
-end
-
-def execute_command_with_capture(cmd)
-  log_info("Executing command: #{cmd}")
-  output_lines = []
-
-  IO.popen(cmd, err: [:child, :out]) do |io|
-    io.each_line do |line|
-      print line
-      LOGFILE.print line
-      LOGFILE.flush
-      output_lines << line
-    end
-  end
-
-  exit_status = $?.exitstatus
-  unless $?.success?
-    log_error("Command failed: #{cmd}")
-    say 'provisioning failed'
-    exit exit_status
-  end
-
-  output_lines.join
-end
-
-def parse_changes(output)
-  changes = []
-  current_task = nil
-  diff_lines = []
-  in_diff = false
-
-  output.each_line do |line|
-    if line =~ /^TASK \[(.+)\]/
-      current_task = $1
-      diff_lines = []
-      in_diff = false
-    elsif line =~ /^--- /
-      in_diff = true
-      diff_lines << line
-    elsif in_diff && line =~ /^(\+\+\+|@@|[-+ ])/
-      diff_lines << line
-    elsif in_diff && line !~ /^(\+\+\+|@@|[-+ ]|\s*$)/
-      in_diff = false
-    elsif line =~ /^changed: \[([^\]]+)\]/
-      host = $1
-      changes << {
-        host: host,
-        task: current_task,
-        diff: diff_lines.empty? ? nil : diff_lines.join
-      }
-      diff_lines = []
-      in_diff = false
-    end
-  end
-
-  changes
-end
-
-def print_changes_summary(changes)
-  return if changes.empty?
-
-  puts
-  puts "=" * 60
-  puts "CHANGES SUMMARY"
-  puts "=" * 60
-
-  changes.each do |change|
-    puts
-    puts "\e[33m[#{change[:host]}]\e[0m #{change[:task]}"
-    if change[:diff] && !change[:diff].strip.empty?
-      change[:diff].each_line do |line|
-        case line
-        when /^-/
-          print "\e[31m#{line}\e[0m"
-        when /^\+/
-          print "\e[32m#{line}\e[0m"
-        else
-          print line
-        end
-      end
-    end
-  end
-
-  puts
-  puts "-" * 60
-
-  host_counts = changes.group_by { |c| c[:host] }.transform_values(&:count)
-  host_counts.each do |host, count|
-    puts "#{host}: #{count} change#{'s' if count != 1}"
-  end
-
-  puts "=" * 60
-end
-
-def install_ansible
-  if mac_os?
-    log_info("Installing Ansible via Homebrew...")
-    execute_command("brew install ansible")
-  elsif command_exists?('apt-get')
-    log_info("Installing Ansible via apt-get...")
-    execute_command("sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ansible")
-  else
-    log_error("Unsupported platform for automatic Ansible installation")
+execute_command() {
+  log_info "Executing command: $1"
+  if ! eval "$1"; then
+    log_error "Command failed: $1"
+    say_message "provisioning failed"
     exit 1
-  end
-end
+  fi
+}
 
-# Bootstrap Ansible if needed
-unless command_exists?('ansible-playbook')
+install_ansible() {
+  if mac_os; then
+    log_info "Installing Ansible via Homebrew..."
+    execute_command "brew install ansible"
+  elif command_exists apt-get; then
+    log_info "Installing Ansible via apt-get..."
+    execute_command "sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ansible"
+  else
+    log_error "Unsupported platform for automatic Ansible installation"
+    exit 1
+  fi
+}
+
+parse_and_print_changes() {
+  local output="$1"
+  local current_task=""
+  local diff_lines=""
+  local in_diff=false
+  local changes=()
+  local hosts=()
+
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^TASK\ \[(.+)\] ]]; then
+      current_task="${BASH_REMATCH[1]}"
+      diff_lines=""
+      in_diff=false
+    elif [[ "$line" =~ ^---\  ]]; then
+      in_diff=true
+      diff_lines="$line"$'\n'
+    elif $in_diff && [[ "$line" =~ ^(\+\+\+|@@|[-+\ ]) ]]; then
+      diff_lines+="$line"$'\n'
+    elif $in_diff && [[ ! "$line" =~ ^(\+\+\+|@@|[-+\ ]|[[:space:]]*$) ]]; then
+      in_diff=false
+    elif [[ "$line" =~ ^changed:\ \[([^\]]+)\] ]]; then
+      local host="${BASH_REMATCH[1]}"
+      changes+=("$host|$current_task|$diff_lines")
+      hosts+=("$host")
+      diff_lines=""
+      in_diff=false
+    fi
+  done <<< "$output"
+
+  if [[ ${#changes[@]} -eq 0 ]]; then
+    return
+  fi
+
+  echo ""
+  echo "============================================================"
+  echo "CHANGES SUMMARY"
+  echo "============================================================"
+
+  for change in "${changes[@]}"; do
+    IFS='|' read -r host task diff <<< "$change"
+    echo ""
+    echo -e "\033[33m[$host]\033[0m $task"
+    if [[ -n "$diff" ]]; then
+      while IFS= read -r diff_line; do
+        if [[ "$diff_line" =~ ^- ]]; then
+          echo -e "\033[31m$diff_line\033[0m"
+        elif [[ "$diff_line" =~ ^\+ ]]; then
+          echo -e "\033[32m$diff_line\033[0m"
+        else
+          echo "$diff_line"
+        fi
+      done <<< "$diff"
+    fi
+  done
+
+  echo ""
+  echo "------------------------------------------------------------"
+
+  declare -A host_counts
+  for host in "${hosts[@]}"; do
+    ((host_counts[$host]++)) || host_counts[$host]=1
+  done
+
+  for host in "${!host_counts[@]}"; do
+    local count=${host_counts[$host]}
+    if [[ $count -eq 1 ]]; then
+      echo "$host: $count change"
+    else
+      echo "$host: $count changes"
+    fi
+  done
+
+  echo "============================================================"
+}
+
+if ! command_exists ansible-playbook; then
   install_ansible
-end
+fi
 
-# Build ansible-playbook command
-cmd_parts = ['ansible-playbook']
-cmd_parts << '--ask-become-pass' unless in_codespaces?
-cmd_parts << '--inventory localhost,'
-cmd_parts << '--connection local'
-cmd_parts << 'playbook.yml'
-cmd_parts << '--diff'
-cmd_parts.concat(ARGV)
+cmd_parts=("ansible-playbook")
+if ! in_codespaces; then
+  cmd_parts+=("--ask-become-pass")
+fi
+cmd_parts+=("--inventory" "localhost,")
+cmd_parts+=("--connection" "local")
+cmd_parts+=("playbook.yml")
+cmd_parts+=("--diff")
+cmd_parts+=("$@")
 
-cmd = cmd_parts.join(' ')
+cmd="${cmd_parts[*]}"
+log_info "Executing command: $cmd"
 
-# Execute and capture output
-output = execute_command_with_capture(cmd)
+output=$(mktemp)
+if ! "${cmd_parts[@]}" 2>&1 | tee -a "$LOGFILE_PATH" | tee "$output"; then
+  log_error "Command failed: $cmd"
+  say_message "provisioning failed"
+  rm -f "$output"
+  exit 1
+fi
 
-# Parse and display changes summary
-changes = parse_changes(output)
-print_changes_summary(changes)
+parse_and_print_changes "$(cat "$output")"
+rm -f "$output"
 
-log_info "Provisioning took #{Time.now.to_i - PROVISIONING_START} seconds."
+elapsed=$(($(date +%s) - PROVISIONING_START))
+log_info "Provisioning took $elapsed seconds."
 
-say 'provisioning complete'
+say_message "provisioning complete"
 
-log_info "Log saved to: #{LOGFILE_PATH}"
-LOGFILE.close
+log_info "Log saved to: $LOGFILE_PATH"
