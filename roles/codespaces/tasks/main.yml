@@ -157,8 +157,8 @@
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - CLAUDE ALIAS"
     block: |
-      # Unset ANTHROPIC_API_KEY when running claude to avoid conflict with OAuth token
-      alias claude='unset ANTHROPIC_API_KEY; claude'
+      # Unset ANTHROPIC_API_KEY only for claude command to avoid conflict with OAuth token
+      alias claude='ANTHROPIC_API_KEY= command claude'
 
 - name: Ensure pipx path is configured
   command: pipx ensurepath
