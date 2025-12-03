@@ -20,6 +20,14 @@
     state: directory
     mode: 0755
 
+- name: Configure byobu for emacs mode (Ctrl-A goes to beginning of line)
+  copy:
+    content: |
+      set -g prefix F12
+      unbind-key -n C-a
+    dest: '{{ ansible_facts["user_dir"] }}/.byobu/keybindings.tmux'
+    mode: 0644
+
 - name: Copy tmux configuration for byobu
   copy:
     src: '{{ playbook_dir }}/roles/codespaces/files/dotfiles/tmux.conf'
