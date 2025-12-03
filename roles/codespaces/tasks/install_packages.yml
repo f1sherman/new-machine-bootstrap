@@ -32,6 +32,7 @@
       - sudo
       - tmux
       - unzip
+      - yamllint
       - zsh
     state: present
   become: yes

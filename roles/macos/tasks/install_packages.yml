@@ -46,6 +46,7 @@
       'uv',
       'vim',
       'wget',
+      'yamllint',
       'zsh'
     ]
     state: present
