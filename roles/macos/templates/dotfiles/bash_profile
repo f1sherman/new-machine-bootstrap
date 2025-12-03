@@ -44,6 +44,7 @@ alias am='git add . && git commit --amend --no-edit'
 alias d='git d'
 # Shortcut for pushing
 alias p='git publish'
+alias pf='git publish --force-with-lease'
 # Shortcut for git status
 alias s='git status'
 # Show Disk Use of subdirectories, sort by size
