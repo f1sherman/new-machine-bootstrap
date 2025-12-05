@@ -73,6 +73,7 @@
   changed_when: false
   with_items:
     - nvim +qall
+    - nvim +PlugInstall +qall
     - nvim +PlugUpdate +qall
     - nvim +PlugUpgrade +qall
     - nvim +PlugClean! +qall
