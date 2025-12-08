@@ -126,13 +126,15 @@ parse_and_print_changes() {
   echo ""
   echo "------------------------------------------------------------"
 
-  declare -A host_counts
-  for host in "${hosts[@]}"; do
-    ((host_counts[$host]++)) || host_counts[$host]=1
-  done
-
-  for host in "${!host_counts[@]}"; do
-    local count=${host_counts[$host]}
+  # Count changes per host (avoiding associative arrays for Bash 3.2 compatibility)
+  local unique_hosts
+  unique_hosts=$(printf '%s\n' "${hosts[@]}" | sort -u)
+  while IFS= read -r host; do
+    [[ -z "$host" ]] && continue
+    local count=0
+    for h in "${hosts[@]}"; do
+      [[ "$h" == "$host" ]] && ((count++))
+    done
     if [[ $count -eq 1 ]]; then
       echo "$host: $count change"
     else
