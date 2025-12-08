@@ -144,21 +144,6 @@
   file:
     path: '{{ ansible_facts["user_dir"] }}/.vimtmp'
     state: directory
-- name: Initialize vim and install/update plugins
-  command: '{{ item }}'
-  changed_when: false
-  with_items:
-    - vim +qall
-    - vim +PlugUpdate +qall
-    - vim +PlugUpgrade +qall
-    - vim +PlugClean! +qall
-- name: Check YouCompleteMe modification time
-  stat:
-    path: '{{ ansible_facts["user_dir"] }}/.vim/plugged/YouCompleteMe'
-  register: youcompleteme
-- name: Compile YouCompleteMe
-  command: '{{ ansible_facts["user_dir"] }}/.vim/plugged/YouCompleteMe/install.py'
-  when: youcompleteme.stat.exists and ansible_facts["date_time"]["epoch"]|float - youcompleteme.stat.mtime < 30 * 60
 - name: Create projects directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/projects'
