@@ -140,7 +140,7 @@ parse_and_print_changes() {
     else
       echo "$host: $count changes"
     fi
-  done
+  done <<< "$unique_hosts"
 
   echo "============================================================"
 }
