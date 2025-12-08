@@ -3,6 +3,7 @@
 
 require 'json'
 require 'open3'
+require 'shellwords'
 
 require_relative '../lib/dev_env_syncer'
 
@@ -10,10 +11,98 @@ def command_exists?(cmd)
   system("command -v #{cmd} >/dev/null 2>&1")
 end
 
+def in_tmux?
+  ENV['TMUX'] && !ENV['TMUX'].empty?
+end
+
 def truncate(str, max_length)
   return str if str.length <= max_length
 
   str[0, max_length - 3] + '...'
+end
+
+def build_fzf_input(codespaces, terminal_width)
+  # Account for: fzf left margin (~4 chars), gaps between columns (4 chars), STATE column (~10 chars)
+  available_width = terminal_width - 18
+  # Split remaining space: 35% for name, 65% for branch
+  name_width = [(available_width * 0.35).to_i, 15].max
+  branch_width = [(available_width * 0.65).to_i, 20].max
+
+  header = format("%-#{name_width}s  %-#{branch_width}s  %s", 'NAME', 'BRANCH', 'STATE')
+
+  lines = codespaces.map do |cs|
+    full_name = cs['name']
+    display_name = truncate(full_name, name_width)
+    branch = truncate(cs.dig('gitStatus', 'ref') || 'unknown', branch_width)
+    state = cs['state'] || 'unknown'
+
+    display = format("%-#{name_width}s  %-#{branch_width}s  %s", display_name, branch, state)
+    # Append full name after a tab (hidden from display via --with-nth)
+    "#{display}\t#{full_name}"
+  end
+
+  [header, lines.join("\n")]
+end
+
+def select_with_fzf_inline(codespaces)
+  terminal_width = `tput cols`.to_i rescue 80
+  header, input = build_fzf_input(codespaces, terminal_width)
+
+  stdout, _stderr, status = Open3.capture3(
+    'fzf',
+    '--delimiter', "\t",
+    '--with-nth', '1',
+    '--layout', 'reverse',
+    '--header', header,
+    '--prompt', 'Select Codespace: ',
+    stdin_data: input
+  )
+
+  return nil unless status.success?
+
+  stdout.strip.split("\t").last
+end
+
+def select_with_fzf_popup(codespaces)
+  require 'tempfile'
+
+  # Use a large width for the popup
+  popup_width = 120
+  header, input = build_fzf_input(codespaces, popup_width)
+
+  # Create temp files for input and output (don't auto-delete)
+  input_file = Tempfile.new(['codespace-input', '.txt'])
+  output_file = Tempfile.new(['codespace-output', '.txt'])
+  input_file.write(input)
+  input_file.close
+  output_file.close
+
+  input_path = input_file.path
+  output_path = output_file.path
+
+  # Build a shell script to run in the popup
+  script = <<~BASH
+    fzf --delimiter=$'\\t' \
+        --with-nth=1 \
+        --layout=reverse \
+        --header=#{Shellwords.escape(header)} \
+        --prompt='Select Codespace: ' \
+        < #{Shellwords.escape(input_path)} \
+        > #{Shellwords.escape(output_path)}
+  BASH
+
+  # Prepend homebrew to PATH so fzf is available in the popup
+  popup_env = "PATH=/opt/homebrew/bin:/usr/local/bin:$PATH"
+  system('tmux', 'display-popup', '-E', '-w', '80%', '-h', '80%', 'bash', '-c', "#{popup_env} #{script}")
+
+  result = File.read(output_path).strip
+
+  File.unlink(input_path) rescue nil
+  File.unlink(output_path) rescue nil
+
+  return nil if result.empty?
+
+  result.split("\t").last
 end
 
 def run_command(cmd, error_message: nil)
@@ -70,47 +159,18 @@ def main
         exit 1
       end
 
-      # Build formatted lines for fzf with dynamic column widths based on terminal size
-      # Use tab delimiter so we can reliably extract the full name
-      terminal_width = `tput cols`.to_i rescue 80
-      # Account for: fzf left margin (~4 chars), gaps between columns (4 chars), STATE column (~10 chars)
-      available_width = terminal_width - 18
-      # Split remaining space: 35% for name, 65% for branch
-      name_width = [(available_width * 0.35).to_i, 15].max
-      branch_width = [(available_width * 0.65).to_i, 20].max
+      selected = if in_tmux?
+                   select_with_fzf_popup(all_codespaces)
+                 else
+                   select_with_fzf_inline(all_codespaces)
+                 end
 
-      header = format("%-#{name_width}s  %-#{branch_width}s  %s", 'NAME', 'BRANCH', 'STATE')
-
-      lines = all_codespaces.map do |cs|
-        full_name = cs['name']
-        display_name = truncate(full_name, name_width)
-        branch = truncate(cs.dig('gitStatus', 'ref') || 'unknown', branch_width)
-        state = cs['state'] || 'unknown'
-
-        display = format("%-#{name_width}s  %-#{branch_width}s  %s", display_name, branch, state)
-        # Append full name after a tab (hidden from display via --with-nth)
-        "#{display}\t#{full_name}"
-      end
-
-      input = lines.join("\n")
-
-      stdout, _stderr, status = Open3.capture3(
-        'fzf',
-        '--delimiter', "\t",
-        '--with-nth', '1',
-        '--layout', 'reverse',
-        '--header', header,
-        '--prompt', 'Select Codespace: ',
-        stdin_data: input
-      )
-
-      unless status.success?
+      unless selected
         puts "Error: No Codespace selected"
         exit 1
       end
 
-      # Extract the full codespace name (after the tab)
-      stdout.strip.split("\t").last
+      selected
     end
 
     puts "==> Connecting to Codespace: #{codespace_name}"
