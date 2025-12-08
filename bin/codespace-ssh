@@ -10,6 +10,12 @@ def command_exists?(cmd)
   system("command -v #{cmd} >/dev/null 2>&1")
 end
 
+def truncate(str, max_length)
+  return str if str.length <= max_length
+
+  str[0, max_length - 3] + '...'
+end
+
 def run_command(cmd, error_message: nil)
   stdout, stderr, status = Open3.capture3(cmd)
   unless status.success?
@@ -49,22 +55,14 @@ def main
 
     all_codespaces = JSON.parse(codespaces_json)
 
-    all_codespaces.each do |cs|
-      puts "Found Codespace #{cs['name']} in state '#{cs['state']}'"
-    end
-
     if all_codespaces.empty?
-      puts "\nError: No Codespaces found."
+      puts "Error: No Codespaces found."
       puts "Create a new one: codespace-create"
       exit 1
     end
 
-    puts ""
-    codespaces = all_codespaces
-
-    selected_display_string = if codespaces.size == 1
-      cs = codespaces[0]
-      "#{cs['name']} (Branch: #{cs['gitStatus']['ref']}, State: #{cs['state']})"
+    codespace_name = if all_codespaces.size == 1
+      all_codespaces[0]['name']
     else
       unless command_exists?('fzf')
         puts "Error: Multiple Codespaces found, but fzf is not installed"
@@ -72,27 +70,50 @@ def main
         exit 1
       end
 
-      puts "==> Multiple Codespaces found, please select one:"
-      names_for_fzf = codespaces.map { |cs| "#{cs['name']} (Branch: #{cs['gitStatus']['ref']}, State: #{cs['state']})" }.join("\n")
-      
-      stdout, stderr, status = Open3.capture3('fzf --prompt="Select Codespace: "', stdin_data: names_for_fzf)
+      # Build formatted lines for fzf with dynamic column widths based on terminal size
+      # Use tab delimiter so we can reliably extract the full name
+      terminal_width = `tput cols`.to_i rescue 80
+      # Account for: fzf left margin (~4 chars), gaps between columns (4 chars), STATE column (~10 chars)
+      available_width = terminal_width - 18
+      # Split remaining space: 35% for name, 65% for branch
+      name_width = [(available_width * 0.35).to_i, 15].max
+      branch_width = [(available_width * 0.65).to_i, 20].max
+
+      header = format("%-#{name_width}s  %-#{branch_width}s  %s", 'NAME', 'BRANCH', 'STATE')
+
+      lines = all_codespaces.map do |cs|
+        full_name = cs['name']
+        display_name = truncate(full_name, name_width)
+        branch = truncate(cs.dig('gitStatus', 'ref') || 'unknown', branch_width)
+        state = cs['state'] || 'unknown'
+
+        display = format("%-#{name_width}s  %-#{branch_width}s  %s", display_name, branch, state)
+        # Append full name after a tab (hidden from display via --with-nth)
+        "#{display}\t#{full_name}"
+      end
+
+      input = lines.join("\n")
+
+      stdout, _stderr, status = Open3.capture3(
+        'fzf',
+        '--delimiter', "\t",
+        '--with-nth', '1',
+        '--layout', 'reverse',
+        '--header', header,
+        '--prompt', 'Select Codespace: ',
+        stdin_data: input
+      )
 
       unless status.success?
         puts "Error: No Codespace selected"
         exit 1
       end
 
-      stdout.strip
+      # Extract the full codespace name (after the tab)
+      stdout.strip.split("\t").last
     end
-    
-    puts "==> Connecting to Codespace: #{selected_display_string}"
-    # Extract the actual codespace name from the fzf output string
-    match = selected_display_string.match(/^(.*?)\s\(/)
-    if match
-      codespace_name = match[1]
-    else
-      codespace_name = selected_display_string # Fallback if for some reason it's just the name
-    end
+
+    puts "==> Connecting to Codespace: #{codespace_name}"
   end
 
   puts ""
