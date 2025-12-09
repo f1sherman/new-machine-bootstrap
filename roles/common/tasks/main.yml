@@ -11,6 +11,19 @@
 #
 # This role assumes all tools are available from platform packages.
 
+- name: Create .ssh directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.ssh'
+    state: directory
+    mode: 0700
+
+- name: Add GitHub to known_hosts
+  known_hosts:
+    name: github.com
+    key: "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"
+    path: '{{ ansible_facts["user_dir"] }}/.ssh/known_hosts'
+    state: present
+
 - name: Clone prezto
   git:
     dest: '{{ ansible_facts["user_dir"] }}/.zprezto'
