@@ -34,7 +34,7 @@
 - name: Clone vim config repository
   git:
     dest: '{{ ansible_facts["user_dir"] }}/.vim'
-    repo: 'git@github.com:f1sherman/dotvim.git'
+    repo: "{{ 'https://github.com/f1sherman/dotvim.git' if lookup('env', 'CODESPACES') == 'true' else 'git@github.com:f1sherman/dotvim.git' }}"
     update: yes
     force: no
 
