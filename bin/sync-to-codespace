@@ -1,102 +1,17 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require 'json'
-require 'yaml'
-require 'open3'
-
 SCRIPT_DIR = File.expand_path('..', __dir__)
-
-def command_exists?(cmd)
-  system("command -v #{cmd} >/dev/null 2>&1")
-end
-
-def run_command(cmd, error_message: nil)
-  stdout, stderr, status = Open3.capture3(cmd)
-  unless status.success?
-    puts "Error: #{error_message || "Command failed: #{cmd}"}"
-    puts stderr unless stderr.empty?
-    exit 1
-  end
-  stdout
-end
-
-def ensure_gh_installed
-  return if command_exists?('gh')
-
-  puts "==> gh CLI not found, installing via Homebrew..."
-
-  unless command_exists?('brew')
-    puts "Error: Homebrew is required to install gh CLI"
-    puts "Install Homebrew first: https://brew.sh"
-    exit 1
-  end
-
-  system('brew install gh')
-
-  unless $?.success?
-    puts "Error: Failed to install gh CLI"
-    exit 1
-  end
-
-  puts "==> gh CLI installed successfully"
-end
-
-def work_machine?
-  config_path = File.expand_path('~/.config/new-machine-bootstrap.yml')
-  return false unless File.exist?(config_path)
-
-  config = YAML.load_file(config_path)
-  config['use'] == 'work'
-end
+require_relative File.join(SCRIPT_DIR, 'lib', 'codespace_selector')
 
 def main
-  ensure_gh_installed
-
-  # Check if codespace name was provided as argument
-  codespace_name = ARGV[0]
-
-  unless codespace_name
-    puts "==> Finding available Codespaces..."
-
-    codespaces_json = run_command(
-      'gh codespace list --json name,repository,state',
-      error_message: 'Failed to list Codespaces'
-    )
-
-    codespaces = JSON.parse(codespaces_json)
-      .select { |cs| cs['state'] == 'Available' }
-
-    if codespaces.empty?
-      puts "Error: No running Codespaces found"
-      puts "Create a Codespace first: gh codespace create"
-      exit 1
-    end
-
-    codespace_name = if codespaces.size == 1
-      puts "==> Found Codespace: #{codespaces[0]['name']}"
-      codespaces[0]['name']
-    else
-      unless command_exists?('fzf')
-        puts "Error: Multiple Codespaces found, but fzf is not installed"
-        puts "Install fzf: brew install fzf"
-        exit 1
-      end
-
-      puts "==> Multiple Codespaces found, please select one:"
-      names = codespaces.map { |cs| cs['name'] }.join("\n")
-      stdout, stderr, status = Open3.capture3('fzf --prompt="Select Codespace: "', stdin_data: names)
-
-      unless status.success?
-        puts "Error: No Codespace selected"
-        exit 1
-      end
-
-      stdout.strip
-    end
+  codespace_name = begin
+    CodespaceSelector.select_codespace(codespace_name: ARGV[0], filter_available: true)
+  rescue CodespaceSelector::SelectionError => e
+    puts "Error: #{e.message}"
+    exit 1
   end
 
-  puts ""
   puts "==> Syncing repository to Codespace: #{codespace_name}"
   puts "    Excluding: .git/, .coding-agent/, .claude/, *.backup files, macOS metadata"
   puts ""

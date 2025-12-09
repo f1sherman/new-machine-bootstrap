@@ -6,35 +6,8 @@ require 'optparse'
 require 'open3'
 
 SCRIPT_DIR = File.expand_path('..', __dir__)
+require_relative File.join(SCRIPT_DIR, 'lib', 'codespace_selector')
 require_relative File.join(SCRIPT_DIR, 'lib', 'dev_env_syncer')
-
-def find_codespace_for_repo(repo_name)
-  stdout, stderr, status = Open3.capture3("gh codespace list --json name,repository,state")
-
-  unless status.success?
-    $stderr.puts "Error: Failed to list Codespaces"
-    $stderr.puts stderr unless stderr.empty?
-    exit 1
-  end
-
-  codespaces = JSON.parse(stdout)
-    .select { |cs| cs['state'] == 'Available' }
-    .select { |cs| cs['repository']&.end_with?("/#{repo_name}") }
-
-  if codespaces.empty?
-    $stderr.puts "Error: No available Codespace found for repository ending with '/#{repo_name}'"
-    exit 1
-  end
-
-  if codespaces.size > 1
-    $stderr.puts "Error: Multiple Codespaces found for this repository:"
-    codespaces.each { |cs| $stderr.puts "  - #{cs['name']}" }
-    $stderr.puts "\nPlease specify which one: bin/sync-dev-env DIRECTION CODESPACE_NAME"
-    exit 1
-  end
-
-  codespaces.first['name']
-end
 
 def main
   codespace_name = nil
@@ -45,7 +18,7 @@ def main
     opts.separator "Sync .coding-agent directory and other dev env files from local to Codespace"
     opts.separator ""
     opts.separator "Arguments:"
-    opts.separator "  CODESPACE_NAME    Optional. If not provided, will find Codespace for current directory"
+    opts.separator "  CODESPACE_NAME    Optional. If not provided, will prompt for selection"
     opts.separator ""
     opts.separator "Examples:"
     opts.separator "  bin/sync-dev-env"
@@ -73,9 +46,11 @@ def main
     exit 1
   end
 
-  unless codespace_name
-    repo_name = File.basename(Dir.pwd)
-    codespace_name = find_codespace_for_repo(repo_name)
+  codespace_name = begin
+    CodespaceSelector.select_codespace(codespace_name: codespace_name, filter_available: true)
+  rescue CodespaceSelector::SelectionError => e
+    puts "Error: #{e.message}"
+    exit 1
   end
 
   puts "==> Using Codespace: #{codespace_name}"
