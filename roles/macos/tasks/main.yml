@@ -105,6 +105,25 @@
   set_fact:
     lts_installed: "{{ ('node  ' ~ latest_lts) in installed_node_versions.stdout }}"
 
+- name: Import Node.js release signing keys for GPG verification
+  shell: |
+    gpg --keyserver hkps://keys.openpgp.org --recv-keys \
+      4ED778F539E3634C779C87C6D7062848A1AB005C \
+      141F07595B7B3FFE74309A937405533BE57C7D57 \
+      74F12602B6F1C4E913FAA37AD3A89613643B6201 \
+      DD792F5973C6DE52C432CBDAC77ABFA00DDAR22B \
+      CC68F5A3106FF448322E48ED27F5E38D5B0A215F \
+      8FCCA13FEF1D0C2E91008E09770F7A9A5AE15600 \
+      890C08DB8579162FEE0DF9DB8BEAB4DFCF555EF4 \
+      C82FA3AE1CBEDC6BE46B9360C43CEC45C17AB93C \
+      108F52B48DB57BB0CC439B2997B01419BD92F80A \
+      A363A499291CBBC940DD62E41F10027AF002F8B0 \
+      86C8D74642E67846F8E120284DAA80D1E737BC9F
+  when: not lts_installed
+  register: gpg_import
+  changed_when: "'imported' in gpg_import.stderr"
+  failed_when: false
+
 - name: Install latest LTS node version if not installed
   command: mise install node@{{ latest_lts }}
   when: not lts_installed
