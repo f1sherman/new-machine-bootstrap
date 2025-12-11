@@ -248,31 +248,56 @@ File.open(prompt_file, 'w') do |f|
   f.puts File.read(code_diff_file)
 end
 
-# Generate PR descriptions
-begin
-  puts "Generating PR description with Claude Opus 4.5..."
-  opus_pr = generate_anthropic_pr(
-    prompt_file: prompt_file,
-    request_file: opus_request_file,
-    response_file: opus_response_file,
-    pr_file: opus_pr_file,
-    model: "claude-opus-4-5-20251101",
-    label: "Claude Opus 4.5"
-  )
+# Generate PR descriptions concurrently
+results = {}
+errors = {}
 
-  puts "Generating PR description with OpenAI GPT-5.2..."
-  gpt_pr = generate_openai_pr(
-    prompt_file: prompt_file,
-    request_file: gpt_request_file,
-    response_file: gpt_response_file,
-    pr_file: gpt_pr_file,
-    model: "gpt-5.2",
-    label: "OpenAI GPT-5.2"
-  )
-rescue => e
-  puts "Error generating PR descriptions: #{e.message}"
+threads = []
+threads << Thread.new do
+  begin
+    puts "Generating PR description with Claude Opus 4.5..."
+    results[:opus] = generate_anthropic_pr(
+      prompt_file: prompt_file,
+      request_file: opus_request_file,
+      response_file: opus_response_file,
+      pr_file: opus_pr_file,
+      model: "claude-opus-4-5-20251101",
+      label: "Claude Opus 4.5"
+    )
+  rescue => e
+    errors[:opus] = e
+  end
+end
+
+threads << Thread.new do
+  begin
+    puts "Generating PR description with OpenAI GPT-5.2..."
+    results[:gpt] = generate_openai_pr(
+      prompt_file: prompt_file,
+      request_file: gpt_request_file,
+      response_file: gpt_response_file,
+      pr_file: gpt_pr_file,
+      model: "gpt-5.2",
+      label: "OpenAI GPT-5.2"
+    )
+  rescue => e
+    errors[:gpt] = e
+  end
+end
+
+threads.each(&:join)
+
+unless errors.empty?
+  messages = errors.map do |key, err|
+    label = key == :opus ? "Claude Opus 4.5" : "OpenAI GPT-5.2"
+    "#{label} failed: #{err.message}"
+  end
+  puts "Error generating PR descriptions:\n#{messages.join("\n")}"
   exit 1
 end
+
+opus_pr = results[:opus]
+gpt_pr = results[:gpt]
 
 # Create the final PR template
 puts "Creating PR template..."
