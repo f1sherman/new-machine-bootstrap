@@ -16,6 +16,7 @@
     - { line: 'PermitRootLogin no', regexp: '^#?PermitRootLogin ' }
     - { line: 'PasswordAuthentication no', regexp: '^#?PasswordAuthentication ' }
     - { line: 'ChallengeResponseAuthentication no', regexp: '^#?ChallengeResponseAuthentication ' }
+    - { line: 'KbdInteractiveAuthentication no', regexp: '^#?KbdInteractiveAuthentication ' }
   become: true
 - name: Enable sshd
   command: launchctl load -w /System/Library/LaunchDaemons/ssh.plist
