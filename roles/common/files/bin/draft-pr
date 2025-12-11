@@ -123,6 +123,10 @@ prompt_template = <<~EOL
 
   Claude Code
 
+  ## Tasks
+
+  <a checklist of tasks for the author (me) to complete. This could include things like updating or removing secrets from Github, configuration changes in external tools, etc. Format these as checkboxes like '- [ ] Task item'>
+
   ## Testing
 
   <a checklist of testing steps for the author (me) to verify I've completed. Format these as checkboxes like '- [ ] Test item'>
