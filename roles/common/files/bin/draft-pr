@@ -5,6 +5,7 @@ require 'json'
 require 'optparse'
 require 'tmpdir'
 require 'fileutils'
+require 'open3'
 
 # Parse command line options
 options = {}
@@ -24,9 +25,12 @@ end.parse!
   end
 end
 
-# Check for required API key
-unless ENV["ANTHROPIC_API_KEY"]
-  puts "Error: ANTHROPIC_API_KEY environment variable not set"
+# Check for required API keys
+missing_keys = []
+missing_keys << "ANTHROPIC_API_KEY" unless ENV["ANTHROPIC_API_KEY"]
+missing_keys << "OPENAI_API_KEY" unless ENV["OPENAI_API_KEY"]
+unless missing_keys.empty?
+  puts "Error: Missing required environment variables: #{missing_keys.join(', ')}"
   exit 1
 end
 
@@ -34,13 +38,110 @@ end
 temp_dir = Dir.mktmpdir
 puts "Working directory for this PR: #{temp_dir}"
 
-# Helper function to run shell commands and handle errors
+# Helper functions to run shell commands and handle errors
 def run_command(command, error_message)
   system(command)
   unless $?.success?
     puts "Error: #{error_message}"
     exit 1
   end
+end
+
+def run_curl(command, label, response_path)
+  stdout, stderr, status = Open3.capture3(command)
+  File.write(response_path, stdout)
+  unless status.success?
+    message = stderr.strip
+    message = stdout.strip if message.empty?
+    raise "#{label} API call failed: #{message}"
+  end
+  stdout
+end
+
+def generate_anthropic_pr(prompt_file:, request_file:, response_file:, pr_file:, model:, label:)
+  request = {
+    model: model,
+    max_tokens: 10000,
+    messages: [
+      {
+        role: "user",
+        content: File.read(prompt_file)
+      }
+    ]
+  }
+
+  File.write(request_file, JSON.pretty_generate(request))
+
+  curl_command = <<~CMD
+    curl -sS https://api.anthropic.com/v1/messages \
+      -H "Content-Type: application/json" \
+      -H "x-api-key: #{ENV.fetch("ANTHROPIC_API_KEY")}" \
+      -H "anthropic-version: 2023-06-01" \
+      --data @"#{request_file}"
+  CMD
+
+  raw_response = run_curl(curl_command, label, response_file)
+
+  begin
+    response = JSON.parse(raw_response)
+  rescue JSON::ParserError => e
+    raise "#{label} response parse failed: #{e.message}. Check #{response_file}"
+  end
+
+  if response["error"]
+    raise "#{label} API error: #{response.dig("error", "message")}"
+  end
+
+  pr_text = response.dig("content", 0, "text")
+  unless pr_text.is_a?(String)
+    raise "#{label} response missing text. Check #{response_file}"
+  end
+
+  File.write(pr_file, pr_text)
+  pr_text
+end
+
+def generate_openai_pr(prompt_file:, request_file:, response_file:, pr_file:, model:, label:)
+  request = {
+    model: model,
+    messages: [
+      {
+        role: "user",
+        content: File.read(prompt_file)
+      }
+    ],
+    max_completion_tokens: 10000
+  }
+
+  File.write(request_file, JSON.pretty_generate(request))
+
+  curl_command = <<~CMD
+    curl -sS https://api.openai.com/v1/chat/completions \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer #{ENV.fetch("OPENAI_API_KEY")}" \
+      --data @"#{request_file}"
+  CMD
+
+  raw_response = run_curl(curl_command, label, response_file)
+
+  begin
+    response = JSON.parse(raw_response)
+  rescue JSON::ParserError => e
+    raise "#{label} response parse failed: #{e.message}. Check #{response_file}"
+  end
+
+  if response["error"]
+    message = response.dig("error", "message") || response["error"].to_s
+    raise "#{label} API error: #{message}"
+  end
+
+  pr_text = response.dig("choices", 0, "message", "content")
+  unless pr_text.is_a?(String)
+    raise "#{label} response missing content. Check #{response_file}"
+  end
+
+  File.write(pr_file, pr_text)
+  pr_text
 end
 
 # Git operations
@@ -83,10 +184,13 @@ title = branch.gsub(/-/, ' ')
 # Create file paths
 commit_file = File.join(temp_dir, "commits.md")
 code_diff_file = File.join(temp_dir, "code_diff.md")
-claude_prompt_file = File.join(temp_dir, "claude_prompt.txt")
-api_request_file = File.join(temp_dir, "api_request.json")
-api_response_file = File.join(temp_dir, "claude_response.json")
-claude_pr_file = File.join(temp_dir, "claude_pr.md")
+prompt_file = File.join(temp_dir, "pr_prompt.txt")
+opus_request_file = File.join(temp_dir, "opus_request.json")
+opus_response_file = File.join(temp_dir, "opus_response.json")
+opus_pr_file = File.join(temp_dir, "opus_pr.md")
+gpt_request_file = File.join(temp_dir, "gpt_request.json")
+gpt_response_file = File.join(temp_dir, "gpt_response.json")
+gpt_pr_file = File.join(temp_dir, "gpt_pr.md")
 pr_template_file = File.join(temp_dir, "pr_template.md")
 
 # Get commit messages
@@ -102,8 +206,8 @@ File.open(code_diff_file, 'w') do |f|
   f.puts "```"
 end
 
-# Create Claude prompt
-puts "Creating Claude prompt..."
+# Create PR prompt
+puts "Creating PR prompt..."
 prompt_template = <<~EOL
   You are an expert software engineer helping draft a pull request description. Based on these commit messages and code changes, generate a PR description that follows this exact format:
 
@@ -134,7 +238,7 @@ prompt_template = <<~EOL
   The PR description should be concise but informative. Focus on explaining the purpose, approach, and impact of the changes. The testing section should include a practical checklist that I (the author) can use to verify my work before requesting review, with each item as a checkbox using markdown '- [ ]' format. Don't include the commits themselves as I'll add those separately.
 EOL
 
-File.open(claude_prompt_file, 'w') do |f|
+File.open(prompt_file, 'w') do |f|
   f.puts prompt_template
   f.puts
   f.puts "## Commit Messages:"
@@ -144,57 +248,46 @@ File.open(claude_prompt_file, 'w') do |f|
   f.puts File.read(code_diff_file)
 end
 
-# Generate API request JSON
-puts "Generating PR description with Claude..."
-request = {
-  model: "claude-sonnet-4-20250514",
-  max_tokens: 1000,
-  messages: [
-    {
-      role: "user",
-      content: File.read(claude_prompt_file)
-    }
-  ]
-}
-
-File.write(api_request_file, JSON.pretty_generate(request))
-
-# Call Claude API
-puts "Sending request to Claude API..."
-curl_command = %Q(curl -s https://api.anthropic.com/v1/messages \\
-  -H "Content-Type: application/json" \\
-  -H "x-api-key: #{ENV["ANTHROPIC_API_KEY"]}" \\
-  -H "anthropic-version: 2023-06-01" \\
-  --data @"#{api_request_file}" > "#{api_response_file}")
-
-run_command(curl_command, "Failed to call Claude API")
-
-# Parse the API response
-puts "Parsing Claude API response..."
+# Generate PR descriptions
 begin
-  response = JSON.parse(File.read(api_response_file))
+  puts "Generating PR description with Claude Opus 4.5..."
+  opus_pr = generate_anthropic_pr(
+    prompt_file: prompt_file,
+    request_file: opus_request_file,
+    response_file: opus_response_file,
+    pr_file: opus_pr_file,
+    model: "claude-opus-4-5-20251101",
+    label: "Claude Opus 4.5"
+  )
 
-  if response["error"]
-    puts "Error from Claude API: #{response["error"]["message"]}"
-    puts "Check #{api_response_file} for the full error details"
-    exit 1
-  end
-
-  claude_pr = response["content"][0]["text"]
-  File.write(claude_pr_file, claude_pr)
-rescue JSON::ParserError => e
-  puts "Failed to parse Claude response: #{e.message}"
-  puts "Check #{api_response_file} for details"
-  exit 1
+  puts "Generating PR description with OpenAI GPT-5.2..."
+  gpt_pr = generate_openai_pr(
+    prompt_file: prompt_file,
+    request_file: gpt_request_file,
+    response_file: gpt_response_file,
+    pr_file: gpt_pr_file,
+    model: "gpt-5.2",
+    label: "OpenAI GPT-5.2"
+  )
 rescue => e
-  puts "Unexpected error processing Claude response: #{e.message}"
+  puts "Error generating PR descriptions: #{e.message}"
   exit 1
 end
 
 # Create the final PR template
 puts "Creating PR template..."
 File.open(pr_template_file, 'w') do |f|
-  f.puts File.read(claude_pr_file)
+  f.puts "# PR Descriptions"
+  f.puts
+  f.puts "## Claude Opus 4.5"
+  f.puts
+  f.puts opus_pr
+  f.puts
+  f.puts "---"
+  f.puts
+  f.puts "## OpenAI GPT-5.2"
+  f.puts
+  f.puts gpt_pr
   f.puts
   f.puts "## Artifacts"
   f.puts
@@ -231,7 +324,10 @@ puts "Files available for inspection:"
 puts "  - #{pr_template_file} (Final PR template)"
 puts "  - #{commit_file} (Commit messages)"
 puts "  - #{code_diff_file} (Code diff)"
-puts "  - #{claude_prompt_file} (Claude prompt)"
-puts "  - #{api_request_file} (API request JSON)"
-puts "  - #{api_response_file} (Claude API response)"
-puts "  - #{claude_pr_file} (Claude PR content)"
+puts "  - #{prompt_file} (PR prompt)"
+puts "  - #{opus_request_file} (Claude Opus 4.5 request JSON)"
+puts "  - #{opus_response_file} (Claude Opus 4.5 API response)"
+puts "  - #{opus_pr_file} (Claude Opus 4.5 PR content)"
+puts "  - #{gpt_request_file} (OpenAI GPT-5.2 request JSON)"
+puts "  - #{gpt_response_file} (OpenAI GPT-5.2 API response)"
+puts "  - #{gpt_pr_file} (OpenAI GPT-5.2 PR content)"
