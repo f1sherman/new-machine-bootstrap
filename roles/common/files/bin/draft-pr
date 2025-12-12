@@ -302,15 +302,9 @@ gpt_pr = results[:gpt]
 # Create the final PR template
 puts "Creating PR template..."
 File.open(pr_template_file, 'w') do |f|
-  f.puts "# PR Descriptions"
-  f.puts
-  f.puts "## Claude Opus 4.5"
-  f.puts
   f.puts opus_pr
   f.puts
   f.puts "---"
-  f.puts
-  f.puts "## OpenAI GPT-5.2"
   f.puts
   f.puts gpt_pr
   f.puts
