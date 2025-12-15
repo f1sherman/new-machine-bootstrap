@@ -388,6 +388,13 @@
     dest: '{{ ansible_facts["user_dir"] }}/bin/cleanup-branches'
     src: 'bin/cleanup-branches'
     mode: 0755
+- name: Install macOS-specific scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ ansible_facts['user_dir'] }}/bin/"
+    mode: '0755'
+  with_fileglob:
+    - "bin/*"
 - name: Create start-claude script
   template:
     dest: '{{ ansible_facts["user_dir"] }}/bin/start-claude'

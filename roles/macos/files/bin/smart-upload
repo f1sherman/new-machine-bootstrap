@@ -1,0 +1,232 @@
+#!/usr/bin/env ruby
+#
+# smart-upload: Upload files/images to remote servers via tmux
+#
+# Usage: smart-upload <local-path-or-empty> <pane-tty>
+#
+# If local-path is empty or not a file, checks clipboard for image data.
+#
+# Detects if the current tmux pane is SSH'd to a server and:
+# - If not SSH'd: outputs the path unchanged
+# - If SSH'd to Codespace: uploads via gh codespace cp, outputs remote path
+# - If SSH'd to regular server: uploads via scp, outputs remote path
+
+require 'fileutils'
+require 'shellwords'
+require 'tempfile'
+
+REMOTE_DIR = "/tmp/uploads"
+LOCAL_UPLOAD_DIR = "/tmp/uploads"
+
+def tmux_message(msg, duration: nil)
+  args = ["tmux", "display-message"]
+  args += ["-d", duration.to_s] if duration
+  args << msg
+  system(*args)
+end
+
+def clipboard_has_image?
+  output = `osascript -e 'clipboard info' 2>/dev/null`
+  output.include?("«class PNGf»") || output.include?("TIFF picture") || output.include?("JPEG picture")
+end
+
+def save_clipboard_image
+  FileUtils.mkdir_p(LOCAL_UPLOAD_DIR)
+  timestamp = Time.now.strftime("%Y%m%d-%H%M%S")
+  path = "#{LOCAL_UPLOAD_DIR}/clipboard-#{timestamp}.png"
+
+  # Use osascript to save clipboard image as PNG
+  script = <<~APPLESCRIPT
+    set imgPath to POSIX file "#{path}"
+    try
+      set imgData to the clipboard as «class PNGf»
+      set fileRef to open for access imgPath with write permission
+      write imgData to fileRef
+      close access fileRef
+      return "ok"
+    on error
+      return "error"
+    end try
+  APPLESCRIPT
+
+  result = `osascript -e '#{script.gsub("'", "'\"'\"'")}' 2>/dev/null`.strip
+  result == "ok" ? path : nil
+end
+
+def find_ssh_process(pane_tty)
+  return nil unless pane_tty && !pane_tty.empty?
+
+  processes = `ps -o args= -t #{Shellwords.escape(pane_tty)} 2>/dev/null`.lines.map(&:strip)
+
+  processes.each do |args|
+    if args.match?(/\bgh codespace ssh\b/)
+      return { type: :codespace, args: args }
+    elsif args.match?(/^ssh\s/)
+      return { type: :ssh, args: args }
+    end
+  end
+
+  nil
+end
+
+def extract_codespace_name(args)
+  if args =~ /-c\s+(\S+)/
+    $1
+  elsif args =~ /--codespace[=\s]+(\S+)/
+    $1
+  else
+    nil
+  end
+end
+
+def extract_ssh_target(args)
+  # Parse SSH args to find the target hostname
+  # ssh [options] [user@]hostname [command]
+  # Options that take arguments: -b, -c, -D, -E, -e, -F, -I, -i, -J, -L, -l, -m, -O, -o, -p, -Q, -R, -S, -W, -w
+
+  parts = args.split
+  parts.shift if parts.first == "ssh"
+
+  skip_next = false
+  opts_with_args = %w[-b -c -D -E -e -F -I -i -J -L -l -m -O -o -p -Q -R -S -W -w]
+
+  parts.each do |part|
+    if skip_next
+      skip_next = false
+      next
+    end
+
+    if opts_with_args.include?(part)
+      skip_next = true
+      next
+    end
+
+    next if part.start_with?("-")
+
+    # First non-option argument is the target
+    return part
+  end
+
+  nil
+end
+
+def upload_to_codespace(local_path, codespace_name)
+  filename = File.basename(local_path)
+  remote_path = "#{REMOTE_DIR}/#{filename}"
+
+  tmux_message("Uploading #{filename}...", duration: 0)
+
+  # Create remote directory
+  system("gh", "codespace", "ssh", "--codespace", codespace_name, "--", "mkdir", "--parents", REMOTE_DIR,
+         out: File::NULL, err: File::NULL)
+
+  # Upload file (--expand flag required for path expansion)
+  success = system("gh", "codespace", "cp", "--expand", "--codespace", codespace_name,
+                   local_path, "remote:#{remote_path}",
+                   out: File::NULL, err: File::NULL)
+
+  if success
+    tmux_message("Uploaded to #{remote_path}")
+    remote_path
+  else
+    tmux_message("Upload failed!")
+    nil
+  end
+end
+
+def upload_to_ssh(local_path, target)
+  filename = File.basename(local_path)
+  remote_path = "#{REMOTE_DIR}/#{filename}"
+
+  tmux_message("Uploading #{filename}...", duration: 0)
+
+  # Create remote directory and upload
+  system("ssh", target, "mkdir", "--parents", REMOTE_DIR,
+         out: File::NULL, err: File::NULL)
+
+  success = system("scp", "-q", local_path, "#{target}:#{remote_path}",
+                   out: File::NULL, err: File::NULL)
+
+  if success
+    tmux_message("Uploaded to #{remote_path}")
+    remote_path
+  else
+    tmux_message("Upload failed!")
+    nil
+  end
+end
+
+def main
+  if ARGV.length < 2
+    warn "Usage: smart-upload <local-path-or-empty> <pane-tty>"
+    exit 1
+  end
+
+  local_path = ARGV[0].strip.gsub(/\A['"]|['"]\z/, '') # Remove quotes if present
+  pane_tty = ARGV[1]
+
+  # If no valid file path, check for clipboard image
+  if local_path.empty? || !File.exist?(local_path)
+    if clipboard_has_image?
+      tmux_message("Saving clipboard image...", duration: 0)
+      local_path = save_clipboard_image
+      if local_path.nil?
+        tmux_message("Failed to save clipboard image")
+        exit 1
+      end
+    elsif !local_path.empty?
+      # Not a file and no image - just output as-is (might be pasting text)
+      print local_path
+      exit 0
+    else
+      tmux_message("No file path or image in clipboard")
+      exit 1
+    end
+  end
+
+  ssh_info = find_ssh_process(pane_tty)
+
+  if ssh_info.nil?
+    # Not SSH'd - output local path
+    print local_path
+    exit 0
+  end
+
+  case ssh_info[:type]
+  when :codespace
+    codespace = extract_codespace_name(ssh_info[:args])
+    if codespace.nil?
+      warn "Could not determine codespace name"
+      print local_path
+      exit 1
+    end
+
+    remote_path = upload_to_codespace(local_path, codespace)
+    if remote_path
+      print remote_path
+    else
+      warn "Upload to codespace failed"
+      print local_path
+      exit 1
+    end
+
+  when :ssh
+    target = extract_ssh_target(ssh_info[:args])
+    if target.nil?
+      warn "Could not determine SSH target"
+      print local_path
+      exit 1
+    end
+
+    remote_path = upload_to_ssh(local_path, target)
+    if remote_path
+      print remote_path
+    else
+      warn "Upload via scp failed"
+      print local_path
+      exit 1
+    end
+  end
+end
+
+main
