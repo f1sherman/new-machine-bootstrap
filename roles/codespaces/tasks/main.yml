@@ -173,6 +173,13 @@
   changed_when: false
   failed_when: false
 
+- name: Create pre-commit hook from environment variable
+  copy:
+    content: "{{ lookup('env', 'PRE_COMMIT_HOOK') }}"
+    dest: '/workspaces/{{ lookup("env", "RepositoryName") }}/.git/hooks/pre-commit'
+    mode: '0755'
+  when: lookup('env', 'PRE_COMMIT_HOOK') | length > 0
+
 - name: Configure Claude Code settings in .claude.json
   shell: |
     python3 -c '
