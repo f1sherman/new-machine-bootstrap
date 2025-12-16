@@ -1,0 +1,82 @@
+#!/usr/bin/env ruby
+
+require 'json'
+require 'open3'
+require 'time'
+
+def run_command(cmd, allow_failure: false)
+  stdout, stderr, status = Open3.capture3(cmd)
+  unless status.success? || allow_failure
+    $stderr.puts "Command failed: #{cmd}"
+    $stderr.puts stderr unless stderr.empty?
+    exit 1
+  end
+  stdout.strip
+end
+
+codespaces_json = run_command('gh codespace list --json name,state,repository,lastUsedAt,gitStatus')
+codespaces = JSON.parse(codespaces_json)
+
+if codespaces.empty?
+  puts 'No Codespaces found.'
+  exit 0
+end
+
+puts "Found #{codespaces.size} Codespace(s)"
+puts
+
+deleted_codespaces = []
+
+codespaces.each do |cs|
+  name = cs['name']
+  state = cs['state']
+  repo = cs['repository']
+  branch = cs.dig('gitStatus', 'ref')
+  last_used = Time.parse(cs['lastUsedAt']) rescue nil
+
+  print "Checking #{name} (#{repo})... "
+  $stdout.flush
+
+  if branch
+    pr_json = run_command("gh pr list --repo #{repo} --head #{branch} --state all --limit 1 --json state", allow_failure: true)
+    pr_state = JSON.parse(pr_json).first&.dig('state') rescue nil
+
+    if pr_state == 'MERGED'
+      puts "merged PR found, deleting"
+      run_command("gh codespace delete -c #{name} -f")
+      deleted_codespaces << name
+      next
+    end
+  end
+
+  if state == 'Available'
+    puts 'running'
+    next
+  end
+
+  last_used_epoch = last_used&.to_i || 0
+  current_epoch = Time.now.to_i
+  week_in_seconds = 7 * 24 * 60 * 60
+
+  if last_used && (current_epoch - last_used_epoch) > week_in_seconds
+    puts "stale (>1 week old)"
+    puts "  Branch: #{branch || 'unknown'}"
+    puts "  Last used: #{last_used.strftime('%Y-%m-%d %H:%M:%S')}"
+    print "  Delete this Codespace? (y/N): "
+    response = $stdin.gets.chomp
+
+    if response.match?(/^[Yy]$/)
+      run_command("gh codespace delete -c #{name} -f")
+      deleted_codespaces << name
+      puts "  Deleted"
+    else
+      puts "  Skipped"
+    end
+  else
+    puts 'active'
+  end
+end
+
+puts
+puts 'Codespace cleanup complete!'
+puts "Deleted #{deleted_codespaces.size} Codespace(s)" if deleted_codespaces.any?
