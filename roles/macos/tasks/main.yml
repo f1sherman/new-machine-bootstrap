@@ -373,6 +373,14 @@
    regexp: 'flushdns'
    line: '%admin    ALL = (root) NOPASSWD: /opt/local/bin/flushdns'
   become: true
+- name: Enable Touch ID for sudo (with tmux support)
+  copy:
+    dest: /etc/pam.d/sudo_local
+    content: |
+      auth       optional       /opt/homebrew/lib/pam/pam_reattach.so
+      auth       sufficient     pam_tid.so
+    mode: '0444'
+  become: true
 - name: Create "murder" script to try to gracefully kill processes
   template:
     dest: '{{ ansible_facts["user_dir"] }}/bin/murder'

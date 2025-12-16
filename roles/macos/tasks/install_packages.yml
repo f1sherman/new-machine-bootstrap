@@ -33,6 +33,7 @@
       'ncdu',
       'nmap',
       'neovim',
+      'pam-reattach',
       'pandoc',
       'pipx',
       'python@3.13',
