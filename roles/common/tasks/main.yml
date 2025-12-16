@@ -178,6 +178,18 @@
     dest: '{{ ansible_facts["user_dir"] }}/.config/ccstatusline/settings.json'
     mode: '0600'
 
+- name: Check if Claude Code CLI is installed
+  command: command -v claude
+  register: claude_cli_check
+  changed_when: false
+  failed_when: false
+
+- name: Install Claude Code CLI
+  shell: curl -fsSL https://claude.ai/install.sh | bash
+  args:
+    creates: '{{ ansible_facts["user_dir"] }}/.local/bin/claude'
+  when: claude_cli_check.rc != 0
+
 - name: Check if Claude settings.json exists
   stat:
     path: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
@@ -207,18 +219,6 @@
     dest: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
     mode: '0600'
     backup: yes
-
-- name: Check if Claude Code CLI is installed
-  command: command -v claude
-  register: claude_cli_check
-  changed_when: false
-  failed_when: false
-
-- name: Install Claude Code CLI
-  shell: curl -fsSL https://claude.ai/install.sh | bash
-  args:
-    creates: '{{ ansible_facts["user_dir"] }}/.local/bin/claude'
-  when: claude_cli_check.rc != 0
 
 - name: Check if Codex CLI is installed
   command: command -v codex
