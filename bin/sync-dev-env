@@ -15,7 +15,7 @@ def main
   parser = OptionParser.new do |opts|
     opts.banner = "Usage: bin/sync-dev-env [CODESPACE_NAME]"
     opts.separator ""
-    opts.separator "Sync .coding-agent directory and other dev env files from local to Codespace"
+    opts.separator "Sync .coding-agent directory and .claude/settings.local.json from local to Codespace"
     opts.separator ""
     opts.separator "Arguments:"
     opts.separator "  CODESPACE_NAME    Optional. If not provided, will prompt for selection"
@@ -40,9 +40,10 @@ def main
     exit 1
   end
 
-  local_path = File.join(Dir.pwd, '.coding-agent')
-  unless Dir.exist?(local_path)
-    puts "Error: No .coding-agent directory in current directory"
+  coding_agent_path = File.join(Dir.pwd, '.coding-agent')
+  settings_path = File.join(Dir.pwd, '.claude', 'settings.local.json')
+  unless Dir.exist?(coding_agent_path) || File.exist?(settings_path)
+    puts "Error: No .coding-agent directory or .claude/settings.local.json in current directory"
     exit 1
   end
 

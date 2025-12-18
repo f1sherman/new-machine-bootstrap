@@ -106,7 +106,7 @@ ansible-playbook playbook.yml   # Direct invocation
 # Create a new Codespace and provision it:
 bin/codespace-create --repo REPOSITORY --machine MACHINE_TYPE --branch BRANCH
 # Example: bin/codespace-create --repo f1sherman/new-machine-bootstrap --machine premiumLinux --branch main
-# Note: If run from matching repository directory, syncs .coding-agent/ to Codespace
+# Note: If run from matching repository directory, syncs .coding-agent/ and .claude/settings.local.json
 
 # Connect to existing Codespace:
 bin/codespace-ssh [codespace-name]
@@ -130,19 +130,18 @@ CODESPACES=true ansible-playbook playbook.yml --check
 Development environment files (`.coding-agent` and `.claude/settings.local.json`) are synced from local to Codespaces:
 
 **Sync Behavior**:
-- **On Codespace creation**: Local → Codespace (automatic if in matching repository)
+- **On Codespace creation**: Local → Codespace (automatic if in matching repository directory)
 - **Unidirectional**: Only syncs from local to Codespace (never back to local)
-- **Append-only**: Only new files are copied, existing files are never overwritten or deleted
-- **Repository matching**: Only syncs when local repo's git origin matches Codespace repository
+- **Repository matching**: `settings.local.json` only syncs when local repo's git origin matches Codespace repository
 
 **What Gets Synced**:
-- `.coding-agent/` directory (plans, research documents)
-- `.claude/settings.local.json` (project-specific Claude Code settings)
+- `.coding-agent/` directory (plans, research documents) - **append-only**, existing files preserved
+- `.claude/settings.local.json` (project-specific Claude Code settings including allowed commands) - **overwrites** remote file
 
 **Requirements**:
 - Must run commands from the repository directory (not bootstrap directory)
-- Repository must have GitHub as remote origin
-- Matching Codespace must be available
+- At least one of `.coding-agent/` or `.claude/settings.local.json` must exist locally
+- Repository must have GitHub as remote origin for `settings.local.json` sync
 
 **Manual Sync**:
 To manually sync dev environment to a Codespace:
