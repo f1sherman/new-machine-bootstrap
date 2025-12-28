@@ -373,6 +373,11 @@
    regexp: 'flushdns'
    line: '%admin    ALL = (root) NOPASSWD: /opt/local/bin/flushdns'
   become: true
+- name: Remove Touch ID for sudo (conflicts with Ansible provisioning)
+  file:
+    path: /etc/pam.d/sudo_local
+    state: absent
+  become: true
 - name: Create "murder" script to try to gracefully kill processes
   template:
     dest: '{{ ansible_facts["user_dir"] }}/bin/murder'

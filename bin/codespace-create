@@ -52,20 +52,15 @@ def wait_for_codespace(name)
 end
 
 def sync_dev_env_to_codespace(codespace_name, repository)
-  local_path = File.join(Dir.pwd, '.coding-agent')
-  unless Dir.exist?(local_path)
-    return
-  end
-
   repo_name = repository.split('/').last
   remote_path = "/workspaces/#{repo_name}/.coding-agent"
 
   begin
     DevEnvSyncer.sync_to_codespace(Dir.pwd, codespace_name, remote_path, codespace_repository: repository)
   rescue DevEnvSyncer::SyncError => e
-    puts "\nWarning: Failed to sync .coding-agent directory"
+    puts "\nWarning: Failed to sync dev environment"
     puts e.message
-    puts "You can manually sync later with: bin/sync-dev-env --to-codespace"
+    puts "You can manually sync later with: bin/sync-dev-env"
   end
 end
 

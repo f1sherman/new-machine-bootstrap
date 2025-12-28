@@ -99,12 +99,13 @@ module DevEnvSyncer
       raise SyncError, "Failed to create remote directory: #{remote_dir}" unless $?.success?
 
       copy_cmd = "cat #{local_file} | gh codespace ssh -c #{codespace_name} -- \"cat > #{remote_file}\""
-      stdout, stderr, status = Open3.capture3(copy_cmd)
+      _stdout, stderr, status = Open3.capture3(copy_cmd)
 
       unless status.success?
         raise SyncError, "Failed to sync #{file_path}: #{stderr}"
       end
 
+      puts "==> #{file_path} sync complete!"
       true
     end
   end
