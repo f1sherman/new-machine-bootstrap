@@ -161,10 +161,48 @@
 - name: Create ~/.claude/CLAUDE.md file
   copy:
     content: |
+      ## Bias Toward Action
+
+      When you can do something yourself, do it instead of asking me to do it. This includes:
+      - Running provisioning/deployment commands after making changes
+      - Validating changes by running tests or checks
+      - Committing changes when work is complete
+      - Checking current state before and after changes
+      - SSH-ing into a host and running a command
+      - Clicking through a webflow
+
+      Only ask me to do something if it requires physical interaction, access you don't have, or is genuinely ambiguous.
+
+      ## Code Comments
+
       Add code comments sparingly. Focus on why something is done, especially for complex logic, rather than what is done. Only add high-value comments if necessary for clarity or if requested by the user. Do not edit comments that are separate from the code you are changing. NEVER talk to the user or describe your changes through comments.
     dest: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md'
     mode: '0600'
     backup: yes
+
+- name: Create ~/.codex directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.codex'
+    state: directory
+    mode: '0700'
+
+- name: Create ~/.codex/AGENTS.md symlink to ~/.claude/CLAUDE.md
+  file:
+    src: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md'
+    dest: '{{ ansible_facts["user_dir"] }}/.codex/AGENTS.md'
+    state: link
+
+- name: Create ~/.config/amp directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.config/amp'
+    state: directory
+    mode: '0700'
+
+- name: Create ~/.config/amp/AGENTS.md symlink to ~/.claude/CLAUDE.md
+  file:
+    src: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md'
+    dest: '{{ ansible_facts["user_dir"] }}/.config/amp/AGENTS.md'
+    state: link
 
 - name: Create ccstatusline config directory
   file:
