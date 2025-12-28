@@ -270,3 +270,45 @@
     global: yes
     state: present
   when: codex_cli_check.rc != 0
+
+# Skills installation (shared across Claude Code, Codex, and Amp)
+- name: Create ~/.claude/skills directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.claude/skills'
+    state: directory
+    mode: '0755'
+
+- name: Create ~/.codex/skills directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.codex/skills'
+    state: directory
+    mode: '0755'
+
+- name: Create ~/.config/agents/skills directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.config/agents/skills'
+    state: directory
+    mode: '0755'
+
+- name: Install skills to ~/.claude/skills
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/'
+    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/'
+    mode: '0644'
+    directory_mode: '0755'
+
+- name: Create Codex skills symlinks to Claude skills
+  file:
+    src: '{{ ansible_facts["user_dir"] }}/.claude/skills/{{ item }}'
+    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/{{ item }}'
+    state: link
+  with_items:
+    - creating-ics-files
+
+- name: Create Amp skills symlinks to Claude skills
+  file:
+    src: '{{ ansible_facts["user_dir"] }}/.claude/skills/{{ item }}'
+    dest: '{{ ansible_facts["user_dir"] }}/.config/agents/skills/{{ item }}'
+    state: link
+  with_items:
+    - creating-ics-files
