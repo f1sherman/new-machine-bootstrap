@@ -86,7 +86,7 @@ parse_and_print_changes() {
       diff_lines="$line"$'\n'
     elif $in_diff && [[ "$line" =~ ^(\+\+\+|@@|[-+\ ]) ]]; then
       diff_lines+="$line"$'\n'
-    elif $in_diff && [[ ! "$line" =~ ^(\+\+\+|@@|[-+\ ]|[[:space:]]*$) ]]; then
+    elif $in_diff && [[ ! "$line" =~ ^(\+\+\+|@@|[-+\ ]|[[:space:]]*$|changed:) ]]; then
       in_diff=false
     elif [[ "$line" =~ ^changed:\ \[([^\]]+)\] ]]; then
       local host="${BASH_REMATCH[1]}"
