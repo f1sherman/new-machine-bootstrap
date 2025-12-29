@@ -81,3 +81,12 @@
 - name: Install FZF
   shell: '{{ brew_prefix }}/opt/fzf/install --all'
   changed_when: false
+
+- name: Get current llm default model
+  command: llm models default
+  register: llm_default_model
+  changed_when: false
+
+- name: Set llm default model to gpt-5-nano
+  command: llm models default gpt-5-nano
+  when: llm_default_model.stdout != 'gpt-5-nano'
