@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CACHE_DIR="${HOME}/.cache/tldw"
+
+usage() {
+  echo "Usage: tldw <youtube-url>"
+  echo ""
+  echo "Downloads a YouTube video transcript, generates a summary, and caches both."
+  echo "Re-running with the same URL will output cached results."
+  exit 1
+}
+
+die() {
+  echo "Error: $1" >&2
+  exit 1
+}
+
+extract_video_id() {
+  local url="$1"
+  local video_id
+
+  if [[ "$url" =~ ^[a-zA-Z0-9_-]{11}$ ]]; then
+    echo "$url"
+    return
+  fi
+
+  video_id=$(echo "$url" | sed -n 's/.*[?&]v=\([a-zA-Z0-9_-]\{11\}\).*/\1/p')
+  if [[ -n "$video_id" ]]; then
+    echo "$video_id"
+    return
+  fi
+
+  video_id=$(echo "$url" | sed -n 's|.*youtu\.be/\([a-zA-Z0-9_-]\{11\}\).*|\1|p')
+  if [[ -n "$video_id" ]]; then
+    echo "$video_id"
+    return
+  fi
+
+  die "Could not extract video ID from URL: $url"
+}
+
+check_dependencies() {
+  command -v yt-dlp >/dev/null 2>&1 || die "yt-dlp is not installed. Run: brew install yt-dlp"
+  command -v llm >/dev/null 2>&1 || die "llm is not installed. Run: brew install llm"
+}
+
+fetch_metadata() {
+  local video_id="$1"
+  local metadata_file="$2"
+
+  if [[ -f "$metadata_file" ]]; then
+    return
+  fi
+
+  echo "Fetching metadata..." >&2
+  yt-dlp --skip-download --print-json "https://www.youtube.com/watch?v=${video_id}" > "$metadata_file" 2>/dev/null \
+    || die "Failed to fetch video metadata"
+}
+
+fetch_transcript() {
+  local video_id="$1"
+  local transcript_file="$2"
+  local temp_dir
+
+  if [[ -f "$transcript_file" ]]; then
+    return
+  fi
+
+  echo "Downloading transcript..." >&2
+  temp_dir=$(mktemp -d)
+  trap "rm -rf '$temp_dir'" EXIT
+
+  yt-dlp --skip-download --write-auto-sub --sub-lang "en" --sub-format "vtt" \
+    --output "${temp_dir}/%(id)s" "https://www.youtube.com/watch?v=${video_id}" 2>/dev/null
+
+  local vtt_file="${temp_dir}/${video_id}.en.vtt"
+  if [[ ! -f "$vtt_file" ]]; then
+    die "No English transcript available for this video"
+  fi
+
+  sed '1,/^$/d' "$vtt_file" | \
+    grep -v '^[0-9]' | \
+    grep -v '^\s*$' | \
+    grep -v '^<' | \
+    sed 's/<[^>]*>//g' | \
+    tr '\n' ' ' | \
+    sed 's/  */ /g' > "$transcript_file"
+
+  trap - EXIT
+  rm -rf "$temp_dir"
+}
+
+generate_summary() {
+  local transcript_file="$1"
+  local summary_file="$2"
+
+  if [[ -f "$summary_file" ]]; then
+    return
+  fi
+
+  echo "Generating summary..." >&2
+  llm -s "Summarize this YouTube video transcript. Provide a concise summary with key points and takeaways. Be thorough but not verbose." \
+    < "$transcript_file" > "$summary_file" \
+    || die "Failed to generate summary"
+}
+
+format_duration() {
+  local seconds="$1"
+  local hours=$((seconds / 3600))
+  local minutes=$(((seconds % 3600) / 60))
+  local secs=$((seconds % 60))
+
+  if [[ $hours -gt 0 ]]; then
+    printf "%d:%02d:%02d" "$hours" "$minutes" "$secs"
+  else
+    printf "%d:%02d" "$minutes" "$secs"
+  fi
+}
+
+output_results() {
+  local metadata_file="$1"
+  local summary_file="$2"
+  local video_id="$3"
+
+  local title duration channel upload_date
+
+  title=$(jq -r '.title // "Unknown"' "$metadata_file")
+  duration=$(jq -r '.duration // 0' "$metadata_file")
+  channel=$(jq -r '.channel // .uploader // "Unknown"' "$metadata_file")
+  upload_date=$(jq -r '.upload_date // "Unknown"' "$metadata_file")
+
+  if [[ "$upload_date" != "Unknown" && ${#upload_date} -eq 8 ]]; then
+    upload_date="${upload_date:0:4}-${upload_date:4:2}-${upload_date:6:2}"
+  fi
+
+  echo "## ${title}"
+  echo ""
+  echo "- **Channel:** ${channel}"
+  echo "- **Duration:** $(format_duration "$duration")"
+  echo "- **Published:** ${upload_date}"
+  echo "- **URL:** https://www.youtube.com/watch?v=${video_id}"
+  echo ""
+  echo "## Summary"
+  echo ""
+  cat "$summary_file"
+}
+
+main() {
+  [[ $# -eq 1 ]] || usage
+
+  local url="$1"
+  check_dependencies
+
+  local video_id
+  video_id=$(extract_video_id "$url")
+
+  local video_dir="${CACHE_DIR}/${video_id}"
+  local metadata_file="${video_dir}/metadata.json"
+  local transcript_file="${video_dir}/transcript.txt"
+  local summary_file="${video_dir}/summary.txt"
+
+  mkdir -p "$video_dir"
+
+  fetch_metadata "$video_id" "$metadata_file"
+  fetch_transcript "$video_id" "$transcript_file"
+  generate_summary "$transcript_file" "$summary_file"
+  output_results "$metadata_file" "$summary_file" "$video_id"
+}
+
+main "$@"
