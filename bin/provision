@@ -145,6 +145,59 @@ parse_and_print_changes() {
   echo "============================================================"
 }
 
+parse_and_print_deprecation_warnings() {
+  local output="$1"
+  local -a warning_messages=()
+  local current_warning=""
+
+  while IFS= read -r line; do
+    if [[ "$line" =~ \[DEPRECATION\ WARNING\]:\ (.+) ]]; then
+      current_warning="${BASH_REMATCH[1]}"
+    elif [[ -n "$current_warning" && "$line" =~ ^Origin: ]]; then
+      warning_messages+=("$current_warning")
+      current_warning=""
+    elif [[ -n "$current_warning" && -z "${line// }" ]]; then
+      current_warning=""
+    fi
+  done <<< "$output"
+
+  if [[ ${#warning_messages[@]} -eq 0 ]]; then
+    return
+  fi
+
+  echo ""
+  echo "============================================================"
+  echo "DEPRECATION WARNINGS"
+  echo "============================================================"
+
+  # Count unique warnings (Bash 3.2 compatible - no associative arrays)
+  local unique_warnings
+  unique_warnings=$(printf '%s\n' "${warning_messages[@]}" | sort -u)
+  local total_count=0
+  local unique_count=0
+
+  while IFS= read -r warning; do
+    [[ -z "$warning" ]] && continue
+    local count=0
+    for w in "${warning_messages[@]}"; do
+      [[ "$w" == "$warning" ]] && ((count++))
+    done
+    echo ""
+    echo -e "\033[33m[${count}x]\033[0m $warning"
+    ((total_count += count))
+    ((unique_count++))
+  done <<< "$unique_warnings"
+
+  echo ""
+  echo "------------------------------------------------------------"
+  if [[ $total_count -eq 1 ]]; then
+    echo "Total: $total_count warning ($unique_count unique)"
+  else
+    echo "Total: $total_count warnings ($unique_count unique)"
+  fi
+  echo "============================================================"
+}
+
 if ! command_exists ansible-playbook; then
   install_ansible
 fi
@@ -170,7 +223,9 @@ if ! "${cmd_parts[@]}" 2>&1 | tee -a "$LOGFILE_PATH" | tee "$output"; then
   exit 1
 fi
 
-parse_and_print_changes "$(cat "$output")"
+output_content=$(cat "$output")
+parse_and_print_changes "$output_content"
+parse_and_print_deprecation_warnings "$output_content"
 rm -f "$output"
 
 elapsed=$(($(date +%s) - PROVISIONING_START))
