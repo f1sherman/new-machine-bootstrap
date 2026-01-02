@@ -47,6 +47,37 @@ module DevEnvSyncer
       true
     end
 
+    # Sync .coding-agent from Codespace back to local (without overwriting existing files)
+    # @param local_dir [String] local directory path to sync to
+    # @param codespace_name [String] name of source Codespace
+    # @param remote_workspace_dir [String] absolute path to workspace directory in Codespace
+    def sync_from_codespace(local_dir, codespace_name, remote_workspace_dir)
+      remote_coding_agent_path = File.join(remote_workspace_dir, '.coding-agent')
+
+      # Check if remote .coding-agent exists
+      check_cmd = "gh codespace ssh -c #{codespace_name} -- 'test -d #{remote_coding_agent_path} && echo exists'"
+      stdout, _stderr, _status = Open3.capture3(check_cmd)
+
+      unless stdout.strip == 'exists'
+        puts "No .coding-agent directory in Codespace, skipping sync"
+        return false
+      end
+
+      puts "\n==> Syncing .coding-agent from Codespace..."
+      puts "    Remote: #{codespace_name}:#{remote_coding_agent_path}"
+      puts "    Local: #{File.join(local_dir, '.coding-agent')}/"
+
+      tar_cmd = "gh codespace ssh -c #{codespace_name} -- 'tar -czf - -C #{remote_workspace_dir} .coding-agent' | tar -xzf - -C #{local_dir} --skip-old-files 2>/dev/null || true"
+      _stdout, stderr, status = Open3.capture3(tar_cmd)
+
+      unless status.success?
+        raise SyncError, "Failed to sync .coding-agent from Codespace: #{stderr}"
+      end
+
+      puts "==> .coding-agent sync from Codespace complete!"
+      true
+    end
+
     private
 
     def repositories_match?(local_dir, codespace_repository)

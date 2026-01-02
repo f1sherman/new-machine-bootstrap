@@ -1,7 +1,52 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'json'
+require 'open3'
 require_relative '../lib/codespace_selector'
+require_relative '../lib/dev_env_syncer'
+
+def sync_coding_agent_back(codespace_name)
+  stdout, stderr, status = Open3.capture3(
+    "gh codespace list --json name,repository --jq '.[] | select(.name==\"#{codespace_name}\")'"
+  )
+
+  unless status.success?
+    $stderr.puts "Warning: Could not query Codespace info for sync: #{stderr}"
+    return
+  end
+
+  begin
+    codespace_info = JSON.parse(stdout)
+    repo_full_name = codespace_info['repository']
+    return unless repo_full_name
+
+    local_remote = `git remote get-url origin 2>/dev/null`.strip
+    return if local_remote.empty?
+
+    local_repo = normalize_github_repo(local_remote)
+    return unless local_repo&.downcase == repo_full_name.downcase
+
+    repo_name = repo_full_name.split('/').last
+    remote_workspace_dir = "/workspaces/#{repo_name}"
+
+    DevEnvSyncer.sync_from_codespace(Dir.pwd, codespace_name, remote_workspace_dir)
+  rescue JSON::ParserError, DevEnvSyncer::SyncError => e
+    $stderr.puts "Warning: Could not sync .coding-agent: #{e.message}"
+  end
+end
+
+def normalize_github_repo(url)
+  if url =~ %r{git@github\.com:(.+?)(?:\.git)?$}
+    return Regexp.last_match(1)
+  end
+
+  if url =~ %r{https://github\.com/(.+?)(?:\.git)?$}
+    return Regexp.last_match(1)
+  end
+
+  nil
+end
 
 def main
   codespace_name = begin
@@ -18,6 +63,9 @@ def main
   ssh_exit_code = $?.exitstatus
 
   puts "\n==> Disconnected from codespace: #{codespace_name}"
+
+  sync_coding_agent_back(codespace_name)
+
   puts "To reconnect run: codespace-ssh #{codespace_name}"
 
   exit ssh_exit_code

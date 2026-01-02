@@ -6,7 +6,7 @@ This repository contains bootstrap scripts for macOS and GitHub Codespaces envir
 - `macos` - Ruby bootstrap script for macOS initial setup
 - `bin/provision` - Universal provisioning script (Bash) that bootstraps Ansible and runs playbook
 - `bin/codespace-create` - Create and provision a new Codespace (call as `codespace-create`)
-- `bin/codespace-ssh` - Connect to an available Codespace (call as `codespace-ssh`)
+- `bin/codespace-ssh` - Connect to an available Codespace; syncs `.coding-agent` back on disconnect
 - `bin/sync-to-codespace` - Sync repository to Codespace and run provisioning (call as `sync-to-codespace`)
 - `bin/sync-dev-env` - Manual sync of `.coding-agent` directories between local and Codespace
 - `lib/dev_env_syncer.rb` - Ruby module for rsync-based `.coding-agent` syncing
@@ -127,31 +127,32 @@ CODESPACES=true ansible-playbook playbook.yml --check
 
 ### Development Environment Sync
 
-Development environment files (`.coding-agent` and `.claude/settings.local.json`) are synced from local to Codespaces:
+Development environment files (`.coding-agent` and `.claude/settings.local.json`) are synced between local and Codespaces:
 
 **Sync Behavior**:
 - **On Codespace creation**: Local → Codespace (automatic if in matching repository directory)
-- **Unidirectional**: Only syncs from local to Codespace (never back to local)
+- **On SSH disconnect**: Codespace → Local (`.coding-agent/` only, via `codespace-ssh`)
+- **Append-only**: Existing files are never overwritten in either direction
 - **Repository matching**: `settings.local.json` only syncs when local repo's git origin matches Codespace repository
 
 **What Gets Synced**:
-- `.coding-agent/` directory (plans, research documents) - **append-only**, existing files preserved
-- `.claude/settings.local.json` (project-specific Claude Code settings including allowed commands) - **overwrites** remote file
+- `.coding-agent/` directory (plans, research documents) - synced both directions, **append-only**
+- `.claude/settings.local.json` (project-specific Claude Code settings) - Local → Codespace only, **overwrites** remote file
 
 **Requirements**:
-- Must run commands from the repository directory (not bootstrap directory)
-- At least one of `.coding-agent/` or `.claude/settings.local.json` must exist locally
+- Must run `codespace-ssh` from the matching repository directory for sync-back to work
+- At least one of `.coding-agent/` or `.claude/settings.local.json` must exist locally for push sync
 - Repository must have GitHub as remote origin for `settings.local.json` sync
 
 **Manual Sync**:
-To manually sync dev environment to a Codespace:
+To manually push dev environment to a Codespace:
 ```bash
 cd /path/to/repository
 bin/sync-dev-env [codespace-name]
 ```
 
-**Why Unidirectional?**:
-Syncing only from local to Codespace prevents accidentally overwriting local work with older Codespace versions. Local is always the source of truth.
+**Why Append-Only?**:
+Existing files are never overwritten to prevent accidentally losing local or remote work. New files created in either environment will sync to the other.
 
 ## Important Notes
 
