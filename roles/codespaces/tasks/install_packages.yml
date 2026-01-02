@@ -30,7 +30,6 @@
       - pipx
       - ripgrep
       - sudo
-      - tmux
       - unzip
       - yamllint
       - zsh
@@ -103,6 +102,81 @@
     path: '{{ ansible_facts["user_dir"] }}/.config/fzf'
     state: directory
     mode: 0755
+
+- name: Check if delta already exists
+  stat:
+    path: /usr/bin/delta
+  register: delta_binary
+
+- name: Get latest delta release version
+  uri:
+    url: https://api.github.com/repos/dandavison/delta/releases/latest
+    return_content: yes
+  register: delta_latest_release
+  retries: 3
+  delay: 10
+  until: delta_latest_release is succeeded
+  when: not delta_binary.stat.exists
+
+- name: Set delta version without v prefix
+  set_fact:
+    delta_version: "{{ delta_latest_release.json.tag_name | regex_replace('^v', '') }}"
+  when: not delta_binary.stat.exists
+
+- name: Download delta .deb package
+  get_url:
+    url: "https://github.com/dandavison/delta/releases/download/{{ delta_latest_release.json.tag_name }}/git-delta_{{ delta_version }}_amd64.deb"
+    dest: "/tmp/git-delta_{{ delta_version }}_amd64.deb"
+  retries: 3
+  delay: 10
+  when: not delta_binary.stat.exists
+
+- name: Install delta .deb package
+  apt:
+    deb: "/tmp/git-delta_{{ delta_version }}_amd64.deb"
+  become: yes
+  when: not delta_binary.stat.exists
+
+- name: Clean up delta .deb file
+  file:
+    path: "/tmp/git-delta_{{ delta_version }}_amd64.deb"
+    state: absent
+  when: not delta_binary.stat.exists
+
+- name: Remove apt tmux package
+  apt:
+    name: tmux
+    state: absent
+  become: yes
+
+- name: Get latest tmux-builds release
+  uri:
+    url: https://api.github.com/repos/tmux/tmux-builds/releases/latest
+    return_content: yes
+  register: tmux_latest_release
+  retries: 3
+  delay: 10
+  until: tmux_latest_release is succeeded
+
+- name: Set tmux version
+  set_fact:
+    tmux_version: "{{ tmux_latest_release.json.tag_name | regex_replace('^v', '') }}"
+
+- name: Get installed tmux version
+  shell: tmux -V 2>/dev/null | awk '{print $2}'
+  register: tmux_installed_version
+  changed_when: false
+  failed_when: false
+
+- name: Download and extract tmux binary
+  unarchive:
+    src: "https://github.com/tmux/tmux-builds/releases/download/{{ tmux_latest_release.json.tag_name }}/tmux-{{ tmux_version }}-linux-x86_64.tar.gz"
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
+    remote_src: yes
+    extra_args: ['--strip-components=1']
+  retries: 3
+  delay: 10
+  when: tmux_installed_version.stdout != tmux_version
 
 - name: Create fd symlink (fdfind -> fd)
   file:

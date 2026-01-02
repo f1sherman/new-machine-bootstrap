@@ -27,6 +27,7 @@
       'fzf',
       'gh',
       'git',
+      'git-delta',
       'gnu-sed',
       'llm',
       'mise',

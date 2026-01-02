@@ -66,6 +66,7 @@ export LSCOLORS='gxfxbEaEBxxEhEhBaDaCaD'
 export RIPGREP_CONFIG_PATH="${HOME}/.ripgreprc"
 
 export PAGER='less -S'
+export GH_PAGER='delta'
 
 alias assume=". assume"
 

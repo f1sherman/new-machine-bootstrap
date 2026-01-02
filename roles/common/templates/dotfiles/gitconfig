@@ -3,7 +3,7 @@
   c = commit -m             # commit with a message
   ca = commit -am           # commit all files with a message
   co = checkout             # checkout
-  d = difftool
+  d = diff
   ds = diff --cached        # diff staged changes
   dl = diff HEAD^           # diff last commit
   pl = pull                 # pull
@@ -20,20 +20,24 @@
   attributesfile = ~/.gitattributes
   excludesfile = ~/.gitignore
   editor = vim
+  pager = delta
 {% if ansible_facts["os_family"] == "Darwin" %}
 [credential]
   helper = osxkeychain
 {% endif %}
+[delta]
+  navigate = true
+  line-numbers = true
+  hyperlinks = true
+  wrap-max-lines = unlimited
 [diff]
   algorithm = patience
   colorMoved = plain
-  guitool = mvimdiff
   indentHeuristic = true
   renames = copy
   renameLimit = 128000
-  tool = nvimdiff
-[difftool]
-  prompt = false
+[interactive]
+  diffFilter = delta --color-only
 [github]
   user = f1sherman
 [init]
@@ -48,8 +52,6 @@
   enabled = true
 [status]
   showUntrackedFiles = all
-[difftool "nvimdiff"]
-  cmd = "nvim -d \"$LOCAL\" \"$REMOTE\""
 [user]
   email = brian@brianjohn.com
   name = Brian John
