@@ -166,6 +166,12 @@ main() {
   fetch_transcript "$video_id" "$transcript_file"
   generate_summary "$transcript_file" "$summary_file"
   output_results "$metadata_file" "$summary_file" "$video_id"
+
+  echo "" >&2
+  echo "Cached:" >&2
+  echo "  ${metadata_file}" >&2
+  echo "  ${transcript_file}" >&2
+  echo "  ${summary_file}" >&2
 }
 
 main "$@"
