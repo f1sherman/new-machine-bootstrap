@@ -208,12 +208,12 @@
       data["projects"] = {}
       changed = True
 
-    # Auto-trust all existing workspace directories and enable all MCP servers
+    # Auto-trust all existing workspace directories and disable MCP servers
     for workspace_dir in glob.glob("/workspaces/*"):
       if workspace_dir not in data["projects"]:
         data["projects"][workspace_dir] = {
           "hasTrustDialogAccepted": True,
-          "enableAllProjectMcpServers": True,
+          "enableAllProjectMcpServers": False,
           "allowedTools": [],
           "mcpContextUris": [],
           "mcpServers": {},
@@ -225,8 +225,8 @@
         if not data["projects"][workspace_dir].get("hasTrustDialogAccepted"):
           data["projects"][workspace_dir]["hasTrustDialogAccepted"] = True
           changed = True
-        if not data["projects"][workspace_dir].get("enableAllProjectMcpServers"):
-          data["projects"][workspace_dir]["enableAllProjectMcpServers"] = True
+        if data["projects"][workspace_dir].get("enableAllProjectMcpServers"):
+          data["projects"][workspace_dir]["enableAllProjectMcpServers"] = False
           changed = True
 
     if changed:

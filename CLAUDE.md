@@ -167,7 +167,7 @@ Existing files are never overwritten to prevent accidentally losing local or rem
 - Uses apt packages instead of Homebrew
 - Sudo pre-configured, no password prompt needed
 - Dotfiles are templated (not symlinked) for consistency
-- Auto-trusts workspace directories and enables MCP servers
+- Auto-trusts workspace directories
 - Skips Claude Code onboarding prompts
 - Launches tmux/byobu on SSH login (exit once to disconnect)
 
