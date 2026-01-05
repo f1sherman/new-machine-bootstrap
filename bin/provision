@@ -214,6 +214,7 @@ cmd_parts+=("$@")
 
 cmd="${cmd_parts[*]}"
 log_info "Executing command: $cmd"
+log_info "Gathering facts (this may take a moment)..."
 
 output=$(mktemp)
 if ! "${cmd_parts[@]}" 2>&1 | tee -a "$LOGFILE_PATH" | tee "$output"; then
