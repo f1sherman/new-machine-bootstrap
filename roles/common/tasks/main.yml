@@ -312,3 +312,23 @@
     state: link
   with_items:
     - creating-ics-files
+
+# Work provisioning for Codespaces
+- name: Create ~/projects directory for work provisioning
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/projects'
+    state: directory
+    mode: '0755'
+  when: lookup('env', 'CODESPACES') == 'true'
+
+- name: Clone work provisioning repository
+  git:
+    dest: '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john'
+    repo: 'https://github.com/betterup/bootstrap-brian-john.git'
+    update: yes
+  when: lookup('env', 'CODESPACES') == 'true'
+
+- name: Run work provisioning
+  command: '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john/bin/provision'
+  changed_when: false
+  when: lookup('env', 'CODESPACES') == 'true'

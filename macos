@@ -47,7 +47,7 @@ module Provision
     run_command "brew install #{brew_package}"
   end
 
-  def self.update_project(project_name, remote: 'github.com')
+  def self.update_project(project_name, remote: 'github.com', org: 'f1sherman')
     project_dir = File.join(Dir.home, 'projects', project_name)
 
     if File.exist? project_dir
@@ -56,7 +56,7 @@ module Provision
       puts "\nDone updating #{project_name}\n"
     else
       puts "\nCloning #{project_name}\n"
-      run_command "git clone git@#{remote}:f1sherman/#{project_name}.git #{project_dir}"
+      run_command "git clone git@#{remote}:#{org}/#{project_name}.git #{project_dir}"
       puts "\nDone cloning #{project_name}\n"
     end
   end
@@ -125,6 +125,11 @@ Provision.run_command 'cd ~/projects/new-machine-bootstrap && bin/provision'
 if config.personal?
   Provision.update_project 'home-network-provisioning', remote: 'bitbucket.org'
   Provision.run_command 'cd ~/projects/home-network-provisioning && bin/provision --limit localhost'
+end
+
+if config.work?
+  Provision.update_project 'bootstrap-brian-john', org: 'betterup'
+  Provision.run_command 'cd ~/projects/bootstrap-brian-john && bin/provision'
 end
 
 Provision.run_command 'brew cleanup'
