@@ -190,6 +190,12 @@
     state: link
   become: yes
 
+- name: Reinstall byobu (removed as tmux dependency)
+  apt:
+    name: byobu
+    state: present
+  become: yes
+
 - name: Create fd symlink (fdfind -> fd)
   file:
     src: /usr/bin/fdfind
