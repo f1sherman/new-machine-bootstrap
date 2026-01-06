@@ -57,6 +57,8 @@
   uri:
     url: https://api.github.com/repos/junegunn/fzf/releases/latest
     return_content: yes
+    headers:
+      Authorization: "Bearer {{ ansible_env.GH_TOKEN | default('') }}"
   register: fzf_latest_release
   retries: 3
   delay: 10
@@ -112,6 +114,8 @@
   uri:
     url: https://api.github.com/repos/dandavison/delta/releases/latest
     return_content: yes
+    headers:
+      Authorization: "Bearer {{ ansible_env.GH_TOKEN | default('') }}"
   register: delta_latest_release
   retries: 3
   delay: 10
@@ -153,6 +157,8 @@
   uri:
     url: https://api.github.com/repos/tmux/tmux-builds/releases/latest
     return_content: yes
+    headers:
+      Authorization: "Bearer {{ ansible_env.GH_TOKEN | default('') }}"
   register: tmux_latest_release
   retries: 3
   delay: 10
