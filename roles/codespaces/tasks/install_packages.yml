@@ -19,7 +19,6 @@
   apt:
     name:
       - bat
-      - byobu
       - curl
       - fd-find
       - git

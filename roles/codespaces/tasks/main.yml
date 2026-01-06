@@ -14,27 +14,6 @@
     mode: 0644
     backup: yes
 
-- name: Create ~/.byobu directory
-  file:
-    path: '{{ ansible_facts["user_dir"] }}/.byobu'
-    state: directory
-    mode: 0755
-
-- name: Configure byobu for emacs mode (Ctrl-A goes to beginning of line)
-  copy:
-    content: |
-      set -g prefix F12
-      unbind-key -n C-a
-    dest: '{{ ansible_facts["user_dir"] }}/.byobu/keybindings.tmux'
-    mode: 0644
-
-- name: Copy tmux configuration for byobu
-  copy:
-    src: '{{ playbook_dir }}/roles/codespaces/files/dotfiles/tmux.conf'
-    dest: '{{ ansible_facts["user_dir"] }}/.byobu/.tmux.conf'
-    mode: 0644
-    backup: yes
-
 - name: Install tmux plugins via tpm
   shell: |
     export TMUX_PLUGIN_MANAGER_PATH="{{ ansible_facts["user_dir"] }}/.tmux/plugins/"
@@ -85,38 +64,38 @@
     shell: /usr/bin/zsh
   become: yes
 
-- name: Configure byobu auto-launch in .zprofile
+- name: Configure tmux auto-launch in .zprofile
   blockinfile:
     path: '{{ ansible_facts["user_dir"] }}/.zprofile'
     create: yes
     mode: 0644
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - TMUX"
     block: |
-      # Launch byobu on SSH login
+      # Launch tmux on SSH login
       # Attach to detached session if available, otherwise create new session
       if [ -z "$TMUX" ] && [ -n "$SSH_CONNECTION" ]; then
-        if byobu list-sessions 2>/dev/null | grep -v '(attached)' | grep -q .; then
-          exec byobu attach
+        if tmux list-sessions 2>/dev/null | grep -v '(attached)' | grep -q .; then
+          exec tmux attach
         else
-          exec byobu new-session
+          exec tmux new-session
         fi
       fi
 
-- name: Configure byobu auto-launch in .bashrc
+- name: Configure tmux auto-launch in .bashrc
   blockinfile:
     path: '{{ ansible_facts["user_dir"] }}/.bashrc'
     create: no
     mode: 0644
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - TMUX"
     block: |
-      # Launch byobu with zsh on SSH login
+      # Launch tmux with zsh on SSH login
       # Attach to detached session if available, otherwise create new session
       if [ -z "$TMUX" ] && [ -n "$SSH_CONNECTION" ]; then
         export SHELL=/usr/bin/zsh
-        if byobu list-sessions 2>/dev/null | grep -v '(attached)' | grep -q .; then
-          exec byobu attach /usr/bin/zsh -l
+        if tmux list-sessions 2>/dev/null | grep -v '(attached)' | grep -q .; then
+          exec tmux attach
         else
-          exec byobu new-session /usr/bin/zsh -l
+          exec tmux new-session
         fi
       fi
     insertafter: BOF
@@ -127,12 +106,12 @@
     regexp: '.*mise.*'
     state: absent
 
-- name: Remove byobu auto-launch from .zshrc.local
+- name: Remove tmux auto-launch from .zshrc.local
   blockinfile:
     path: '{{ ansible_facts["user_dir"] }}/.zshrc.local'
     create: yes
     mode: 0644
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - BYOBU"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - TMUX"
     block: ""
     state: absent
 
