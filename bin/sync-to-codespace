@@ -1,6 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# Ensure output is not buffered
+$stdout.sync = true
+$stderr.sync = true
+
 SCRIPT_DIR = File.expand_path('..', __dir__)
 require_relative File.join(SCRIPT_DIR, 'lib', 'codespace_selector')
 
@@ -35,7 +39,12 @@ def main
   puts "==> Running provisioning in Codespace..."
   puts ""
 
-  system("gh codespace ssh -c #{codespace_name} -t -- 'cd ~/new-machine-bootstrap && bash ./bin/provision'")
+  # Run provisioning with unbuffered output
+  # Use bash -l (login shell) to source profile and get GH_TOKEN
+  # script -q -e allocates a PTY for real-time output, -c runs the command, output goes to /dev/null (no typescript file)
+  provision_cmd = %Q{gh codespace ssh -c #{codespace_name} -- 'script -q -e -c "bash -l -c \\"cd ~/new-machine-bootstrap && ./bin/provision\\"" /dev/null'}
+  puts "Running: #{provision_cmd}"
+  system(provision_cmd)
 
   puts ""
   puts "==> Provisioning complete!"

@@ -38,11 +38,9 @@
 - name: Install tmux plugins via tpm
   shell: |
     export TMUX_PLUGIN_MANAGER_PATH="{{ ansible_facts["user_dir"] }}/.tmux/plugins/"
-    bash "{{ ansible_facts["user_dir"] }}/.tmux/plugins/tpm/bin/install_plugins"
+    "{{ ansible_facts["user_dir"] }}/.tmux/plugins/tpm/bin/install_plugins"
   args:
     creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
-  environment:
-    PATH: '{{ ansible_facts["user_dir"] }}/.local/bin:{{ ansible_env.PATH }}'
 
 - name: Check if fzf shell directory exists
   stat:

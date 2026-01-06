@@ -13,6 +13,16 @@ set -e
 PROVISIONING_START=$(date +%s)
 LOGFILE_PATH="/tmp/provision-$(date +%Y%m%d-%H%M%S).log"
 
+# Create a symlink to the latest log for easy access
+ln -sf "$LOGFILE_PATH" /tmp/provision-latest.log
+
+echo "==> Provisioning log: $LOGFILE_PATH"
+echo "==> (Also available at: /tmp/provision-latest.log)"
+echo ""
+
+# Always show log location on exit (success or failure)
+trap 'echo ""; echo "==> Provisioning log: $LOGFILE_PATH"; echo "==> Or: cat /tmp/provision-latest.log"' EXIT
+
 timestamp() {
   date -Iseconds
 }
@@ -53,6 +63,7 @@ execute_command() {
     say_message "provisioning failed"
     exit 1
   fi
+  log_info "Command completed successfully"
 }
 
 install_ansible() {
@@ -66,6 +77,7 @@ install_ansible() {
     log_error "Unsupported platform for automatic Ansible installation"
     exit 1
   fi
+  log_info "Ansible install function complete"
 }
 
 parse_and_print_changes() {
@@ -200,8 +212,10 @@ parse_and_print_deprecation_warnings() {
 
 if ! command_exists ansible-playbook; then
   install_ansible
+  log_info "Ansible installation complete, preparing playbook..."
 fi
 
+log_info "Building ansible-playbook command..."
 cmd_parts=("ansible-playbook")
 if ! in_codespaces; then
   cmd_parts+=("--ask-become-pass")

@@ -251,6 +251,11 @@
     mode: '0600'
     backup: yes
 
+- name: Trust mise config in Codespaces
+  command: mise trust {{ playbook_dir }}/mise.toml
+  changed_when: false
+  when: lookup('env', 'CODESPACES') == 'true'
+
 - name: Check if Codex CLI is installed
   command: command -v codex
   register: codex_cli_check
@@ -315,10 +320,14 @@
   when: lookup('env', 'CODESPACES') == 'true'
 
 - name: Clone work provisioning repository
-  git:
-    dest: '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john'
-    repo: 'https://github.com/betterup/bootstrap-brian-john.git'
-    update: yes
+  shell: |
+    if [ -d '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john' ]; then
+      cd '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john' && git pull
+    else
+      gh repo clone betterup/bootstrap-brian-john '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john'
+    fi
+  environment:
+    GH_TOKEN: "{{ ansible_env.GH_TOKEN | default('') }}"
   when: lookup('env', 'CODESPACES') == 'true'
 
 - name: Run work provisioning
