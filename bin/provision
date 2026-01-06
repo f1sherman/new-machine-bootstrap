@@ -145,7 +145,7 @@ parse_and_print_changes() {
     [[ -z "$host" ]] && continue
     local count=0
     for h in "${hosts[@]}"; do
-      [[ "$h" == "$host" ]] && ((count++))
+      [[ "$h" == "$host" ]] && ((count++)) || true
     done
     if [[ $count -eq 1 ]]; then
       echo "$host: $count change"
@@ -192,12 +192,12 @@ parse_and_print_deprecation_warnings() {
     [[ -z "$warning" ]] && continue
     local count=0
     for w in "${warning_messages[@]}"; do
-      [[ "$w" == "$warning" ]] && ((count++))
+      [[ "$w" == "$warning" ]] && ((count++)) || true
     done
     echo ""
     echo -e "\033[33m[${count}x]\033[0m $warning"
-    ((total_count += count))
-    ((unique_count++))
+    ((total_count += count)) || true
+    ((unique_count++)) || true
   done <<< "$unique_warnings"
 
   echo ""
