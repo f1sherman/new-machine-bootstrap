@@ -179,7 +179,6 @@
     src: "https://github.com/tmux/tmux-builds/releases/download/{{ tmux_latest_release.json.tag_name }}/tmux-{{ tmux_version }}-linux-x86_64.tar.gz"
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
     remote_src: yes
-    extra_opts: ['--strip-components=1']
   retries: 3
   delay: 10
   when: tmux_installed_version.stdout != tmux_version
