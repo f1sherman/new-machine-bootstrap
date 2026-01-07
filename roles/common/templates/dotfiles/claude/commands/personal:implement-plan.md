@@ -28,6 +28,17 @@ Plans are carefully designed, but reality can be messy. Your job is to:
 
 When things don't match the plan exactly, think about why and communicate clearly. The plan is your guide, but your judgment matters too.
 
+## Keeping the Plan Updated
+
+The plan is a living document. As you implement, keep it updated:
+
+1. **Check off testing checkboxes** as tests pass
+2. **Fill in Test Results tables** with actual command output and status
+3. **Note deviations** from the original plan if you had to adapt
+4. **Add discovered issues** if you find problems not anticipated in the plan
+
+The plan should become a record of what was actually done, not just what was intended.
+
 If you encounter a mismatch:
 - STOP and think deeply about why the plan can't be followed
 - Present the issue clearly:
@@ -40,13 +51,19 @@ If you encounter a mismatch:
   How should I proceed?
   ```
 
-## Verification Approach
+## Testing and Verification
+
+**Goal**: You should execute as much testing as possible. Only involve the human for things you cannot do (visual verification, physical devices, actions requiring permissions you don't have).
 
 After implementing a phase:
-- Run the success criteria checks
-- Fix any issues before proceeding
-- Update your progress in both the plan and your todos
-- Check off completed items in the plan file itself using Edit
+
+1. **Run all agent-verifiable tests** in the plan's Testing section
+2. **Document results** in the Test Results table:
+   - Update the table with actual command output
+   - Note any failures or unexpected results
+3. **Check off completed items** as tests pass
+4. **Fix any issues** before proceeding to the next phase
+5. **For human-required items**: Clearly tell the user exactly what to do and what to look for
 
 Don't let verification interrupt your flow - batch it at natural stopping points.
 

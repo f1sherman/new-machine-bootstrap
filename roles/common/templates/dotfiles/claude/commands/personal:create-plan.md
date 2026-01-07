@@ -212,20 +212,22 @@ After structure approval:
 // Specific code to add/modify
 ```
 
-### Success Criteria:
+### Testing:
 
-#### Automated Verification:
-- [ ] Migration applies cleanly: `bin/rails db:migrate`
-- [ ] Unit tests pass: `bin/rspec spec`
-- [ ] Type checking passes: `npm run typecheck`
-- [ ] Linting passes: `make lint`
-- [ ] Integration tests pass: `make test-integration`
+> **Goal**: Claude executes all testing possible. Human involvement only for: visual verification, physical devices, browser-specific behavior, or actions requiring permissions Claude doesn't have.
 
-#### Manual Verification:
-- [ ] Feature works as expected when tested via UI
-- [ ] Performance is acceptable under load
-- [ ] Edge case handling verified manually
-- [ ] No regressions in related features
+#### Agent-Verifiable (Claude runs and documents results below):
+- [ ] [What to verify]: `command to run`
+- [ ] [Another check]: `another command`
+
+#### Human-Required (only if necessary):
+- [ ] **[Category]**: [Specific step-by-step instructions]
+
+#### Test Results:
+<!-- Claude updates this during implementation -->
+| Test | Status | Output/Notes |
+|------|--------|--------------|
+| | | |
 
 ---
 
@@ -235,19 +237,14 @@ After structure approval:
 
 ---
 
-## Testing Strategy
+## Overall Testing Strategy
 
-### Unit Tests:
-- [What to test]
-- [Key edge cases]
+[Summary of testing approach across all phases - what test suites to run, CI workflows to trigger, etc.]
 
-### Integration Tests:
-- [End-to-end scenarios]
-
-### Manual Testing Steps:
-1. [Specific step to verify feature]
-2. [Another verification step]
-3. [Edge case to test manually]
+### End-to-End Verification Checklist:
+- [ ] All phase tests pass
+- [ ] CI/CD pipeline green
+- [ ] [Any cross-cutting verification]
 
 ## Performance Considerations
 
@@ -325,37 +322,47 @@ After structure approval:
    - The implementation plan must be complete and actionable
    - Every decision must be made before finalizing the plan
 
-## Success Criteria Guidelines
+7. **Plan is a Living Document**:
+   - The plan should be updated during implementation, not just created
+   - Check off testing checkboxes as tests pass
+   - Fill in the Test Results table with actual command output
+   - Note any deviations from the original plan
+   - The plan becomes a record of what was actually done
 
-**Always separate success criteria into two categories:**
+## Testing Guidelines
 
-1. **Automated Verification** (can be run by execution agents):
-   - Commands that can be run: `make test`, `npm run lint`, etc.
-   - Specific files that should exist
-   - Code compilation/type checking
-   - Automated test suites
+**Goal**: Claude should execute as much testing as possible. Human involvement is reserved only for things Claude cannot do.
 
-2. **Manual Verification** (requires human testing):
-   - UI/UX functionality
-   - Performance under real conditions
-   - Edge cases that are hard to automate
-   - User acceptance criteria
+**Agent-Verifiable** (Claude runs these):
+- Any command-line tool: tests, linting, type checking, migrations
+- CI/CD: trigger workflows, monitor runs, inspect artifacts
+- API verification: curl requests, response validation
+- File/log inspection: grep, diff, analysis scripts
+- Before/after comparisons
+
+**Human-Required** (only when necessary):
+- Visual UI appearance (layout, colors, responsiveness)
+- Physical device testing
+- Browser-specific behavior requiring manual interaction
+- Actions requiring permissions Claude doesn't have
+- Third-party systems Claude can't access
 
 **Format example:**
 ```markdown
-### Success Criteria:
+### Testing:
 
-#### Automated Verification:
-- [ ] Database migration runs successfully: `make migrate`
-- [ ] All unit tests pass: `go test ./...`
-- [ ] No linting errors: `golangci-lint run`
-- [ ] API endpoint returns 200: `curl localhost:8080/api/new-endpoint`
+#### Agent-Verifiable (Claude runs and documents results below):
+- [ ] Tests pass: `go test ./...`
+- [ ] No lint errors: `golangci-lint run`
+- [ ] API returns 200: `curl -s -o /dev/null -w "%{http_code}" localhost:8080/api/endpoint`
 
-#### Manual Verification:
-- [ ] New feature appears correctly in the UI
-- [ ] Performance is acceptable with 1000+ items
-- [ ] Error messages are user-friendly
-- [ ] Feature works correctly on mobile devices
+#### Human-Required (only if necessary):
+- [ ] **Visual**: Open http://localhost:8080/dashboard, verify widget appears in sidebar
+
+#### Test Results:
+| Test | Status | Output/Notes |
+|------|--------|--------------|
+| | | |
 ```
 
 ## Common Patterns
