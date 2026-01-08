@@ -169,6 +169,15 @@
       ## Code Comments
 
       Add code comments sparingly. Focus on why something is done, especially for complex logic, rather than what is done. Only add high-value comments if necessary for clarity or if requested by the user. Do not edit comments that are separate from the code you are changing. NEVER talk to the user or describe your changes through comments.
+
+      ## GitHub API Rate Limits (gh CLI)
+
+      GitHub enforces rate limits: 5,000 requests/hour primary, plus secondary limits (100 concurrent requests, 900 points/minute). Multiple parallel Claude sessions share these limits.
+
+      **Guidelines:**
+      - **Prefer local git over API** - use `git log`, `git diff`, `git status` instead of `gh` when the information is available locally
+      - **Reasonable polling intervals** - when waiting on CI or PR status, poll no more frequently than every 30 seconds
+      - **If rate limited** - stop making requests, run `gh api rate_limit` to check reset time, and inform the user
     dest: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md'
     mode: '0600'
     backup: yes
