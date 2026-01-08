@@ -221,3 +221,56 @@
   register: claude_config_result
   changed_when: "'changed' in claude_config_result.stdout"
 
+- name: Ensure ~/.claude directory exists
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.claude'
+    state: directory
+    mode: 0755
+
+- name: Configure Claude Code user settings in ~/.claude/settings.json
+  shell: |
+    python3 -c '
+    import json
+    import os
+
+    settings_file = os.environ["SETTINGS_FILE"]
+
+    # Read existing settings or create new one
+    if os.path.exists(settings_file):
+      with open(settings_file, "r") as f:
+        data = json.load(f)
+    else:
+      data = {}
+
+    changed = False
+
+    # Ensure permissions section exists
+    if "permissions" not in data:
+      data["permissions"] = {}
+      changed = True
+
+    # Ensure allow list exists
+    if "allow" not in data["permissions"]:
+      data["permissions"]["allow"] = []
+      changed = True
+
+    # Add /tmp permissions if not present
+    tmp_permissions = ["Read(//tmp/**)", "Edit(//tmp/**)", "Write(//tmp/**)"]
+    for perm in tmp_permissions:
+      if perm not in data["permissions"]["allow"]:
+        data["permissions"]["allow"].append(perm)
+        changed = True
+
+    if changed:
+      with open(settings_file, "w") as f:
+        json.dump(data, f, indent=2)
+      os.chmod(settings_file, 0o600)
+      print("changed")
+    else:
+      print("unchanged")
+    '
+  environment:
+    SETTINGS_FILE: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
+  register: claude_settings_result
+  changed_when: "'changed' in claude_settings_result.stdout"
+
