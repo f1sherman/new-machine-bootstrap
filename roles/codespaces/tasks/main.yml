@@ -182,6 +182,10 @@
       data["hasCompletedOnboarding"] = True
       changed = True
 
+    if data.get("editorMode") != "vim":
+      data["editorMode"] = "vim"
+      changed = True
+
     # Ensure projects section exists
     if "projects" not in data:
       data["projects"] = {}

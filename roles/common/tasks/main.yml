@@ -218,6 +218,38 @@
     dest: '{{ ansible_facts["user_dir"] }}/.config/ccstatusline/settings.json'
     mode: '0600'
 
+- name: Configure Claude Code vim mode in ~/.claude.json
+  shell: |
+    python3 -c '
+    import json
+    import os
+
+    config_file = os.path.expanduser("~/.claude.json")
+
+    # Read existing config or create new one
+    if os.path.exists(config_file):
+      with open(config_file, "r") as f:
+        data = json.load(f)
+    else:
+      data = {}
+
+    changed = False
+
+    if data.get("editorMode") != "vim":
+      data["editorMode"] = "vim"
+      changed = True
+
+    if changed:
+      with open(config_file, "w") as f:
+        json.dump(data, f, indent=2)
+      os.chmod(config_file, 0o600)
+      print("changed")
+    else:
+      print("unchanged")
+    '
+  register: claude_vim_mode_result
+  changed_when: "'changed' in claude_vim_mode_result.stdout"
+
 - name: Check if Claude Code CLI is installed
   command: command -v claude
   register: claude_cli_check
