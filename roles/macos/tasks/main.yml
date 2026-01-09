@@ -202,6 +202,12 @@
     dest: '/opt/local/bin/codespace-ssh'
     state: link
   become: yes
+- name: Symlink csr to /opt/local/bin
+  file:
+    src: '{{ playbook_dir }}/bin/csr'
+    dest: '/opt/local/bin/csr'
+    state: link
+  become: yes
 
 - name: Enable Dark Mode
   command: dark-mode on

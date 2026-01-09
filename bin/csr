@@ -1,0 +1,28 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Quick reconnect to last codespace used in this terminal
+
+tty_suffix = `tty 2>/dev/null`.strip.gsub(%r{^/dev/}, '').gsub('/', '-')
+
+if tty_suffix.empty?
+  $stderr.puts "Error: Could not determine terminal TTY"
+  exit 1
+end
+
+last_codespace_file = File.expand_path("~/.last-codespace-#{tty_suffix}")
+
+unless File.exist?(last_codespace_file)
+  $stderr.puts "Error: No previous codespace for this terminal"
+  $stderr.puts "Use 'codespace-ssh' to connect first"
+  exit 1
+end
+
+codespace_name = File.read(last_codespace_file).strip
+
+if codespace_name.empty?
+  $stderr.puts "Error: Last codespace file is empty"
+  exit 1
+end
+
+exec("codespace-ssh", codespace_name)

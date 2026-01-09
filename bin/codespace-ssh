@@ -59,6 +59,12 @@ def main
   puts "==> Connecting to Codespace: #{codespace_name}"
   puts ""
 
+  # Save last codespace for quick reconnect via `csr` (per-terminal)
+  tty_suffix = `tty 2>/dev/null`.strip.gsub(%r{^/dev/}, '').gsub('/', '-')
+  unless tty_suffix.empty?
+    File.write(File.expand_path("~/.last-codespace-#{tty_suffix}"), codespace_name)
+  end
+
   system("gh codespace ssh -c #{codespace_name}")
   ssh_exit_code = $?.exitstatus
 

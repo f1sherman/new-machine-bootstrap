@@ -7,6 +7,7 @@ This repository contains bootstrap scripts for macOS and GitHub Codespaces envir
 - `bin/provision` - Universal provisioning script (Bash) that bootstraps Ansible and runs playbook
 - `bin/codespace-create` - Create and provision a new Codespace (call as `codespace-create`)
 - `bin/codespace-ssh` - Connect to an available Codespace; syncs `.coding-agent` back on disconnect
+- `bin/csr` - Quick reconnect to last codespace used in current terminal
 - `bin/sync-to-codespace` - Sync repository to Codespace and run provisioning (call as `sync-to-codespace`)
 - `bin/sync-dev-env` - Manual sync of `.coding-agent` directories between local and Codespace
 - `lib/dev_env_syncer.rb` - Ruby module for rsync-based `.coding-agent` syncing
@@ -111,6 +112,10 @@ bin/codespace-create --repo REPOSITORY --machine MACHINE_TYPE --branch BRANCH
 # Connect to existing Codespace:
 bin/codespace-ssh [codespace-name]
 # Auto-selects if only one available, uses fzf if multiple
+
+# Quick reconnect to last codespace (per-terminal):
+csr
+# Reconnects to the last codespace used in this terminal session
 
 # Re-provision existing Codespace (e.g., after making changes to bootstrap repo):
 bin/sync-to-codespace
