@@ -52,7 +52,7 @@ in_codespaces() {
 }
 
 say_message() {
-  mac_os && say "$1"
+  mac_os && say "$1" 2>/dev/null
   return 0
 }
 
