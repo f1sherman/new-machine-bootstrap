@@ -64,6 +64,11 @@
     dest: '{{ ansible_facts["user_dir"] }}/.default-gems'
     src: 'mise/default-ruby-gems'
     mode: 0600
+- name: Configure mise settings
+  shell: |
+    mise settings set auto_install true
+    mise settings set idiomatic_version_file_enable_tools '["ruby"]'
+  changed_when: false
 
 - name: 'Install Brew casks'
   homebrew_cask:
