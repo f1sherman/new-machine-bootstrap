@@ -81,22 +81,16 @@
         fi
       fi
 
-- name: Configure tmux auto-launch in .bashrc
+- name: Configure zsh exec in .bashrc
   blockinfile:
     path: '{{ ansible_facts["user_dir"] }}/.bashrc'
     create: no
     mode: 0644
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - TMUX"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - ZSH"
     block: |
-      # Launch tmux with zsh on SSH login
-      # Attach to detached session if available, otherwise create new session
+      # Switch to zsh on SSH login (zsh will then launch tmux via .zprofile)
       if [ -z "$TMUX" ] && [ -n "$SSH_CONNECTION" ]; then
-        export SHELL=/usr/bin/zsh
-        if tmux list-sessions 2>/dev/null | grep -v '(attached)' | grep -q .; then
-          exec tmux attach
-        else
-          exec tmux new-session
-        fi
+        exec /usr/bin/zsh -l
       fi
     insertafter: BOF
 
