@@ -100,7 +100,7 @@ generate_summary() {
   fi
 
   echo "Generating summary..." >&2
-  llm -s "Summarize this YouTube video transcript. Provide a concise summary with key points and takeaways. Be thorough but not verbose." \
+  llm -m gpt-5.2 -s "Summarize this YouTube video transcript. Provide a concise summary with key points and takeaways. Be thorough but not verbose." \
     < "$transcript_file" > "$summary_file" \
     || die "Failed to generate summary"
 }
