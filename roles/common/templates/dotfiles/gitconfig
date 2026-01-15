@@ -38,6 +38,8 @@
   renameLimit = 128000
 [interactive]
   diffFilter = delta --color-only
+[fetch]
+  prune = true
 [github]
   user = f1sherman
 [init]
