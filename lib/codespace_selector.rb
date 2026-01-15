@@ -28,6 +28,11 @@ module CodespaceSelector
       select_with_fzf(codespaces)
     end
 
+    def all_available_codespaces
+      ensure_gh_installed
+      fetch_codespaces.select { |cs| cs['state'] == 'Available' }.map { |cs| cs['name'] }
+    end
+
     private
 
     def command_exists?(cmd)

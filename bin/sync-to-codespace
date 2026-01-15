@@ -8,14 +8,7 @@ $stderr.sync = true
 SCRIPT_DIR = File.expand_path('..', __dir__)
 require_relative File.join(SCRIPT_DIR, 'lib', 'codespace_selector')
 
-def main
-  codespace_name = begin
-    CodespaceSelector.select_codespace(codespace_name: ARGV[0], filter_available: true)
-  rescue CodespaceSelector::SelectionError => e
-    puts "Error: #{e.message}"
-    exit 1
-  end
-
+def sync_to_codespace(codespace_name)
   puts "==> Syncing repository to Codespace: #{codespace_name}"
   puts "    Excluding: .git/, .coding-agent/, .claude/, *.backup files, macOS metadata"
   puts ""
@@ -29,8 +22,8 @@ def main
   system(sync_cmd)
 
   unless $?.success?
-    puts "Error: Failed to sync repository"
-    exit 1
+    puts "Error: Failed to sync repository to #{codespace_name}"
+    return false
   end
 
   puts ""
@@ -47,7 +40,46 @@ def main
   system(provision_cmd)
 
   puts ""
-  puts "==> Provisioning complete!"
+  puts "==> Provisioning complete for #{codespace_name}!"
+  true
+end
+
+def main
+  if ARGV[0]
+    # Specific codespace provided - sync to just that one
+    sync_to_codespace(ARGV[0]) || exit(1)
+  else
+    # No codespace specified - sync to all available
+    codespaces = CodespaceSelector.all_available_codespaces
+
+    if codespaces.empty?
+      puts "Error: No available Codespaces found. Create one with: codespace-create"
+      exit 1
+    end
+
+    puts "==> Found #{codespaces.size} available Codespace(s): #{codespaces.join(', ')}"
+    puts ""
+
+    failed = []
+    codespaces.each_with_index do |codespace_name, index|
+      puts "=" * 60
+      puts "==> [#{index + 1}/#{codespaces.size}] Processing: #{codespace_name}"
+      puts "=" * 60
+      puts ""
+
+      failed << codespace_name unless sync_to_codespace(codespace_name)
+      puts ""
+    end
+
+    if failed.any?
+      puts "Error: Failed to sync to: #{failed.join(', ')}"
+      exit 1
+    end
+
+    puts "=" * 60
+    puts "==> All #{codespaces.size} Codespace(s) synced successfully!"
+    puts "=" * 60
+  end
 end
 
 main

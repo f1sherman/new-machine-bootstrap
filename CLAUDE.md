@@ -36,6 +36,8 @@ This repository contains bootstrap scripts for macOS and GitHub Codespaces envir
    - Calls `sync-to-codespace` to provision it
    - NOTE: Provisioning does NOT run automatically on Codespace creation unless using `codespace-create`
 2. `sync-to-codespace` syncs the bootstrap repo and runs provisioning:
+   - With no arguments: syncs to ALL available Codespaces
+   - With codespace name: syncs to just that specific Codespace
    - Syncs repository files to `~/new-machine-bootstrap` (excludes .git, .claude, macOS metadata)
    - Runs `bin/provision` which bootstraps Ansible via apt/brew if needed
    - Ansible detects Codespaces environment (via `CODESPACES=true` env var)
@@ -117,9 +119,9 @@ bin/codespace-ssh [codespace-name]
 csr
 # Reconnects to the last codespace used in this terminal session
 
-# Re-provision existing Codespace (e.g., after making changes to bootstrap repo):
-bin/sync-to-codespace
-# Syncs bootstrap repo and re-runs provisioning
+# Re-provision Codespaces (e.g., after making changes to bootstrap repo):
+bin/sync-to-codespace                    # Syncs to ALL available Codespaces
+bin/sync-to-codespace <codespace-name>   # Syncs to specific Codespace only
 
 # Manual dev environment sync (if needed):
 bin/sync-dev-env [codespace-name]    # Local → Codespace (unidirectional)
