@@ -30,14 +30,20 @@ When things don't match the plan exactly, think about why and communicate clearl
 
 ## Keeping the Plan Updated
 
-The plan is a living document. As you implement, keep it updated:
+The plan is a living document that becomes the record of what was actually done. **The plan will be used as context for creating the pull request**, so keeping it accurate and up-to-date directly impacts the quality of the PR description.
+
+As you implement, keep the **entire plan** current - not just checkboxes:
 
 1. **Check off testing checkboxes** as tests pass
 2. **Fill in Test Results tables** with actual command output and status
-3. **Note deviations** from the original plan if you had to adapt
-4. **Add discovered issues** if you find problems not anticipated in the plan
+3. **Update the Implementation Approach** if you had to adapt or chose a different path
+4. **Revise Alternatives Considered** if you evaluated new options during implementation
+5. **Add discovered issues** or complications not anticipated in the plan
+6. **Update Motivation or Context** if you learned something that changes the "why"
+7. **Adjust Non-Code Tasks** as you discover new ones or complete existing ones
+8. **Refine Guidance for Reviewers** based on what you learned needs careful review
 
-The plan should become a record of what was actually done, not just what was intended.
+The goal: someone reading the plan after implementation should understand exactly what was done and why, not just what was originally planned.
 
 If you encounter a mismatch:
 - STOP and think deeply about why the plan can't be followed
