@@ -174,7 +174,17 @@ After structure approval:
 
 ## Overview
 
-[Brief description of what we're implementing and why]
+[Brief description of what we're implementing]
+
+## Motivation
+
+[Why are we doing this? What problem are we solving? What triggered this work?]
+
+### Relevant Artifacts
+<!-- Links that provide context - these will be included in the PR description -->
+- [Ticket](url)
+- [Failed CI / Error logs / Slack thread / Design doc](url)
+- [Related PR or previous work](url)
 
 ## Current State Analysis
 
@@ -196,6 +206,18 @@ After structure approval:
 ## Implementation Approach
 
 [High-level strategy and reasoning]
+
+### Alternatives Considered
+<!-- Document approaches that were considered but not chosen, and why -->
+1. **[Alternative A]**: [Brief description]
+   - Pros: [advantages]
+   - Cons: [disadvantages]
+   - Why not: [reason for rejection]
+
+2. **[Alternative B]**: [Brief description]
+   - Pros: [advantages]
+   - Cons: [disadvantages]
+   - Why not: [reason for rejection]
 
 ## Phase 1: [Descriptive Name]
 
@@ -253,6 +275,22 @@ After structure approval:
 ## Migration Notes
 
 [If applicable, how to handle existing data/systems]
+
+## Non-Code Tasks
+
+<!-- Tasks that need to happen outside of code changes - these become PR checklist items -->
+- [ ] [Update/remove secrets in GitHub]
+- [ ] [Configuration changes in external tools]
+- [ ] [Database migrations or data backfill]
+- [ ] [Feature flag updates]
+- [ ] [Documentation updates outside this repo]
+
+## Guidance for Reviewers
+
+<!-- Areas where you want specific feedback - helps reviewers focus their attention -->
+- [Specific area or decision that needs careful review]
+- [Trade-off you're uncertain about]
+- [Performance concern to validate]
 
 ## References
 
@@ -328,6 +366,15 @@ After structure approval:
    - Fill in the Test Results table with actual command output
    - Note any deviations from the original plan
    - The plan becomes a record of what was actually done
+
+8. **Capture PR Context Early**:
+   - The plan feeds directly into the PR description
+   - **Motivation**: Explain the "why" - what problem triggered this work
+   - **Relevant Artifacts**: Include links to tickets, Slack threads, failed CI, design docs
+   - **Alternatives Considered**: Document approaches you evaluated and why you chose this one
+   - **Non-Code Tasks**: Track secrets, config changes, external tool updates
+   - **Guidance for Reviewers**: Note areas where you want specific feedback
+   - Filling these out during planning saves time at PR creation
 
 ## Testing Guidelines
 
