@@ -3,7 +3,7 @@
   c = commit -m             # commit with a message
   ca = commit -am           # commit all files with a message
   co = checkout             # checkout
-  d = diff
+  d = !git-diff-untracked
   ds = diff --cached        # diff staged changes
   dl = diff HEAD^           # diff last commit
   pl = pull                 # pull

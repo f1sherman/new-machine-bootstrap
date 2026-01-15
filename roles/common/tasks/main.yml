@@ -132,6 +132,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/osc52-copy'
     mode: 0755
 
+- name: Install git-diff-untracked script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/bin/git-diff-untracked'
+    src: '{{ playbook_dir }}/roles/common/files/bin/git-diff-untracked'
+    mode: 0755
+
 - name: Create ~/bin/claude directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/bin/claude'
