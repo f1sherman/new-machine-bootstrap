@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'json'
 require 'open3'
 require 'fileutils'
 
@@ -45,6 +46,47 @@ module DevEnvSyncer
       end
 
       true
+    end
+
+    # Read a file from the Codespace
+    # @param codespace_name [String] name of source Codespace
+    # @param remote_file_path [String] absolute path to file in Codespace
+    # @return [String, nil] file contents or nil if file doesn't exist
+    def read_remote_file(codespace_name, remote_file_path)
+      stdout, _stderr, status = Open3.capture3(
+        "gh codespace ssh -c #{codespace_name} -- 'cat #{remote_file_path} 2>/dev/null'"
+      )
+      return nil unless status.success? && !stdout.empty?
+
+      stdout
+    end
+
+    # Get new permissions from Codespace that don't exist locally
+    # @param local_dir [String] local directory path
+    # @param codespace_name [String] name of source Codespace
+    # @param remote_workspace_dir [String] absolute path to workspace directory in Codespace
+    # @return [Array<String>] new permissions found in Codespace
+    def get_new_permissions_from_codespace(local_dir, codespace_name, remote_workspace_dir)
+      remote_settings_path = File.join(remote_workspace_dir, '.claude', 'settings.local.json')
+      local_settings_path = File.join(local_dir, '.claude', 'settings.local.json')
+
+      remote_content = read_remote_file(codespace_name, remote_settings_path)
+      return [] unless remote_content
+
+      begin
+        remote_settings = JSON.parse(remote_content)
+        remote_permissions = remote_settings.dig('permissions', 'allow') || []
+
+        local_permissions = []
+        if File.exist?(local_settings_path)
+          local_settings = JSON.parse(File.read(local_settings_path))
+          local_permissions = local_settings.dig('permissions', 'allow') || []
+        end
+
+        remote_permissions - local_permissions
+      rescue JSON::ParserError
+        []
+      end
     end
 
     # Sync .coding-agent from Codespace back to local (without overwriting existing files)
