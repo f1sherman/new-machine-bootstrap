@@ -189,7 +189,8 @@
       "Write(.coding-agent/plans/**)",
       "Write(.coding-agent/research/**)",
       "Write(.coding-agent/handoffs/**)",
-      "Bash(mkdir -p:*)"
+      "Bash(mkdir -p:*)",
+      "Bash(~/bin/claude/spec-metadata:*)"
     ]
 
     # Auto-trust all existing workspace directories and disable MCP servers
