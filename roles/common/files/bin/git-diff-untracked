@@ -2,10 +2,12 @@
 # Show git diff including untracked files (but not ignored)
 # Untracked files are shown as new file diffs
 
-# Run normal git diff with any passed arguments
-git diff "$@"
+{
+  # Run normal git diff with any passed arguments (no pager)
+  git --no-pager diff "$@"
 
-# Show untracked files as diffs (works with delta pager)
-git ls-files --others --exclude-standard | while IFS= read -r file; do
-  [ -n "$file" ] && git diff --no-index /dev/null "$file" 2>/dev/null || true
-done
+  # Show untracked files as diffs
+  git ls-files --others --exclude-standard | while IFS= read -r file; do
+    [ -n "$file" ] && git --no-pager diff --no-index /dev/null "$file" 2>/dev/null || true
+  done
+} | ${GIT_PAGER:-$(git config core.pager || echo 'less')}
