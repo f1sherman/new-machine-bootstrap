@@ -185,13 +185,20 @@
       data["projects"] = {}
       changed = True
 
+    default_allowed_tools = [
+      "Write(.coding-agent/plans/**)",
+      "Write(.coding-agent/research/**)",
+      "Write(.coding-agent/handoffs/**)",
+      "Bash(mkdir -p:*)"
+    ]
+
     # Auto-trust all existing workspace directories and disable MCP servers
     for workspace_dir in glob.glob("/workspaces/*"):
       if workspace_dir not in data["projects"]:
         data["projects"][workspace_dir] = {
           "hasTrustDialogAccepted": True,
           "enableAllProjectMcpServers": False,
-          "allowedTools": [],
+          "allowedTools": default_allowed_tools.copy(),
           "mcpContextUris": [],
           "mcpServers": {},
           "enabledMcpjsonServers": [],
@@ -205,6 +212,12 @@
         if data["projects"][workspace_dir].get("enableAllProjectMcpServers"):
           data["projects"][workspace_dir]["enableAllProjectMcpServers"] = False
           changed = True
+        existing_tools = data["projects"][workspace_dir].get("allowedTools", [])
+        for tool in default_allowed_tools:
+          if tool not in existing_tools:
+            existing_tools.append(tool)
+            changed = True
+        data["projects"][workspace_dir]["allowedTools"] = existing_tools
 
     if changed:
       with open(config_file, "w") as f:
