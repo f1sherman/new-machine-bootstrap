@@ -367,6 +367,7 @@
     - { name: 'Set mouse speed to 5 out of 7', command: 'defaults write .GlobalPreferences com.apple.mouse.scaling 5' }
     - { name: "Don't reset windows on external monitors every time the laptop goes to sleep", command: 'defaults write com.apple.spaces spans-displays -bool false' }
     - { name: "Disable swipe to go back in Safari", command: 'defaults write NSGlobalDomain AppleEnableSwipeNavigateWithScrolls -bool false' }
+    - { name: "Disable Type to Siri", command: 'defaults write com.apple.Siri TypeToSiriEnabled -bool false' }
   loop_control:
     label: "{{ item.name }}"
 
