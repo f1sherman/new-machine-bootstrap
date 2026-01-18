@@ -72,10 +72,11 @@
     marker: "# {mark} ANSIBLE MANAGED BLOCK - TMUX"
     block: |
       # Launch tmux on SSH login
-      # Attach to detached session if available, otherwise create new session
+      # Attach to unattached session if available, otherwise create new session
       if [ -z "$TMUX" ] && [ -n "$SSH_CONNECTION" ]; then
-        if tmux list-sessions 2>/dev/null | grep -v '(attached)' | grep -q .; then
-          exec tmux attach
+        unattached=$(tmux list-sessions 2>/dev/null | grep -v '(attached)' | head -1 | cut -d: -f1)
+        if [ -n "$unattached" ]; then
+          exec tmux attach -t "$unattached"
         else
           exec tmux new-session
         fi
