@@ -367,10 +367,11 @@
     mode: '0755'
   when: lookup('env', 'CODESPACES') == 'true'
 
-- name: Clone work provisioning repository
+- name: Clone or update work provisioning repository
   shell: |
     if [ -d '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john' ]; then
-      cd '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john' && git pull
+      cd '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john'
+      git -c credential.helper='!gh auth git-credential' pull --autostash
     else
       gh repo clone betterup/bootstrap-brian-john '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john'
     fi
