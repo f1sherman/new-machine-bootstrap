@@ -317,6 +317,128 @@
     state: present
   when: codex_cli_check.rc != 0
 
+# Codex CLI configuration for automatic API key authentication
+
+# macOS: Read API key from file
+- name: Check if OpenAI API key file exists (macOS)
+  stat:
+    path: '{{ ansible_facts["user_dir"] }}/.config/api-keys/openai'
+  register: openai_api_key_stat
+  when: ansible_os_family == "Darwin"
+
+- name: Read OpenAI API key from file (macOS)
+  slurp:
+    src: '{{ ansible_facts["user_dir"] }}/.config/api-keys/openai'
+  register: openai_api_key_content
+  when: ansible_os_family == "Darwin" and openai_api_key_stat.stat.exists and openai_api_key_stat.stat.size > 0
+
+- name: Configure Codex CLI auth.json (macOS)
+  copy:
+    content: |
+      {
+        "OPENAI_API_KEY": "{{ openai_api_key_content.content | b64decode | trim }}"
+      }
+    dest: '{{ ansible_facts["user_dir"] }}/.codex/auth.json'
+    mode: '0600'
+  when: ansible_os_family == "Darwin" and openai_api_key_stat.stat.exists and openai_api_key_stat.stat.size > 0
+
+# Codespaces: Read API key from environment variable
+- name: Configure Codex CLI auth.json (Codespaces)
+  copy:
+    content: |
+      {
+        "OPENAI_API_KEY": "{{ lookup('env', 'OPENAI_API_KEY') }}"
+      }
+    dest: '{{ ansible_facts["user_dir"] }}/.codex/auth.json'
+    mode: '0600'
+  when: lookup('env', 'CODESPACES') == 'true' and lookup('env', 'OPENAI_API_KEY') != ''
+
+# Trust settings for Codespaces
+- name: Configure Codex CLI config.toml for Codespaces
+  shell: |
+    python3 -c '
+    import os
+    import glob
+
+    config_file = os.environ["CONFIG_FILE"]
+
+    existing_projects = set()
+    if os.path.exists(config_file):
+      with open(config_file, "r") as f:
+        for line in f:
+          if line.startswith("[projects."):
+            start = line.find("\"")
+            end = line.rfind("\"")
+            if start != -1 and end != -1 and start < end:
+              existing_projects.add(line[start+1:end])
+
+    changed = False
+    new_sections = []
+
+    for workspace_dir in glob.glob("/workspaces/*"):
+      if os.path.isdir(workspace_dir) and workspace_dir not in existing_projects:
+        new_sections.append(f"\n[projects.\"{workspace_dir}\"]\n")
+        new_sections.append("trust_level = \"trusted\"\n")
+        changed = True
+
+    if changed:
+      with open(config_file, "a") as f:
+        f.writelines(new_sections)
+      os.chmod(config_file, 0o600)
+      print("changed")
+    else:
+      print("unchanged")
+    '
+  environment:
+    CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
+  register: codex_config_result
+  changed_when: "'changed' in codex_config_result.stdout"
+  when: lookup('env', 'CODESPACES') == 'true'
+
+# Trust settings for macOS
+- name: Configure Codex CLI config.toml for macOS projects
+  shell: |
+    python3 -c '
+    import os
+    import glob
+
+    config_file = os.environ["CONFIG_FILE"]
+    projects_dir = os.path.expanduser("~/projects")
+
+    existing_projects = set()
+    if os.path.exists(config_file):
+      with open(config_file, "r") as f:
+        for line in f:
+          if line.startswith("[projects."):
+            start = line.find("\"")
+            end = line.rfind("\"")
+            if start != -1 and end != -1 and start < end:
+              existing_projects.add(line[start+1:end])
+
+    changed = False
+    new_sections = []
+
+    if os.path.isdir(projects_dir):
+      for project_dir in glob.glob(os.path.join(projects_dir, "*")):
+        if os.path.isdir(project_dir) and project_dir not in existing_projects:
+          new_sections.append(f"\n[projects.\"{project_dir}\"]\n")
+          new_sections.append("trust_level = \"trusted\"\n")
+          changed = True
+
+    if changed:
+      with open(config_file, "a") as f:
+        f.writelines(new_sections)
+      os.chmod(config_file, 0o600)
+      print("changed")
+    else:
+      print("unchanged")
+    '
+  environment:
+    CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
+  register: codex_config_macos_result
+  changed_when: "'changed' in codex_config_macos_result.stdout"
+  when: ansible_os_family == "Darwin"
+
 # Skills installation (shared across Claude Code, Codex, and Amp)
 - name: Create ~/.claude/skills directory
   file:
