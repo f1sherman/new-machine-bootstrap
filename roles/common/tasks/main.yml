@@ -322,6 +322,8 @@
   shell: |
     eval "$(mise activate bash)"
     npm install -g @openai/codex
+  args:
+    executable: /bin/bash
   when: lookup('env', 'CODESPACES') == 'true' and codex_cli_check.rc != 0
 
 # Codex CLI configuration for automatic API key authentication
