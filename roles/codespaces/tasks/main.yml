@@ -278,6 +278,13 @@
         data["permissions"]["allow"].append(perm)
         changed = True
 
+    # Add /workspaces permissions if not present (main workspace directory in Codespaces)
+    workspaces_permissions = ["Read(//workspaces/**)", "Edit(//workspaces/**)", "Write(//workspaces/**)"]
+    for perm in workspaces_permissions:
+      if perm not in data["permissions"]["allow"]:
+        data["permissions"]["allow"].append(perm)
+        changed = True
+
     if changed:
       with open(settings_file, "w") as f:
         json.dump(data, f, indent=2)
