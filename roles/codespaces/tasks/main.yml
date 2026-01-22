@@ -16,9 +16,13 @@
 
 - name: Install tmux plugins via tpm
   shell: |
-    export TMUX_PLUGIN_MANAGER_PATH="{{ ansible_facts["user_dir"] }}/.tmux/plugins/"
-    "{{ ansible_facts["user_dir"] }}/.tmux/plugins/tpm/bin/install_plugins"
+    # Start a temporary detached tmux session to set environment, then install plugins
+    tmux new-session -d -s tpm_install
+    tmux set-environment -g TMUX_PLUGIN_MANAGER_PATH ~/.tmux/plugins/
+    ~/.tmux/plugins/tpm/bin/install_plugins
+    tmux kill-session -t tpm_install 2>/dev/null || true
   args:
+    executable: /bin/bash
     creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
 
 - name: Check if fzf shell directory exists
