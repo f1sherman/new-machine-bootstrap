@@ -28,6 +28,7 @@
       - python3-venv
       - pipx
       - ripgrep
+      - shellcheck
       - sudo
       - unzip
       - yamllint
