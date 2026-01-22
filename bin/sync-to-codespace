@@ -39,6 +39,21 @@ def sync_to_codespace(codespace_name)
   puts "Running: #{provision_cmd}"
   system(provision_cmd)
 
+  unless $?.success?
+    puts ""
+    puts "=" * 60
+    puts "ERROR: Provisioning failed for #{codespace_name}!"
+    puts "=" * 60
+    puts ""
+    puts "To investigate, check the log file:"
+    puts "  gh codespace ssh -c #{codespace_name} -- 'cat /tmp/provision-latest.log'"
+    puts ""
+    puts "Or SSH in manually:"
+    puts "  gh codespace ssh -c #{codespace_name}"
+    puts ""
+    return false
+  end
+
   puts ""
   puts "==> Provisioning complete for #{codespace_name}!"
   true
