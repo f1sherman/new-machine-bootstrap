@@ -94,7 +94,7 @@ end
 
 config = Config.new
 
-api_providers = ['openai', 'anthropic']
+api_providers = config.personal? ? ['anthropic'] : ['openai', 'anthropic']
 config_dir = File.join(Dir.home, '.config', 'api-keys')
 
 FileUtils.mkdir_p(config_dir) unless Dir.exist?(config_dir)

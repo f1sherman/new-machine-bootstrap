@@ -328,18 +328,41 @@
 
 # Codex CLI configuration for automatic API key authentication
 
+# macOS: Determine if this is a personal or work machine
+- name: Check bootstrap config (macOS)
+  stat:
+    path: '{{ ansible_facts["user_dir"] }}/.config/new-machine-bootstrap.yml'
+  register: bootstrap_config_stat
+  when: ansible_os_family == "Darwin"
+
+- name: Read bootstrap config (macOS)
+  slurp:
+    src: '{{ ansible_facts["user_dir"] }}/.config/new-machine-bootstrap.yml'
+  register: bootstrap_config_content
+  when: ansible_os_family == "Darwin" and bootstrap_config_stat.stat.exists
+
+- name: Set bootstrap use (macOS)
+  set_fact:
+    bootstrap_use: "{{ (bootstrap_config_content.content | b64decode | from_yaml).use | default('work') }}"
+  when: ansible_os_family == "Darwin" and bootstrap_config_stat.stat.exists
+
+- name: Default bootstrap use (macOS)
+  set_fact:
+    bootstrap_use: 'work'
+  when: ansible_os_family == "Darwin" and not bootstrap_config_stat.stat.exists
+
 # macOS: Read API key from file
 - name: Check if OpenAI API key file exists (macOS)
   stat:
     path: '{{ ansible_facts["user_dir"] }}/.config/api-keys/openai'
   register: openai_api_key_stat
-  when: ansible_os_family == "Darwin"
+  when: ansible_os_family == "Darwin" and bootstrap_use == 'work'
 
 - name: Read OpenAI API key from file (macOS)
   slurp:
     src: '{{ ansible_facts["user_dir"] }}/.config/api-keys/openai'
   register: openai_api_key_content
-  when: ansible_os_family == "Darwin" and openai_api_key_stat.stat.exists and openai_api_key_stat.stat.size > 0
+  when: ansible_os_family == "Darwin" and bootstrap_use == 'work' and openai_api_key_stat.stat.exists and openai_api_key_stat.stat.size > 0
 
 - name: Configure Codex CLI auth.json (macOS)
   copy:
@@ -349,7 +372,7 @@
       }
     dest: '{{ ansible_facts["user_dir"] }}/.codex/auth.json'
     mode: '0600'
-  when: ansible_os_family == "Darwin" and openai_api_key_stat.stat.exists and openai_api_key_stat.stat.size > 0
+  when: ansible_os_family == "Darwin" and bootstrap_use == 'work' and openai_api_key_stat.stat.exists and openai_api_key_stat.stat.size > 0
 
 # Codespaces: Read API key from environment variable
 - name: Configure Codex CLI auth.json (Codespaces)
