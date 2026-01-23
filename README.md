@@ -38,7 +38,7 @@ This will create the Codespace and run `bin/provision` to configure:
 - **Multiplexer**: tmux and byobu with shared keybindings
 - **Editor**: Neovim and Vim (via dotvim repository)
 - **Tools**: fzf, ripgrep, fd, bat, and helper scripts
-- **Claude**: AI assistant with statusline integration and custom commands
+- **Claude**: AI assistant with statusline integration and custom skills
 
 All configurations use apt packages (no Homebrew).
 
@@ -62,7 +62,7 @@ Byobu automatically launches when you SSH into a Codespace, creating a new sessi
 - Works across SSH connections
 
 **Claude Integration**:
-- Custom agents and slash commands in `~/.claude/`
+- Custom agents and skills in `~/.claude/skills/`
 - Status line with model info, git branch, context usage, and timers
 - Work-focused configuration without macOS dependencies
 
