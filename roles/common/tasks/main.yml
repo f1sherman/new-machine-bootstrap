@@ -139,17 +139,11 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/git-diff-untracked'
     mode: 0755
 
-- name: Create ~/bin/claude directory
-  file:
-    path: '{{ ansible_facts["user_dir"] }}/bin/claude'
-    state: directory
-    mode: 0755
-
 - name: Install spec-metadata script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/claude/spec-metadata'
-    src: '{{ playbook_dir }}/roles/common/files/bin/claude/spec-metadata'
+    dest: '{{ ansible_facts["user_dir"] }}/bin/spec-metadata'
+    src: '{{ playbook_dir }}/roles/common/files/bin/spec-metadata'
     mode: 0755
 
 - name: Create ~/.claude directory
@@ -490,28 +484,82 @@
     state: directory
     mode: '0755'
 
-- name: Install skills to ~/.claude/skills
+- name: Install Claude-specific skills to ~/.claude/skills
   copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/'
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/claude/'
     dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/'
     mode: '0644'
     directory_mode: '0755'
 
-- name: Create Codex skills symlinks to Claude skills
-  file:
-    src: '{{ ansible_facts["user_dir"] }}/.claude/skills/{{ item }}'
-    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/{{ item }}'
-    state: link
-  with_items:
-    - creating-ics-files
+- name: Install common skills to ~/.claude/skills
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/'
+    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/'
+    mode: '0644'
+    directory_mode: '0755'
+
+- name: Install Codex-specific skills to ~/.codex/skills
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/codex/'
+    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/'
+    mode: '0644'
+    directory_mode: '0755'
+
+- name: Install common skills to ~/.codex/skills
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/'
+    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/'
+    mode: '0644'
+    directory_mode: '0755'
 
 - name: Create Amp skills symlinks to Claude skills
   file:
-    src: '{{ ansible_facts["user_dir"] }}/.claude/skills/{{ item }}'
-    dest: '{{ ansible_facts["user_dir"] }}/.config/agents/skills/{{ item }}'
+    src: '{{ ansible_facts["user_dir"] }}/.claude/skills/{{ item | basename }}'
+    dest: '{{ ansible_facts["user_dir"] }}/.config/agents/skills/{{ item | basename }}'
     state: link
+  with_fileglob:
+    - '{{ playbook_dir }}/roles/common/files/config/skills/claude/*'
+    - '{{ playbook_dir }}/roles/common/files/config/skills/common/*'
+
+- name: Remove deprecated Claude slash command files
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.claude/commands/{{ item }}'
+    state: absent
   with_items:
-    - creating-ics-files
+    - 'personal:commit.md'
+    - 'personal:create-handoff.md'
+    - 'personal:create-plan.md'
+    - 'personal:implement-plan.md'
+    - 'personal:research-codebase.md'
+    - 'personal:resume-handoff.md'
+    - 'personal:validate-plan.md'
+    - 'personal-commit.md'
+    - 'personal-create-handoff.md'
+    - 'personal-create-plan.md'
+    - 'personal-implement-plan.md'
+    - 'personal-research-codebase.md'
+    - 'personal-resume-handoff.md'
+    - 'personal-validate-plan.md'
+
+- name: Remove deprecated Codex slash command files
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.codex/commands/{{ item }}'
+    state: absent
+  with_items:
+    - 'personal:commit.md'
+    - 'personal:create-handoff.md'
+    - 'personal:create-plan.md'
+    - 'personal:implement-plan.md'
+    - 'personal:research-codebase.md'
+    - 'personal:resume-handoff.md'
+    - 'personal:validate-plan.md'
+    - 'personal-commit.md'
+    - 'personal-create-handoff.md'
+    - 'personal-create-plan.md'
+    - 'personal-implement-plan.md'
+    - 'personal-research-codebase.md'
+    - 'personal-resume-handoff.md'
+    - 'personal-validate-plan.md'
 
 # Work provisioning for Codespaces
 - name: Create ~/projects directory for work provisioning
