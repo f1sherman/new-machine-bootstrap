@@ -53,12 +53,15 @@
     path: '{{ ansible_facts["user_dir"] }}/.local/bin/fzf'
   register: fzf_binary
 
+- name: Set GitHub API token for authenticated requests
+  set_fact:
+    github_api_token: "{{ ansible_env.GITHUB_TOKEN | default(ansible_env.GH_TOKEN | default('')) }}"
+
 - name: Get latest fzf release version
   uri:
     url: https://api.github.com/repos/junegunn/fzf/releases/latest
     return_content: yes
-    headers:
-      Authorization: "Bearer {{ ansible_env.GH_TOKEN | default('') }}"
+    headers: "{{ {'Authorization': 'Bearer ' + github_api_token} if github_api_token else {} }}"
   register: fzf_latest_release
   retries: 3
   delay: 10
@@ -114,8 +117,7 @@
   uri:
     url: https://api.github.com/repos/dandavison/delta/releases/latest
     return_content: yes
-    headers:
-      Authorization: "Bearer {{ ansible_env.GH_TOKEN | default('') }}"
+    headers: "{{ {'Authorization': 'Bearer ' + github_api_token} if github_api_token else {} }}"
   register: delta_latest_release
   retries: 3
   delay: 10
@@ -151,8 +153,7 @@
   uri:
     url: https://api.github.com/repos/tmux/tmux-builds/releases/latest
     return_content: yes
-    headers:
-      Authorization: "Bearer {{ ansible_env.GH_TOKEN | default('') }}"
+    headers: "{{ {'Authorization': 'Bearer ' + github_api_token} if github_api_token else {} }}"
   register: tmux_latest_release
   retries: 3
   delay: 10
