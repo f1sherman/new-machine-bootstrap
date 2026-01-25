@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Read and summarize a Codex CLI session file
+# Usage: read-codex-session <session-file> [--json] [--full] [--transcript]
+
+if [[ $# -lt 1 ]]; then
+  echo "Usage: read-codex-session <session-file> [--json] [--full] [--transcript]" >&2
+  exit 1
+fi
+
+SESSION_FILE="$1"
+shift
+
+JSON_OUTPUT=false
+FULL_OUTPUT=false
+TRANSCRIPT_OUTPUT=false
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --json)
+      JSON_OUTPUT=true
+      shift
+      ;;
+    --full)
+      FULL_OUTPUT=true
+      shift
+      ;;
+    --transcript)
+      TRANSCRIPT_OUTPUT=true
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ ! -f "$SESSION_FILE" ]]; then
+  echo "Session file not found: $SESSION_FILE" >&2
+  exit 1
+fi
+
+# Extract session metadata
+META=$(head -1 "$SESSION_FILE" | jq -c '.payload // {}' 2>/dev/null || echo '{}')
+SESSION_ID=$(jq -r '.id // "unknown"' <<< "$META")
+CWD=$(jq -r '.cwd // "unknown"' <<< "$META")
+TIMESTAMP=$(jq -r '.timestamp // "unknown"' <<< "$META")
+GIT_BRANCH=$(jq -r '.git.branch // "unknown"' <<< "$META")
+GIT_COMMIT=$(jq -r '.git.commit_hash // "unknown"' <<< "$META")
+
+# Transcript mode: output the full conversation for context loading
+if $TRANSCRIPT_OUTPUT; then
+  echo "=== Codex Session Transcript ==="
+  echo "Session ID: $SESSION_ID"
+  echo "Directory: $CWD"
+  echo "Git Branch: $GIT_BRANCH"
+  echo "Git Commit: ${GIT_COMMIT:0:8}"
+  echo "Started: $TIMESTAMP"
+  echo ""
+  echo "=== Conversation ==="
+  echo ""
+
+  # Process each message in order
+  grep -E '"type":"response_item"' "$SESSION_FILE" 2>/dev/null | while read -r line; do
+    role=$(jq -r '.payload.role // empty' <<< "$line" 2>/dev/null)
+
+    if [[ "$role" == "user" ]]; then
+      content=$(jq -r '.payload.content[]? | select(.type == "input_text") | .text' <<< "$line" 2>/dev/null)
+      # Skip system messages (AGENTS.md instructions, permissions, etc.)
+      if [[ -n "$content" && ! "$content" =~ ^\< && ! "$content" =~ ^#\ AGENTS\.md && ! "$content" =~ \<INSTRUCTIONS\> && ! "$content" =~ \<permissions ]]; then
+        echo "USER:"
+        echo "$content"
+        echo ""
+      fi
+    elif [[ "$role" == "assistant" ]]; then
+      # Get text responses
+      text=$(jq -r '.payload.content[]? | select(.type == "output_text") | .text' <<< "$line" 2>/dev/null)
+      if [[ -n "$text" ]]; then
+        echo "ASSISTANT:"
+        echo "$text"
+        echo ""
+      fi
+    fi
+  done
+
+  # Also get function calls
+  grep '"type":"function_call"' "$SESSION_FILE" 2>/dev/null | while read -r line; do
+    func_name=$(jq -r '.payload.name // empty' <<< "$line" 2>/dev/null)
+    if [[ -n "$func_name" ]]; then
+      args=$(jq -r '.payload.arguments // "{}" | fromjson? | to_entries | map("\(.key)=\(.value | tostring | .[0:80])") | join(", ")' <<< "$line" 2>/dev/null)
+      echo "TOOL: [$func_name] $args"
+    fi
+  done
+  exit 0
+fi
+
+# Extract user messages
+USER_MESSAGES=$(grep '"role":"user"' "$SESSION_FILE" 2>/dev/null | jq -r '.payload.content[]? | select(.type == "input_text") | .text' 2>/dev/null | grep -v '^<' | head -20 || echo "")
+
+# Extract assistant messages
+ASSISTANT_MESSAGES=$(grep '"role":"assistant"' "$SESSION_FILE" 2>/dev/null | jq -r '.payload.content[]? | select(.type == "output_text") | .text' 2>/dev/null | head -20 || echo "")
+
+# Extract shell commands that were run
+SHELL_COMMANDS=$(grep '"type":"function_call"' "$SESSION_FILE" 2>/dev/null | jq -r 'select(.payload.name == "shell") | .payload.arguments | fromjson? | .command // empty' 2>/dev/null | head -20 || echo "")
+
+# Extract file operations
+FILE_OPS=$(grep '"type":"function_call"' "$SESSION_FILE" 2>/dev/null | jq -r 'select(.payload.name | test("read|write|edit"; "i")) | "\(.payload.name): \(.payload.arguments | fromjson? | .path // .file_path // "unknown")"' 2>/dev/null | head -20 || echo "")
+
+if $JSON_OUTPUT; then
+  jq -n \
+    --arg session_id "$SESSION_ID" \
+    --arg cwd "$CWD" \
+    --arg timestamp "$TIMESTAMP" \
+    --arg git_branch "$GIT_BRANCH" \
+    --arg git_commit "$GIT_COMMIT" \
+    --arg user_messages "$USER_MESSAGES" \
+    --arg assistant_messages "$ASSISTANT_MESSAGES" \
+    --arg shell_commands "$SHELL_COMMANDS" \
+    --arg file_ops "$FILE_OPS" \
+    '{
+      session_id: $session_id,
+      cwd: $cwd,
+      timestamp: $timestamp,
+      git_branch: $git_branch,
+      git_commit: $git_commit,
+      user_messages: ($user_messages | split("\n") | map(select(length > 0))),
+      assistant_messages: ($assistant_messages | split("\n") | map(select(length > 0))),
+      shell_commands: ($shell_commands | split("\n") | map(select(length > 0))),
+      file_operations: ($file_ops | split("\n") | map(select(length > 0)))
+    }'
+else
+  echo "=== Codex Session Summary ==="
+  echo ""
+  echo "Session ID: $SESSION_ID"
+  echo "Timestamp:  $TIMESTAMP"
+  echo "Directory:  $CWD"
+  echo "Git Branch: $GIT_BRANCH"
+  echo "Git Commit: ${GIT_COMMIT:0:8}"
+  echo ""
+
+  if [[ -n "$USER_MESSAGES" ]]; then
+    echo "=== User Requests ==="
+    echo "$USER_MESSAGES" | head -10
+    echo ""
+  fi
+
+  if [[ -n "$SHELL_COMMANDS" ]]; then
+    echo "=== Shell Commands Run ==="
+    echo "$SHELL_COMMANDS"
+    echo ""
+  fi
+
+  if [[ -n "$FILE_OPS" ]]; then
+    echo "=== File Operations ==="
+    echo "$FILE_OPS"
+    echo ""
+  fi
+
+  if $FULL_OUTPUT && [[ -n "$ASSISTANT_MESSAGES" ]]; then
+    echo "=== Assistant Responses ==="
+    echo "$ASSISTANT_MESSAGES"
+    echo ""
+  fi
+fi

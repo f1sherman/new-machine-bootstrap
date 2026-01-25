@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# List recent Codex CLI sessions with metadata
+# Usage: list-codex-sessions [--days N] [--limit N] [--json]
+
+DAYS=7
+LIMIT=10
+JSON_OUTPUT=false
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --days)
+      DAYS="$2"
+      shift 2
+      ;;
+    --limit)
+      LIMIT="$2"
+      shift 2
+      ;;
+    --json)
+      JSON_OUTPUT=true
+      shift
+      ;;
+    *)
+      echo "Usage: list-codex-sessions [--days N] [--limit N] [--json]" >&2
+      exit 1
+      ;;
+  esac
+done
+
+CODEX_SESSIONS_DIR="${HOME}/.codex/sessions"
+
+if [[ ! -d "$CODEX_SESSIONS_DIR" ]]; then
+  echo "No Codex sessions directory found at $CODEX_SESSIONS_DIR" >&2
+  exit 0
+fi
+
+# Find session files modified in the last N days, sorted by modification time (newest first)
+SESSION_FILES=$(find "$CODEX_SESSIONS_DIR" -name "*.jsonl" -type f -mtime -"$DAYS" -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -n "$LIMIT")
+
+if [[ -z "$SESSION_FILES" ]]; then
+  echo "No Codex sessions found in the last $DAYS days" >&2
+  exit 0
+fi
+
+# Function to get last user message from a session
+get_last_user_message() {
+  local file="$1"
+  # Get the last user message (input_text type)
+  grep '"role":"user"' "$file" 2>/dev/null | \
+    tail -1 | \
+    jq -r '.payload.content[]? | select(.type == "input_text") | .text' 2>/dev/null | \
+    grep -v '^<' | \
+    head -c 150 | \
+    tr '\n' ' ' || echo ""
+}
+
+if $JSON_OUTPUT; then
+  echo "["
+  first=true
+  index=1
+  echo "$SESSION_FILES" | while read -r file; do
+    [[ -z "$file" ]] && continue
+    # Extract metadata from first line (session_meta)
+    meta=$(head -1 "$file" 2>/dev/null | jq -c '.payload // empty' 2>/dev/null || echo '{}')
+    if [[ -n "$meta" && "$meta" != "{}" && "$meta" != "null" ]]; then
+      # Get last user message for preview
+      last_msg=$(get_last_user_message "$file")
+
+      $first || echo ","
+      first=false
+      jq -c --arg file "$file" --arg preview "$last_msg" --argjson index "$index" \
+        '. + {file: $file, preview: $preview, index: $index}' <<< "$meta"
+      ((index++))
+    fi
+  done
+  echo "]"
+else
+  printf "%-3s %-20s %-40s %s\n" "#" "TIMESTAMP" "PROJECT" "LAST MESSAGE"
+  printf "%s\n" "$(printf '=%.0s' {1..120})"
+
+  index=1
+  echo "$SESSION_FILES" | while read -r file; do
+    [[ -z "$file" ]] && continue
+    # Extract metadata from first line
+    meta=$(head -1 "$file" 2>/dev/null | jq -r '.payload | "\(.timestamp // "unknown")\t\(.cwd // "unknown")"' 2>/dev/null || echo "unknown	unknown")
+    timestamp=$(echo "$meta" | cut -f1)
+    cwd=$(echo "$meta" | cut -f2)
+
+    # Get project name from cwd
+    project=$(basename "$cwd" 2>/dev/null || echo "unknown")
+
+    # Get last user message for preview
+    last_msg=$(get_last_user_message "$file")
+    # Truncate for display
+    last_msg="${last_msg:0:50}"
+    [[ ${#last_msg} -eq 50 ]] && last_msg="${last_msg}..."
+
+    printf "%-3s %-20s %-40s %s\n" "$index" "${timestamp:0:19}" "$project" "$last_msg"
+    ((index++))
+  done
+
+  echo ""
+  echo "Use 'list-codex-sessions --json' for full details including file paths."
+fi

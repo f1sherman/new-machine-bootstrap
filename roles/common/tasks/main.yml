@@ -146,6 +146,34 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/spec-metadata'
     mode: 0755
 
+- name: Install list-codex-sessions script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/bin/list-codex-sessions'
+    src: '{{ playbook_dir }}/roles/common/files/bin/list-codex-sessions'
+    mode: 0755
+
+- name: Install list-claude-sessions script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/bin/list-claude-sessions'
+    src: '{{ playbook_dir }}/roles/common/files/bin/list-claude-sessions'
+    mode: 0755
+
+- name: Install read-codex-session script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/bin/read-codex-session'
+    src: '{{ playbook_dir }}/roles/common/files/bin/read-codex-session'
+    mode: 0755
+
+- name: Install read-claude-session script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/bin/read-claude-session'
+    src: '{{ playbook_dir }}/roles/common/files/bin/read-claude-session'
+    mode: 0755
+
 - name: Create ~/.claude directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/.claude'

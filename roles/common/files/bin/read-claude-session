@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Read and summarize a Claude Code session file
+# Usage: read-claude-session <session-file> [--json] [--full] [--transcript]
+
+if [[ $# -lt 1 ]]; then
+  echo "Usage: read-claude-session <session-file> [--json] [--full] [--transcript]" >&2
+  exit 1
+fi
+
+SESSION_FILE="$1"
+shift
+
+JSON_OUTPUT=false
+FULL_OUTPUT=false
+TRANSCRIPT_OUTPUT=false
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --json)
+      JSON_OUTPUT=true
+      shift
+      ;;
+    --full)
+      FULL_OUTPUT=true
+      shift
+      ;;
+    --transcript)
+      TRANSCRIPT_OUTPUT=true
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ ! -f "$SESSION_FILE" ]]; then
+  echo "Session file not found: $SESSION_FILE" >&2
+  exit 1
+fi
+
+# Extract session metadata from first user message
+META=$(grep -m1 '"type":"user"' "$SESSION_FILE" 2>/dev/null || echo '{}')
+SESSION_ID=$(jq -r '.sessionId // "unknown"' <<< "$META")
+CWD=$(jq -r '.cwd // "unknown"' <<< "$META")
+TIMESTAMP=$(jq -r '.timestamp // "unknown"' <<< "$META")
+GIT_BRANCH=$(jq -r '.gitBranch // "unknown"' <<< "$META")
+VERSION=$(jq -r '.version // "unknown"' <<< "$META")
+
+# Transcript mode: output the full conversation for context loading
+if $TRANSCRIPT_OUTPUT; then
+  echo "=== Claude Code Session Transcript ==="
+  echo "Session ID: $SESSION_ID"
+  echo "Directory: $CWD"
+  echo "Git Branch: $GIT_BRANCH"
+  echo "Started: $TIMESTAMP"
+  echo ""
+  echo "=== Conversation ==="
+  echo ""
+
+  # Process each message in order, extracting user and assistant content
+  grep -E '"type":"(user|assistant)"' "$SESSION_FILE" 2>/dev/null | while read -r line; do
+    msg_type=$(jq -r '.type' <<< "$line" 2>/dev/null)
+    is_meta=$(jq -r '.isMeta // false' <<< "$line" 2>/dev/null)
+
+    if [[ "$msg_type" == "user" && "$is_meta" != "true" ]]; then
+      content=$(jq -r '.message.content | if type == "string" then . elif type == "array" then map(select(.type == "text") | .text) | join("\n") else empty end' <<< "$line" 2>/dev/null)
+      # Skip command messages and system messages
+      if [[ -n "$content" && ! "$content" =~ ^\< ]]; then
+        echo "USER:"
+        echo "$content"
+        echo ""
+      fi
+    elif [[ "$msg_type" == "assistant" ]]; then
+      # Get text responses
+      text=$(jq -r '.message.content | if type == "array" then map(select(.type == "text") | .text) | join("\n") else empty end' <<< "$line" 2>/dev/null)
+      if [[ -n "$text" ]]; then
+        echo "ASSISTANT:"
+        echo "$text"
+        echo ""
+      fi
+
+      # Get tool uses (summarized)
+      tools=$(jq -r '.message.content[]? | select(.type == "tool_use") | "  [\(.name)] \(.input.file_path // .input.command // .input.pattern // .input.query // "" | tostring | .[0:100])"' <<< "$line" 2>/dev/null)
+      if [[ -n "$tools" ]]; then
+        echo "TOOLS USED:"
+        echo "$tools"
+        echo ""
+      fi
+    fi
+  done
+  exit 0
+fi
+
+# Extract user messages (filter out meta messages and tool results)
+USER_MESSAGES=$(grep '"type":"user"' "$SESSION_FILE" 2>/dev/null | \
+  jq -r 'select(.isMeta != true) | .message.content | if type == "string" then . elif type == "array" then map(select(.type == "text") | .text) | join("\n") else empty end' 2>/dev/null | \
+  grep -v '^<' | grep -v 'tool_result' | head -20 || echo "")
+
+# Extract assistant text responses
+ASSISTANT_MESSAGES=$(grep '"type":"assistant"' "$SESSION_FILE" 2>/dev/null | \
+  jq -r '.message.content | if type == "array" then map(select(.type == "text") | .text) | join("\n") else empty end' 2>/dev/null | \
+  head -20 || echo "")
+
+# Extract tool uses (Read, Write, Edit, Bash, etc.)
+TOOL_USES=$(grep '"type":"assistant"' "$SESSION_FILE" 2>/dev/null | \
+  jq -r '.message.content[]? | select(.type == "tool_use") | "\(.name): \(.input.file_path // .input.command // .input.pattern // "...")"' 2>/dev/null | \
+  head -30 || echo "")
+
+# Extract Bash commands specifically
+BASH_COMMANDS=$(grep '"type":"assistant"' "$SESSION_FILE" 2>/dev/null | \
+  jq -r '.message.content[]? | select(.type == "tool_use" and .name == "Bash") | .input.command' 2>/dev/null | \
+  head -20 || echo "")
+
+# Extract file paths from Read/Write/Edit operations
+FILE_OPS=$(grep '"type":"assistant"' "$SESSION_FILE" 2>/dev/null | \
+  jq -r '.message.content[]? | select(.type == "tool_use" and (.name == "Read" or .name == "Write" or .name == "Edit")) | "\(.name): \(.input.file_path)"' 2>/dev/null | \
+  sort -u | head -20 || echo "")
+
+if $JSON_OUTPUT; then
+  jq -n \
+    --arg session_id "$SESSION_ID" \
+    --arg cwd "$CWD" \
+    --arg timestamp "$TIMESTAMP" \
+    --arg git_branch "$GIT_BRANCH" \
+    --arg version "$VERSION" \
+    --arg user_messages "$USER_MESSAGES" \
+    --arg assistant_messages "$ASSISTANT_MESSAGES" \
+    --arg bash_commands "$BASH_COMMANDS" \
+    --arg file_ops "$FILE_OPS" \
+    --arg tool_uses "$TOOL_USES" \
+    '{
+      session_id: $session_id,
+      cwd: $cwd,
+      timestamp: $timestamp,
+      git_branch: $git_branch,
+      claude_code_version: $version,
+      user_messages: ($user_messages | split("\n") | map(select(length > 0))),
+      assistant_messages: ($assistant_messages | split("\n") | map(select(length > 0))),
+      bash_commands: ($bash_commands | split("\n") | map(select(length > 0))),
+      file_operations: ($file_ops | split("\n") | map(select(length > 0))),
+      tool_uses: ($tool_uses | split("\n") | map(select(length > 0)))
+    }'
+else
+  echo "=== Claude Code Session Summary ==="
+  echo ""
+  echo "Session ID: $SESSION_ID"
+  echo "Timestamp:  $TIMESTAMP"
+  echo "Directory:  $CWD"
+  echo "Git Branch: $GIT_BRANCH"
+  echo "CC Version: $VERSION"
+  echo ""
+
+  if [[ -n "$USER_MESSAGES" ]]; then
+    echo "=== User Requests ==="
+    echo "$USER_MESSAGES" | head -10
+    echo ""
+  fi
+
+  if [[ -n "$BASH_COMMANDS" ]]; then
+    echo "=== Bash Commands Run ==="
+    echo "$BASH_COMMANDS"
+    echo ""
+  fi
+
+  if [[ -n "$FILE_OPS" ]]; then
+    echo "=== File Operations ==="
+    echo "$FILE_OPS"
+    echo ""
+  fi
+
+  if $FULL_OUTPUT && [[ -n "$ASSISTANT_MESSAGES" ]]; then
+    echo "=== Assistant Responses ==="
+    echo "$ASSISTANT_MESSAGES"
+    echo ""
+  fi
+fi
