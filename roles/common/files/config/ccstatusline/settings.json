@@ -17,11 +17,6 @@
       },
       {
         "id": "3",
-        "type": "git-branch",
-        "backgroundColor": "bgBlue"
-      },
-      {
-        "id": "4",
         "type": "context-length",
         "color": "magenta"
       },
