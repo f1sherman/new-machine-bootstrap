@@ -188,7 +188,6 @@
       When you can do something yourself, do it instead of asking me to do it. This includes:
       - Running provisioning/deployment commands after making changes
       - Validating changes by running tests or checks
-      - Committing changes when work is complete
       - Checking current state before and after changes
       - SSH-ing into a host and running a command
       - Clicking through a webflow
@@ -207,6 +206,10 @@
       - **Prefer local git over API** - use `git log`, `git diff`, `git status` instead of `gh` when the information is available locally
       - **Reasonable polling intervals** - when waiting on CI or PR status, poll no more frequently than every 30 seconds
       - **If rate limited** - stop making requests, run `gh api rate_limit` to check reset time, and inform the user
+
+      ## Commits and Pull Requests
+
+      Never create git commits or pull requests without explicit user request.
     dest: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md'
     mode: '0600'
     backup: yes
