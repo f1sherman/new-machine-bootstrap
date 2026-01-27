@@ -115,7 +115,15 @@ def main
 
   sync_coding_agent_back(codespace_name)
 
-  puts "To reconnect run: codespace-ssh #{codespace_name}"
+  print "Stop this codespace? [y/N] "
+  $stdout.flush
+  response = $stdin.gets&.strip&.downcase
+  if response == 'y'
+    puts "==> Stopping codespace..."
+    system("gh codespace stop -c #{codespace_name}")
+  else
+    puts "To reconnect run: codespace-ssh #{codespace_name}"
+  end
 
   exit ssh_exit_code
 end
