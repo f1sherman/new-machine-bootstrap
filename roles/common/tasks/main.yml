@@ -519,28 +519,28 @@
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/claude/'
     dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/'
-    mode: '0644'
+    mode: preserve
     directory_mode: '0755'
 
 - name: Install common skills to ~/.claude/skills
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/common/'
     dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/'
-    mode: '0644'
+    mode: preserve
     directory_mode: '0755'
 
 - name: Install Codex-specific skills to ~/.codex/skills
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/codex/'
     dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/'
-    mode: '0644'
+    mode: preserve
     directory_mode: '0755'
 
 - name: Install common skills to ~/.codex/skills
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/common/'
     dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/'
-    mode: '0644'
+    mode: preserve
     directory_mode: '0755'
 
 - name: Create Amp skills symlinks to Claude skills

@@ -1,7 +1,7 @@
 ---
 name: personal:commit
 description: >
-  Create git commits with user approval and no Claude attribution.
+  Create git commits with user approval and no AI attribution.
   Use when the user asks to commit changes.
 ---
 
@@ -30,14 +30,32 @@ You are tasked with creating git commits for the changes made during this sessio
    - Ask: "I plan to create [N] commit(s) with these changes. Shall I proceed?"
 
 4. **Execute upon confirmation:**
-   - Use `git add` with specific files (never use `-A` or `.`)
-   - Create commits with your planned messages
+   - Use the `commit.sh` script in this skill directory:
+     ```bash
+     ~/.claude/skills/committing-changes/commit.sh -m "Your commit message" file1 file2 ...
+     ```
+   - Or for Codex: `~/.codex/skills/committing-changes/commit.sh`
    - Show the result with `git log --oneline -n [number]`
 
+## The commit.sh Script
+
+A helper script is available at `~/.claude/skills/committing-changes/commit.sh` (or `~/.codex/skills/committing-changes/commit.sh` for Codex) that:
+- Takes a commit message via `-m "message"`
+- Takes a list of files to stage
+- Creates the commit without any AI attribution
+- Validates inputs and shows the result
+
+**Usage:**
+```bash
+commit.sh -m "Add user authentication" src/auth.ts src/login.tsx
+```
+
+Agents can use this script directly without invoking this skill when user approval has already been obtained or is not required.
+
 ## Important
-- **NEVER add co-author information or Claude attribution**
+- **NEVER add co-author information or AI attribution**
 - Commits should be authored solely by the user
-- Do not include any "Generated with Claude" messages
+- Do not include any "Generated with [AI]" messages
 - Do not add "Co-Authored-By" lines
 - Write commit messages as if the user wrote them
 
