@@ -314,13 +314,29 @@
   set_fact:
     claude_settings: "{{ (claude_settings_content.content | b64decode | from_json) if claude_settings_stat.stat.exists else {} }}"
 
+- name: Include Claude permission variables
+  include_vars:
+    file: claude_permissions.yml
+
+- name: Convert legacy permission syntax (colon-star to space-star)
+  set_fact:
+    existing_permissions_converted:
+      allow: "{{ (claude_settings.permissions.allow | default([])) | map('regex_replace', ':\\*\\)$', ' *)') | list }}"
+      deny: "{{ (claude_settings.permissions.deny | default([])) | map('regex_replace', ':\\*\\)$', ' *)') | list }}"
+
+- name: Merge permissions additively
+  set_fact:
+    merged_permissions:
+      allow: "{{ existing_permissions_converted.allow | union(claude_permissions.allow) | unique | sort }}"
+      deny: "{{ existing_permissions_converted.deny | union(claude_permissions.deny) | unique | sort }}"
+
 - name: Set ccstatusline version
   set_fact:
     ccstatusline_version: "2.0.21"
 
-- name: Merge model and ccstatusline into Claude settings
+- name: Merge model, statusLine, and permissions into Claude settings
   set_fact:
-    merged_settings: "{{ claude_settings | combine({'model': 'opus', 'statusLine': {'type': 'command', 'command': 'npx -y ccstatusline@' ~ ccstatusline_version, 'padding': 0}}, recursive=True) }}"
+    merged_settings: "{{ claude_settings | combine({'model': 'opus', 'statusLine': {'type': 'command', 'command': 'npx -y ccstatusline@' ~ ccstatusline_version, 'padding': 0}, 'permissions': merged_permissions}, recursive=True) }}"
 
 - name: Write merged Claude settings.json
   copy:
