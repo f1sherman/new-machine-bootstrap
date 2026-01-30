@@ -111,6 +111,10 @@ def main
   system("gh codespace ssh -c #{codespace_name}")
   ssh_exit_code = $?.exitstatus
 
+  # Reset terminal state - remote session may have left it in a bad state
+  # (e.g., focus reporting enabled, raw mode, etc.)
+  system("stty sane 2>/dev/null")
+
   puts "\n==> Disconnected from codespace: #{codespace_name}"
 
   sync_coding_agent_back(codespace_name)
