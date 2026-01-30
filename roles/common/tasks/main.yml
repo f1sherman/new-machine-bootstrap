@@ -609,7 +609,7 @@
       gh repo clone betterup/bootstrap-brian-john '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john'
     fi
   environment:
-    GH_TOKEN: "{{ ansible_env.GH_TOKEN | default('') }}"
+    GH_TOKEN: "{{ lookup('env', 'GH_TOKEN') }}"
   when: lookup('env', 'CODESPACES') == 'true'
 
 - name: Run work provisioning
