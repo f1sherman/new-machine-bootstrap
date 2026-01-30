@@ -112,6 +112,7 @@ claude_permissions:
 
     # Claude skills
     - "Bash(~/bin/spec-metadata)"
+    - "Bash(~/.claude/skills/committing-changes/commit.sh *)"
     - "Bash(~/.claude/skills/create-pull-request/create-draft-pr *)"
     - "Bash(~/.claude/skills/create-pull-request/gather-pr-context *)"
 
