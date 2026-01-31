@@ -292,7 +292,7 @@
       print("unchanged")
     '
   register: claude_vim_mode_result
-  changed_when: "'changed' in claude_vim_mode_result.stdout"
+  changed_when: claude_vim_mode_result.stdout.strip() == 'changed'
 
 - name: Check if Claude Code CLI is installed
   command: command -v claude
@@ -472,7 +472,7 @@
   environment:
     CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
   register: codex_config_result
-  changed_when: "'changed' in codex_config_result.stdout"
+  changed_when: codex_config_result.stdout.strip() == 'changed'
   when: lookup('env', 'CODESPACES') == 'true'
 
 # Trust settings for macOS
@@ -516,7 +516,7 @@
   environment:
     CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
   register: codex_config_macos_result
-  changed_when: "'changed' in codex_config_macos_result.stdout"
+  changed_when: codex_config_macos_result.stdout.strip() == 'changed'
   when: ansible_facts["os_family"] == "Darwin"
 
 # Skills installation (shared across Claude Code, Codex, and Amp)
