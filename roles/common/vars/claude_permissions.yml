@@ -11,10 +11,10 @@ claude_permissions:
 
     # Shell utilities
     - "Bash(awk *)"
-    - "Bash(bash *)"
     - "Bash(cat *)"
     - "Bash(cd *)"
     - "Bash(chmod *)"
+    - "Bash(command -v *)"
     - "Bash(cp *)"
     - "Bash(curl *)"
     - "Bash(cut *)"
@@ -23,6 +23,7 @@ claude_permissions:
     - "Bash(dig *)"
     - "Bash(echo *)"
     - "Bash(env *)"
+    - "Bash(exit *)"
     - "Bash(file *)"
     - "Bash(find *)"
     - "Bash(for *)"
@@ -38,9 +39,8 @@ claude_permissions:
     - "Bash(rsync *)"
     - "Bash(scp *)"
     - "Bash(sed *)"
+    - "Bash(seq *)"
     - "Bash(sort *)"
-    - "Bash(source *)"
-    - "Bash(ssh *)"
     - "Bash(tail *)"
     - "Bash(test *)"
     - "Bash(timeout *)"
@@ -48,9 +48,9 @@ claude_permissions:
     - "Bash(tr *)"
     - "Bash(type *)"
     - "Bash(uniq *)"
+    - "Bash(unzip *)"
     - "Bash(wc *)"
     - "Bash(which *)"
-    - "Bash(xargs *)"
     - "Bash(yamllint *)"
     - "Bash(yq *)"
 
@@ -64,9 +64,12 @@ claude_permissions:
     - "Bash(git diff *)"
     - "Bash(git fetch *)"
     - "Bash(git log *)"
+    - "Bash(git ls-tree *)"
     - "Bash(git merge *)"
+    - "Bash(git merge-base *)"
     - "Bash(git mv *)"
     - "Bash(git pull *)"
+    - "Bash(git push *)"
     - "Bash(git rebase *)"
     - "Bash(git reset *)"
     - "Bash(git restore *)"
@@ -84,10 +87,12 @@ claude_permissions:
     - "Bash(gh pr *)"
     - "Bash(gh repo *)"
     - "Bash(gh run *)"
+    - "Bash(gh search *)"
     - "Bash(gh workflow *)"
 
-    # Docker
-    - "Bash(docker compose exec *)"
+    # Docker (no exec - that's an escape hatch)
+    - "Bash(docker logs *)"
+    - "Bash(docker ps *)"
     - "Bash(docker rm *)"
     - "Bash(docker start *)"
     - "Bash(docker stop *)"
@@ -102,6 +107,11 @@ claude_permissions:
     - "Bash(bundle info *)"
     - "Bash(bundle show *)"
     - "Bash(bundle update *)"
+
+    # JavaScript/Node (specific tools only, no general npm/yarn)
+    - "Bash(npx eslint *)"
+    - "Bash(npx prettier *)"
+    - "Bash(npx stylelint *)"
 
     # Bootstrap scripts
     - "Bash(bin/codespace-create *)"
@@ -138,6 +148,12 @@ claude_permissions:
   deny:
     # Require explicit approval for commits (per CLAUDE.md)
     - "Bash(git commit *)"
-    # Prevent accidental force pushes
+    # Prevent accidental force pushes (all variants)
+    - "Bash(git push --force)"
     - "Bash(git push --force *)"
+    - "Bash(git push --force=*)"
+    - "Bash(git push --force-with-lease)"
+    - "Bash(git push --force-with-lease *)"
+    - "Bash(git push --force-with-lease=*)"
+    - "Bash(git push -f)"
     - "Bash(git push -f *)"
