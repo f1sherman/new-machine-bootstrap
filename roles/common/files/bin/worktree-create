@@ -5,7 +5,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: worktree-create <branch> [path]
-       worktree-create --branch <branch> [--path <path>] [--from <start-point>]
+       worktree-create --branch <branch> [--path <path>] [--from <start-point>] [--print-path]
 
 Creates a new git worktree and branch from the current repository.
 
@@ -13,6 +13,7 @@ Options:
   -b, --branch   Branch name (required if not provided positionally)
   -p, --path     Worktree path (default: ../<repo>-<branch>)
   -f, --from     Start point for the new branch (default: HEAD)
+  --print-path   Print only the worktree path
   -h, --help     Show this help message
 EOF
 }
@@ -30,6 +31,7 @@ fi
 branch=""
 path=""
 start_point="HEAD"
+print_path="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -44,6 +46,10 @@ while [[ $# -gt 0 ]]; do
     -f|--from)
       start_point="${2:-}"
       shift 2
+      ;;
+    --print-path)
+      print_path="true"
+      shift
       ;;
     -h|--help)
       usage
@@ -103,6 +109,10 @@ fi
 
 git -C "$repo_root" worktree add -b "$branch" "$path" "$start_point"
 
-echo "==> Worktree created:"
-echo "    Branch: $branch"
-echo "    Path: $path"
+if [[ "$print_path" == "true" ]]; then
+  printf '%s\n' "$path"
+else
+  echo "==> Worktree created:"
+  echo "    Branch: $branch"
+  echo "    Path: $path"
+fi

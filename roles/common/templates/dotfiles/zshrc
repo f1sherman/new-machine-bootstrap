@@ -46,6 +46,15 @@ mkcd() {
   cd "$1"
 }
 
+worktree-cd() {
+  local path
+  path="$(worktree-create --print-path "$@")" || return
+  cd "$path"
+  if command -v mise >/dev/null 2>&1; then
+    mise trust "$path" >/dev/null 2>&1 || true
+  fi
+}
+
 # Create secure temporary directory and optionally a subdirectory within it
 tempe() {
   cd "$(mktemp -d)"
