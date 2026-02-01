@@ -180,6 +180,16 @@ alias duss="du -d 1 -h | sort -hr"
 
 ### End Alias ###
 
+# Update tmux window name on directory change and before each prompt
+if [[ -n "$TMUX" ]]; then
+  _tmux_window_name_update() {
+    command tmux-session-name &>/dev/null &!
+  }
+  autoload -Uz add-zsh-hook
+  add-zsh-hook chpwd _tmux_window_name_update
+  add-zsh-hook precmd _tmux_window_name_update
+fi
+
 # Load any machine-specific customizations
 if [ -f ~/.zshrc.local ]; then
   # shellcheck disable=SC1090

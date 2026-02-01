@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Sets the tmux session name based on context:
+#   - SSH with nested tmux: use pane_title (set by remote tmux)
+#   - Git repo: "(branch) dirname"
+#   - Non-git: "dirname"
+
+[ -z "$TMUX" ] && exit 0
+
+pane_id="${1:-$(tmux display-message -p '#{pane_id}')}"
+pane_tty=$(tmux display-message -p -t "$pane_id" '#{pane_tty}')
+pane_current_path=$(tmux display-message -p -t "$pane_id" '#{pane_current_path}')
+
+if ps -o args= -t "$pane_tty" 2>/dev/null | grep -qE '(^ssh |gh codespace ssh)'; then
+  pane_title=$(tmux display-message -p -t "$pane_id" '#{pane_title}')
+  if [ -n "$pane_title" ] && [ "$pane_title" != "$HOSTNAME" ] && [ "$pane_title" != "$USER@$HOSTNAME" ]; then
+    name="$pane_title"
+  else
+    name="ssh"
+  fi
+else
+  dir_basename=$(basename "$pane_current_path")
+  branch=$(cd "$pane_current_path" 2>/dev/null && git branch --show-current 2>/dev/null)
+  if [ -n "$branch" ]; then
+    name="($branch) $dir_basename"
+  else
+    name="$dir_basename"
+  fi
+fi
+
+session_id=$(tmux display-message -p -t "$pane_id" '#{session_id}')
+tmux rename-session -t "$session_id" "$name"
