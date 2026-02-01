@@ -8,6 +8,7 @@ Usage: worktree-create <branch> [path]
        worktree-create --branch <branch> [--path <path>] [--from <start-point>] [--print-path]
 
 Creates a new git worktree and branch from the current repository.
+Copies ~/.claude/settings.local.json into <worktree>/.claude/settings.local.json if present.
 
 Options:
   -b, --branch   Branch name (required if not provided positionally)
@@ -108,6 +109,13 @@ if ! git -C "$repo_root" rev-parse --verify "$start_point" >/dev/null 2>&1; then
 fi
 
 git -C "$repo_root" worktree add -b "$branch" "$path" "$start_point"
+
+source_claude_settings="${HOME}/.claude/settings.local.json"
+target_claude_settings="${path}/.claude/settings.local.json"
+if [[ -f "$source_claude_settings" && ! -e "$target_claude_settings" ]]; then
+  mkdir -p "${path}/.claude"
+  cp -p "$source_claude_settings" "$target_claude_settings"
+fi
 
 if [[ "$print_path" == "true" ]]; then
   printf '%s\n' "$path"
