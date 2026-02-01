@@ -97,10 +97,19 @@ pathadd "${HOME}/bin"
 worktree-cd() {
   local path
   path="$(worktree-create --print-path "$@")" || return
-  cd "$path"
   if command -v mise >/dev/null 2>&1; then
     mise trust "$path" >/dev/null 2>&1 || true
   fi
+  cd "$path"
+}
+
+worktree-create() {
+  local path
+  path="$(command worktree-create --print-path "$@")" || return
+  if command -v mise >/dev/null 2>&1; then
+    mise trust "$path" >/dev/null 2>&1 || true
+  fi
+  cd "$path"
 }
 
 worktree-merge() {
