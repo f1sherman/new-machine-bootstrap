@@ -65,8 +65,12 @@ worktree-create() {
 }
 
 worktree-merge() {
-  local main_path_file path
-  main_path_file="$(mktemp)" || return
+  local main_path_file path mktemp_cmd
+  mktemp_cmd="mktemp"
+  if [[ -x /usr/bin/mktemp ]]; then
+    mktemp_cmd="/usr/bin/mktemp"
+  fi
+  main_path_file="$("$mktemp_cmd")" || return
   WORKTREE_MAIN_PATH_FILE="$main_path_file" command worktree-merge "$@" || {
     rm -f "$main_path_file"
     return 1
@@ -79,8 +83,12 @@ worktree-merge() {
 }
 
 worktree-delete() {
-  local main_path_file path
-  main_path_file="$(mktemp)" || return
+  local main_path_file path mktemp_cmd
+  mktemp_cmd="mktemp"
+  if [[ -x /usr/bin/mktemp ]]; then
+    mktemp_cmd="/usr/bin/mktemp"
+  fi
+  main_path_file="$("$mktemp_cmd")" || return
   WORKTREE_MAIN_PATH_FILE="$main_path_file" command worktree-delete "$@" || {
     rm -f "$main_path_file"
     return 1
@@ -93,8 +101,12 @@ worktree-delete() {
 }
 
 worktree-done() {
-  local main_path_file path
-  main_path_file="$(mktemp)" || return
+  local main_path_file path mktemp_cmd
+  mktemp_cmd="mktemp"
+  if [[ -x /usr/bin/mktemp ]]; then
+    mktemp_cmd="/usr/bin/mktemp"
+  fi
+  main_path_file="$("$mktemp_cmd")" || return
   WORKTREE_MAIN_PATH_FILE="$main_path_file" command worktree-done "$@" || {
     rm -f "$main_path_file"
     return 1
