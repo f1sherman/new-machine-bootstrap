@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: worktree-create <branch> [path]
+       worktree-create --branch <branch> [--path <path>] [--from <start-point>]
+
+Creates a new git worktree and branch from the current repository.
+
+Options:
+  -b, --branch   Branch name (required if not provided positionally)
+  -p, --path     Worktree path (default: ../<repo>-<branch>)
+  -f, --from     Start point for the new branch (default: HEAD)
+  -h, --help     Show this help message
+EOF
+}
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "Error: git is required" >&2
+  exit 1
+fi
+
+if ! repo_root=$(git rev-parse --show-toplevel 2>/dev/null); then
+  echo "Error: not inside a git repository" >&2
+  exit 1
+fi
+
+branch=""
+path=""
+start_point="HEAD"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -b|--branch)
+      branch="${2:-}"
+      shift 2
+      ;;
+    -p|--path)
+      path="${2:-}"
+      shift 2
+      ;;
+    -f|--from)
+      start_point="${2:-}"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Error: unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      if [[ -z "$branch" ]]; then
+        branch="$1"
+      elif [[ -z "$path" ]]; then
+        path="$1"
+      else
+        echo "Error: unexpected argument: $1" >&2
+        usage
+        exit 1
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$branch" ]]; then
+  echo "Error: branch name is required" >&2
+  usage
+  exit 1
+fi
+
+if [[ -z "$path" ]]; then
+  repo_name=$(basename "$repo_root")
+  parent_dir=$(dirname "$repo_root")
+  safe_branch="${branch//\//-}"
+  path="${parent_dir}/${repo_name}-${safe_branch}"
+fi
+
+if git -C "$repo_root" show-ref --verify --quiet "refs/heads/$branch"; then
+  echo "Error: branch already exists: $branch" >&2
+  exit 1
+fi
+
+if [[ -e "$path" ]]; then
+  echo "Error: path already exists: $path" >&2
+  exit 1
+fi
+
+if ! git -C "$repo_root" rev-parse --verify "$start_point" >/dev/null 2>&1; then
+  echo "Error: invalid start point: $start_point" >&2
+  exit 1
+fi
+
+git -C "$repo_root" worktree add -b "$branch" "$path" "$start_point"
+
+echo "==> Worktree created:"
+echo "    Branch: $branch"
+echo "    Path: $path"

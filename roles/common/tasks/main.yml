@@ -188,6 +188,13 @@
     src: '{{ playbook_dir }}/bin/sync-to-codespace'
     mode: 0755
 
+- name: Install worktree-create script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/bin/worktree-create'
+    src: '{{ playbook_dir }}/roles/common/files/bin/worktree-create'
+    mode: 0755
+
 - name: Create ~/.claude directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/.claude'
