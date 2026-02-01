@@ -195,6 +195,27 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/worktree-create'
     mode: 0755
 
+- name: Install worktree-done script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/bin/worktree-done'
+    src: '{{ playbook_dir }}/roles/common/files/bin/worktree-done'
+    mode: 0755
+
+- name: Install worktree-merge script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/bin/worktree-merge'
+    src: '{{ playbook_dir }}/roles/common/files/bin/worktree-merge'
+    mode: 0755
+
+- name: Install worktree-delete script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/bin/worktree-delete'
+    src: '{{ playbook_dir }}/roles/common/files/bin/worktree-delete'
+    mode: 0755
+
 - name: Create ~/.claude directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/.claude'

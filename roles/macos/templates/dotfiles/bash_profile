@@ -103,6 +103,48 @@ worktree-cd() {
   fi
 }
 
+worktree-merge() {
+  local main_path_file path
+  main_path_file="$(mktemp)" || return
+  WORKTREE_MAIN_PATH_FILE="$main_path_file" command worktree-merge "$@" || {
+    rm -f "$main_path_file"
+    return 1
+  }
+  if [[ -s "$main_path_file" ]]; then
+    path="$(cat "$main_path_file")"
+    cd "$path"
+  fi
+  rm -f "$main_path_file"
+}
+
+worktree-delete() {
+  local main_path_file path
+  main_path_file="$(mktemp)" || return
+  WORKTREE_MAIN_PATH_FILE="$main_path_file" command worktree-delete "$@" || {
+    rm -f "$main_path_file"
+    return 1
+  }
+  if [[ -s "$main_path_file" ]]; then
+    path="$(cat "$main_path_file")"
+    cd "$path"
+  fi
+  rm -f "$main_path_file"
+}
+
+worktree-done() {
+  local main_path_file path
+  main_path_file="$(mktemp)" || return
+  WORKTREE_MAIN_PATH_FILE="$main_path_file" command worktree-done "$@" || {
+    rm -f "$main_path_file"
+    return 1
+  }
+  if [[ -s "$main_path_file" ]]; then
+    path="$(cat "$main_path_file")"
+    cd "$path"
+  fi
+  rm -f "$main_path_file"
+}
+
 # Switch branches using fzf
 b() {
   local branches branch
