@@ -77,7 +77,7 @@ _worktree_main_path() {
 }
 
 _worktree_repo_root() {
-  git rev-parse --show-toplevel 2>/dev/null
+  GIT_DIR= GIT_WORK_TREE= command git rev-parse --show-toplevel 2>/dev/null
 }
 
 worktree-create() {
