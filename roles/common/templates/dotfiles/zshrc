@@ -48,10 +48,10 @@ mkcd() {
 
 _worktree_main_branch() {
   local origin_head
-  origin_head=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || true)
+  origin_head="$("$(_worktree_cmd git)" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || true)"
   if [[ -n "$origin_head" ]]; then
     echo "${origin_head#origin/}"
-  elif git show-ref --verify --quiet refs/heads/main; then
+  elif "$(_worktree_cmd git)" show-ref --verify --quiet refs/heads/main; then
     echo "main"
   else
     echo "master"
@@ -72,18 +72,41 @@ _worktree_main_path() {
       fi
       main_path=""
     fi
-  done < <(git worktree list --porcelain)
+  done < <("$(_worktree_cmd git)" worktree list --porcelain)
   return 1
 }
 
 _worktree_repo_root() {
   local root
-  root=$(GIT_DIR= GIT_WORK_TREE= command git rev-parse --show-toplevel 2>/dev/null) || true
+  root=$(GIT_DIR= GIT_WORK_TREE= "$(_worktree_cmd git)" rev-parse --show-toplevel 2>/dev/null) || true
   if [[ -n "$root" ]]; then
     echo "$root"
     return 0
   fi
-  command git rev-parse --show-toplevel 2>/dev/null
+  "$(_worktree_cmd git)" rev-parse --show-toplevel 2>/dev/null
+}
+
+_worktree_debug() {
+  [[ "${WORKTREE_DEBUG:-}" == "1" ]] || return 0
+  echo "[worktree] $*" >&2
+}
+
+_worktree_cmd() {
+  local cmd="$1"
+  local candidates=(
+    "/opt/homebrew/bin/$cmd"
+    "/usr/local/bin/$cmd"
+    "/usr/bin/$cmd"
+    "/bin/$cmd"
+  )
+  local path
+  for path in "${candidates[@]}"; do
+    if [[ -x "$path" ]]; then
+      printf '%s\n' "$path"
+      return 0
+    fi
+  done
+  printf '%s\n' "$cmd"
 }
 
 worktree-create() {
@@ -144,19 +167,26 @@ EOF
     return 1
   fi
 
-  repo_root="$(_worktree_repo_root)" || {
+  repo_root="$(_worktree_repo_root)"
+  _worktree_debug "pwd=$PWD"
+  _worktree_debug "git=$(_worktree_cmd git)"
+  if [[ -x "$(_worktree_cmd printenv)" && -x "$(_worktree_cmd grep)" ]]; then
+    _worktree_debug "GIT env=$("$(_worktree_cmd printenv)" | "$(_worktree_cmd grep)" '^GIT_' || true)"
+  fi
+  _worktree_debug "repo_root=${repo_root:-<empty>}"
+  if [[ -z "$repo_root" ]]; then
     echo "Error: not inside a git repository" >&2
     return 1
-  }
+  fi
 
   if [[ -z "$path" ]]; then
-    repo_name=$(basename "$repo_root")
-    parent_dir=$(dirname "$repo_root")
+    repo_name=$("$(_worktree_cmd basename)" "$repo_root")
+    parent_dir=$("$(_worktree_cmd dirname)" "$repo_root")
     safe_branch="${branch//\//-}"
     path="${parent_dir}/${repo_name}-${safe_branch}"
   fi
 
-  if git -C "$repo_root" show-ref --verify --quiet "refs/heads/$branch"; then
+  if "$(_worktree_cmd git)" -C "$repo_root" show-ref --verify --quiet "refs/heads/$branch"; then
     echo "Error: branch already exists: $branch" >&2
     return 1
   fi
@@ -166,16 +196,19 @@ EOF
     return 1
   fi
 
-  if ! git -C "$repo_root" rev-parse --verify "$start_point" >/dev/null 2>&1; then
+  if ! "$(_worktree_cmd git)" -C "$repo_root" rev-parse --verify "$start_point" >/dev/null 2>&1; then
     echo "Error: invalid start point: $start_point" >&2
     return 1
   fi
 
-  git -C "$repo_root" worktree add -b "$branch" "$path" "$start_point"
+  if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -b "$branch" "$path" "$start_point"; then
+    echo "Error: failed to create worktree" >&2
+    return 1
+  fi
 
   if [[ -f "${HOME}/.claude/settings.local.json" && ! -e "${path}/.claude/settings.local.json" ]]; then
-    mkdir -p "${path}/.claude"
-    cp -p "${HOME}/.claude/settings.local.json" "${path}/.claude/settings.local.json"
+    "$(_worktree_cmd mkdir)" -p "${path}/.claude"
+    "$(_worktree_cmd cp)" -p "${HOME}/.claude/settings.local.json" "${path}/.claude/settings.local.json"
   fi
 
   if [[ "$print_path" == "true" ]]; then
@@ -203,7 +236,7 @@ worktree-merge() {
     echo "Error: not inside a git repository" >&2
     return 1
   }
-  current_branch=$(git -C "$repo_root" branch --show-current)
+  current_branch=$("$(_worktree_cmd git)" -C "$repo_root" branch --show-current)
   if [[ -z "$current_branch" ]]; then
     echo "Error: detached HEAD; checkout a branch first" >&2
     return 1
@@ -214,7 +247,7 @@ worktree-merge() {
     echo "Error: already on ${main_branch}; this command is for non-main worktrees" >&2
     return 1
   fi
-  if [[ -n "$(git -C "$current_path" status --porcelain)" ]]; then
+  if [[ -n "$("$(_worktree_cmd git)" -C "$current_path" status --porcelain)" ]]; then
     echo "Error: worktree has uncommitted changes; commit or stash first" >&2
     return 1
   fi
@@ -222,12 +255,12 @@ worktree-merge() {
     echo "Error: could not find main worktree for branch ${main_branch}" >&2
     return 1
   }
-  if [[ -n "$(git -C "$main_path" status --porcelain)" ]]; then
+  if [[ -n "$("$(_worktree_cmd git)" -C "$main_path" status --porcelain)" ]]; then
     echo "Error: main worktree has uncommitted changes; clean it first" >&2
     return 1
   fi
-  git -C "$main_path" checkout "$main_branch"
-  git -C "$main_path" merge "$current_branch"
+  "$(_worktree_cmd git)" -C "$main_path" checkout "$main_branch"
+  "$(_worktree_cmd git)" -C "$main_path" merge "$current_branch"
   cd "$main_path"
   echo "==> Merged ${current_branch} into ${main_branch}:"
   echo "    Branch: ${current_branch}"
@@ -240,7 +273,7 @@ worktree-delete() {
     echo "Error: not inside a git repository" >&2
     return 1
   }
-  current_branch=$(git -C "$repo_root" branch --show-current)
+  current_branch=$("$(_worktree_cmd git)" -C "$repo_root" branch --show-current)
   if [[ -z "$current_branch" ]]; then
     echo "Error: detached HEAD; checkout a branch first" >&2
     return 1
@@ -251,7 +284,7 @@ worktree-delete() {
     echo "Error: already on ${main_branch}; this command is for non-main worktrees" >&2
     return 1
   fi
-  if [[ -n "$(git -C "$current_path" status --porcelain)" ]]; then
+  if [[ -n "$("$(_worktree_cmd git)" -C "$current_path" status --porcelain)" ]]; then
     echo "Error: worktree has uncommitted changes; commit or stash first" >&2
     return 1
   fi
@@ -259,13 +292,13 @@ worktree-delete() {
     echo "Error: could not find main worktree for branch ${main_branch}" >&2
     return 1
   }
-  if [[ -n "$(git -C "$main_path" status --porcelain)" ]]; then
+  if [[ -n "$("$(_worktree_cmd git)" -C "$main_path" status --porcelain)" ]]; then
     echo "Error: main worktree has uncommitted changes; clean it first" >&2
     return 1
   fi
   cd "$main_path"
-  git -C "$main_path" worktree remove "$current_path"
-  git -C "$main_path" branch -D "$current_branch"
+  "$(_worktree_cmd git)" -C "$main_path" worktree remove "$current_path"
+  "$(_worktree_cmd git)" -C "$main_path" branch -D "$current_branch"
   echo "==> Removed worktree and deleted branch:"
   echo "    Branch: ${current_branch}"
   echo "    Path: ${current_path}"
@@ -277,7 +310,7 @@ worktree-done() {
     echo "Error: not inside a git repository" >&2
     return 1
   }
-  current_branch=$(git -C "$repo_root" branch --show-current)
+  current_branch=$("$(_worktree_cmd git)" -C "$repo_root" branch --show-current)
   if [[ -z "$current_branch" ]]; then
     echo "Error: detached HEAD; checkout a branch first" >&2
     return 1
@@ -288,7 +321,7 @@ worktree-done() {
     echo "Error: already on ${main_branch}; this command is for non-main worktrees" >&2
     return 1
   fi
-  if [[ -n "$(git -C "$current_path" status --porcelain)" ]]; then
+  if [[ -n "$("$(_worktree_cmd git)" -C "$current_path" status --porcelain)" ]]; then
     echo "Error: worktree has uncommitted changes; commit or stash first" >&2
     return 1
   fi
@@ -296,15 +329,15 @@ worktree-done() {
     echo "Error: could not find main worktree for branch ${main_branch}" >&2
     return 1
   }
-  if [[ -n "$(git -C "$main_path" status --porcelain)" ]]; then
+  if [[ -n "$("$(_worktree_cmd git)" -C "$main_path" status --porcelain)" ]]; then
     echo "Error: main worktree has uncommitted changes; clean it first" >&2
     return 1
   fi
-  git -C "$main_path" checkout "$main_branch"
-  git -C "$main_path" merge "$current_branch"
+  "$(_worktree_cmd git)" -C "$main_path" checkout "$main_branch"
+  "$(_worktree_cmd git)" -C "$main_path" merge "$current_branch"
   cd "$main_path"
-  git -C "$main_path" worktree remove "$current_path"
-  git -C "$main_path" branch -D "$current_branch"
+  "$(_worktree_cmd git)" -C "$main_path" worktree remove "$current_path"
+  "$(_worktree_cmd git)" -C "$main_path" branch -D "$current_branch"
   echo "==> Merged ${current_branch} into ${main_branch} and removed worktree:"
   echo "    Branch: ${current_branch}"
   echo "    Path: ${current_path}"
