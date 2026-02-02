@@ -7,8 +7,11 @@
 [ -z "$TMUX" ] && exit 0
 
 pane_id="${1:-$(tmux display-message -p '#{pane_id}')}"
-pane_tty=$(tmux display-message -p -t "$pane_id" '#{pane_tty}')
-pane_current_path=$(tmux display-message -p -t "$pane_id" '#{pane_current_path}')
+[ -z "$pane_id" ] && exit 0
+
+pane_tty=$(tmux display-message -p -t "$pane_id" '#{pane_tty}' 2>/dev/null) || exit 0
+pane_current_path=$(tmux display-message -p -t "$pane_id" '#{pane_current_path}' 2>/dev/null)
+[ -z "$pane_current_path" ] && exit 0
 
 if ps -o args= -t "$pane_tty" 2>/dev/null | grep -qE '(^ssh |gh codespace ssh)'; then
   pane_title=$(tmux display-message -p -t "$pane_id" '#{pane_title}')
@@ -27,5 +30,7 @@ else
   fi
 fi
 
-session_id=$(tmux display-message -p -t "$pane_id" '#{session_id}')
-tmux rename-session -t "$session_id" "$name"
+session_id=$(tmux display-message -p -t "$pane_id" '#{session_id}' 2>/dev/null) || exit 0
+[ -z "$session_id" ] && exit 0
+
+tmux rename-session -t "$session_id" "$name" 2>/dev/null || true
