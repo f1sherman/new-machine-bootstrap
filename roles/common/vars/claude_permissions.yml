@@ -148,12 +148,24 @@ claude_permissions:
   deny:
     # Require explicit approval for commits (per CLAUDE.md)
     - "Bash(git commit *)"
-    # Prevent accidental force pushes (all variants)
+    # Prevent accidental force pushes (all variants, prefix and suffix positions)
     - "Bash(git push --force)"
     - "Bash(git push --force *)"
     - "Bash(git push --force=*)"
+    - "Bash(git push --force-if-includes)"
+    - "Bash(git push --force-if-includes *)"
     - "Bash(git push --force-with-lease)"
     - "Bash(git push --force-with-lease *)"
     - "Bash(git push --force-with-lease=*)"
     - "Bash(git push -f)"
     - "Bash(git push -f *)"
+    # Catch force flags after remote/refspec (e.g., git push origin --force)
+    - "Bash(* --force)"
+    - "Bash(* --force *)"
+    - "Bash(* --force-if-includes)"
+    - "Bash(* --force-if-includes *)"
+    - "Bash(* --force-with-lease)"
+    - "Bash(* --force-with-lease *)"
+    - "Bash(* --force-with-lease=*)"
+    - "Bash(* -f)"
+    - "Bash(* -f *)"
