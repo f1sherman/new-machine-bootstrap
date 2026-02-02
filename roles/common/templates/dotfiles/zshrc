@@ -77,7 +77,13 @@ _worktree_main_path() {
 }
 
 _worktree_repo_root() {
-  GIT_DIR= GIT_WORK_TREE= command git rev-parse --show-toplevel 2>/dev/null
+  local root
+  root=$(GIT_DIR= GIT_WORK_TREE= command git rev-parse --show-toplevel 2>/dev/null) || true
+  if [[ -n "$root" ]]; then
+    echo "$root"
+    return 0
+  fi
+  command git rev-parse --show-toplevel 2>/dev/null
 }
 
 worktree-create() {
