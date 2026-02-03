@@ -91,6 +91,16 @@ _worktree_debug() {
   echo "[worktree] $*" >&2
 }
 
+_worktree_sync_coding_agent_new_files() {
+  local src="$1"
+  local dst="$2"
+  if [[ ! -d "$src" ]]; then
+    return 0
+  fi
+  "$(_worktree_cmd mkdir)" -p "$dst"
+  "$(_worktree_cmd cp)" -R -n "${src}/." "${dst}/"
+}
+
 _worktree_cmd() {
   local cmd="$1"
   local candidates=(
@@ -109,7 +119,7 @@ _worktree_cmd() {
   printf '%s\n' "$cmd"
 }
 
-worktree-create() {
+worktree-start() {
   local branch path start_point print_path repo_root repo_name parent_dir safe_branch
   branch=""
   path=""
@@ -136,8 +146,8 @@ worktree-create() {
         ;;
       -h|--help)
         cat <<'EOF'
-Usage: worktree-create <branch> [path]
-       worktree-create --branch <branch> [--path <path>] [--from <start-point>] [--print-path]
+Usage: worktree-start <branch> [path]
+       worktree-start --branch <branch> [--path <path>] [--from <start-point>] [--print-path]
 
 Creates a new git worktree and branch from the current repository.
 Copies ~/.claude/settings.local.json into <worktree>/.claude/settings.local.json if present.
@@ -206,6 +216,8 @@ EOF
     return 1
   fi
 
+  _worktree_sync_coding_agent_new_files "${repo_root}/.coding-agent" "${path}/.coding-agent"
+
   if [[ -f "${HOME}/.claude/settings.local.json" && ! -e "${path}/.claude/settings.local.json" ]]; then
     "$(_worktree_cmd mkdir)" -p "${path}/.claude"
     "$(_worktree_cmd cp)" -p "${HOME}/.claude/settings.local.json" "${path}/.claude/settings.local.json"
@@ -223,11 +235,14 @@ EOF
   cd "$path"
   echo "==> Worktree created:"
   echo "    Branch: $branch"
-  echo "    Path: $path"
+}
+
+worktree-create() {
+  worktree-start "$@"
 }
 
 worktree-cd() {
-  worktree-create "$@"
+  worktree-start "$@"
 }
 
 worktree-merge() {
@@ -292,10 +307,6 @@ worktree-delete() {
     echo "Error: could not find main worktree for branch ${main_branch}" >&2
     return 1
   }
-  if [[ -n "$("$(_worktree_cmd git)" -C "$main_path" status --porcelain)" ]]; then
-    echo "Error: main worktree has uncommitted changes; clean it first" >&2
-    return 1
-  fi
   cd "$main_path"
   "$(_worktree_cmd git)" -C "$main_path" worktree remove "$current_path"
   "$(_worktree_cmd git)" -C "$main_path" branch -D "$current_branch"
@@ -335,12 +346,23 @@ worktree-done() {
   fi
   "$(_worktree_cmd git)" -C "$main_path" checkout "$main_branch"
   "$(_worktree_cmd git)" -C "$main_path" merge "$current_branch"
+
+  _worktree_sync_coding_agent_new_files "${current_path}/.coding-agent" "${main_path}/.coding-agent"
+
   cd "$main_path"
   "$(_worktree_cmd git)" -C "$main_path" worktree remove "$current_path"
   "$(_worktree_cmd git)" -C "$main_path" branch -D "$current_branch"
   echo "==> Merged ${current_branch} into ${main_branch} and removed worktree:"
   echo "    Branch: ${current_branch}"
   echo "    Path: ${current_path}"
+}
+
+wts() {
+  worktree-start "$@"
+}
+
+wtd() {
+  worktree-done "$@"
 }
 
 # Create secure temporary directory and optionally a subdirectory within it
