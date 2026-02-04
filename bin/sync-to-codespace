@@ -33,10 +33,12 @@ def sync_to_codespace(codespace_name)
   puts ""
 
   # Run provisioning with unbuffered output
-  # Use bash -l (login shell) to source profile and get GH_TOKEN
+  # Pass local GH_TOKEN since Codespace secrets aren't available via SSH
   # script -q -e allocates a PTY for real-time output, -c runs the command, output goes to /dev/null (no typescript file)
-  provision_cmd = %Q{gh codespace ssh -c #{codespace_name} -- 'script -q -e -c "bash -l -c \\"cd ~/new-machine-bootstrap && ./bin/provision\\"" /dev/null'}
-  puts "Running: #{provision_cmd}"
+  gh_token = `gh auth token 2>/dev/null`.strip
+  token_export = gh_token.empty? ? '' : "export GH_TOKEN='#{gh_token}' && "
+  provision_cmd = %Q{gh codespace ssh -c #{codespace_name} -- 'script -q -e -c "bash -l -c \\"#{token_export}cd ~/new-machine-bootstrap && ./bin/provision\\"" /dev/null'}
+  puts "Running: gh codespace ssh -c #{codespace_name} -- 'script ... ./bin/provision'"
   system(provision_cmd)
 
   unless $?.success?
