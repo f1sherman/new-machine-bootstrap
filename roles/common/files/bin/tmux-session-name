@@ -7,11 +7,16 @@
 [ -z "$TMUX" ] && exit 0
 
 pane_id="${1:-$(tmux display-message -p '#{pane_id}')}"
-pane_tty=$(tmux display-message -p -t "$pane_id" '#{pane_tty}')
-pane_current_path=$(tmux display-message -p -t "$pane_id" '#{pane_current_path}')
+
+# Get all pane info in one atomic call to minimize race window
+# Format: tty<TAB>path<TAB>title<TAB>session_id
+pane_info=$(tmux display-message -p -t "$pane_id" '#{pane_tty}	#{pane_current_path}	#{pane_title}	#{session_id}' 2>/dev/null) || exit 0
+[ -z "$pane_info" ] && exit 0
+
+IFS=$'\t' read -r pane_tty pane_current_path pane_title session_id <<< "$pane_info"
+[ -z "$session_id" ] && exit 0
 
 if ps -o args= -t "$pane_tty" 2>/dev/null | grep -qE '(^ssh |gh codespace ssh)'; then
-  pane_title=$(tmux display-message -p -t "$pane_id" '#{pane_title}')
   if [ -n "$pane_title" ] && [ "$pane_title" != "$HOSTNAME" ] && [ "$pane_title" != "$USER@$HOSTNAME" ]; then
     name="$pane_title"
   else
@@ -27,5 +32,4 @@ else
   fi
 fi
 
-session_id=$(tmux display-message -p -t "$pane_id" '#{session_id}')
-tmux rename-session -t "$session_id" "$name"
+tmux rename-session -t "$session_id" "$name" 2>/dev/null || true
