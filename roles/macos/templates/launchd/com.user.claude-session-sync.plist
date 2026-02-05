@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.claude-session-sync</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{ ansible_facts["user_dir"] }}/bin/sync-sessions-from-all-codespaces</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>3600</integer>
+    <key>StandardOutPath</key>
+    <string>{{ ansible_facts["user_dir"] }}/Library/Logs/claude-session-sync.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{ ansible_facts["user_dir"] }}/Library/Logs/claude-session-sync.log</string>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>

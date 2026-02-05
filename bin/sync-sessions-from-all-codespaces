@@ -1,0 +1,70 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Bidirectionally syncs Claude sessions between local and all running Codespaces.
+# Uses "newer timestamp wins" strategy to safely handle sessions continued in either environment.
+# Intended to be run periodically via launchd on work machines.
+
+require 'json'
+require 'open3'
+require 'logger'
+require 'fileutils'
+
+SCRIPT_DIR = File.expand_path('..', __dir__)
+require_relative File.join(SCRIPT_DIR, 'lib', 'claude_session_syncer')
+
+LOG_FILE = File.expand_path('~/Library/Logs/claude-session-sync.log')
+FileUtils.mkdir_p(File.dirname(LOG_FILE))
+LOGGER = Logger.new(LOG_FILE, 'weekly')
+LOGGER.level = Logger::INFO
+
+def main
+  LOGGER.info('Starting scheduled session sync')
+
+  # Get all available Codespaces
+  stdout, stderr, status = Open3.capture3('gh codespace list --json name,repository,state')
+  unless status.success?
+    LOGGER.error("Failed to list Codespaces: #{stderr}")
+    exit 1
+  end
+
+  codespaces = JSON.parse(stdout)
+  available = codespaces.select { |cs| cs['state'] == 'Available' }
+
+  if available.empty?
+    LOGGER.info('No running Codespaces found')
+    exit 0
+  end
+
+  LOGGER.info("Found #{available.length} running Codespace(s)")
+
+  available.each do |cs|
+    codespace_name = cs['name']
+    repo_full_name = cs['repository']
+    repo_name = repo_full_name&.split('/')&.last
+
+    next unless repo_name
+
+    LOGGER.info("Syncing sessions with #{codespace_name} (#{repo_name})")
+
+    # Pull from Codespace first (recover work from timeouts)
+    begin
+      pull_results = ClaudeSessionSyncer.sync_sessions_from_codespace(repo_name, codespace_name)
+      LOGGER.info("  Pulled: #{pull_results[:pulled]}, Skipped: #{pull_results[:skipped]}")
+    rescue StandardError => e
+      LOGGER.error("  Pull failed: #{e.message}")
+    end
+
+    # Push to Codespace (make local sessions available)
+    begin
+      push_results = ClaudeSessionSyncer.sync_sessions_to_codespace(repo_name, codespace_name)
+      LOGGER.info("  Pushed: #{push_results[:pushed]}, Skipped: #{push_results[:skipped]}")
+    rescue StandardError => e
+      LOGGER.error("  Push failed: #{e.message}")
+    end
+  end
+
+  LOGGER.info('Scheduled sync complete')
+end
+
+main

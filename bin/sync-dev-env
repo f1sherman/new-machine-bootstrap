@@ -8,43 +8,74 @@ require 'open3'
 SCRIPT_DIR = File.expand_path('..', __dir__)
 require_relative File.join(SCRIPT_DIR, 'lib', 'codespace_selector')
 require_relative File.join(SCRIPT_DIR, 'lib', 'dev_env_syncer')
+require_relative File.join(SCRIPT_DIR, 'lib', 'claude_session_syncer')
 
 def main
-  codespace_name = nil
+  options = {
+    coding_agent: true,
+    sessions: false,
+    days: ClaudeSessionSyncer::DEFAULT_DAYS
+  }
 
   parser = OptionParser.new do |opts|
-    opts.banner = "Usage: bin/sync-dev-env [CODESPACE_NAME]"
+    opts.banner = "Usage: bin/sync-dev-env [OPTIONS] [CODESPACE_NAME]"
     opts.separator ""
-    opts.separator "Sync .coding-agent directory and .claude/settings.local.json from local to Codespace"
+    opts.separator "Sync development environment files from local to Codespace"
+    opts.separator ""
+    opts.separator "By default, syncs .coding-agent and .claude/settings.local.json."
+    opts.separator "Use --sessions to also sync Claude sessions, or --sessions-only to sync only sessions."
     opts.separator ""
     opts.separator "Arguments:"
     opts.separator "  CODESPACE_NAME    Optional. If not provided, will prompt for selection"
     opts.separator ""
-    opts.separator "Examples:"
-    opts.separator "  bin/sync-dev-env"
-    opts.separator "  bin/sync-dev-env my-codespace-name"
+    opts.separator "Options:"
+
+    opts.on("--sessions", "Also sync Claude sessions") do
+      options[:sessions] = true
+    end
+
+    opts.on("--sessions-only", "Sync only Claude sessions (skip .coding-agent)") do
+      options[:sessions] = true
+      options[:coding_agent] = false
+    end
+
+    opts.on("--days N", Integer, "Number of days of sessions to sync (default: #{options[:days]})") do |n|
+      options[:days] = n
+    end
 
     opts.on("-h", "--help", "Show this help message") do
       puts opts
       exit
     end
+
+    opts.separator ""
+    opts.separator "Examples:"
+    opts.separator "  bin/sync-dev-env                        # Sync .coding-agent only"
+    opts.separator "  bin/sync-dev-env --sessions             # Sync .coding-agent and sessions"
+    opts.separator "  bin/sync-dev-env --sessions-only        # Sync sessions only"
+    opts.separator "  bin/sync-dev-env --sessions --days 14   # Sync sessions from last 14 days"
   end
 
   begin
     parser.parse!
-    codespace_name = ARGV[0]
-  rescue OptionParser::InvalidOption => e
+  rescue OptionParser::InvalidOption, OptionParser::MissingArgument => e
     puts "Error: #{e.message}"
     puts ""
     puts parser
     exit 1
   end
 
+  codespace_name = ARGV[0]
+
+  # Validate we have something to sync
   coding_agent_path = File.join(Dir.pwd, '.coding-agent')
   settings_path = File.join(Dir.pwd, '.claude', 'settings.local.json')
-  unless Dir.exist?(coding_agent_path) || File.exist?(settings_path)
-    puts "Error: No .coding-agent directory or .claude/settings.local.json in current directory"
-    exit 1
+
+  if options[:coding_agent]
+    unless Dir.exist?(coding_agent_path) || File.exist?(settings_path)
+      puts "Error: No .coding-agent directory or .claude/settings.local.json in current directory"
+      exit 1
+    end
   end
 
   codespace_name = begin
@@ -79,8 +110,17 @@ def main
     puts "    Repository: #{repo_full_name}"
     puts "    Workspace: /workspaces/#{repo_name}"
 
-    DevEnvSyncer.sync_to_codespace(Dir.pwd, codespace_name, remote_path, codespace_repository: repo_full_name)
-  rescue JSON::ParserError => e
+    # Sync .coding-agent and settings if requested
+    if options[:coding_agent]
+      DevEnvSyncer.sync_to_codespace(Dir.pwd, codespace_name, remote_path, codespace_repository: repo_full_name)
+    end
+
+    # Sync Claude sessions if requested
+    if options[:sessions]
+      puts "\n==> Syncing Claude sessions..."
+      ClaudeSessionSyncer.sync_sessions_to_codespace(repo_name, codespace_name, days: options[:days])
+    end
+  rescue JSON::ParserError
     $stderr.puts "Error: Could not parse Codespace information"
     exit 1
   rescue DevEnvSyncer::SyncError => e

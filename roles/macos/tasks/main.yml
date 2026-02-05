@@ -548,3 +548,37 @@
     path: '/tmp/powerline-fonts'
     state: absent
   when: not meslo_font_check.stat.exists
+
+# Claude session sync background job (work machines only)
+- name: Install Claude session sync script
+  copy:
+    src: '{{ playbook_dir }}/bin/sync-sessions-from-all-codespaces'
+    dest: '{{ ansible_facts["user_dir"] }}/bin/sync-sessions-from-all-codespaces'
+    mode: '0755'
+
+- name: Create LaunchAgents directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents'
+    state: directory
+    mode: '0755'
+  when: bootstrap_use == 'work'
+
+- name: Install Claude session sync launchd plist (work machines only)
+  template:
+    src: launchd/com.user.claude-session-sync.plist
+    dest: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.claude-session-sync.plist'
+    mode: '0644'
+  when: bootstrap_use == 'work'
+  register: claude_session_sync_plist
+
+- name: Unload Claude session sync launchd job if changed
+  command: launchctl unload {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.claude-session-sync.plist
+  when: bootstrap_use == 'work' and claude_session_sync_plist.changed
+  changed_when: false
+  failed_when: false
+
+- name: Load Claude session sync launchd job
+  command: launchctl load {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.claude-session-sync.plist
+  when: bootstrap_use == 'work'
+  changed_when: false
+  failed_when: false

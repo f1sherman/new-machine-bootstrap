@@ -172,6 +172,8 @@ def main
 
   sync_dev_env_to_codespace(codespace_name, repository)
 
+  # Note: Claude session sync is handled by sync-to-codespace (called above)
+
   puts "\n==> Done! Your Codespace is ready."
   puts "\nTo connect, run:"
   puts "  codespace-ssh #{codespace_name}"

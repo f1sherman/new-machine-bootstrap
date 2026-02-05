@@ -6,6 +6,7 @@ require 'json'
 require 'open3'
 require_relative '../lib/codespace_selector'
 require_relative '../lib/dev_env_syncer'
+require_relative '../lib/claude_session_syncer'
 
 def prompt_for_new_permissions(codespace_name, repo_full_name, remote_workspace_dir)
   new_permissions = DevEnvSyncer.get_new_permissions_from_codespace(
@@ -73,6 +74,15 @@ def sync_coding_agent_back(codespace_name)
     remote_workspace_dir = "/workspaces/#{repo_name}"
 
     DevEnvSyncer.sync_from_codespace(Dir.pwd, codespace_name, remote_workspace_dir)
+
+    # Sync Claude sessions from Codespace
+    puts "\n==> Syncing Claude sessions..."
+    begin
+      ClaudeSessionSyncer.sync_sessions_from_codespace(repo_name, codespace_name)
+    rescue StandardError => e
+      $stderr.puts "    Warning: Could not sync sessions: #{e.message}"
+    end
+
     prompt_for_new_permissions(codespace_name, repo_full_name, remote_workspace_dir)
   rescue JSON::ParserError, DevEnvSyncer::SyncError => e
     $stderr.puts "Warning: Could not sync .coding-agent: #{e.message}"
@@ -91,6 +101,42 @@ def normalize_github_repo(url)
   nil
 end
 
+def sync_sessions_before_connect(codespace_name)
+  stdout, _stderr, status = Open3.capture3(
+    "gh codespace list --json name,repository --jq '.[] | select(.name==\"#{codespace_name}\")'"
+  )
+
+  return unless status.success?
+
+  begin
+    codespace_info = JSON.parse(stdout)
+    repo_full_name = codespace_info['repository']
+    return unless repo_full_name
+
+    local_remote = `git remote get-url origin 2>/dev/null`.strip
+    return if local_remote.empty?
+
+    local_repo = normalize_github_repo(local_remote)
+    return unless local_repo&.downcase == repo_full_name.downcase
+
+    repo_name = repo_full_name.split('/').last
+
+    puts "==> Syncing Claude sessions..."
+
+    # Pull from Codespace first (recover work from previous timeout)
+    puts "    Pulling from Codespace..."
+    ClaudeSessionSyncer.sync_sessions_from_codespace(repo_name, codespace_name)
+
+    # Push local sessions to Codespace
+    puts "    Pushing to Codespace..."
+    ClaudeSessionSyncer.sync_sessions_to_codespace(repo_name, codespace_name)
+
+    puts ""
+  rescue JSON::ParserError, StandardError => e
+    $stderr.puts "Warning: Could not sync sessions before connect: #{e.message}"
+  end
+end
+
 def main
   codespace_name = begin
     CodespaceSelector.select_codespace(codespace_name: ARGV[0])
@@ -101,6 +147,9 @@ def main
 
   puts "==> Connecting to Codespace: #{codespace_name}"
   puts ""
+
+  # Sync sessions bidirectionally before connecting
+  sync_sessions_before_connect(codespace_name)
 
   # Save last codespace for quick reconnect via `csr` (per-terminal)
   tty_suffix = `tty 2>/dev/null`.strip.gsub(%r{^/dev/}, '').gsub('/', '-')

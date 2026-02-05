@@ -5,8 +5,13 @@
 $stdout.sync = true
 $stderr.sync = true
 
+require 'optparse'
+require 'json'
+require 'open3'
+
 SCRIPT_DIR = File.expand_path('..', __dir__)
 require_relative File.join(SCRIPT_DIR, 'lib', 'codespace_selector')
+require_relative File.join(SCRIPT_DIR, 'lib', 'claude_session_syncer')
 
 def sync_to_codespace(codespace_name)
   puts "==> Syncing repository to Codespace: #{codespace_name}"
@@ -61,10 +66,64 @@ def sync_to_codespace(codespace_name)
   true
 end
 
+def sync_sessions_to_codespace(codespace_name)
+  # Get Codespace repository info
+  stdout, _stderr, status = Open3.capture3(
+    "gh codespace list --json name,repository --jq '.[] | select(.name==\"#{codespace_name}\")'"
+  )
+
+  return false unless status.success?
+
+  begin
+    codespace_info = JSON.parse(stdout)
+    repo_full_name = codespace_info['repository']
+    return false unless repo_full_name
+
+    repo_name = repo_full_name.split('/').last
+
+    puts "\n==> Syncing Claude sessions to #{codespace_name}..."
+    ClaudeSessionSyncer.sync_sessions_to_codespace(repo_name, codespace_name)
+    true
+  rescue JSON::ParserError, StandardError => e
+    puts "    Warning: Could not sync sessions: #{e.message}"
+    false
+  end
+end
+
 def main
+  options = { sessions: true }
+
+  parser = OptionParser.new do |opts|
+    opts.banner = "Usage: bin/sync-to-codespace [OPTIONS] [CODESPACE_NAME]"
+    opts.separator ""
+    opts.separator "Syncs repository to Codespace and runs provisioning."
+    opts.separator "If no codespace name provided, syncs to all available Codespaces."
+    opts.separator ""
+    opts.separator "Options:"
+
+    opts.on("--no-sessions", "Skip syncing Claude sessions") do
+      options[:sessions] = false
+    end
+
+    opts.on("-h", "--help", "Show this help message") do
+      puts opts
+      exit
+    end
+  end
+
+  begin
+    parser.parse!
+  rescue OptionParser::InvalidOption => e
+    puts "Error: #{e.message}"
+    puts ""
+    puts parser
+    exit 1
+  end
+
   if ARGV[0]
     # Specific codespace provided - sync to just that one
     sync_to_codespace(ARGV[0]) || exit(1)
+    sync_sessions_to_codespace(ARGV[0]) if options[:sessions]
   else
     # No codespace specified - sync to all available
     codespaces = CodespaceSelector.all_available_codespaces
@@ -84,7 +143,11 @@ def main
       puts "=" * 60
       puts ""
 
-      failed << codespace_name unless sync_to_codespace(codespace_name)
+      if sync_to_codespace(codespace_name)
+        sync_sessions_to_codespace(codespace_name) if options[:sessions]
+      else
+        failed << codespace_name
+      end
       puts ""
     end
 

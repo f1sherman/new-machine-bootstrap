@@ -10,7 +10,9 @@ This repository contains bootstrap scripts for macOS and GitHub Codespaces envir
 - `bin/csr` - Quick reconnect to last codespace used in current terminal
 - `bin/sync-to-codespace` - Sync repository to Codespace and run provisioning (call as `sync-to-codespace`)
 - `bin/sync-dev-env` - Manual sync of `.coding-agent` directories between local and Codespace
+- `bin/sync-sessions-from-all-codespaces` - Background script to pull Claude sessions from all running Codespaces (hourly via launchd on work machines)
 - `lib/dev_env_syncer.rb` - Ruby module for rsync-based `.coding-agent` syncing
+- `lib/claude_session_syncer.rb` - Ruby module for Claude session syncing with newer-timestamp-wins strategy
 - `playbook.yml` - Main Ansible playbook supporting both macOS and Codespaces platforms
 - `roles/common/` - Shared resources used by both platforms (dotfiles, scripts, Claude config)
 - `roles/macos/` - macOS-specific configuration and applications
@@ -160,6 +162,46 @@ bin/sync-dev-env [codespace-name]
 
 **Why Append-Only?**:
 Existing files are never overwritten to prevent accidentally losing local or remote work. New files created in either environment will sync to the other.
+
+### Claude Session Sync
+
+Claude Code sessions (`~/.claude/projects/<path>/`) are synced bidirectionally between local and Codespaces using a "newer timestamp wins" strategy. This preserves conversation history across environments.
+
+**How It Works**:
+- Sessions are `.jsonl` files containing timestamped messages
+- Each sync compares the last message timestamp in source vs destination
+- The file with the more recent timestamp is considered authoritative and overwrites the other
+- Associated session directories (subagents, tool-results) are synced alongside the `.jsonl` file
+
+**Sync Triggers**:
+- **On Codespace creation**: Local sessions are pushed to the new Codespace
+- **On SSH connect** (`codespace-ssh`): Bidirectional sync - pulls from Codespace first (recovers work from timeouts), then pushes local
+- **On SSH disconnect**: Pulls updated sessions from Codespace to local
+- **After provisioning** (`sync-to-codespace`): Pushes local sessions to Codespace
+- **Background sync** (work machines): Hourly pull from all running Codespaces via launchd
+
+**Session Filtering**:
+- Only sessions modified in the last 7 days are synced
+- Sessions are matched by repository name (e.g., `new-machine-bootstrap`)
+- Local path like `-Users-brianjohn-projects-repo` maps to `-workspaces-repo` in Codespace
+
+**Manual Session Sync**:
+```bash
+bin/sync-dev-env --sessions                # Sync .coding-agent AND sessions
+bin/sync-dev-env --sessions-only           # Sync ONLY sessions
+bin/sync-dev-env --sessions --days 14      # Sync sessions from last 14 days
+bin/sync-to-codespace --no-sessions        # Skip session sync during provisioning
+```
+
+**Background Sync (Work Machines Only)**:
+- Launchd runs `sync-sessions-from-all-codespaces` hourly
+- Bidirectional sync with all running Codespaces (pulls first, then pushes)
+- Logs to `~/Library/Logs/claude-session-sync.log`
+- Ensures sessions are preserved even if Codespace times out unexpectedly
+- Only runs on work machines (configured via `bootstrap_use` setting)
+
+**Why Newer Timestamp Wins?**:
+This strategy is robust even if Claude Code ever compacts or truncates sessions. The file with the most recent activity is definitively the most current version. Unlike file size comparison, this works correctly regardless of session file modifications.
 
 ## Important Notes
 
