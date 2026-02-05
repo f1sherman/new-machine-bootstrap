@@ -154,9 +154,6 @@ claude_permissions:
     - "Bash(git push --force=*)"
     - "Bash(git push --force-if-includes)"
     - "Bash(git push --force-if-includes *)"
-    - "Bash(git push --force-with-lease)"
-    - "Bash(git push --force-with-lease *)"
-    - "Bash(git push --force-with-lease=*)"
     - "Bash(git push -f)"
     - "Bash(git push -f *)"
     # Catch force flags after remote/refspec (e.g., git push origin --force)
@@ -164,8 +161,5 @@ claude_permissions:
     - "Bash(* --force *)"
     - "Bash(* --force-if-includes)"
     - "Bash(* --force-if-includes *)"
-    - "Bash(* --force-with-lease)"
-    - "Bash(* --force-with-lease *)"
-    - "Bash(* --force-with-lease=*)"
     - "Bash(* -f)"
     - "Bash(* -f *)"
