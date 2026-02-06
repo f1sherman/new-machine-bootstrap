@@ -101,6 +101,19 @@ _worktree_sync_coding_agent_new_files() {
   "$(_worktree_cmd cp)" -R -n "${src}/." "${dst}/"
 }
 
+_worktree_sync_claude_sessions() {
+  local src_path="$1"
+  local dst_path="$2"
+  local claude_projects_dir="${HOME}/.claude/projects"
+  local src_dir="${claude_projects_dir}/$(echo "$src_path" | "$(_worktree_cmd tr)" '/' '-')"
+  local dst_dir="${claude_projects_dir}/$(echo "$dst_path" | "$(_worktree_cmd tr)" '/' '-')"
+  if [[ ! -d "$src_dir" ]]; then
+    return 0
+  fi
+  "$(_worktree_cmd mkdir)" -p "$dst_dir"
+  "$(_worktree_cmd cp)" -R -n "${src_dir}/." "${dst_dir}/"
+}
+
 _worktree_cmd() {
   local cmd="$1"
   local candidates=(
@@ -348,6 +361,7 @@ worktree-done() {
   "$(_worktree_cmd git)" -C "$main_path" merge "$current_branch"
 
   _worktree_sync_coding_agent_new_files "${current_path}/.coding-agent" "${main_path}/.coding-agent"
+  _worktree_sync_claude_sessions "${current_path}" "${main_path}"
 
   cd "$main_path"
   "$(_worktree_cmd git)" -C "$main_path" worktree remove "$current_path"
