@@ -16,7 +16,8 @@ pane_info=$(tmux display-message -p -t "$pane_id" '#{pane_tty}	#{pane_current_pa
 IFS=$'\t' read -r pane_tty pane_current_path pane_title session_id <<< "$pane_info"
 [ -z "$session_id" ] && exit 0
 
-if ps -o args= -t "$pane_tty" 2>/dev/null | grep -qE '(^ssh |gh codespace ssh)'; then
+pane_procs=$(ps -o args= -t "$pane_tty" 2>/dev/null)
+if grep -qE '(^ssh |gh codespace ssh)' <<< "$pane_procs"; then
   if [ -n "$pane_title" ] && [ "$pane_title" != "$HOSTNAME" ] && [ "$pane_title" != "$USER@$HOSTNAME" ]; then
     name="$pane_title"
   else
@@ -32,4 +33,19 @@ else
   fi
 fi
 
-tmux rename-session -t "$session_id" "$name" 2>/dev/null || true
+# If already named correctly (base name or numbered variant), don't rename
+current_name=$(tmux display-message -t "$session_id" -p '#{session_name}' 2>/dev/null) || exit 0
+if [ "$current_name" = "$name" ] || [[ "$current_name" =~ ^"$name"\ [0-9]+$ ]]; then
+  exit 0
+fi
+
+# Find an available name: try base name first, then " 2", " 3", etc.
+if ! tmux has-session -t "=$name" 2>/dev/null; then
+  tmux rename-session -t "$session_id" "$name" 2>/dev/null || true
+else
+  i=2
+  while tmux has-session -t "=$name $i" 2>/dev/null; do
+    ((i++))
+  done
+  tmux rename-session -t "$session_id" "$name $i" 2>/dev/null || true
+fi
