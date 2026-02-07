@@ -209,7 +209,7 @@ This strategy is robust even if Claude Code ever compacts or truncates sessions.
 - Script requires macOS with FileVault enabled
 - Prompts for work vs personal configuration
 - Requires sudo password for system-wide changes
-- Installs from both GitHub (public) and Bitbucket (private) repositories
+- Installs from GitHub repositories
 
 **Codespaces**:
 - Converted from 360-line bash script to Ansible roles

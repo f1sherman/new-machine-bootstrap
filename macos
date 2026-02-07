@@ -87,7 +87,7 @@ unless File.exist? ssh_public_key
   print "\nEnter ssh passphrase:"
   ssh_passphrase = STDIN.noecho(&:gets)
   Provision.run_command %Q(ssh-keygen -N "#{ssh_passphrase}" -f ~/.ssh/id_rsa)
-  puts 'Your ssh key has been generated. Add the below public key to bitbucket and github and press any key to continue...'
+  puts 'Your ssh key has been generated. Add the below public key to github and press any key to continue...'
   puts File.read ssh_public_key
   STDIN.getch
 end
@@ -121,11 +121,6 @@ Provision.run_command 'brew upgrade'
 Provision.brew 'ansible'
 Provision.update_project 'new-machine-bootstrap'
 Provision.run_command 'cd ~/projects/new-machine-bootstrap && bin/provision'
-
-if config.personal?
-  Provision.update_project 'home-network-provisioning', remote: 'bitbucket.org'
-  Provision.run_command 'cd ~/projects/home-network-provisioning && bin/provision --limit localhost'
-end
 
 if config.work?
   Provision.update_project 'bootstrap-brian-john', org: 'betterup'
