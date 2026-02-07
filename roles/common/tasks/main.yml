@@ -181,6 +181,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-session-name'
     mode: 0755
 
+- name: Install claude-trust-directory script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/bin/claude-trust-directory'
+    src: '{{ playbook_dir }}/roles/common/files/bin/claude-trust-directory'
+    mode: 0755
+
 - name: Install sync-to-codespace script
   copy:
     backup: yes
