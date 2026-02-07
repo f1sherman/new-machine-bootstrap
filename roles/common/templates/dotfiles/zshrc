@@ -223,6 +223,11 @@ EOF
     "$(_worktree_cmd cp)" -p "${HOME}/.claude/settings.local.json" "${path}/.claude/settings.local.json"
   fi
 
+  # Trust the new worktree directory in Claude Code
+  if command -v claude-trust-directory >/dev/null 2>&1; then
+    claude-trust-directory "$path" 2>/dev/null || true
+  fi
+
   if [[ "$print_path" == "true" ]]; then
     printf '%s\n' "$path"
     return 0
