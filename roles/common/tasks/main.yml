@@ -228,6 +228,10 @@
       - **Reasonable polling intervals** - when waiting on CI or PR status, poll no more frequently than every 30 seconds
       - **If rate limited** - stop making requests, run `gh api rate_limit` to check reset time, and inform the user
 
+      ## JSON Parsing
+
+      Never use python or ruby to parse JSON from the command line. Always use `jq`.
+
       ## Commits and Pull Requests
 
       Never create git commits or pull requests without explicit user request.
