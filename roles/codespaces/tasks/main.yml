@@ -158,6 +158,15 @@
     mode: '0755'
   when: lookup('env', 'PRE_COMMIT_HOOK') | length > 0
 
+- name: Trust all workspace directories in Claude Code
+  shell: |
+    for dir in /workspaces/*/; do
+      {{ ansible_facts["user_dir"] }}/bin/claude-trust-directory "$dir"
+    done
+  args:
+    executable: /bin/bash
+  changed_when: false
+
 - name: Configure Claude Code settings in .claude.json
   shell: |
     python3 -c '
@@ -198,32 +207,24 @@
       "Bash(~/bin/claude/spec-metadata:*)"
     ]
 
-    # Auto-trust all existing workspace directories and disable MCP servers
+    # Configure allowed tools and disable MCP servers for workspace directories
     for workspace_dir in glob.glob("/workspaces/*"):
       if workspace_dir not in data["projects"]:
-        data["projects"][workspace_dir] = {
-          "hasTrustDialogAccepted": True,
-          "enableAllProjectMcpServers": False,
-          "allowedTools": default_allowed_tools.copy(),
-          "mcpContextUris": [],
-          "mcpServers": {},
-          "enabledMcpjsonServers": [],
-          "disabledMcpjsonServers": []
-        }
+        data["projects"][workspace_dir] = {}
         changed = True
-      else:
-        if not data["projects"][workspace_dir].get("hasTrustDialogAccepted"):
-          data["projects"][workspace_dir]["hasTrustDialogAccepted"] = True
+
+      project = data["projects"][workspace_dir]
+
+      if project.get("enableAllProjectMcpServers"):
+        project["enableAllProjectMcpServers"] = False
+        changed = True
+
+      existing_tools = project.get("allowedTools", [])
+      for tool in default_allowed_tools:
+        if tool not in existing_tools:
+          existing_tools.append(tool)
           changed = True
-        if data["projects"][workspace_dir].get("enableAllProjectMcpServers"):
-          data["projects"][workspace_dir]["enableAllProjectMcpServers"] = False
-          changed = True
-        existing_tools = data["projects"][workspace_dir].get("allowedTools", [])
-        for tool in default_allowed_tools:
-          if tool not in existing_tools:
-            existing_tools.append(tool)
-            changed = True
-        data["projects"][workspace_dir]["allowedTools"] = existing_tools
+      project["allowedTools"] = existing_tools
 
     if changed:
       with open(config_file, "w") as f:
