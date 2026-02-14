@@ -22,11 +22,18 @@ if "projects" not in data:
     data["projects"] = {}
 
 if directory not in data["projects"]:
-    data["projects"][directory] = {"hasTrustDialogAccepted": True}
-elif not data["projects"][directory].get("hasTrustDialogAccepted"):
-    data["projects"][directory]["hasTrustDialogAccepted"] = True
-else:
+    data["projects"][directory] = {
+        "hasTrustDialogAccepted": True,
+        "hasCompletedProjectOnboarding": True,
+    }
+elif (
+    data["projects"][directory].get("hasTrustDialogAccepted")
+    and data["projects"][directory].get("hasCompletedProjectOnboarding")
+):
     sys.exit(0)
+else:
+    data["projects"][directory]["hasTrustDialogAccepted"] = True
+    data["projects"][directory]["hasCompletedProjectOnboarding"] = True
 
 with open(config_file, "w") as f:
     json.dump(data, f, indent=2)
