@@ -371,6 +371,28 @@
   loop_control:
     label: "{{ item.name }}"
 
+- name: Remap Caps Lock to Control
+  command: hidutil property --set '{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x7000000E0}]}'
+  changed_when: false
+
+- name: Install Caps Lock to Control LaunchAgent plist
+  template:
+    src: launchd/com.user.capslock-to-control.plist
+    dest: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.capslock-to-control.plist'
+    mode: '0644'
+  register: capslock_plist
+
+- name: Unload Caps Lock to Control launchd job if changed
+  command: launchctl unload {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.capslock-to-control.plist
+  when: capslock_plist.changed
+  changed_when: false
+  failed_when: false
+
+- name: Load Caps Lock to Control launchd job
+  command: launchctl load {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.capslock-to-control.plist
+  changed_when: false
+  failed_when: false
+
 - name: Install flushdns script
   copy:
     backup: yes
