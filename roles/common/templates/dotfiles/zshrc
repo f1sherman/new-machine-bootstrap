@@ -351,6 +351,7 @@ worktree-done() {
   fi
   "$(_worktree_cmd git)" -C "$main_path" checkout "$main_branch"
   "$(_worktree_cmd git)" -C "$main_path" merge "$current_branch"
+  "$(_worktree_cmd git)" -C "$main_path" push
 
   _worktree_sync_coding_agent_new_files "${current_path}/.coding-agent" "${main_path}/.coding-agent"
 
