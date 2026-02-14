@@ -3,9 +3,14 @@
 
 set -e  # Exit on error
 
-pane_dir=$(tmux display-message -p '#{pane_current_path}')
-pane_id=$(tmux display-message -p '#{pane_id}')
-cd "$pane_dir" || { echo "Failed to cd to $pane_dir"; read -r -p "Press enter to close"; exit 1; }
+# Ensure PATH includes common tool locations since tmux popups run bash
+# (not zsh), so .zshenv isn't sourced
+for dir in /opt/homebrew/bin /usr/local/bin "$HOME/bin" "$HOME/.local/bin"; do
+  [[ -d "$dir" && ":$PATH:" != *":$dir:"* ]] && PATH="$dir:$PATH"
+done
+
+pane_id="${PICK_FILES_PANE:?Set PICK_FILES_PANE to the tmux pane id}"
+pane_dir="$PWD"
 git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$pane_dir")
 
 # gnu coreutils realpath is needed to make the paths relative to the currently active
