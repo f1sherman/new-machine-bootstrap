@@ -50,6 +50,7 @@
       'vim',
       'wget',
       'yamllint',
+      'yq',
       'yt-dlp',
       'zsh'
     ]

@@ -186,6 +186,31 @@
     state: link
   become: yes
 
+- name: Check if yq already exists
+  stat:
+    path: '{{ ansible_facts["user_dir"] }}/.local/bin/yq'
+  register: yq_binary
+
+- name: Get latest yq release version
+  uri:
+    url: https://api.github.com/repos/mikefarah/yq/releases/latest
+    return_content: yes
+    headers: "{{ {'Authorization': 'Bearer ' + github_api_token} if github_api_token else {} }}"
+  register: yq_latest_release
+  retries: 3
+  delay: 10
+  until: yq_latest_release is succeeded
+  when: not yq_binary.stat.exists
+
+- name: Download yq binary
+  get_url:
+    url: "https://github.com/mikefarah/yq/releases/download/{{ yq_latest_release.json.tag_name }}/yq_linux_amd64"
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/yq'
+    mode: 0755
+  retries: 3
+  delay: 10
+  when: not yq_binary.stat.exists
+
 - name: Create fd symlink (fdfind -> fd)
   file:
     src: /usr/bin/fdfind
