@@ -60,6 +60,35 @@ If you encounter a mismatch:
   How should I proceed?
   ```
 
+## Tracking Follow-ups
+
+As you implement, you'll notice things that aren't part of the current plan but deserve attention: potential improvements, tech debt, edge cases worth handling, related bugs, etc. Don't let these derail your current work, but don't lose them either.
+
+**During implementation**, add a `## Follow-ups` section at the end of the plan file and record issues there as you encounter them:
+
+```markdown
+## Follow-ups
+
+- [ ] [Brief description of the issue or improvement]
+- [ ] [Another follow-up item]
+```
+
+**After completing each phase**, review any open follow-ups with the user before moving on. For each follow-up, ask:
+
+```
+Follow-ups from Phase [N]:
+
+1. [Follow-up description]
+2. [Follow-up description]
+
+How would you like to handle each?
+- Add to current plan (implement now as part of this work)
+- Create a separate plan (handle independently later)
+- Discard (not worth pursuing)
+```
+
+Follow-ups that get added to the current plan should be incorporated into the appropriate phase. Follow-ups deferred to separate plans should be left checked off in the Follow-ups section with a note like `(deferred to separate plan)`. Discarded items should be checked off with `(discarded)`.
+
 ## Testing and Verification
 
 **Goal**: You should execute as much testing as possible. Only involve the human for things you cannot do (visual verification, physical devices, actions requiring permissions you don't have).
