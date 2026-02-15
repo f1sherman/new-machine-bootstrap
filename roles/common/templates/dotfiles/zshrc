@@ -355,6 +355,10 @@ worktree-done() {
 
   _worktree_sync_coding_agent_new_files "${current_path}/.coding-agent" "${main_path}/.coding-agent"
 
+  if command -v merge-claude-permissions >/dev/null 2>&1; then
+    merge-claude-permissions "$current_path" "$main_path" || true
+  fi
+
   cd "$main_path"
   "$(_worktree_cmd git)" -C "$main_path" worktree remove "$current_path"
   "$(_worktree_cmd git)" -C "$main_path" branch -D "$current_branch"

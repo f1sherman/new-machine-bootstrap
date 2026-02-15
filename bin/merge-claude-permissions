@@ -1,0 +1,38 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Compares Claude Code permissions between two directories and prompts
+# to merge new permissions from source into destination.
+#
+# Usage: merge-claude-permissions <source-dir> <dest-dir>
+
+require 'json'
+require_relative '../lib/claude_permissions_merger'
+
+def main
+  if ARGV.length != 2
+    $stderr.puts "Usage: merge-claude-permissions <source-dir> <dest-dir>"
+    exit 1
+  end
+
+  source_dir, dest_dir = ARGV
+
+  source_settings = File.join(source_dir, ClaudePermissionsMerger::SETTINGS_SUBPATH)
+  dest_settings = File.join(dest_dir, ClaudePermissionsMerger::SETTINGS_SUBPATH)
+
+  unless File.exist?(source_settings)
+    return
+  end
+
+  source_permissions = begin
+    settings = JSON.parse(File.read(source_settings))
+    settings.dig('permissions', 'allow') || []
+  rescue JSON::ParserError
+    return
+  end
+
+  new_permissions = ClaudePermissionsMerger.find_new_permissions(source_permissions, dest_settings)
+  ClaudePermissionsMerger.prompt_and_merge(new_permissions, dest_settings)
+end
+
+main
