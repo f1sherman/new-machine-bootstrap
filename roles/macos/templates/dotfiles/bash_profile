@@ -398,8 +398,14 @@ worktree-done() {
     return 1
   fi
   "$(_worktree_cmd git)" -C "$main_path" checkout "$main_branch"
-  "$(_worktree_cmd git)" -C "$main_path" merge "$current_branch"
-  "$(_worktree_cmd git)" -C "$main_path" push
+  "$(_worktree_cmd git)" -C "$main_path" fetch || true
+  if "$(_worktree_cmd git)" -C "$main_path" merge-base --is-ancestor "$current_branch" "origin/${main_branch}" 2>/dev/null; then
+    echo "==> Branch already merged on remote; fast-forwarding ${main_branch}"
+    "$(_worktree_cmd git)" -C "$main_path" merge --ff-only "origin/${main_branch}"
+  else
+    "$(_worktree_cmd git)" -C "$main_path" merge "$current_branch"
+    "$(_worktree_cmd git)" -C "$main_path" push
+  fi
 
   _worktree_sync_coding_agent_new_files "${current_path}/.coding-agent" "${main_path}/.coding-agent"
 
