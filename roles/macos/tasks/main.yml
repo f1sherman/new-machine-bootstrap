@@ -162,6 +162,7 @@
     - 'command = /opt/homebrew/bin/tmux'
     - 'confirm-close-surface = false'
     - 'copy-on-select = clipboard'
+    - 'minimum-contrast = 1.1'
     - 'mouse-scroll-multiplier = 0.01'
     - 'scrollback-limit = 0'
     - 'term = xterm-256color'
