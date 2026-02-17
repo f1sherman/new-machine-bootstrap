@@ -218,9 +218,13 @@ EOF
 
   _worktree_sync_coding_agent_new_files "${repo_root}/.coding-agent" "${path}/.coding-agent"
 
-  if [[ -f "${HOME}/.claude/settings.local.json" && ! -e "${path}/.claude/settings.local.json" ]]; then
-    "$(_worktree_cmd mkdir)" -p "${path}/.claude"
-    "$(_worktree_cmd cp)" -p "${HOME}/.claude/settings.local.json" "${path}/.claude/settings.local.json"
+  if [[ ! -e "${path}/.claude/settings.local.json" ]]; then
+    local settings_source="${repo_root}/.claude/settings.local.json"
+    [[ -f "$settings_source" ]] || settings_source="${HOME}/.claude/settings.local.json"
+    if [[ -f "$settings_source" ]]; then
+      "$(_worktree_cmd mkdir)" -p "${path}/.claude"
+      "$(_worktree_cmd cp)" -p "$settings_source" "${path}/.claude/settings.local.json"
+    fi
   fi
 
   # Trust the new worktree directory in Claude Code
