@@ -31,7 +31,9 @@ def main
     return
   end
 
-  new_permissions = ClaudePermissionsMerger.find_new_permissions(source_permissions, dest_settings)
+  new_permissions = ClaudePermissionsMerger.find_new_permissions(
+    source_permissions, dest_settings, destination_dir: dest_dir
+  )
   ClaudePermissionsMerger.prompt_and_merge(new_permissions, dest_settings)
 end
 

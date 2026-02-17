@@ -3,6 +3,7 @@
 require 'json'
 require 'open3'
 require 'fileutils'
+require_relative 'claude_permissions_merger'
 
 module DevEnvSyncer
   class SyncError < StandardError; end
@@ -77,13 +78,9 @@ module DevEnvSyncer
         remote_settings = JSON.parse(remote_content)
         remote_permissions = remote_settings.dig('permissions', 'allow') || []
 
-        local_permissions = []
-        if File.exist?(local_settings_path)
-          local_settings = JSON.parse(File.read(local_settings_path))
-          local_permissions = local_settings.dig('permissions', 'allow') || []
-        end
-
-        remote_permissions - local_permissions
+        ClaudePermissionsMerger.find_new_permissions(
+          remote_permissions, local_settings_path, destination_dir: local_dir
+        )
       rescue JSON::ParserError
         []
       end
