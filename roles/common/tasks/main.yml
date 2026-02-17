@@ -584,6 +584,14 @@
     mode: preserve
     directory_mode: '0755'
 
+- name: Install personal skills to ~/.claude/skills (personal machines only)
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/personal/'
+    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/'
+    mode: preserve
+    directory_mode: '0755'
+  when: bootstrap_use is defined and bootstrap_use == 'personal'
+
 - name: Create Amp skills symlinks to Claude skills
   file:
     src: '{{ ansible_facts["user_dir"] }}/.claude/skills/{{ item | basename }}'
@@ -592,6 +600,15 @@
   with_fileglob:
     - '{{ playbook_dir }}/roles/common/files/config/skills/claude/*'
     - '{{ playbook_dir }}/roles/common/files/config/skills/common/*'
+
+- name: Create Amp symlinks for personal skills (personal machines only)
+  file:
+    src: '{{ ansible_facts["user_dir"] }}/.claude/skills/{{ item | basename }}'
+    dest: '{{ ansible_facts["user_dir"] }}/.config/agents/skills/{{ item | basename }}'
+    state: link
+  with_fileglob:
+    - '{{ playbook_dir }}/roles/common/files/config/skills/personal/*'
+  when: bootstrap_use is defined and bootstrap_use == 'personal'
 
 - name: Remove deprecated Claude slash command files
   file:
