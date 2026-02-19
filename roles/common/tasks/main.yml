@@ -370,6 +370,39 @@
     mode: '0600'
     backup: yes
 
+- name: Create ~/.claude/hooks directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.claude/hooks'
+    state: directory
+    mode: '0755'
+
+- name: Install Claude hooks
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/claude/hooks/'
+    dest: '{{ ansible_facts["user_dir"] }}/.claude/hooks/'
+    mode: '0755'
+    directory_mode: '0755'
+
+- name: Register PreToolUse Bash hook for blocking git commit
+  shell: |
+    SETTINGS='{{ ansible_facts["user_dir"] }}/.claude/settings.json'
+    HOOK_CMD='~/.claude/hooks/block-git-commit.sh'
+    if [ ! -f "$SETTINGS" ]; then
+      echo '{}' > "$SETTINGS"
+    fi
+    # Skip if this hook is already registered
+    if jq -e '.hooks.PreToolUse // [] | map(select(.hooks[]?.command == "'"$HOOK_CMD"'")) | length > 0' "$SETTINGS" > /dev/null 2>&1; then
+      echo "already registered"
+      exit 0
+    fi
+    HOOK_ENTRY='{"matcher":"Bash","hooks":[{"type":"command","command":"'"$HOOK_CMD"'"}]}'
+    jq --argjson entry "$HOOK_ENTRY" '.hooks //= {} | .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry])' "$SETTINGS" > "${SETTINGS}.tmp" \
+      && mv "${SETTINGS}.tmp" "$SETTINGS"
+  args:
+    executable: /bin/bash
+  register: hook_register_result
+  changed_when: "'already registered' not in hook_register_result.stdout"
+
 - name: Check if Codex CLI is installed
   command: command -v codex
   register: codex_cli_check
