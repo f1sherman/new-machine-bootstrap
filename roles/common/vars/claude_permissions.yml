@@ -124,6 +124,8 @@ claude_permissions:
     - "Bash(~/bin/spec-metadata)"
     - "Bash(~/.claude/skills/committing-changes/commit.sh *)"
     - "Bash(~/.claude/skills/create-pull-request/create-draft-pr *)"
+    - "Bash(~/.claude/skills/addressing-pr-feedback/fetch-pr-comments.sh *)"
+    - "Bash(~/.claude/skills/addressing-pr-feedback/post-comment.sh *)"
     - "Bash(~/.claude/skills/create-pull-request/gather-pr-context *)"
 
     # File reads
