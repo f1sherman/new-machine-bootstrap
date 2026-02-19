@@ -104,6 +104,8 @@ For each unresolved thread root or standalone comment:
 
 #### b. Decide on the Action
 
+**Every comment you act on MUST get its own inline reply.** Do not batch responses into a summary or skip replying.
+
 **If the feedback is already addressed by existing code changes:**
 Reply confirming it's been handled:
 ```bash
@@ -163,21 +165,9 @@ This renders as:
 
 Your response here.
 
-### 5. Post Summary
+### 5. Summary
 
-After processing all comments, post a summary on the PR:
-
-```bash
-~/.claude/skills/addressing-pr-feedback/post-comment.sh \
-  --pr PR_NUMBER \
-  --body "summary text"
-```
-
-The summary should include:
-- Number of comments addressed with code changes (and which commits)
-- Number of comments responded to as not applicable (with brief reasons)
-- Number of comments that were already resolved
-- Number of comments needing further discussion from the reviewer
+After processing all comments, report to the user locally what you did. Do **not** post a summary comment on the PR — each comment should already have its own inline reply. A top-level summary just adds noise.
 
 ## Guidelines
 
