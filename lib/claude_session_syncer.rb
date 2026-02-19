@@ -212,7 +212,7 @@ module ClaudeSessionSyncer
       local_name = File.basename(local_file)
       remote_dir = File.dirname(remote_file)
       # Use cd && tar approach which handles quoting better with gh codespace ssh
-      cmd = "tar -cf - -C '#{local_dir}' '#{local_name}' | " \
+      cmd = "tar -cf - --no-xattrs -C '#{local_dir}' '#{local_name}' | " \
             "gh codespace ssh -c #{codespace_name} -- \"cd '#{remote_dir}' && tar -xf -\""
       system(cmd)
     end
@@ -232,7 +232,7 @@ module ClaudeSessionSyncer
       parent_dir = File.dirname(local_dir)
       dir_name = File.basename(local_dir)
       remote_parent = File.dirname(remote_dir)
-      cmd = "tar -cf - -C '#{parent_dir}' '#{dir_name}' | " \
+      cmd = "tar -cf - --no-xattrs -C '#{parent_dir}' '#{dir_name}' | " \
             "gh codespace ssh -c #{codespace_name} -- \"cd '#{remote_parent}' && tar -xf -\""
       system(cmd)
     end
