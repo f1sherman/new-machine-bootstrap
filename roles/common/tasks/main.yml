@@ -361,7 +361,7 @@
 
 - name: Merge model, statusLine, and permissions into Claude settings
   set_fact:
-    merged_settings: "{{ claude_settings | combine({'model': 'opus', 'statusLine': {'type': 'command', 'command': 'npx -y ccstatusline@' ~ ccstatusline_version, 'padding': 0}, 'permissions': merged_permissions}, recursive=True) }}"
+    merged_settings: "{{ claude_settings | combine({'model': 'opus', 'statusLine': {'type': 'command', 'command': 'npx -y ccstatusline@' ~ ccstatusline_version, 'padding': 0}, 'permissions': merged_permissions | combine({'defaultMode': 'acceptEdits'})}, recursive=True) }}"
 
 - name: Write merged Claude settings.json
   copy:
