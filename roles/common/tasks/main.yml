@@ -239,6 +239,10 @@
 
       Never use python or ruby to parse JSON from the command line. Always use `jq`.
 
+      ## Multi-Line Commands
+
+      When you need me to run a multi-line command, write it to a script in `/tmp/` and ask me to run that script. Do not ask me to copy and paste multi-line commands directly.
+
       ## Commits and Pull Requests
 
       Never create git commits or pull requests without explicit user request.
