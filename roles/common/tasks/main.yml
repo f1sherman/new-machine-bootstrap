@@ -132,6 +132,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/osc52-copy'
     mode: 0755
 
+- name: Install osc52-copy-oneline script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/bin/osc52-copy-oneline'
+    src: '{{ playbook_dir }}/roles/common/files/bin/osc52-copy-oneline'
+    mode: 0755
+
 - name: Install git-diff-untracked script
   copy:
     backup: yes

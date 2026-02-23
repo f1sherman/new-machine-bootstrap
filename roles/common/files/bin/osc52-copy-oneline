@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# Strip newlines and collapse whitespace from the tmux buffer
+# and copy to system clipboard.
+
+TMUX_BIN=$(command -v tmux 2>/dev/null || echo /opt/homebrew/bin/tmux)
+
+$TMUX_BIN show-buffer | tr '\n' ' ' | sed 's/  */ /g; s/^ //; s/ $//' | pbcopy
