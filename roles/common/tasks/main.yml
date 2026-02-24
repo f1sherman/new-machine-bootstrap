@@ -381,6 +381,14 @@
     mode: '0600'
     backup: yes
 
+- name: Install Claude Code plugins
+  command: claude plugin install {{ item }} --scope user
+  loop:
+    - pr-review-toolkit@claude-plugins-official
+  register: claude_plugin_result
+  changed_when: "'already installed' not in (claude_plugin_result.stdout | default(''))"
+  failed_when: false
+
 - name: Create ~/.claude/hooks directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/.claude/hooks'
