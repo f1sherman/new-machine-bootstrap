@@ -1,8 +1,40 @@
 #!/bin/sh
 
-# Strip newlines and collapse whitespace from the tmux buffer
-# and copy to system clipboard.
+# Yank from tmux buffer with newlines removed. Detects mid-path line
+# breaks (joined without space) vs deliberate line breaks (joined with
+# a space). Copies result to system clipboard.
 
 TMUX_BIN=$(command -v tmux 2>/dev/null || echo /opt/homebrew/bin/tmux)
 
-$TMUX_BIN show-buffer | tr '\n' ' ' | sed 's/  */ /g; s/^ //; s/ $//' | pbcopy
+$TMUX_BIN show-buffer | awk '
+{
+  sub(/[[:space:]]+$/, "")
+  lines[NR] = $0
+}
+END {
+  result = ""
+  for (i = 1; i <= NR; i++) {
+    stripped = lines[i]
+    sub(/^[[:space:]]+/, "", stripped)
+    if (stripped == "") continue
+
+    if (result == "") {
+      result = stripped
+    } else {
+      # Get the last token of the accumulated result
+      last = result
+      sub(/.*[[:space:]]/, "", last)
+
+      # If the last token contains / (looks like a path fragment),
+      # join without space to repair the split path
+      if (index(last, "/") > 0 && !match(last, /[\/[:space:]]$/)) {
+        result = result stripped
+      } else {
+        result = result " " stripped
+      }
+    }
+  }
+  gsub(/  +/, " ", result)
+  print result
+}
+' | pbcopy
