@@ -20,7 +20,7 @@ def sync_to_codespace(codespace_name)
 
   Dir.chdir(SCRIPT_DIR)
 
-  tar_cmd = "tar czf - --no-xattrs --exclude='.git' --exclude='.coding-agent' --exclude='.claude' --exclude='*.backup' --exclude='.DS_Store' --exclude='._*' --exclude='.codespace-defaults.yml' ."
+  tar_cmd = "COPYFILE_DISABLE=1 tar czf - --exclude='.git' --exclude='.coding-agent' --exclude='.claude' --exclude='*.backup' --exclude='.DS_Store' --exclude='._*' --exclude='.codespace-defaults.yml' ."
   ssh_cmd = "gh codespace ssh -c #{codespace_name} -- 'mkdir -p ~/new-machine-bootstrap && cd ~/new-machine-bootstrap && tar xzf -'"
   sync_cmd = "#{tar_cmd} | #{ssh_cmd}"
 

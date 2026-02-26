@@ -28,7 +28,7 @@ module DevEnvSyncer
         raise SyncError, "Failed to create remote directory: #{remote_coding_agent_path}" unless $?.success?
 
         workspace_dir = File.dirname(remote_coding_agent_path)
-        tar_cmd = "tar -czf - --no-xattrs --exclude='._*' -C #{source_dir} .coding-agent | gh codespace ssh -c #{codespace_name} -- 'tar -xzf - -C #{workspace_dir} --skip-old-files 2>/dev/null || true'"
+        tar_cmd = "COPYFILE_DISABLE=1 tar -czf - -C #{source_dir} .coding-agent | gh codespace ssh -c #{codespace_name} -- 'tar -xzf - -C #{workspace_dir} --skip-old-files 2>/dev/null || true'"
         _stdout, stderr, status = Open3.capture3(tar_cmd)
         unless status.success?
           raise SyncError, "Failed to sync .coding-agent to Codespace: #{stderr}"
