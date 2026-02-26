@@ -86,9 +86,11 @@ Comments have two types:
 **Skip these entirely:**
 - Comments that are purely approvals or acknowledgments with no actionable feedback
 - Replies that are just part of a thread — process the thread root instead
+- **Bot review summary comments** — automated review bots often post a top-level summary comment (e.g., "AI Review Complete") alongside inline review comments. If the summary restates feedback that also exists as inline review comments, skip the summary entirely — the inline comments are the actionable items, not the summary.
 
 **Check if already addressed:**
-- Look at replies in the thread — if someone already replied with "Fixed in ...", "Done", "Addressed", etc., the thread is resolved
+- **For review (inline) comments**: Look at replies in the thread — if someone already replied with "Fixed in ...", "Done", "Addressed", etc., the thread is resolved. Also check whether the diff is outdated (the code has changed since the comment was posted).
+- **For issue (top-level) comments**: Issue comments don't have threads, so check if any *subsequent* comments on the PR (chronologically later) from the PR author or contributors already respond to the feedback. Look for replies that quote the comment, reference it, say "Fixed", "Addressed", cite a commit SHA, or explain why it's not applicable. If so, the comment is already addressed — skip it.
 - If a prior reply from you (the PR author or another contributor) already explains the decision, skip it
 - **Check the code itself** — if the comment has a `path` and `line`, read the current file and compare against the `diff_hunk`. If the code has already been changed in a way that addresses the feedback (e.g., a human already fixed it but didn't reply), the comment may still need a reply acknowledging it's been handled, but no code change is needed.
 
