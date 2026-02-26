@@ -189,6 +189,7 @@
     mode: 0600
   with_filetree: templates/dotfiles/
   when: item.state == 'file'
+  notify: Reload tmux config
 - name: Create /opt/local/bin directory
   file:
     path: '/opt/local/bin'

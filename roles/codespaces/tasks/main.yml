@@ -13,6 +13,7 @@
     dest: '{{ ansible_facts["user_dir"] }}/.tmux.conf'
     mode: 0644
     backup: yes
+  notify: Reload tmux config
 
 - name: Install tmux plugins via tpm
   shell: |
