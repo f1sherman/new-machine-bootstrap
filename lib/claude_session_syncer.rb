@@ -20,9 +20,9 @@ module ClaudeSessionSyncer
     end
 
     # Get the remote project directory path for a Codespace
-    # Uses ~ which will be expanded on the remote system
+    # Uses $HOME (not ~) because ~ doesn't expand inside quotes
     def remote_project_dir(repo_name)
-      "~/.claude/projects/-workspaces-#{repo_name}"
+      "$HOME/.claude/projects/-workspaces-#{repo_name}"
     end
 
     # Find session files modified within the last N days
@@ -211,9 +211,8 @@ module ClaudeSessionSyncer
       local_dir = File.dirname(local_file)
       local_name = File.basename(local_file)
       remote_dir = File.dirname(remote_file)
-      # Use cd && tar approach which handles quoting better with gh codespace ssh
       cmd = "tar -cf - --no-xattrs -C '#{local_dir}' '#{local_name}' | " \
-            "gh codespace ssh -c #{codespace_name} -- \"cd '#{remote_dir}' && tar -xf -\""
+            "gh codespace ssh -c #{codespace_name} -- 'cd \"#{remote_dir}\" && tar -xf -'"
       system(cmd)
     end
 
@@ -222,7 +221,7 @@ module ClaudeSessionSyncer
       remote_dir = File.dirname(remote_file)
       remote_name = File.basename(remote_file)
       local_dir = File.dirname(local_file)
-      cmd = "gh codespace ssh -c #{codespace_name} -- \"cd '#{remote_dir}' && tar -cf - '#{remote_name}'\" | " \
+      cmd = "gh codespace ssh -c #{codespace_name} -- 'cd \"#{remote_dir}\" && tar -cf - \"#{remote_name}\"' | " \
             "tar -xf - -C '#{local_dir}'"
       system(cmd)
     end
@@ -233,7 +232,7 @@ module ClaudeSessionSyncer
       dir_name = File.basename(local_dir)
       remote_parent = File.dirname(remote_dir)
       cmd = "tar -cf - --no-xattrs -C '#{parent_dir}' '#{dir_name}' | " \
-            "gh codespace ssh -c #{codespace_name} -- \"cd '#{remote_parent}' && tar -xf -\""
+            "gh codespace ssh -c #{codespace_name} -- 'cd \"#{remote_parent}\" && tar -xf -'"
       system(cmd)
     end
 
@@ -242,7 +241,7 @@ module ClaudeSessionSyncer
       remote_parent = File.dirname(remote_dir)
       dir_name = File.basename(remote_dir)
       local_parent = File.dirname(local_dir)
-      cmd = "gh codespace ssh -c #{codespace_name} -- \"cd '#{remote_parent}' && tar -cf - '#{dir_name}'\" | " \
+      cmd = "gh codespace ssh -c #{codespace_name} -- 'cd \"#{remote_parent}\" && tar -cf - \"#{dir_name}\"' | " \
             "tar -xf - -C '#{local_parent}'"
       system(cmd)
     end
