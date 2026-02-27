@@ -473,13 +473,11 @@
     state: present
   when: ansible_facts["os_family"] == "Darwin" and codex_cli_check.rc != 0
 
-# Codespaces: Use mise's npm explicitly since Ansible sees the system nvm node
+# Codespaces: Use mise exec to run npm with mise's node (not nvm's).
+# mise activate relies on PROMPT_COMMAND which doesn't fire in Ansible's
+# non-interactive shell, so we use mise exec instead.
 - name: Install Codex CLI via npm (Codespaces)
-  shell: |
-    eval "$(mise activate bash)"
-    npm install -g @openai/codex
-  args:
-    executable: /bin/bash
+  command: mise exec --tool node@lts -- npm install -g @openai/codex
   when: lookup('env', 'CODESPACES') == 'true' and codex_cli_check.rc != 0
 
 # Codex CLI configuration for automatic API key authentication
