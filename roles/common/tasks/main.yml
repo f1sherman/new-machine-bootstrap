@@ -422,6 +422,44 @@
   register: hook_register_result
   changed_when: "'already registered' not in hook_register_result.stdout"
 
+- name: Register Stop hook for tmux waiting indicator
+  shell: |
+    SETTINGS='{{ ansible_facts["user_dir"] }}/.claude/settings.json'
+    HOOK_CMD='~/.claude/hooks/claude-waiting-on.sh'
+    if [ ! -f "$SETTINGS" ]; then
+      echo '{}' > "$SETTINGS"
+    fi
+    if jq -e '.hooks.Stop // [] | map(select(.hooks[]?.command == "'"$HOOK_CMD"'")) | length > 0' "$SETTINGS" > /dev/null 2>&1; then
+      echo "already registered"
+      exit 0
+    fi
+    HOOK_ENTRY='{"hooks":[{"type":"command","command":"'"$HOOK_CMD"'"}]}'
+    jq --argjson entry "$HOOK_ENTRY" '.hooks //= {} | .hooks.Stop = ((.hooks.Stop // []) + [$entry])' "$SETTINGS" > "${SETTINGS}.tmp" \
+      && mv "${SETTINGS}.tmp" "$SETTINGS"
+  args:
+    executable: /bin/bash
+  register: stop_hook_result
+  changed_when: "'already registered' not in stop_hook_result.stdout"
+
+- name: Register UserPromptSubmit hook for tmux waiting indicator
+  shell: |
+    SETTINGS='{{ ansible_facts["user_dir"] }}/.claude/settings.json'
+    HOOK_CMD='~/.claude/hooks/claude-waiting-off.sh'
+    if [ ! -f "$SETTINGS" ]; then
+      echo '{}' > "$SETTINGS"
+    fi
+    if jq -e '.hooks.UserPromptSubmit // [] | map(select(.hooks[]?.command == "'"$HOOK_CMD"'")) | length > 0' "$SETTINGS" > /dev/null 2>&1; then
+      echo "already registered"
+      exit 0
+    fi
+    HOOK_ENTRY='{"hooks":[{"type":"command","command":"'"$HOOK_CMD"'"}]}'
+    jq --argjson entry "$HOOK_ENTRY" '.hooks //= {} | .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) + [$entry])' "$SETTINGS" > "${SETTINGS}.tmp" \
+      && mv "${SETTINGS}.tmp" "$SETTINGS"
+  args:
+    executable: /bin/bash
+  register: prompt_hook_result
+  changed_when: "'already registered' not in prompt_hook_result.stdout"
+
 - name: Check if Codex CLI is installed
   command: command -v codex
   register: codex_cli_check
