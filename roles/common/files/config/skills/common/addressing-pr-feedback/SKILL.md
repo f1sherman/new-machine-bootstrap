@@ -92,7 +92,9 @@ Comments have two types:
 - **For review (inline) comments**: Look at replies in the thread — if someone already replied with "Fixed in ...", "Done", "Addressed", etc., the thread is resolved. Also check whether the diff is outdated (the code has changed since the comment was posted).
 - **For issue (top-level) comments**: Issue comments don't have threads, so check if any *subsequent* comments on the PR (chronologically later) from the PR author or contributors already respond to the feedback. Look for replies that quote the comment, reference it, say "Fixed", "Addressed", cite a commit SHA, or explain why it's not applicable. If so, the comment is already addressed — skip it.
 - If a prior reply from you (the PR author or another contributor) already explains the decision, skip it
-- **Check the code itself** — if the comment has a `path` and `line`, read the current file and compare against the `diff_hunk`. If the code has already been changed in a way that addresses the feedback (e.g., a human already fixed it but didn't reply), the comment may still need a reply acknowledging it's been handled, but no code change is needed.
+- **Check the code itself** — if the comment has a `path` and `line`, read the current file and compare against the `diff_hunk`. If the code has already been changed in a way that addresses the feedback (e.g., a human already fixed it but didn't reply), skip it entirely — no reply needed.
+
+**If a comment is already addressed by any of the above criteria, skip it completely — do not reply to it and do not mention it in your local summary to the user.**
 
 ### 4. Address Each Unresolved Comment
 
@@ -107,15 +109,6 @@ For each unresolved thread root or standalone comment:
 #### b. Decide on the Action
 
 **Every comment you act on MUST get its own inline reply.** Do not batch responses into a summary or skip replying.
-
-**If the feedback is already addressed by existing code changes:**
-Reply confirming it's been handled:
-```bash
-~/.claude/skills/addressing-pr-feedback/post-comment.sh \
-  --pr PR_NUMBER \
-  --comment-id COMMENT_ID \
-  --body "This was already addressed — the code now does X."
-```
 
 **If the feedback is invalid or not applicable:**
 Reply respectfully explaining why:
