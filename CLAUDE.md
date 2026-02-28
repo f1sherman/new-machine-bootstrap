@@ -2,6 +2,12 @@
 
 This repository contains bootstrap scripts for macOS and GitHub Codespaces environments using Ansible for system configuration and provisioning.
 
+## CRITICAL: Never Modify Files Outside This Repo
+
+When asked to change dotfiles, shell config, scripts, application settings, home directory configurations (e.g. `~/.zshrc`, `~/.gitconfig`, `~/.config/`), or any other managed configuration: **always edit the source files in this repository** (templates, roles, tasks, etc.), never the deployed files in `~`, `/opt/local/bin/`, or elsewhere on the filesystem. Changes to deployed files will be overwritten on next provision and won't propagate to Codespaces.
+
+After making changes, ask the user to run `bin/provision` to apply them.
+
 ## Project Structure
 - `macos` - Ruby bootstrap script for macOS initial setup
 - `bin/provision` - Universal provisioning script (Bash) that bootstraps Ansible and runs playbook
