@@ -9,7 +9,7 @@ if echo "$COMMAND" | grep -qE 'commit\.sh\b'; then
   exit 0
 fi
 
-if echo "$COMMAND" | grep -qE '\bgit\b.*\bcommit\b'; then
+if echo "$COMMAND" | grep -qE '\bgit\s+commit\b'; then
   jq -n '{
     "hookSpecificOutput": {
       "hookEventName": "PreToolUse",
