@@ -209,6 +209,10 @@ bin/sync-to-codespace --no-sessions        # Skip session sync during provisioni
 **Why Newer Timestamp Wins?**:
 This strategy is robust even if Claude Code ever compacts or truncates sessions. The file with the most recent activity is definitively the most current version. Unlike file size comparison, this works correctly regardless of session file modifications.
 
+## Useful Commands
+
+- `sudo flushdns` - Flush DNS cache on macOS. No password required.
+
 ## Important Notes
 
 **macOS**:
