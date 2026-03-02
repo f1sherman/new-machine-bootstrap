@@ -21,13 +21,9 @@ END {
     if (result == "") {
       result = stripped
     } else {
-      # Get the last token of the accumulated result
-      last = result
-      sub(/.*[[:space:]]/, "", last)
-
-      # If the last token contains / (looks like a path fragment),
-      # join without space to repair the split path
-      if (index(last, "/") > 0 && !match(last, /[\/[:space:]]$/)) {
+      # If result ends with / the path was split at a directory
+      # separator, so join without space to repair it
+      if (match(result, /\/$/)) {
         result = result stripped
       } else {
         result = result " " stripped
