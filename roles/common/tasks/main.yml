@@ -243,6 +243,10 @@
 
       When you need me to run a multi-line command, write it to a script in `/tmp/` and ask me to run that script. Do not ask me to copy and paste multi-line commands directly.
 
+      ## Verify Changes Actually Work
+
+      Never consider a change complete until you have tested it and confirmed it works. After making a fix or configuration change, always verify by running the relevant command, checking the actual state, or otherwise proving the change has the intended effect. Do not assume correctness based on what the code *should* do — confirm it empirically. If you cannot test something yourself (e.g., requires sudo or a reboot), tell the user exactly how to verify and that you were unable to confirm it.
+
       ## Commits and Pull Requests
 
       Never create git commits or pull requests without explicit user request.
