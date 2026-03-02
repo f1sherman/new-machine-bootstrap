@@ -376,7 +376,7 @@
 
 - name: Merge model, statusLine, and permissions into Claude settings
   set_fact:
-    merged_settings: "{{ claude_settings | combine({'model': 'opus', 'statusLine': {'type': 'command', 'command': 'npx -y ccstatusline@' ~ ccstatusline_version, 'padding': 0}, 'permissions': merged_permissions | combine({'defaultMode': 'acceptEdits'})}, recursive=True) }}"
+    merged_settings: "{{ claude_settings | combine({'model': 'opus', 'effortLevel': 'high', 'statusLine': {'type': 'command', 'command': 'npx -y ccstatusline@' ~ ccstatusline_version, 'padding': 0}, 'permissions': merged_permissions | combine({'defaultMode': 'acceptEdits'})}, recursive=True) }}"
 
 - name: Write merged Claude settings.json
   copy:
@@ -426,38 +426,30 @@
   register: hook_register_result
   changed_when: "'already registered' not in hook_register_result.stdout"
 
-- name: Register Stop and PermissionRequest hooks for tmux waiting indicator
+- name: Remove old claude-waiting hook registrations
   shell: |
     SETTINGS='{{ ansible_facts["user_dir"] }}/.claude/settings.json'
-    HOOK_CMD='~/.claude/hooks/claude-waiting-on.sh'
-    if [ ! -f "$SETTINGS" ]; then
-      echo '{}' > "$SETTINGS"
-    fi
-    # Remove old Notification hook registration if present (migrated to Stop)
-    if jq --arg cmd "$HOOK_CMD" -e '[(.hooks.Notification // [])[] | select(.hooks[]?.command == $cmd)] | length > 0' "$SETTINGS" > /dev/null 2>&1; then
-      jq --arg cmd "$HOOK_CMD" '.hooks.Notification = [(.hooks.Notification // [])[] | select(.hooks | all(.command != $cmd))] | if (.hooks.Notification | length) == 0 then del(.hooks.Notification) else . end' "$SETTINGS" > "${SETTINGS}.tmp" \
-        && mv "${SETTINGS}.tmp" "$SETTINGS"
-    fi
-    HOOK_ENTRY='{"hooks":[{"type":"command","command":"'"$HOOK_CMD"'"}]}'
+    [ ! -f "$SETTINGS" ] && exit 0
     changed=false
-    for event in Stop PermissionRequest; do
-      if jq --arg cmd "$HOOK_CMD" --arg ev "$event" -e '[(.hooks[$ev] // [])[] | select(.hooks[]?.command == $cmd)] | length > 0' "$SETTINGS" > /dev/null 2>&1; then
-        continue
-      fi
-      jq --argjson entry "$HOOK_ENTRY" --arg ev "$event" '.hooks //= {} | .hooks[$ev] = ((.hooks[$ev] // []) + [$entry])' "$SETTINGS" > "${SETTINGS}.tmp" \
-        && mv "${SETTINGS}.tmp" "$SETTINGS"
-      changed=true
+    for old_cmd in '~/.claude/hooks/claude-waiting-on.sh' '~/.claude/hooks/claude-waiting-off.sh'; do
+      for event in Stop PermissionRequest PreToolUse UserPromptSubmit Notification; do
+        if jq --arg cmd "$old_cmd" --arg ev "$event" -e '[(.hooks[$ev] // [])[] | select(.hooks[]?.command == $cmd)] | length > 0' "$SETTINGS" > /dev/null 2>&1; then
+          jq --arg cmd "$old_cmd" --arg ev "$event" '.hooks[$ev] = [(.hooks[$ev] // [])[] | select(.hooks | all(.command != $cmd))] | if (.hooks[$ev] | length) == 0 then del(.hooks[$ev]) else . end' "$SETTINGS" > "${SETTINGS}.tmp" \
+            && mv "${SETTINGS}.tmp" "$SETTINGS"
+          changed=true
+        fi
+      done
     done
-    if [ "$changed" = "false" ]; then echo "already registered"; fi
+    if [ "$changed" = "false" ]; then echo "already clean"; fi
   args:
     executable: /bin/bash
-  register: stop_hook_result
-  changed_when: "'already registered' not in stop_hook_result.stdout"
+  register: old_hook_cleanup
+  changed_when: "'already clean' not in old_hook_cleanup.stdout"
 
-- name: Register PreToolUse and UserPromptSubmit hooks to clear tmux waiting indicator
+- name: Register PreToolUse and UserPromptSubmit hooks to show working indicator
   shell: |
     SETTINGS='{{ ansible_facts["user_dir"] }}/.claude/settings.json'
-    HOOK_CMD='~/.claude/hooks/claude-waiting-off.sh'
+    HOOK_CMD='~/.claude/hooks/claude-working-on.sh'
     if [ ! -f "$SETTINGS" ]; then
       echo '{}' > "$SETTINGS"
     fi
@@ -474,8 +466,31 @@
     if [ "$changed" = "false" ]; then echo "already registered"; fi
   args:
     executable: /bin/bash
-  register: clear_hook_result
-  changed_when: "'already registered' not in clear_hook_result.stdout"
+  register: working_on_hook_result
+  changed_when: "'already registered' not in working_on_hook_result.stdout"
+
+- name: Register Stop and PermissionRequest hooks to clear working indicator
+  shell: |
+    SETTINGS='{{ ansible_facts["user_dir"] }}/.claude/settings.json'
+    HOOK_CMD='~/.claude/hooks/claude-working-off.sh'
+    if [ ! -f "$SETTINGS" ]; then
+      echo '{}' > "$SETTINGS"
+    fi
+    HOOK_ENTRY='{"hooks":[{"type":"command","command":"'"$HOOK_CMD"'"}]}'
+    changed=false
+    for event in Stop PermissionRequest; do
+      if jq --arg cmd "$HOOK_CMD" --arg ev "$event" -e '[(.hooks[$ev] // [])[] | select(.hooks[]?.command == $cmd)] | length > 0' "$SETTINGS" > /dev/null 2>&1; then
+        continue
+      fi
+      jq --argjson entry "$HOOK_ENTRY" --arg ev "$event" '.hooks //= {} | .hooks[$ev] = ((.hooks[$ev] // []) + [$entry])' "$SETTINGS" > "${SETTINGS}.tmp" \
+        && mv "${SETTINGS}.tmp" "$SETTINGS"
+      changed=true
+    done
+    if [ "$changed" = "false" ]; then echo "already registered"; fi
+  args:
+    executable: /bin/bash
+  register: working_off_hook_result
+  changed_when: "'already registered' not in working_off_hook_result.stdout"
 
 - name: Check if Codex CLI is installed
   command: command -v codex
