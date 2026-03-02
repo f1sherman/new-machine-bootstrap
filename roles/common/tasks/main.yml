@@ -429,7 +429,12 @@
     if [ ! -f "$SETTINGS" ]; then
       echo '{}' > "$SETTINGS"
     fi
-    if jq -e '.hooks.Stop // [] | map(select(.hooks[]?.command == "'"$HOOK_CMD"'")) | length > 0' "$SETTINGS" > /dev/null 2>&1; then
+    # Remove old Notification hook registration if present (migrated to Stop)
+    if jq --arg cmd "$HOOK_CMD" -e '[(.hooks.Notification // [])[] | select(.hooks[]?.command == $cmd)] | length > 0' "$SETTINGS" > /dev/null 2>&1; then
+      jq --arg cmd "$HOOK_CMD" '.hooks.Notification = [(.hooks.Notification // [])[] | select(.hooks | all(.command != $cmd))] | if (.hooks.Notification | length) == 0 then del(.hooks.Notification) else . end' "$SETTINGS" > "${SETTINGS}.tmp" \
+        && mv "${SETTINGS}.tmp" "$SETTINGS"
+    fi
+    if jq --arg cmd "$HOOK_CMD" -e '[(.hooks.Stop // [])[] | select(.hooks[]?.command == $cmd)] | length > 0' "$SETTINGS" > /dev/null 2>&1; then
       echo "already registered"
       exit 0
     fi
@@ -441,24 +446,28 @@
   register: stop_hook_result
   changed_when: "'already registered' not in stop_hook_result.stdout"
 
-- name: Register UserPromptSubmit hook for tmux waiting indicator
+- name: Register PreToolUse and UserPromptSubmit hooks to clear tmux waiting indicator
   shell: |
     SETTINGS='{{ ansible_facts["user_dir"] }}/.claude/settings.json'
     HOOK_CMD='~/.claude/hooks/claude-waiting-off.sh'
     if [ ! -f "$SETTINGS" ]; then
       echo '{}' > "$SETTINGS"
     fi
-    if jq -e '.hooks.UserPromptSubmit // [] | map(select(.hooks[]?.command == "'"$HOOK_CMD"'")) | length > 0' "$SETTINGS" > /dev/null 2>&1; then
-      echo "already registered"
-      exit 0
-    fi
     HOOK_ENTRY='{"hooks":[{"type":"command","command":"'"$HOOK_CMD"'"}]}'
-    jq --argjson entry "$HOOK_ENTRY" '.hooks //= {} | .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) + [$entry])' "$SETTINGS" > "${SETTINGS}.tmp" \
-      && mv "${SETTINGS}.tmp" "$SETTINGS"
+    changed=false
+    for event in PreToolUse UserPromptSubmit; do
+      if jq --arg cmd "$HOOK_CMD" --arg ev "$event" -e '[(.hooks[$ev] // [])[] | select(.hooks[]?.command == $cmd)] | length > 0' "$SETTINGS" > /dev/null 2>&1; then
+        continue
+      fi
+      jq --argjson entry "$HOOK_ENTRY" --arg ev "$event" '.hooks //= {} | .hooks[$ev] = ((.hooks[$ev] // []) + [$entry])' "$SETTINGS" > "${SETTINGS}.tmp" \
+        && mv "${SETTINGS}.tmp" "$SETTINGS"
+      changed=true
+    done
+    [ "$changed" = "false" ] && echo "already registered"
   args:
     executable: /bin/bash
-  register: prompt_hook_result
-  changed_when: "'already registered' not in prompt_hook_result.stdout"
+  register: clear_hook_result
+  changed_when: "'already registered' not in clear_hook_result.stdout"
 
 - name: Check if Codex CLI is installed
   command: command -v codex
