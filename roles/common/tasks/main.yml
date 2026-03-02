@@ -463,7 +463,7 @@
         && mv "${SETTINGS}.tmp" "$SETTINGS"
       changed=true
     done
-    [ "$changed" = "false" ] && echo "already registered"
+    if [ "$changed" = "false" ]; then echo "already registered"; fi
   args:
     executable: /bin/bash
   register: clear_hook_result
