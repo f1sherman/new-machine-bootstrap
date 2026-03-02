@@ -1,5 +1,5 @@
 #!/bin/bash
-# PreToolUse/UserPromptSubmit hook: clear the "waiting" indicator
+# Clear the "working" icon from the terminal tab title when Claude stops.
 # Re-sends the normal title to the tmux client's terminal.
 
 [ -z "$TMUX" ] && exit 0

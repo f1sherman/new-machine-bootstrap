@@ -1,5 +1,5 @@
 #!/bin/bash
-# Stop hook: signal that Claude is waiting for user input
+# Show icon in terminal tab title when Claude is actively working.
 # Sends an OSC title escape directly to the tmux client's terminal
 # so it propagates through nested tmux/SSH to the Ghostty tab title.
 
