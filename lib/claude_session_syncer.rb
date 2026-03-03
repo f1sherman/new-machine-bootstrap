@@ -51,22 +51,6 @@ module ClaudeSessionSyncer
       nil
     end
 
-    # Get last message timestamp from remote session file
-    def get_remote_last_timestamp(codespace_name, remote_path)
-      stdout, _stderr, status = Open3.capture3(
-        "gh codespace ssh -c #{codespace_name} -- 'tail -1 \"#{remote_path}\" 2>/dev/null'"
-      )
-      return nil unless status.success?
-
-      last_line = stdout.strip
-      return nil if last_line.empty?
-
-      data = JSON.parse(last_line)
-      extract_timestamp(data)
-    rescue JSON::ParserError, StandardError
-      nil
-    end
-
     # Compare timestamps, returns true if ts1 is newer than ts2
     # nil timestamps are treated as oldest (missing file)
     def timestamp_newer?(ts1, ts2)
@@ -76,59 +60,7 @@ module ClaudeSessionSyncer
       ts1 > ts2
     end
 
-    # Sync a single session file to Codespace (newer timestamp wins)
-    def sync_session_to_codespace(local_session, codespace_name, remote_project_dir)
-      session_id = File.basename(local_session, '.jsonl')
-      remote_session = File.join(remote_project_dir, "#{session_id}.jsonl")
-
-      local_ts = get_last_timestamp(local_session)
-      remote_ts = get_remote_last_timestamp(codespace_name, remote_session)
-
-      if timestamp_newer?(local_ts, remote_ts)
-        # Local is newer (or remote doesn't exist) - push local
-        ensure_remote_dir(codespace_name, remote_project_dir)
-        transfer_to_codespace(local_session, codespace_name, remote_session)
-
-        # Also sync associated directory if it exists
-        local_dir = local_session.sub(/\.jsonl$/, '')
-        if Dir.exist?(local_dir)
-          remote_dir = remote_session.sub(/\.jsonl$/, '')
-          sync_directory_to_codespace(local_dir, codespace_name, remote_dir)
-        end
-
-        :pushed
-      else
-        :skipped
-      end
-    end
-
-    # Sync a single session file from Codespace (newer timestamp wins)
-    def sync_session_from_codespace(remote_session, codespace_name, local_project_dir)
-      session_id = File.basename(remote_session, '.jsonl')
-      local_session = File.join(local_project_dir, "#{session_id}.jsonl")
-
-      remote_ts = get_remote_last_timestamp(codespace_name, remote_session)
-      local_ts = get_last_timestamp(local_session)
-
-      if timestamp_newer?(remote_ts, local_ts)
-        # Remote is newer (or local doesn't exist) - pull remote
-        FileUtils.mkdir_p(local_project_dir)
-        transfer_from_codespace(remote_session, codespace_name, local_session)
-
-        # Also sync associated directory if it exists
-        remote_dir = remote_session.sub(/\.jsonl$/, '')
-        if remote_dir_exists?(codespace_name, remote_dir)
-          local_dir = local_session.sub(/\.jsonl$/, '')
-          sync_directory_from_codespace(remote_dir, codespace_name, local_dir)
-        end
-
-        :pulled
-      else
-        :skipped
-      end
-    end
-
-    # High-level: sync all recent sessions to Codespace
+    # High-level: sync all recent sessions to Codespace (batched: 1-2 SSH calls)
     def sync_sessions_to_codespace(repo_name, codespace_name, days: DEFAULT_DAYS)
       local_dir = find_local_project_dir(repo_name)
       unless local_dir
@@ -146,30 +78,51 @@ module ClaudeSessionSyncer
 
       puts "    Found #{sessions.length} session(s) from last #{days} days"
 
-      results = { pushed: 0, skipped: 0 }
-      sessions.each do |session|
-        result = sync_session_to_codespace(session, codespace_name, remote_dir)
-        results[result] += 1
+      # SSH call 1: get all remote metadata in one shot
+      remote_metadata = fetch_remote_metadata(codespace_name, remote_dir, days)
+
+      items_to_push = []
+      pushed_count = 0
+      skipped_count = 0
+
+      sessions.each do |session_path|
+        filename = File.basename(session_path)
+        session_id = File.basename(filename, '.jsonl')
+        local_ts = get_last_timestamp(session_path)
+        remote_ts = remote_metadata.dig(filename, :timestamp)
+
+        if timestamp_newer?(local_ts, remote_ts)
+          items_to_push << filename
+          local_assoc_dir = session_path.sub(/\.jsonl$/, '')
+          items_to_push << session_id if Dir.exist?(local_assoc_dir)
+          pushed_count += 1
+        else
+          skipped_count += 1
+        end
       end
 
+      # SSH call 2: batch transfer everything that needs pushing
+      batch_transfer_to_codespace(items_to_push, local_dir, codespace_name, remote_dir)
+
+      results = { pushed: pushed_count, skipped: skipped_count }
       puts "    Pushed: #{results[:pushed]}, Skipped: #{results[:skipped]}"
       results
     end
 
-    # High-level: sync all recent sessions from Codespace
+    # High-level: sync all recent sessions from Codespace (batched: 1-2 SSH calls)
     def sync_sessions_from_codespace(repo_name, codespace_name, days: DEFAULT_DAYS)
       local_dir = find_local_project_dir(repo_name)
       remote_dir = remote_project_dir(repo_name)
 
-      # List remote sessions
-      sessions = find_remote_recent_sessions(codespace_name, remote_dir, days: days)
+      # SSH call 1: get all remote metadata in one shot
+      remote_metadata = fetch_remote_metadata(codespace_name, remote_dir, days)
 
-      if sessions.empty?
+      if remote_metadata.empty?
         puts "    No recent sessions in Codespace (last #{days} days)"
         return { pulled: 0, skipped: 0 }
       end
 
-      puts "    Found #{sessions.length} session(s) in Codespace"
+      puts "    Found #{remote_metadata.length} session(s) in Codespace"
 
       # Ensure local project dir exists (may be first sync)
       using_fallback = local_dir.nil?
@@ -182,12 +135,28 @@ module ClaudeSessionSyncer
         puts "             Run Claude Code locally first to create the proper session directory"
       end
 
-      results = { pulled: 0, skipped: 0 }
-      sessions.each do |session|
-        result = sync_session_from_codespace(session, codespace_name, target_dir)
-        results[result] += 1
+      items_to_pull = []
+      pulled_count = 0
+      skipped_count = 0
+
+      remote_metadata.each do |filename, meta|
+        local_session = File.join(target_dir, filename)
+        local_ts = get_last_timestamp(local_session)
+
+        if timestamp_newer?(meta[:timestamp], local_ts)
+          items_to_pull << filename
+          session_id = File.basename(filename, '.jsonl')
+          items_to_pull << session_id if meta[:has_dir]
+          pulled_count += 1
+        else
+          skipped_count += 1
+        end
       end
 
+      # SSH call 2: batch transfer everything that needs pulling
+      batch_transfer_from_codespace(items_to_pull, codespace_name, remote_dir, target_dir)
+
+      results = { pulled: pulled_count, skipped: skipped_count }
       puts "    Pulled: #{results[:pulled]}, Skipped: #{results[:skipped]}"
       results
     end
@@ -199,61 +168,74 @@ module ClaudeSessionSyncer
       data['timestamp'] || data.dig('snapshot', 'timestamp')
     end
 
-    def ensure_remote_dir(codespace_name, remote_dir)
-      system("gh codespace ssh -c #{codespace_name} -- 'mkdir -p \"#{remote_dir}\"' 2>/dev/null")
+    # Single SSH call to gather all remote session metadata:
+    # file list, timestamps, and associated directory existence.
+    # Returns: { "session.jsonl" => { timestamp: String|nil, has_dir: Boolean } }
+    def fetch_remote_metadata(codespace_name, remote_dir, days)
+      # Shell script extracts timestamp via grep to avoid needing jq/ruby/python on remote.
+      # If grep fails to match, timestamp is empty → treated as nil → triggers transfer (safe fallback).
+      script = [
+        'dir="#{dir}"; days=#{days};',
+        '[ -d "$dir" ] || exit 0;',
+        'find "$dir" -maxdepth 1 -name "*.jsonl" -mtime -"$days" -print0 |',
+        'while IFS= read -r -d "" f; do',
+        '  name="$(basename "$f")";',
+        '  last=$(tail -1 "$f" 2>/dev/null);',
+        '  ts="";',
+        '  if [ -n "$last" ]; then',
+        '    ts=$(printf "%s" "$last" | grep -o "\"timestamp\":\"[^\"]*\"" | head -1 | cut -d"\"" -f4);',
+        '  fi;',
+        '  has_dir="false";',
+        '  [ -d "${f%.jsonl}" ] && has_dir="true";',
+        '  printf "%s\t%s\t%s\n" "$name" "$ts" "$has_dir";',
+        'done'
+      ].join(' ')
+
+      # Interpolate the actual values into the script
+      script = script.gsub('#{dir}', remote_dir).gsub('#{days}', days.to_s)
+
+      stdout, _stderr, status = Open3.capture3(
+        "gh codespace ssh -c #{codespace_name} -- '#{script}'"
+      )
+      return {} unless status.success?
+
+      metadata = {}
+      stdout.strip.split("\n").each do |line|
+        next if line.empty?
+
+        parts = line.split("\t", 3)
+        next unless parts.length == 3
+
+        name, ts, has_dir = parts
+        metadata[name] = {
+          timestamp: ts.empty? ? nil : ts,
+          has_dir: has_dir == 'true'
+        }
+      end
+      metadata
     end
 
-    def remote_dir_exists?(codespace_name, remote_dir)
-      system("gh codespace ssh -c #{codespace_name} -- 'test -d \"#{remote_dir}\"' 2>/dev/null")
-    end
+    # Single SSH call to transfer multiple files and directories to Codespace
+    def batch_transfer_to_codespace(items, local_dir, codespace_name, remote_dir)
+      return if items.empty?
 
-    def transfer_to_codespace(local_file, codespace_name, remote_file)
-      local_dir = File.dirname(local_file)
-      local_name = File.basename(local_file)
-      remote_dir = File.dirname(remote_file)
-      cmd = "tar -cf - --no-xattrs -C '#{local_dir}' '#{local_name}' | " \
-            "gh codespace ssh -c #{codespace_name} -- 'cd \"#{remote_dir}\" && tar -xf -'"
+      item_args = items.map { |i| "'#{i}'" }.join(' ')
+      cmd = "tar -cf - --no-xattrs -C '#{local_dir}' #{item_args} | " \
+            "gh codespace ssh -c #{codespace_name} -- " \
+            "'mkdir -p \"#{remote_dir}\" && tar -xf - -C \"#{remote_dir}\"'"
       system(cmd)
     end
 
-    def transfer_from_codespace(remote_file, codespace_name, local_file)
-      FileUtils.mkdir_p(File.dirname(local_file))
-      remote_dir = File.dirname(remote_file)
-      remote_name = File.basename(remote_file)
-      local_dir = File.dirname(local_file)
-      cmd = "gh codespace ssh -c #{codespace_name} -- 'cd \"#{remote_dir}\" && tar -cf - \"#{remote_name}\"' | " \
+    # Single SSH call to transfer multiple files and directories from Codespace
+    def batch_transfer_from_codespace(items, codespace_name, remote_dir, local_dir)
+      return if items.empty?
+
+      FileUtils.mkdir_p(local_dir)
+      item_args = items.map { |i| "\"#{i}\"" }.join(' ')
+      cmd = "gh codespace ssh -c #{codespace_name} -- " \
+            "'tar -cf - -C \"#{remote_dir}\" #{item_args}' | " \
             "tar -xf - -C '#{local_dir}'"
       system(cmd)
-    end
-
-    def sync_directory_to_codespace(local_dir, codespace_name, remote_dir)
-      ensure_remote_dir(codespace_name, File.dirname(remote_dir))
-      parent_dir = File.dirname(local_dir)
-      dir_name = File.basename(local_dir)
-      remote_parent = File.dirname(remote_dir)
-      cmd = "tar -cf - --no-xattrs -C '#{parent_dir}' '#{dir_name}' | " \
-            "gh codespace ssh -c #{codespace_name} -- 'cd \"#{remote_parent}\" && tar -xf -'"
-      system(cmd)
-    end
-
-    def sync_directory_from_codespace(remote_dir, codespace_name, local_dir)
-      FileUtils.mkdir_p(File.dirname(local_dir))
-      remote_parent = File.dirname(remote_dir)
-      dir_name = File.basename(remote_dir)
-      local_parent = File.dirname(local_dir)
-      cmd = "gh codespace ssh -c #{codespace_name} -- 'cd \"#{remote_parent}\" && tar -cf - \"#{dir_name}\"' | " \
-            "tar -xf - -C '#{local_parent}'"
-      system(cmd)
-    end
-
-    def find_remote_recent_sessions(codespace_name, remote_dir, days: DEFAULT_DAYS)
-      # Find .jsonl files modified in last N days
-      cmd = "gh codespace ssh -c #{codespace_name} -- " \
-            "'find \"#{remote_dir}\" -maxdepth 1 -name \"*.jsonl\" -mtime -#{days} 2>/dev/null'"
-      stdout, _stderr, status = Open3.capture3(cmd)
-      return [] unless status.success?
-
-      stdout.strip.split("\n").reject(&:empty?)
     end
   end
 end
