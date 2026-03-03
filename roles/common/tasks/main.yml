@@ -252,7 +252,7 @@
 
       ## Use Red/Green TDD
 
-      Always attempt to use Red/Green TDD. This is critical if the project has a test suite, but even if it does not have a test suite this still applies. When feasible, create tests for your changes, verify that it fails in the way that you expect it to fail, then make your changes until your tests pass.
+      Always attempt to use Red/Green TDD. This is critical if the project has a test suite, but even if it does not have a test suite this still applies. If you can write a script to test it, you can use Red/Green TDD. Whenever feasible, create tests for your changes, verify that it fails in the way that you expect it to fail, then make your changes until your tests pass.
 
       ## Verify Changes Actually Work
 
