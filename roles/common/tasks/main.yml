@@ -242,21 +242,21 @@
       - **Reasonable polling intervals** - when waiting on CI or PR status, poll no more frequently than every 30 seconds
       - **If rate limited** - stop making requests, run `gh api rate_limit` to check reset time, and inform the user
 
-      ## JSON Parsing
+      ## JSON/YAML Parsing
 
-      Never use python or ruby to parse JSON from the command line. Always use `jq`.
+      Never use python or ruby to parse JSON nor YAML from the command line. Always use `jq` or `yq`.
 
       ## Multi-Line Commands
 
       When you need me to run a multi-line command, write it to a script in `/tmp/` and ask me to run that script. Do not ask me to copy and paste multi-line commands directly.
 
+      ## Use Red/Green TDD
+
+      Always attempt to use Red/Green TDD. This is critical if the project has a test suite, but even if it does not have a test suite this still applies. When feasible, create tests for your changes, verify that it fails in the way that you expect it to fail, then make your changes until your tests pass.
+
       ## Verify Changes Actually Work
 
       Never consider a change complete until you have tested it and confirmed it works. After making a fix or configuration change, always verify by running the relevant command, checking the actual state, or otherwise proving the change has the intended effect. Do not assume correctness based on what the code *should* do — confirm it empirically. If you cannot test something yourself (e.g., requires sudo or a reboot), tell the user exactly how to verify and that you were unable to confirm it.
-
-      ## Commits and Pull Requests
-
-      Never create git commits or pull requests without explicit user request.
     dest: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md'
     mode: '0600'
     backup: yes
