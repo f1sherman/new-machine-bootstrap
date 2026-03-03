@@ -188,6 +188,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-session-name'
     mode: 0755
 
+- name: Install tmux-switch-session script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/bin/tmux-switch-session'
+    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-switch-session'
+    mode: 0755
+
 - name: Install claude-trust-directory script
   copy:
     backup: yes

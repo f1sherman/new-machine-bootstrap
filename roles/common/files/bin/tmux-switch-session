@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Ensure PATH includes common tool locations since tmux popups run bash
+# (not zsh), so .zshenv isn't sourced
+for dir in /opt/homebrew/bin /usr/local/bin "$HOME/bin" "$HOME/.local/bin"; do
+  [[ -d "$dir" && ":$PATH:" != *":$dir:"* ]] && PATH="$dir:$PATH"
+done
+
+current_session=$(tmux display-message -p '#S')
+
+session=$(tmux list-sessions -F '#S' | \
+  grep -v "^${current_session}$" | \
+  fzf --reverse --no-multi --prompt="switch to: " --header="current: ${current_session}")
+
+[ -n "$session" ] && tmux switch-client -t "$session"
