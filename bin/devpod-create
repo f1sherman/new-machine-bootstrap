@@ -20,6 +20,10 @@ def ensure_devpod_installed
   exit 1
 end
 
+def git_url?(source)
+  source =~ %r{^(https?://|git@|github\.com/)}
+end
+
 def parse_repository_from_source(source)
   # github.com/org/repo or github.com/org/repo.git → "org/repo"
   if source =~ %r{github\.com/([^/]+/[^/]+?)(?:\.git)?$}
@@ -109,7 +113,7 @@ def main
     opts.separator ""
     opts.separator "Required options:"
 
-    opts.on("-s", "--source SOURCE", "Repository source (e.g., github.com/org/repo or local path)") do |v|
+    opts.on("-s", "--source SOURCE", "Repository git URL (e.g., github.com/org/repo)") do |v|
       options[:source] = v
     end
 
@@ -135,7 +139,7 @@ def main
     opts.separator ""
     opts.separator "Examples:"
     opts.separator "  devpod-create --source github.com/org/repo --id my-feature"
-    opts.separator "  devpod-create --source ~/projects/my-repo --id local-test --compose-profile rails"
+    opts.separator "  devpod-create --source github.com/org/repo --id my-feature --compose-profile rails"
 
     opts.on("-h", "--help", "Show this help message") do
       puts opts
@@ -166,6 +170,12 @@ def main
   source = options[:source]
   workspace_id = options[:id]
   compose_profile = options[:compose_profile]
+
+  unless git_url?(source)
+    puts "Error: --source must be a git URL (e.g., github.com/org/repo)"
+    puts "Local paths are not supported because DevPod bind-mounts them, causing filesystem issues."
+    exit 1
+  end
 
   puts "\n==> Creating DevPod workspace..."
   puts "    Source: #{source}"
