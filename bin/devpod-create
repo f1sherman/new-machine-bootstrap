@@ -189,6 +189,15 @@ def main
 
   puts "==> DevPod workspace created: #{workspace_id}"
 
+  # Create /workspaces/{repo_name} symlink so devcontainer scripts that
+  # reference the repo by name (not workspace ID) work correctly
+  repo_name = source.split('/').last.sub(/\.git$/, '')
+  workspace_dir = "/workspaces/#{workspace_id}"
+  repo_symlink = "/workspaces/#{repo_name}"
+  if repo_name != workspace_id
+    system("ssh #{workspace_id}.devpod '[ ! -e #{repo_symlink} ] && ln -s #{workspace_dir} #{repo_symlink} || true'")
+  end
+
   unless options[:no_provision]
     unless sync_bootstrap_repo(workspace_id)
       exit 1
@@ -200,7 +209,6 @@ def main
     end
   end
 
-  repo_name = source.split('/').last.sub(/\.git$/, '')
   repository = parse_repository_from_source(source)
 
   sync_dev_env(workspace_id, repository, repo_name)
