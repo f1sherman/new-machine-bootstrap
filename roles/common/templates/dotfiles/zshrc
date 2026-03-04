@@ -517,6 +517,8 @@ alias s='git status'
 # Show Disk Use of subdirectories, sort by size
 alias duss="du -d 1 -h | sort -hr"
 
+alias claude-yolo='claude --dangerously-skip-permissions'
+
 ### End Alias ###
 
 # Update tmux window name on directory change and before each prompt
