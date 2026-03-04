@@ -58,6 +58,11 @@
   set_fact:
     github_api_token: "{{ ansible_env.GITHUB_TOKEN | default(ansible_env.GH_TOKEN | default('')) }}"
 
+- name: Set architecture mapping for binary downloads
+  set_fact:
+    go_arch: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}"
+    deb_arch: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}"
+
 - name: Get latest fzf release version
   uri:
     url: https://api.github.com/repos/junegunn/fzf/releases/latest
@@ -76,7 +81,7 @@
 
 - name: Download and extract fzf binary
   unarchive:
-    src: "https://github.com/junegunn/fzf/releases/download/{{ fzf_latest_release.json.tag_name }}/fzf-{{ fzf_version }}-linux_amd64.tar.gz"
+    src: "https://github.com/junegunn/fzf/releases/download/{{ fzf_latest_release.json.tag_name }}/fzf-{{ fzf_version }}-linux_{{ go_arch }}.tar.gz"
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
     remote_src: yes
   retries: 3
@@ -132,21 +137,21 @@
 
 - name: Download delta .deb package
   get_url:
-    url: "https://github.com/dandavison/delta/releases/download/{{ delta_latest_release.json.tag_name }}/git-delta_{{ delta_version }}_amd64.deb"
-    dest: "/tmp/git-delta_{{ delta_version }}_amd64.deb"
+    url: "https://github.com/dandavison/delta/releases/download/{{ delta_latest_release.json.tag_name }}/git-delta_{{ delta_version }}_{{ deb_arch }}.deb"
+    dest: "/tmp/git-delta_{{ delta_version }}_{{ deb_arch }}.deb"
   retries: 3
   delay: 10
   when: not delta_binary.stat.exists
 
 - name: Install delta .deb package
   apt:
-    deb: "/tmp/git-delta_{{ delta_version }}_amd64.deb"
+    deb: "/tmp/git-delta_{{ delta_version }}_{{ deb_arch }}.deb"
   become: yes
   when: not delta_binary.stat.exists
 
 - name: Clean up delta .deb file
   file:
-    path: "/tmp/git-delta_{{ delta_version }}_amd64.deb"
+    path: "/tmp/git-delta_{{ delta_version }}_{{ deb_arch }}.deb"
     state: absent
   when: not delta_binary.stat.exists
 
@@ -172,7 +177,7 @@
 
 - name: Download and extract tmux binary
   unarchive:
-    src: "https://github.com/tmux/tmux-builds/releases/download/{{ tmux_latest_release.json.tag_name }}/tmux-{{ tmux_version }}-linux-x86_64.tar.gz"
+    src: "https://github.com/tmux/tmux-builds/releases/download/{{ tmux_latest_release.json.tag_name }}/tmux-{{ tmux_version }}-linux-{{ go_arch }}.tar.gz"
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
     remote_src: yes
   retries: 3
@@ -204,7 +209,7 @@
 
 - name: Download yq binary
   get_url:
-    url: "https://github.com/mikefarah/yq/releases/download/{{ yq_latest_release.json.tag_name }}/yq_linux_amd64"
+    url: "https://github.com/mikefarah/yq/releases/download/{{ yq_latest_release.json.tag_name }}/yq_linux_{{ go_arch }}"
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin/yq'
     mode: 0755
   retries: 3
