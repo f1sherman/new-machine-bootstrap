@@ -209,6 +209,13 @@
     src: '{{ playbook_dir }}/bin/sync-to-codespace'
     mode: 0755
 
+- name: Install sync-to-devpod script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/bin/sync-to-devpod'
+    src: '{{ playbook_dir }}/bin/sync-to-devpod'
+    mode: 0755
+
 - name: Create ~/.claude directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/.claude'

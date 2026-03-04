@@ -3,14 +3,13 @@
 require 'json'
 require 'open3'
 require 'fileutils'
+require_relative 'remote_transport'
 
 module ClaudeSessionSyncer
   CLAUDE_PROJECTS_DIR = File.expand_path('~/.claude/projects')
   DEFAULT_DAYS = 7
 
   class << self
-    # Find local project directory for a repository name
-    # Searches ~/.claude/projects/ for directories ending with the repo name
     def find_local_project_dir(repo_name)
       return nil unless Dir.exist?(CLAUDE_PROJECTS_DIR)
 
@@ -19,13 +18,11 @@ module ClaudeSessionSyncer
       end&.then { |dir| File.join(CLAUDE_PROJECTS_DIR, dir) }
     end
 
-    # Get the remote project directory path for a Codespace
     # Uses $HOME (not ~) because ~ doesn't expand inside quotes
     def remote_project_dir(repo_name)
       "$HOME/.claude/projects/-workspaces-#{repo_name}"
     end
 
-    # Find session files modified within the last N days
     def find_recent_sessions(project_dir, days: DEFAULT_DAYS)
       return [] unless project_dir && Dir.exist?(project_dir)
 
@@ -36,7 +33,6 @@ module ClaudeSessionSyncer
       end
     end
 
-    # Get last message timestamp from a session file
     # Returns nil if file doesn't exist or has no valid timestamp
     # Timestamp may be at top level or nested in 'snapshot' object
     def get_last_timestamp(file_path)
@@ -51,7 +47,6 @@ module ClaudeSessionSyncer
       nil
     end
 
-    # Compare timestamps, returns true if ts1 is newer than ts2
     # nil timestamps are treated as oldest (missing file)
     def timestamp_newer?(ts1, ts2)
       return true if ts2.nil? && ts1
@@ -60,8 +55,10 @@ module ClaudeSessionSyncer
       ts1 > ts2
     end
 
-    # High-level: sync all recent sessions to Codespace (batched: 1-2 SSH calls)
-    def sync_sessions_to_codespace(repo_name, codespace_name, days: DEFAULT_DAYS)
+    # High-level: sync all recent sessions to remote workspace (batched: 1-2 SSH calls)
+    def sync_sessions_to_codespace(repo_name, codespace_name, days: DEFAULT_DAYS, transport: nil)
+      transport ||= RemoteTransport::CodespaceTransport.new(codespace_name)
+
       local_dir = find_local_project_dir(repo_name)
       unless local_dir
         puts "    No local Claude sessions found for #{repo_name}"
@@ -78,8 +75,7 @@ module ClaudeSessionSyncer
 
       puts "    Found #{sessions.length} session(s) from last #{days} days"
 
-      # SSH call 1: get all remote metadata in one shot
-      remote_metadata = fetch_remote_metadata(codespace_name, remote_dir, days)
+      remote_metadata = fetch_remote_metadata(remote_dir, days, transport: transport)
 
       items_to_push = []
       pushed_count = 0
@@ -101,30 +97,30 @@ module ClaudeSessionSyncer
         end
       end
 
-      # SSH call 2: batch transfer everything that needs pushing
-      batch_transfer_to_codespace(items_to_push, local_dir, codespace_name, remote_dir)
+      batch_transfer_to_remote(items_to_push, local_dir, remote_dir, transport: transport)
 
       results = { pushed: pushed_count, skipped: skipped_count }
       puts "    Pushed: #{results[:pushed]}, Skipped: #{results[:skipped]}"
       results
     end
 
-    # High-level: sync all recent sessions from Codespace (batched: 1-2 SSH calls)
-    def sync_sessions_from_codespace(repo_name, codespace_name, days: DEFAULT_DAYS)
+    # High-level: sync all recent sessions from remote workspace (batched: 1-2 SSH calls)
+    def sync_sessions_from_codespace(repo_name, codespace_name, days: DEFAULT_DAYS, transport: nil)
+      transport ||= RemoteTransport::CodespaceTransport.new(codespace_name)
+      label = transport.workspace_type
+
       local_dir = find_local_project_dir(repo_name)
       remote_dir = remote_project_dir(repo_name)
 
-      # SSH call 1: get all remote metadata in one shot
-      remote_metadata = fetch_remote_metadata(codespace_name, remote_dir, days)
+      remote_metadata = fetch_remote_metadata(remote_dir, days, transport: transport)
 
       if remote_metadata.empty?
-        puts "    No recent sessions in Codespace (last #{days} days)"
+        puts "    No recent sessions in #{label} (last #{days} days)"
         return { pulled: 0, skipped: 0 }
       end
 
-      puts "    Found #{remote_metadata.length} session(s) in Codespace"
+      puts "    Found #{remote_metadata.length} session(s) in #{label}"
 
-      # Ensure local project dir exists (may be first sync)
       using_fallback = local_dir.nil?
       target_dir = local_dir || File.join(CLAUDE_PROJECTS_DIR, "-workspaces-#{repo_name}")
       FileUtils.mkdir_p(target_dir)
@@ -153,8 +149,7 @@ module ClaudeSessionSyncer
         end
       end
 
-      # SSH call 2: batch transfer everything that needs pulling
-      batch_transfer_from_codespace(items_to_pull, codespace_name, remote_dir, target_dir)
+      batch_transfer_from_remote(items_to_pull, remote_dir, target_dir, transport: transport)
 
       results = { pulled: pulled_count, skipped: skipped_count }
       puts "    Pulled: #{results[:pulled]}, Skipped: #{results[:skipped]}"
@@ -163,17 +158,12 @@ module ClaudeSessionSyncer
 
     private
 
-    # Extract timestamp from session record (may be at top level or in snapshot)
     def extract_timestamp(data)
       data['timestamp'] || data.dig('snapshot', 'timestamp')
     end
 
-    # Single SSH call to gather all remote session metadata:
-    # file list, timestamps, and associated directory existence.
     # Returns: { "session.jsonl" => { timestamp: String|nil, has_dir: Boolean } }
-    def fetch_remote_metadata(codespace_name, remote_dir, days)
-      # Shell script extracts timestamp via grep to avoid needing jq/ruby/python on remote.
-      # If grep fails to match, timestamp is empty → treated as nil → triggers transfer (safe fallback).
+    def fetch_remote_metadata(remote_dir, days, transport:)
       script = [
         'dir="#{dir}"; days=#{days};',
         '[ -d "$dir" ] || exit 0;',
@@ -191,11 +181,10 @@ module ClaudeSessionSyncer
         'done'
       ].join(' ')
 
-      # Interpolate the actual values into the script
       script = script.gsub('#{dir}', remote_dir).gsub('#{days}', days.to_s)
 
       stdout, _stderr, status = Open3.capture3(
-        "gh codespace ssh -c #{codespace_name} -- '#{script}'"
+        "#{transport.ssh_prefix} '#{script}'"
       )
       return {} unless status.success?
 
@@ -215,24 +204,22 @@ module ClaudeSessionSyncer
       metadata
     end
 
-    # Single SSH call to transfer multiple files and directories to Codespace
-    def batch_transfer_to_codespace(items, local_dir, codespace_name, remote_dir)
+    def batch_transfer_to_remote(items, local_dir, remote_dir, transport:)
       return if items.empty?
 
       item_args = items.map { |i| "'#{i}'" }.join(' ')
       cmd = "tar -cf - --no-xattrs -C '#{local_dir}' #{item_args} | " \
-            "gh codespace ssh -c #{codespace_name} -- " \
+            "#{transport.ssh_prefix} " \
             "'mkdir -p \"#{remote_dir}\" && tar -xf - -C \"#{remote_dir}\"'"
       system(cmd)
     end
 
-    # Single SSH call to transfer multiple files and directories from Codespace
-    def batch_transfer_from_codespace(items, codespace_name, remote_dir, local_dir)
+    def batch_transfer_from_remote(items, remote_dir, local_dir, transport:)
       return if items.empty?
 
       FileUtils.mkdir_p(local_dir)
       item_args = items.map { |i| "\"#{i}\"" }.join(' ')
-      cmd = "gh codespace ssh -c #{codespace_name} -- " \
+      cmd = "#{transport.ssh_prefix} " \
             "'tar -cf - -C \"#{remote_dir}\" #{item_args}' | " \
             "tar -xf - -C '#{local_dir}'"
       system(cmd)

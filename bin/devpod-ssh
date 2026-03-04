@@ -1,0 +1,118 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative '../lib/devpod_selector'
+require_relative '../lib/dev_env_syncer'
+require_relative '../lib/claude_session_syncer'
+require_relative '../lib/claude_permissions_merger'
+require_relative '../lib/remote_transport'
+
+def transport_for(workspace_name)
+  RemoteTransport::DevpodTransport.new(workspace_name)
+end
+
+def repo_name_for(workspace_name)
+  DevpodSelector.repo_name_for_workspace(workspace_name)
+end
+
+def prompt_for_new_permissions(workspace_name, repo_name)
+  transport = transport_for(workspace_name)
+  remote_dir = "/workspaces/#{repo_name}"
+
+  new_permissions = DevEnvSyncer.get_new_permissions_from_codespace(
+    Dir.pwd, workspace_name, remote_dir, transport: transport
+  )
+
+  local_settings_path = File.join(Dir.pwd, ClaudePermissionsMerger::SETTINGS_SUBPATH)
+  ClaudePermissionsMerger.prompt_and_merge(new_permissions, local_settings_path)
+end
+
+def sync_coding_agent_back(workspace_name)
+  repo_name = repo_name_for(workspace_name)
+  return unless repo_name
+
+  transport = transport_for(workspace_name)
+  remote_dir = "/workspaces/#{repo_name}"
+
+  begin
+    local_remote = `git remote get-url origin 2>/dev/null`.strip
+    return if local_remote.empty?
+
+    DevEnvSyncer.sync_from_codespace(Dir.pwd, workspace_name, remote_dir, transport: transport)
+
+    puts "\n==> Syncing Claude sessions..."
+    ClaudeSessionSyncer.sync_sessions_from_codespace(repo_name, workspace_name, transport: transport)
+
+    prompt_for_new_permissions(workspace_name, repo_name)
+  rescue DevEnvSyncer::SyncError, StandardError => e
+    $stderr.puts "Warning: Could not sync back from DevPod: #{e.message}"
+  end
+end
+
+def sync_sessions_before_connect(workspace_name)
+  repo_name = repo_name_for(workspace_name)
+  return unless repo_name
+
+  transport = transport_for(workspace_name)
+
+  begin
+    local_remote = `git remote get-url origin 2>/dev/null`.strip
+    return if local_remote.empty?
+
+    puts "==> Syncing Claude sessions..."
+
+    puts "    Pulling from DevPod..."
+    ClaudeSessionSyncer.sync_sessions_from_codespace(repo_name, workspace_name, transport: transport)
+
+    puts "    Pushing to DevPod..."
+    ClaudeSessionSyncer.sync_sessions_to_codespace(repo_name, workspace_name, transport: transport)
+
+    puts ""
+  rescue StandardError => e
+    $stderr.puts "Warning: Could not sync sessions before connect: #{e.message}"
+  end
+end
+
+def main
+  workspace_name = begin
+    DevpodSelector.select_workspace(workspace_name: ARGV[0])
+  rescue DevpodSelector::SelectionError => e
+    puts "Error: #{e.message}"
+    exit 1
+  end
+
+  puts "==> Connecting to DevPod workspace: #{workspace_name}"
+  puts ""
+
+  sync_sessions_before_connect(workspace_name)
+
+  # Save last workspace for quick reconnect (per-terminal)
+  tty_suffix = `tty 2>/dev/null`.strip.gsub(%r{^/dev/}, '').gsub('/', '-')
+  unless tty_suffix.empty?
+    File.write(File.expand_path("~/.last-devpod-#{tty_suffix}"), workspace_name)
+  end
+
+  system("devpod ssh #{workspace_name}")
+  ssh_exit_code = $?.exitstatus
+
+  # Reset terminal state
+  system("stty sane 2>/dev/null")
+
+  puts "\n==> Disconnected from DevPod workspace: #{workspace_name}"
+
+  sync_coding_agent_back(workspace_name)
+
+  print "Stop this DevPod workspace? [y/N] "
+  $stdout.flush
+  response = $stdin.gets&.strip&.downcase
+  if response == 'y'
+    puts "==> Stopping workspace..."
+    system("devpod stop #{workspace_name}")
+  else
+    puts "To reconnect run: devpod-ssh #{workspace_name}"
+  end
+
+  exit ssh_exit_code
+end
+
+main

@@ -221,6 +221,18 @@
     dest: '/opt/local/bin/merge-claude-permissions'
     state: link
   become: yes
+- name: Symlink devpod-create to /opt/local/bin
+  file:
+    src: '{{ playbook_dir }}/bin/devpod-create'
+    dest: '/opt/local/bin/devpod-create'
+    state: link
+  become: yes
+- name: Symlink devpod-ssh to /opt/local/bin
+  file:
+    src: '{{ playbook_dir }}/bin/devpod-ssh'
+    dest: '/opt/local/bin/devpod-ssh'
+    state: link
+  become: yes
 
 - name: Enable Dark Mode
   command: dark-mode on
