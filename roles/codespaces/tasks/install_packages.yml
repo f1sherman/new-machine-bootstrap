@@ -216,6 +216,18 @@
   delay: 10
   when: not yq_binary.stat.exists
 
+- name: Check if mise is installed
+  shell: command -v mise
+  register: mise_check
+  changed_when: false
+  failed_when: false
+
+- name: Install mise
+  shell: curl -fsSL https://mise.run | sh
+  args:
+    executable: /bin/bash
+  when: mise_check.rc != 0
+
 - name: Create fd symlink (fdfind -> fd)
   file:
     src: /usr/bin/fdfind

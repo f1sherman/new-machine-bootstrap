@@ -306,6 +306,8 @@
 
 - name: Trust mise config in Codespaces
   command: mise trust {{ playbook_dir }}/mise.toml
+  environment:
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
   changed_when: false
   when: lookup('env', 'CODESPACES') == 'true'
 
@@ -507,7 +509,7 @@
   changed_when: "'already registered' not in working_off_hook_result.stdout"
 
 - name: Check if Codex CLI is installed
-  command: command -v codex
+  shell: command -v codex
   register: codex_cli_check
   changed_when: false
   failed_when: false
@@ -522,8 +524,12 @@
 # Codespaces: Use mise exec to run npm with mise's node (not nvm's).
 # mise activate relies on PROMPT_COMMAND which doesn't fire in Ansible's
 # non-interactive shell, so we use mise exec instead.
+# PATH is extended because mise may have been installed during pre_tasks
+# and isn't in the inherited PATH yet.
 - name: Install Codex CLI via npm (Codespaces)
   command: mise exec node@lts -- npm install -g @openai/codex
+  environment:
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
   when: lookup('env', 'CODESPACES') == 'true' and codex_cli_check.rc != 0
 
 # Codex CLI configuration for automatic API key authentication
