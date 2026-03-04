@@ -76,9 +76,9 @@
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - TMUX"
     block: |
-      # Launch tmux on SSH login
+      # Launch tmux on interactive login (SSH, devpod ssh, etc.)
       # Attach to unattached session if available, otherwise create new session
-      if [ -z "$TMUX" ] && [ -n "$SSH_CONNECTION" ]; then
+      if [ -z "$TMUX" ] && [ -t 0 ]; then
         unattached=$(tmux list-sessions 2>/dev/null | grep -v '(attached)' | head -1 | cut -d: -f1)
         if [ -n "$unattached" ]; then
           exec tmux attach -t "$unattached"
@@ -94,8 +94,8 @@
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - ZSH"
     block: |
-      # Switch to zsh on SSH login (zsh will then launch tmux via .zprofile)
-      if [ -z "$TMUX" ] && [ -n "$SSH_CONNECTION" ]; then
+      # Switch to zsh on interactive login (zsh will then launch tmux via .zprofile)
+      if [ -z "$TMUX" ] && [ -t 0 ]; then
         exec /usr/bin/zsh -l
       fi
     insertafter: BOF
