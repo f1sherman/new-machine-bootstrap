@@ -177,7 +177,7 @@
 
 - name: Download and extract tmux binary
   unarchive:
-    src: "https://github.com/tmux/tmux-builds/releases/download/{{ tmux_latest_release.json.tag_name }}/tmux-{{ tmux_version }}-linux-{{ go_arch }}.tar.gz"
+    src: "https://github.com/tmux/tmux-builds/releases/download/{{ tmux_latest_release.json.tag_name }}/tmux-{{ tmux_version }}-linux-{{ ansible_facts['architecture'] | replace('aarch64', 'arm64') }}.tar.gz"
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
     remote_src: yes
   retries: 3
