@@ -201,7 +201,7 @@ def main
 
   # Create /workspaces/{repo_name} symlink so devcontainer scripts that
   # reference the repo by name (not workspace ID) work correctly
-  repo_name = source.split('/').last.sub(/\.git$/, '')
+  repo_name = source.sub(/@.*$/, '').split('/').last.sub(/\.git$/, '')
   workspace_dir = "/workspaces/#{workspace_id}"
   repo_symlink = "/workspaces/#{repo_name}"
   if repo_name != workspace_id
