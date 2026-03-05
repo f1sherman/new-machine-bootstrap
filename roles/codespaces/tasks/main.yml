@@ -79,6 +79,10 @@
       # Launch tmux on interactive login (SSH, devpod ssh, etc.)
       # Attach to unattached session if available, otherwise create new session
       if [ -z "$TMUX" ] && [ -t 0 ]; then
+        # DevPod starts in ~ instead of the workspace; cd there before tmux inherits it
+        if [ -n "$DEVPOD_WORKSPACE_ID" ] && [ -d "/workspaces/$DEVPOD_WORKSPACE_ID" ]; then
+          cd "/workspaces/$DEVPOD_WORKSPACE_ID"
+        fi
         unattached=$(tmux list-sessions 2>/dev/null | grep -v '(attached)' | head -1 | cut -d: -f1)
         if [ -n "$unattached" ]; then
           exec tmux attach -t "$unattached"

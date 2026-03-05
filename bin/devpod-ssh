@@ -92,9 +92,7 @@ def main
     File.write(File.expand_path("~/.last-devpod-#{tty_suffix}"), workspace_name)
   end
 
-  repo_name = repo_name_for(workspace_name)
-  workdir = repo_name ? "/workspaces/#{repo_name}" : "/workspaces"
-  system("devpod ssh #{workspace_name} --workdir #{workdir}")
+  system("devpod ssh #{workspace_name}")
   ssh_exit_code = $?.exitstatus
 
   # Reset terminal state
