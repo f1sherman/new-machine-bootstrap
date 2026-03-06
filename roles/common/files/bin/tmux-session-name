@@ -18,10 +18,17 @@ IFS=$'\t' read -r pane_tty pane_current_path pane_title session_id <<< "$pane_in
 
 pane_procs=$(ps -o args= -t "$pane_tty" 2>/dev/null)
 if grep -qE '(^ssh |gh codespace ssh)' <<< "$pane_procs"; then
+  is_codespace=$(grep -qE 'gh codespace ssh' <<< "$pane_procs" && echo 1)
+  ssh_host=$(grep -E '^ssh ' <<< "$pane_procs" | head -1 | awk '{print $NF}')
+  ssh_host="${ssh_host##*@}"
   if [ -n "$pane_title" ] && [ "$pane_title" != "$HOSTNAME" ] && [ "$pane_title" != "$USER@$HOSTNAME" ]; then
-    name="$pane_title"
+    if [ -z "$is_codespace" ] && [ -n "$ssh_host" ]; then
+      name="$ssh_host: $pane_title"
+    else
+      name="$pane_title"
+    fi
   else
-    name="ssh"
+    name="${ssh_host:-ssh}"
   fi
 else
   dir_basename=$(basename "$pane_current_path")
