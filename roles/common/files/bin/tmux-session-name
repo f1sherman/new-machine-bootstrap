@@ -49,3 +49,5 @@ else
   done
   tmux rename-session -t "$session_id" "$name $i" 2>/dev/null || true
 fi
+
+exit 0
