@@ -407,6 +407,11 @@ worktree-done() {
     echo "==> Branch already merged on remote; fast-forwarding ${main_branch}"
     "$(_worktree_cmd git)" -C "$main_path" merge --ff-only "origin/${main_branch}"
   else
+    echo "==> Rebasing ${current_branch} onto origin/${main_branch}"
+    if ! "$(_worktree_cmd git)" -C "$current_path" rebase "origin/${main_branch}"; then
+      echo "Error: rebase has conflicts; resolve them in ${current_path} and run worktree-done again" >&2
+      return 1
+    fi
     "$(_worktree_cmd git)" -C "$main_path" merge "$current_branch"
     "$(_worktree_cmd git)" -C "$main_path" push
   fi
