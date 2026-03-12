@@ -105,6 +105,18 @@ def sync_sessions_before_connect(codespace_name)
   end
 end
 
+def upgrade_cli_tools(codespace_name)
+  puts "==> Upgrading Claude Code and Codex to latest versions..."
+  upgrade_cmd = [
+    'curl -fsSL https://claude.ai/install.sh 2>/dev/null | bash >/dev/null 2>&1',
+    'PATH="$HOME/.local/bin:$PATH" mise exec node@lts -- npm install -g @openai/codex@latest >/dev/null 2>&1',
+    'echo "    claude $(~/.local/bin/claude --version 2>/dev/null || echo unknown)"',
+    'echo "    codex  $(PATH=$HOME/.local/bin:$PATH mise exec node@lts -- codex --version 2>/dev/null || echo unknown)"'
+  ].join('; ')
+  system("gh", "codespace", "ssh", "-c", codespace_name, "--", upgrade_cmd)
+  puts ""
+end
+
 def main
   codespace_name = begin
     CodespaceSelector.select_codespace(codespace_name: ARGV[0])
@@ -118,6 +130,8 @@ def main
 
   # Sync sessions bidirectionally before connecting
   sync_sessions_before_connect(codespace_name)
+
+  upgrade_cli_tools(codespace_name)
 
   # Save last codespace for quick reconnect via `csr` (per-terminal)
   tty_suffix = `tty 2>/dev/null`.strip.gsub(%r{^/dev/}, '').gsub('/', '-')

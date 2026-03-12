@@ -73,6 +73,18 @@ def sync_sessions_before_connect(workspace_name)
   end
 end
 
+def upgrade_cli_tools(workspace_name)
+  puts "==> Upgrading Claude Code and Codex to latest versions..."
+  upgrade_cmd = [
+    'curl -fsSL https://claude.ai/install.sh 2>/dev/null | bash >/dev/null 2>&1',
+    'PATH="$HOME/.local/bin:$PATH" mise exec node@lts -- npm install -g @openai/codex@latest >/dev/null 2>&1',
+    'echo "    claude $(~/.local/bin/claude --version 2>/dev/null || echo unknown)"',
+    'echo "    codex  $(PATH=$HOME/.local/bin:$PATH mise exec node@lts -- codex --version 2>/dev/null || echo unknown)"'
+  ].join('; ')
+  system("ssh", "#{workspace_name}.devpod", upgrade_cmd)
+  puts ""
+end
+
 def main
   workspace_name = begin
     DevpodSelector.select_workspace(workspace_name: ARGV[0])
@@ -85,6 +97,8 @@ def main
   puts ""
 
   sync_sessions_before_connect(workspace_name)
+
+  upgrade_cli_tools(workspace_name)
 
   # Save last workspace for quick reconnect (per-terminal)
   tty_suffix = `tty 2>/dev/null`.strip.gsub(%r{^/dev/}, '').gsub('/', '-')

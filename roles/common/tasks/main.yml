@@ -343,17 +343,9 @@
   register: claude_vim_mode_result
   changed_when: claude_vim_mode_result.stdout.strip() == 'changed'
 
-- name: Check if Claude Code CLI is installed
-  command: command -v claude
-  register: claude_cli_check
-  changed_when: false
-  failed_when: false
-
-- name: Install Claude Code CLI
+- name: Install or update Claude Code CLI to latest version
   shell: curl -fsSL https://claude.ai/install.sh | bash
-  args:
-    creates: '{{ ansible_facts["user_dir"] }}/.local/bin/claude'
-  when: claude_cli_check.rc != 0
+  changed_when: false
 
 - name: Check if Claude settings.json exists
   stat:
@@ -508,29 +500,24 @@
   register: working_off_hook_result
   changed_when: "'already registered' not in working_off_hook_result.stdout"
 
-- name: Check if Codex CLI is installed
-  shell: command -v codex
-  register: codex_cli_check
-  changed_when: false
-  failed_when: false
-
-- name: Install Codex CLI via npm (macOS)
+- name: Install or update Codex CLI via npm (macOS)
   npm:
     name: '@openai/codex'
     global: yes
-    state: present
-  when: ansible_facts["os_family"] == "Darwin" and codex_cli_check.rc != 0
+    state: latest
+  when: ansible_facts["os_family"] == "Darwin"
 
 # Codespaces: Use mise exec to run npm with mise's node (not nvm's).
 # mise activate relies on PROMPT_COMMAND which doesn't fire in Ansible's
 # non-interactive shell, so we use mise exec instead.
 # PATH is extended because mise may have been installed during pre_tasks
 # and isn't in the inherited PATH yet.
-- name: Install Codex CLI via npm (Codespaces)
-  command: mise exec node@lts -- npm install -g @openai/codex
+- name: Install or update Codex CLI via npm (Codespaces)
+  command: mise exec node@lts -- npm install -g @openai/codex@latest
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
-  when: lookup('env', 'CODESPACES') == 'true' and codex_cli_check.rc != 0
+  when: lookup('env', 'CODESPACES') == 'true'
+  changed_when: false
 
 # Codex CLI configuration for automatic API key authentication
 
