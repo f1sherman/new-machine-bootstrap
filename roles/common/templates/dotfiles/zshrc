@@ -410,9 +410,6 @@ tempe() {
   npx readability-cli "$1" | pandoc --from html --to gfm --wrap=none --output page.md
 }
 
-# Use rg for FZF for speed and to respect .gitignore, .ignore
-export FZF_DEFAULT_COMMAND='rg --files'
-
 # Don't list vcs-ignored files when using Ctrl-T because it can be very slow and we probably don't want it most of the
 # time
 export FZF_CTRL_T_COMMAND='rg --files --ignore-vcs'

@@ -65,6 +65,8 @@ export LSCOLORS='gxfxbEaEBxxEhEhBaDaCaD'
 # Allow use of a ripgrep configuration file
 export RIPGREP_CONFIG_PATH="${HOME}/.ripgreprc"
 
+export FZF_DEFAULT_COMMAND='rg --files'
+
 export PAGER='less -S'
 export GH_PAGER='delta'
 
