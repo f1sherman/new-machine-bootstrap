@@ -208,6 +208,9 @@ def main
     system("ssh #{workspace_id}.devpod '[ ! -e #{repo_symlink} ] && ln -s #{workspace_dir} #{repo_symlink} || true'")
   end
 
+  # Write workspace directory so .zprofile can cd there on login
+  system("ssh #{workspace_id}.devpod 'echo #{repo_symlink} > ~/.workspace-dir'")
+
   unless options[:no_provision]
     unless sync_bootstrap_repo(workspace_id)
       exit 1
