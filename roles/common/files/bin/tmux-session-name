@@ -6,7 +6,7 @@
 
 [ -z "$TMUX" ] && exit 0
 
-pane_id="${1:-$(tmux display-message -p '#{pane_id}')}"
+pane_id="${1:-${TMUX_PANE:-$(tmux display-message -p '#{pane_id}')}}"
 
 # Get all pane info in one atomic call to minimize race window
 # Format: tty<TAB>path<TAB>title<TAB>session_id
@@ -16,13 +16,16 @@ pane_info=$(tmux display-message -p -t "$pane_id" '#{pane_tty}	#{pane_current_pa
 IFS=$'\t' read -r pane_tty pane_current_path pane_title session_id <<< "$pane_info"
 [ -z "$session_id" ] && exit 0
 
+ssh_pattern='(^ssh |gh codespace ssh|devpod ssh)'
+
 pane_procs=$(ps -o args= -t "$pane_tty" 2>/dev/null)
-if grep -qE '(^ssh |gh codespace ssh)' <<< "$pane_procs"; then
+if grep -qE "$ssh_pattern" <<< "$pane_procs"; then
   is_codespace=$(grep -qE 'gh codespace ssh' <<< "$pane_procs" && echo 1)
+  is_devpod=$(grep -qE 'devpod ssh' <<< "$pane_procs" && echo 1)
   ssh_host=$(grep -E '^ssh ' <<< "$pane_procs" | head -1 | awk '{print $NF}')
   ssh_host="${ssh_host##*@}"
   if [ -n "$pane_title" ] && [ "$pane_title" != "$HOSTNAME" ] && [ "$pane_title" != "$USER@$HOSTNAME" ]; then
-    if [ -z "$is_codespace" ] && [ -n "$ssh_host" ]; then
+    if [ -z "$is_codespace" ] && [ -z "$is_devpod" ] && [ -n "$ssh_host" ]; then
       name="$ssh_host: $pane_title"
     else
       name="$pane_title"
@@ -31,6 +34,16 @@ if grep -qE '(^ssh |gh codespace ssh)' <<< "$pane_procs"; then
     name="${ssh_host:-ssh}"
   fi
 else
+  # Not SSH'd — if another pane in this session IS SSH'd, don't overwrite
+  # its name (e.g., Claude Code spinner shouldn't replace SSH-based name)
+  while IFS= read -r other_tty; do
+    [ "$other_tty" = "$pane_tty" ] && continue
+    other_procs=$(ps -o args= -t "$other_tty" 2>/dev/null)
+    if grep -qE "$ssh_pattern" <<< "$other_procs"; then
+      exit 0
+    fi
+  done <<< "$(tmux list-panes -t "$session_id" -F '#{pane_tty}')"
+
   dir_basename=$(basename "$pane_current_path")
   branch=$(cd "$pane_current_path" 2>/dev/null && git branch --show-current 2>/dev/null)
   if [ -n "$branch" ]; then

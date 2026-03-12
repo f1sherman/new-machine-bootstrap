@@ -529,7 +529,7 @@ alias claude-yolo='claude --dangerously-skip-permissions'
 # Update tmux window name on directory change and before each prompt
 if [[ -n "$TMUX" ]]; then
   _tmux_window_name_update() {
-    command tmux-session-name &>/dev/null &!
+    command tmux-session-name "$TMUX_PANE" &>/dev/null &!
   }
   autoload -Uz add-zsh-hook
   add-zsh-hook chpwd _tmux_window_name_update
