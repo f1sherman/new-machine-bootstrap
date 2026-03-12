@@ -255,7 +255,18 @@ After structure approval:
 - [Question that needs clarification]
 ````
 
-### Step 5: Review and Iterate
+### Step 5: Resolve Open Questions
+
+1. **Walk through each open question one at a time:**
+   - Present the first open question from the plan's "Open Questions" section
+   - Wait for the user's answer before moving to the next question
+   - After each answer, update the plan document:
+     - Remove the resolved question from "Open Questions"
+     - Incorporate the answer into the relevant plan section (e.g., Requirements, Proposed Approach, Implementation Plan)
+   - If the user's answer requires additional research, spawn sub-agents to investigate before continuing
+   - Continue until all open questions are resolved
+
+### Step 6: Review and Iterate
 
 1. **Present the full plan** to the user
 2. **Ask for explicit approval** before implementation

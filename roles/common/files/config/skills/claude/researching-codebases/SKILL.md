@@ -148,9 +148,15 @@ Then wait for the user's research query.
 8. **Present findings:**
    - Present a concise summary of findings to the user
    - Include key file references for easy navigation
-   - Ask if they have follow-up questions or need clarification
 
-9. **Handle follow-up questions:**
+9. **Walk through open questions:**
+   - Present each open question from the "Open Questions" section one at a time
+   - Wait for the user's answer before moving to the next question
+   - Update the research document with their answers, moving resolved questions out of "Open Questions" and incorporating the answers into the relevant sections
+   - If the user's answer raises new research needs, spawn sub-agents to investigate before continuing
+   - After all questions are resolved, ask if they have any follow-up questions
+
+10. **Handle follow-up questions:**
    - If the user has follow-up questions, append to the same research document
    - Update the frontmatter fields `last_updated` and `last_updated_by` to reflect the update
    - Add `last_updated_note: "Added follow-up research for [brief description]"` to frontmatter
