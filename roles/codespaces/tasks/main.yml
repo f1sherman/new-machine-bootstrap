@@ -203,6 +203,12 @@
       data["editorMode"] = "vim"
       changed = True
 
+    # Dismiss effort level callouts so Claude does not prompt on startup
+    for key in ["thinkingMigrationComplete", "effortCalloutDismissed", "effortCalloutV2Dismissed"]:
+      if not data.get(key):
+        data[key] = True
+        changed = True
+
     # Ensure projects section exists
     if "projects" not in data:
       data["projects"] = {}
