@@ -193,20 +193,21 @@ def main
   ]
 
   unless system(*cmd)
-    # On macOS, Docker Desktop's VirtioFS can race between the git clone
-    # writing the content directory and Docker trying to bind-mount it,
-    # producing "bind source path does not exist". Wait for Docker to
-    # actually be able to mount the content directory before retrying.
+    # On macOS with Docker Desktop VirtioFS, a cached devcontainer image
+    # causes DevPod to skip the image build step and go directly to
+    # `docker run` after the git clone. The build normally warms up
+    # VirtioFS's view of the content directory; without it, the bind
+    # mount fails with "bind source path does not exist". Deleting the
+    # stale image forces a rebuild, which warms up VirtioFS.
     content_dir = File.expand_path("~/.devpod/agent/contexts/default/workspaces/#{workspace_id}/content")
     if File.directory?(content_dir)
-      puts "\n==> First attempt failed, waiting for Docker to see the content directory..."
-      30.times do |i|
-        result = `docker run --rm -v #{content_dir}:/test alpine true 2>&1`
-        if $?.success?
-          puts "    Docker can mount the directory after #{i + 1}s"
-          break
-        end
-        sleep 1
+      puts "\n==> First attempt failed (likely VirtioFS mount race)."
+      puts "    Removing cached devcontainer images to force rebuild on retry..."
+      stale = `docker images --format '{{.Repository}}:{{.Tag}}' | grep '^vsc-content-.*:devpod-'`.strip.split("\n")
+      running_images = `docker ps --format '{{.Image}}'`.strip.split("\n")
+      stale.each do |img|
+        next if running_images.include?(img)
+        system("docker rmi #{img} >/dev/null 2>&1")
       end
 
       puts "==> Retrying devpod up..."
