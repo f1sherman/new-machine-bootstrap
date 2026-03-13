@@ -9,6 +9,7 @@
 # Detects if the current tmux pane is SSH'd to a server and:
 # - If not SSH'd: outputs the path unchanged
 # - If SSH'd to Codespace: uploads via gh codespace cp, outputs remote path
+# - If SSH'd to DevPod: uploads via scp to <workspace>.devpod, outputs remote path
 # - If SSH'd to regular server: uploads via scp, outputs remote path
 
 require 'fileutils'
@@ -61,6 +62,8 @@ def find_ssh_process(pane_tty)
   processes.each do |args|
     if args.match?(/\bgh codespace ssh\b/)
       return { type: :codespace, args: args }
+    elsif args.match?(/\bdevpod ssh\b/)
+      return { type: :devpod, args: args }
     elsif args.match?(/^ssh\s/)
       return { type: :ssh, args: args }
     end
@@ -77,6 +80,16 @@ def extract_codespace_name(args)
   else
     nil
   end
+end
+
+def extract_devpod_workspace(args)
+  # devpod ssh <workspace-name> [flags]
+  parts = args.split
+  idx = parts.index("ssh")
+  return nil unless idx
+
+  candidate = parts[idx + 1]
+  candidate && !candidate.start_with?("-") ? candidate : nil
 end
 
 def extract_ssh_target(args)
@@ -206,6 +219,23 @@ def main
       print remote_path
     else
       warn "Upload to codespace failed"
+      print local_path
+      exit 1
+    end
+
+  when :devpod
+    workspace = extract_devpod_workspace(ssh_info[:args])
+    if workspace.nil?
+      warn "Could not determine DevPod workspace name"
+      print local_path
+      exit 1
+    end
+
+    remote_path = upload_to_ssh(local_path, "#{workspace}.devpod")
+    if remote_path
+      print remote_path
+    else
+      warn "Upload to DevPod failed"
       print local_path
       exit 1
     end
