@@ -6,7 +6,7 @@
     dest: '{{ ansible_facts["user_dir"] }}/.ssh/config'
     src: ssh/config
     mode: 0600
-- name: Configure sshd
+- name: Configure sshd (personal machines only)
   lineinfile:
     backup: yes
     dest: /etc/ssh/sshd_config
@@ -18,10 +18,18 @@
     - { line: 'ChallengeResponseAuthentication no', regexp: '^#?ChallengeResponseAuthentication ' }
     - { line: 'KbdInteractiveAuthentication no', regexp: '^#?KbdInteractiveAuthentication ' }
   become: true
-- name: Enable sshd
+  when: bootstrap_use == 'personal'
+- name: Enable sshd (personal machines only)
   command: launchctl load -w /System/Library/LaunchDaemons/ssh.plist
   changed_when: false
   become: true
+  when: bootstrap_use == 'personal'
+- name: Disable sshd (work machines only)
+  command: launchctl unload -w /System/Library/LaunchDaemons/ssh.plist
+  changed_when: false
+  become: true
+  failed_when: false
+  when: bootstrap_use == 'work'
 - name: Install XCode Command Line Tools
   command: xcode-select --install
   args:
