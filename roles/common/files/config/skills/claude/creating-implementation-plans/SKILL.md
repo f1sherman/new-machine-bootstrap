@@ -213,34 +213,89 @@ After structure approval:
 
 ## Implementation Plan
 
+Each phase follows this process:
+1. **Red**: Write tests for the phase, run them, and confirm they fail in the expected way (the feature is missing, not the test is broken).
+2. **Implement**: Complete the phase tasks.
+3. **Green**: Run tests and fix failures until all pass.
+4. **Self-Review**: Review all code for quality, correctness, and consistency. Fix any issues found, then re-run tests. Repeat until both tests and self-review pass consecutively.
+5. **Human Review**: Present a summary of changes and issues encountered. Wait for approval before starting the next phase.
+
 ### Phase 1: [Name]
+
+#### Tasks
 - [ ] Task 1
 - [ ] Task 2
 - [ ] Task 3
 
+#### Tests
+<!-- Tests for this phase. Even if the repo has no test suite, create throwaway tests. -->
+- `test command 1`
+- `test command 2`
+
+#### Red (pre-implementation)
+<!-- Verify tests fail in the expected way BEFORE implementing. This confirms the tests themselves aren't broken. -->
+- [ ] Tests fail as expected (not due to test bugs)
+
+#### Green (post-implementation)
+<!-- Verify tests pass AFTER implementing. -->
+- [ ] All phase tests pass
+
+#### Self-Review
+- [ ] Code reviewed for quality, correctness, and consistency with codebase patterns
+
+<!-- After self-review: fix any issues, re-run tests, repeat until both pass consecutively. Then summarize changes and issues for human review. Do NOT proceed to Phase 2 until human approves. -->
+
+#### Human Review
+- [ ] Changes reviewed and approved by human
+
+---
+
 ### Phase 2: [Name]
+
+#### Tasks
 - [ ] Task 1
 - [ ] Task 2
 
+#### Tests
+- `test command 1`
+
+#### Red (pre-implementation)
+- [ ] Tests fail as expected (not due to test bugs)
+
+#### Green (post-implementation)
+- [ ] All phase tests pass
+
+#### Self-Review
+- [ ] Code reviewed for quality, correctness, and consistency with codebase patterns
+
+<!-- After self-review: fix any issues, re-run tests, repeat until both pass consecutively. Then summarize changes and issues for human review. Do NOT proceed to Phase 3 until human approves. -->
+
+#### Human Review
+- [ ] Changes reviewed and approved by human
+
+---
+
 ### Phase 3: [Name]
+
+#### Tasks
 - [ ] Task 1
 
-## Testing Strategy
+#### Tests
+- `test command 1`
 
-### Automated Verification
-- [ ] `command to run`
-- [ ] `another command`
+#### Red (pre-implementation)
+- [ ] Tests fail as expected (not due to test bugs)
 
-### Manual Verification
-- [ ] Step 1
-- [ ] Step 2
+#### Green (post-implementation)
+- [ ] All phase tests pass
 
-## Test Results
+#### Self-Review
+- [ ] Code reviewed for quality, correctness, and consistency with codebase patterns
 
-| Test | Status | Output |
-| --- | --- | --- |
-| `command to run` | ⏳ Pending | |
-| `another command` | ⏳ Pending | |
+<!-- After self-review: fix any issues, re-run tests, repeat until both pass consecutively. Then summarize changes and issues for human review. Do NOT proceed until human approves. -->
+
+#### Human Review
+- [ ] Changes reviewed and approved by human
 
 ## Rollout Plan
 

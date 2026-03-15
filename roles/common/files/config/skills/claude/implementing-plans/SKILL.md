@@ -89,21 +89,47 @@ How would you like to handle each?
 
 Follow-ups that get added to the current plan should be incorporated into the appropriate phase. Follow-ups deferred to separate plans should be left checked off in the Follow-ups section with a note like `(deferred to separate plan)`. Discarded items should be checked off with `(discarded)`.
 
-## Testing and Verification
+## Red/Green TDD Per Phase
 
-**Goal**: You should execute as much testing as possible. Only involve the human for things you cannot do (visual verification, physical devices, actions requiring permissions you don't have).
+Every phase uses red/green TDD. Even if the repo has no test suite, create tests — throwaway scripts are fine. Try to run as many tests yourself as possible; only ask the user to run tests you cannot (permissions, visual checks, physical devices).
 
-After implementing a phase:
+### Before implementing a phase (Red):
 
-1. **Run all agent-verifiable tests** in the plan's Testing section
-2. **Document results** in the Test Results table:
-   - Update the table with actual command output
-   - Note any failures or unexpected results
-3. **Check off completed items** as tests pass
-4. **Fix any issues** before proceeding to the next phase
-5. **For human-required items**: Clearly tell the user exactly what to do and what to look for
+1. **Write or identify the tests** listed in the phase's Tests section
+2. **Run them and verify they fail in the expected way**:
+   - The failure should be because the feature isn't implemented yet, NOT because the test itself is broken
+   - If a test fails for the wrong reason, fix the test first
+3. **Check off the "Red (pre-implementation)" checkbox** in the plan once confirmed
 
-Don't let verification interrupt your flow - batch it at natural stopping points.
+### After implementing a phase (Green → Self-Review → Human Review loop):
+
+1. **Run the phase's tests**
+2. **If tests fail**: fix the implementation and re-run — do NOT proceed
+3. **Self-review your changes**:
+   - Review all code written in this phase for quality, correctness, and consistency with codebase patterns
+   - Check for edge cases, error handling, and any issues
+   - If self-review reveals problems, fix them and go back to step 1 (re-run tests)
+4. **Testing and self-review must both pass consecutively** — always re-run tests after fixing any self-review issue
+5. **Once both pass consecutively**, check off the "Green" and "Self-Review" checkboxes
+6. **Present a phase summary to the user for human review**:
+   ```
+   Phase [N]: [Name] — Ready for Review
+
+   Changes made:
+   - [What was implemented]
+   - [Key decisions or adaptations from the plan]
+
+   Issues found during testing/self-review:
+   - [What broke and how it was fixed]
+   - [What self-review caught and how it was addressed]
+
+   Tests passing:
+   - [List of test commands and results]
+
+   Ready to proceed to Phase [N+1]?
+   ```
+7. **Wait for human approval** before moving to the next phase
+8. **Check off the "Human Review" checkbox** once approved
 
 ## If You Get Stuck
 
