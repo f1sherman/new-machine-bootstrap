@@ -95,14 +95,23 @@ generate_summary() {
   local transcript_file="$1"
   local summary_file="$2"
 
-  if [[ -f "$summary_file" ]]; then
+  if [[ -s "$summary_file" ]]; then
     return
   fi
 
   echo "Generating summary..." >&2
-  llm -m gpt-5.2 -s "Summarize this YouTube video transcript. Provide a concise summary with key points and takeaways. Be thorough but not verbose." \
-    < "$transcript_file" > "$summary_file" \
-    || die "Failed to generate summary"
+  local tmp_summary
+  tmp_summary=$(mktemp)
+  llm -m claude-opus-4.6 -s "Summarize this YouTube video transcript. Provide a concise summary with key points and takeaways. Be thorough but not verbose." \
+    < "$transcript_file" > "$tmp_summary" \
+    || { rm -f "$tmp_summary"; die "Failed to generate summary"; }
+
+  if [[ ! -s "$tmp_summary" ]]; then
+    rm -f "$tmp_summary"
+    die "Summary generation produced empty output"
+  fi
+
+  mv "$tmp_summary" "$summary_file"
 }
 
 format_duration() {

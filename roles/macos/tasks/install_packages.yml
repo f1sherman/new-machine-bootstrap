@@ -85,6 +85,37 @@
   shell: '{{ brew_prefix }}/opt/fzf/install --all'
   changed_when: false
 
+- name: Check if llm-anthropic plugin is installed
+  shell: llm plugins | jq -e '.[] | select(.name == "llm-anthropic")' > /dev/null 2>&1
+  register: llm_anthropic_plugin_check
+  changed_when: false
+  failed_when: false
+
+- name: Install llm-anthropic plugin
+  command: llm install llm-anthropic
+  when: llm_anthropic_plugin_check.rc != 0
+
+- name: Check if Anthropic API key is configured in llm
+  shell: llm keys list 2>/dev/null | grep -q '^anthropic$'
+  register: llm_anthropic_key_check
+  changed_when: false
+  failed_when: false
+
+- name: Check if Anthropic API key file exists
+  stat:
+    path: '{{ ansible_facts["user_dir"] }}/.config/api-keys/anthropic'
+  register: anthropic_api_key_stat
+
+- name: Read Anthropic API key from file
+  slurp:
+    src: '{{ ansible_facts["user_dir"] }}/.config/api-keys/anthropic'
+  register: anthropic_api_key_content
+  when: anthropic_api_key_stat.stat.exists and anthropic_api_key_stat.stat.size > 0
+
+- name: Configure Anthropic API key for llm
+  shell: echo "{{ anthropic_api_key_content.content | b64decode | trim }}" | llm keys set anthropic
+  when: llm_anthropic_key_check.rc != 0 and anthropic_api_key_stat.stat.exists and anthropic_api_key_stat.stat.size > 0
+
 - name: Get current llm default model
   command: llm models default
   register: llm_default_model
