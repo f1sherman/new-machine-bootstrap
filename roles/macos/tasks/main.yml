@@ -220,7 +220,19 @@
     update: yes
 - name: Install tmux plugins via tpm
   shell: |
-    TMUX_PLUGIN_MANAGER_PATH=~/.tmux/plugins/ ~/.tmux/plugins/tpm/bin/install_plugins
+    # Start a temporary detached tmux session so the config loads and
+    # set-environment sets TMUX_PLUGIN_MANAGER_PATH for install_plugins.
+    tmux_was_running=false
+    tmux list-sessions &>/dev/null && tmux_was_running=true
+    tmux new-session -d -s tpm_install
+    ~/.tmux/plugins/tpm/bin/install_plugins
+    # Clean up: kill-server if we started it, otherwise try kill-session
+    # (kill-session may miss renamed sessions from tmux-session-name hooks)
+    if [ "$tmux_was_running" = false ]; then
+      tmux kill-server 2>/dev/null || true
+    else
+      tmux kill-session -t tpm_install 2>/dev/null || true
+    fi
   args:
     executable: /bin/bash
     creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
