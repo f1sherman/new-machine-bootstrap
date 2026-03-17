@@ -26,7 +26,7 @@ if grep -qE "$ssh_pattern" <<< "$pane_procs"; then
   ssh_host="${ssh_host##*@}"
   if [ -n "$pane_title" ] && [ "$pane_title" != "$HOSTNAME" ] && [ "$pane_title" != "$USER@$HOSTNAME" ]; then
     if [ -z "$is_codespace" ] && [ -z "$is_devpod" ] && [ -n "$ssh_host" ]; then
-      name="$ssh_host: $pane_title"
+      name="$ssh_host | $pane_title"
     else
       name="$pane_title"
     fi
@@ -50,6 +50,13 @@ else
     name="($branch) $dir_basename"
   else
     name="$dir_basename"
+  fi
+
+  # Append running program if it's not the shell
+  # Uses ps stat flag: "+" means foreground process group
+  fg_cmd=$(ps -o stat=,comm= -t "$pane_tty" 2>/dev/null | awk '$1 ~ /\+/ && $2 !~ /^-?(zsh|bash|sh|login)$/ {gsub(/^-/, "", $2); print $2; exit}')
+  if [ -n "$fg_cmd" ]; then
+    name="$name [$fg_cmd]"
   fi
 fi
 
