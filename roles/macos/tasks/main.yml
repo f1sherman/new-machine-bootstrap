@@ -167,13 +167,26 @@
   with_items:
     - 'clipboard-read = ask'
     - 'clipboard-write = allow'
-    - 'command = /opt/homebrew/bin/tmux'
     - 'confirm-close-surface = false'
     - 'copy-on-select = clipboard'
     - 'minimum-contrast = 1.1'
     - 'mouse-scroll-multiplier = 0.01'
     - 'scrollback-limit = 0'
     - 'term = xterm-256color'
+- name: Configure ghostty command
+  lineinfile:
+    path: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty/config'
+    regexp: '^command\s*='
+    line: 'command = {{ ansible_facts["user_dir"] }}/bin/tmux-attach-or-new'
+    create: yes
+    mode: 0644
+- name: Configure ghostty window-save-state
+  lineinfile:
+    path: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty/config'
+    regexp: '^window-save-state\s*='
+    line: 'window-save-state = always'
+    create: yes
+    mode: 0644
 - name: Create .vimtmp directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/.vimtmp'
@@ -198,6 +211,19 @@
   with_filetree: templates/dotfiles/
   when: item.state == 'file'
   notify: Reload tmux config
+- name: Clone tmux plugin manager (tpm)
+  git:
+    repo: 'https://github.com/tmux-plugins/tpm'
+    dest: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tpm'
+    depth: 1
+    version: master
+    update: yes
+- name: Install tmux plugins via tpm
+  shell: |
+    TMUX_PLUGIN_MANAGER_PATH=~/.tmux/plugins/ ~/.tmux/plugins/tpm/bin/install_plugins
+  args:
+    executable: /bin/bash
+    creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
 - name: Create /opt/local/bin directory
   file:
     path: '/opt/local/bin'
