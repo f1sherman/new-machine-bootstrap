@@ -10,8 +10,15 @@ done
 
 current_session=$(tmux display-message -p '#S')
 
-session=$(tmux list-sessions -F '#S' | \
-  grep -v "^${current_session}$" | \
-  fzf --reverse --no-multi --prompt="switch to: " --header="current: ${current_session}")
+session=$(tmux list-sessions -F \
+  '#{session_name}|#{?session_attached,attached,detached}|#{session_created}' | \
+  grep -v "^${current_session}|" | \
+  while IFS='|' read -r name attached created; do
+    age=$(date -r "$created" '+%Y-%m-%d %H:%M' 2>/dev/null || date -d "@$created" '+%Y-%m-%d %H:%M')
+    printf '%s\t%s\t%s\n' "$name" "$attached" "$age"
+  done | \
+  fzf --reverse --no-multi --prompt="switch to: " --header="current: ${current_session}" \
+    --delimiter=$'\t' --nth=1 \
+    --preview='tmux capture-pane -e -p -t {1}')
 
-[ -n "$session" ] && tmux switch-client -t "$session"
+[ -n "$session" ] && tmux switch-client -t "$(echo "$session" | cut -f1)"
