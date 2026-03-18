@@ -78,7 +78,8 @@ After making changes, ask the user to run `bin/provision` to apply them.
 - **Editor**: vim/nvim with shared configuration from separate dotvim repository
 - **Shell**: zsh with prezto framework
 - **Terminal**: ghostty with tmux integration
-- **Package Management**: Homebrew, mise for runtime versions, pipx for Python tools
+- **Package Management**: Homebrew, pipx for Python tools
+- **Runtime Version Management**: mise manages versions of platforms like Ruby, Node, Python, etc. (configured via `.mise.toml` files)
 - **AI Tools**: Configured for Aider (AI coding assistant) and Claude Code
 
 ### Configuration Patterns
