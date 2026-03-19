@@ -1,0 +1,61 @@
+#!/bin/bash
+# One-time system setup for macOS (requires sudo)
+#
+# This script configures system-level settings that require root access.
+# It only needs to be run once per machine, or after a macOS update resets settings.
+#
+# Run this BEFORE bin/provision on a new machine.
+
+set -e
+
+if [[ "$OSTYPE" != "darwin"* ]]; then
+  echo "Error: bin/setup is only for macOS."
+  exit 1
+fi
+
+BREW_PREFIX=$(brew --prefix 2>/dev/null)
+if [[ -z "$BREW_PREFIX" ]]; then
+  echo "Error: Homebrew is not installed. Install it first:"
+  echo '  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+  exit 1
+fi
+
+HOMEBREW_ZSH="$BREW_PREFIX/bin/zsh"
+if [[ ! -x "$HOMEBREW_ZSH" ]]; then
+  echo "Error: Homebrew's zsh not found at $HOMEBREW_ZSH"
+  echo "  Install it with: brew install zsh"
+  exit 1
+fi
+
+echo "==> Setting default shell to Homebrew's zsh..."
+if ! grep -qF "$HOMEBREW_ZSH" /etc/shells; then
+  echo "    Adding $HOMEBREW_ZSH to /etc/shells..."
+  echo "$HOMEBREW_ZSH" | sudo tee -a /etc/shells >/dev/null
+fi
+sudo dscl . -create "/Users/$(whoami)" UserShell "$HOMEBREW_ZSH"
+echo "    Done."
+
+echo "==> Configuring system settings..."
+sudo nvram SystemAudioVolume=" "
+sudo systemsetup -setrestartfreeze on
+sudo defaults write /Library/Preferences/com.apple.loginwindow SHOWFULLNAME -bool true
+sudo defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool false
+sudo pmset -a hibernatemode 0
+sudo pmset -a sms 0
+sudo chflags nohidden /Volumes
+echo "    Done."
+
+echo "==> Configuring flushdns sudoers entry..."
+FLUSHDNS_PATH="$HOME/.local/bin/flushdns"
+SUDOERS_LINE="%admin    ALL = (root) NOPASSWD: $FLUSHDNS_PATH"
+if sudo grep -qF "$FLUSHDNS_PATH" /etc/sudoers; then
+  echo "    Already configured."
+else
+  # Remove any old flushdns entry pointing to /opt/local/bin
+  sudo sed -i '' '/flushdns/d' /etc/sudoers
+  echo "$SUDOERS_LINE" | sudo tee -a /etc/sudoers >/dev/null
+  echo "    Done."
+fi
+
+echo ""
+echo "System setup complete. You can now run bin/provision without sudo."

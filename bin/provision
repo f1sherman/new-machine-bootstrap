@@ -215,11 +215,22 @@ if ! command_exists ansible-playbook; then
   log_info "Ansible installation complete, preparing playbook..."
 fi
 
+# On macOS, verify that bin/setup has been run (default shell must be Homebrew's zsh)
+if mac_os && ! in_codespaces; then
+  BREW_PREFIX=$(brew --prefix 2>/dev/null || echo "/opt/homebrew")
+  EXPECTED_SHELL="$BREW_PREFIX/bin/zsh"
+  CURRENT_SHELL=$(dscl . -read "/Users/$(whoami)" UserShell 2>/dev/null | awk '{print $2}')
+  if [[ "$CURRENT_SHELL" != "$EXPECTED_SHELL" ]]; then
+    log_error "Default shell is '$CURRENT_SHELL', expected '$EXPECTED_SHELL'"
+    echo ""
+    echo "Run 'bin/setup' first to configure system settings (requires sudo)."
+    echo "This only needs to be done once per machine."
+    exit 1
+  fi
+fi
+
 log_info "Building ansible-playbook command..."
 cmd_parts=("ansible-playbook")
-if ! in_codespaces; then
-  cmd_parts+=("--ask-become-pass")
-fi
 cmd_parts+=("--inventory" "localhost,")
 cmd_parts+=("--connection" "local")
 cmd_parts+=("playbook.yml")
