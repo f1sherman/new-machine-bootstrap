@@ -6,44 +6,10 @@
     dest: '{{ ansible_facts["user_dir"] }}/.ssh/config'
     src: ssh/config
     mode: 0600
-- name: Configure sshd (personal machines only)
-  lineinfile:
-    backup: yes
-    dest: /etc/ssh/sshd_config
-    line: '{{ item.line }}'
-    regexp: '{{ item.regexp }}'
-  with_items:
-    - { line: 'PermitRootLogin no', regexp: '^#?PermitRootLogin ' }
-    - { line: 'PasswordAuthentication no', regexp: '^#?PasswordAuthentication ' }
-    - { line: 'ChallengeResponseAuthentication no', regexp: '^#?ChallengeResponseAuthentication ' }
-    - { line: 'KbdInteractiveAuthentication no', regexp: '^#?KbdInteractiveAuthentication ' }
-  become: true
-  when: bootstrap_use == 'personal'
-- name: Enable sshd (personal machines only)
-  command: launchctl load -w /System/Library/LaunchDaemons/ssh.plist
-  changed_when: false
-  become: true
-  when: bootstrap_use == 'personal'
-- name: Disable sshd (work machines only)
-  command: launchctl unload -w /System/Library/LaunchDaemons/ssh.plist
-  changed_when: false
-  become: true
-  failed_when: false
-  when: bootstrap_use == 'work'
 - name: Install XCode Command Line Tools
   command: xcode-select --install
   args:
     creates: /Library/Developer/CommandLineTools
-- name: Setup log rotation
-  template:
-    backup: yes
-    dest: /etc/newsyslog.d/projects.conf
-    src: newsyslog/projects.conf
-    owner: root
-    mode: 0644
-  become: true
-  vars:
-    owner: '{{ ansible_facts["user_id"] }}'
 - name: Create directories
   file:
     dest: '{{ ansible_facts["user_dir"] }}/.{{ item }}'
@@ -236,49 +202,36 @@
   args:
     executable: /bin/bash
     creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
-- name: Create /opt/local/bin directory
-  file:
-    path: '/opt/local/bin'
-    state: directory
-    owner: root
-    recurse: yes
-  become: yes
-- name: Symlink codespace-create to /opt/local/bin
+- name: Symlink codespace-create to ~/.local/bin
   file:
     src: '{{ playbook_dir }}/bin/codespace-create'
-    dest: '/opt/local/bin/codespace-create'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/codespace-create'
     state: link
-  become: yes
-- name: Symlink codespace-ssh to /opt/local/bin
+- name: Symlink codespace-ssh to ~/.local/bin
   file:
     src: '{{ playbook_dir }}/bin/codespace-ssh'
-    dest: '/opt/local/bin/codespace-ssh'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/codespace-ssh'
     state: link
-  become: yes
-- name: Symlink csr to /opt/local/bin
+- name: Symlink csr to ~/.local/bin
   file:
     src: '{{ playbook_dir }}/bin/csr'
-    dest: '/opt/local/bin/csr'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/csr'
     state: link
-  become: yes
-- name: Symlink merge-claude-permissions to /opt/local/bin
+- name: Symlink merge-claude-permissions to ~/.local/bin
   file:
     src: '{{ playbook_dir }}/bin/merge-claude-permissions'
-    dest: '/opt/local/bin/merge-claude-permissions'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/merge-claude-permissions'
     state: link
-  become: yes
-- name: Symlink devpod-create to /opt/local/bin
+- name: Symlink devpod-create to ~/.local/bin
   file:
     src: '{{ playbook_dir }}/bin/devpod-create'
-    dest: '/opt/local/bin/devpod-create'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/devpod-create'
     state: link
-  become: yes
-- name: Symlink devpod-ssh to /opt/local/bin
+- name: Symlink devpod-ssh to ~/.local/bin
   file:
     src: '{{ playbook_dir }}/bin/devpod-ssh'
-    dest: '/opt/local/bin/devpod-ssh'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/devpod-ssh'
     state: link
-  become: yes
 
 - name: Enable Dark Mode
   command: dark-mode on
@@ -291,25 +244,6 @@
   with_fileglob:
     - '{{ ansible_facts["user_dir"] }}/.zprezto/runcoms/^(README.md|zshrc|zpreztorc)'
 
-- name: Set default shell to zsh
-  user:
-    name: '{{ ansible_facts["user_id"] }}'
-    shell: '{{ brew_prefix }}/bin/zsh'
-  become: yes
-- name: Configure system settings (requires sudo)
-  become: yes
-  command: '{{ item.command }}'
-  changed_when: false
-  loop:
-    - { name: 'Disable the sound effects on boot', command: 'nvram SystemAudioVolume=" "' }
-    - { name: 'Restart automatically if the computer freezes', command: 'systemsetup -setrestartfreeze on' }
-    - { name: 'Display login window as name and password instead of list of users', command: 'defaults write /Library/Preferences/com.apple.loginwindow SHOWFULLNAME -bool true' }
-    - { name: 'Disable guest account login', command: 'defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool false' }
-    - { name: 'Disable hibernation (speeds up entering sleep mode)', command: 'pmset -a hibernatemode 0' }
-    - { name: "Disable the sudden motion sensor as it's not useful for SSDs", command: 'pmset -a sms 0' }
-    - { name: 'Show the /Volumes folder', command: 'chflags nohidden /Volumes' }
-  loop_control:
-    label: "{{ item.name }}"
 - name: Configure user preferences
   command: '{{ item.command }}'
   changed_when: false
@@ -462,22 +396,9 @@
 - name: Install flushdns script
   copy:
     backup: yes
-    dest: '/opt/local/bin/flushdns'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/flushdns'
     src: 'bin/flushdns'
     mode: 0755
-  become: true
-- name: Allow flushdns to be run as root without password
-  lineinfile:
-   path: /etc/sudoers
-   state: present
-   regexp: 'flushdns'
-   line: '%admin    ALL = (root) NOPASSWD: /opt/local/bin/flushdns'
-  become: true
-- name: Remove Touch ID for sudo (conflicts with Ansible provisioning)
-  file:
-    path: /etc/pam.d/sudo_local
-    state: absent
-  become: true
 - name: Create "murder" script to try to gracefully kill processes
   template:
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin/murder'

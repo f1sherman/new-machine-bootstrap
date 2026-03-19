@@ -113,15 +113,15 @@ Each phase follows this process:
 ### Phase 2: Remove sudo tasks from Ansible macOS role
 
 #### Tasks
-- [ ] Delete SSH server config tasks (3 tasks: configure sshd, enable sshd, disable sshd) from `roles/macos/tasks/main.yml`
-- [ ] Delete log rotation task (1 task: setup log rotation) from `roles/macos/tasks/main.yml`
-- [ ] Delete "Remove Touch ID for sudo" task from `roles/macos/tasks/main.yml`
-- [ ] Delete "Allow flushdns to be run as root without password" sudoers task from `roles/macos/tasks/main.yml`
-- [ ] Delete "Set default shell to zsh" task from `roles/macos/tasks/main.yml`
-- [ ] Delete "Configure system settings (requires sudo)" task from `roles/macos/tasks/main.yml`
-- [ ] Delete "Create /opt/local/bin directory" task from `roles/macos/tasks/main.yml`
-- [ ] Change 7 symlink tasks (codespace-create, codespace-ssh, csr, merge-claude-permissions, devpod-create, devpod-ssh) destinations from `/opt/local/bin/` to `{{ ansible_facts["user_dir"] }}/.local/bin/` and remove `become: yes`
-- [ ] Change "Install flushdns script" destination from `/opt/local/bin/flushdns` to `{{ ansible_facts["user_dir"] }}/.local/bin/flushdns` and remove `become: true`
+- [x] Delete SSH server config tasks (3 tasks: configure sshd, enable sshd, disable sshd) from `roles/macos/tasks/main.yml`
+- [x] Delete log rotation task (1 task: setup log rotation) from `roles/macos/tasks/main.yml`
+- [x] Delete "Remove Touch ID for sudo" task from `roles/macos/tasks/main.yml`
+- [x] Delete "Allow flushdns to be run as root without password" sudoers task from `roles/macos/tasks/main.yml`
+- [x] Delete "Set default shell to zsh" task from `roles/macos/tasks/main.yml`
+- [x] Delete "Configure system settings (requires sudo)" task from `roles/macos/tasks/main.yml`
+- [x] Delete "Create /opt/local/bin directory" task from `roles/macos/tasks/main.yml`
+- [x] Change 7 symlink tasks (codespace-create, codespace-ssh, csr, merge-claude-permissions, devpod-create, devpod-ssh) destinations from `/opt/local/bin/` to `{{ ansible_facts["user_dir"] }}/.local/bin/` and remove `become: yes`
+- [x] Change "Install flushdns script" destination from `/opt/local/bin/flushdns` to `{{ ansible_facts["user_dir"] }}/.local/bin/flushdns` and remove `become: true`
 
 #### Tests
 - `grep -c 'become:' roles/macos/tasks/main.yml` should return 0
@@ -134,13 +134,13 @@ Each phase follows this process:
 - `ansible-playbook playbook.yml --check --diff --inventory localhost, --connection local --list-tasks 2>&1 | grep -c 'become=True'` should return 0 for macOS tasks (only Codespaces tasks should have become)
 
 #### Red (pre-implementation)
-- [ ] Tests fail as expected (not due to test bugs)
+- [x] Tests fail as expected (not due to test bugs)
 
 #### Green (post-implementation)
-- [ ] All phase tests pass
+- [x] All phase tests pass (7/7)
 
 #### Self-Review
-- [ ] Code reviewed for quality, correctness, and consistency with codebase patterns
+- [x] Code reviewed for quality, correctness, and consistency with codebase patterns
 
 #### Human Review
 - [ ] Changes reviewed and approved by human
