@@ -1,76 +1,4 @@
 ---
-- name: Clone tmux plugin manager (tpm)
-  git:
-    repo: 'https://github.com/tmux-plugins/tpm'
-    dest: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tpm'
-    depth: 1
-    version: master
-    update: yes
-
-- name: Copy tmux configuration for Codespaces
-  copy:
-    src: '{{ playbook_dir }}/roles/codespaces/files/dotfiles/tmux.conf'
-    dest: '{{ ansible_facts["user_dir"] }}/.tmux.conf'
-    mode: 0644
-    backup: yes
-  notify: Reload tmux config
-
-- name: Install tmux plugins via tpm
-  shell: |
-    # Start a temporary detached tmux session to set environment, then install plugins.
-    # kill-server at the end because tmux-session-name hooks rename the session,
-    # causing kill-session -t tpm_install to miss it.
-    tmux new-session -d -s tpm_install
-    tmux set-environment -g TMUX_PLUGIN_MANAGER_PATH ~/.tmux/plugins/
-    ~/.tmux/plugins/tpm/bin/install_plugins
-    tmux kill-server 2>/dev/null || true
-  args:
-    executable: /bin/bash
-    creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
-
-- name: Check if fzf shell directory exists
-  stat:
-    path: '{{ ansible_facts["user_dir"] }}/.fzf/shell'
-  register: fzf_shell_dir
-
-- name: Create full FZF integration (when shell dir exists)
-  copy:
-    content: |
-      # Setup fzf
-      # ---------
-      if [[ ! "$PATH" == *${HOME}/.fzf/bin* ]]; then
-        PATH="${PATH:+${PATH}:}${HOME}/.fzf/bin"
-      fi
-
-      # Auto-completion
-      [[ $- == *i* ]] && source "${HOME}/.fzf/shell/completion.zsh" 2> /dev/null
-
-      # Key bindings
-      source "${HOME}/.fzf/shell/key-bindings.zsh"
-    dest: '{{ ansible_facts["user_dir"] }}/.fzf.zsh'
-    mode: 0644
-  when: fzf_shell_dir.stat.exists
-
-- name: Create minimal FZF integration (when shell dir doesn't exist)
-  copy:
-    content: |
-      # Setup fzf
-      # ---------
-      # Debian package version doesn't support --zsh flag
-      # Basic PATH setup only
-      if [[ ! "$PATH" == */usr/bin* ]]; then
-        PATH="${PATH:+${PATH}:}/usr/bin"
-      fi
-    dest: '{{ ansible_facts["user_dir"] }}/.fzf.zsh'
-    mode: 0644
-  when: not fzf_shell_dir.stat.exists
-
-- name: Set default shell to zsh
-  user:
-    name: '{{ ansible_facts["user_id"] }}'
-    shell: /usr/bin/zsh
-  become: yes
-
 - name: Configure tmux auto-launch in .zprofile
   blockinfile:
     path: '{{ ansible_facts["user_dir"] }}/.zprofile'
@@ -116,15 +44,6 @@
     regexp: '.*mise.*'
     state: absent
 
-- name: Remove tmux auto-launch from .zshrc.local
-  blockinfile:
-    path: '{{ ansible_facts["user_dir"] }}/.zshrc.local'
-    create: yes
-    mode: 0644
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - TMUX"
-    block: ""
-    state: absent
-
 - name: Configure Codespaces prompt customization
   blockinfile:
     path: '{{ ansible_facts["user_dir"] }}/.zshrc.local'
@@ -137,16 +56,6 @@
         prompt pure
       fi
 
-- name: Enable true color support in Codespaces
-  blockinfile:
-    path: '{{ ansible_facts["user_dir"] }}/.zshrc.local'
-    create: yes
-    mode: 0644
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - COLORTERM"
-    block: |
-      # Enable true color support for terminal applications
-      export COLORTERM=truecolor
-
 - name: Add claude alias to avoid API key conflict
   blockinfile:
     path: '{{ ansible_facts["user_dir"] }}/.zshrc.local'
@@ -156,11 +65,6 @@
     block: |
       # Unset ANTHROPIC_API_KEY only for claude command to avoid conflict with OAuth token
       alias claude='ANTHROPIC_API_KEY= command claude'
-
-- name: Ensure pipx path is configured
-  command: pipx ensurepath
-  changed_when: false
-  failed_when: false
 
 - name: Create pre-commit hook from environment variable
   copy:
@@ -315,4 +219,3 @@
     SETTINGS_FILE: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
   register: claude_settings_result
   changed_when: "'changed' in claude_settings_result.stdout"
-

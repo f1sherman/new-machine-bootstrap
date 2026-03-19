@@ -4,8 +4,10 @@
 #    - Ensures tools (git, nvim, fzf, etc.) available before common role
 # 2. roles: Configuration using installed tools
 #    - common: Shared configuration (dotfiles, plugins, scripts)
+#    - linux: Shared Linux/Debian configuration (tmux, shell, FZF)
 #    - macos: macOS-specific configuration
 #    - codespaces: Codespaces-specific configuration
+#    - dev_host: Linux dev host-specific configuration
 #
 # This architecture ensures dependencies are explicit and tools are available
 # before tasks that need them, avoiding timing issues.
@@ -18,13 +20,17 @@
       import_tasks: roles/macos/tasks/install_packages.yml
       when: ansible_facts["os_family"] == "Darwin"
 
-    - name: Install platform packages (Codespaces)
-      import_tasks: roles/codespaces/tasks/install_packages.yml
-      when: lookup('env', 'CODESPACES') == 'true'
+    - name: Install platform packages (Linux)
+      import_tasks: roles/linux/tasks/install_packages.yml
+      when: ansible_facts["os_family"] == "Debian"
 
   roles:
     # Common role assumes tools are installed by pre_tasks
     - common
+
+    # Shared Linux configuration (runs on all Debian hosts)
+    - role: linux
+      when: ansible_facts["os_family"] == "Debian"
 
     # Platform roles handle platform-specific configuration
     - role: macos

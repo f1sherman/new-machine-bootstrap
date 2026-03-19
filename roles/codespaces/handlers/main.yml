@@ -1,3 +1,0 @@
-- name: Reload tmux config
-  shell: tmux source-file {{ ansible_facts["user_dir"] }}/.tmux.conf
-  failed_when: false
