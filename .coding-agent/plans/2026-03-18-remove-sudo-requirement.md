@@ -152,32 +152,35 @@ Each phase follows this process:
 #### Tasks
 
 **Common role (`roles/common/tasks/main.yml`):**
-- [ ] Change "Create ~/bin directory" to "Create ~/.local/bin directory" (path: `{{ ansible_facts["user_dir"] }}/.local/bin`)
-- [ ] Change all 14 script install destinations from `{{ ansible_facts["user_dir"] }}/bin/` to `{{ ansible_facts["user_dir"] }}/.local/bin/`
+- [x] Change "Create ~/bin directory" to "Create ~/.local/bin directory" (path: `{{ ansible_facts["user_dir"] }}/.local/bin`)
+- [x] Change all 14 script install destinations from `{{ ansible_facts["user_dir"] }}/bin/` to `{{ ansible_facts["user_dir"] }}/.local/bin/`
   - pick-files, osc52-copy, osc52-copy-oneline, git-diff-untracked, spec-metadata, list-codex-sessions, list-claude-sessions, read-codex-session, read-claude-session, tmux-session-name, tmux-switch-session, claude-trust-directory, sync-to-codespace, sync-to-devpod
 
 **macOS role (`roles/macos/tasks/main.yml`):**
-- [ ] Change all script destinations from `{{ ansible_facts["user_dir"] }}/bin/` to `{{ ansible_facts["user_dir"] }}/.local/bin/`:
+- [x] Change all script destinations from `{{ ansible_facts["user_dir"] }}/bin/` to `{{ ansible_facts["user_dir"] }}/.local/bin/`:
   - murder template, ocr, cleanup-branches, `with_fileglob: bin/*` catch-all, start-claude template, reload_hammerspoon.lua, sync-sessions-from-all-codespaces
-- [ ] Update ghostty config command reference: `{{ ansible_facts["user_dir"] }}/bin/tmux-attach-or-new` → `{{ ansible_facts["user_dir"] }}/.local/bin/tmux-attach-or-new`
-- [ ] Update Hammerspoon reload shell command: `{{ ansible_facts["user_dir"] }}/bin/reload_hammerspoon.lua` → `{{ ansible_facts["user_dir"] }}/.local/bin/reload_hammerspoon.lua`
+- [x] Update ghostty config command reference: `{{ ansible_facts["user_dir"] }}/bin/tmux-attach-or-new` → `{{ ansible_facts["user_dir"] }}/.local/bin/tmux-attach-or-new`
+- [x] Update Hammerspoon reload shell command: `{{ ansible_facts["user_dir"] }}/bin/reload_hammerspoon.lua` → `{{ ansible_facts["user_dir"] }}/.local/bin/reload_hammerspoon.lua`
 
 **Dotfile templates:**
-- [ ] `roles/common/templates/dotfiles/zshenv`: Remove `pathprepend "${HOME}/bin"` (line 26). `~/.local/bin` is already on PATH (line 27).
-- [ ] `roles/macos/templates/dotfiles/bash_profile`: Change `pathadd "${HOME}/bin"` to `pathadd "${HOME}/.local/bin"`
-- [ ] `roles/macos/templates/dotfiles/tmux.conf`: Change all 5 `$HOME/bin/` references to `$HOME/.local/bin/`:
+- [x] `roles/common/templates/dotfiles/zshenv`: Remove `pathprepend "${HOME}/bin"` (line 26). `~/.local/bin` is already on PATH (line 27).
+- [x] `roles/macos/templates/dotfiles/bash_profile`: Change `pathadd "${HOME}/bin"` to `pathadd "${HOME}/.local/bin"`
+- [x] `roles/macos/templates/dotfiles/tmux.conf`: Change all 5 `$HOME/bin/` references to `$HOME/.local/bin/`:
   - Lines 12-14: tmux-session-name hooks
   - Line 37: smart-upload
   - Line 74: osc52-copy-oneline
-- [ ] `roles/codespaces/files/dotfiles/tmux.conf`: Change all 3 `$HOME/bin/tmux-session-name` references to `$HOME/.local/bin/tmux-session-name`
+- [x] `roles/codespaces/files/dotfiles/tmux.conf`: Change all 3 `$HOME/bin/tmux-session-name` references to `$HOME/.local/bin/tmux-session-name`
 
 **Config/permissions:**
-- [ ] `roles/common/vars/claude_permissions.yml`: Change `"Bash(~/bin/spec-metadata)"` to `"Bash(~/.local/bin/spec-metadata)"`
-- [ ] `roles/macos/templates/launchd/com.user.claude-session-sync.plist`: Change `{{ ansible_facts["user_dir"] }}/bin/sync-sessions-from-all-codespaces` to `{{ ansible_facts["user_dir"] }}/.local/bin/sync-sessions-from-all-codespaces`
+- [x] `roles/common/vars/claude_permissions.yml`: Change `"Bash(~/bin/spec-metadata)"` to `"Bash(~/.local/bin/spec-metadata)"`
+- [x] `roles/macos/templates/launchd/com.user.claude-session-sync.plist`: Change `{{ ansible_facts["user_dir"] }}/bin/sync-sessions-from-all-codespaces` to `{{ ansible_facts["user_dir"] }}/.local/bin/sync-sessions-from-all-codespaces`
 
 **Scripts with internal ~/bin references:**
-- [ ] `roles/common/files/bin/pick-files`: Remove `"$HOME/bin"` from the PATH loop (line 7) — `$HOME/.local/bin` is already in the loop
-- [ ] `roles/common/files/bin/tmux-switch-session`: Remove `"$HOME/bin"` from the PATH loop (line 7) — `$HOME/.local/bin` is already in the loop
+- [x] `roles/common/files/bin/pick-files`: Remove `"$HOME/bin"` from the PATH loop (line 7) — `$HOME/.local/bin` is already in the loop
+- [x] `roles/common/files/bin/tmux-switch-session`: Remove `"$HOME/bin"` from the PATH loop (line 7) — `$HOME/.local/bin` is already in the loop
+
+**Skill files (discovered during implementation):**
+- [x] Updated `~/bin/spec-metadata` → `~/.local/bin/spec-metadata` in 5 SKILL.md files across claude, codex, and common skills
 
 #### Tests
 - `grep -r '"/bin/' roles/common/tasks/main.yml roles/macos/tasks/main.yml | grep 'user_dir.*"/bin/' | grep -v '.local/bin'` should have no matches
@@ -187,13 +190,13 @@ Each phase follows this process:
 - `/tmp/test-no-home-bin-refs.sh` — comprehensive grep across all roles/ files for `~/bin`, `$HOME/bin`, `user_dir.*/bin/` NOT containing `.local`
 
 #### Red (pre-implementation)
-- [ ] Tests fail as expected (not due to test bugs)
+- [x] Tests fail as expected (not due to test bugs)
 
 #### Green (post-implementation)
-- [ ] All phase tests pass
+- [x] All phase tests pass (13/13)
 
 #### Self-Review
-- [ ] Code reviewed for quality, correctness, and consistency with codebase patterns
+- [x] Code reviewed for quality, correctness, and consistency with codebase patterns
 
 #### Human Review
 - [ ] Changes reviewed and approved by human
