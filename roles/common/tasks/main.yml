@@ -319,6 +319,21 @@
   changed_when: false
   when: lookup('env', 'CODESPACES') == 'true'
 
+- name: Get latest LTS Node.js version in Codespaces
+  command: mise latest node@lts
+  environment:
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
+  register: codespaces_node_lts
+  changed_when: false
+  when: lookup('env', 'CODESPACES') == 'true'
+
+- name: Set global Node.js version via mise in Codespaces
+  command: mise use --global node@{{ codespaces_node_lts.stdout }}
+  environment:
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
+  changed_when: false
+  when: lookup('env', 'CODESPACES') == 'true'
+
 - name: Configure Claude Code vim mode in ~/.claude.json
   shell: |
     python3 -c '
@@ -578,6 +593,19 @@
   register: pi_plugin_codespaces
   changed_when: "'already installed' not in pi_plugin_codespaces.stdout"
   failed_when: pi_plugin_codespaces.rc != 0
+  when: lookup('env', 'CODESPACES') == 'true'
+
+# Symlink globally-installed npm binaries into ~/.local/bin so they work
+# regardless of which Node version the current directory's mise.toml selects.
+- name: Create ~/.local/bin symlinks for global npm tools (Codespaces)
+  shell: |
+    node_bin="$(mise where node@{{ codespaces_node_lts.stdout }})/bin"
+    for cmd in gsd gsd-cli codex pi; do
+      [ -x "$node_bin/$cmd" ] && ln -sf "$node_bin/$cmd" ~/.local/bin/"$cmd"
+    done
+  environment:
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
+  changed_when: false
   when: lookup('env', 'CODESPACES') == 'true'
 
 # Codex CLI configuration for automatic API key authentication
