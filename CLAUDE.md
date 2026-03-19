@@ -80,12 +80,12 @@ After making changes, ask the user to run `bin/provision` to apply them.
 - **Terminal**: ghostty with tmux integration
 - **Package Management**: Homebrew, pipx for Python tools
 - **Runtime Version Management**: mise manages versions of platforms like Ruby, Node, Python, etc. (configured via `.mise.toml` files)
-- **AI Tools**: Configured for Aider (AI coding assistant) and Claude Code
+- **AI Tools**: Claude Code
 
 ### Configuration Patterns
 - Templates in `roles/macos/templates/` use Jinja2 templating
 - Dotfiles are templated and backed up during installation
-- Custom scripts placed in `~/bin/` and `/opt/local/bin/`
+- Custom scripts placed in `~/.local/bin/` and `/opt/local/bin/`
 - API keys stored securely in `~/.config/api-keys/` with 0600 permissions
 
 ## Code Style

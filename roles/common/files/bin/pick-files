@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# https://github.com/Aider-AI/aider/issues/2156
 
 set -e  # Exit on error
 
 # Ensure PATH includes common tool locations since tmux popups run bash
 # (not zsh), so .zshenv isn't sourced
-for dir in /opt/homebrew/bin /usr/local/bin "$HOME/bin" "$HOME/.local/bin"; do
+for dir in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do
   [[ -d "$dir" && ":$PATH:" != *":$dir:"* ]] && PATH="$dir:$PATH"
 done
 
@@ -13,9 +12,8 @@ pane_id="${PICK_FILES_PANE:?Set PICK_FILES_PANE to the tmux pane id}"
 pane_dir="$PWD"
 git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$pane_dir")
 
-# gnu coreutils realpath is needed to make the paths relative to the currently active
-# tmux pane relative to the git repo root, because aider always wants paths relative
-# to the repo root, even if you are in a subdirectory
+# Paths are made relative to the git repo root so they work regardless of
+# which subdirectory the tmux pane is currently in
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	if ! command -v grealpath >/dev/null 2>&1; then
 		echo "grealpath not found. Install with: brew install coreutils" >&2
