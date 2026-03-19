@@ -2,3 +2,4 @@
 *.un~
 config/jshint.yml
 .DS_Store
+.bg-shell/
