@@ -203,18 +203,26 @@
     mode: 0755
 
 - name: Install sync-to-codespace script
-  copy:
-    backup: yes
+  file:
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin/sync-to-codespace'
     src: '{{ playbook_dir }}/bin/sync-to-codespace'
-    mode: 0755
+    state: link
+    force: yes
 
 - name: Install sync-to-devpod script
-  copy:
-    backup: yes
+  file:
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin/sync-to-devpod'
     src: '{{ playbook_dir }}/bin/sync-to-devpod'
-    mode: 0755
+    state: link
+    force: yes
+
+- name: Remove stale sync scripts from ~/bin
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/bin/{{ item }}'
+    state: absent
+  loop:
+    - sync-to-codespace
+    - sync-to-devpod
 
 - name: Create ~/.claude directory
   file:
