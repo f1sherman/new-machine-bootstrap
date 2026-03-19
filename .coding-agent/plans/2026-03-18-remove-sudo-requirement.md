@@ -206,15 +206,15 @@ Each phase follows this process:
 ### Phase 4: Clean up PATH config and documentation
 
 #### Tasks
-- [ ] `roles/common/templates/dotfiles/zshenv`: Remove the `/opt/local/bin` pathprepend block (lines 28-30)
-- [ ] Update `CLAUDE.md`:
+- [x] `roles/common/templates/dotfiles/zshenv`: Remove the `/opt/local/bin` pathprepend block (lines 28-30)
+- [x] Update `CLAUDE.md`:
   - Remove `/opt/local/bin` from "Custom scripts placed in..." line
   - Change `~/bin/` references to `~/.local/bin/`
   - Remove mention of `--ask-become-pass` / sudo password prompt from macOS provisioning
   - Add `bin/setup` to the documentation
   - Note that `sudo flushdns` NOPASSWD is configured by `bin/setup`
   - Remove "Never modify files outside this repo" reference to `/opt/local/bin/`
-- [ ] Delete `roles/macos/templates/newsyslog/projects.conf` template file (no longer used)
+- [x] Delete `roles/macos/templates/newsyslog/projects.conf` template file (no longer used)
 
 #### Tests
 - `grep -c 'opt/local/bin' roles/common/templates/dotfiles/zshenv` should return 0
@@ -223,13 +223,13 @@ Each phase follows this process:
 - `grep -q 'bin/setup' CLAUDE.md` should match
 
 #### Red (pre-implementation)
-- [ ] Tests fail as expected (not due to test bugs)
+- [x] Tests fail as expected (not due to test bugs)
 
 #### Green (post-implementation)
-- [ ] All phase tests pass
+- [x] All phase tests pass (4/4)
 
 #### Self-Review
-- [ ] Code reviewed for quality, correctness, and consistency with codebase patterns
+- [x] Code reviewed for quality, correctness, and consistency with codebase patterns
 
 #### Human Review
 - [ ] Changes reviewed and approved by human

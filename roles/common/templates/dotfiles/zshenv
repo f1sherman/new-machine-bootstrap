@@ -24,9 +24,6 @@ pathprepend() {
 }
 
 pathprepend "${HOME}/.local/bin"
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  pathprepend "/opt/local/bin"
-fi
 
 # Homebrew support (works on macOS and Linuxbrew)
 if command -v brew >/dev/null 2>&1; then

@@ -4,13 +4,14 @@ This repository contains bootstrap scripts for macOS and GitHub Codespaces envir
 
 ## CRITICAL: Never Modify Files Outside This Repo
 
-When asked to change dotfiles, shell config, scripts, application settings, home directory configurations (e.g. `~/.zshrc`, `~/.gitconfig`, `~/.config/`), or any other managed configuration: **always edit the source files in this repository** (templates, roles, tasks, etc.), never the deployed files in `~`, `/opt/local/bin/`, or elsewhere on the filesystem. Changes to deployed files will be overwritten on next provision and won't propagate to Codespaces.
+When asked to change dotfiles, shell config, scripts, application settings, home directory configurations (e.g. `~/.zshrc`, `~/.gitconfig`, `~/.config/`), or any other managed configuration: **always edit the source files in this repository** (templates, roles, tasks, etc.), never the deployed files in `~` or elsewhere on the filesystem. Changes to deployed files will be overwritten on next provision and won't propagate to Codespaces.
 
 After making changes, ask the user to run `bin/provision` to apply them.
 
 ## Project Structure
 - `macos` - Ruby bootstrap script for macOS initial setup
-- `bin/provision` - Universal provisioning script (Bash) that bootstraps Ansible and runs playbook
+- `bin/setup` - One-time macOS system setup (requires sudo): sets default shell, system preferences, flushdns sudoers
+- `bin/provision` - Universal provisioning script (Bash) that bootstraps Ansible and runs playbook (no sudo required on macOS)
 - `bin/codespace-create` - Create and provision a new Codespace (call as `codespace-create`)
 - `bin/codespace-ssh` - Connect to an available Codespace; syncs `.coding-agent` back on disconnect
 - `bin/csr` - Quick reconnect to last codespace used in current terminal
@@ -85,7 +86,7 @@ After making changes, ask the user to run `bin/provision` to apply them.
 ### Configuration Patterns
 - Templates in `roles/macos/templates/` use Jinja2 templating
 - Dotfiles are templated and backed up during installation
-- Custom scripts placed in `~/.local/bin/` and `/opt/local/bin/`
+- Custom scripts placed in `~/.local/bin/`
 - API keys stored securely in `~/.config/api-keys/` with 0600 permissions
 
 ## Code Style
@@ -105,13 +106,12 @@ The playbook uses different mechanisms to detect platforms:
 
 **Local macOS Testing**:
 ```bash
-bin/provision                    # Full run with password prompt
+bin/setup                       # One-time system setup (requires sudo)
+bin/provision                   # Full run (no sudo required)
 bin/provision --check           # Dry-run mode
 bin/provision --diff            # Show what would change
 ansible-playbook playbook.yml   # Direct invocation
 ```
-
-**Important**: Claude cannot run `bin/provision` directly because it requires a sudo password. Ask the user to run it manually.
 
 **Codespaces Workflow**:
 ```bash
@@ -212,14 +212,15 @@ This strategy is robust even if Claude Code ever compacts or truncates sessions.
 
 ## Useful Commands
 
-- `sudo flushdns` - Flush DNS cache on macOS. No password required.
+- `sudo flushdns` - Flush DNS cache on macOS. No password required (configured by `bin/setup`).
 
 ## Important Notes
 
 **macOS**:
 - Script requires macOS with FileVault enabled
 - Prompts for work vs personal configuration
-- Requires sudo password for system-wide changes
+- `bin/setup` handles one-time sudo operations (run once per machine)
+- `bin/provision` runs without sudo after setup
 - Installs from GitHub repositories
 
 **Codespaces**:
