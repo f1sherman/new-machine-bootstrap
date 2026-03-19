@@ -456,6 +456,9 @@ bindkey "^P" up-line-or-search
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
+# Free up 'gsd' so the GSD-2 CLI binary is reachable
+alias gsd > /dev/null && unalias gsd
+
 # Switch branches using fzf
 alias b > /dev/null && unalias b
 function b() {
