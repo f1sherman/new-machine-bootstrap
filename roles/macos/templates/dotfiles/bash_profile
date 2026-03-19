@@ -92,7 +92,7 @@ pathadd() {
   fi
 }
 
-pathadd "${HOME}/bin"
+pathadd "${HOME}/.local/bin"
 
 _worktree_main_branch() {
   local origin_head

@@ -19,7 +19,7 @@ Use the following information to understand how to create your document:
   - ENG-XXXX is the ticket number (replace with `general` if no ticket)
   - ENG-ZZZZ is the ticket number (omit if no ticket)
   - description is a brief kebab-case description
-- Run the `~/bin/spec-metadata` script to generate all relevant metadata
+- Run the `~/.local/bin/spec-metadata` script to generate all relevant metadata
 - Examples:
   - With ticket: `2025-01-08_13-55-22_ENG-2166_create-context-compaction.md`
   - Without ticket: `2025-01-08_13-55-22_create-context-compaction.md`

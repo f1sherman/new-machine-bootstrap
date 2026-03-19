@@ -23,7 +23,6 @@ pathprepend() {
   fi
 }
 
-pathprepend "${HOME}/bin"
 pathprepend "${HOME}/.local/bin"
 if [[ "$OSTYPE" == "darwin"* ]]; then
   pathprepend "/opt/local/bin"

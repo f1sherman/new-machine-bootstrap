@@ -125,7 +125,7 @@ claude_permissions:
     - "Bash(devpod *)"
 
     # Claude skills
-    - "Bash(~/bin/spec-metadata)"
+    - "Bash(~/.local/bin/spec-metadata)"
     - "Bash(~/.claude/skills/committing-changes/commit.sh *)"
     - "Bash(~/.claude/skills/create-pull-request/create-draft-pr *)"
     - "Bash(~/.claude/skills/addressing-pr-feedback/fetch-pr-comments.sh *)"

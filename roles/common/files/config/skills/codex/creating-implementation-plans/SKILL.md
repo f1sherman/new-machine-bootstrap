@@ -136,7 +136,7 @@ Once aligned on approach:
 After structure approval:
 
 1. **Gather plan metadata**:
-   - Run the `~/bin/spec-metadata` script to capture date, branch, and commit
+   - Run the `~/.local/bin/spec-metadata` script to capture date, branch, and commit
 
 2. **Write the plan** to `.coding-agent/plans/YYYY-MM-DD-ENG-XXXX-description.md`
    - Format: `YYYY-MM-DD-ENG-XXXX-description.md` where:
@@ -158,10 +158,10 @@ After structure approval:
 
 ## Plan Metadata
 
-- Date: [from `~/bin/spec-metadata`]
-- Git Commit: [from `~/bin/spec-metadata`]
-- Branch: [from `~/bin/spec-metadata`]
-- Repository: [from `~/bin/spec-metadata`]
+- Date: [from `~/.local/bin/spec-metadata`]
+- Git Commit: [from `~/.local/bin/spec-metadata`]
+- Branch: [from `~/.local/bin/spec-metadata`]
+- Repository: [from `~/.local/bin/spec-metadata`]
 
 ## Motivation
 

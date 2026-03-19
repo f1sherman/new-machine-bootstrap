@@ -177,7 +177,7 @@
   lineinfile:
     path: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty/config'
     regexp: '^command\s*='
-    line: 'command = {{ ansible_facts["user_dir"] }}/bin/tmux-attach-or-new'
+    line: 'command = {{ ansible_facts["user_dir"] }}/.local/bin/tmux-attach-or-new'
     create: yes
     mode: 0644
 - name: Configure ghostty window-save-state
@@ -480,32 +480,26 @@
   become: true
 - name: Create "murder" script to try to gracefully kill processes
   template:
-    dest: '{{ ansible_facts["user_dir"] }}/bin/murder'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/murder'
     src: templates/murder
     mode: '0755'
 - name: Install ocr script
   copy:
-    dest: '{{ ansible_facts["user_dir"] }}/bin/ocr'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/ocr'
     src: 'bin/ocr'
     mode: 0755
 - name: Install cleanup-branches script
   copy:
-    dest: '{{ ansible_facts["user_dir"] }}/bin/cleanup-branches'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/cleanup-branches'
     src: 'bin/cleanup-branches'
     mode: 0755
 - name: Install macOS-specific scripts
   ansible.builtin.copy:
     src: "{{ item }}"
-    dest: "{{ ansible_facts['user_dir'] }}/bin/"
+    dest: "{{ ansible_facts['user_dir'] }}/.local/bin/"
     mode: '0755'
   with_fileglob:
     - "bin/*"
-- name: Create start-claude script
-  template:
-    dest: '{{ ansible_facts["user_dir"] }}/bin/start-claude'
-    src: templates/start-claude
-    mode: '0755'
-
 - name: Ensure Hammerspoon is installed
   homebrew:
     name: hammerspoon
@@ -599,16 +593,8 @@
     dest: ~/.hammerspoon/init.lua
     mode: '0644'
 
-- name: Copy Hammerspoon reload script
-  copy:
-    content: |
-      hs.timer.doAfter(1, function()
-          hs.reload()
-      end)
-    dest: '{{ ansible_facts["user_dir"] }}/bin/reload_hammerspoon.lua'
-
-- name: Execute Hammerspoon reload script
-  shell: hs -c 'dofile("{{ ansible_facts["user_dir"] }}/bin/reload_hammerspoon.lua")'
+- name: Reload Hammerspoon configuration
+  shell: hs -c 'hs.timer.doAfter(1, function() hs.reload() end)'
   args:
     executable: /bin/zsh
   changed_when: false
@@ -641,7 +627,7 @@
 - name: Install Claude session sync script
   copy:
     src: '{{ playbook_dir }}/bin/sync-sessions-from-all-codespaces'
-    dest: '{{ ansible_facts["user_dir"] }}/bin/sync-sessions-from-all-codespaces'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/sync-sessions-from-all-codespaces'
     mode: '0755'
 
 - name: Create LaunchAgents directory

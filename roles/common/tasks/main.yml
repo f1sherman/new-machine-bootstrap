@@ -113,106 +113,106 @@
   command: find {{ ansible_facts["user_dir"] }}/.claude -name '._*' -delete
   changed_when: false
 
-- name: Create ~/bin directory
+- name: Create ~/.local/bin directory
   file:
-    path: '{{ ansible_facts["user_dir"] }}/bin'
+    path: '{{ ansible_facts["user_dir"] }}/.local/bin'
     state: directory
 
 - name: Install pick-files script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/pick-files'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/pick-files'
     src: '{{ playbook_dir }}/roles/common/files/bin/pick-files'
     mode: 0755
 
 - name: Install osc52-copy script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/osc52-copy'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/osc52-copy'
     src: '{{ playbook_dir }}/roles/common/files/bin/osc52-copy'
     mode: 0755
 
 - name: Install osc52-copy-oneline script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/osc52-copy-oneline'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/osc52-copy-oneline'
     src: '{{ playbook_dir }}/roles/common/files/bin/osc52-copy-oneline'
     mode: 0755
 
 - name: Install git-diff-untracked script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/git-diff-untracked'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/git-diff-untracked'
     src: '{{ playbook_dir }}/roles/common/files/bin/git-diff-untracked'
     mode: 0755
 
 - name: Install spec-metadata script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/spec-metadata'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/spec-metadata'
     src: '{{ playbook_dir }}/roles/common/files/bin/spec-metadata'
     mode: 0755
 
 - name: Install list-codex-sessions script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/list-codex-sessions'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/list-codex-sessions'
     src: '{{ playbook_dir }}/roles/common/files/bin/list-codex-sessions'
     mode: 0755
 
 - name: Install list-claude-sessions script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/list-claude-sessions'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/list-claude-sessions'
     src: '{{ playbook_dir }}/roles/common/files/bin/list-claude-sessions'
     mode: 0755
 
 - name: Install read-codex-session script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/read-codex-session'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/read-codex-session'
     src: '{{ playbook_dir }}/roles/common/files/bin/read-codex-session'
     mode: 0755
 
 - name: Install read-claude-session script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/read-claude-session'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/read-claude-session'
     src: '{{ playbook_dir }}/roles/common/files/bin/read-claude-session'
     mode: 0755
 
 - name: Install tmux-session-name script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/tmux-session-name'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-session-name'
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-session-name'
     mode: 0755
 
 - name: Install tmux-switch-session script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/tmux-switch-session'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-switch-session'
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-switch-session'
     mode: 0755
 
 - name: Install claude-trust-directory script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/claude-trust-directory'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/claude-trust-directory'
     src: '{{ playbook_dir }}/roles/common/files/bin/claude-trust-directory'
     mode: 0755
 
 - name: Install sync-to-codespace script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/sync-to-codespace'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/sync-to-codespace'
     src: '{{ playbook_dir }}/bin/sync-to-codespace'
     mode: 0755
 
 - name: Install sync-to-devpod script
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/bin/sync-to-devpod'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/sync-to-devpod'
     src: '{{ playbook_dir }}/bin/sync-to-devpod'
     mode: 0755
 

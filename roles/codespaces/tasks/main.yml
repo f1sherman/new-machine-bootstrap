@@ -172,7 +172,7 @@
 - name: Trust all workspace directories in Claude Code
   shell: |
     for dir in /workspaces/*/; do
-      {{ ansible_facts["user_dir"] }}/bin/claude-trust-directory "$dir"
+      {{ ansible_facts["user_dir"] }}/.local/bin/claude-trust-directory "$dir"
     done
   args:
     executable: /bin/bash
@@ -221,7 +221,7 @@
       "Write(.coding-agent/research/**)",
       "Write(.coding-agent/handoffs/**)",
       "Bash(mkdir -p:*)",
-      "Bash(~/bin/claude/spec-metadata:*)"
+      "Bash(~/.local/bin/spec-metadata:*)"
     ]
 
     # Configure allowed tools and disable MCP servers for workspace directories

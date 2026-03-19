@@ -4,7 +4,7 @@ set -e
 
 # Ensure PATH includes common tool locations since tmux popups run bash
 # (not zsh), so .zshenv isn't sourced
-for dir in /opt/homebrew/bin /usr/local/bin "$HOME/bin" "$HOME/.local/bin"; do
+for dir in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do
   [[ -d "$dir" && ":$PATH:" != *":$dir:"* ]] && PATH="$dir:$PATH"
 done
 
