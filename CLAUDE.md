@@ -109,6 +109,9 @@ After making changes, ask the user to run `bin/provision` to apply them.
 - Custom scripts placed in `~/.local/bin/`
 - API keys stored securely in `~/.config/api-keys/` with 0600 permissions
 
+## Agent Behavior
+- **Do it yourself**: If you can run a command (like `bin/provision`, `git commit`, etc.), do it directly instead of asking the user to run it.
+
 ## Code Style
 - Ruby: Standard Ruby conventions, minimal comments
 - Shell scripts: Executable, clear variable names
