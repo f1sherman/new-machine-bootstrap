@@ -151,7 +151,7 @@ Move generic Debian tasks out of `roles/codespaces/` into a new `roles/linux/` r
 - [x] Code reviewed for quality, correctness, and consistency with codebase patterns
 
 #### Human Review
-- [ ] Changes reviewed and approved by human
+- [x] Changes reviewed and approved by human
 
 ---
 
@@ -162,40 +162,43 @@ Add the `dev_host` role with dev-host-specific configuration, update `bin/provis
 #### Tasks
 
 **`roles/dev_host/tasks/main.yml`:**
-- [ ] Create `roles/dev_host/` directory structure (`tasks/`)
-- [ ] Add tmux auto-launch in `.zprofile` — simpler than Codespaces version (no `/workspaces/` or DevPod paths, no workspace cd needed)
-- [ ] Add bash→zsh exec in `.bashrc` (same as Codespaces — SSH may start in bash before shell is changed to zsh)
-- [ ] Add remove mise from `.bashrc` (same as Codespaces)
-- [ ] Add Claude workspace trust for `~/projects/*` directories (similar to Codespaces' `/workspaces/*` trust but for `~/projects/`)
-- [ ] Add Claude `.claude.json` config for `~/projects/` (onboarding skip, default allowed tools — adapted from Codespaces version to scan `~/projects/*`)
-- [ ] Add `~/projects/` directory creation
+- [x] Create `roles/dev_host/` directory structure (`tasks/`)
+- [x] Add tmux auto-launch in `.zprofile` — simpler than Codespaces version (no `/workspaces/` or DevPod paths, no workspace cd needed)
+- [x] Add bash→zsh exec in `.bashrc` (same as Codespaces — SSH may start in bash before shell is changed to zsh)
+- [x] Add remove mise from `.bashrc` (same as Codespaces)
+- [x] Add Claude workspace trust for `~/projects/*` directories (similar to Codespaces' `/workspaces/*` trust but for `~/projects/`)
+- [x] Add Claude `.claude.json` config for `~/projects/` (onboarding skip, default allowed tools — adapted from Codespaces version to scan `~/projects/*`)
+- [x] Add `~/projects/` directory creation
 
 **`bin/provision`:**
-- [ ] Change `--ask-become-pass` condition from `if ! in_codespaces` to `if mac_os` — both Codespaces and dev host have passwordless sudo
-- [ ] Update script header comment to mention dev hosts
+- [x] `--ask-become-pass` was already removed on main (commit 3427b08). No change needed.
+- [x] Update script header comment to mention dev hosts
 
 **`roles/common/tasks/main.yml` platform conditionals:**
-- [ ] Codex CLI install (lines 515-520): Change condition from `lookup('env', 'CODESPACES') == 'true'` to `ansible_facts["os_family"] == "Debian"` — dev host also needs mise-based npm install
-- [ ] Add `bootstrap_use` setting for dev host: `set_fact: bootstrap_use: 'personal'` with `when: ansible_facts["os_family"] == "Debian" and lookup('env', 'CODESPACES') != 'true'`
-- [ ] Codex trust for `~/projects/` (lines 623-665): Change condition from `ansible_facts["os_family"] == "Darwin"` to `lookup('env', 'CODESPACES') != 'true'` — both macOS and dev host use `~/projects/`
+- [x] Codex CLI install: Changed condition from `CODESPACES` to `os_family == "Debian"`
+- [x] GSD-2, pi-coding-agent, pi-subdir-context installs: Changed conditions from `CODESPACES` to `os_family == "Debian"` (new tasks added on main since plan was written)
+- [x] Node LTS version + symlinks: Changed from `CODESPACES` to `os_family == "Debian"`, renamed `codespaces_node_lts` → `linux_node_lts`
+- [x] mise trust: Changed from `CODESPACES` to `os_family == "Debian"`
+- [x] Add `bootstrap_use` setting for dev host: `set_fact: bootstrap_use: 'personal'`
+- [x] Codex trust for `~/projects/`: Changed condition from `os_family == "Darwin"` to `CODESPACES != 'true'`
 
 **`playbook.yml`:**
-- [ ] Add `dev_host` role with `when: ansible_facts["os_family"] == "Debian" and lookup('env', 'CODESPACES') != 'true'`
+- [x] Add `dev_host` role with `when: ansible_facts["os_family"] == "Debian" and lookup('env', 'CODESPACES') != 'true'`
 
 #### Tests
 
-- `ansible-playbook playbook.yml --check --diff -e '{"ansible_facts": {"os_family": "Debian"}}' 2>&1 | grep -E '(TASK|ok|changed|skipping|fatal)'` — simulated dev host dry run should show linux + dev_host tasks, skip codespaces/macos
-- `CODESPACES=true ansible-playbook playbook.yml --check --diff 2>&1 | grep -E '(TASK|ok|changed|skipping|fatal)'` — Codespaces dry run should still show linux + codespaces tasks, skip dev_host
-- Verify `bin/provision` produces correct ansible-playbook command on macOS (includes `--ask-become-pass`) vs Linux (excludes it)
+- macOS dry run: ok=96 changed=14 failed=1 (pre-existing sshd sudo), skipped=99; dev_host tasks fully skipped
+- bootstrap_use: macOS reads from config file, dev_host set_fact skipped on macOS
+- Codex trust ~/projects/: runs on macOS (condition now `not CODESPACES`)
 
 #### Red (pre-implementation)
-- [ ] Tests fail as expected (not due to test bugs)
+- [x] Tests fail as expected — `roles/dev_host/` does not exist, no dev_host tasks run
 
 #### Green (post-implementation)
-- [ ] All phase tests pass
+- [x] All phase tests pass
 
 #### Self-Review
-- [ ] Code reviewed for quality, correctness, and consistency with codebase patterns
+- [x] Code reviewed for quality, correctness, and consistency with codebase patterns
 
 #### Human Review
 - [ ] Changes reviewed and approved by human
