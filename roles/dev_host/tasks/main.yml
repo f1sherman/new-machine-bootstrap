@@ -1,0 +1,134 @@
+---
+- name: Create ~/projects directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/projects'
+    state: directory
+    mode: '0755'
+
+- name: Configure tmux auto-launch in .zprofile
+  blockinfile:
+    path: '{{ ansible_facts["user_dir"] }}/.zprofile'
+    create: yes
+    mode: 0644
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - TMUX"
+    block: |
+      # Launch tmux on interactive login (SSH)
+      # Attach to unattached session if available, otherwise create new session
+      if [ -z "$TMUX" ] && [ -t 0 ]; then
+        unattached=$(tmux list-sessions 2>/dev/null | grep -v '(attached)' | head -1 | cut -d: -f1)
+        if [ -n "$unattached" ]; then
+          exec tmux attach -t "$unattached"
+        else
+          exec tmux new-session
+        fi
+      fi
+
+- name: Configure zsh exec in .bashrc
+  blockinfile:
+    path: '{{ ansible_facts["user_dir"] }}/.bashrc'
+    create: no
+    mode: 0644
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - ZSH"
+    block: |
+      # Switch to zsh on interactive login (zsh will then launch tmux via .zprofile)
+      if [ -z "$TMUX" ] && [ -t 0 ]; then
+        exec /usr/bin/zsh -l
+      fi
+    insertafter: BOF
+
+- name: Remove mise from .bashrc
+  lineinfile:
+    path: '{{ ansible_facts["user_dir"] }}/.bashrc'
+    regexp: '.*mise.*'
+    state: absent
+
+- name: Trust all project directories in Claude Code
+  shell: |
+    for dir in {{ ansible_facts["user_dir"] }}/projects/*/; do
+      {{ ansible_facts["user_dir"] }}/.local/bin/claude-trust-directory "$dir"
+    done
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Configure Claude Code settings in .claude.json
+  shell: |
+    python3 -c '
+    import json
+    import glob
+    import os
+
+    config_file = os.environ["CONFIG_FILE"]
+    projects_dir = os.path.expanduser("~/projects")
+
+    # Read existing config or create new one
+    if os.path.exists(config_file):
+      with open(config_file, "r") as f:
+        data = json.load(f)
+    else:
+      data = {}
+
+    changed = False
+
+    # Set hasCompletedOnboarding
+    if not data.get("hasCompletedOnboarding"):
+      data["hasCompletedOnboarding"] = True
+      changed = True
+
+    if data.get("editorMode") != "vim":
+      data["editorMode"] = "vim"
+      changed = True
+
+    # Dismiss effort level callouts so Claude does not prompt on startup
+    for key in ["thinkingMigrationComplete", "effortCalloutDismissed", "effortCalloutV2Dismissed"]:
+      if not data.get(key):
+        data[key] = True
+        changed = True
+
+    # Ensure projects section exists
+    if "projects" not in data:
+      data["projects"] = {}
+      changed = True
+
+    default_allowed_tools = [
+      "Write(.coding-agent/plans/**)",
+      "Write(.coding-agent/research/**)",
+      "Write(.coding-agent/handoffs/**)",
+      "Bash(mkdir -p:*)",
+      "Bash(~/.local/bin/spec-metadata:*)"
+    ]
+
+    # Configure allowed tools and disable MCP servers for project directories
+    if os.path.isdir(projects_dir):
+      for project_dir in glob.glob(os.path.join(projects_dir, "*")):
+        if not os.path.isdir(project_dir):
+          continue
+        if project_dir not in data["projects"]:
+          data["projects"][project_dir] = {}
+          changed = True
+
+        project = data["projects"][project_dir]
+
+        if project.get("enableAllProjectMcpServers"):
+          project["enableAllProjectMcpServers"] = False
+          changed = True
+
+        existing_tools = project.get("allowedTools", [])
+        for tool in default_allowed_tools:
+          if tool not in existing_tools:
+            existing_tools.append(tool)
+            changed = True
+        project["allowedTools"] = existing_tools
+
+    if changed:
+      with open(config_file, "w") as f:
+        json.dump(data, f, indent=2)
+      os.chmod(config_file, 0o600)
+      print("changed")
+    else:
+      print("unchanged")
+    '
+  environment:
+    CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.claude.json'
+  register: claude_config_result
+  changed_when: "'changed' in claude_config_result.stdout"

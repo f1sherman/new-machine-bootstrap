@@ -312,27 +312,27 @@
     dest: '{{ ansible_facts["user_dir"] }}/.config/ccstatusline/settings.json'
     mode: '0600'
 
-- name: Trust mise config in Codespaces
+- name: Trust mise config (Linux)
   command: mise trust {{ playbook_dir }}/mise.toml
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
   changed_when: false
-  when: lookup('env', 'CODESPACES') == 'true'
+  when: ansible_facts["os_family"] == "Debian"
 
-- name: Get latest LTS Node.js version in Codespaces
+- name: Get latest LTS Node.js version (Linux)
   command: mise latest node@lts
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
-  register: codespaces_node_lts
+  register: linux_node_lts
   changed_when: false
-  when: lookup('env', 'CODESPACES') == 'true'
+  when: ansible_facts["os_family"] == "Debian"
 
-- name: Set global Node.js version via mise in Codespaces
-  command: mise use --global node@{{ codespaces_node_lts.stdout }}
+- name: Set global Node.js version via mise (Linux)
+  command: mise use --global node@{{ linux_node_lts.stdout }}
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
   changed_when: false
-  when: lookup('env', 'CODESPACES') == 'true'
+  when: ansible_facts["os_family"] == "Debian"
 
 - name: Configure Claude Code vim mode in ~/.claude.json
   shell: |
@@ -535,11 +535,11 @@
 # non-interactive shell, so we use mise exec instead.
 # PATH is extended because mise may have been installed during pre_tasks
 # and isn't in the inherited PATH yet.
-- name: Install or update Codex CLI via npm (Codespaces)
+- name: Install or update Codex CLI via npm (Linux)
   command: mise exec node@lts -- npm install -g @openai/codex@latest
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
-  when: lookup('env', 'CODESPACES') == 'true'
+  when: ansible_facts["os_family"] == "Debian"
   changed_when: false
 
 # sharp (gsd-pi dependency) has no prebuilt binary for Node 24's ABI and
@@ -553,7 +553,7 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Darwin"
 
-- name: Install or update GSD-2 via npm (Codespaces)
+- name: Install or update GSD-2 via npm (Linux)
   shell: |
     mise exec node@lts -- npm install -g node-addon-api node-gyp
     NODE_PATH=$(mise exec node@lts -- npm root -g) mise exec node@lts -- npm install -g gsd-pi@latest
@@ -562,7 +562,7 @@
     executable: /bin/bash
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
-  when: lookup('env', 'CODESPACES') == 'true'
+  when: ansible_facts["os_family"] == "Debian"
   changed_when: false
 
 - name: Install or update pi-coding-agent via npm (macOS)
@@ -572,11 +572,11 @@
     state: latest
   when: ansible_facts["os_family"] == "Darwin"
 
-- name: Install or update pi-coding-agent via npm (Codespaces)
+- name: Install or update pi-coding-agent via npm (Linux)
   command: mise exec node@lts -- npm install -g @mariozechner/pi-coding-agent@latest
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
-  when: lookup('env', 'CODESPACES') == 'true'
+  when: ansible_facts["os_family"] == "Debian"
   changed_when: false
 
 - name: Install pi-subdir-context plugin for pi-coding-agent (macOS)
@@ -586,27 +586,27 @@
   failed_when: pi_plugin_macos.rc != 0
   when: ansible_facts["os_family"] == "Darwin"
 
-- name: Install pi-subdir-context plugin for pi-coding-agent (Codespaces)
+- name: Install pi-subdir-context plugin for pi-coding-agent (Linux)
   command: mise exec node@lts -- pi install npm:pi-subdir-context
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
-  register: pi_plugin_codespaces
-  changed_when: "'already installed' not in pi_plugin_codespaces.stdout"
-  failed_when: pi_plugin_codespaces.rc != 0
-  when: lookup('env', 'CODESPACES') == 'true'
+  register: pi_plugin_linux
+  changed_when: "'already installed' not in pi_plugin_linux.stdout"
+  failed_when: pi_plugin_linux.rc != 0
+  when: ansible_facts["os_family"] == "Debian"
 
 # Symlink globally-installed npm binaries into ~/.local/bin so they work
 # regardless of which Node version the current directory's mise.toml selects.
-- name: Create ~/.local/bin symlinks for global npm tools (Codespaces)
+- name: Create ~/.local/bin symlinks for global npm tools (Linux)
   shell: |
-    node_bin="$(mise where node@{{ codespaces_node_lts.stdout }})/bin"
+    node_bin="$(mise where node@{{ linux_node_lts.stdout }})/bin"
     for cmd in gsd gsd-cli codex pi; do
       [ -x "$node_bin/$cmd" ] && ln -sf "$node_bin/$cmd" ~/.local/bin/"$cmd"
     done
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
   changed_when: false
-  when: lookup('env', 'CODESPACES') == 'true'
+  when: ansible_facts["os_family"] == "Debian"
 
 # Codex CLI configuration for automatic API key authentication
 
@@ -632,6 +632,11 @@
   set_fact:
     bootstrap_use: 'work'
   when: ansible_facts["os_family"] == "Darwin" and not bootstrap_config_stat.stat.exists
+
+- name: Set bootstrap use (dev host)
+  set_fact:
+    bootstrap_use: 'personal'
+  when: ansible_facts["os_family"] == "Debian" and lookup('env', 'CODESPACES') != 'true'
 
 # macOS: Read API key from file
 - name: Check if OpenAI API key file exists (macOS)
@@ -709,8 +714,8 @@
   changed_when: codex_config_result.stdout.strip() == 'changed'
   when: lookup('env', 'CODESPACES') == 'true'
 
-# Trust settings for macOS
-- name: Configure Codex CLI config.toml for macOS projects
+# Trust settings for ~/projects/ (macOS and dev host)
+- name: Configure Codex CLI config.toml for ~/projects/
   shell: |
     python3 -c '
     import os
@@ -749,9 +754,9 @@
     '
   environment:
     CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
-  register: codex_config_macos_result
-  changed_when: codex_config_macos_result.stdout.strip() == 'changed'
-  when: ansible_facts["os_family"] == "Darwin"
+  register: codex_config_projects_result
+  changed_when: codex_config_projects_result.stdout.strip() == 'changed'
+  when: lookup('env', 'CODESPACES') != 'true'
 
 # Skills installation (shared across Claude Code, Codex, and Amp)
 - name: Create ~/.claude/skills directory
