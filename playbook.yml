@@ -37,3 +37,5 @@
       when: ansible_facts["os_family"] == "Darwin"
     - role: codespaces
       when: lookup('env', 'CODESPACES') == 'true'
+    - role: dev_host
+      when: ansible_facts["os_family"] == "Debian" and lookup('env', 'CODESPACES') != 'true'
