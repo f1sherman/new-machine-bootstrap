@@ -1,0 +1,16 @@
+.sass-cache
+*.un~
+config/jshint.yml
+.DS_Store
+
+# Claude Code
+.claude/settings.local.json
+.claude/todos.json
+CLAUDE.local.md
+
+# OpenAI Codex
+.codex/
+
+# GSD
+.gsd/
+.bg-shell/
