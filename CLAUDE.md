@@ -1,6 +1,6 @@
 # new-machine-bootstrap Project Instructions
 
-This repository contains bootstrap scripts for macOS and GitHub Codespaces environments using Ansible for system configuration and provisioning.
+This repository contains bootstrap scripts for macOS, GitHub Codespaces, and Linux development hosts using Ansible for system configuration and provisioning.
 
 ## CRITICAL: Never Modify Files Outside This Repo
 
@@ -20,10 +20,12 @@ After making changes, ask the user to run `bin/provision` to apply them.
 - `bin/sync-sessions-from-all-codespaces` - Background script to pull Claude sessions from all running Codespaces (hourly via launchd on work machines)
 - `lib/dev_env_syncer.rb` - Ruby module for rsync-based `.coding-agent` syncing
 - `lib/claude_session_syncer.rb` - Ruby module for Claude session syncing with newer-timestamp-wins strategy
-- `playbook.yml` - Main Ansible playbook supporting both macOS and Codespaces platforms
-- `roles/common/` - Shared resources used by both platforms (dotfiles, scripts, Claude config)
+- `playbook.yml` - Main Ansible playbook supporting macOS, Codespaces, and Linux dev hosts
+- `roles/common/` - Shared resources used by all platforms (dotfiles, scripts, Claude config)
+- `roles/linux/` - Shared Linux/Debian configuration (packages, tmux, shell, FZF)
 - `roles/macos/` - macOS-specific configuration and applications
-- `roles/codespaces/` - Codespaces-specific configuration and apt packages
+- `roles/codespaces/` - Codespaces-specific configuration (workspace trust, onboarding)
+- `roles/dev_host/` - Linux dev host-specific configuration (project trust, tmux auto-launch)
 
 ## Key Components
 
@@ -36,6 +38,14 @@ After making changes, ask the user to run `bin/provision` to apply them.
    - Prompts for API keys (OpenAI, Anthropic)
    - Installs Homebrew and Ansible
    - Runs the main Ansible provisioning via `bin/provision`
+
+**Linux Dev Host**:
+1. Clone the repo on the dev host
+2. Run `bin/provision` to install packages and configure the environment
+   - Installs Ansible via apt-get if not present
+   - Runs the playbook with `linux`, `common`, and `dev_host` roles
+   - Passwordless sudo required (no `--ask-become-pass`)
+   - Sets `bootstrap_use` to `'personal'`
 
 **Codespaces**:
 1. Run `codespace-create` to create and provision a new Codespace:
@@ -59,7 +69,15 @@ After making changes, ask the user to run `bin/provision` to apply them.
    - Helper scripts (pick-files, osc52-copy)
    - Claude configuration (agents, commands, statusline)
    - Repository cloning (prezto, dotvim, vim-plug)
-   - Used by both macOS and Codespaces roles
+   - Used by all platform roles
+
+**Linux Role** (`roles/linux/`):
+   - Development tools via apt (17 packages) and GitHub Release binaries (fzf, delta, tmux, yq, mise)
+   - Tool symlinks (fd, bat, vim)
+   - tmux configuration and plugin management (TPM)
+   - zsh as default shell
+   - FZF integration
+   - Runs on all Debian hosts (both Codespaces and dev hosts)
 
 **macOS Role** (`roles/macos/`):
    - Development tools via Homebrew (vim, nvim, tmux, git, etc.)
@@ -68,12 +86,17 @@ After making changes, ask the user to run `bin/provision` to apply them.
    - macOS-specific configuration
 
 **Codespaces Role** (`roles/codespaces/`):
-   - Development tools via apt (17 packages)
-   - Tool symlinks (fd, bat, vim)
-   - Byobu auto-launch configuration
-   - zsh as default shell
-   - Codespaces-specific dotfiles (tmux.conf)
-   - FZF integration
+   - Codespaces-specific configuration layered on top of the linux role
+   - tmux auto-launch with `/workspaces/` path handling
+   - Claude workspace trust for `/workspaces/*`
+   - Onboarding skip and OAuth alias
+   - Pre-commit hook injection
+
+**Dev Host Role** (`roles/dev_host/`):
+   - Linux dev host configuration layered on top of the linux role
+   - tmux auto-launch (simpler than Codespaces — no workspace path handling)
+   - Claude project trust for `~/projects/*`
+   - `bootstrap_use` set to `'personal'`
 
 ### Development Tools
 - **Editor**: vim/nvim with shared configuration from separate dotvim repository
@@ -99,8 +122,9 @@ After making changes, ask the user to run `bin/provision` to apply them.
 
 The playbook uses different mechanisms to detect platforms:
 - **macOS**: Detected via `ansible_os_family == "Darwin"`
+- **Linux** (shared): Detected via `ansible_os_family == "Debian"` — runs on both Codespaces and dev hosts
 - **Codespaces**: Detected via `CODESPACES=true` environment variable (not OS detection)
-- This allows the playbook to run on other Debian hosts without triggering Codespaces-specific configuration
+- **Dev Host**: Detected via `ansible_os_family == "Debian"` AND `CODESPACES` not set
 
 ## Testing
 
@@ -134,6 +158,13 @@ bin/sync-to-codespace <codespace-name>   # Syncs to specific Codespace only
 
 # Manual dev environment sync (if needed):
 bin/sync-dev-env [codespace-name]    # Local → Codespace (unidirectional)
+```
+
+**Linux Dev Host Testing**:
+```bash
+bin/provision                    # Full run (passwordless sudo required)
+bin/provision --check            # Dry-run mode
+bin/provision --diff             # Show what would change
 ```
 
 **Simulating Codespaces Locally**:
@@ -225,12 +256,20 @@ This strategy is robust even if Claude Code ever compacts or truncates sessions.
 
 **Codespaces**:
 - Converted from 360-line bash script to Ansible roles
-- Uses apt packages instead of Homebrew
+- Uses apt packages instead of Homebrew (via `linux` role)
 - Sudo pre-configured, no password prompt needed
 - Dotfiles are templated (not symlinked) for consistency
 - Auto-trusts workspace directories
 - Skips Claude Code onboarding prompts
-- Launches tmux/byobu on SSH login (exit once to disconnect)
+- Launches tmux on SSH login (exit once to disconnect)
+
+**Linux Dev Host**:
+- Shares package installation and base config with Codespaces (via `linux` role)
+- Passwordless sudo required
+- Workspace directory is `~/projects/` (same as macOS)
+- `bootstrap_use` is always `'personal'`
+- Headless/SSH only — no GUI or desktop config
+- Launches tmux on SSH login
 
 **Shared**:
 - Backs up existing configurations before overwriting
