@@ -1,0 +1,1 @@
+../../common/committing-changes/commit.sh

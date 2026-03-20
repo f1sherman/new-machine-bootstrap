@@ -565,6 +565,46 @@
   when: lookup('env', 'CODESPACES') == 'true'
   changed_when: false
 
+- name: Create GSD agent config directory
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/.gsd/agent"
+    state: directory
+    mode: '0755'
+
+- name: Configure GSD-2 defaults (model, thinking level)
+  shell: |
+    SETTINGS='{{ ansible_facts["user_dir"] }}/.gsd/agent/settings.json'
+    if [ ! -f "$SETTINGS" ]; then
+      echo '{}' > "$SETTINGS"
+    fi
+    jq '.defaultProvider = "anthropic" | .defaultModel = "claude-opus-4-6[1m]" | .defaultThinkingLevel = "xhigh"' "$SETTINGS" > "${SETTINGS}.tmp" \
+      && mv "${SETTINGS}.tmp" "$SETTINGS"
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Symlink GSD node_modules into extensions so they can resolve dependencies
+  shell: |
+    gsd_modules="$(npm root -g)/gsd-pi/node_modules"
+    if [ ! -d "$gsd_modules" ]; then
+      echo "skipped: gsd-pi not installed"
+      exit 0
+    fi
+    target='{{ ansible_facts["user_dir"] }}/.gsd/agent/extensions/node_modules'
+    current="$(readlink "$target" 2>/dev/null || true)"
+    if [ "$current" = "$gsd_modules" ]; then
+      echo "already linked"
+      exit 0
+    fi
+    # Remove stale symlink or directory from prior approach
+    rm -rf "$target"
+    ln -sfn "$gsd_modules" "$target"
+    echo "linked"
+  args:
+    executable: /bin/bash
+  register: gsd_ext_modules_link
+  changed_when: "'linked' in gsd_ext_modules_link.stdout"
+
 - name: Install or update pi-coding-agent via npm (macOS)
   npm:
     name: '@mariozechner/pi-coding-agent'
@@ -825,6 +865,19 @@
   with_fileglob:
     - '{{ playbook_dir }}/roles/common/files/config/skills/personal/*'
   when: bootstrap_use is defined and bootstrap_use == 'personal'
+
+- name: Create ~/.gsd/agent/skills directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.gsd/agent/skills'
+    state: directory
+    mode: '0755'
+
+- name: Install GSD skills
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/gsd/'
+    dest: '{{ ansible_facts["user_dir"] }}/.gsd/agent/skills/'
+    mode: preserve
+    directory_mode: '0755'
 
 - name: Remove deprecated Claude slash command files
   file:
