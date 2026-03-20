@@ -210,25 +210,27 @@ Add the `dev_host` role with dev-host-specific configuration, update `bin/provis
 Update CLAUDE.md to reflect the new role architecture and dev host support.
 
 #### Tasks
-- [ ] Update `CLAUDE.md` Project Structure section to include `roles/linux/` and `roles/dev_host/`
-- [ ] Update Role Architecture section to document the four-role structure (common, linux, macos, codespaces, dev_host)
-- [ ] Add dev host testing instructions (how to run `bin/provision` on the dev host)
-- [ ] Add dev host to Platform Detection section
-- [ ] Update playbook header comment in `playbook.yml` to list all roles
+- [x] Update `CLAUDE.md` Project Structure section to include `roles/linux/` and `roles/dev_host/`
+- [x] Update Role Architecture section to document the five-role structure (common, linux, macos, codespaces, dev_host)
+- [x] Add dev host testing instructions (how to run `bin/provision` on the dev host)
+- [x] Add dev host to Platform Detection section
+- [x] Update playbook header comment in `playbook.yml` to list all roles (done in Phase 1)
+- [x] Add Linux Dev Host bootstrap process section
+- [x] Add Linux Dev Host important notes section
 
 #### Tests
 
-- Review CLAUDE.md for accuracy against actual role structure
-- Verify all role directories mentioned in CLAUDE.md exist
+- All 5 role directories exist: common, linux, macos, codespaces, dev_host
+- CLAUDE.md accurately reflects current role structure
 
 #### Red (pre-implementation)
-- [ ] Tests fail as expected (not due to test bugs)
+- [x] CLAUDE.md did not mention linux or dev_host roles
 
 #### Green (post-implementation)
-- [ ] All phase tests pass
+- [x] All phase tests pass
 
 #### Self-Review
-- [ ] Code reviewed for quality, correctness, and consistency with codebase patterns
+- [x] Code reviewed for quality, correctness, and consistency with codebase patterns
 
 #### Human Review
 - [ ] Changes reviewed and approved by human
