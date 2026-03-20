@@ -288,18 +288,6 @@
     dest: '{{ ansible_facts["user_dir"] }}/.codex/AGENTS.md'
     state: link
 
-- name: Create ~/.config/amp directory
-  file:
-    path: '{{ ansible_facts["user_dir"] }}/.config/amp'
-    state: directory
-    mode: '0700'
-
-- name: Create ~/.config/amp/AGENTS.md symlink to ~/.claude/CLAUDE.md
-  file:
-    src: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md'
-    dest: '{{ ansible_facts["user_dir"] }}/.config/amp/AGENTS.md'
-    state: link
-
 - name: Create ccstatusline config directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/.config/ccstatusline'
@@ -650,46 +638,18 @@
 
 # Codex CLI configuration for automatic API key authentication
 
-# macOS: Determine if this is a personal or work machine
-- name: Check bootstrap config (macOS)
-  stat:
-    path: '{{ ansible_facts["user_dir"] }}/.config/new-machine-bootstrap.yml'
-  register: bootstrap_config_stat
-  when: ansible_facts["os_family"] == "Darwin"
-
-- name: Read bootstrap config (macOS)
-  slurp:
-    src: '{{ ansible_facts["user_dir"] }}/.config/new-machine-bootstrap.yml'
-  register: bootstrap_config_content
-  when: ansible_facts["os_family"] == "Darwin" and bootstrap_config_stat.stat.exists
-
-- name: Set bootstrap use (macOS)
-  set_fact:
-    bootstrap_use: "{{ (bootstrap_config_content.content | b64decode | from_yaml).use | default('work') }}"
-  when: ansible_facts["os_family"] == "Darwin" and bootstrap_config_stat.stat.exists
-
-- name: Default bootstrap use (macOS)
-  set_fact:
-    bootstrap_use: 'work'
-  when: ansible_facts["os_family"] == "Darwin" and not bootstrap_config_stat.stat.exists
-
-- name: Set bootstrap use (dev host)
-  set_fact:
-    bootstrap_use: 'personal'
-  when: ansible_facts["os_family"] == "Debian" and lookup('env', 'CODESPACES') != 'true'
-
 # macOS: Read API key from file
 - name: Check if OpenAI API key file exists (macOS)
   stat:
     path: '{{ ansible_facts["user_dir"] }}/.config/api-keys/openai'
   register: openai_api_key_stat
-  when: ansible_facts["os_family"] == "Darwin" and bootstrap_use == 'work'
+  when: ansible_facts["os_family"] == "Darwin"
 
 - name: Read OpenAI API key from file (macOS)
   slurp:
     src: '{{ ansible_facts["user_dir"] }}/.config/api-keys/openai'
   register: openai_api_key_content
-  when: ansible_facts["os_family"] == "Darwin" and bootstrap_use == 'work' and openai_api_key_stat.stat.exists and openai_api_key_stat.stat.size > 0
+  when: ansible_facts["os_family"] == "Darwin" and openai_api_key_stat.stat.exists and openai_api_key_stat.stat.size > 0
 
 - name: Configure Codex CLI auth.json (macOS)
   copy:
@@ -699,7 +659,7 @@
       }
     dest: '{{ ansible_facts["user_dir"] }}/.codex/auth.json'
     mode: '0600'
-  when: ansible_facts["os_family"] == "Darwin" and bootstrap_use == 'work' and openai_api_key_stat.stat.exists and openai_api_key_stat.stat.size > 0
+  when: ansible_facts["os_family"] == "Darwin" and openai_api_key_stat.stat.exists and openai_api_key_stat.stat.size > 0
 
 # Codespaces: Read API key from environment variable
 - name: Configure Codex CLI auth.json (Codespaces)
@@ -798,7 +758,7 @@
   changed_when: codex_config_projects_result.stdout.strip() == 'changed'
   when: lookup('env', 'CODESPACES') != 'true'
 
-# Skills installation (shared across Claude Code, Codex, and Amp)
+# Skills installation (shared across Claude Code and Codex)
 - name: Create ~/.claude/skills directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/.claude/skills'
@@ -808,12 +768,6 @@
 - name: Create ~/.codex/skills directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/.codex/skills'
-    state: directory
-    mode: '0755'
-
-- name: Create ~/.config/agents/skills directory
-  file:
-    path: '{{ ansible_facts["user_dir"] }}/.config/agents/skills'
     state: directory
     mode: '0755'
 
@@ -844,32 +798,6 @@
     dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/'
     mode: preserve
     directory_mode: '0755'
-
-- name: Install personal skills to ~/.claude/skills (personal machines only)
-  copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/personal/'
-    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/'
-    mode: preserve
-    directory_mode: '0755'
-  when: bootstrap_use is defined and bootstrap_use == 'personal'
-
-- name: Create Amp skills symlinks to Claude skills
-  file:
-    src: '{{ ansible_facts["user_dir"] }}/.claude/skills/{{ item | basename }}'
-    dest: '{{ ansible_facts["user_dir"] }}/.config/agents/skills/{{ item | basename }}'
-    state: link
-  with_fileglob:
-    - '{{ playbook_dir }}/roles/common/files/config/skills/claude/*'
-    - '{{ playbook_dir }}/roles/common/files/config/skills/common/*'
-
-- name: Create Amp symlinks for personal skills (personal machines only)
-  file:
-    src: '{{ ansible_facts["user_dir"] }}/.claude/skills/{{ item | basename }}'
-    dest: '{{ ansible_facts["user_dir"] }}/.config/agents/skills/{{ item | basename }}'
-    state: link
-  with_fileglob:
-    - '{{ playbook_dir }}/roles/common/files/config/skills/personal/*'
-  when: bootstrap_use is defined and bootstrap_use == 'personal'
 
 - name: Create ~/.gsd/agent/skills directory
   file:
@@ -924,29 +852,3 @@
     - 'personal-resume-handoff.md'
     - 'personal-validate-plan.md'
 
-# Work provisioning for Codespaces
-- name: Create ~/projects directory for work provisioning
-  file:
-    path: '{{ ansible_facts["user_dir"] }}/projects'
-    state: directory
-    mode: '0755'
-  when: ansible_facts.env.CODESPACES | default('') == 'true'
-
-- name: Clone or update work provisioning repository
-  shell: |
-    if [ -d '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john' ]; then
-      cd '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john'
-      git -c credential.helper='!gh auth git-credential' pull --autostash
-    else
-      gh repo clone betterup/bootstrap-brian-john '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john'
-    fi
-  environment:
-    GH_TOKEN: "{{ ansible_facts.env.GH_TOKEN | default('') }}"
-  when: ansible_facts.env.CODESPACES | default('') == 'true'
-
-- name: Run work provisioning
-  command: '{{ ansible_facts["user_dir"] }}/projects/bootstrap-brian-john/bin/provision'
-  changed_when: false
-  environment:
-    GH_TOKEN: "{{ ansible_facts.env.GH_TOKEN | default('') }}"
-  when: ansible_facts.env.CODESPACES | default('') == 'true'

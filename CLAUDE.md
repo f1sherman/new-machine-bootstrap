@@ -17,7 +17,6 @@ After making changes, ask the user to run `bin/provision` to apply them.
 - `bin/csr` - Quick reconnect to last codespace used in current terminal
 - `bin/sync-to-codespace` - Sync repository to Codespace and run provisioning (call as `sync-to-codespace`)
 - `bin/sync-dev-env` - Manual sync of `.coding-agent` directories between local and Codespace
-- `bin/sync-sessions-from-all-codespaces` - Background script to pull Claude sessions from all running Codespaces (hourly via launchd on work machines)
 - `lib/dev_env_syncer.rb` - Ruby module for rsync-based `.coding-agent` syncing
 - `lib/claude_session_syncer.rb` - Ruby module for Claude session syncing with newer-timestamp-wins strategy
 - `playbook.yml` - Main Ansible playbook supporting macOS, Codespaces, and Linux dev hosts
@@ -45,7 +44,6 @@ After making changes, ask the user to run `bin/provision` to apply them.
    - Installs Ansible via apt-get if not present
    - Runs the playbook with `linux`, `common`, and `dev_host` roles
    - Passwordless sudo required (no `--ask-become-pass`)
-   - Sets `bootstrap_use` to `'personal'`
 
 **Codespaces**:
 1. Run `codespace-create` to create and provision a new Codespace:
@@ -96,7 +94,6 @@ After making changes, ask the user to run `bin/provision` to apply them.
    - Linux dev host configuration layered on top of the linux role
    - tmux auto-launch (simpler than Codespaces — no workspace path handling)
    - Claude project trust for `~/projects/*`
-   - `bootstrap_use` set to `'personal'`
 
 ### Development Tools
 - **Editor**: vim/nvim with shared configuration from separate dotvim repository
@@ -231,13 +228,6 @@ bin/sync-dev-env --sessions --days 14      # Sync sessions from last 14 days
 bin/sync-to-codespace --no-sessions        # Skip session sync during provisioning
 ```
 
-**Background Sync (Work Machines Only)**:
-- Launchd runs `sync-sessions-from-all-codespaces` hourly
-- Bidirectional sync with all running Codespaces (pulls first, then pushes)
-- Logs to `~/Library/Logs/claude-session-sync.log`
-- Ensures sessions are preserved even if Codespace times out unexpectedly
-- Only runs on work machines (configured via `bootstrap_use` setting)
-
 **Why Newer Timestamp Wins?**:
 This strategy is robust even if Claude Code ever compacts or truncates sessions. The file with the most recent activity is definitively the most current version. Unlike file size comparison, this works correctly regardless of session file modifications.
 
@@ -249,7 +239,7 @@ This strategy is robust even if Claude Code ever compacts or truncates sessions.
 
 **macOS**:
 - Script requires macOS with FileVault enabled
-- Prompts for work vs personal configuration
+- Prompts for API keys (OpenAI, Anthropic) on first run
 - `bin/setup` handles one-time sudo operations (run once per machine)
 - `bin/provision` runs without sudo after setup
 - Installs from GitHub repositories
@@ -267,7 +257,6 @@ This strategy is robust even if Claude Code ever compacts or truncates sessions.
 - Shares package installation and base config with Codespaces (via `linux` role)
 - Passwordless sudo required
 - Workspace directory is `~/projects/` (same as macOS)
-- `bootstrap_use` is always `'personal'`
 - Headless/SSH only — no GUI or desktop config
 - Launches tmux on SSH login
 

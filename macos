@@ -1,40 +1,6 @@
 #!/usr/bin/env ruby
 
 require 'fileutils'
-require 'yaml'
-
-class Config
-  PERSONAL = 'personal'
-  WORK = 'work'
-
-  attr_reader :config_dir, :config_path, :settings
-
-  def initialize
-    @config_dir = File.join(Dir.home, '.config')
-    @config_path = File.join(config_dir, 'new-machine-bootstrap.yml')
-    if File.exist?(config_path)
-      @settings = YAML.load_file config_path
-    else
-      FileUtils.mkdir_p config_dir
-      print "\nIs this machine for work (w) or personal (p) use? "
-      work_or_personal = STDIN.gets.chomp
-
-      exit 1 unless %w(w p).include? work_or_personal
-
-      @settings = {}
-      settings['use'] = work_or_personal == 'p' ? PERSONAL : WORK
-      File.open(config_path, 'w') { |f| f.write settings.to_yaml }
-    end
-  end
-
-  def personal?
-    settings['use'] == PERSONAL
-  end
-
-  def work?
-    settings['use'] == WORK
-  end
-end
 
 module Provision
   def self.binary_installed?(binary)
@@ -92,9 +58,7 @@ unless File.exist? ssh_public_key
   STDIN.getch
 end
 
-config = Config.new
-
-api_providers = config.personal? ? ['anthropic'] : ['openai', 'anthropic']
+api_providers = ['openai', 'anthropic']
 config_dir = File.join(Dir.home, '.config', 'api-keys')
 
 FileUtils.mkdir_p(config_dir) unless Dir.exist?(config_dir)
@@ -121,10 +85,5 @@ Provision.run_command 'brew upgrade'
 Provision.brew 'ansible'
 Provision.update_project 'new-machine-bootstrap'
 Provision.run_command 'cd ~/projects/new-machine-bootstrap && bin/provision'
-
-if config.work?
-  Provision.update_project 'bootstrap-brian-john', org: 'betterup'
-  Provision.run_command 'cd ~/projects/bootstrap-brian-john && bin/provision'
-end
 
 Provision.run_command 'brew cleanup'
