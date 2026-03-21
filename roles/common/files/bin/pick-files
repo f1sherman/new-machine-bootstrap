@@ -8,7 +8,11 @@ for dir in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do
   [[ -d "$dir" && ":$PATH:" != *":$dir:"* ]] && PATH="$dir:$PATH"
 done
 
-pane_id="${PICK_FILES_PANE:?Set PICK_FILES_PANE to the tmux pane id}"
+pane_id="${PICK_FILES_PANE:-$(cat /tmp/tmux-pick-files-pane 2>/dev/null)}"
+if [[ -z "$pane_id" ]]; then
+  echo "Error: could not determine tmux pane id" >&2
+  exit 1
+fi
 pane_dir="$PWD"
 git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$pane_dir")
 
