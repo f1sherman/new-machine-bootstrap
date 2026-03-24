@@ -114,14 +114,8 @@ claude_permissions:
     - "Bash(npx stylelint *)"
 
     # Bootstrap scripts
-    - "Bash(bin/codespace-create *)"
-    - "Bash(bin/codespace-ssh *)"
-    - "Bash(bin/devpod-create *)"
-    - "Bash(bin/devpod-ssh *)"
     - "Bash(bin/provision --check *)"
     - "Bash(bin/provision --diff *)"
-    - "Bash(bin/sync-to-codespace *)"
-    - "Bash(bin/sync-to-devpod *)"
     - "Bash(devpod *)"
 
     # Claude skills

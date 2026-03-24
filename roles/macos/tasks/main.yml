@@ -202,36 +202,6 @@
   args:
     executable: /bin/bash
     creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
-- name: Symlink codespace-create to ~/.local/bin
-  file:
-    src: '{{ playbook_dir }}/bin/codespace-create'
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/codespace-create'
-    state: link
-- name: Symlink codespace-ssh to ~/.local/bin
-  file:
-    src: '{{ playbook_dir }}/bin/codespace-ssh'
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/codespace-ssh'
-    state: link
-- name: Symlink csr to ~/.local/bin
-  file:
-    src: '{{ playbook_dir }}/bin/csr'
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/csr'
-    state: link
-- name: Symlink merge-claude-permissions to ~/.local/bin
-  file:
-    src: '{{ playbook_dir }}/bin/merge-claude-permissions'
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/merge-claude-permissions'
-    state: link
-- name: Symlink devpod-create to ~/.local/bin
-  file:
-    src: '{{ playbook_dir }}/bin/devpod-create'
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/devpod-create'
-    state: link
-- name: Symlink devpod-ssh to ~/.local/bin
-  file:
-    src: '{{ playbook_dir }}/bin/devpod-ssh'
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/devpod-ssh'
-    state: link
 
 - name: Enable Dark Mode
   command: dark-mode on

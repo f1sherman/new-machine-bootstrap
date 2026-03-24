@@ -202,28 +202,6 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/claude-trust-directory'
     mode: 0755
 
-- name: Install sync-to-codespace script
-  file:
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/sync-to-codespace'
-    src: '{{ playbook_dir }}/bin/sync-to-codespace'
-    state: link
-    force: yes
-
-- name: Install sync-to-devpod script
-  file:
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/sync-to-devpod'
-    src: '{{ playbook_dir }}/bin/sync-to-devpod'
-    state: link
-    force: yes
-
-- name: Remove stale sync scripts from ~/bin
-  file:
-    path: '{{ ansible_facts["user_dir"] }}/bin/{{ item }}'
-    state: absent
-  loop:
-    - sync-to-codespace
-    - sync-to-devpod
-
 - name: Create ~/.claude directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/.claude'
