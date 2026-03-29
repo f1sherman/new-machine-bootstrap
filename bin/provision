@@ -8,7 +8,7 @@
 #
 # This script bootstraps Ansible and runs the main playbook.
 
-set -e
+set -eo pipefail
 
 PROVISIONING_START=$(date +%s)
 LOGFILE_PATH="/tmp/provision-$(date +%Y%m%d-%H%M%S).log"
@@ -235,15 +235,18 @@ cmd_parts+=("--inventory" "localhost,")
 cmd_parts+=("--connection" "local")
 cmd_parts+=("playbook.yml")
 cmd_parts+=("--diff")
+if [[ -n "${ANSIBLE_BECOME_PASS:-}" ]]; then
+  cmd_parts+=("--extra-vars" "ansible_become_pass=${ANSIBLE_BECOME_PASS}")
+fi
 cmd_parts+=("$@")
 
 cmd="${cmd_parts[*]}"
-log_info "Executing command: $cmd"
+log_info "Executing command: ${cmd//ansible_become_pass=*/ansible_become_pass=[REDACTED]}"
 log_info "Gathering facts (this may take a moment)..."
 
 output=$(mktemp)
 if ! "${cmd_parts[@]}" 2>&1 | tee -a "$LOGFILE_PATH" | tee "$output"; then
-  log_error "Command failed: $cmd"
+  log_error "Command failed: ${cmd//ansible_become_pass=*/ansible_become_pass=[REDACTED]}"
   say_message "provisioning failed"
   rm -f "$output"
   exit 1
