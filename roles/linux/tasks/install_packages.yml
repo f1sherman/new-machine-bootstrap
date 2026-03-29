@@ -107,6 +107,7 @@
     src: '{{ ansible_facts["user_dir"] }}/.local/bin/fzf'
     dest: '{{ ansible_facts["user_dir"] }}/.fzf/bin/fzf'
     state: link
+    force: yes
 
 - name: Create fzf config directory
   file:
