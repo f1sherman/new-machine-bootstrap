@@ -496,9 +496,7 @@
 # PATH is extended because mise may have been installed during pre_tasks
 # and isn't in the inherited PATH yet.
 - name: Install or update Codex CLI via npm (Linux)
-  shell: "{{ ansible_facts['user_dir'] }}/.local/bin/mise exec node@lts -- npm install -g @openai/codex@latest"
-  environment:
-    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
+  shell: "export PATH={{ ansible_facts['user_dir'] }}/.local/bin:$PATH && mise exec node@lts -- npm install -g @openai/codex@latest"
   when: ansible_facts["os_family"] == "Debian"
   changed_when: false
 
@@ -515,14 +513,12 @@
 
 - name: Install or update GSD-2 via npm (Linux)
   shell: |
-    MISE="{{ ansible_facts['user_dir'] }}/.local/bin/mise"
-    "$MISE" exec node@lts -- npm install -g node-addon-api node-gyp
-    NODE_PATH=$("$MISE" exec node@lts -- npm root -g) "$MISE" exec node@lts -- npm install -g gsd-pi@latest
-    chmod +x "$("$MISE" exec node@lts -- npm root -g)/gsd-pi/dist/loader.js"
+    export PATH="{{ ansible_facts['user_dir'] }}/.local/bin:$PATH"
+    mise exec node@lts -- npm install -g node-addon-api node-gyp
+    NODE_PATH=$(mise exec node@lts -- npm root -g) mise exec node@lts -- npm install -g gsd-pi@latest
+    chmod +x "$(mise exec node@lts -- npm root -g)/gsd-pi/dist/loader.js"
   args:
     executable: /bin/bash
-  environment:
-    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
   when: ansible_facts["os_family"] == "Debian"
   changed_when: false
 
@@ -574,9 +570,7 @@
   when: ansible_facts["os_family"] == "Darwin"
 
 - name: Install or update pi-coding-agent via npm (Linux)
-  shell: "{{ ansible_facts['user_dir'] }}/.local/bin/mise exec node@lts -- npm install -g @mariozechner/pi-coding-agent@latest"
-  environment:
-    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
+  shell: "export PATH={{ ansible_facts['user_dir'] }}/.local/bin:$PATH && mise exec node@lts -- npm install -g @mariozechner/pi-coding-agent@latest"
   when: ansible_facts["os_family"] == "Debian"
   changed_when: false
 
@@ -588,9 +582,7 @@
   when: ansible_facts["os_family"] == "Darwin"
 
 - name: Install pi-subdir-context plugin for pi-coding-agent (Linux)
-  shell: "{{ ansible_facts['user_dir'] }}/.local/bin/mise exec node@lts -- pi install npm:pi-subdir-context"
-  environment:
-    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
+  shell: "export PATH={{ ansible_facts['user_dir'] }}/.local/bin:$PATH && mise exec node@lts -- pi install npm:pi-subdir-context"
   register: pi_plugin_linux
   changed_when: "'already installed' not in pi_plugin_linux.stdout"
   failed_when: pi_plugin_linux.rc != 0
@@ -600,15 +592,13 @@
 # regardless of which Node version the current directory's mise.toml selects.
 - name: Create ~/.local/bin symlinks for global npm tools (Linux)
   shell: |
-    MISE="{{ ansible_facts['user_dir'] }}/.local/bin/mise"
-    node_bin="$("$MISE" where node@{{ linux_node_lts.stdout }})/bin"
+    export PATH="{{ ansible_facts['user_dir'] }}/.local/bin:$PATH"
+    node_bin="$(mise where node@{{ linux_node_lts.stdout }})/bin"
     for cmd in gsd gsd-cli codex pi; do
       [ -x "$node_bin/$cmd" ] && ln -sf "$node_bin/$cmd" ~/.local/bin/"$cmd"
     done
   args:
     executable: /bin/bash
-  environment:
-    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
