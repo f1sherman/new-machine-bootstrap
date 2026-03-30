@@ -606,6 +606,56 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
+# gsd-browser: browser automation for AI agents
+- name: Set gsd-browser architecture mapping
+  set_fact:
+    gsd_browser_arch: "{{ 'arm64' if ansible_facts['architecture'] in ['arm64', 'aarch64'] else 'x64' }}"
+
+- name: Set gsd-browser platform string
+  set_fact:
+    gsd_browser_platform: "{{ ('darwin' if ansible_facts['os_family'] == 'Darwin' else 'linux') + '-' + gsd_browser_arch }}"
+
+- name: Get latest gsd-browser release version
+  uri:
+    url: https://api.github.com/repos/gsd-build/gsd-browser/releases/latest
+    return_content: yes
+    headers: "{{ {'Authorization': 'Bearer ' + (ansible_env.GITHUB_TOKEN | default(ansible_env.GH_TOKEN | default('')))} if (ansible_env.GITHUB_TOKEN | default(ansible_env.GH_TOKEN | default(''))) else {} }}"
+  register: gsd_browser_latest_release
+  retries: 3
+  delay: 10
+  until: gsd_browser_latest_release is succeeded
+
+- name: Set gsd-browser version without v prefix
+  set_fact:
+    gsd_browser_version: "{{ gsd_browser_latest_release.json.tag_name | regex_replace('^v', '') }}"
+
+- name: Read installed gsd-browser version
+  slurp:
+    src: '{{ ansible_facts["user_dir"] }}/.gsd-browser/version'
+  register: gsd_browser_installed_version
+  failed_when: false
+
+- name: Check if gsd-browser needs update
+  set_fact:
+    gsd_browser_needs_update: "{{ gsd_browser_installed_version is failed or (gsd_browser_installed_version.content | default('') | b64decode | trim) != gsd_browser_version }}"
+
+- name: Download gsd-browser binary
+  get_url:
+    url: "https://github.com/gsd-build/gsd-browser/releases/download/v{{ gsd_browser_version }}/gsd-browser-{{ gsd_browser_platform }}"
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/gsd-browser'
+    mode: '0755'
+    force: yes
+  retries: 3
+  delay: 10
+  when: gsd_browser_needs_update
+
+- name: Write installed gsd-browser version
+  copy:
+    content: '{{ gsd_browser_version }}'
+    dest: '{{ ansible_facts["user_dir"] }}/.gsd-browser/version'
+    mode: '0644'
+  when: gsd_browser_needs_update
+
 # Codex CLI configuration for automatic API key authentication
 
 # macOS: Read API key from file
@@ -781,6 +831,37 @@
     dest: '{{ ansible_facts["user_dir"] }}/.gsd/agent/skills/'
     mode: preserve
     directory_mode: '0755'
+
+# gsd-browser skill: download from upstream repo and install for Claude Code, Codex, and GSD-2
+- name: Download and extract gsd-browser skill from repo tarball
+  shell: |
+    tmp=$(mktemp -d)
+    curl -fsSL "https://github.com/gsd-build/gsd-browser/archive/refs/heads/main.tar.gz" | tar xz -C "$tmp" --strip-components=1 "gsd-browser-main/gsd-browser-skill"
+    echo "$tmp/gsd-browser-skill"
+  args:
+    executable: /bin/bash
+  register: gsd_browser_skill_dir
+  changed_when: false
+  retries: 3
+  delay: 5
+
+- name: Install gsd-browser skill for AI agents
+  copy:
+    src: '{{ gsd_browser_skill_dir.stdout.strip() }}/'
+    dest: '{{ ansible_facts["user_dir"] }}/{{ item }}'
+    mode: '0644'
+    directory_mode: '0755'
+  loop:
+    - .claude/skills/gsd-browser
+    - .codex/skills/gsd-browser
+    - .gsd/agent/skills/gsd-browser
+    - .pi/skills/gsd-browser
+
+- name: Clean up gsd-browser skill temp directory
+  file:
+    path: '{{ gsd_browser_skill_dir.stdout.strip() | dirname }}'
+    state: absent
+  changed_when: false
 
 - name: Remove deprecated Claude slash command files
   file:
