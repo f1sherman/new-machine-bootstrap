@@ -329,6 +329,10 @@
 - name: Install or update Claude Code CLI to latest version
   shell: curl -fsSL https://claude.ai/install.sh | bash
   changed_when: false
+  register: claude_install
+  failed_when:
+    - claude_install.rc != 0
+    - "'Text file busy' not in claude_install.stderr"
 
 - name: Check if Claude settings.json exists
   stat:
