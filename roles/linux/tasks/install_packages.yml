@@ -49,44 +49,14 @@
     state: absent
   become: yes
 
-- name: Check if fzf already exists in .local/bin
-  stat:
-    path: '{{ ansible_facts["user_dir"] }}/.local/bin/fzf'
-  register: fzf_binary
-
-- name: Set GitHub API token for authenticated requests
-  set_fact:
-    github_api_token: "{{ ansible_env.GITHUB_TOKEN | default(ansible_env.GH_TOKEN | default('')) }}"
-
-- name: Set architecture mapping for binary downloads
-  set_fact:
-    go_arch: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}"
-    deb_arch: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}"
-
-- name: Get latest fzf release version
-  uri:
-    url: https://api.github.com/repos/junegunn/fzf/releases/latest
-    return_content: yes
-    headers: "{{ {'Authorization': 'Bearer ' + github_api_token} if github_api_token else {} }}"
-  register: fzf_latest_release
-  retries: 3
-  delay: 10
-  until: fzf_latest_release is succeeded
-  when: not fzf_binary.stat.exists
-
-- name: Set fzf version without v prefix
-  set_fact:
-    fzf_version: "{{ fzf_latest_release.json.tag_name | regex_replace('^v', '') }}"
-  when: not fzf_binary.stat.exists
-
-- name: Download and extract fzf binary
-  unarchive:
-    src: "https://github.com/junegunn/fzf/releases/download/{{ fzf_latest_release.json.tag_name }}/fzf-{{ fzf_version }}-linux_{{ go_arch }}.tar.gz"
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
-    remote_src: yes
-  retries: 3
-  delay: 10
-  when: not fzf_binary.stat.exists
+- name: Install fzf
+  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
+  vars:
+    github_repo: junegunn/fzf
+    binary_name: fzf
+    asset_pattern: "fzf-{version}-linux_{arch}.tar.gz"
+    install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
+    download_type: tarball
 
 - name: Clone fzf repo for shell integration files
   git:
@@ -115,75 +85,26 @@
     state: directory
     mode: 0755
 
-- name: Check if delta already exists
-  stat:
-    path: /usr/bin/delta
-  register: delta_binary
+- name: Install delta
+  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
+  vars:
+    github_repo: dandavison/delta
+    binary_name: delta
+    asset_pattern: "git-delta_{version}_{arch}.deb"
+    install_dest: /usr/bin/delta
+    download_type: deb
 
-- name: Get latest delta release version
-  uri:
-    url: https://api.github.com/repos/dandavison/delta/releases/latest
-    return_content: yes
-    headers: "{{ {'Authorization': 'Bearer ' + github_api_token} if github_api_token else {} }}"
-  register: delta_latest_release
-  retries: 3
-  delay: 10
-  until: delta_latest_release is succeeded
-  when: not delta_binary.stat.exists
-
-- name: Set delta version without v prefix
-  set_fact:
-    delta_version: "{{ delta_latest_release.json.tag_name | regex_replace('^v', '') }}"
-  when: not delta_binary.stat.exists
-
-- name: Download delta .deb package
-  get_url:
-    url: "https://github.com/dandavison/delta/releases/download/{{ delta_latest_release.json.tag_name }}/git-delta_{{ delta_version }}_{{ deb_arch }}.deb"
-    dest: "/tmp/git-delta_{{ delta_version }}_{{ deb_arch }}.deb"
-  retries: 3
-  delay: 10
-  when: not delta_binary.stat.exists
-
-- name: Install delta .deb package
-  apt:
-    deb: "/tmp/git-delta_{{ delta_version }}_{{ deb_arch }}.deb"
-  become: yes
-  when: not delta_binary.stat.exists
-
-- name: Clean up delta .deb file
-  file:
-    path: "/tmp/git-delta_{{ delta_version }}_{{ deb_arch }}.deb"
-    state: absent
-  when: not delta_binary.stat.exists
-
-- name: Get latest tmux-builds release
-  uri:
-    url: https://api.github.com/repos/tmux/tmux-builds/releases/latest
-    return_content: yes
-    headers: "{{ {'Authorization': 'Bearer ' + github_api_token} if github_api_token else {} }}"
-  register: tmux_latest_release
-  retries: 3
-  delay: 10
-  until: tmux_latest_release is succeeded
-
-- name: Set tmux version
-  set_fact:
-    tmux_version: "{{ tmux_latest_release.json.tag_name | regex_replace('^v', '') }}"
-
-- name: Get installed tmux version
-  shell: tmux -V 2>/dev/null | awk '{print $2}'
-  register: tmux_installed_version
-  changed_when: false
-  failed_when: false
-
-- name: Download and extract tmux binary
-  unarchive:
-    src: "https://github.com/tmux/tmux-builds/releases/download/{{ tmux_latest_release.json.tag_name }}/tmux-{{ tmux_version }}-linux-{{ ansible_facts['architecture'] | replace('aarch64', 'arm64') }}.tar.gz"
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
-    remote_src: yes
-  retries: 3
-  delay: 10
-  when: tmux_installed_version.stdout != tmux_version
+- name: Install tmux
+  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
+  vars:
+    github_repo: tmux/tmux-builds
+    binary_name: tmux
+    asset_pattern: "tmux-{version}-linux-{arch}.tar.gz"
+    install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
+    download_type: tarball
+    arch_map:
+      x86_64: x86_64
+      aarch64: arm64
 
 - name: Create tmux symlink in /usr/local/bin
   file:
@@ -192,30 +113,13 @@
     state: link
   become: yes
 
-- name: Check if yq already exists
-  stat:
-    path: '{{ ansible_facts["user_dir"] }}/.local/bin/yq'
-  register: yq_binary
-
-- name: Get latest yq release version
-  uri:
-    url: https://api.github.com/repos/mikefarah/yq/releases/latest
-    return_content: yes
-    headers: "{{ {'Authorization': 'Bearer ' + github_api_token} if github_api_token else {} }}"
-  register: yq_latest_release
-  retries: 3
-  delay: 10
-  until: yq_latest_release is succeeded
-  when: not yq_binary.stat.exists
-
-- name: Download yq binary
-  get_url:
-    url: "https://github.com/mikefarah/yq/releases/download/{{ yq_latest_release.json.tag_name }}/yq_linux_{{ go_arch }}"
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/yq'
-    mode: 0755
-  retries: 3
-  delay: 10
-  when: not yq_binary.stat.exists
+- name: Install yq
+  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
+  vars:
+    github_repo: mikefarah/yq
+    binary_name: yq
+    asset_pattern: "yq_linux_{arch}"
+    install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin/yq'
 
 - name: Check if mise is installed
   shell: command -v mise

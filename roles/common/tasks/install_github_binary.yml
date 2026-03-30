@@ -1,0 +1,109 @@
+---
+# Install or update a binary from GitHub Releases.
+# Tracks installed versions in ~/.local/share/github-releases.json
+#
+# Required variables:
+#   github_repo:    owner/repo (e.g. "junegunn/fzf")
+#   binary_name:    manifest key and display name
+#   asset_pattern:  release asset filename with {version}, {tag}, {arch} placeholders
+#   install_dest:   target path (full file path for binary, directory for tarball)
+#
+# Optional variables:
+#   download_type:        "binary" (default), "tarball", or "deb"
+#   arch_map:             dict mapping ansible architecture to download arch name
+#                         default: {"x86_64": "amd64", "aarch64": "arm64", "arm64": "arm64"}
+#   tarball_extra_args:   extra args for tar extraction (e.g. "--strip-components=1")
+
+- name: "{{ binary_name }} | Ensure manifest directory exists"
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.local/share'
+    state: directory
+    mode: '0755'
+
+- name: "{{ binary_name }} | Read manifest"
+  slurp:
+    src: '{{ ansible_facts["user_dir"] }}/.local/share/github-releases.json'
+  register: _gh_manifest_raw
+  failed_when: false
+
+- name: "{{ binary_name }} | Parse manifest"
+  set_fact:
+    _gh_manifest: "{{ (_gh_manifest_raw.content | b64decode | from_json) if (_gh_manifest_raw.content is defined) else {} }}"
+
+- name: "{{ binary_name }} | Get latest release"
+  uri:
+    url: "https://api.github.com/repos/{{ github_repo }}/releases/latest"
+    return_content: yes
+    headers: "{{ {'Authorization': 'Bearer ' + _gh_api_token} if _gh_api_token else {} }}"
+  register: _gh_latest_release
+  retries: 3
+  delay: 10
+  until: _gh_latest_release is succeeded
+  vars:
+    _gh_api_token: "{{ ansible_env.GITHUB_TOKEN | default(ansible_env.GH_TOKEN | default('')) }}"
+
+- name: "{{ binary_name }} | Set version facts"
+  set_fact:
+    _gh_tag: "{{ _gh_latest_release.json.tag_name }}"
+    _gh_version: "{{ _gh_latest_release.json.tag_name | regex_replace('^v', '') }}"
+
+- name: "{{ binary_name }} | Check if update needed"
+  set_fact:
+    _gh_needs_update: "{{ (_gh_manifest[binary_name] | default('')) != _gh_version }}"
+
+- name: "{{ binary_name }} | Resolve architecture"
+  set_fact:
+    _gh_arch: "{{ (arch_map | default({'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}))[ansible_facts['architecture']] }}"
+  when: _gh_needs_update
+
+- name: "{{ binary_name }} | Build asset URL"
+  set_fact:
+    _gh_asset_url: "https://github.com/{{ github_repo }}/releases/download/{{ _gh_tag }}/{{ asset_pattern | replace('{version}', _gh_version) | replace('{tag}', _gh_tag) | replace('{arch}', _gh_arch) }}"
+  when: _gh_needs_update
+
+- name: "{{ binary_name }} | Download binary"
+  get_url:
+    url: "{{ _gh_asset_url }}"
+    dest: "{{ install_dest }}"
+    mode: '0755'
+    force: yes
+  retries: 3
+  delay: 10
+  when: _gh_needs_update and (download_type | default('binary')) == 'binary'
+
+- name: "{{ binary_name }} | Download and extract tarball"
+  unarchive:
+    src: "{{ _gh_asset_url }}"
+    dest: "{{ install_dest }}"
+    remote_src: yes
+    extra_args: "{{ tarball_extra_args | default(omit) }}"
+  retries: 3
+  delay: 10
+  when: _gh_needs_update and (download_type | default('binary')) == 'tarball'
+
+- name: "{{ binary_name }} | Download .deb package"
+  get_url:
+    url: "{{ _gh_asset_url }}"
+    dest: "/tmp/_gh_{{ binary_name }}.deb"
+  retries: 3
+  delay: 10
+  when: _gh_needs_update and (download_type | default('binary')) == 'deb'
+
+- name: "{{ binary_name }} | Install .deb package"
+  apt:
+    deb: "/tmp/_gh_{{ binary_name }}.deb"
+  become: yes
+  when: _gh_needs_update and (download_type | default('binary')) == 'deb'
+
+- name: "{{ binary_name }} | Clean up .deb package"
+  file:
+    path: "/tmp/_gh_{{ binary_name }}.deb"
+    state: absent
+  when: _gh_needs_update and (download_type | default('binary')) == 'deb'
+
+- name: "{{ binary_name }} | Update manifest"
+  copy:
+    content: "{{ _gh_manifest | combine({binary_name: _gh_version}) | to_nice_json }}\n"
+    dest: '{{ ansible_facts["user_dir"] }}/.local/share/github-releases.json'
+    mode: '0644'
+  when: _gh_needs_update
