@@ -76,7 +76,7 @@
     src: "{{ _gh_asset_url }}"
     dest: "{{ install_dest }}"
     remote_src: yes
-    extra_args: "{{ tarball_extra_args | default(omit) }}"
+    extra_opts: "{{ tarball_extra_args | default(omit) }}"
   retries: 3
   delay: 10
   when: _gh_needs_update and (download_type | default('binary')) == 'tarball'

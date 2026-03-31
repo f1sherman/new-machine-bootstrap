@@ -93,7 +93,10 @@
     asset_pattern: "delta-{version}-{arch}-unknown-linux-gnu.tar.gz"
     install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
     download_type: tarball
-    tarball_extra_args: '--strip-components=1 --wildcards "*/delta"'
+    tarball_extra_args:
+      - --strip-components=1
+      - --wildcards
+      - '*/delta'
     arch_map:
       x86_64: x86_64
       aarch64: aarch64
