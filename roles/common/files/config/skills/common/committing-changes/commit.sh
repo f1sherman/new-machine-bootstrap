@@ -71,16 +71,29 @@ if ! git rev-parse --git-dir > /dev/null 2>&1; then
     exit 1
 fi
 
-# Verify all files exist or are tracked
+# Verify all files exist, are tracked, or have staged changes
 for file in "${files[@]}"; do
-    if [[ ! -e "$file" ]] && ! git ls-files --error-unmatch "$file" > /dev/null 2>&1; then
-        echo "Error: File does not exist: $file" >&2
-        exit 1
+    if [[ -e "$file" ]]; then
+        continue
     fi
+    if git ls-files --error-unmatch "$file" > /dev/null 2>&1; then
+        continue
+    fi
+    if git diff --cached --name-only -- "$file" | grep -q .; then
+        continue
+    fi
+    echo "Error: File does not exist and is not tracked by git: $file" >&2
+    exit 1
 done
 
 # Stage the specified files
-git add "${files[@]}"
+for file in "${files[@]}"; do
+    if [[ -e "$file" ]]; then
+        git add -- "$file"
+    else
+        git rm -- "$file" 2>/dev/null || true
+    fi
+done
 
 # Create the commit (no co-author attribution)
 git commit -m "$message"
