@@ -279,18 +279,18 @@
     mode: '0600'
 
 - name: Trust mise config (Linux)
-  command: "{{ ansible_facts['user_dir'] }}/.local/bin/mise trust {{ playbook_dir }}/mise.toml"
+  command: "mise trust {{ playbook_dir }}/mise.toml"
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
 - name: Get latest LTS Node.js version (Linux)
-  command: "{{ ansible_facts['user_dir'] }}/.local/bin/mise latest node@lts"
+  command: "mise latest node@lts"
   register: linux_node_lts
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
 - name: Set global Node.js version via mise (Linux)
-  command: "{{ ansible_facts['user_dir'] }}/.local/bin/mise use --global node@{{ linux_node_lts.stdout }}"
+  command: "mise use --global node@{{ linux_node_lts.stdout }}"
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
