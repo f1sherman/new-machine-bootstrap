@@ -85,11 +85,11 @@
   command: '{{ item }}'
   changed_when: false
   with_items:
-    - nvim +qall
-    - nvim +PlugInstall +qall
-    - nvim +PlugUpdate +qall
-    - nvim +PlugUpgrade +qall
-    - nvim +PlugClean! +qall
+    - nvim --headless +qall
+    - nvim --headless +PlugInstall +qall
+    - nvim --headless +PlugUpdate +qall
+    - nvim --headless +PlugUpgrade +qall
+    - nvim --headless +PlugClean! +qall
 
 - name: Create dotfile subdirectories
   file:
