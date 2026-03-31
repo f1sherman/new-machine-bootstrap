@@ -103,8 +103,11 @@ _worktree_sync_coding_agent_new_files() {
 
 _worktree_cmd() {
   local cmd="$1"
-  local candidates=(
-    "/opt/homebrew/bin/$cmd"
+  local candidates=()
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    candidates+=("/opt/homebrew/bin/$cmd")
+  fi
+  candidates+=(
     "/usr/local/bin/$cmd"
     "/usr/bin/$cmd"
     "/bin/$cmd"
@@ -406,6 +409,9 @@ tempe() {
   npx readability-cli "$1" | pandoc --from html --to gfm --wrap=none --output page.md
 }
 
+# Use rg for FZF for speed and to respect .gitignore, .ignore
+export FZF_DEFAULT_COMMAND='rg --files'
+
 # Don't list vcs-ignored files when using Ctrl-T because it can be very slow and we probably don't want it most of the
 # time
 export FZF_CTRL_T_COMMAND='rg --files --ignore-vcs'
@@ -443,6 +449,9 @@ if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
 
   # Disable history expansion verification
   unsetopt histverify
+
+  # Disable command autocorrect (conflicts with dotfile dirs like .claude, .codex)
+  unsetopt correct
 fi
 
 # Enable Ctrl-N and Ctrl-P to scroll command history
