@@ -278,21 +278,27 @@
     dest: '{{ ansible_facts["user_dir"] }}/.config/ccstatusline/settings.json'
     mode: '0600'
 
+- name: Check if mise is installed (Linux)
+  stat:
+    path: '{{ ansible_facts["user_dir"] }}/.local/bin/mise'
+  register: mise_installed
+  when: ansible_facts["os_family"] == "Debian"
+
 - name: Trust mise config (Linux)
   command: "{{ ansible_facts['user_dir'] }}/.local/bin/mise trust {{ playbook_dir }}/mise.toml"
   changed_when: false
-  when: ansible_facts["os_family"] == "Debian"
+  when: ansible_facts["os_family"] == "Debian" and mise_installed.stat.exists
 
 - name: Get latest LTS Node.js version (Linux)
   command: "{{ ansible_facts['user_dir'] }}/.local/bin/mise latest node@lts"
   register: linux_node_lts
   changed_when: false
-  when: ansible_facts["os_family"] == "Debian"
+  when: ansible_facts["os_family"] == "Debian" and mise_installed.stat.exists
 
 - name: Set global Node.js version via mise (Linux)
   command: "{{ ansible_facts['user_dir'] }}/.local/bin/mise use --global node@{{ linux_node_lts.stdout }}"
   changed_when: false
-  when: ansible_facts["os_family"] == "Debian"
+  when: ansible_facts["os_family"] == "Debian" and mise_installed.stat.exists
 
 - name: Configure Claude Code vim mode in ~/.claude.json
   shell: |
@@ -501,7 +507,7 @@
 # and isn't in the inherited PATH yet.
 - name: Install or update Codex CLI via npm (Linux)
   shell: "export PATH={{ ansible_facts['user_dir'] }}/.local/bin:$PATH && mise exec node@lts -- npm install -g @openai/codex@latest"
-  when: ansible_facts["os_family"] == "Debian"
+  when: ansible_facts["os_family"] == "Debian" and mise_installed.stat.exists
   changed_when: false
 
 # sharp (gsd-pi dependency) has no prebuilt binary for Node 24's ABI and
@@ -523,7 +529,7 @@
     chmod +x "$(mise exec node@lts -- npm root -g)/gsd-pi/dist/loader.js"
   args:
     executable: /bin/bash
-  when: ansible_facts["os_family"] == "Debian"
+  when: ansible_facts["os_family"] == "Debian" and mise_installed.stat.exists
   changed_when: false
 
 - name: Create GSD agent config directory
@@ -575,7 +581,7 @@
 
 - name: Install or update pi-coding-agent via npm (Linux)
   shell: "export PATH={{ ansible_facts['user_dir'] }}/.local/bin:$PATH && mise exec node@lts -- npm install -g @mariozechner/pi-coding-agent@latest"
-  when: ansible_facts["os_family"] == "Debian"
+  when: ansible_facts["os_family"] == "Debian" and mise_installed.stat.exists
   changed_when: false
 
 - name: Install pi-subdir-context plugin for pi-coding-agent (macOS)
@@ -590,7 +596,7 @@
   register: pi_plugin_linux
   changed_when: "'already installed' not in pi_plugin_linux.stdout"
   failed_when: pi_plugin_linux.rc != 0
-  when: ansible_facts["os_family"] == "Debian"
+  when: ansible_facts["os_family"] == "Debian" and mise_installed.stat.exists
 
 # Symlink globally-installed npm binaries into ~/.local/bin so they work
 # regardless of which Node version the current directory's mise.toml selects.
@@ -604,7 +610,7 @@
   args:
     executable: /bin/bash
   changed_when: false
-  when: ansible_facts["os_family"] == "Debian"
+  when: ansible_facts["os_family"] == "Debian" and mise_installed.stat.exists
 
 - name: Install gsd-browser
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
