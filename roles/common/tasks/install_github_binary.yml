@@ -90,11 +90,25 @@
   when: _gh_needs_update and (download_type | default('binary')) == 'deb'
 
 - name: "{{ binary_name }} | Check .deb dependencies are satisfiable"
-  command: dpkg --dry-run -i "/tmp/_gh_{{ binary_name }}.deb"
+  shell: |
+    dpkg-deb -f "/tmp/_gh_{{ binary_name }}.deb" Depends | tr ',' '\n' | while read -r dep; do
+      dep=$(echo "$dep" | xargs)
+      [ -z "$dep" ] && continue
+      pkg=$(echo "$dep" | awk '{print $1}')
+      ver_constraint=$(echo "$dep" | grep -oP '\(>=\s*\K[^)]+' || true)
+      if [ -n "$ver_constraint" ]; then
+        installed=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null || echo "0")
+        if ! dpkg --compare-versions "$installed" '>=' "$ver_constraint"; then
+          echo "$pkg >= $ver_constraint required (have: $installed)"
+          exit 1
+        fi
+      fi
+    done
+  args:
+    executable: /bin/bash
   register: _gh_deb_depcheck
   failed_when: false
   changed_when: false
-  become: yes
   when: _gh_needs_update and (download_type | default('binary')) == 'deb'
 
 - name: "{{ binary_name }} | Warn if .deb dependencies not satisfiable"

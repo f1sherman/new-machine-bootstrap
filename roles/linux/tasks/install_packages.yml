@@ -90,9 +90,14 @@
   vars:
     github_repo: dandavison/delta
     binary_name: delta
-    asset_pattern: "git-delta_{version}_{arch}.deb"
-    install_dest: /usr/bin/delta
-    download_type: deb
+    asset_pattern: "delta-{version}-{arch}-unknown-linux-gnu.tar.gz"
+    install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
+    download_type: tarball
+    tarball_extra_args: '--strip-components=1 --wildcards "*/delta"'
+    arch_map:
+      x86_64: x86_64
+      aarch64: aarch64
+      arm64: aarch64
 
 - name: Install tmux
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
