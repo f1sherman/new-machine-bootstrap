@@ -247,6 +247,10 @@
 
       Always attempt to use Red/Green TDD. This is critical if the project has a test suite, but even if it does not have a test suite this still applies. If you can write a script to test it, you can use Red/Green TDD. Whenever feasible, create tests for your changes, verify that it fails in the way that you expect it to fail, then make your changes until your tests pass.
 
+      ## Git Commits
+
+      Never commit or push without explicit user approval. When the user invokes the commit skill, that counts as approval — follow the skill's instructions. Outside of the commit skill, always ask before committing.
+
       ## Verify Changes Actually Work
 
       Never consider a change complete until you have tested it and confirmed it works. After making a fix or configuration change, always verify by running the relevant command, checking the actual state, or otherwise proving the change has the intended effect. Do not assume correctness based on what the code *should* do — confirm it empirically. If you cannot test something yourself (e.g., requires sudo or a reboot), tell the user exactly how to verify and that you were unable to confirm it.

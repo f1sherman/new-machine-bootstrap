@@ -1,13 +1,13 @@
 ---
 name: commit
 description: >
-  Create git commits with user approval and no AI attribution.
-  Use when the user asks to commit changes.
+  Create git commits with no AI attribution and push.
+  Use when the user asks to commit changes. Invoking this skill is explicit approval to commit and push.
 ---
 
 # Commit Changes
 
-You are tasked with creating git commits for the changes made during this session.
+You are tasked with creating git commits for the changes made during this session. The user has given approval by invoking this skill — proceed without asking for confirmation.
 
 ## Process
 
@@ -24,16 +24,12 @@ You are tasked with creating git commits for the changes made during this sessio
    - Focus on why the changes were made, not just what
    - Each commit MUST leave the codebase in a working state (tests/lint passing, etc.)
 
-3. **Present your plan to the user:**
-   - List the files you plan to add for each commit
-   - Show the commit message(s) you'll use
-   - Ask: "I plan to create [N] commit(s) with these changes. Shall I proceed?"
-
-4. **Execute upon confirmation:**
+3. **Commit and push:**
    - Use the `commit.sh` script in this skill directory:
      ```bash
      ~/.gsd/agent/skills/committing-changes/commit.sh -m "Your commit message" file1 file2 ...
      ```
+   - Push to the remote: `git push`
    - Show the result with `git log --oneline -n [number]`
 
 ## The commit.sh Script
