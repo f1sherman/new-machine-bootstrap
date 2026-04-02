@@ -2,7 +2,8 @@
 # Linux Package Installation - runs during pre_tasks
 #
 # Installs all packages required by common role:
-# - fzf, git, nvim: required for vim plugin installation
+# - git: required for repository cloning
+# - fzf, nvim: installed from GitHub Releases
 # - rg, tmux, bat: used by scripts and dotfiles
 # - zsh: required for shell configuration
 #
@@ -23,7 +24,6 @@
       - fd-find
       - git
       - jq
-      - neovim
       - python3
       - python3-pip
       - python3-venv
@@ -121,6 +121,27 @@
     state: link
   become: yes
 
+- name: Remove apt neovim if installed
+  apt:
+    name: neovim
+    state: absent
+  become: yes
+
+- name: Install nvim
+  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
+  vars:
+    github_repo: neovim/neovim
+    binary_name: nvim
+    asset_pattern: "nvim-linux-{arch}.tar.gz"
+    install_dest: '{{ ansible_facts["user_dir"] }}/.local'
+    download_type: tarball
+    tarball_extra_args:
+      - --strip-components=1
+    arch_map:
+      x86_64: x86_64
+      aarch64: arm64
+      arm64: arm64
+
 - name: Install yq
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
   vars:
@@ -155,6 +176,7 @@
 
 - name: Create vim symlink (nvim -> vim)
   file:
-    src: /usr/bin/nvim
+    src: '{{ ansible_facts["user_dir"] }}/.local/bin/nvim'
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin/vim'
     state: link
+    force: yes
