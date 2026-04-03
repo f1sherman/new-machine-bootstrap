@@ -1,12 +1,10 @@
 #!/bin/sh
 
-# Yank from tmux buffer with newlines removed. Detects mid-path line
+# Yank from stdin with newlines removed. Detects mid-path line
 # breaks (joined without space) vs deliberate line breaks (joined with
-# a space). Copies result to system clipboard.
+# a space). Copies result to system clipboard via OSC52.
 
-TMUX_BIN=$(command -v tmux 2>/dev/null || echo /opt/homebrew/bin/tmux)
-
-$TMUX_BIN show-buffer | awk '
+awk '
 {
   sub(/[[:space:]]+$/, "")
   lines[NR] = $0
@@ -33,4 +31,4 @@ END {
   gsub(/  +/, " ", result)
   print result
 }
-' | pbcopy
+' | osc52-copy
