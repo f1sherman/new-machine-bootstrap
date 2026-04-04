@@ -1,0 +1,46 @@
+name: Integration Test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run provisioning
+        run: bin/provision
+
+      - name: Verify key tools installed
+        run: |
+          set -e
+          command -v zsh
+          command -v zoxide
+          command -v fzf
+          command -v rg
+          command -v tmux
+          command -v nvim
+          command -v delta
+          command -v bat
+          command -v fd
+          command -v yq
+          command -v jq
+          command -v mise
+          echo "All tools verified"
+
+      - name: Verify zsh config is valid
+        run: zsh -n ~/.zshrc
+
+      - name: Verify dotfiles deployed
+        run: |
+          set -e
+          test -f ~/.zshrc
+          test -f ~/.gitconfig
+          test -f ~/.tmux.conf
+          test -f ~/.npmrc
+          echo "All dotfiles verified"
