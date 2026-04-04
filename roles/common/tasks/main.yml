@@ -251,6 +251,10 @@
 
       Never commit or push without explicit user approval. When the user invokes the commit skill, that counts as approval — follow the skill's instructions. Outside of the commit skill, always ask before committing.
 
+      ## Temporary Files
+
+      Rather than cluttering up the present working directory, put temporary work files in `./tmp` if it exists, or `/tmp` if it does not.
+
       ## Verify Changes Actually Work
 
       Never consider a change complete until you have tested it and confirmed it works. After making a fix or configuration change, always verify by running the relevant command, checking the actual state, or otherwise proving the change has the intended effect. Do not assume correctness based on what the code *should* do — confirm it empirically. If you cannot test something yourself (e.g., requires sudo or a reboot), tell the user exactly how to verify and that you were unable to confirm it.
