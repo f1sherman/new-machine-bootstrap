@@ -165,6 +165,22 @@
     asset_pattern: "yq_linux_{arch}"
     install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin/yq'
 
+- name: Install zoxide
+  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
+  vars:
+    github_repo: ajeetdsouza/zoxide
+    binary_name: zoxide
+    asset_pattern: "zoxide-{version}-{arch}-unknown-linux-musl.tar.gz"
+    install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
+    download_type: tarball
+    tarball_extra_args:
+      - --wildcards
+      - 'zoxide'
+    arch_map:
+      x86_64: x86_64
+      aarch64: aarch64
+      arm64: aarch64
+
 - name: Check if mise is installed
   shell: command -v mise
   register: mise_check

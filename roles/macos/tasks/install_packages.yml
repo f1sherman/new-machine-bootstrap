@@ -52,6 +52,7 @@
       'yamllint',
       'yq',
       'yt-dlp',
+      'zoxide',
       'zsh'
     ]
     state: present
