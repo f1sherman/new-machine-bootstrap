@@ -1,0 +1,127 @@
+---
+macos_defaults:
+  # ── Animations ──
+  # Disable all macOS animations for a snappier feel
+  - { domain: NSGlobalDomain, key: NSAutomaticWindowAnimationsEnabled, type: int, value: 0 }
+  - { domain: NSGlobalDomain, key: NSScrollAnimationEnabled, type: int, value: 0 }
+  - { domain: NSGlobalDomain, key: QLPanelAnimationDuration, type: int, value: 0 }
+  - { domain: NSGlobalDomain, key: NSScrollViewRubberbanding, type: int, value: 0 }
+  - { domain: NSGlobalDomain, key: NSDocumentRevisionsWindowTransformAnimation, type: int, value: 0 }
+  - { domain: NSGlobalDomain, key: NSToolbarFullScreenAnimationDuration, type: int, value: 0 }
+  - { domain: NSGlobalDomain, key: NSBrowserColumnAnimationSpeedMultiplier, type: int, value: 0 }
+  - { domain: NSGlobalDomain, key: NSUseAnimatedFocusRing, type: bool, value: false }
+  - { domain: com.apple.dock, key: springboard-show-duration, type: int, value: 0 }
+  - { domain: com.apple.dock, key: springboard-hide-duration, type: int, value: 0 }
+  - { domain: com.apple.dock, key: springboard-page-duration, type: int, value: 0 }
+  - { domain: com.apple.dock, key: mineffect, type: string, value: scale }
+  - { domain: com.apple.dock, key: launchanim, type: bool, value: false }
+  - { domain: com.apple.dock, key: autohide-delay, type: float, value: 0 }
+  - { domain: com.apple.dock, key: autohide-time-modifier, type: float, value: 0 }
+  - { domain: com.apple.finder, key: DisableAllAnimations, type: bool, value: true }
+
+  # ── Accessibility ──
+  # Reduce motion system-wide
+  - { domain: com.apple.Accessibility, key: ReduceMotionEnabled, type: int, value: 1 }
+
+  # ── General UI ──
+  - { domain: NSGlobalDomain, key: AppleShowScrollBars, type: string, value: '"Always"' }
+  - { domain: NSGlobalDomain, key: NSWindowResizeTime, type: float, value: 0.001 }
+  - { domain: NSGlobalDomain, key: NSDisableAutomaticTermination, type: bool, value: true }
+  - { domain: com.apple.LaunchServices, key: LSQuarantine, type: bool, value: false }
+  - { domain: NSGlobalDomain, key: AppleFontSmoothing, type: int, value: 2 }
+  - { domain: NSGlobalDomain, key: WebKitDeveloperExtras, type: bool, value: true }
+  - { domain: NSGlobalDomain, key: NSNavPanelExpandedStateForSaveMode, type: bool, value: true }
+  - { domain: NSGlobalDomain, key: NSNavPanelExpandedStateForSaveMode2, type: bool, value: true }
+  - { domain: NSGlobalDomain, key: PMPrintingExpandedStateForPrint, type: bool, value: true }
+  - { domain: NSGlobalDomain, key: PMPrintingExpandedStateForPrint2, type: bool, value: true }
+  - { domain: NSGlobalDomain, key: NSDocumentSaveNewDocumentsToCloud, type: bool, value: false }
+  - { domain: com.apple.print.PrintingPrefs, key: '"Quit When Finished"', type: bool, value: true }
+  - { domain: NSGlobalDomain, key: NSAutomaticQuoteSubstitutionEnabled, type: bool, value: false }
+  - { domain: NSGlobalDomain, key: NSAutomaticDashSubstitutionEnabled, type: bool, value: false }
+
+  # ── Security ──
+  - { domain: com.apple.screensaver, key: askForPassword, type: int, value: 1 }
+  - { domain: com.apple.screensaver, key: askForPasswordDelay, type: int, value: 3 }
+
+  # ── Finder ──
+  - { domain: NSGlobalDomain, key: AppleShowAllExtensions, type: bool, value: true }
+  - { domain: com.apple.finder, key: ShowStatusBar, type: bool, value: true }
+  - { domain: com.apple.finder, key: _FXShowPosixPathInTitle, type: bool, value: true }
+  - { domain: com.apple.finder, key: ShowPathbar, type: bool, value: true }
+  - { domain: com.apple.finder, key: NewWindowTarget, type: string, value: '"PfLo"' }
+  - { domain: com.apple.finder, key: NewWindowTargetPath, type: string, value: '"file://{{ ansible_facts["user_dir"] }}/Downloads/"' }
+  - { domain: com.apple.finder, key: FXEnableExtensionChangeWarning, type: bool, value: false }
+  - { domain: com.apple.Finder, key: AppleShowAllFiles, type: string, value: "YES" }
+  - { domain: com.apple.finder, key: FXPreferredViewStyle, type: string, value: '"Nlsv"' }
+  - { domain: com.apple.finder, key: QLEnableTextSelection, type: bool, value: true }
+  - { domain: com.apple.finder, key: ShowExternalHardDrivesOnDesktop, type: bool, value: true }
+  - { domain: com.apple.finder, key: ShowHardDrivesOnDesktop, type: bool, value: true }
+  - { domain: com.apple.finder, key: ShowMountedServersOnDesktop, type: bool, value: true }
+  - { domain: com.apple.finder, key: ShowRemovableMediaOnDesktop, type: bool, value: true }
+
+  # ── Dock ──
+  - { domain: com.apple.dock, key: dashboard-in-overlay, type: bool, value: true }
+  - { domain: com.apple.dashboard, key: mcx-disabled, type: bool, value: true }
+  - { domain: com.apple.dock, key: autohide, type: bool, value: true }
+  - { domain: com.apple.dock, key: showhidden, type: bool, value: true }
+  - { domain: com.apple.dock, key: static-only, type: bool, value: true }
+  - { domain: com.apple.spaces, key: spans-displays, type: bool, value: false }
+
+  # ── Screenshots ──
+  - { domain: com.apple.screencapture, key: type, type: string, value: '"png"' }
+
+  # ── Keyboard & Trackpad ──
+  - { domain: NSGlobalDomain, key: com.apple.swipescrolldirection, type: bool, value: false }
+  - { domain: com.apple.driver.AppleBluetoothMultitouch.trackpad, key: Clicking, type: bool, value: true }
+  - { domain: NSGlobalDomain, key: com.apple.mouse.tapBehavior, type: int, value: 1 }
+  - { domain: NSGlobalDomain, key: com.apple.mouse.tapBehavior, type: int, value: 1, currentHost: true }
+  - { domain: com.apple.BluetoothAudioAgent, key: '"Apple Bitpool Min (editable)"', type: int, value: 40 }
+  - { domain: NSGlobalDomain, key: AppleKeyboardUIMode, type: int, value: 3 }
+  - { domain: NSGlobalDomain, key: ApplePressAndHoldEnabled, type: bool, value: false }
+  - { domain: NSGlobalDomain, key: KeyRepeat, type: int, value: 2 }
+  - { domain: NSGlobalDomain, key: InitialKeyRepeat, type: int, value: 15 }
+  - { domain: .GlobalPreferences, key: com.apple.mouse.scaling, type: int, value: 5 }
+
+  # ── Software Update ──
+  - { domain: com.apple.SoftwareUpdate, key: AutomaticCheckEnabled, type: bool, value: true }
+  - { domain: com.apple.SoftwareUpdate, key: ScheduleFrequency, type: int, value: 1 }
+  - { domain: com.apple.SoftwareUpdate, key: AutomaticDownload, type: int, value: 1 }
+  - { domain: com.apple.SoftwareUpdate, key: CriticalUpdateInstall, type: int, value: 1 }
+  - { domain: com.apple.commerce, key: AutoUpdate, type: bool, value: true }
+  - { domain: com.apple.commerce, key: AutoUpdateRestartRequired, type: bool, value: true }
+
+  # ── Network & Privacy ──
+  - { domain: com.apple.desktopservices, key: DSDontWriteNetworkStores, type: bool, value: true }
+  - { domain: com.apple.TimeMachine, key: DoNotOfferNewDisksForBackup, type: bool, value: true }
+  - { domain: com.apple.NetworkBrowser, key: BrowseAllInterfaces, type: bool, value: true }
+  - { domain: com.apple.networkConnect, key: VPNShowTime, type: int, value: 1 }
+  - { domain: com.apple.Siri, key: TypeToSiriEnabled, type: bool, value: false }
+
+  # ── Photos ──
+  - { domain: com.apple.ImageCapture, key: disableHotPlug, type: bool, value: true, currentHost: true }
+
+  # ── Safari ──
+  - { domain: NSGlobalDomain, key: AppleEnableSwipeNavigateWithScrolls, type: bool, value: false }
+
+  # ── Browser (Brave/Chrome) ──
+  - { domain: com.brave.Browser, key: AppleEnableSwipeNavigateWithScrolls, type: bool, value: false }
+  - { domain: com.google.Chrome, key: AppleEnableSwipeNavigateWithScrolls, type: bool, value: false }
+  - { domain: com.google.Chrome.canary, key: AppleEnableSwipeNavigateWithScrolls, type: bool, value: false }
+  - { domain: com.brave.Browser, key: AppleEnableMouseSwipeNavigateWithScrolls, type: bool, value: false }
+  - { domain: com.google.Chrome, key: AppleEnableMouseSwipeNavigateWithScrolls, type: bool, value: false }
+  - { domain: com.google.Chrome.canary, key: AppleEnableMouseSwipeNavigateWithScrolls, type: bool, value: false }
+  - { domain: com.brave.Browser, key: DisablePrintPreview, type: bool, value: true }
+  - { domain: com.google.Chrome, key: DisablePrintPreview, type: bool, value: true }
+  - { domain: com.google.Chrome.canary, key: DisablePrintPreview, type: bool, value: true }
+  - { domain: com.brave.Browser, key: PMPrintingExpandedStateForPrint2, type: bool, value: true }
+  - { domain: com.google.Chrome, key: PMPrintingExpandedStateForPrint2, type: bool, value: true }
+  - { domain: com.google.Chrome.canary, key: PMPrintingExpandedStateForPrint2, type: bool, value: true }
+
+  # ── SizeUp ──
+  - { domain: com.irradiatedsoftware.SizeUp, key: StartAtLogin, type: bool, value: true }
+  - { domain: com.irradiatedsoftware.SizeUp, key: ShowPrefsOnNextStart, type: bool, value: false }
+
+  # ── Activity Monitor ──
+  - { domain: com.apple.ActivityMonitor, key: OpenMainWindow, type: bool, value: true }
+  - { domain: com.apple.ActivityMonitor, key: IconType, type: int, value: 5 }
+  - { domain: com.apple.ActivityMonitor, key: ShowCategory, type: int, value: 0 }

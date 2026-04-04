@@ -1,0 +1,79 @@
+---
+- name: Load macOS defaults configuration
+  include_vars: defaults.yml
+
+- name: Configure macOS defaults
+  command: >-
+    defaults {{ '-currentHost' if item.currentHost | default(false) else '' }}
+    write {{ item.domain }} {{ item.key }}
+    -{{ item.type }} {{ item.value }}
+  changed_when: false
+  loop: "{{ macos_defaults }}"
+  loop_control:
+    label: "{{ item.domain }} {{ item.key }}"
+
+# Special cases that don't fit the { domain, key, type, value } pattern
+
+- name: "Terminal: Only use UTF-8"
+  command: defaults write com.apple.terminal StringEncodings -array 4
+  changed_when: false
+
+- name: "Terminal: Set Pro theme by default"
+  command: defaults write com.apple.Terminal "Default Window Settings" -string "Pro"
+  changed_when: false
+
+- name: "Terminal: Set Pro theme on startup"
+  command: defaults write com.apple.Terminal "Startup Window Settings" -string "Pro"
+  changed_when: false
+
+- name: "Menubar: Configure system menu extras"
+  command: >-
+    defaults write com.apple.systemuiserver menuExtras -array
+    "/Applications/Utilities/Keychain Access.app/Contents/Resources/Keychain.menu"
+    "/System/Library/CoreServices/Menu Extras/Bluetooth.menu"
+    "/System/Library/CoreServices/Menu Extras/AirPort.menu"
+    "/System/Library/CoreServices/Menu Extras/Volume.menu"
+    "/System/Library/CoreServices/Menu Extras/Battery.menu"
+    "/System/Library/CoreServices/Menu Extras/Clock.menu"
+    "/System/Library/CoreServices/Menu Extras/User.menu"
+  changed_when: false
+
+- name: "Messages: Disable automatic emoji substitution"
+  command: defaults write com.apple.messageshelper.MessageController SOInputLineSettings -dict-add "automaticEmojiSubstitutionEnablediMessage" -bool false
+  changed_when: false
+
+- name: "Messages: Disable smart quotes"
+  command: defaults write com.apple.messageshelper.MessageController SOInputLineSettings -dict-add "automaticQuoteSubstitutionEnabled" -bool false
+  changed_when: false
+
+- name: "Messages: Disable continuous spell checking"
+  command: defaults write com.apple.messageshelper.MessageController SOInputLineSettings -dict-add "continuousSpellCheckingEnabled" -bool false
+  changed_when: false
+
+- name: "Dock: Remove all default app icons"
+  command: defaults write com.apple.dock persistent-apps -array
+  changed_when: false
+
+- name: "Activity Monitor: Set columns"
+  command: >-
+    defaults write com.apple.ActivityMonitor "UserColumnsPerTab v6.0" -dict
+    '0' '( Command, CPUUsage, CPUTime, Threads, IdleWakeUps, PID, UID )'
+    '1' '( Command, ResidentSize, anonymousMemory, compressedMemory, PurgeableMem, Threads, Ports, PID, UID)'
+    '2' '( Command, PowerScore, 12HRPower, AppSleep, graphicCard, powerAssertion, UID )'
+    '3' '( Command, bytesWritten, bytesRead, Architecture, PID, UID )'
+    '4' '( Command, txBytes, rxBytes, txPackets, rxPackets, PID, UID )'
+    '5' '( Name, LastHour, LastDay, LastWeek, LastMonth )'
+    '6' '( Command, GPUUsage, GPUTime, PID, UID )'
+  changed_when: false
+
+- name: "Activity Monitor: Set column sorts"
+  command: >-
+    defaults write com.apple.ActivityMonitor "UserColumnSortPerTab" -dict
+    '0' '{ direction = 0; sort = CPUUsage; }'
+    '1' '{ direction = 0; sort = ResidentSize; }'
+    '2' '{ direction = 0; sort = 12HRPower; }'
+    '3' '{ direction = 0; sort = bytesWritten; }'
+    '4' '{ direction = 0; sort = txBytes; }'
+    '5' '{ direction = 0; sort = Name; }'
+    '6' '{ direction = 0; sort = GPUUsage; }'
+  changed_when: false
