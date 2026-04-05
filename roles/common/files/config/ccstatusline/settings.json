@@ -4,13 +4,15 @@
     [
       {
         "id": "1",
-        "type": "model",
-        "color": "cyan"
+        "type": "custom-command",
+        "color": "cyan",
+        "commandPath": "jq -r '.model.id // .model // \"\" | gsub(\"^claude-\"; \"\") | gsub(\"-[0-9]{8}$\"; \"\") | gsub(\"(?<a>[a-z]+)-(?<v>[0-9]+)-(?<m>[0-9]+)\"; \"\\(.a)\\(.v).\\(.m)\")'"
       },
       {
         "id": "2",
         "type": "context-percentage-usable",
         "color": "brightBlack",
+        "rawValue": true,
         "metadata": {
           "inverse": "true"
         }
