@@ -90,7 +90,7 @@ Evaluated in order (first match wins):
 | Condition | Tag | Hostname source |
 |---|---|---|
 | `$CODESPACES` is set | `[cs]` | `$CODESPACE_NAME` |
-| DevPod env var is set (verify: `$DEVPOD_NAME` or similar) | `[devpod]` | `hostname -s` |
+| DevPod env var is set (verify: `$DEVPOD_NAME` or similar) | `[devpod]` | DevPod env var value |
 | `$SSH_CONNECTION` is set | `[ssh]` | `hostname -s` |
 | Otherwise | `[local]` | `hostname -s` |
 
@@ -107,7 +107,7 @@ A shell script that outputs the tagged hostname string (e.g., `[local] brian-mbp
 if [ -n "$CODESPACES" ]; then
   echo "[cs] ${CODESPACE_NAME:-$(hostname -s)}"
 elif [ -n "$DEVPOD_NAME" ]; then  # verify actual DevPod env var during implementation
-  echo "[devpod] $(hostname -s)"
+  echo "[devpod] $DEVPOD_NAME"
 elif [ -n "$SSH_CONNECTION" ]; then
   echo "[ssh] $(hostname -s)"
 else
