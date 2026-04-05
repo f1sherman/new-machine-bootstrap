@@ -111,6 +111,7 @@ After making changes, ask the user to run `bin/provision` to apply them.
 
 ## Agent Behavior
 - **Do it yourself**: If you can run a command (like `bin/provision`, `git commit`, etc.), do it directly instead of asking the user to run it.
+- **Always use worktrees**: Before making any changes, create a git worktree using the `superpowers:using-git-worktrees` skill. Never work directly on the current branch.
 
 ## Code Style
 - Ruby: Standard Ruby conventions, minimal comments
