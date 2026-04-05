@@ -195,6 +195,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-switch-session'
     mode: 0755
 
+- name: Install tmux-host-tag script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-host-tag'
+    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-host-tag'
+    mode: 0755
+
 - name: Install claude-trust-directory script
   copy:
     backup: yes
