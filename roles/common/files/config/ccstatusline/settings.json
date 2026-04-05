@@ -14,16 +14,6 @@
         "metadata": {
           "inverse": "true"
         }
-      },
-      {
-        "id": "3",
-        "type": "context-length",
-        "color": "magenta"
-      },
-      {
-        "id": "5",
-        "type": "block-timer",
-        "color": "yellow"
       }
     ],
     [],
@@ -38,7 +28,7 @@
   "powerline": {
     "enabled": true,
     "separators": [
-      ""
+      "\ue0b1"
     ],
     "separatorInvertBackground": [
       false
