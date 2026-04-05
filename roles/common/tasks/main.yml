@@ -325,11 +325,12 @@
     config_file = os.path.expanduser("~/.claude.json")
 
     # Read existing config or create new one
+    data = {}
     if os.path.exists(config_file):
       with open(config_file, "r") as f:
-        data = json.load(f)
-    else:
-      data = {}
+        content = f.read().strip()
+      if content:
+        data = json.loads(content)
 
     changed = False
 
