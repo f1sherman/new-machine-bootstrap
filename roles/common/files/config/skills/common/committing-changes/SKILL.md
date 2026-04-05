@@ -7,69 +7,8 @@ description: >
 
 # Commit Changes
 
-You are tasked with creating git commits for the changes made during this session. The user has given approval by invoking this skill — proceed without asking for confirmation.
+The user has approved committing and pushing. Dispatch this to a subagent to preserve main context.
 
-## Process
-
-1. **Think about what changed:**
-   - Review the conversation history and understand what was accomplished
-   - Run `git status` to see current changes
-   - Run `git diff` to understand the modifications
-   - Consider whether changes should be one commit or multiple logical commits
-
-2. **Plan your commit(s):**
-   - Identify which files belong together
-   - Draft clear, descriptive commit messages
-   - Use imperative mood in commit messages
-   - Focus on why the changes were made, not just what
-   - Each commit MUST leave the codebase in a working state (tests/lint passing, etc.)
-
-3. **Commit and push:**
-   - Use the `commit.sh` script in this skill directory:
-     ```bash
-     ~/.claude/skills/committing-changes/commit.sh -m "Your commit message" file1 file2 ...
-     ```
-   - Or for Codex: `~/.codex/skills/committing-changes/commit.sh`
-   - Push to the remote: `git push`
-   - Show the result with `git log --oneline -n [number]`
-
-## The commit.sh Script
-
-A helper script is available at `~/.claude/skills/committing-changes/commit.sh` (or `~/.codex/skills/committing-changes/commit.sh` for Codex) that:
-- Takes a commit message via `-m "message"`
-- Takes a list of files to stage
-- Creates the commit without any AI attribution
-- Validates inputs and shows the result
-- Supports `--force` (`-f`) to stage files that match `.gitignore` patterns
-
-**Usage:**
-```bash
-commit.sh -m "Add user authentication" src/auth.ts src/login.tsx
-```
-
-Agents can use this script directly without invoking this skill when user approval has already been obtained or is not required.
-
-## Handling Gitignored Files
-
-If `commit.sh` fails because a file matches a `.gitignore` pattern, it will print the affected files and suggest using `--force`. Retry the same command with `--force` (`-f`) to stage those files:
-
-```bash
-# If this fails due to gitignored files:
-commit.sh -m "Add design doc" docs/spec.md
-
-# Retry with --force:
-commit.sh --force -m "Add design doc" docs/spec.md
-```
-
-## Important
-- **NEVER add co-author information or AI attribution**
-- Commits should be authored solely by the user
-- Do not include any "Generated with [AI]" messages
-- Do not add "Co-Authored-By" lines
-- Write commit messages as if the user wrote them
-
-## Remember
-- You have the full context of what was done in this session
-- Group related changes together
-- Keep commits focused and atomic when possible
-- The user trusts your judgment - they asked you to commit
+1. Write a 2-4 sentence summary of what you accomplished in this session — what changed, why, and any key decisions made
+2. Dispatch the `personal:committer` agent as a **foreground** Agent with your summary as the prompt
+3. Report the agent's result (the git log output) to the user
