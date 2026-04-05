@@ -40,6 +40,7 @@ A helper script is available at `~/.claude/skills/committing-changes/commit.sh` 
 - Takes a list of files to stage
 - Creates the commit without any AI attribution
 - Validates inputs and shows the result
+- Supports `--force` (`-f`) to stage files that match `.gitignore` patterns
 
 **Usage:**
 ```bash
@@ -47,6 +48,18 @@ commit.sh -m "Add user authentication" src/auth.ts src/login.tsx
 ```
 
 Agents can use this script directly without invoking this skill when user approval has already been obtained or is not required.
+
+## Handling Gitignored Files
+
+If `commit.sh` fails because a file matches a `.gitignore` pattern, it will print the affected files and suggest using `--force`. Retry the same command with `--force` (`-f`) to stage those files:
+
+```bash
+# If this fails due to gitignored files:
+commit.sh -m "Add design doc" docs/spec.md
+
+# Retry with --force:
+commit.sh --force -m "Add design doc" docs/spec.md
+```
 
 ## Important
 - **NEVER add co-author information or AI attribution**
