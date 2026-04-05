@@ -4,22 +4,25 @@
 #
 # Usage:
 #   commit.sh -m "message" file1 file2 ...
-#   commit.sh --message "message" file1 file2 ...
+#   commit.sh --force -m "message" file1 file2 ...
 #
 # This script creates commits WITHOUT any AI co-author attribution.
 # Commits appear as if authored solely by the user.
 #
 # Arguments:
 #   -m, --message    Commit message (required)
+#   -f, --force      Force-add files that match .gitignore patterns
 #   file1 file2 ...  Files to stage and commit (at least one required)
 #
 # Example:
 #   commit.sh -m "Add user authentication" src/auth.ts src/login.tsx
+#   commit.sh --force -m "Add design doc" docs/spec.md
 
 set -e
 
 message=""
 files=()
+force=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -32,14 +35,19 @@ while [[ $# -gt 0 ]]; do
             message="$2"
             shift 2
             ;;
+        -f|--force)
+            force=true
+            shift
+            ;;
         -h|--help)
-            echo "Usage: commit.sh -m \"message\" file1 file2 ..."
+            echo "Usage: commit.sh [-f|--force] -m \"message\" file1 file2 ..."
             echo ""
             echo "Create a git commit with specified files and message."
             echo "No AI co-author attribution is added."
             echo ""
             echo "Arguments:"
             echo "  -m, --message    Commit message (required)"
+            echo "  -f, --force      Force-add files that match .gitignore patterns"
             echo "  file1 file2 ...  Files to stage and commit (at least one required)"
             exit 0
             ;;
@@ -86,10 +94,34 @@ for file in "${files[@]}"; do
     exit 1
 done
 
+# Pre-check: identify gitignored files
+ignored_files=()
+for file in "${files[@]}"; do
+    if [[ -e "$file" ]] && git check-ignore -q "$file" 2>/dev/null; then
+        ignored_files+=("$file")
+    fi
+done
+
+# If gitignored files found without --force, fail with helpful message
+if [[ ${#ignored_files[@]} -gt 0 && "$force" == "false" ]]; then
+    echo "Error: The following files are gitignored and cannot be staged without --force:" >&2
+    for f in "${ignored_files[@]}"; do
+        echo "  $f" >&2
+    done
+    echo "" >&2
+    echo "Use --force (-f) to commit these files anyway:" >&2
+    echo "  commit.sh --force -m \"message\" file1 file2 ..." >&2
+    exit 1
+fi
+
 # Stage the specified files
 for file in "${files[@]}"; do
     if [[ -e "$file" ]]; then
-        git add -- "$file"
+        if [[ "$force" == "true" ]] && git check-ignore -q "$file" 2>/dev/null; then
+            git add --force -- "$file"
+        else
+            git add -- "$file"
+        fi
     else
         git rm -- "$file" 2>/dev/null || true
     fi
