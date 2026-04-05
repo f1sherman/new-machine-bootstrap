@@ -202,6 +202,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-host-tag'
     mode: 0755
 
+- name: Install tmux-window-name script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-window-name'
+    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-window-name'
+    mode: 0755
+
 - name: Install claude-trust-directory script
   copy:
     backup: yes

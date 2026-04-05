@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Returns the foreground command name for a tmux pane's tty.
+# Used by window-status-current-format to show the real binary name
+# instead of pane_current_command (which can be wrong when Node.js
+# processes set process.title to a version number).
+tty="$1"
+[ -z "$tty" ] && exit 0
+fg_cmd=$(ps -o stat=,comm= -t "$tty" 2>/dev/null | awk '$1 ~ /\+/ && $2 !~ /^-?(zsh|bash|sh|login)$/ {gsub(/^-/,"",$2); print $2; exit}')
+echo "${fg_cmd:-zsh}"
