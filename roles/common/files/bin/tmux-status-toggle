@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Toggles tmux status bar based on whether the active pane is running SSH.
+# Called by tmux hooks (pane-focus-in, pane-title-changed, client-session-changed).
+# Checks the ACTIVE pane, not the hook-triggering pane, since pane-title-changed
+# can fire for any pane.
+
+[ -z "$TMUX" ] && exit 0
+
+pane_tty=$(tmux display-message -p '#{pane_tty}' 2>/dev/null) || exit 0
+[ -z "$pane_tty" ] && exit 0
+
+ssh_pattern='(^ssh |gh codespace ssh|devpod ssh)'
+
+if ps -o args= -t "$pane_tty" 2>/dev/null | grep -qE "$ssh_pattern"; then
+  tmux set-option status off 2>/dev/null
+else
+  tmux set-option status on 2>/dev/null
+fi
+
+exit 0
