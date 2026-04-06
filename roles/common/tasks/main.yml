@@ -84,6 +84,8 @@
 - name: Initialize nvim and install/update plugins
   command: '{{ item }}'
   changed_when: false
+  environment:
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
   with_items:
     - nvim --headless +qall
     - nvim --headless +PlugInstall +qall
