@@ -2,7 +2,8 @@
 
 # Yank from stdin with newlines removed. Detects mid-path line
 # breaks (joined without space) vs deliberate line breaks (joined with
-# a space). Copies result to system clipboard via OSC52.
+# a space). URLs are joined without spaces entirely. Copies result to
+# system clipboard via OSC52.
 
 awk '
 {
@@ -29,6 +30,9 @@ END {
     }
   }
   gsub(/  +/, " ", result)
+  if (result ~ /^https?:\/\//) {
+    gsub(/ /, "", result)
+  }
   print result
 }
 ' | osc52-copy
