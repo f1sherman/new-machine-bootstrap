@@ -10,7 +10,7 @@
 #   install_dest:   target path (full file path for binary, directory for tarball)
 #
 # Optional variables:
-#   download_type:        "binary" (default), "tarball", or "deb"
+#   download_type:        "binary" (default), "tarball", "deb", or "source"
 #   pinned_release_tag:   pin to a specific release tag (e.g. "v0.10.4") instead of latest
 #   arch_map:             dict mapping ansible architecture to download arch name
 #                         default: {"x86_64": "amd64", "aarch64": "arm64", "arm64": "arm64"}
@@ -22,6 +22,13 @@
 #                         supports {repo}, {tag}, {version} placeholders
 #                         when set, asset_pattern is ignored
 #                         useful for projects publishing only auto-generated /archive/{tag}.tar.gz
+#   build_commands:       (source mode only) list of shell commands to run sequentially
+#   build_dir:            (source mode only) parent dir for extraction
+#                         default: /tmp/_gh_{binary_name}_src
+#   build_chdir_pattern:  (source mode only) subdir to chdir into before running build_commands
+#                         default: {repo_name}-{version}
+#                         supports {version}, {tag}, {repo_name} placeholders
+#   build_cleanup:        (source mode only) remove build dir after success, default true
 
 - name: "{{ binary_name }} | Resolve manifest path"
   set_fact:
@@ -163,6 +170,54 @@
     path: "/tmp/_gh_{{ binary_name }}.deb"
     state: absent
   when: _gh_needs_update and (download_type | default('binary')) == 'deb'
+
+- name: "{{ binary_name }} | Resolve build directory (source mode)"
+  set_fact:
+    _gh_build_dir: "{{ build_dir | default('/tmp/_gh_' + binary_name + '_src') }}"
+  when: _gh_needs_update and (download_type | default('binary')) == 'source'
+
+- name: "{{ binary_name }} | Ensure build directory exists (source mode)"
+  file:
+    path: "{{ _gh_build_dir }}"
+    state: directory
+    mode: '0755'
+  when: _gh_needs_update and (download_type | default('binary')) == 'source'
+
+- name: "{{ binary_name }} | Download and extract source tarball (source mode)"
+  unarchive:
+    src: "{{ _gh_asset_url }}"
+    dest: "{{ _gh_build_dir }}"
+    remote_src: yes
+  retries: 3
+  delay: 10
+  when: _gh_needs_update and (download_type | default('binary')) == 'source'
+
+- name: "{{ binary_name }} | Resolve build chdir (source mode)"
+  set_fact:
+    _gh_build_chdir: >-
+      {{ _gh_build_dir }}/{{
+        (build_chdir_pattern | default('{repo_name}-{version}'))
+        | replace('{version}', _gh_version)
+        | replace('{tag}', _gh_tag)
+        | replace('{repo_name}', github_repo.split('/')[-1])
+      }}
+  when: _gh_needs_update and (download_type | default('binary')) == 'source'
+
+- name: "{{ binary_name }} | Run build commands (source mode)"
+  command: "{{ item }}"
+  args:
+    chdir: "{{ _gh_build_chdir }}"
+  loop: "{{ build_commands | default([]) }}"
+  when: _gh_needs_update and (download_type | default('binary')) == 'source'
+
+- name: "{{ binary_name }} | Clean up build directory (source mode)"
+  file:
+    path: "{{ _gh_build_dir }}"
+    state: absent
+  when:
+    - _gh_needs_update
+    - (download_type | default('binary')) == 'source'
+    - build_cleanup | default(true) | bool
 
 - name: "{{ binary_name }} | Update manifest"
   copy:
