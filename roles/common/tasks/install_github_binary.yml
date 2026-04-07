@@ -41,7 +41,7 @@
   delay: 10
   until: _gh_latest_release is succeeded
   vars:
-    _gh_api_token: "{{ ansible_env.GITHUB_TOKEN | default(ansible_env.GH_TOKEN | default('')) }}"
+    _gh_api_token: "{{ ansible_facts['env']['GITHUB_TOKEN'] | default(ansible_facts['env']['GH_TOKEN'] | default('')) }}"
   when: (pinned_release_tag | default('')) == ''
 
 - name: "{{ binary_name }} | Set version facts"

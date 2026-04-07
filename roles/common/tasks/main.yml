@@ -85,7 +85,7 @@
   command: '{{ item }}'
   changed_when: false
   environment:
-    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_env.PATH }}"
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   with_items:
     - nvim --headless +qall
     - nvim --headless +PlugInstall +qall
