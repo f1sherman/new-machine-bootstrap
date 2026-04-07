@@ -18,6 +18,10 @@
 #   manifest_path:        full path to the manifest JSON file
 #                         default: ~/.local/share/github-releases.json (per-user)
 #                         override for system-wide installs (e.g. /var/lib/github-installs/manifest.json)
+#   asset_url_template:   full URL template overriding the default URL build
+#                         supports {repo}, {tag}, {version} placeholders
+#                         when set, asset_pattern is ignored
+#                         useful for projects publishing only auto-generated /archive/{tag}.tar.gz
 
 - name: "{{ binary_name }} | Resolve manifest path"
   set_fact:
@@ -80,10 +84,15 @@
     _gh_arch: "{{ (arch_map | default({'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}))[ansible_facts['architecture']] }}"
   when: _gh_needs_update
 
-- name: "{{ binary_name }} | Build asset URL"
+- name: "{{ binary_name }} | Build asset URL (default)"
   set_fact:
     _gh_asset_url: "https://github.com/{{ github_repo }}/releases/download/{{ _gh_tag }}/{{ asset_pattern | replace('{version}', _gh_version) | replace('{tag}', _gh_tag) | replace('{arch}', _gh_arch) }}"
-  when: _gh_needs_update
+  when: _gh_needs_update and (asset_url_template | default('')) == ''
+
+- name: "{{ binary_name }} | Build asset URL (template override)"
+  set_fact:
+    _gh_asset_url: "{{ asset_url_template | replace('{repo}', github_repo) | replace('{tag}', _gh_tag) | replace('{version}', _gh_version) }}"
+  when: _gh_needs_update and (asset_url_template | default('')) != ''
 
 - name: "{{ binary_name }} | Download binary"
   get_url:
