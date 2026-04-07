@@ -1,6 +1,7 @@
 ---
 # Install or update a binary from GitHub Releases.
-# Tracks installed versions in ~/.local/share/github-releases.json
+# Tracks installed versions in a manifest file (default: ~/.local/share/github-releases.json,
+# configurable via the optional manifest_path parameter).
 #
 # Required variables:
 #   github_repo:    owner/repo (e.g. "junegunn/fzf")
