@@ -3,8 +3,8 @@
 #
 # Installs all packages required by common role:
 # - git: required for repository cloning
-# - fzf, nvim: installed from GitHub Releases
-# - rg, tmux, bat: used by scripts and dotfiles
+# - fzf, nvim, rg: installed from GitHub Releases
+# - tmux, bat: used by scripts and dotfiles
 # - zsh: required for shell configuration
 #
 # This file is imported during pre_tasks to ensure dependencies
@@ -29,7 +29,6 @@
       - python3-pip
       - python3-venv
       - pipx
-      - ripgrep
       - shellcheck
       - sudo
       - unzip
@@ -85,6 +84,24 @@
     path: '{{ ansible_facts["user_dir"] }}/.config/fzf'
     state: directory
     mode: 0755
+
+- name: Remove ripgrep apt package if installed
+  apt:
+    name: ripgrep
+    state: absent
+  become: yes
+
+- name: Install rg
+  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
+  vars:
+    github_repo: BurntSushi/ripgrep
+    binary_name: rg
+    asset_pattern: "ripgrep_{version}-1_{arch}.deb"
+    install_dest: /usr/bin/rg
+    download_type: deb
+    arch_map:
+      x86_64: amd64
+      aarch64: arm64
 
 - name: Install delta
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
