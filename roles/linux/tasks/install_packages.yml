@@ -101,7 +101,6 @@
     download_type: deb
     arch_map:
       x86_64: amd64
-      aarch64: arm64
 
 - name: Install delta
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
