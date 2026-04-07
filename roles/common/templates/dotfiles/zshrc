@@ -461,10 +461,6 @@ bindkey "^P" up-line-or-search
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
-# Initialize zoxide (smarter cd with frecency-based directory jumping)
-# --cmd cd replaces the cd builtin; cdi opens interactive fzf picker
-if command -v zoxide > /dev/null; then eval "$(zoxide init zsh --cmd cd)"; fi
-
 # Wrap gsd to unset ANTHROPIC_API_KEY (it uses its own key)
 alias gsd > /dev/null && unalias gsd
 function gsd() {
@@ -565,3 +561,9 @@ fpath=($HOME/.docker/completions $fpath)
 autoload -Uz compinit
 compinit
 # End of Docker CLI completions
+
+# Initialize zoxide (smarter cd with frecency-based directory jumping)
+# --cmd cd replaces the cd builtin; cdi opens interactive fzf picker
+# Must be initialized at the very end of ~/.zshrc (after compinit and any
+# other tools that register chpwd hooks)
+if command -v zoxide > /dev/null; then eval "$(zoxide init zsh --cmd cd)"; fi
