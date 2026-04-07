@@ -16,11 +16,11 @@ pane_info=$(tmux display-message -p -t "$pane_id" '#{pane_tty}	#{pane_current_pa
 IFS=$'\t' read -r pane_tty pane_current_path pane_title session_id <<< "$pane_info"
 [ -z "$session_id" ] && exit 0
 
-ssh_pattern='(^ssh |gh codespace ssh|devpod ssh)'
+ssh_pattern='(^ssh |gh (codespace|cs) ssh|devpod ssh)'
 
 pane_procs=$(ps -o args= -t "$pane_tty" 2>/dev/null)
 if grep -qE "$ssh_pattern" <<< "$pane_procs"; then
-  is_codespace=$(grep -qE 'gh codespace ssh' <<< "$pane_procs" && echo 1)
+  is_codespace=$(grep -qE 'gh (codespace|cs) ssh' <<< "$pane_procs" && echo 1)
   is_devpod=$(grep -qE 'devpod ssh' <<< "$pane_procs" && echo 1)
   ssh_host=$(grep -E '^ssh ' <<< "$pane_procs" | head -1 | awk '{print $NF}')
   ssh_host="${ssh_host##*@}"
