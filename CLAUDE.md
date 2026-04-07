@@ -112,6 +112,7 @@ After making changes, ask the user to run `bin/provision` to apply them.
 ## Agent Behavior
 - **Do it yourself**: If you can run a command (like `bin/provision`, `git commit`, etc.), do it directly instead of asking the user to run it.
 - **Always use worktrees**: Before making any changes, create a git worktree using the `superpowers:using-git-worktrees` skill. Never work directly on the current branch.
+- **Always commit specs and plans**: Design specs and implementation plans (from `superpowers:writing-plans`, `superpowers:creating-implementation-plans`, etc.) must be committed to the repo under `docs/superpowers/` or `.coding-agent/`. These documents are project artifacts, not throwaway notes.
 
 ## Code Style
 - Ruby: Standard Ruby conventions, minimal comments
