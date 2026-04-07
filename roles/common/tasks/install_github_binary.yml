@@ -10,20 +10,27 @@
 #
 # Optional variables:
 #   download_type:        "binary" (default), "tarball", or "deb"
-#   pinned_release_tag:          pin to a specific release tag (e.g. "v0.10.4") instead of latest
+#   pinned_release_tag:   pin to a specific release tag (e.g. "v0.10.4") instead of latest
 #   arch_map:             dict mapping ansible architecture to download arch name
 #                         default: {"x86_64": "amd64", "aarch64": "arm64", "arm64": "arm64"}
 #   tarball_extra_args:   extra args for tar extraction (e.g. "--strip-components=1")
+#   manifest_path:        full path to the manifest JSON file
+#                         default: ~/.local/share/github-releases.json (per-user)
+#                         override for system-wide installs (e.g. /var/lib/github-installs/manifest.json)
+
+- name: "{{ binary_name }} | Resolve manifest path"
+  set_fact:
+    _gh_manifest_path: "{{ manifest_path | default(ansible_facts['user_dir'] + '/.local/share/github-releases.json') }}"
 
 - name: "{{ binary_name }} | Ensure manifest directory exists"
   file:
-    path: '{{ ansible_facts["user_dir"] }}/.local/share'
+    path: "{{ _gh_manifest_path | dirname }}"
     state: directory
     mode: '0755'
 
 - name: "{{ binary_name }} | Read manifest"
   slurp:
-    src: '{{ ansible_facts["user_dir"] }}/.local/share/github-releases.json'
+    src: "{{ _gh_manifest_path }}"
   register: _gh_manifest_raw
   failed_when: false
 
@@ -150,6 +157,6 @@
 - name: "{{ binary_name }} | Update manifest"
   copy:
     content: "{{ _gh_manifest | combine({binary_name: _gh_version}) | to_nice_json }}\n"
-    dest: '{{ ansible_facts["user_dir"] }}/.local/share/github-releases.json'
+    dest: "{{ _gh_manifest_path }}"
     mode: '0644'
   when: _gh_needs_update and (_gh_deb_depcheck.rc | default(0)) == 0
