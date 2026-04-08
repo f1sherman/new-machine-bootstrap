@@ -547,6 +547,7 @@ alias s='git status'
 alias duss="du -d 1 -h 2>/dev/null | sort -hr"
 
 alias claude-yolo='claude --dangerously-skip-permissions'
+alias codex-yolo='codex --dangerously-bypass-approvals-and-sandbox'
 
 ### End Alias ###
 
