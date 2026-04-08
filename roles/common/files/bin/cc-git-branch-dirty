@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Print `*<branch>` if the Claude Code cwd is inside a dirty git worktree,
+# `<branch>` if clean, or empty otherwise. Stdin is Claude Code's status
+# JSON. Always exits 0 so broken invocations never surface as error text
+# in the statusline.
+set -u
+
+input=$(cat)
+
+cwd=$(printf '%s' "$input" | jq -r '.cwd // .workspace.current_dir // empty' 2>/dev/null)
+
+if [ -z "$cwd" ] || [ ! -d "$cwd" ]; then
+  exit 0
+fi
+
+cd "$cwd" 2>/dev/null || exit 0
+
+if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != "true" ]; then
+  exit 0
+fi
+
+branch=$(git branch --show-current 2>/dev/null)
+if [ -z "$branch" ]; then
+  exit 0
+fi
+
+if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+  printf '*%s\n' "$branch"
+else
+  printf '%s\n' "$branch"
+fi
