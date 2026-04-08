@@ -3,6 +3,12 @@
   "lines": [
     [
       {
+        "id": "git-branch-dirty",
+        "type": "custom-command",
+        "color": "yellow",
+        "commandPath": "$HOME/.local/bin/cc-git-branch-dirty"
+      },
+      {
         "id": "1",
         "type": "custom-command",
         "color": "cyan",
