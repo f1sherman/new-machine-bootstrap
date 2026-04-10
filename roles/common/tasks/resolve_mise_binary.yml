@@ -1,0 +1,52 @@
+---
+- name: Check for mise on PATH
+  shell: command -v mise
+  register: mise_on_path
+  changed_when: false
+  failed_when: false
+
+- name: Build ordered mise candidate list
+  set_fact:
+    mise_candidate_paths: >-
+      {{
+        (
+          ansible_facts['os_family'] == 'Darwin'
+        ) | ternary(
+          [
+            '/opt/homebrew/bin/mise',
+            '/usr/local/bin/mise',
+            mise_on_path.stdout | trim,
+            ansible_facts['user_dir'] + '/.local/bin/mise'
+          ],
+          [
+            mise_on_path.stdout | trim,
+            ansible_facts['user_dir'] + '/.local/bin/mise',
+            '/opt/homebrew/bin/mise',
+            '/usr/local/bin/mise'
+          ]
+        ) | reject('equalto', '') | unique | list
+      }}
+
+- name: Probe mise candidates
+  stat:
+    path: "{{ item }}"
+    follow: true
+  loop: "{{ mise_candidate_paths }}"
+  register: mise_candidate_stats
+  changed_when: false
+
+- name: Select resolved mise binary
+  set_fact:
+    _mise_resolved_bin: "{{ (mise_candidate_stats.results | selectattr('stat.exists') | selectattr('stat.executable') | selectattr('stat.isdir', 'equalto', false) | map(attribute='item') | list | first) | default('') }}"
+
+- name: Fail when mise cannot be resolved
+  fail:
+    msg: >-
+      Could not resolve mise for {{ ansible_facts['os_family'] }}.
+      Checked {{ mise_candidate_paths | join(', ') }}.
+      user_dir={{ ansible_facts['user_dir'] }}
+  when: _mise_resolved_bin == ''
+
+- name: Publish resolved mise binary
+  set_fact:
+    mise_bin: "{{ _mise_resolved_bin }}"

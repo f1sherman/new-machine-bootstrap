@@ -198,8 +198,20 @@
       aarch64: aarch64
       arm64: aarch64
 
-- name: Check if mise is installed
-  shell: command -v mise
+- name: Check for existing mise binary
+  shell: |
+    candidates=(
+      "$(command -v mise 2>/dev/null || true)"
+      "{{ ansible_facts['user_dir'] }}/.local/bin/mise"
+      "/opt/homebrew/bin/mise"
+      "/usr/local/bin/mise"
+    )
+    for candidate in "${candidates[@]}"; do
+      [ -n "$candidate" ] && [ -f "$candidate" ] && [ -x "$candidate" ] && echo "$candidate" && exit 0
+    done
+    exit 1
+  args:
+    executable: /bin/bash
   register: mise_check
   changed_when: false
   failed_when: false
@@ -208,7 +220,14 @@
   shell: curl -fsSL https://mise.run | sh
   args:
     executable: /bin/bash
-  when: mise_check.rc != 0
+  when:
+    - mise_check.rc != 0
+    - mise_bin is not defined or mise_bin | length == 0
+
+- name: Resolve mise binary
+  include_tasks: '{{ playbook_dir }}/roles/common/tasks/resolve_mise_binary.yml'
+  when:
+    - mise_bin is not defined or mise_bin | length == 0
 
 - name: Create fd symlink (fdfind -> fd)
   file:
