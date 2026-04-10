@@ -286,7 +286,7 @@
 
       ## Git Commits
 
-      Never commit or push without explicit user approval. When the user invokes the commit skill, that counts as approval — follow the skill's instructions. Outside of the commit skill, always ask before committing.
+      You may create commits without asking for approval, but use the personal:commit skill rather than bare `git commit`. Always ask before pushing.
 
       ## Temporary Files
 
@@ -421,7 +421,7 @@
 - name: Merge permissions (allow is additive, deny is authoritative from vars file)
   set_fact:
     merged_permissions:
-      allow: "{{ existing_permissions_converted.allow | union(claude_permissions.allow) | unique | sort }}"
+      allow: "{{ existing_permissions_converted.allow | difference(claude_permissions_allow_remove | default([])) | union(claude_permissions.allow) | unique | sort }}"
       deny: "{{ claude_permissions.deny | unique | sort }}"
 
 - name: Set ccstatusline version
@@ -564,67 +564,6 @@
   when: ansible_facts["os_family"] == "Debian"
   changed_when: false
 
-# sharp (gsd-pi dependency) has no prebuilt binary for Node 24's ABI and
-# needs node-addon-api and node-gyp to build from source. Install them
-# globally and expose via NODE_PATH so sharp's build script can resolve them.
-- name: Install or update GSD-2 via npm (macOS)
-  shell: |
-    npm install -g node-addon-api node-gyp
-    NODE_PATH=$(npm root -g) npm install -g gsd-pi@latest
-    chmod +x "$(npm root -g)/gsd-pi/dist/loader.js"
-  changed_when: false
-  when: ansible_facts["os_family"] == "Darwin"
-
-- name: Install or update GSD-2 via npm (Linux)
-  shell: |
-    "{{ mise_bin }}" exec node@lts -- npm install -g node-addon-api node-gyp
-    NODE_PATH=$("{{ mise_bin }}" exec node@lts -- npm root -g) "{{ mise_bin }}" exec node@lts -- npm install -g gsd-pi@latest
-    chmod +x "$("{{ mise_bin }}" exec node@lts -- npm root -g)/gsd-pi/dist/loader.js"
-  args:
-    executable: /bin/bash
-  when: ansible_facts["os_family"] == "Debian"
-  changed_when: false
-
-- name: Create GSD agent config directory
-  file:
-    path: "{{ ansible_facts['user_dir'] }}/.gsd/agent"
-    state: directory
-    mode: '0755'
-
-- name: Configure GSD-2 defaults (model, thinking level)
-  shell: |
-    SETTINGS='{{ ansible_facts["user_dir"] }}/.gsd/agent/settings.json'
-    if [ ! -f "$SETTINGS" ]; then
-      echo '{}' > "$SETTINGS"
-    fi
-    jq '.defaultProvider = "anthropic" | .defaultModel = "claude-opus-4-6[1m]" | .defaultThinkingLevel = "xhigh"' "$SETTINGS" > "${SETTINGS}.tmp" \
-      && mv "${SETTINGS}.tmp" "$SETTINGS"
-  args:
-    executable: /bin/bash
-  changed_when: false
-
-- name: Symlink GSD node_modules into extensions so they can resolve dependencies
-  shell: |
-    gsd_modules="$(npm root -g)/gsd-pi/node_modules"
-    if [ ! -d "$gsd_modules" ]; then
-      echo "skipped: gsd-pi not installed"
-      exit 0
-    fi
-    target='{{ ansible_facts["user_dir"] }}/.gsd/agent/extensions/node_modules'
-    current="$(readlink "$target" 2>/dev/null || true)"
-    if [ "$current" = "$gsd_modules" ]; then
-      echo "already linked"
-      exit 0
-    fi
-    # Remove stale symlink or directory from prior approach
-    rm -rf "$target"
-    ln -sfn "$gsd_modules" "$target"
-    echo "linked"
-  args:
-    executable: /bin/bash
-  register: gsd_ext_modules_link
-  changed_when: "'linked' in gsd_ext_modules_link.stdout"
-
 - name: Install or update pi-coding-agent via npm (macOS)
   npm:
     name: '@mariozechner/pi-coding-agent'
@@ -656,30 +595,13 @@
 - name: Create ~/.local/bin symlinks for global npm tools (Linux)
   shell: |
     node_bin="$("{{ mise_bin }}" where node@{{ linux_node_lts.stdout }})/bin"
-    for cmd in gsd gsd-cli codex pi; do
+    for cmd in codex pi; do
       [ -x "$node_bin/$cmd" ] && ln -sf "$node_bin/$cmd" ~/.local/bin/"$cmd"
     done
   args:
     executable: /bin/bash
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
-
-- name: Install gsd-browser
-  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
-  vars:
-    github_repo: gsd-build/gsd-browser
-    binary_name: gsd-browser
-    asset_pattern: "gsd-browser-{{ 'darwin' if ansible_facts['os_family'] == 'Darwin' else 'linux' }}-{arch}"
-    install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin/gsd-browser'
-    arch_map:
-      x86_64: x64
-      aarch64: arm64
-      arm64: arm64
-
-- name: Clean up old gsd-browser version file
-  file:
-    path: '{{ ansible_facts["user_dir"] }}/.gsd-browser/version'
-    state: absent
 
 # Trust settings for Codespaces
 - name: Configure Codex CLI config.toml for Codespaces
@@ -794,6 +716,12 @@
     mode: preserve
     directory_mode: '0755'
 
+- name: Install shared commit helper to ~/.claude/skills
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/committing-changes/commit.sh'
+    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/committing-changes/commit.sh'
+    mode: '0755'
+
 - name: Install common skills to ~/.codex/skills
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/common/'
@@ -808,49 +736,25 @@
     mode: preserve
     directory_mode: '0755'
 
-- name: Create ~/.gsd/agent/skills directory
-  file:
-    path: '{{ ansible_facts["user_dir"] }}/.gsd/agent/skills'
-    state: directory
+- name: Install shared commit helper to ~/.codex/skills
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/committing-changes/commit.sh'
+    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/committing-changes/commit.sh'
     mode: '0755'
 
-- name: Install GSD skills
-  copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/gsd/'
-    dest: '{{ ansible_facts["user_dir"] }}/.gsd/agent/skills/'
-    mode: preserve
-    directory_mode: '0755'
-
-# gsd-browser skill: download from upstream repo and install for Claude Code, Codex, and GSD-2
-- name: Download and extract gsd-browser skill from repo tarball
-  shell: |
-    tmp=$(mktemp -d)
-    curl -fsSL "https://github.com/gsd-build/gsd-browser/archive/refs/heads/main.tar.gz" | tar xz -C "$tmp" --strip-components=1 "gsd-browser-main/gsd-browser-skill"
-    echo "$tmp/gsd-browser-skill"
-  args:
-    executable: /bin/bash
-  register: gsd_browser_skill_dir
-  changed_when: false
-  retries: 3
-  delay: 5
-
-- name: Install gsd-browser skill for AI agents
-  copy:
-    src: '{{ gsd_browser_skill_dir.stdout.strip() }}/'
-    dest: '{{ ansible_facts["user_dir"] }}/{{ item }}'
-    mode: '0644'
-    directory_mode: '0755'
+- name: Remove legacy GSD state
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/{{ item }}'
+    state: absent
   loop:
     - .claude/skills/gsd-browser
     - .codex/skills/gsd-browser
-    - .gsd/agent/skills/gsd-browser
+    - .gsd
+    - .gsd-browser
+    - .local/bin/gsd
+    - .local/bin/gsd-browser
+    - .local/bin/gsd-cli
     - .pi/skills/gsd-browser
-
-- name: Clean up gsd-browser skill temp directory
-  file:
-    path: '{{ gsd_browser_skill_dir.stdout.strip() | dirname }}'
-    state: absent
-  changed_when: false
 
 - name: Remove deprecated Claude slash command files
   file:

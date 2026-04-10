@@ -4,8 +4,6 @@ dummy.*
 ._*
 .DS_Store
 
-# ── GSD baseline (auto-generated) ──
-.gsd
 Thumbs.db
 *.swp
 *.swo

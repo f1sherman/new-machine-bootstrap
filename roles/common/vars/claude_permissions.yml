@@ -69,7 +69,6 @@ claude_permissions:
     - "Bash(git merge-base *)"
     - "Bash(git mv *)"
     - "Bash(git pull *)"
-    - "Bash(git push *)"
     - "Bash(git rebase *)"
     - "Bash(git reset *)"
     - "Bash(git restore *)"
@@ -146,7 +145,7 @@ claude_permissions:
     - "mcp__postgresql__query"
 
   deny:
-    # Require explicit approval for commits (per CLAUDE.md)
+    # Block bare git commit so agents go through the commit skill workflow
     - "Bash(git commit *)"
     # Prevent accidental force pushes (all variants, prefix and suffix positions)
     - "Bash(git push --force)"
@@ -163,3 +162,6 @@ claude_permissions:
     - "Bash(git push * --force-if-includes *)"
     - "Bash(git push * -f)"
     - "Bash(git push * -f *)"
+
+claude_permissions_allow_remove:
+  - "Bash(git push *)"
