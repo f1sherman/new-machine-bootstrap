@@ -316,28 +316,32 @@
     dest: '{{ ansible_facts["user_dir"] }}/.config/ccstatusline/settings.json'
     mode: '0600'
 
+- name: Resolve mise binary
+  include_tasks: '{{ playbook_dir }}/roles/common/tasks/resolve_mise_binary.yml'
+  when: mise_bin is not defined
+
 - name: Get current mise trusted_config_paths
-  command: mise settings get trusted_config_paths
+  command: "{{ mise_bin }} settings get trusted_config_paths"
   register: mise_trusted_paths
   changed_when: false
 
 - name: Auto-trust mise configs under ~/projects
-  command: mise settings add trusted_config_paths "{{ ansible_facts['user_dir'] }}/projects"
+  command: "{{ mise_bin }} settings add trusted_config_paths {{ ansible_facts['user_dir'] }}/projects"
   when: ('"' + ansible_facts['user_dir'] + '/projects"') not in mise_trusted_paths.stdout
 
 - name: Trust mise config (Linux)
-  command: "mise trust {{ playbook_dir }}/mise.toml"
+  command: "{{ mise_bin }} trust {{ playbook_dir }}/mise.toml"
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
 - name: Get latest LTS Node.js version (Linux)
-  command: "mise latest node@lts"
+  command: "{{ mise_bin }} latest node@lts"
   register: linux_node_lts
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
 - name: Set global Node.js version via mise (Linux)
-  command: "mise use --global node@{{ linux_node_lts.stdout }}"
+  command: "{{ mise_bin }} use --global node@{{ linux_node_lts.stdout }}"
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
@@ -549,7 +553,7 @@
 # PATH is extended because mise may have been installed during pre_tasks
 # and isn't in the inherited PATH yet.
 - name: Install or update Codex CLI via npm (Linux)
-  shell: "export PATH={{ ansible_facts['user_dir'] }}/.local/bin:$PATH && mise exec node@lts -- npm install -g @openai/codex@latest"
+  shell: "{{ mise_bin }} exec node@lts -- npm install -g @openai/codex@latest"
   when: ansible_facts["os_family"] == "Debian"
   changed_when: false
 
@@ -566,10 +570,9 @@
 
 - name: Install or update GSD-2 via npm (Linux)
   shell: |
-    export PATH="{{ ansible_facts['user_dir'] }}/.local/bin:$PATH"
-    mise exec node@lts -- npm install -g node-addon-api node-gyp
-    NODE_PATH=$(mise exec node@lts -- npm root -g) mise exec node@lts -- npm install -g gsd-pi@latest
-    chmod +x "$(mise exec node@lts -- npm root -g)/gsd-pi/dist/loader.js"
+    "{{ mise_bin }}" exec node@lts -- npm install -g node-addon-api node-gyp
+    NODE_PATH=$("{{ mise_bin }}" exec node@lts -- npm root -g) "{{ mise_bin }}" exec node@lts -- npm install -g gsd-pi@latest
+    chmod +x "$("{{ mise_bin }}" exec node@lts -- npm root -g)/gsd-pi/dist/loader.js"
   args:
     executable: /bin/bash
   when: ansible_facts["os_family"] == "Debian"
@@ -623,7 +626,7 @@
   when: ansible_facts["os_family"] == "Darwin"
 
 - name: Install or update pi-coding-agent via npm (Linux)
-  shell: "export PATH={{ ansible_facts['user_dir'] }}/.local/bin:$PATH && mise exec node@lts -- npm install -g @mariozechner/pi-coding-agent@latest"
+  shell: "{{ mise_bin }} exec node@lts -- npm install -g @mariozechner/pi-coding-agent@latest"
   when: ansible_facts["os_family"] == "Debian"
   changed_when: false
 
@@ -635,7 +638,7 @@
   when: ansible_facts["os_family"] == "Darwin"
 
 - name: Install pi-subdir-context plugin for pi-coding-agent (Linux)
-  shell: "export PATH={{ ansible_facts['user_dir'] }}/.local/bin:$PATH && mise exec node@lts -- pi install npm:pi-subdir-context"
+  shell: "{{ mise_bin }} exec node@lts -- pi install npm:pi-subdir-context"
   register: pi_plugin_linux
   changed_when: "'already installed' not in pi_plugin_linux.stdout"
   failed_when: pi_plugin_linux.rc != 0
@@ -645,8 +648,7 @@
 # regardless of which Node version the current directory's mise.toml selects.
 - name: Create ~/.local/bin symlinks for global npm tools (Linux)
   shell: |
-    export PATH="{{ ansible_facts['user_dir'] }}/.local/bin:$PATH"
-    node_bin="$(mise where node@{{ linux_node_lts.stdout }})/bin"
+    node_bin="$("{{ mise_bin }}" where node@{{ linux_node_lts.stdout }})/bin"
     for cmd in gsd gsd-cli codex pi; do
       [ -x "$node_bin/$cmd" ] && ln -sf "$node_bin/$cmd" ~/.local/bin/"$cmd"
     done
@@ -918,4 +920,3 @@
     - 'personal-research-codebase.md'
     - 'personal-resume-handoff.md'
     - 'personal-validate-plan.md'
-
