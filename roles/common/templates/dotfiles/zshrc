@@ -467,6 +467,12 @@ function gsd() {
   ANTHROPIC_API_KEY= command gsd "$@"
 }
 
+# Wrap codex to unset OPENAI_API_KEY so it can use subscription auth
+alias codex > /dev/null && unalias codex
+function codex() {
+  env -u OPENAI_API_KEY command codex "$@"
+}
+
 # Switch branches using fzf
 alias b > /dev/null && unalias b
 function b() {
