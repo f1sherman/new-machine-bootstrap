@@ -211,6 +211,20 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-git-branch'
     mode: 0755
 
+- name: Install tmux-agent-worktree script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-agent-worktree'
+    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-agent-worktree'
+    mode: 0755
+
+- name: Install tmux-agent-pane-status script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-agent-pane-status'
+    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-agent-pane-status'
+    mode: 0755
+
 - name: Install tmux-window-name script
   copy:
     backup: yes
@@ -258,6 +272,13 @@
       - Clicking through a webflow
 
       Only ask me to do something if it requires physical interaction, access you don't have, or is genuinely ambiguous.
+
+      ## tmux Worktree State
+
+      When you are running inside tmux and you create or switch to a git worktree:
+      - Prefer `worktree-start` when it is available. It handles local worktree setup and publishes tmux pane state.
+      - If you create or switch to a worktree by some other means, immediately run `tmux-agent-worktree set <absolute-path>`.
+      - If you return from that worktree to the base repository, run `tmux-agent-worktree clear`.
 
       ## Code Comments
 

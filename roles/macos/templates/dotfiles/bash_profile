@@ -167,6 +167,12 @@ _worktree_cmd() {
   printf '%s\n' "$cmd"
 }
 
+_worktree_sync_tmux_state() {
+  if command -v tmux-agent-worktree >/dev/null 2>&1; then
+    tmux-agent-worktree sync-current >/dev/null 2>&1 || true
+  fi
+}
+
 worktree-start() {
   local branch path start_point print_path repo_root repo_name parent_dir safe_branch
   branch=""
@@ -290,6 +296,7 @@ EOF
   fi
 
   cd "$path"
+  _worktree_sync_tmux_state
   echo "==> Worktree created:"
   echo "    Branch: $branch"
 }
@@ -334,6 +341,7 @@ worktree-merge() {
   "$(_worktree_cmd git)" -C "$main_path" checkout "$main_branch"
   "$(_worktree_cmd git)" -C "$main_path" merge "$current_branch"
   cd "$main_path"
+  _worktree_sync_tmux_state
   echo "==> Merged ${current_branch} into ${main_branch}:"
   echo "    Branch: ${current_branch}"
   echo "    Main: ${main_path}"
@@ -365,6 +373,7 @@ worktree-delete() {
     return 1
   }
   cd "$main_path"
+  _worktree_sync_tmux_state
   "$(_worktree_cmd git)" -C "$main_path" worktree remove "$current_path"
   "$(_worktree_cmd git)" -C "$main_path" branch -D "$current_branch"
   echo "==> Removed worktree and deleted branch:"
@@ -419,6 +428,7 @@ worktree-done() {
   _worktree_sync_coding_agent_new_files "${current_path}/.coding-agent" "${main_path}/.coding-agent"
 
   cd "$main_path"
+  _worktree_sync_tmux_state
   "$(_worktree_cmd git)" -C "$main_path" worktree remove "$current_path"
   "$(_worktree_cmd git)" -C "$main_path" branch -D "$current_branch"
   echo "==> Merged ${current_branch} into ${main_branch} and removed worktree:"

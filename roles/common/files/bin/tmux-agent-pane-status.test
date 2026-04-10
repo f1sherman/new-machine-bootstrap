@@ -1,0 +1,264 @@
+#!/usr/bin/env bash
+# Test harness for tmux-agent-pane-status. Builds isolated repos/worktrees and
+# drives the helper with ps/cwd/state fixtures, asserting stdout and exit code.
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-agent-pane-status"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+GIT_AUTHOR_NAME=test
+GIT_AUTHOR_EMAIL=test@example.com
+GIT_COMMITTER_NAME=test
+GIT_COMMITTER_EMAIL=test@example.com
+export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+
+pass=0
+fail=0
+
+run_case() {
+  local name="$1" expected="$2" expected_rc="$3" pane_id="$4" pane_tty="$5" pane_path="$6" ps_body="$7"
+  shift 7
+
+  local cwd_dir state_dir ps_file actual rc
+  cwd_dir="$(mktemp -d "$TMPROOT/cwd.XXXXXX")"
+  state_dir="$(mktemp -d "$TMPROOT/state.XXXXXX")"
+  ps_file="$(mktemp "$TMPROOT/ps.XXXXXX")"
+  printf '%s\n' "$ps_body" > "$ps_file"
+
+  while [ "$#" -gt 2 ]; do
+    case "$1" in
+      cwd)
+        printf '%s' "$3" > "$cwd_dir/$2"
+        shift 3
+        ;;
+      state)
+        printf '%s' "$4" > "$state_dir/$2.$3"
+        shift 4
+        ;;
+      *)
+        printf 'ERROR: malformed fixture list for %s\n' "$name" >&2
+        exit 2
+        ;;
+    esac
+  done
+
+  if [ "$#" -ne 0 ]; then
+    printf 'ERROR: malformed fixture remainder for %s\n' "$name" >&2
+    exit 2
+  fi
+
+  if actual=$(
+    TMUX_AGENT_PANE_STATUS_PS_FILE="$ps_file" \
+    TMUX_AGENT_PANE_STATUS_CWD_MAP_DIR="$cwd_dir" \
+    TMUX_AGENT_PANE_STATUS_STATE_DIR="$state_dir" \
+    "$SCRIPT" "$pane_id" "$pane_tty" "$pane_path"
+  ); then
+    rc=0
+  else
+    rc=$?
+  fi
+
+  if [ "$actual" = "$expected" ] && [ "$rc" -eq "$expected_rc" ]; then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      expected : %q\n' "$expected"
+    printf '      actual   : %q\n' "$actual"
+    printf '      rc       : %s (expected %s)\n' "$rc" "$expected_rc"
+  fi
+}
+
+make_repo() {
+  local dir="$1"
+  git init -qb main "$dir"
+  git -C "$dir" commit -q --allow-empty -m init
+}
+
+make_linked_worktree() {
+  local main_repo="$1" branch="$2" dest="$3"
+  git -C "$main_repo" worktree add -q -b "$branch" "$dest"
+}
+
+base_clean="$TMPROOT/base-clean"
+make_repo "$base_clean"
+
+base_dirty="$TMPROOT/base-dirty"
+make_repo "$base_dirty"
+echo dirty > "$base_dirty/newfile"
+
+main_repo="$TMPROOT/main-repo"
+make_repo "$main_repo"
+
+wt_clean="$TMPROOT/wt-clean"
+make_linked_worktree "$main_repo" "feature/wt-clean" "$wt_clean"
+
+wt_dirty="$TMPROOT/wt-dirty"
+make_linked_worktree "$main_repo" "feature/wt-dirty" "$wt_dirty"
+echo dirty > "$wt_dirty/newfile"
+
+stale_wt="$TMPROOT/stale-wt"
+make_linked_worktree "$main_repo" "feature/stale-wt" "$stale_wt"
+rm -f "$stale_wt/.git"
+
+detached="$TMPROOT/detached"
+make_repo "$detached"
+git -C "$detached" commit -q --allow-empty -m second
+sha=$(git -C "$detached" rev-parse HEAD~1)
+git -C "$detached" checkout -q "$sha"
+
+non_repo="$TMPROOT/non-repo"
+mkdir -p "$non_repo"
+
+# --- Case 1: explicit pane state with matching pid overrides pane cwd ---
+run_case "explicit state overrides pane cwd" \
+  "(feature/wt-clean) [wt] " \
+  0 \
+  "%91" \
+  "/dev/ttys091" \
+  "$base_dirty" \
+  $'9100 S+ codex codex' \
+  state "%91" "@agent_worktree_pid" "9100" \
+  state "%91" "@agent_worktree_path" "$wt_clean" \
+  cwd 9100 "$base_dirty"
+
+# --- Case 2: stale pid is ignored and falls back to args/cwd ---
+run_case "stale pid falls back to heuristics" \
+  "(main) " \
+  0 \
+  "%91" \
+  "/dev/ttys091" \
+  "$base_dirty" \
+  $'9100 S+ codex codex' \
+  state "%91" "@agent_worktree_pid" "9999" \
+  state "%91" "@agent_worktree_path" "$wt_clean" \
+  cwd 9100 "$base_clean"
+
+# --- Case 3: missing explicit path is ignored and falls back to heuristics ---
+run_case "missing explicit path falls back" \
+  "(feature/wt-clean) [wt] " \
+  0 \
+  "%91" \
+  "/dev/ttys091" \
+  "$base_dirty" \
+  $'9100 S+ codex codex --cd '"$wt_clean" \
+  state "%91" "@agent_worktree_pid" "9100" \
+  state "%91" "@agent_worktree_path" "/no/such/path" \
+  cwd 9100 "$base_clean"
+
+# --- Case 4: explicit dirty linked worktree renders dirty marker and [wt] ---
+run_case "explicit dirty linked worktree renders dirty marker" \
+  "(*feature/wt-dirty) [wt] " \
+  0 \
+  "%91" \
+  "/dev/ttys091" \
+  "$base_clean" \
+  $'9100 S+ claude claude' \
+  state "%91" "@agent_worktree_pid" "9100" \
+  state "%91" "@agent_worktree_path" "$wt_dirty" \
+  cwd 9100 "$base_clean"
+
+# --- Case 5: detached HEAD explicit path falls back to heuristics ---
+run_case "detached head explicit path falls back" \
+  "(*main) " \
+  0 \
+  "%91" \
+  "/dev/ttys091" \
+  "$base_dirty" \
+  $'9100 S+ codex codex' \
+  state "%91" "@agent_worktree_pid" "9100" \
+  state "%91" "@agent_worktree_path" "$detached" \
+  cwd 9100 "$base_dirty"
+
+# --- Case 6: stale explicit path that is no longer a git worktree falls back ---
+run_case "stale explicit path falls back" \
+  "(main) " \
+  0 \
+  "%91" \
+  "/dev/ttys091" \
+  "$base_clean" \
+  $'9100 S+ codex codex' \
+  state "%91" "@agent_worktree_pid" "9100" \
+  state "%91" "@agent_worktree_path" "$stale_wt" \
+  cwd 9100 "$base_clean"
+
+# --- Case 7: no explicit state falls back to codex --cd path ---
+run_case "codex --cd overrides process cwd" \
+  "(*feature/wt-dirty) [wt] " \
+  0 \
+  "%91" \
+  "/dev/ttys091" \
+  "$base_clean" \
+  $'9100 S+ codex codex --cd '"$wt_dirty" \
+  cwd 9100 "$base_clean"
+
+# --- Case 8: no explicit state falls back to codex -C path ---
+run_case "codex -C overrides process cwd" \
+  "(feature/wt-clean) [wt] " \
+  0 \
+  "%91" \
+  "/dev/ttys091" \
+  "$base_clean" \
+  $'9100 S+ codex codex -C '"$wt_clean" \
+  cwd 9100 "$base_clean"
+
+# --- Case 9: args-based agent detection still works when comm differs ---
+run_case "args-based agent detection fallback" \
+  "(*feature/wt-dirty) [wt] " \
+  0 \
+  "%91" \
+  "/dev/ttys091" \
+  "$base_clean" \
+  $'9100 S+ node /opt/homebrew/bin/codex --cd '"$wt_dirty" \
+  cwd 9100 "$base_clean"
+
+# --- Case 10: foreground agent record wins when multiple agents exist ---
+run_case "foreground agent record wins" \
+  "(feature/wt-clean) [wt] " \
+  0 \
+  "%91" \
+  "/dev/ttys091" \
+  "$base_clean" \
+  $'9100 S codex codex --cd '"$wt_dirty"$'\n9101 S+ codex codex --cd '"$wt_clean" \
+  cwd 9100 "$base_clean" \
+  cwd 9101 "$base_clean"
+
+# --- Case 11: no explicit state falls back to agent cwd ---
+run_case "agent cwd fallback" \
+  "(feature/wt-clean) [wt] " \
+  0 \
+  "%91" \
+  "/dev/ttys091" \
+  "$base_clean" \
+  $'9100 S+ claude claude' \
+  cwd 9100 "$wt_clean"
+
+# --- Case 12: no explicit state falls back to pane path without [wt] ---
+run_case "pane path fallback omits worktree marker" \
+  "(*main) " \
+  0 \
+  "%91" \
+  "/dev/ttys091" \
+  "$base_dirty" \
+  ""
+
+# --- Case 13: nongit pane path renders empty ---
+run_case "nongit pane path renders empty" \
+  "" \
+  0 \
+  "%91" \
+  "/dev/ttys091" \
+  "$non_repo" \
+  ""
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

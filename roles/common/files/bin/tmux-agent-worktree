@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+# Publish pane-local tmux worktree state for the current Claude/Codex agent.
+set -u
+
+get_process_lines() {
+  local pane_tty="$1"
+  if [ -n "${TMUX_AGENT_WORKTREE_PS_FILE:-}" ] && [ -f "${TMUX_AGENT_WORKTREE_PS_FILE}" ]; then
+    cat "${TMUX_AGENT_WORKTREE_PS_FILE}"
+  elif [ -n "$pane_tty" ]; then
+    ps -o pid=,stat=,comm=,args= -t "$pane_tty" 2>/dev/null
+  fi
+}
+
+is_agent_process() {
+  local comm="$1" args="$2"
+  case "$comm" in
+    claude|codex)
+      return 0
+      ;;
+  esac
+  printf '%s\n' "$args" | grep -Eq '(^|[[:space:]])([^[:space:]]*/)?(claude|codex)([[:space:]]|$)'
+}
+
+detect_agent_pid() {
+  local pane_tty="$1"
+  local line pid stat comm args fg_pid="" any_pid=""
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    [ -z "$line" ] && continue
+    read -r pid stat comm args <<< "$line"
+    is_agent_process "${comm:-}" "${args:-}" || continue
+    any_pid="$pid"
+    case "$stat" in
+      *+*)
+        fg_pid="$pid"
+        ;;
+    esac
+  done < <(get_process_lines "$pane_tty")
+
+  if [ -n "$fg_pid" ]; then
+    printf '%s\n' "$fg_pid"
+  elif [ -n "$any_pid" ]; then
+    printf '%s\n' "$any_pid"
+  fi
+}
+
+pane_tty() {
+  if [ -n "${TMUX_AGENT_WORKTREE_PANE_TTY:-}" ]; then
+    printf '%s\n' "$TMUX_AGENT_WORKTREE_PANE_TTY"
+  else
+    tmux display-message -p -t "$TMUX_PANE" '#{pane_tty}' 2>/dev/null
+  fi
+}
+
+state_file() {
+  local pane_id="$1" option_name="$2"
+  printf '%s/%s.%s\n' "$TMUX_AGENT_WORKTREE_STATE_DIR" "$pane_id" "$option_name"
+}
+
+write_pane_option() {
+  local pane_id="$1" option_name="$2" value="$3"
+  if [ -n "${TMUX_AGENT_WORKTREE_STATE_DIR:-}" ]; then
+    mkdir -p "$TMUX_AGENT_WORKTREE_STATE_DIR"
+    printf '%s' "$value" > "$(state_file "$pane_id" "$option_name")"
+  else
+    tmux set-option -pt "$pane_id" "$option_name" "$value" >/dev/null 2>&1
+  fi
+}
+
+clear_pane_option() {
+  local pane_id="$1" option_name="$2"
+  if [ -n "${TMUX_AGENT_WORKTREE_STATE_DIR:-}" ]; then
+    rm -f "$(state_file "$pane_id" "$option_name")"
+  else
+    tmux set-option -pt "$pane_id" -u "$option_name" >/dev/null 2>&1
+  fi
+}
+
+is_git_worktree_path() {
+  local path="$1"
+  [ -d "$path" ] || return 1
+  [ "$(git -C "$path" rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]
+}
+
+is_linked_worktree() {
+  local path="$1" git_dir common_dir
+  git_dir=$(git -C "$path" rev-parse --path-format=absolute --git-dir 2>/dev/null) || return 1
+  common_dir=$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
+  [ "$git_dir" != "$common_dir" ]
+}
+
+on_named_branch() {
+  local path="$1" branch
+  branch=$(git -C "$path" branch --show-current 2>/dev/null)
+  [ -n "$branch" ]
+}
+
+cmd_set() {
+  local path="${1:-}" pane_id pane_pid tty
+  [ -n "${TMUX:-}" ] || return 0
+  [ -n "${TMUX_PANE:-}" ] || return 0
+  [ -n "$path" ] || return 0
+  case "$path" in
+    /*) ;;
+    *) return 0 ;;
+  esac
+  is_git_worktree_path "$path" || return 0
+  pane_id="$TMUX_PANE"
+  tty="$(pane_tty)"
+  [ -n "$tty" ] || return 0
+  pane_pid="$(detect_agent_pid "$tty")"
+  [ -n "$pane_pid" ] || return 0
+  write_pane_option "$pane_id" "@agent_worktree_path" "$path"
+  write_pane_option "$pane_id" "@agent_worktree_pid" "$pane_pid"
+}
+
+cmd_clear() {
+  [ -n "${TMUX:-}" ] || return 0
+  [ -n "${TMUX_PANE:-}" ] || return 0
+  clear_pane_option "$TMUX_PANE" "@agent_worktree_path"
+  clear_pane_option "$TMUX_PANE" "@agent_worktree_pid"
+}
+
+cmd_sync_current() {
+  local tty pane_pid
+  [ -n "${PWD:-}" ] || return 0
+  if ! is_git_worktree_path "$PWD" || ! is_linked_worktree "$PWD" || ! on_named_branch "$PWD"; then
+    cmd_clear
+    return 0
+  fi
+
+  [ -n "${TMUX:-}" ] || return 0
+  [ -n "${TMUX_PANE:-}" ] || return 0
+  tty="$(pane_tty)"
+  [ -n "$tty" ] || {
+    cmd_clear
+    return 0
+  }
+  pane_pid="$(detect_agent_pid "$tty")"
+  [ -n "$pane_pid" ] || {
+    cmd_clear
+    return 0
+  }
+
+  write_pane_option "$TMUX_PANE" "@agent_worktree_path" "$PWD"
+  write_pane_option "$TMUX_PANE" "@agent_worktree_pid" "$pane_pid"
+}
+
+main() {
+  case "${1:-}" in
+    set)
+      shift
+      cmd_set "${1:-}"
+      ;;
+    sync-current)
+      cmd_sync_current
+      ;;
+    clear)
+      cmd_clear
+      ;;
+    *)
+      exit 0
+      ;;
+  esac
+}
+
+main "$@"
+exit 0

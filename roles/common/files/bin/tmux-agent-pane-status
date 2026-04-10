@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+# Print the branch fragment for the active pane. Prefer pane-local explicit
+# agent worktree state, then fall back to argv/cwd heuristics, then pane cwd.
+set -u
+
+get_process_lines() {
+  local pane_tty="$1"
+  if [ -n "${TMUX_AGENT_PANE_STATUS_PS_FILE:-}" ] && [ -f "${TMUX_AGENT_PANE_STATUS_PS_FILE}" ]; then
+    cat "${TMUX_AGENT_PANE_STATUS_PS_FILE}"
+  elif [ -n "$pane_tty" ]; then
+    ps -o pid=,stat=,comm=,args= -t "$pane_tty" 2>/dev/null
+  fi
+}
+
+resolve_pid_cwd() {
+  local pid="$1"
+  if [ -n "${TMUX_AGENT_PANE_STATUS_CWD_MAP_DIR:-}" ]; then
+    local file="${TMUX_AGENT_PANE_STATUS_CWD_MAP_DIR}/${pid}"
+    [ -f "$file" ] || return 1
+    cat "$file"
+    return 0
+  fi
+  case "$(uname -s)" in
+    Darwin)
+      lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | awk '/^n/ { sub(/^n/, ""); print; exit }'
+      ;;
+    Linux)
+      readlink "/proc/$pid/cwd" 2>/dev/null
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+pane_option_file() {
+  local pane_id="$1" option_name="$2"
+  printf '%s/%s.%s\n' "$TMUX_AGENT_PANE_STATUS_STATE_DIR" "$pane_id" "$option_name"
+}
+
+read_pane_option() {
+  local pane_id="$1" option_name="$2"
+  if [ -n "${TMUX_AGENT_PANE_STATUS_STATE_DIR:-}" ]; then
+    local file
+    file="$(pane_option_file "$pane_id" "$option_name")"
+    [ -f "$file" ] || return 1
+    cat "$file"
+  else
+    tmux show-options -pv -t "$pane_id" "$option_name" 2>/dev/null
+  fi
+}
+
+extract_agent_path_from_args() {
+  local args="$1" token prev=""
+  for token in $args; do
+    case "$prev" in
+      --cd|-C)
+        printf '%s\n' "$token"
+        return 0
+        ;;
+    esac
+    case "$token" in
+      --cd=*)
+        printf '%s\n' "${token#--cd=}"
+        return 0
+        ;;
+      -C=*)
+        printf '%s\n' "${token#-C=}"
+        return 0
+        ;;
+    esac
+    prev="$token"
+  done
+  return 1
+}
+
+resolve_agent_path() {
+  local pid="$1" args="$2" pane_path="$3" pid_cwd="" args_path="" candidate=""
+  pid_cwd="$(resolve_pid_cwd "$pid")"
+  args_path="$(extract_agent_path_from_args "$args" 2>/dev/null || true)"
+
+  if [ -n "$args_path" ]; then
+    if [ -d "$args_path" ]; then
+      printf '%s\n' "$args_path"
+      return 0
+    fi
+    if [ -n "$pid_cwd" ] && [ -d "$pid_cwd/$args_path" ]; then
+      candidate="$pid_cwd/$args_path"
+    elif [ -n "$pane_path" ] && [ -d "$pane_path/$args_path" ]; then
+      candidate="$pane_path/$args_path"
+    fi
+    if [ -n "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  fi
+
+  if [ -n "$pid_cwd" ] && [ -d "$pid_cwd" ]; then
+    printf '%s\n' "$pid_cwd"
+  fi
+}
+
+is_agent_process() {
+  local comm="$1" args="$2"
+  case "$comm" in
+    claude|codex)
+      return 0
+      ;;
+  esac
+  printf '%s\n' "$args" | grep -Eq '(^|[[:space:]])([^[:space:]]*/)?(claude|codex)([[:space:]]|$)'
+}
+
+detect_agent_record() {
+  local pane_tty="$1"
+  local line pid stat comm args fg_pid="" fg_args="" any_pid="" any_args=""
+
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    read -r pid stat comm args <<< "$line"
+    is_agent_process "${comm:-}" "${args:-}" || continue
+    any_pid="$pid"
+    any_args="$args"
+    case "$stat" in
+      *+*)
+        fg_pid="$pid"
+        fg_args="$args"
+        ;;
+    esac
+  done < <(get_process_lines "$pane_tty")
+
+  if [ -n "$fg_pid" ]; then
+    printf '%s\t%s\n' "$fg_pid" "$fg_args"
+  elif [ -n "$any_pid" ]; then
+    printf '%s\t%s\n' "$any_pid" "$any_args"
+  fi
+}
+
+is_linked_worktree() {
+  local path="$1" git_dir common_dir
+  git_dir=$(git -C "$path" rev-parse --path-format=absolute --git-dir 2>/dev/null) || return 1
+  common_dir=$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
+  [ "$git_dir" != "$common_dir" ]
+}
+
+is_authoritative_explicit_path() {
+  local path="$1" branch
+
+  [ -n "$path" ] || return 1
+  [ -d "$path" ] || return 1
+  [ "$(git -C "$path" rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ] || return 1
+
+  branch=$(git -C "$path" branch --show-current 2>/dev/null)
+  [ -n "$branch" ] || return 1
+}
+
+branch_fragment_for_path() {
+  local path="$1" include_wt="$2" branch wt_suffix=""
+
+  [ -n "$path" ] || return 0
+  [ -d "$path" ] || return 0
+  if [ "$(git -C "$path" rev-parse --is-inside-work-tree 2>/dev/null)" != "true" ]; then
+    return 0
+  fi
+
+  branch=$(git -C "$path" branch --show-current 2>/dev/null)
+  [ -n "$branch" ] || return 0
+
+  if [ "$include_wt" = "1" ] && is_linked_worktree "$path"; then
+    wt_suffix=" [wt]"
+  fi
+
+  if [ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ]; then
+    printf '(*%s)%s ' "$branch" "$wt_suffix"
+  else
+    printf '(%s)%s ' "$branch" "$wt_suffix"
+  fi
+}
+
+main() {
+  local pane_id="${1:-}" pane_tty="${2:-}" pane_path="${3:-}"
+  local agent_record="" agent_pid="" agent_args=""
+  local explicit_pid="" explicit_path="" heuristic_path=""
+
+  if [ -n "$pane_tty" ]; then
+    agent_record="$(detect_agent_record "$pane_tty")"
+    IFS=$'\t' read -r agent_pid agent_args <<< "$agent_record"
+  fi
+
+  if [ -n "$pane_id" ] && [ -n "$agent_pid" ]; then
+    explicit_pid="$(read_pane_option "$pane_id" "@agent_worktree_pid" 2>/dev/null || true)"
+    explicit_path="$(read_pane_option "$pane_id" "@agent_worktree_path" 2>/dev/null || true)"
+    if [ -n "$explicit_pid" ] && [ "$explicit_pid" = "$agent_pid" ] && is_authoritative_explicit_path "$explicit_path"; then
+      branch_fragment_for_path "$explicit_path" 1
+      exit 0
+    fi
+  fi
+
+  if [ -n "$agent_pid" ]; then
+    heuristic_path="$(resolve_agent_path "$agent_pid" "$agent_args" "$pane_path")"
+    if [ -n "$heuristic_path" ] && [ -d "$heuristic_path" ]; then
+      branch_fragment_for_path "$heuristic_path" 1
+      exit 0
+    fi
+  fi
+
+  branch_fragment_for_path "$pane_path" 0
+}
+
+main "$@"
+exit 0
