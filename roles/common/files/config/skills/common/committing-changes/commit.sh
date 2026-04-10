@@ -130,17 +130,7 @@ done
 # Create the commit (no co-author attribution)
 git commit -m "$message"
 
-# Push to remote
-if ! git push 2>&1; then
-    echo ""
-    echo "Warning: Commit created but push failed. You may need to push manually." >&2
-    echo ""
-    echo "Commit created (not pushed):"
-    git log --oneline -n 1
-    exit 1
-fi
-
 # Show the result
 echo ""
-echo "Commit created and pushed:"
+echo "Commit created:"
 git log --oneline -n 1

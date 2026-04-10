@@ -1,1 +1,0 @@
-../../common/addressing-pr-feedback/fetch-pr-comments.sh
