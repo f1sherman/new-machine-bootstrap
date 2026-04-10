@@ -85,12 +85,6 @@
     state: directory
     mode: 0755
 
-- name: Remove ripgrep apt package if installed
-  apt:
-    name: ripgrep
-    state: absent
-  become: yes
-
 - name: Install rg
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
   vars:
