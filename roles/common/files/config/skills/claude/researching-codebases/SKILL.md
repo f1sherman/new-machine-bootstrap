@@ -33,7 +33,8 @@ Then wait.
 
 1. Read mentioned files first.
    - If the user names files, docs, JSON, or accessible tickets, read them fully before anything else.
-   - Use the Read tool with no limit or offset.
+   - Prefer a full read with no limit or offset.
+   - If a file is too large for one read, read it in chunks until you have full coverage before moving on.
    - Read them in main context before spawning sub-tasks.
 
 2. Decompose the question.
@@ -54,6 +55,7 @@ Then wait.
    - Start with locator work, then analyze the most useful findings.
    - Run multiple agents in parallel when they search different areas.
    - Remind every agent it is documenting, not evaluating.
+   - If a named helper agent is unavailable, continue with generic Task agents or direct read-only research. Do not block on agent availability.
 
 4. Wait for every sub-agent.
    - Wait for all sub-agent tasks to finish before synthesis.
@@ -63,6 +65,7 @@ Then wait.
    - Connect findings across components.
    - Include file paths and line numbers.
    - Verify paths.
+   - Highlight architectural decisions only when they are directly evidenced in code or docs.
    - Answer the user with concrete evidence.
 
 5. Gather metadata before writing.
@@ -132,19 +135,20 @@ Then wait.
    ## Related Research
    [Links to other research documents in .coding-agent/research/]
 
-   ## Open Questions
+   ## Open Questions (if any)
    [Only include this section when there are genuine unresolved questions worth asking the user about.]
    ```
 
-7. Add GitHub permalinks when needed.
+7. Add remote permalinks when needed.
    - Check branch and status with `git branch --show-current` and `git status`.
-   - Generate GitHub permalinks only when the repo is on GitHub and you can confirm the commit is available on the remote.
-   - Get repo info with `gh repo view --json owner,name`.
-   - Format links as `https://github.com/{owner}/{repo}/blob/{commit}/{file}#L{line}`.
-   - If GitHub or `gh` is unavailable, keep local file references.
+   - If the specific commit you are citing is available on the remote, derive the host from the remote or repository info before generating permalinks.
+   - Format commit-based permalinks with that confirmed host.
+   - If the relevant content exists only in local uncommitted changes or is not reachable at a stable remote commit, keep local file references.
+   - If the host or repo tool is unavailable, keep local file references.
 
 8. Present findings.
-   - Give a concise summary.
+   - If no meaningful open questions remain, present the findings as final.
+   - If open questions remain, present the findings as provisional and move into the open-question loop.
    - Include key file references.
 
 9. Handle open questions.
@@ -158,9 +162,10 @@ Then wait.
    - After all questions are resolved, ask about follow-up questions.
 
 10. Handle follow-up research.
-    - Append follow-up material to the same research document.
+    - Append follow-up material to the same research document only when it stays within the same research topic.
+    - If the scope shifts materially, start a new research document and cross-link it.
     - Update `last_updated`.
-    - Add or update `last_updated_by`.
+    - Add or update `last_updated_by` with the current agent or session identifier.
     - Add or update `last_updated_note: "Added follow-up research for [brief description]"`.
     - Add `## Follow-up Research [timestamp]`.
     - Spawn new sub-agents as needed.
@@ -175,7 +180,7 @@ Then wait.
 - Keep prompts focused on read-only documentation.
 - Document cross-component connections and interactions.
 - Include temporal context for when the research happened.
-- Link to GitHub when possible.
+- Link to the remote host when stable permalinks are available.
 - Keep the main agent focused on synthesis, but verify the key source files and line references yourself before finalizing.
 - Have sub-agents document examples and usage patterns as they exist.
 - **CRITICAL**: You and all sub-agents are documentarians, not evaluators.
