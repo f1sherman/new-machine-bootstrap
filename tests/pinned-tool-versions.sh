@@ -117,6 +117,15 @@ run_renovate_checks() {
 run_integration_checks() {
   assert_contains "$INTEGRATION_WORKFLOW" "bash tests/pinned-tool-versions.sh core" "integration workflow runs pinned-tool-versions regression test"
   assert_contains "$INTEGRATION_WORKFLOW" "vars/tool_versions.yml" "integration workflow reads the shared version catalog"
+  assert_contains "$INTEGRATION_WORKFLOW" 'local_bin="$HOME/.local/bin"' "integration workflow resolves the user-local binary directory"
+  assert_contains "$INTEGRATION_WORKFLOW" 'user_mise="$local_bin/mise"' "integration workflow checks the provisioned mise binary"
+  assert_contains "$INTEGRATION_WORKFLOW" 'user_yq="$local_bin/yq"' "integration workflow checks the provisioned yq binary"
+  assert_contains "$INTEGRATION_WORKFLOW" 'user_delta="$local_bin/delta"' "integration workflow checks the provisioned delta binary"
+  assert_contains "$INTEGRATION_WORKFLOW" 'user_nvim="$local_bin/nvim"' "integration workflow checks the provisioned neovim binary"
+  assert_contains "$INTEGRATION_WORKFLOW" 'user_zoxide="$local_bin/zoxide"' "integration workflow checks the provisioned zoxide binary"
+  assert_contains "$INTEGRATION_WORKFLOW" 'user_fzf="$local_bin/fzf"' "integration workflow checks the provisioned fzf binary"
+  assert_contains "$INTEGRATION_WORKFLOW" 'system_rg="/usr/bin/rg"' "integration workflow checks the ripgrep package-installed path"
+  assert_contains "$INTEGRATION_WORKFLOW" 'system_tmux="/usr/local/bin/tmux"' "integration workflow checks the tmux symlink path"
   assert_contains "$INTEGRATION_WORKFLOW" "Expected versions verified" "integration workflow verifies pinned versions"
 }
 

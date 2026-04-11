@@ -1,5 +1,7 @@
+---
 name: Integration Test
 
+# yamllint disable-line rule:truthy
 on:
   push:
     branches: [main]
@@ -23,25 +25,69 @@ jobs:
         run: |
           set -euo pipefail
 
-          expected_node="$(yq -r '.tool_versions.runtimes.node' vars/tool_versions.yml)"
-          expected_mise="$(yq -r '.tool_versions.runtimes.mise' vars/tool_versions.yml | sed 's/^v//')"
-          expected_ripgrep="$(yq -r '.tool_versions.github_releases.ripgrep' vars/tool_versions.yml)"
-          expected_delta="$(yq -r '.tool_versions.github_releases.delta' vars/tool_versions.yml)"
-          expected_tmux="$(yq -r '.tool_versions.github_releases.tmux' vars/tool_versions.yml | sed 's/^v//')"
-          expected_neovim="$(yq -r '.tool_versions.github_releases.neovim' vars/tool_versions.yml)"
-          expected_yq="$(yq -r '.tool_versions.github_releases.yq' vars/tool_versions.yml | sed 's/^v//')"
-          expected_zoxide="$(yq -r '.tool_versions.github_releases.zoxide' vars/tool_versions.yml | sed 's/^v//')"
-          expected_fzf="$(yq -r '.tool_versions.github_releases.fzf' vars/tool_versions.yml | sed 's/^v//')"
+          local_bin="$HOME/.local/bin"
+          user_mise="$local_bin/mise"
+          user_yq="$local_bin/yq"
+          user_delta="$local_bin/delta"
+          user_nvim="$local_bin/nvim"
+          user_zoxide="$local_bin/zoxide"
+          user_fzf="$local_bin/fzf"
+          system_rg="/usr/bin/rg"
+          system_tmux="/usr/local/bin/tmux"
+          catalog="vars/tool_versions.yml"
 
-          test "$(mise --version | awk '{print $2}')" = "$expected_mise"
-          test "$(mise current node | awk '{print $2}')" = "$expected_node"
-          test "$(rg --version | awk 'NR==1 {print $2}')" = "$expected_ripgrep"
-          test "$(delta --version | awk 'NR==1 {print $2}')" = "$expected_delta"
-          test "$(tmux -V | awk '{print $2}')" = "$expected_tmux"
-          test "$(nvim --version | awk 'NR==1 {print $2}')" = "$expected_neovim"
-          test "$(yq --version | sed -E 's/.* version v?([^ ]+).*/\1/')" = "$expected_yq"
-          test "$(zoxide --version | awk '{print $2}')" = "$expected_zoxide"
-          test "$(fzf --version | awk '{print $1}')" = "$expected_fzf"
+          catalog_value() {
+            "$user_yq" -r "$1" "$catalog"
+          }
+
+          strip_v() {
+            sed 's/^v//'
+          }
+
+          expected_node="$(catalog_value '.tool_versions.runtimes.node')"
+          expected_mise="$(
+            catalog_value '.tool_versions.runtimes.mise' | strip_v
+          )"
+          expected_ripgrep="$(
+            catalog_value '.tool_versions.github_releases.ripgrep'
+          )"
+          expected_delta="$(
+            catalog_value '.tool_versions.github_releases.delta'
+          )"
+          expected_tmux="$(
+            catalog_value '.tool_versions.github_releases.tmux' | strip_v
+          )"
+          expected_neovim="$(
+            catalog_value '.tool_versions.github_releases.neovim'
+          )"
+          expected_yq="$(
+            catalog_value '.tool_versions.github_releases.yq' | strip_v
+          )"
+          expected_zoxide="$(
+            catalog_value '.tool_versions.github_releases.zoxide' | strip_v
+          )"
+          expected_fzf="$(
+            catalog_value '.tool_versions.github_releases.fzf' | strip_v
+          )"
+
+          test "$("$user_mise" --version | awk '{print $2}')" = \
+            "$expected_mise"
+          test "$("$user_mise" current node | awk '{print $2}')" = \
+            "$expected_node"
+          test "$("$system_rg" --version | awk 'NR==1 {print $2}')" = \
+            "$expected_ripgrep"
+          test "$("$user_delta" --version | awk 'NR==1 {print $2}')" = \
+            "$expected_delta"
+          test "$("$system_tmux" -V | awk '{print $2}')" = \
+            "$expected_tmux"
+          test "$("$user_nvim" --version | awk 'NR==1 {print $2}')" = \
+            "$expected_neovim"
+          test "$("$user_yq" --version | awk '{print $NF}' | strip_v)" = \
+            "$expected_yq"
+          test "$("$user_zoxide" --version | awk '{print $2}')" = \
+            "$expected_zoxide"
+          test "$("$user_fzf" --version | awk '{print $1}')" = \
+            "$expected_fzf"
 
           echo "Expected versions verified"
 
