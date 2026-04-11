@@ -7,50 +7,47 @@ description: >
 
 # Implement Plan
 
-You are tasked with implementing an approved technical plan from `plans/`. These plans contain phases with specific changes and success criteria.
+Implement an approved technical plan from `plans/`. Plans define phases, changes, and success criteria.
 
-## Getting Started
+## Start
 
-When given a plan path:
-- Read the plan completely and check for any existing checkmarks (- [x])
-- Read the original ticket and all files mentioned in the plan
-- **Read files fully** - never use limit/offset parameters, you need complete context
-- Think deeply about how the pieces fit together
-- Create a todo list to track your progress
-- Start implementing if you understand what needs to be done
+- Read the full plan. Note existing `- [x]`.
+- Read the ticket and every file named in the plan.
+- **Read files fully.** No limit/offset reads.
+- Understand how the pieces fit.
+- Create a todo list.
+- Start once the path and scope are clear.
 
-If no plan path is provided, ask for one.
+If no plan path is given, ask for one.
 
-## Implementation Philosophy
+## Execute
 
-Plans are carefully designed, but reality can be messy. Your job is to:
-- Follow the plan's intent while adapting to what you find
-- Implement each phase fully before moving to the next
-- Verify your work makes sense in the broader codebase context
-- Update checkboxes in the plan as you complete sections
+- Follow the plan's intent.
+- Finish one phase before the next.
+- Check changes against the broader codebase.
+- Update plan checkboxes as you go.
 
-When things don't match the plan exactly, think about why and communicate clearly. The plan is your guide, but your judgment matters too.
+If the plan and code diverge, stop, reason about it, and say so clearly. The plan guides you; judgment still matters.
 
-## Keeping the Plan Updated
+## Keep Current
 
-The plan is a living document that becomes the record of what was actually done. **The plan will be used as context for creating the pull request**, so keeping it accurate and up-to-date directly impacts the quality of the PR description.
+The plan is the record of what happened. **It will feed the PR description.** Keep it accurate.
 
-As you implement, keep the **entire plan** current - not just checkboxes:
+- Keep the **entire plan** current, not just checkboxes:
+  1. Check off tests as they pass.
+  2. Fill in Test Results with real commands and status.
+  3. Update Implementation Approach when you adapt.
+  4. Revise Alternatives Considered when you evaluate new options.
+  5. Add discovered issues or complications.
+  6. Update Motivation or Context when the why changes.
+  7. Adjust Non-Code Tasks as you discover or complete them.
+  8. Refine Guidance for Reviewers when needed.
 
-1. **Check off testing checkboxes** as tests pass
-2. **Fill in Test Results tables** with actual command output and status
-3. **Update the Implementation Approach** if you had to adapt or chose a different path
-4. **Revise Alternatives Considered** if you evaluated new options during implementation
-5. **Add discovered issues** or complications not anticipated in the plan
-6. **Update Motivation or Context** if you learned something that changes the "why"
-7. **Adjust Non-Code Tasks** as you discover new ones or complete existing ones
-8. **Refine Guidance for Reviewers** based on what you learned needs careful review
-
-The goal: someone reading the plan after implementation should understand exactly what was done and why, not just what was originally planned.
+Goal: a reader should understand what changed and why, not just what was planned.
 
 If you encounter a mismatch:
-- STOP and think deeply about why the plan can't be followed
-- Present the issue clearly:
+- STOP and think about why the plan cannot be followed.
+- State the issue clearly:
   ```
   Issue in Phase [N]:
   Expected: [what the plan says]
@@ -60,11 +57,11 @@ If you encounter a mismatch:
   How should I proceed?
   ```
 
-## Tracking Follow-ups
+## Follow-ups
 
-As you implement, you'll notice things that aren't part of the current plan but deserve attention: potential improvements, tech debt, edge cases worth handling, related bugs, etc. Don't let these derail your current work, but don't lose them either.
+Log follow-ups, but do not let them derail the current phase.
 
-**During implementation**, add a `## Follow-ups` section at the end of the plan file and record issues there as you encounter them:
+**During implementation**, add `## Follow-ups` to the end of the plan and record items there:
 
 ```markdown
 ## Follow-ups
@@ -73,7 +70,7 @@ As you implement, you'll notice things that aren't part of the current plan but 
 - [ ] [Another follow-up item]
 ```
 
-**After completing each phase**, review any open follow-ups with the user before moving on. For each follow-up, ask:
+**After each phase**, review open follow-ups with the user before moving on. Ask:
 
 ```
 Follow-ups from Phase [N]:
@@ -87,31 +84,32 @@ How would you like to handle each?
 - Discard (not worth pursuing)
 ```
 
-Follow-ups that get added to the current plan should be incorporated into the appropriate phase. Follow-ups deferred to separate plans should be left checked off in the Follow-ups section with a note like `(deferred to separate plan)`. Discarded items should be checked off with `(discarded)`.
+If added to the current plan, fold them into the right phase. If deferred, leave them checked off with `(deferred to separate plan)`. If discarded, mark `(discarded)`.
 
-## Red/Green TDD Per Phase
+## Red/Green TDD
 
-Every phase uses red/green TDD. Even if the repo has no test suite, create tests — throwaway scripts are fine. Try to run as many tests yourself as possible; only ask the user to run tests you cannot (permissions, visual checks, physical devices).
+Every phase uses red/green TDD. Create tests even if they are throwaway scripts. Run as many as you can yourself; only ask the user for tests you cannot do.
 
-### Before implementing a phase (Red):
+### Before the phase
+Red:
 
-1. **Write or identify the tests** listed in the phase's Tests section
-2. **Run them and verify they fail in the expected way**:
-   - The failure should be because the feature isn't implemented yet, NOT because the test itself is broken
-   - If a test fails for the wrong reason, fix the test first
-3. **Check off the "Red (pre-implementation)" checkbox** in the plan once confirmed
+1. Write or identify the tests in the phase's Tests section.
+2. Run them. Confirm the failure is for the missing feature, not a broken test.
+3. Fix the test first if the failure is wrong.
+4. Check off `Red (pre-implementation)` once confirmed.
 
-### After implementing a phase (Green → Self-Review → Human Review loop):
+### After the phase
+Green → Self-Review → Human Review:
 
-1. **Run the phase's tests**
-2. **If tests fail**: fix the implementation and re-run — do NOT proceed
-3. **Self-review your changes**:
-   - Review all code written in this phase for quality, correctness, and consistency with codebase patterns
-   - Check for edge cases, error handling, and any issues
-   - If self-review reveals problems, fix them and go back to step 1 (re-run tests)
-4. **Testing and self-review must both pass consecutively** — always re-run tests after fixing any self-review issue
-5. **Once both pass consecutively**, check off the "Green" and "Self-Review" checkboxes
-6. **Present a phase summary to the user for human review**:
+1. Run the phase tests.
+2. If tests fail, fix the implementation and re-run. Do not proceed.
+3. Self-review the phase:
+   - Check quality, correctness, and pattern fit.
+   - Check edge cases and error handling.
+   - Fix any issue found, then re-run tests.
+4. Tests and self-review must pass back-to-back. Re-run tests after any self-review fix.
+5. Check off `Green` and `Self-Review` only after both pass consecutively.
+6. Present a phase summary for human review:
    ```
    Phase [N]: [Name] — Ready for Review
 
@@ -128,23 +126,21 @@ Every phase uses red/green TDD. Even if the repo has no test suite, create tests
 
    Ready to proceed to Phase [N+1]?
    ```
-7. **Wait for human approval** before moving to the next phase
-8. **Check off the "Human Review" checkbox** once approved
+7. Wait for human approval before the next phase.
+8. Check off `Human Review` once approved.
 
-## If You Get Stuck
+## If Stuck
 
-When something isn't working as expected:
-- First, make sure you've read and understood all the relevant code
-- Consider if the codebase has evolved since the plan was written
-- Present the mismatch clearly and ask for guidance
+- Read the relevant code first.
+- Consider whether the codebase changed since the plan was written.
+- State the mismatch clearly and ask for guidance.
 
-Use sub-tasks sparingly - mainly for targeted debugging or exploring unfamiliar territory.
+Use sub-tasks sparingly, mainly for targeted debugging or unfamiliar territory.
 
-## Resuming Work
+## Resume
 
-If the plan has existing checkmarks:
-- Trust that completed work is done
-- Pick up from the first unchecked item
-- Verify previous work only if something seems off
+- Trust existing checkmarks.
+- Start at the first unchecked item.
+- Re-verify previous work only if something seems off.
 
-Remember: You're implementing a solution, not just checking boxes. Keep the end goal in mind and maintain forward momentum.
+Implement the solution, not just the checklist. Keep the end goal in view and keep moving.
