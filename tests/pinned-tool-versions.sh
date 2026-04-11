@@ -79,7 +79,9 @@ run_install_checks() {
   assert_contains "$LINUX_INSTALLS" "tool_versions.compatibility.neovim_glibc_legacy" "linux neovim legacy override uses catalog pin"
   assert_contains "$LINUX_INSTALLS" "pinned_release_tag: \"{{ tool_versions.github_releases.yq }}\"" "linux yq install uses catalog pin"
   assert_contains "$LINUX_INSTALLS" "pinned_release_tag: \"{{ tool_versions.github_releases.zoxide }}\"" "linux zoxide install uses catalog pin"
-  assert_contains "$LINUX_INSTALLS" "MISE_VERSION={{ tool_versions.runtimes.mise }}" "linux mise install exports pinned MISE_VERSION"
+  assert_contains "$LINUX_INSTALLS" "shell: curl -fsSL https://mise.run | sh" "linux mise install keeps the upstream shell installer"
+  assert_contains "$LINUX_INSTALLS" "environment:" "linux mise install defines an environment block"
+  assert_contains "$LINUX_INSTALLS" "MISE_VERSION: \"{{ tool_versions.runtimes.mise }}\"" "linux mise install exports pinned MISE_VERSION"
   assert_contains "$LINUX_MAIN" "version: \"{{ tool_versions.git_tags.tpm }}\"" "linux tpm clone uses catalog tag"
   assert_contains "$COMMON_MAIN" "version: \"{{ tool_versions.git_tags.superpowers }}\"" "common superpowers clone uses catalog tag"
   assert_contains "$COMMON_MAIN" "install node@{{ tool_versions.runtimes.node }}" "common Linux Node install uses pinned version"
@@ -92,7 +94,7 @@ run_install_checks() {
   assert_not_contains "$COMMON_MAIN" "version: main" "common tasks no longer use main for superpowers"
   assert_not_contains "$COMMON_MAIN" "latest node@lts" "common tasks no longer resolve latest Linux Node LTS"
   assert_not_contains "$MACOS_MAIN" "latest node@lts" "macOS tasks no longer resolve latest Node LTS"
-  assert_not_contains "$LINUX_INSTALLS" "shell: curl -fsSL https://mise.run | sh" "linux mise install is no longer unversioned"
+  assert_not_contains "$LINUX_INSTALLS" "shell: MISE_VERSION={{ tool_versions.runtimes.mise }} curl -fsSL https://mise.run | sh" "linux mise install no longer uses the inline MISE_VERSION shell form"
 }
 
 run_renovate_checks() {
