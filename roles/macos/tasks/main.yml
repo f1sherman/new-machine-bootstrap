@@ -69,23 +69,14 @@
     brew_output is failed and
     (brew_output.msg is not search("It seems there is already an App at"))
 
-- name: Get latest LTS Node.js version
-  command: "{{ mise_bin }} latest node@lts"
-  register: mise_latest_lts
-  changed_when: false
-
-- name: Set latest LTS version
-  set_fact:
-    latest_lts: "{{ mise_latest_lts.stdout | trim }}"
-
 - name: Get currently installed Node.js versions via mise
   command: "{{ mise_bin }} ls node"
   register: installed_node_versions
   changed_when: false
 
-- name: Check if latest LTS is installed
+- name: Check if pinned Node.js version is installed
   set_fact:
-    lts_installed: "{{ ('node  ' ~ latest_lts) in installed_node_versions.stdout }}"
+    lts_installed: "{{ ('node  ' ~ tool_versions.runtimes.node) in installed_node_versions.stdout }}"
 
 - name: Import Node.js release signing keys for GPG verification
   shell: |
@@ -106,8 +97,8 @@
   changed_when: "'imported' in gpg_import.stderr"
   failed_when: false
 
-- name: Install latest LTS node version if not installed
-  command: "{{ mise_bin }} install node@{{ latest_lts }}"
+- name: Install pinned Node.js version if not installed
+  command: "{{ mise_bin }} install node@{{ tool_versions.runtimes.node }}"
   when: not lts_installed
 
 - name: Get current global Node.js version from mise config
@@ -116,8 +107,8 @@
   changed_when: false
 
 - name: Set global Node.js version via mise if not set or outdated
-  command: "{{ mise_bin }} use --global node@{{ latest_lts }}"
-  when: current_global_node.stdout != latest_lts
+  command: "{{ mise_bin }} use --global node@{{ tool_versions.runtimes.node }}"
+  when: current_global_node.stdout != tool_versions.runtimes.node
 
 - name: Create ghostty config directory
   file:
@@ -185,7 +176,7 @@
     repo: 'https://github.com/tmux-plugins/tpm'
     dest: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tpm'
     depth: 1
-    version: master
+    version: "{{ tool_versions.git_tags.tpm }}"
     update: yes
 - name: Install tmux plugins via tpm
   shell: |
