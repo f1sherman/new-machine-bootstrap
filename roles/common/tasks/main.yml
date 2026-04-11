@@ -627,6 +627,8 @@
 # and isn't in the inherited PATH yet.
 - name: Install or update Codex CLI via npm (Linux)
   shell: "{{ mise_bin }} exec node@lts -- npm install -g @openai/codex@latest"
+  environment:
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   when: ansible_facts["os_family"] == "Debian"
   changed_when: false
 
@@ -639,6 +641,8 @@
 
 - name: Install or update pi-coding-agent via npm (Linux)
   shell: "{{ mise_bin }} exec node@lts -- npm install -g @mariozechner/pi-coding-agent@latest"
+  environment:
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   when: ansible_facts["os_family"] == "Debian"
   changed_when: false
 
@@ -652,6 +656,8 @@
 - name: Install pi-subdir-context plugin for pi-coding-agent (Linux)
   shell: "{{ mise_bin }} exec node@lts -- pi install npm:pi-subdir-context"
   register: pi_plugin_linux
+  environment:
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   changed_when: "'already installed' not in pi_plugin_linux.stdout"
   failed_when: pi_plugin_linux.rc != 0
   when: ansible_facts["os_family"] == "Debian"
