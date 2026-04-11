@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# Test harness for git-delete-branch. Creates isolated repos/worktrees,
+# stubs fzf, and asserts the helper's picker and deletion behavior.
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/git-delete-branch"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+GIT_AUTHOR_NAME=test
+GIT_AUTHOR_EMAIL=test@example.com
+GIT_COMMITTER_NAME=test
+GIT_COMMITTER_EMAIL=test@example.com
+export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+
+pass=0
+fail=0
+
+make_repo() {
+  local dir="$1"
+  git -c init.templateDir= init -qb main "$dir"
+  git -C "$dir" commit -q --allow-empty -m init
+}
+
+make_linked_worktree() {
+  local repo="$1" branch="$2" path="$3"
+  git -C "$repo" worktree add -q -b "$branch" "$path"
+}
+
+make_fzf_stub() {
+  local bin_dir="$1"
+  cat >"$bin_dir/fzf" <<'EOF'
+#!/usr/bin/env bash
+set -u
+
+: "${FAKE_FZF_INPUT:?}"
+cat >"$FAKE_FZF_INPUT"
+
+if [ -z "${FAKE_FZF_SELECT:-}" ]; then
+  exit 130
+fi
+
+printf '%s\n' "$FAKE_FZF_SELECT"
+EOF
+  chmod +x "$bin_dir/fzf"
+}
+
+run_helper() {
+  local repo="$1" select="$2" input_file="$3" stdout_file="$4" stderr_file="$5"
+  shift 5
+  local rc
+
+  if (
+    cd "$repo" &&
+    PATH="$TMPROOT/bin:$PATH" \
+    FAKE_FZF_INPUT="$input_file" \
+    FAKE_FZF_SELECT="$select" \
+    "$SCRIPT" "$@"
+  ) >"$stdout_file" 2>"$stderr_file"; then
+    rc=0
+  else
+    rc=$?
+  fi
+
+  printf '%s' "$rc"
+}
+
+assert_eq() {
+  local name="$1" expected="$2" actual="$3"
+  if [ "$actual" = "$expected" ]; then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      expected: %q\n' "$expected"
+    printf '      actual  : %q\n' "$actual"
+  fi
+}
+
+assert_contains() {
+  local name="$1" needle="$2" haystack_file="$3"
+  if grep -Fq "$needle" "$haystack_file"; then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      missing: %q\n' "$needle"
+    printf '      file   : %s\n' "$haystack_file"
+  fi
+}
+
+assert_not_contains() {
+  local name="$1" needle="$2" haystack_file="$3"
+  if grep -Fq "$needle" "$haystack_file"; then
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      unexpected: %q\n' "$needle"
+    printf '      file      : %s\n' "$haystack_file"
+  else
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  fi
+}
+
+bin_dir="$TMPROOT/bin"
+mkdir -p "$bin_dir"
+make_fzf_stub "$bin_dir"
+
+repo="$TMPROOT/repo"
+make_repo "$repo"
+
+plain_branch="feature/plain"
+clean_branch="feature/clean"
+dirty_branch="feature/dirty"
+
+git -C "$repo" branch "$plain_branch"
+
+clean_wt="$TMPROOT/clean-wt"
+make_linked_worktree "$repo" "$clean_branch" "$clean_wt"
+clean_wt_real="$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$clean_wt")"
+
+dirty_wt="$TMPROOT/dirty-wt"
+make_linked_worktree "$repo" "$dirty_branch" "$dirty_wt"
+dirty_wt_real="$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$dirty_wt")"
+printf 'dirty\n' >"$dirty_wt/dirty.txt"
+git -C "$dirty_wt" add dirty.txt
+git -C "$dirty_wt" commit -q -m dirty
+printf 'modification\n' >>"$dirty_wt/dirty.txt"
+
+# --- Case 1: delete an ordinary branch ---
+stdout="$TMPROOT/stdout.1"
+stderr="$TMPROOT/stderr.1"
+input="$TMPROOT/picker.1"
+rc="$(run_helper "$repo" "  $plain_branch" "$input" "$stdout" "$stderr")"
+assert_eq "ordinary branch returns success" "0" "$rc"
+assert_eq "ordinary branch deletes branch" "" "$(git -C "$repo" branch --list "$plain_branch")"
+assert_contains "ordinary branch picker includes plain branch" "  $plain_branch" "$input"
+assert_contains "ordinary branch picker marks clean linked branch" "+ $clean_branch" "$input"
+assert_contains "ordinary branch picker marks dirty linked branch" "+ $dirty_branch" "$input"
+assert_not_contains "ordinary branch picker excludes current branch" " main" "$input"
+
+# --- Case 2: delete a clean linked-worktree branch ---
+stdout="$TMPROOT/stdout.2"
+stderr="$TMPROOT/stderr.2"
+input="$TMPROOT/picker.2"
+rc="$(run_helper "$repo" "+ $clean_branch" "$input" "$stdout" "$stderr")"
+assert_eq "clean linked worktree returns success" "0" "$rc"
+assert_eq "clean linked worktree deletes branch" "" "$(git -C "$repo" branch --list "$clean_branch")"
+assert_eq "clean linked worktree removes worktree" "" "$(git -C "$repo" worktree list --porcelain | grep -F "worktree $clean_wt_real" >/dev/null && printf present || true)"
+
+# --- Case 3: refuse to delete a dirty linked-worktree branch ---
+stdout="$TMPROOT/stdout.3"
+stderr="$TMPROOT/stderr.3"
+input="$TMPROOT/picker.3"
+rc="$(run_helper "$repo" "+ $dirty_branch" "$input" "$stdout" "$stderr")"
+assert_eq "dirty linked worktree returns failure" "1" "$rc"
+assert_eq "dirty linked worktree leaves branch" "+ $dirty_branch" "$(git -C "$repo" branch --list "$dirty_branch" | sed 's/^[*+ ] *//; s/^/+ /')"
+assert_eq "dirty linked worktree leaves worktree" "present" "$(git -C "$repo" worktree list --porcelain | grep -F "worktree $dirty_wt_real" >/dev/null && printf present || true)"
+assert_contains "dirty refusal mentions path" "$dirty_wt" "$stderr"
+
+# --- Case 4: picker excludes current branch and marks linked branches ---
+stdout="$TMPROOT/stdout.4"
+stderr="$TMPROOT/stderr.4"
+input="$TMPROOT/picker.4"
+rc="$(run_helper "$repo" "" "$input" "$stdout" "$stderr")"
+assert_eq "cancel returns success" "0" "$rc"
+assert_eq "cancel prints nothing" "" "$(cat "$stdout")$(cat "$stderr")"
+assert_not_contains "picker excludes current branch" " main" "$input"
+assert_contains "picker marks linked branch with plus" "+ feature/dirty" "$input"
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

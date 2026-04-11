@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+  echo "Error: not inside a git repository" >&2
+  exit 1
+}
+
+current_branch="$(git -C "$repo_root" branch --show-current)"
+if [ -z "$current_branch" ]; then
+  echo "Error: detached HEAD; checkout a branch first" >&2
+  exit 1
+fi
+
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+
+metadata_file="$tmpdir/worktree-metadata"
+picker_file="$tmpdir/picker"
+
+git -C "$repo_root" worktree list --porcelain |
+awk '
+  $1 == "worktree" { path = $2 }
+  $1 == "branch" && $2 ~ /^refs\/heads\// { print substr($2, 12) "\t" path }
+' > "$metadata_file"
+
+while IFS= read -r branch; do
+  [ "$branch" = "$current_branch" ] && continue
+  path="$(awk -F '\t' -v branch="$branch" '$1 == branch { print $2; exit }' "$metadata_file")"
+  if [ -n "$path" ]; then
+    marker='+'
+  else
+    marker=' '
+  fi
+  printf '%s %s\n' "$marker" "$branch"
+done < <(git -C "$repo_root" for-each-ref --format='%(refname:short)' refs/heads) > "$picker_file"
+
+if ! selected="$(fzf +m < "$picker_file")"; then
+  exit 0
+fi
+
+if [ -z "$selected" ]; then
+  exit 0
+fi
+
+branch="${selected:2}"
+path="$(awk -F '\t' -v branch="$branch" '$1 == branch { print $2; exit }' "$metadata_file")"
+
+if [ -z "$path" ]; then
+  git -C "$repo_root" branch -D "$branch"
+  exit 0
+fi
+
+if [ -n "$(git -C "$path" status --porcelain)" ]; then
+  echo "Refusing to delete branch $branch because worktree at $path has uncommitted changes" >&2
+  exit 1
+fi
+
+git -C "$repo_root" worktree remove "$path"
+git -C "$repo_root" branch -D "$branch"

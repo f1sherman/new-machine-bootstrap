@@ -148,6 +148,20 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/git-diff-untracked'
     mode: 0755
 
+- name: Install git-switch-branch script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/git-switch-branch'
+    src: '{{ playbook_dir }}/roles/common/files/bin/git-switch-branch'
+    mode: 0755
+
+- name: Install git-delete-branch script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/git-delete-branch'
+    src: '{{ playbook_dir }}/roles/common/files/bin/git-delete-branch'
+    mode: 0755
+
 - name: Install spec-metadata script
   copy:
     backup: yes
