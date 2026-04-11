@@ -4,10 +4,14 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   review:
     runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.user.login, 'renovate')
+    if: github.event.pull_request.user.login == 'renovate[bot]' || github.event.pull_request.user.login == 'renovate-bot'
 
     steps:
       - uses: actions/checkout@v4
