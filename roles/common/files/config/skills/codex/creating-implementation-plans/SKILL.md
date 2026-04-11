@@ -7,147 +7,114 @@ description: >
 
 # Implementation Plan
 
-You are tasked with creating detailed implementation plans through an interactive, iterative process. You should be skeptical, thorough, and work collaboratively with the user to produce high-quality technical specifications.
+Create detailed implementation plans through an interactive, iterative loop. Be skeptical, precise, and grounded in codebase evidence.
 
-## Initial Response
+## Start
 
 If the user has not provided a ticket, file path, or detailed request yet, respond with:
 ```
-I'll help you create a detailed implementation plan. Let me start by understanding what we're building.
+I'll help you create a detailed implementation plan. Send:
 
-Please provide:
-1. The task/ticket description (or reference to a ticket file)
-2. Any relevant context, constraints, or specific requirements
-3. Links to related research or previous implementations
+1. The task/ticket description, or a ticket file
+2. Relevant context, constraints, and requirements
+3. Links to related research or prior work
 
-I'll analyze this information and work with you to create a comprehensive plan.
+I'll use that to build a concrete plan.
 ```
 
-Then wait for the user's input.
+Stop. Wait for input.
 
-## Process Steps
+## Step 1: Read First
 
-### Step 1: Context Gathering & Initial Analysis
+Read every mentioned file immediately and fully:
+- Ticket files
+- Research docs
+- Related plans
+- JSON or data files
+- Use the Read tool without limits or offsets.
+- Read mentioned files before searching the wider codebase.
+- Never read a mentioned file partially.
 
-1. **Read all mentioned files immediately and FULLY**:
-   - Ticket files (e.g., `path/to/ticket.md`)
-   - Research documents
-   - Related implementation plans
-   - Any JSON/data files mentioned
-   - **IMPORTANT**: Use the Read tool WITHOUT limit/offset parameters to read entire files
-   - **CRITICAL**: Read mentioned files before searching the wider codebase
-   - **NEVER** read files partially - if a file is mentioned, read it completely
+### Discovery
 
-2. **Do initial codebase discovery**:
-   - Identify relevant source files, configs, and tests using focused searches (`rg`, `rg --files`)
-   - Trace data flow and key functions
-   - Read ALL relevant files fully
-   - This ensures you have complete understanding before proceeding
+1. Use focused searches (`rg`, `rg --files`) and directory listings to build a candidate file list.
+2. Read all relevant files fully.
+3. Cross-check the ticket against code.
+4. Note mismatches, assumptions, and edge cases.
+5. Present this when ready:
 
-3. **Analyze and verify understanding**:
-   - Cross-reference the ticket requirements with actual code
-   - Identify any discrepancies or misunderstandings
-   - Note assumptions that need verification
-   - Determine true scope based on codebase reality
+```text
+Based on the ticket and my research of the codebase, I understand we need to [accurate summary].
 
-4. **Present informed understanding and focused questions**:
-   ```
-   Based on the ticket and my research of the codebase, I understand we need to [accurate summary].
+I've found that:
+- [Current implementation detail with file:line reference]
+- [Relevant pattern or constraint discovered]
+- [Potential complexity or edge case identified]
 
-   I've found that:
-   - [Current implementation detail with file:line reference]
-   - [Relevant pattern or constraint discovered]
-   - [Potential complexity or edge case identified]
+Questions my research could not answer:
+- [Specific technical question that requires human judgment]
+- [Business logic clarification]
+- [Design preference that affects implementation]
+```
 
-   Questions that my research couldn't answer:
-   - [Specific technical question that requires human judgment]
-   - [Business logic clarification]
-   - [Design preference that affects implementation]
-   ```
+Only ask questions you genuinely cannot answer through code investigation.
 
-   Only ask questions that you genuinely cannot answer through code investigation.
+## Step 2: Research & Discovery
 
-### Step 2: Research & Discovery
+After clarifications:
 
-After getting initial clarifications:
+1. If the user corrects you, verify the correction in code before accepting it.
+2. Build a research todo list with TodoWrite.
+3. Research in passes:
+   - Pass 1: discovery with `rg`, `rg --files`, and directory listings
+   - Pass 2: deep reads of the best candidates
+   - Pass 3: patterns, tests, and examples
+4. Keep short notes with file:line references.
+5. Fill gaps with focused follow-up searches.
+6. Find conventions, integration points, dependencies, and tests.
+7. Present findings and design options:
 
-1. **If the user corrects any misunderstanding**:
-   - DO NOT just accept the correction
-   - Verify the correction by reading the specific files/directories they mention
-   - Only proceed once you've verified the facts
+```text
+Based on my research, here is what I found:
 
-2. **Create a research todo list** using TodoWrite to track exploration tasks
+Current state:
+- [Key discovery about existing code]
+- [Pattern or convention to follow]
 
-3. **Research loop**:
-   - Pass 1 (Discovery): use `rg` and directory listings to build a candidate file list
-   - Pass 2 (Deep reads): read the most relevant files fully
-   - Pass 3 (Patterns/tests): locate patterns to follow and relevant tests
-   - Capture a short notes section with file:line references as you go
+Design options:
+1. [Option A] - [pros/cons]
+2. [Option B] - [pros/cons]
 
-4. **Focused follow-up**:
-   - Fill gaps from the research loop
-   - Identify conventions and patterns to follow
-   - Look for integration points and dependencies
-   - Capture specific file:line references
-   - Locate tests and examples
+Open questions:
+- [Technical uncertainty]
+- [Design decision needed]
 
-5. **Present findings and design options**:
-   ```
-   Based on my research, here's what I found:
+Which approach aligns best with your vision?
+```
 
-   **Current State:**
-   - [Key discovery about existing code]
-   - [Pattern or convention to follow]
+## Step 3: Plan Structure Development
 
-   **Design Options:**
-   1. [Option A] - [pros/cons]
-   2. [Option B] - [pros/cons]
+Once aligned:
 
-   **Open Questions:**
-   - [Technical uncertainty]
-   - [Design decision needed]
+1. Draft a terse outline.
+2. Include:
+   - Overview
+   - Implementation phases
+3. Ask whether the order or granularity should change.
 
-   Which approach aligns best with your vision?
-   ```
-
-### Step 3: Plan Structure Development
-
-Once aligned on approach:
-
-1. **Create initial plan outline**:
-   ```
-   Here's my proposed plan structure:
-
-   ## Overview
-   [1-2 sentence summary]
-
-   ## Implementation Phases:
-   1. [Phase name] - [what it accomplishes]
-   2. [Phase name] - [what it accomplishes]
-   3. [Phase name] - [what it accomplishes]
-
-   Does this phasing make sense? Should I adjust the order or granularity?
-   ```
-
-2. **Get feedback on structure** before writing details
-
-### Step 4: Detailed Plan Writing
+## Step 4: Detailed Plan Writing
 
 After structure approval:
 
-1. **Gather plan metadata**:
-   - Run the `~/.local/bin/spec-metadata` script to capture date, branch, and commit
-
-2. **Write the plan** to `.coding-agent/plans/YYYY-MM-DD-ENG-XXXX-description.md`
-   - Format: `YYYY-MM-DD-ENG-XXXX-description.md` where:
-     - YYYY-MM-DD is today's date
-     - ENG-XXXX is the ticket number (omit if no ticket)
-     - description is a brief kebab-case description
+1. Gather plan metadata with `~/.local/bin/spec-metadata`.
+2. Write the plan to `.coding-agent/plans/YYYY-MM-DD-ENG-XXXX-description.md`.
+   - `YYYY-MM-DD` = today
+   - `ENG-XXXX` = ticket number, omit if none
+   - `description` = brief kebab-case summary
    - Examples:
-     - With ticket: `2025-01-08-ENG-1478-parent-child-tracking.md`
-     - Without ticket: `2025-01-08-improve-error-handling.md`
-
-3. **Use this template structure**:
+     - `2025-01-08-ENG-1478-parent-child-tracking.md`
+     - `2025-01-08-improve-error-handling.md`
+3. Use this template:
 
 ````markdown
 # [Feature/Task Name] Implementation Plan
@@ -238,12 +205,23 @@ After structure approval:
 - [Question that needs clarification]
 ````
 
-### Step 5: Review and Iterate
+## Step 5: Resolve Open Questions
 
-1. **Present the full plan** to the user
-2. **Ask for explicit approval** before implementation
-3. **Revise** based on feedback until approved
+1. Walk through each open question one at a time.
+2. Present the first question from the plan's "Open Questions" section.
+3. Wait for the user's answer before moving to the next question.
+4. After each answer, update the plan:
+   - Remove the resolved question from "Open Questions"
+   - Fold the answer into the right section
+5. If the answer requires more research, verify it before continuing.
+6. Continue until every open question is resolved.
+
+## Step 6: Review and Iterate
+
+1. Present the full plan to the user.
+2. Ask for explicit approval before implementation.
+3. Revise based on feedback until approved.
 
 ## Quality Bar
 
-Your output should feel like a design doc that could be handed to a team for implementation. Be precise, thorough, and grounded in the actual codebase.
+Output should feel like a team-ready design doc. Be precise, thorough, and grounded in the actual codebase.
