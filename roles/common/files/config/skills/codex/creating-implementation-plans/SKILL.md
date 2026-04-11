@@ -33,6 +33,7 @@ Read every mentioned file immediately and fully:
 - JSON or data files
 - Use the Read tool without limits or offsets.
 - Read mentioned files before searching the wider codebase.
+- Do not spawn sub-tasks before you have read the mentioned files yourself.
 - Never read a mentioned file partially.
 
 ### Discovery

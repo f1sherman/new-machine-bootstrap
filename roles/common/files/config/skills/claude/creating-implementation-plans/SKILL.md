@@ -204,6 +204,23 @@ After structure approval:
 - Self-review: review for quality, correctness, and consistency. Fix issues, rerun tests, and repeat until both pass consecutively.
 - Human review: summarize changes and wait for approval.
 
+## Testing Strategy
+
+### Automated Verification
+- [ ] `command to run`
+- [ ] `another command`
+
+### Manual Verification
+- [ ] Step 1
+- [ ] Step 2
+
+## Test Results
+
+| Test | Status | Output |
+| --- | --- | --- |
+| `command to run` | ⏳ Pending | |
+| `another command` | ⏳ Pending | |
+
 ## Rollout Plan
 
 [If applicable, how will this be deployed? Are there feature flags?]
