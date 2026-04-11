@@ -51,6 +51,7 @@ Wait for the user's input.
    - Use the Read tool WITHOUT limit/offset parameters
    - Extract:
      - Task(s) and status
+     - Critical References
      - Recent changes
      - Learnings
      - Artifacts
@@ -58,13 +59,14 @@ Wait for the user's input.
      - Other notes
 
 2. **Run verification passes in parallel**:
-   - Pass 1, recent changes: verify referenced files and diffs with `rg` and full reads.
+   - Pass 1, recent changes: verify referenced files and described deltas with `git diff`, `git log --stat`, `rg`, and full reads.
    - Pass 2, learnings: validate patterns and implementations with file:line references.
    - Pass 3, artifacts: read all listed plans, research, and feature docs.
    - Pass 4, new context: scan for related changes since the handoff.
    - Capture file:line references for every verified finding.
 
 3. **Read critical files identified**:
+   - Read files from "Critical References" fully before other supporting material.
    - Read files from "Learnings" fully.
    - Read files from "Recent changes" to understand the modifications.
    - Read any new related files discovered during verification.
