@@ -118,7 +118,11 @@ run_integration_checks() {
 }
 
 run_review_workflow_checks() {
-  assert_contains "$REVIEW_WORKFLOW" "contains(github.event.pull_request.user.login, 'renovate')" "review workflow only runs for Renovate PRs"
+  assert_contains "$REVIEW_WORKFLOW" "permissions:" "review workflow declares explicit permissions"
+  assert_contains "$REVIEW_WORKFLOW" "pull-requests: write" "review workflow can post PR comments"
+  assert_not_contains "$REVIEW_WORKFLOW" "contains(github.event.pull_request.user.login, 'renovate')" "review workflow no longer uses broad Renovate substring gating"
+  assert_contains "$REVIEW_WORKFLOW" "github.event.pull_request.user.login == 'renovate[bot]'" "review workflow allows renovate[bot]"
+  assert_contains "$REVIEW_WORKFLOW" "github.event.pull_request.user.login == 'renovate-bot'" "review workflow allows renovate-bot"
   assert_contains "$REVIEW_WORKFLOW" "actions/checkout@v4" "review workflow uses GitHub Actions checkout"
 }
 
