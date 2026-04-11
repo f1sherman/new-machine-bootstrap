@@ -43,6 +43,10 @@ set -u
 : "${FAKE_FZF_INPUT:?}"
 cat >"$FAKE_FZF_INPUT"
 
+if [ -n "${FAKE_FZF_EXIT:-}" ]; then
+  exit "$FAKE_FZF_EXIT"
+fi
+
 if [ -z "${FAKE_FZF_SELECT:-}" ]; then
   exit 130
 fi
@@ -62,6 +66,7 @@ run_helper() {
     PATH="$TMPROOT/bin:$PATH" \
     FAKE_FZF_INPUT="$input_file" \
     FAKE_FZF_SELECT="$select" \
+    FAKE_FZF_EXIT="${FAKE_FZF_EXIT:-}" \
     "$SCRIPT" "$@"
   ) >"$stdout_file" 2>"$stderr_file"; then
     rc=0
@@ -109,6 +114,25 @@ assert_not_contains() {
     pass=$((pass + 1))
     printf 'PASS  %s\n' "$name"
   fi
+}
+
+run_helper_with_exit() {
+  local repo="$1" fzf_exit="$2" input_file="$3" stdout_file="$4" stderr_file="$5"
+  local rc
+
+  if (
+    cd "$repo" &&
+    PATH="$TMPROOT/bin:$PATH" \
+    FAKE_FZF_INPUT="$input_file" \
+    FAKE_FZF_EXIT="$fzf_exit" \
+    "$SCRIPT"
+  ) >"$stdout_file" 2>"$stderr_file"; then
+    rc=0
+  else
+    rc=$?
+  fi
+
+  printf '%s' "$rc"
 }
 
 bin_dir="$TMPROOT/bin"
@@ -177,9 +201,17 @@ stderr="$TMPROOT/stderr.3"
 input="$TMPROOT/picker.3"
 rc="$(run_helper "$repo" "+ $dirty_branch" "$input" "$stdout" "$stderr")"
 assert_eq "dirty linked worktree returns failure" "1" "$rc"
-assert_eq "dirty linked worktree leaves branch" "+ $dirty_branch" "$(git -C "$repo" branch --list "$dirty_branch" | sed 's/^[*+ ] *//; s/^/+ /')"
+assert_eq "dirty linked worktree leaves branch" "present" "$(git -C "$repo" show-ref --verify --quiet "refs/heads/$dirty_branch" && printf present || true)"
 assert_eq "dirty linked worktree leaves worktree" "present" "$(git -C "$repo" worktree list --porcelain | grep -F "worktree $dirty_wt_real" >/dev/null && printf present || true)"
 assert_contains "dirty refusal mentions path" "$dirty_wt" "$stderr"
+
+# --- Case 3b: non-cancel fzf failure propagates ---
+stdout="$TMPROOT/stdout.3b"
+stderr="$TMPROOT/stderr.3b"
+input="$TMPROOT/picker.3b"
+rc="$(run_helper_with_exit "$repo" 42 "$input" "$stdout" "$stderr")"
+assert_eq "fzf failure propagates non-cancel rc" "42" "$rc"
+assert_not_contains "fzf failure prints no success output" "Refusing to delete" "$stderr"
 
 # --- Case 4: picker excludes current branch and marks linked branches ---
 stdout="$TMPROOT/stdout.4"
