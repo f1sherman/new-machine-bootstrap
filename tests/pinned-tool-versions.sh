@@ -10,6 +10,8 @@ LINUX_MAIN="$REPO_ROOT/roles/linux/tasks/main.yml"
 COMMON_MAIN="$REPO_ROOT/roles/common/tasks/main.yml"
 MACOS_MAIN="$REPO_ROOT/roles/macos/tasks/main.yml"
 RENOVATE_CONFIG="$REPO_ROOT/renovate.json"
+RENOVATE_RUN_WORKFLOW="$REPO_ROOT/.github/workflows/renovate.yml"
+RENOVATE_SETUP_DOC="$REPO_ROOT/docs/renovate-github-app.md"
 INTEGRATION_WORKFLOW="$REPO_ROOT/.github/workflows/integration-test.yml"
 REVIEW_WORKFLOW="$REPO_ROOT/.github/workflows/renovate-review.yml"
 
@@ -108,10 +110,24 @@ run_install_checks() {
 
 run_renovate_checks() {
   assert_contains "$RENOVATE_CONFIG" "\"extends\": [\"config:recommended\"]" "renovate config extends config:recommended"
+  assert_contains "$RENOVATE_CONFIG" "\"onboarding\": false" "renovate config disables onboarding for GitHub Action single-file mode"
+  assert_contains "$RENOVATE_CONFIG" "\"requireConfig\": \"optional\"" "renovate config allows single-file GitHub Action mode"
   assert_contains "$RENOVATE_CONFIG" "\"minimumReleaseAge\": \"7 days\"" "renovate config uses a seven-day release age"
   assert_contains "$RENOVATE_CONFIG" "\"fileMatch\": [\"^vars/tool_versions\\\\.yml$\"]" "renovate regex manager targets vars/tool_versions.yml"
   assert_contains "$RENOVATE_CONFIG" "datasource=(?<datasource>[a-z-]+)" "renovate regex manager reads datasource annotations"
   assert_contains "$RENOVATE_CONFIG" "depName=(?<depName>[^\\\\s]+)" "renovate regex manager reads depName annotations"
+  assert_contains "$RENOVATE_RUN_WORKFLOW" "workflow_dispatch:" "renovate workflow supports manual dispatch"
+  assert_contains "$RENOVATE_RUN_WORKFLOW" "- cron: '23 3 * * *'" "renovate workflow runs daily on the configured schedule"
+  assert_contains "$RENOVATE_RUN_WORKFLOW" "uses: actions/create-github-app-token@v2.1.4" "renovate workflow mints a GitHub App token"
+  assert_contains "$RENOVATE_RUN_WORKFLOW" "uses: actions/checkout@v6.0.1" "renovate workflow checks out the repository"
+  assert_contains "$RENOVATE_RUN_WORKFLOW" "uses: renovatebot/github-action@v44.0.3" "renovate workflow runs the official Renovate GitHub Action"
+  assert_contains "$RENOVATE_RUN_WORKFLOW" "configurationFile: renovate.json" "renovate workflow uses renovate.json as its single config file"
+  assert_contains "$RENOVATE_RUN_WORKFLOW" 'token: ${{ steps.app_token.outputs.token }}' "renovate workflow passes the GitHub App token to Renovate"
+  assert_contains "$RENOVATE_RUN_WORKFLOW" 'repositories: ${{ github.event.repository.name }}' "renovate workflow scopes the GitHub App token to the current repository"
+  assert_not_contains "$RENOVATE_RUN_WORKFLOW" "GITHUB_TOKEN" "renovate workflow does not authenticate Renovate with GITHUB_TOKEN"
+  assert_contains "$RENOVATE_SETUP_DOC" "RENOVATE_APP_ID" "GitHub App setup doc lists the App ID secret"
+  assert_contains "$RENOVATE_SETUP_DOC" "RENOVATE_APP_PRIVATE_KEY" "GitHub App setup doc lists the App private key secret"
+  assert_contains "$RENOVATE_SETUP_DOC" "RENOVATE_APP_SLUG" "GitHub App setup doc lists the required repo variable"
 }
 
 run_integration_checks() {
@@ -123,6 +139,7 @@ run_integration_checks() {
 run_review_workflow_checks() {
   assert_contains "$REVIEW_WORKFLOW" "permissions:" "review workflow declares explicit permissions"
   assert_contains "$REVIEW_WORKFLOW" "pull-requests: write" "review workflow can post PR comments"
+  assert_contains "$REVIEW_WORKFLOW" "format('{0}[bot]', vars.RENOVATE_APP_SLUG)" "review workflow allows the configured GitHub App bot login"
   assert_not_contains "$REVIEW_WORKFLOW" "contains(github.event.pull_request.user.login, 'renovate')" "review workflow no longer uses broad Renovate substring gating"
   assert_contains "$REVIEW_WORKFLOW" "github.event.pull_request.user.login == 'renovate[bot]'" "review workflow allows renovate[bot]"
   assert_contains "$REVIEW_WORKFLOW" "github.event.pull_request.user.login == 'renovate-bot'" "review workflow allows renovate-bot"
