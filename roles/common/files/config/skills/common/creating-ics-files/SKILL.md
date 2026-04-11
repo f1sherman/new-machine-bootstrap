@@ -7,33 +7,33 @@ description: >
 
 # ICS File Creator
 
-Creates `.ics` (iCalendar) files from documents or metadata provided by the user.
+Create `.ics` files from user-provided documents or metadata.
 
 ## Default Assumptions
 
-- **Timezone**: US Central (America/Chicago - Minneapolis) unless specified otherwise
+- **Timezone**: US Central (`America/Chicago` - Minneapolis) unless specified otherwise.
 
 ## Required Information
 
-Before creating an ICS file, ensure you have:
+Before you build the file, confirm:
 
-1. **Event title/summary** - from the document or user input
-2. **Date and time** - start and end times
-3. **Location** - if not provided, ask the user
-4. **Invitees** - if not provided, ask the user for attendee email addresses
-5. **Notes/description** - if not provided, ask the user
+1. **Event title/summary** - from the document or user input.
+2. **Date and time** - start and end times.
+3. **Location** - ask if missing.
+4. **Invitees** - ask for attendee email addresses if missing.
+5. **Notes/description** - ask if missing.
 
 ## Workflow
 
-1. Parse the provided document or metadata to extract event details
-2. Identify any missing required information (location, invitees, notes)
-3. Ask the user for any missing information before proceeding
-4. Generate the ICS file
-5. Display a detailed summary for verification (see below)
+1. Parse the document or metadata for event details.
+2. Identify missing required fields: location, invitees, notes.
+3. Ask for missing information before continuing.
+4. Generate the ICS file.
+5. Show a detailed verification summary.
 
 ## ICS File Format
 
-Use this template for generating events:
+Use this template:
 
 ```text
 BEGIN:VCALENDAR
@@ -63,7 +63,7 @@ END:VCALENDAR
 
 ### Multiple Attendees
 
-Add one `ATTENDEE` line per invitee:
+Add one `ATTENDEE` line per invitee.
 
 ```text
 ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=Alice:mailto:alice@example.com
@@ -72,7 +72,7 @@ ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;
 
 ## Verification Summary
 
-After creating the ICS file, ALWAYS display a detailed summary like this:
+After creating the file, always show this summary format:
 
 ```
 ## Event Summary
@@ -97,7 +97,7 @@ This allows the user to manually verify all event details are correct before usi
 
 ## Recurring Events
 
-For recurring events, add an RRULE:
+For recurring events, add an `RRULE`:
 
 - Weekly: `RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR`
 - Daily: `RRULE:FREQ=DAILY`
@@ -107,11 +107,11 @@ For recurring events, add an RRULE:
 
 ## Validation Checklist
 
-Before returning the ICS file, verify:
+Before returning the file, verify:
 
 - [ ] All `BEGIN:` / `END:` blocks are correctly paired
 - [ ] Required properties present: `UID`, `DTSTAMP`, `DTSTART`, `DTEND`, `SUMMARY`
-- [ ] Timezone is correctly specified (default: America/Chicago)
+- [ ] Timezone is correctly specified (default: `America/Chicago`)
 - [ ] All attendee email addresses are valid format
 - [ ] Location is included
 - [ ] Description/notes are included
