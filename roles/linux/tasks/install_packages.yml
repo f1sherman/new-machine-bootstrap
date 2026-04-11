@@ -209,9 +209,11 @@
   failed_when: false
 
 - name: Install mise
-  shell: MISE_VERSION={{ tool_versions.runtimes.mise }} curl -fsSL https://mise.run | sh
+  shell: curl -fsSL https://mise.run | sh
   args:
     executable: /bin/bash
+  environment:
+    MISE_VERSION: "{{ tool_versions.runtimes.mise }}"
   when:
     - mise_check.rc != 0
     - mise_bin is not defined or mise_bin | length == 0
