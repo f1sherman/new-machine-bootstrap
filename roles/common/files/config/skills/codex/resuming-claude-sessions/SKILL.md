@@ -1,37 +1,34 @@
 ---
 name: personal:resume-claude-session
 description: >
-  Resume a Claude Code session within Codex by reading the Claude session file and continuing the work.
-  Use when the user wants to continue Claude work in Codex.
+  Resume a Claude Code session in Codex.
+  Load the session file and continue the work.
 ---
 
-# Resume a Claude Code Session in Codex
+# Resume a Claude Code Session
 
-You are tasked with reading a Claude Code session file and resuming that work within this Codex session.
+Read the Claude Code session file and continue that work in this Codex session.
 
-## Initial Response
+## Start
 
-1. **If a session file path or index was provided**: Read and load that session immediately.
+1. If a session file path or index was provided, load it now.
+2. If not, list recent sessions and wait for the user to choose one.
 
-2. **If no path was provided**: List recent sessions for the user to choose from.
+## Find
 
-## Process
-
-### Step 1: Find and Select a Claude Code Session
-
-If no session was specified, list recent sessions:
+List recent Claude Code sessions:
 
 ```bash
 list-claude-sessions
 ```
 
-This shows the 10 most recent sessions with:
-- Index number (for easy selection)
+Use the output to select by index. It shows:
+- Index
 - Timestamp
 - Project name
-- Preview of the last message
+- Last-message preview
 
-Present this to the user and ask which session to resume (by number).
+Ask which session to resume.
 
 To get the file path for a selected session (needed for step 2):
 ```bash
@@ -43,23 +40,23 @@ To filter by project:
 list-claude-sessions --project <project-dir>
 ```
 
-### Step 2: Load the Full Session Transcript
+## Load
 
-Once a session is selected, load the full transcript into context:
+After selection, load the full transcript:
 
 ```bash
 read-claude-session <session-file> --transcript
 ```
 
-This outputs the complete conversation in a format optimized for resumption:
+This returns the full conversation for resumption:
 - Session metadata (ID, directory, git branch, Claude Code version)
 - All user messages in order
 - All assistant responses
 - All tool calls made
 
-**Read and internalize this entire transcript.** This is your context for what was being worked on.
+Read the whole transcript. Internalize it.
 
-### Step 3: Analyze and Confirm
+## Confirm
 
 After loading the transcript, present a brief summary:
 
@@ -81,26 +78,26 @@ I've loaded the Claude Code session from [timestamp].
 Ready to continue?
 ```
 
-### Step 4: Continue the Work
+## Continue
 
 After user confirmation:
 
-1. **Verify current state**: Check that relevant files still exist and match expected state
-2. **Pick up where Claude left off**: Continue the task naturally
-3. **Apply learnings**: Use any patterns, decisions, or context from the session
+1. Verify current state. Check relevant files still exist and match expectations.
+2. Continue where Claude left off. Pick up the task naturally.
+3. Apply session context. Reuse patterns, decisions, and constraints from the transcript.
 
-## Guidelines
+## Rules
 
-1. **Load the full transcript**: Always use `--transcript` to get complete context
-2. **Verify state**: Files may have changed since the session ended
-3. **Acknowledge tool differences**: Codex may have different capabilities than Claude Code
-4. **Preserve intent**: Continue the work in the spirit of what was being accomplished
-5. **Don't repeat work**: If something was already done in the session, don't redo it
+1. Always use `--transcript`.
+2. Verify state. Files may have changed since the session ended.
+3. Acknowledge tool differences. Codex may have different capabilities than Claude Code.
+4. Preserve intent. Continue the work in the spirit of what was being done.
+5. Do not repeat work. If it was already done, do not redo it.
 
-## Quick Reference
+## Quick Ref
 
 ```bash
-# List recent sessions (shows last 10 by default)
+# List recent sessions (last 10 by default)
 list-claude-sessions
 
 # List more sessions or filter by time/project
@@ -113,6 +110,6 @@ list-claude-sessions --json
 # Load full transcript for a session
 read-claude-session <session-file> --transcript
 
-# Get summary only (less detail)
+# Get summary only
 read-claude-session <session-file>
 ```
