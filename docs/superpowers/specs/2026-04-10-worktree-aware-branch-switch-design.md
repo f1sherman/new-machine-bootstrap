@@ -1,34 +1,48 @@
 ---
 date: 2026-04-10
-topic: Make `b` worktree-aware and jump into linked worktrees
+topic: Make branch switch/delete helpers worktree-aware
 status: draft
 ---
 
-# Design: worktree-aware `b` branch switcher
+# Design: worktree-aware `b` and `db` branch helpers
 
 ## Goal
 
-Make the `b` helper continue to use a compact `fzf` branch picker while
-handling linked worktrees correctly. Selecting a normal local branch should
-still switch branches in the current repository. Selecting a branch that is
-already checked out in another worktree should change the current shell into
-that worktree directory instead of failing with Git's "already checked out"
-error.
+Make the branch helpers continue to use compact `fzf` pickers while handling
+linked worktrees correctly.
+
+For `b`:
+
+- Selecting a normal local branch should still switch branches in the current
+  repository.
+- Selecting a branch that is already checked out in another worktree should
+  change the current shell into that worktree directory instead of failing
+  with Git's "already checked out" error.
+
+For `db`:
+
+- Selecting a normal local branch should delete it as before.
+- Selecting a branch that is attached to a clean linked worktree should remove
+  that worktree and then delete the branch.
+- Selecting a branch that is attached to a dirty linked worktree should refuse
+  deletion and tell the user which worktree path is blocking the operation.
 
 The picker should still visually distinguish worktree-backed branches, but
 only with a compact marker rather than a full path in the visible row.
 
 ## Non-goals
 
-- No change to the `db` helper in this iteration. It still uses its existing
-  branch parsing and deletion behavior.
 - No automatic creation of new worktrees.
 - No tmux pane switching, new window creation, or popup behavior.
 - No attempt to attach to another shell session that may already be running in
   the selected worktree.
-- No change to the previous regression fix's basic architecture: the shared
-  `git-switch-branch` helper remains the integration point used by both shell
-  templates.
+- No new bash `db` helper. `db` exists today only in the shared zsh
+  configuration, and this design keeps that scope.
+- No change to the previous regression fix's basic architecture for `b`: the
+  shared `git-switch-branch` helper remains the integration point used by both
+  shell templates.
+- No change to the separate `cleanup-branches` Ruby script beyond using its
+  worktree-safety behavior as a precedent for dirty-worktree handling.
 
 ## Background
 
@@ -37,33 +51,53 @@ only with a compact marker rather than a full path in the visible row.
   `roles/common/tasks/main.yml`, and called from both
   `roles/common/templates/dotfiles/zshrc` and
   `roles/macos/templates/dotfiles/bash_profile`.
+- The existing `db` helper still lives inline in
+  `roles/common/templates/dotfiles/zshrc` and still parses `git branch`
+  display output directly, so it has the same worktree-marker regression that
+  `b` had before the first fix.
 - That helper now uses `git for-each-ref` to build a machine-readable branch
   list for `fzf`, which fixes the regression caused by linked worktree
   branches being prefixed with `+` in `git branch` output.
-- The remaining UX gap is behavioral rather than parsing-related:
+- The remaining gaps are now behavioral:
   `git checkout <branch>` still fails when the selected branch is already
-  checked out in another worktree.
+  checked out in another worktree, and `db` still cannot safely distinguish
+  linked worktrees from ordinary branches.
 - Because `b` is a shell function, it can `cd` in the current shell. That is
   the key capability needed to make selecting a worktree-backed branch useful.
+- The repository already contains worktree cleanup behavior in
+  `roles/macos/files/bin/cleanup-branches`: it treats worktree cleanup as a
+  prerequisite for branch deletion and refuses deletion when the linked
+  worktree is dirty. That is the same safety policy this design adopts for
+  `db`.
 
 ## Recommended approach
 
-Keep a single shared helper, but change its contract from "perform checkout
+Keep a single shared helper for switching, but add a dedicated shared helper
+for deletion.
+
+For `b`, `git-switch-branch` changes its contract from "perform checkout
 directly" to "resolve the selected action and print a machine-readable result."
 
-The helper remains responsible for:
+For `db`, add `git-delete-branch`, which owns selection, linked-worktree
+inspection, and deletion side effects.
+
+The shared helpers remain responsible for:
 
 1. Enumerating local branches.
 2. Detecting whether each branch is currently attached to a linked worktree.
 3. Rendering a compact picker row with visible markers.
-4. Returning a machine-readable result describing what should happen next.
+4. For switch: returning a machine-readable result describing what should
+   happen next.
+5. For delete: safely removing linked worktrees when allowed and deleting the
+   target branch.
 
-The shell function remains responsible for:
+The shell functions remain responsible for:
 
 1. Invoking the helper.
-2. Parsing the helper's result.
-3. Running `git checkout` for normal branches.
-4. Running `cd` for linked worktree selections.
+2. For `b`, parsing the helper's result.
+3. For `b`, running `git checkout` for normal branches.
+4. For `b`, running `cd` for linked worktree selections.
+5. For `db`, delegating the branch deletion operation to the new helper.
 
 This preserves one source of truth for branch/worktree discovery while letting
 the shell do the only thing a subprocess cannot do: change the caller's
@@ -92,13 +126,24 @@ Visible row shape:
 Only the marker and branch name are shown in the picker row. No path is
 displayed inline.
 
-### Selection behavior
+### Selection behavior for `b`
 
 - Selecting an ordinary branch means "switch this repo to that branch."
 - Selecting the current branch is a no-op from a branch perspective, but still
   succeeds cleanly.
 - Selecting a branch that is attached to another worktree means "jump to that
   worktree directory."
+
+### Selection behavior for `db`
+
+- The current branch is excluded from the deletion picker because Git will not
+  delete the checked-out branch and surfacing an invalid choice adds noise.
+- Selecting an ordinary branch means "delete this branch."
+- Selecting a branch attached to a clean linked worktree means "remove that
+  worktree, then delete this branch."
+- Selecting a branch attached to a dirty linked worktree means "refuse
+  deletion, print the blocking path, and leave both branch and worktree
+  untouched."
 
 ### Path visibility
 
@@ -110,23 +155,35 @@ for this design.
 
 ## Components
 
-1. **Updated helper script** `roles/common/files/bin/git-switch-branch`
+1. **Updated switch helper** `roles/common/files/bin/git-switch-branch`
    - Builds picker rows from local branches plus linked worktree metadata.
    - Returns a machine-readable result instead of running `git checkout`
      directly.
-2. **Updated zsh function** in
+2. **New delete helper** `roles/common/files/bin/git-delete-branch`
+   - Builds the deletion picker from the same branch/worktree metadata shape.
+   - Removes a clean linked worktree before deleting its branch.
+   - Refuses deletion when the linked worktree is dirty and prints the
+     blocking path.
+3. **Updated zsh functions** in
    `roles/common/templates/dotfiles/zshrc`
-   - Calls the helper.
-   - Dispatches on helper output: `checkout` vs `cd`.
-3. **Updated bash function** in
+   - `b` calls the switch helper and dispatches on helper output:
+     `checkout` vs `cd`.
+   - `db` calls the delete helper.
+4. **Updated bash function** in
    `roles/macos/templates/dotfiles/bash_profile`
-   - Same behavior as the zsh function.
-4. **Regression test harness** for the helper
-   - Verifies both "checkout branch" and "jump to linked worktree" cases.
+   - `b` keeps the same behavior as the zsh `b` function.
+5. **Regression test harnesses**
+   - `git-switch-branch.test` verifies both "checkout branch" and
+     "jump to linked worktree" cases.
+   - `git-delete-branch.test` verifies ordinary deletion, clean linked
+     worktree removal, and dirty linked worktree refusal.
 
 No new Ansible install task is needed because the helper is already installed
 to `~/.local/bin/git-switch-branch` by the existing task in
 `roles/common/tasks/main.yml`.
+
+One new Ansible install task is needed for `git-delete-branch`, also under
+`roles/common/tasks/main.yml`, installed to `~/.local/bin/git-delete-branch`.
 
 ## Helper contract
 
@@ -205,7 +262,61 @@ After `fzf` returns a row:
 
 The helper does not run `git checkout` itself.
 
-## Shell function behavior
+## Delete helper contract
+
+File: `roles/common/files/bin/git-delete-branch`
+Installed as: `~/.local/bin/git-delete-branch`
+
+### Input
+
+No positional arguments are required. The helper runs inside the current git
+worktree and uses repository metadata to build the deletion picker.
+
+### Picker contents
+
+The picker uses the same compact marker style as `b`:
+
+- `+` for branches attached to another linked worktree
+- space for ordinary deletable branches
+
+The current branch is excluded from the picker.
+
+### Behavior
+
+After selection:
+
+1. If the branch has no linked worktree, run `git branch -D <branch>`.
+2. If the branch has a linked worktree path:
+   - inspect `git -C <path> status --porcelain`
+   - if non-empty, print a refusal message naming the path and exit non-zero
+   - if empty, run `git worktree remove <path>` and then
+     `git branch -D <branch>`
+
+### Dirty worktree policy
+
+Dirty means any modified, staged, or untracked file in the linked worktree,
+equivalent to a non-empty `git status --porcelain`.
+
+Refusal is the explicit design choice for this tool. `db` does not pass
+`--force` to `git worktree remove`, because doing so would discard uncommitted
+changes.
+
+### Output
+
+Human-readable status text is acceptable for this helper because the shell
+function does not need to parse it. The important contract is the exit code:
+
+- `0` on successful deletion
+- non-zero on refusal or deletion failure
+- `0` on canceled picker with no action taken
+
+### Worktree removal semantics
+
+The helper should remove only linked worktrees whose path differs from the
+current repository root. It must never attempt to remove the current working
+tree.
+
+## Shell function behavior for `b`
 
 Both shell templates should keep `b` as the user-facing entry point and share
 the same logic shape.
@@ -221,6 +332,16 @@ Behavior:
 
 This preserves the current shell context correctly for the `cd` case and keeps
 the branch/worktree discovery logic centralized in the helper.
+
+## Shell function behavior for `db`
+
+The zsh `db` function should become a thin wrapper:
+
+1. Invoke `"$HOME/.local/bin/git-delete-branch"`.
+2. Return its exit status directly.
+
+No additional parsing is needed in shell because the helper can perform
+deletion side effects itself.
 
 ## Testing strategy
 
@@ -241,6 +362,16 @@ Update `roles/common/files/bin/git-switch-branch.test` to cover:
 The fake `fzf` harness should continue to inspect the helper's raw input so
 the marker formatting stays under test.
 
+Add `roles/common/files/bin/git-delete-branch.test` to cover:
+
+1. Selecting an ordinary branch deletes it.
+2. Selecting a branch attached to a clean linked worktree removes that
+   worktree and deletes the branch.
+3. Selecting a branch attached to a dirty linked worktree refuses deletion.
+4. The refusal output includes the blocking worktree path.
+5. The picker input excludes the current branch and shows `+` for linked
+   worktree branches.
+
 ### Manual verification after provisioning
 
 After `bin/provision`:
@@ -251,6 +382,12 @@ After `bin/provision`:
 4. Confirm the shell's working directory changes to the linked worktree path.
 5. Re-run `b` and select an ordinary branch.
 6. Confirm the current repo performs a normal `git checkout`.
+7. In zsh, run `db` on an ordinary branch and confirm it is deleted.
+8. Recreate a linked worktree branch, run `db`, and confirm a clean linked
+   worktree is removed before the branch is deleted.
+9. Recreate a linked worktree branch with uncommitted changes, run `db`, and
+   confirm deletion is refused and the output names the blocking worktree
+   path.
 
 ## Risks and mitigations
 
@@ -269,6 +406,14 @@ worktree.
 Mitigation: compare the selected worktree path against the current repository
 root and only emit `cd` when they differ.
 
+### Accidental loss of uncommitted work in `db`
+
+Risk: deleting a branch with a linked worktree could silently discard local
+changes.
+
+Mitigation: `git-delete-branch` refuses deletion when the linked worktree is
+dirty and never uses `git worktree remove --force`.
+
 ### Paths containing spaces
 
 Risk: worktree paths with spaces break parsing.
@@ -278,9 +423,9 @@ path field as an opaque remainder rather than whitespace-splitting it.
 
 ## Implementation notes
 
-- This design intentionally builds on the existing helper rather than moving
-  the logic back into shell templates.
-- The helper stays focused on repository introspection and selection.
-- The shells stay focused on shell-only side effects.
-- `db` can be revisited later if you want deletion behavior to become
-  worktree-aware too, but it is deliberately out of scope for this change.
+- This design intentionally builds on the existing helper pattern rather than
+  moving the logic back into shell templates.
+- The switch helper stays focused on repository introspection and selection.
+- The delete helper stays focused on repository introspection plus safe
+  deletion side effects.
+- The shells stay focused on shell-only side effects where needed.
