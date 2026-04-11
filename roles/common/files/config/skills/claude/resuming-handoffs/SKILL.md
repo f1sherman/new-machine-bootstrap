@@ -58,14 +58,15 @@ Wait for the user's input.
      - Action items and next steps
      - Other notes
 
-2. **Run verification passes in parallel**:
+2. **Spawn focused verification sub-agents in parallel**:
    - Pass 1, recent changes: verify referenced files and described deltas with `git diff`, `git log --stat`, `rg`, and full reads.
    - Pass 2, learnings: validate patterns and implementations with file:line references.
    - Pass 3, artifacts: read all listed plans, research, and feature docs.
    - Pass 4, new context: scan for related changes since the handoff.
+   - Keep prompts read-only and scoped to one verification pass each.
    - Capture file:line references for every verified finding.
 
-3. **Wait for all verification results** before continuing.
+3. **Wait for all verification sub-agents** before continuing.
 
 4. **Read critical files identified**:
    - Read files from "Critical References" fully before other supporting material.
