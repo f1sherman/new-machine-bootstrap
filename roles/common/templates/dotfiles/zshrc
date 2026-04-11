@@ -493,6 +493,10 @@ function b() {
   read -r action value <<EOF
 $selection
 EOF
+  if [[ -z "$action" || -z "$value" ]]; then
+    echo "Error: malformed git-switch-branch output" >&2
+    return 1
+  fi
   case "$action" in
     checkout)
       git checkout "$value"
