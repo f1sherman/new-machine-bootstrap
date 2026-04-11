@@ -61,20 +61,20 @@ ls ~/.claude/agents/
 | `Edit` tool | `apply_patch` |
 | `Write` tool | `shell_command` with heredoc or `apply_patch` |
 | `Task` tool (sub-agents) | Use `Task` with Claude agents |
-| `WebSearch` / `WebFetch` | Not available. Ask the user or skip. |
+| `WebSearch` / `WebFetch` | Use a Claude web-research agent if one exists; otherwise ask the user or note the gap. |
 
 ## Pattern Swaps
 
 - Sub-agent spawning -> use Task agents, then synthesize.
 - Task tool references -> use Task directly.
 - Main agent / sub-agents -> remove the hierarchy.
-- `personal:web-search-researcher` -> ask the user for the missing info.
-- `WebSearch` / `WebFetch` -> ask the user or skip.
+- `personal:web-search-researcher` -> use an available Claude web-research agent; if none exists, ask the user for the missing info.
+- `WebSearch` / `WebFetch` -> replace with a Claude web-research agent when available; otherwise ask the user or note the missing capability.
 
 ## Supporting Files
 
 - Update templates, scripts, and examples.
-- Apply the same replacements everywhere in the skill directory.
+- Apply text replacements to agent/tool references only. Leave API names and documentation text alone.
 
 ## Validate
 

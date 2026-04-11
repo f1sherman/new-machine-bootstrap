@@ -61,7 +61,7 @@ You are Codex. Rewrite the source skill for your own use.
 
 ## Pattern Swaps
 
-- Sub-agent spawning -> use `multi_tool_use.parallel` for independent searches.
+- Sub-agent spawning -> use `multi_tool_use.parallel` for independent operations.
 - Task tool references -> do the work yourself.
 - Main agent / sub-agents -> remove the hierarchy.
 - `personal:codebase-*` -> replace with direct file discovery and reads.
@@ -71,7 +71,7 @@ You are Codex. Rewrite the source skill for your own use.
 ## Supporting Files
 
 - Update templates, scripts, and examples.
-- Apply the same replacements everywhere in the skill directory.
+- Apply text replacements to agent/tool references only. Leave API names and documentation text alone.
 
 ## Validate
 
@@ -80,5 +80,5 @@ You are Codex. Rewrite the source skill for your own use.
 - Check the workflow still matches the source skill.
 - Check YAML frontmatter.
 - Check that all source files are accounted for.
-- Check that any referenced agents actually exist in `~/.claude/agents/`.
+- Check that no Claude-only agent or Task references remain.
 - Summarize: converted skill, intent, key adaptations, output path.
