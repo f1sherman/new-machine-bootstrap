@@ -7,20 +7,20 @@ description: >
 
 # Validate Plan
 
-You are tasked with validating that an implementation plan was correctly executed, verifying all success criteria and identifying any deviations or issues.
+Validate the implementation. Confirm success criteria. Flag deviations, regressions, and gaps.
 
 ## Initial Setup
 
-When starting validation:
-1. **Determine context** - Are you in an existing conversation or starting fresh?
-   - If existing: Review what was implemented in this session
-   - If fresh: Need to discover what was done through git and codebase analysis
+Start here:
+1. **Determine context**.
+   - Existing session: review what changed here.
+   - Fresh session: discover the work through git and codebase analysis.
 
-2. **Locate the plan**:
-   - If plan path provided, use it
-   - Otherwise, search recent commits for plan references or ask user
+2. **Locate the plan**.
+   - Use the provided plan path.
+   - Otherwise search recent commits for plan references, or ask the user.
 
-3. **Gather implementation evidence**:
+3. **Gather evidence**.
    ```bash
    # Check recent commits
    git log --oneline -n 20
@@ -34,15 +34,14 @@ When starting validation:
 
 ### Step 1: Context Discovery
 
-If starting fresh or need more context:
+If context is thin, do this first:
 
-1. **Read the implementation plan** completely
-2. **Identify what should have changed**:
-   - List all files that should be modified
-   - Note all success criteria (automated and manual)
-   - Identify key functionality to verify
-
-3. **Spawn parallel research tasks** to discover implementation:
+1. **Read the plan** end to end.
+2. **Map expected change**.
+   - List every file that should change.
+   - Capture automated and manual success criteria.
+   - Identify the core behavior to verify.
+3. **Spawn parallel research tasks** to discover the implementation:
    ```
    Task 1 - Verify database changes:
    Research if migration [N] was added and schema changes match plan.
@@ -62,29 +61,26 @@ If starting fresh or need more context:
 
 ### Step 2: Systematic Validation
 
-For each phase in the plan:
+Validate each phase:
 
-1. **Check completion status**:
-   - Look for checkmarks in the plan (- [x])
-   - Verify the actual code matches claimed completion
-
-2. **Run automated verification**:
-   - Execute each command from "Automated Verification"
-   - Document pass/fail status
-   - If failures, investigate root cause
-
-3. **Assess manual criteria**:
-   - List what needs manual testing
-   - Provide clear steps for user verification
-
-4. **Think deeply about edge cases**:
-   - Were error conditions handled?
-   - Are there missing validations?
-   - Could the implementation break existing functionality?
+1. **Check completion status**.
+   - Find checkmarks in the plan (`- [x]`).
+   - Confirm the code matches the claimed completion.
+2. **Run automated verification**.
+   - Execute every command in "Automated Verification".
+   - Record pass/fail status.
+   - Investigate failures to root cause.
+3. **Assess manual criteria**.
+   - List what still needs manual testing.
+   - Give clear verification steps.
+4. **Probe edge cases**.
+   - Check error handling.
+   - Look for missing validation.
+   - Test for regressions in existing behavior.
 
 ### Step 3: Generate Validation Report
 
-Create comprehensive validation summary:
+Write the report in this structure:
 
 ```markdown
 ## Validation Report: [Plan Name]
@@ -132,18 +128,18 @@ Create comprehensive validation summary:
 ## Working with Existing Context
 
 If you were part of the implementation:
-- Review the conversation history
-- Check your todo list for what was completed
-- Focus validation on work done in this session
-- Be honest about any shortcuts or incomplete items
+- Review the conversation history.
+- Check your todo list for completed work.
+- Focus validation on work done in this session.
+- State shortcuts and incomplete items plainly.
 
 ## Important Guidelines
 
-1. **Be thorough but practical** - Focus on what matters
-2. **Run all automated checks** - Don't skip verification commands
-3. **Document everything** - Both successes and issues
-4. **Think critically** - Question if the implementation truly solves the problem
-5. **Consider maintenance** - Will this be maintainable long-term?
+1. **Be thorough, not noisy** - focus on what matters.
+2. **Run all automated checks** - do not skip verification commands.
+3. **Document everything** - successes and issues.
+4. **Think critically** - question whether the implementation really solves the problem.
+5. **Consider maintenance** - judge long-term maintainability.
 
 ## Validation Checklist
 
@@ -163,6 +159,6 @@ Recommended workflow:
 2. `personal:commit` - Create atomic commits for changes
 3. `personal:validate-plan` - Verify implementation correctness
 
-The validation works best after commits are made, as it can analyze the git history to understand what was implemented.
+Validate after commits when possible. Git history makes the implementation easier to analyze.
 
-Remember: Good validation catches issues before they reach production. Be constructive but thorough in identifying gaps or improvements.
+Catch issues before production. Be constructive. Be exact.
