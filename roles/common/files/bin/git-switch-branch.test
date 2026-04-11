@@ -1,0 +1,355 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/git-switch-branch"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+SYSTEM_PATH="/usr/bin:/bin:/usr/sbin:/sbin"
+
+GIT_AUTHOR_NAME=test
+GIT_AUTHOR_EMAIL=test@example.com
+GIT_COMMITTER_NAME=test
+GIT_COMMITTER_EMAIL=test@example.com
+export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+
+pass=0
+fail=0
+
+install_fake_fzf() {
+  local bindir="$1"
+  mkdir -p "$bindir"
+  cat > "$bindir/fzf" <<'EOF'
+#!/usr/bin/env bash
+set -eu
+
+input="$(cat)"
+
+if [ -n "${FAKE_FZF_INPUT_FILE:-}" ]; then
+  printf '%s' "$input" > "$FAKE_FZF_INPUT_FILE"
+fi
+
+if [ -n "${FAKE_FZF_EXIT_CODE:-}" ]; then
+  exit "$FAKE_FZF_EXIT_CODE"
+fi
+
+match="${FAKE_FZF_MATCH:?}"
+selected="$(printf '%s\n' "$input" | grep -F -m 1 -- "$match" || true)"
+[ -n "$selected" ] || exit 1
+printf '%s\n' "$selected"
+EOF
+  chmod +x "$bindir/fzf"
+}
+
+make_repo() {
+  local dir="$1"
+  git init -qb main "$dir"
+  git -C "$dir" commit -q --allow-empty -m init
+}
+
+make_repo_with_separate_git_dir() {
+  local dir="$1" gitdir="$2"
+  git init -qb main --separate-git-dir "$gitdir" "$dir"
+  git -C "$dir" commit -q --allow-empty -m init
+}
+
+assert_picker_markers() {
+  local input_file="$1"
+  local ok=0
+
+  grep -Fq $'\t* main' "$input_file" && ok=$((ok + 1))
+  grep -Fq $'\t+ feature/in-other-worktree' "$input_file" && ok=$((ok + 1))
+  grep -Fq $'\t  feature/available' "$input_file" && ok=$((ok + 1))
+
+  [ "$ok" -eq 3 ]
+}
+
+assert_linked_picker_markers() {
+  local input_file="$1"
+  local ok=0
+
+  grep -Fq $'\t* feature/in-other-worktree' "$input_file" && ok=$((ok + 1))
+  grep -Fq $'\t+ main' "$input_file" && ok=$((ok + 1))
+  ! grep -Fq $'\t+ feature/in-other-worktree' "$input_file" && ok=$((ok + 1))
+
+  [ "$ok" -eq 3 ]
+}
+
+assert_separate_git_dir_picker_markers() {
+  local input_file="$1"
+  local ok=0
+
+  grep -Fq $'\t* feature/in-other-worktree' "$input_file" && ok=$((ok + 1))
+  grep -Fq $'\t+ main' "$input_file" && ok=$((ok + 1))
+
+  [ "$ok" -eq 2 ]
+}
+
+assert_primary_separate_git_dir_picker_markers() {
+  local input_file="$1"
+  local ok=0
+
+  grep -Fq $'\t* main' "$input_file" && ok=$((ok + 1))
+  grep -Fq $'\t+ feature/in-other-worktree' "$input_file" && ok=$((ok + 1))
+  ! grep -Fq $'\t+ main' "$input_file" && ok=$((ok + 1))
+
+  [ "$ok" -eq 3 ]
+}
+
+run_switch_case() {
+  local name="$1" repo="$2" match="$3" expected_output="$4" expected_branch="$5"
+  local bindir input_file rc output actual_branch
+
+  bindir="$(mktemp -d "$TMPROOT/fzfbin.XXXXXX")"
+  input_file="$(mktemp "$TMPROOT/fzfinput.XXXXXX")"
+  install_fake_fzf "$bindir"
+
+  output="$(
+    cd "$repo" &&
+    PATH="$bindir:$PATH" \
+    FAKE_FZF_MATCH="$match" \
+    FAKE_FZF_INPUT_FILE="$input_file" \
+    "$SCRIPT"
+  )"
+  rc=$?
+
+  actual_branch="$(git -C "$repo" branch --show-current)"
+
+  if [ "$rc" -eq 0 ] &&
+    [ "$output" = "$expected_output" ] &&
+    [ "$actual_branch" = "$expected_branch" ] &&
+    assert_picker_markers "$input_file"
+  then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      match          : %q\n' "$match"
+    printf '      expected output: %q\n' "$expected_output"
+    printf '      actual output  : %q\n' "$output"
+    printf '      expected branch: %q\n' "$expected_branch"
+    printf '      actual branch  : %q\n' "$actual_branch"
+    printf '      rc             : %s\n' "$rc"
+    printf '      markers ok     : %s\n' "$(assert_picker_markers "$input_file" && printf yes || printf no)"
+  fi
+}
+
+run_linked_switch_case() {
+  local name="$1" repo="$2" linked_worktree="$3" match="$4" expected_output="$5" expected_branch="$6"
+  local bindir input_file rc output actual_branch repo_branch
+
+  bindir="$(mktemp -d "$TMPROOT/fzfbin.XXXXXX")"
+  input_file="$(mktemp "$TMPROOT/fzfinput.XXXXXX")"
+  install_fake_fzf "$bindir"
+
+  output="$(
+    cd "$linked_worktree" &&
+    PATH="$bindir:$PATH" \
+    FAKE_FZF_MATCH="$match" \
+    FAKE_FZF_INPUT_FILE="$input_file" \
+    "$SCRIPT"
+  )"
+  rc=$?
+
+  actual_branch="$(git -C "$linked_worktree" branch --show-current)"
+  repo_branch="$(git -C "$repo" branch --show-current)"
+
+  if [ "$rc" -eq 0 ] &&
+    [ "$output" = "$expected_output" ] &&
+    [ "$actual_branch" = "$expected_branch" ] &&
+    [ "$repo_branch" = main ] &&
+    assert_linked_picker_markers "$input_file"
+  then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      match          : %q\n' "$match"
+    printf '      expected output: %q\n' "$expected_output"
+    printf '      actual output  : %q\n' "$output"
+    printf '      expected branch: %q\n' "$expected_branch"
+    printf '      actual branch  : %q\n' "$actual_branch"
+    printf '      repo branch    : %q\n' "$repo_branch"
+    printf '      rc             : %s\n' "$rc"
+    printf '      markers ok     : %s\n' "$(assert_linked_picker_markers "$input_file" && printf yes || printf no)"
+  fi
+}
+
+run_fzf_failure_case() {
+  local name="$1" repo="$2" bindir_mode="$3" expected_rc="$4"
+  local bindir rc output actual_branch
+
+  bindir="$(mktemp -d "$TMPROOT/fzfbin.XXXXXX")"
+  case "$bindir_mode" in
+    missing)
+      ;;
+    exit-2)
+      install_fake_fzf "$bindir"
+      ;;
+    *)
+      printf 'internal error: unknown bindir mode %s\n' "$bindir_mode" >&2
+      exit 2
+      ;;
+  esac
+
+  if [ "$bindir_mode" = exit-2 ]; then
+    output="$(
+      cd "$repo" &&
+      PATH="$bindir:$SYSTEM_PATH" \
+      FAKE_FZF_EXIT_CODE=2 \
+      "$SCRIPT"
+    )"
+  else
+    output="$(
+      cd "$repo" &&
+      PATH="$bindir:$SYSTEM_PATH" \
+      "$SCRIPT"
+    )"
+  fi
+  rc=$?
+
+  actual_branch="$(git -C "$repo" branch --show-current)"
+
+  if [ "$rc" -eq "$expected_rc" ] && [ -z "$output" ] && [ "$actual_branch" = main ]; then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      expected rc    : %s\n' "$expected_rc"
+    printf '      actual rc      : %s\n' "$rc"
+    printf '      actual output  : %q\n' "$output"
+    printf '      actual branch  : %q\n' "$actual_branch"
+  fi
+}
+
+run_blocked_switch_case() {
+  local name="$1" linked_worktree="$2" match="$3" expected_error="$4" expected_branch="$5"
+  local bindir input_file stdout_file stderr_file rc actual_branch
+
+  bindir="$(mktemp -d "$TMPROOT/fzfbin.XXXXXX")"
+  input_file="$(mktemp "$TMPROOT/fzfinput.XXXXXX")"
+  stdout_file="$(mktemp "$TMPROOT/stdout.XXXXXX")"
+  stderr_file="$(mktemp "$TMPROOT/stderr.XXXXXX")"
+  install_fake_fzf "$bindir"
+
+  if (
+    cd "$linked_worktree" &&
+    PATH="$bindir:$PATH" \
+    FAKE_FZF_MATCH="$match" \
+    FAKE_FZF_INPUT_FILE="$input_file" \
+    "$SCRIPT"
+  ) >"$stdout_file" 2>"$stderr_file"; then
+    rc=0
+  else
+    rc=$?
+  fi
+
+  actual_branch="$(git -C "$linked_worktree" branch --show-current)"
+
+  if [ "$rc" -eq 1 ] &&
+    [ ! -s "$stdout_file" ] &&
+    [ "$actual_branch" = "$expected_branch" ] &&
+    grep -Fq "$expected_error" "$stderr_file" &&
+    assert_separate_git_dir_picker_markers "$input_file"
+  then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      match          : %q\n' "$match"
+    printf '      expected error : %q\n' "$expected_error"
+    printf '      actual stderr  : %q\n' "$(cat "$stderr_file")"
+    printf '      actual stdout  : %q\n' "$(cat "$stdout_file")"
+    printf '      expected branch: %q\n' "$expected_branch"
+    printf '      actual branch  : %q\n' "$actual_branch"
+    printf '      rc             : %s\n' "$rc"
+    printf '      markers ok     : %s\n' "$(assert_separate_git_dir_picker_markers "$input_file" && printf yes || printf no)"
+  fi
+}
+
+run_primary_separate_switch_case() {
+  local name="$1" repo="$2" match="$3" expected_output="$4" expected_branch="$5"
+  local bindir input_file stdout_file stderr_file rc actual_branch
+
+  bindir="$(mktemp -d "$TMPROOT/fzfbin.XXXXXX")"
+  input_file="$(mktemp "$TMPROOT/fzfinput.XXXXXX")"
+  stdout_file="$(mktemp "$TMPROOT/stdout.XXXXXX")"
+  stderr_file="$(mktemp "$TMPROOT/stderr.XXXXXX")"
+  install_fake_fzf "$bindir"
+
+  if (
+    cd "$repo" &&
+    PATH="$bindir:$PATH" \
+    FAKE_FZF_MATCH="$match" \
+    FAKE_FZF_INPUT_FILE="$input_file" \
+    "$SCRIPT"
+  ) >"$stdout_file" 2>"$stderr_file"; then
+    rc=0
+  else
+    rc=$?
+  fi
+
+  actual_branch="$(git -C "$repo" branch --show-current)"
+
+  if [ "$rc" -eq 0 ] &&
+    [ "$(cat "$stdout_file")" = "$expected_output" ] &&
+    [ ! -s "$stderr_file" ] &&
+    [ "$actual_branch" = "$expected_branch" ] &&
+    assert_primary_separate_git_dir_picker_markers "$input_file"
+  then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      match          : %q\n' "$match"
+    printf '      expected output: %q\n' "$expected_output"
+    printf '      actual output  : %q\n' "$(cat "$stdout_file")"
+    printf '      actual stderr  : %q\n' "$(cat "$stderr_file")"
+    printf '      expected branch: %q\n' "$expected_branch"
+    printf '      actual branch  : %q\n' "$actual_branch"
+    printf '      rc             : %s\n' "$rc"
+    printf '      markers ok     : %s\n' "$(assert_primary_separate_git_dir_picker_markers "$input_file" && printf yes || printf no)"
+  fi
+}
+
+repo="$TMPROOT/repo"
+make_repo "$repo"
+git -C "$repo" branch feature/available
+git -C "$repo" branch feature/in-other-worktree
+git -C "$repo" worktree add -q "$TMPROOT/linked" feature/in-other-worktree
+linked_worktree_path="$(cd "$TMPROOT/linked" && pwd -P)"
+
+run_switch_case "ordinary branch selection returns checkout" "$repo" $'  feature/available' $'checkout\tfeature/available' "main"
+
+run_switch_case "linked worktree branch selection returns cd" "$repo" $'+ feature/in-other-worktree' $'cd\t'"$linked_worktree_path" "main"
+
+run_linked_switch_case "current linked worktree stays starred and checkout-only" "$repo" "$linked_worktree_path" $'* feature/in-other-worktree' $'checkout\tfeature/in-other-worktree' "feature/in-other-worktree"
+
+separate_repo="$TMPROOT/separate-repo"
+separate_gitdir="$TMPROOT/separate-store.git"
+make_repo_with_separate_git_dir "$separate_repo" "$separate_gitdir"
+git -C "$separate_repo" worktree add -q -b feature/in-other-worktree "$TMPROOT/separate-linked"
+separate_gitdir_path="$(cd "$(dirname "$separate_gitdir")" && pwd -P)/$(basename "$separate_gitdir")"
+
+run_primary_separate_switch_case "separate git dir primary checkout keeps current branch starred" "$separate_repo" $'* main' $'checkout\tmain' "main"
+
+run_blocked_switch_case "separate git dir main branch selection does not cd into common git dir" "$TMPROOT/separate-linked" $'+ main' "$separate_gitdir_path" "feature/in-other-worktree"
+
+run_fzf_failure_case "missing fzf is not treated as cancel" "$repo" missing 127
+
+run_fzf_failure_case "fzf errors propagate" "$repo" exit-2 2
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]
