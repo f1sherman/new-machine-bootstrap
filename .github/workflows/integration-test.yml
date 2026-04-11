@@ -28,7 +28,7 @@ jobs:
           expected_ripgrep="$(yq -r '.tool_versions.github_releases.ripgrep' vars/tool_versions.yml)"
           expected_delta="$(yq -r '.tool_versions.github_releases.delta' vars/tool_versions.yml)"
           expected_tmux="$(yq -r '.tool_versions.github_releases.tmux' vars/tool_versions.yml | sed 's/^v//')"
-          expected_neovim="$(yq -r '.tool_versions.github_releases.neovim' vars/tool_versions.yml | sed 's/^v//')"
+          expected_neovim="$(yq -r '.tool_versions.github_releases.neovim' vars/tool_versions.yml)"
           expected_yq="$(yq -r '.tool_versions.github_releases.yq' vars/tool_versions.yml | sed 's/^v//')"
           expected_zoxide="$(yq -r '.tool_versions.github_releases.zoxide' vars/tool_versions.yml | sed 's/^v//')"
           expected_fzf="$(yq -r '.tool_versions.github_releases.fzf' vars/tool_versions.yml | sed 's/^v//')"
@@ -39,7 +39,7 @@ jobs:
           test "$(delta --version | awk 'NR==1 {print $2}')" = "$expected_delta"
           test "$(tmux -V | awk '{print $2}')" = "$expected_tmux"
           test "$(nvim --version | awk 'NR==1 {print $2}')" = "$expected_neovim"
-          test "$(yq --version | sed -E 's/.* version v?([^ ]+).*/\\1/')" = "$expected_yq"
+          test "$(yq --version | sed -E 's/.* version v?([^ ]+).*/\1/')" = "$expected_yq"
           test "$(zoxide --version | awk '{print $2}')" = "$expected_zoxide"
           test "$(fzf --version | awk '{print $1}')" = "$expected_fzf"
 
