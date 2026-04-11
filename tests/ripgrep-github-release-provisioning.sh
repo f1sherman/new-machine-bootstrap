@@ -42,6 +42,27 @@ assert_not_contains() {
   fi
 }
 
+assert_task_block_contains() {
+  local path="$1" task_name="$2" needle="$3" name="$4"
+  local block
+
+  block="$(
+    awk -v task="$task_name" '
+      $0 == "- name: " task { capture=1; print; next }
+      capture && /^- name: / { exit }
+      capture { print }
+    ' "$path"
+  )"
+
+  if [ -z "$block" ]; then
+    fail_case "$name" "missing task '$task_name' in $path"
+  elif printf '%s\n' "$block" | rg -n -F -- "$needle" >/dev/null 2>&1; then
+    pass_case "$name"
+  else
+    fail_case "$name" "missing '$needle' in task '$task_name' in $path"
+  fi
+}
+
 assert_not_contains "$LINUX_TASKS" "Remove ripgrep apt package if installed" "linux tasks no longer remove ripgrep before GitHub install"
 assert_contains "$LINUX_TASKS" "Install rg" "linux tasks install rg from GitHub Releases"
 assert_contains "$LINUX_TASKS" "github_repo: BurntSushi/ripgrep" "linux tasks point rg at BurntSushi/ripgrep"
@@ -55,6 +76,7 @@ assert_contains "$GITHUB_BINARY_TASKS" "{{ _gh_deb_tempfile.path }}" "github bin
 assert_contains "$GITHUB_BINARY_TASKS" "dpkg-deb -f \"{{ _gh_deb_tempfile.path }}\" Depends" "github binary helper checks deb dependencies from the tempfile"
 assert_contains "$GITHUB_BINARY_TASKS" "deb: \"{{ _gh_deb_tempfile.path }}\"" "github binary helper installs the tempfile-backed deb"
 assert_contains "$GITHUB_BINARY_TASKS" "path: \"{{ _gh_deb_tempfile.path }}\"" "github binary helper cleans up the tempfile path"
+assert_task_block_contains "$GITHUB_BINARY_TASKS" "\"{{ binary_name }} | Download .deb package\"" "force: yes" "github binary helper forces deb downloads into the tempfile"
 assert_not_contains "$GITHUB_BINARY_TASKS" "/tmp/_gh_{{ binary_name }}.deb" "github binary helper no longer hard-codes the /tmp deb path"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

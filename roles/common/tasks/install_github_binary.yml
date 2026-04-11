@@ -133,6 +133,7 @@
   get_url:
     url: "{{ _gh_asset_url }}"
     dest: "{{ _gh_deb_tempfile.path }}"
+    force: yes
   retries: 3
   delay: 10
   when: _gh_needs_update and (download_type | default('binary')) == 'deb'
