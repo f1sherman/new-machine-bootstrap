@@ -7,9 +7,8 @@ description: >
 
 # Commit Changes
 
-User approved commit. Do not push.
+The user approved committing, but not pushing. Dispatch this to a subagent to preserve main context.
 
 1. Write a 2-4 sentence summary of what changed, why, and any key decisions made.
-2. Check for dirty worktree state first. Do not scoop unrelated or pre-existing changes into the commit.
-3. Dispatch `personal:committer` as a **foreground** Agent with that summary.
-4. Report the agent result, including the `git log` output, to the user.
+2. Dispatch `personal:committer` as a **foreground** Agent with that summary.
+3. Report the agent result, including the `git log` output, to the user.

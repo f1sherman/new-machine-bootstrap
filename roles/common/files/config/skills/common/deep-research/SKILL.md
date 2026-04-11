@@ -22,28 +22,25 @@ Use a three-agent system:
 
 ### Phase 1: Interview
 
-Do 2-3 rounds of user interviews by default.
+Do 2-3 rounds of user interviews.
 Cover objective, depth, audience, key questions, time constraints, and scope.
-Use fewer rounds only when scope is narrow or the tool budget is tight, but still cover the topic adequately.
 
 ### Phase 2: Landscape Mapping
 
-Run 3-5 broad searches by default.
+Run 3-5 broad searches.
 Map the topic landscape.
 Identify 10+ research threads.
 Record them in `research_plan.md`.
-Scale down only when scope or tool limits justify it, while still mapping the topic well enough to support the report.
 
 ### Phase 3: Parallel Research
 
-Launch 10+ researcher agents in parallel by default.
+Launch 10+ researcher agents in parallel.
 Each writes `research_notes/[subtopic].md` with:
 - Summary
 - Key findings
 - Sources with URLs
 - Notable quotes
 - Identified gaps
-Use fewer agents only when scope is narrow or tool limits require it, but still cover the topic thoroughly.
 
 ### Phase 4: Synthesis
 
