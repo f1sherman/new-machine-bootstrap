@@ -446,10 +446,25 @@ wtd() {
 
 # Switch branches using fzf
 b() {
-  local branches branch
-  branches=$(git --no-pager branch) &&
-  branch=$(echo "$branches" | fzf +m) &&
-  git checkout "$(echo "${branch}" | awk '{print $1}' | sed "s/.* //")"
+  local selection action value
+  selection="$("$HOME/.local/bin/git-switch-branch")" || return $?
+  [ -n "$selection" ] || return 0
+  local IFS=$'\t'
+  read -r action value <<EOF
+$selection
+EOF
+  case "$action" in
+    checkout)
+      git checkout "$value"
+      ;;
+    cd)
+      cd "$value" && _worktree_sync_tmux_state
+      ;;
+    *)
+      echo "Error: unknown git-switch-branch action: $action" >&2
+      return 1
+      ;;
+  esac
 }
 
 # Use rg for FZF for speed and to respect .gitignore, .ignore
