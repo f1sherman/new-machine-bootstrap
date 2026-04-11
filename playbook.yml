@@ -13,6 +13,8 @@
 
 - hosts: localhost
   connection: local
+  vars_files:
+    - vars/tool_versions.yml
   pre_tasks:
     # Platform packages must be installed first - common role depends on them
     - name: Install platform packages (macOS)

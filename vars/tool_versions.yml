@@ -1,0 +1,35 @@
+---
+tool_versions:
+  github_releases:
+    # renovate: datasource=github-releases depName=junegunn/fzf
+    fzf: v0.71.0
+    # renovate: datasource=github-releases depName=BurntSushi/ripgrep
+    ripgrep: 15.1.0
+    # renovate: datasource=github-releases depName=dandavison/delta
+    delta: 0.19.2
+    # renovate: datasource=github-releases depName=tmux/tmux-builds
+    tmux: v3.6a
+    # renovate: datasource=github-releases depName=neovim/neovim
+    neovim: v0.12.1
+    # renovate: datasource=github-releases depName=mikefarah/yq
+    yq: v4.52.5
+    # renovate: datasource=github-releases depName=ajeetdsouza/zoxide
+    zoxide: v0.9.9
+
+  git_tags:
+    # renovate: datasource=github-tags depName=junegunn/fzf
+    fzf: v0.71.0
+    # renovate: datasource=github-tags depName=tmux-plugins/tpm
+    tpm: v3.1.0
+    # renovate: datasource=github-tags depName=obra/superpowers
+    superpowers: v5.0.7
+
+  runtimes:
+    # renovate: datasource=github-releases depName=jdx/mise
+    mise: v2026.4.8
+    # renovate: datasource=node-version depName=node
+    node: 24.14.1
+
+  compatibility:
+    # renovate: datasource=github-releases depName=neovim/neovim
+    neovim_glibc_legacy: v0.10.4
