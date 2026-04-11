@@ -633,7 +633,7 @@
 # PATH is extended because mise may have been installed during pre_tasks
 # and isn't in the inherited PATH yet.
 - name: Install or update Codex CLI via npm (Linux)
-  shell: "{{ mise_bin }} exec node@lts -- npm install -g @openai/codex@latest"
+  shell: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- npm install -g @openai/codex@latest"
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   when: ansible_facts["os_family"] == "Debian"
@@ -647,7 +647,7 @@
   when: ansible_facts["os_family"] == "Darwin"
 
 - name: Install or update pi-coding-agent via npm (Linux)
-  shell: "{{ mise_bin }} exec node@lts -- npm install -g @mariozechner/pi-coding-agent@latest"
+  shell: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- npm install -g @mariozechner/pi-coding-agent@latest"
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   when: ansible_facts["os_family"] == "Debian"
@@ -661,7 +661,7 @@
   when: ansible_facts["os_family"] == "Darwin"
 
 - name: Install pi-subdir-context plugin for pi-coding-agent (Linux)
-  shell: "{{ mise_bin }} exec node@lts -- pi install npm:pi-subdir-context"
+  shell: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- pi install npm:pi-subdir-context"
   register: pi_plugin_linux
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
@@ -673,7 +673,7 @@
 # regardless of which Node version the current directory's mise.toml selects.
 - name: Create ~/.local/bin symlinks for global npm tools (Linux)
   shell: |
-    node_bin="$("{{ mise_bin }}" where node@{{ linux_node_lts.stdout }})/bin"
+    node_bin="$("{{ mise_bin }}" where node@{{ tool_versions.runtimes.node }})/bin"
     for cmd in codex pi; do
       [ -x "$node_bin/$cmd" ] && ln -sf "$node_bin/$cmd" ~/.local/bin/"$cmd"
     done

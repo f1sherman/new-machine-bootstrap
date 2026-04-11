@@ -92,6 +92,8 @@ run_install_checks() {
   assert_not_contains "$LINUX_INSTALLS" "version: master" "linux install tasks no longer use master"
   assert_not_contains "$LINUX_MAIN" "version: master" "linux main tasks no longer use master"
   assert_not_contains "$COMMON_MAIN" "version: main" "common tasks no longer use main for superpowers"
+  assert_not_contains "$COMMON_MAIN" "node@lts" "common tasks no longer use floating Linux Node aliases"
+  assert_not_contains "$COMMON_MAIN" "linux_node_lts" "common tasks no longer reference the removed Linux Node LTS register"
   assert_not_contains "$COMMON_MAIN" "latest node@lts" "common tasks no longer resolve latest Linux Node LTS"
   assert_not_contains "$MACOS_MAIN" "latest node@lts" "macOS tasks no longer resolve latest Node LTS"
   assert_not_contains "$LINUX_INSTALLS" "shell: MISE_VERSION={{ tool_versions.runtimes.mise }} curl -fsSL https://mise.run | sh" "linux mise install no longer uses the inline MISE_VERSION shell form"
