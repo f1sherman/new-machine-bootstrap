@@ -408,7 +408,7 @@
   when: ansible_facts["os_family"] == "Debian"
 
 - name: Check if pinned Node.js version is installed (Linux)
-  shell: "{{ mise_bin }} ls node | rg -F 'node  {{ tool_versions.runtimes.node }}'"
+  shell: "{{ mise_bin }} ls node | awk '$1 == \"node\" && $2 == \"{{ tool_versions.runtimes.node }}\" { found = 1 } END { exit(found ? 0 : 1) }'"
   register: linux_node_installed
   changed_when: false
   failed_when: false
