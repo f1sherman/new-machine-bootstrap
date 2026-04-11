@@ -48,9 +48,15 @@ rows="$(
     done
 )" || exit 1
 
-selection="$(
+if selection="$(
   printf '%s\n' "$rows" | fzf +m --delimiter=$'\t' --with-nth=3
-)" || exit 0
+)"; then
+  :
+else
+  fzf_status=$?
+  [ "$fzf_status" -eq 130 ] && exit 0
+  exit "$fzf_status"
+fi
 
 action="$(printf '%s' "$selection" | cut -f1)"
 payload="$(printf '%s' "$selection" | cut -f2)"
