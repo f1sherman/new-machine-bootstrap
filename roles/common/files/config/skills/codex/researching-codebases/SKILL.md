@@ -7,75 +7,81 @@ description: >
 
 # Research Codebase
 
-You are tasked with conducting comprehensive research across the codebase to answer user questions and synthesize findings.
+Map the codebase as it exists today. Answer with evidence, paths, and line references.
 
-## CRITICAL: YOUR ONLY JOB IS TO DOCUMENT AND EXPLAIN THE CODEBASE AS IT EXISTS TODAY
-- DO NOT suggest improvements or changes unless the user explicitly asks for them
-- DO NOT perform root cause analysis unless the user explicitly asks for it
-- DO NOT propose future enhancements unless the user explicitly asks for them
-- DO NOT critique the implementation or identify problems
-- DO NOT recommend refactoring, optimization, or architectural changes
-- ONLY describe what exists, where it exists, how it works, and how components interact
-- You are creating a technical map/documentation of the existing system
+## Boundary
+- Document only.
+- No critique.
+- Do not identify problems.
+- Do not evaluate the implementation.
+- No recommendations.
+- No improvements unless the user explicitly asks.
+- No root cause analysis unless the user explicitly asks.
+- No future enhancements unless the user explicitly asks.
+- Describe what exists, where it exists, how it works, and how components interact.
+- Build a technical map of the current system.
 
-## Initial Setup
+## Start
 
 If the user has not provided a specific research question yet, respond with:
 ```
 I'm ready to research the codebase. Please provide your research question or area of interest, and I'll analyze it thoroughly by exploring relevant components and connections.
 ```
 
-Then wait for the user's research query.
+Then wait.
 
-## Steps to follow after receiving the research query
+## Workflow
 
-1. **Read any directly mentioned files first:**
-   - If the user mentions specific files (docs, JSON) or tickets, read them FULLY first
-   - **IMPORTANT**: Use the Read tool WITHOUT limit/offset parameters to read entire files
-   - **CRITICAL**: Read mentioned files before searching the wider codebase
-   - This ensures you have full context before decomposing the research
+1. **Read mentioned files first.**
+   - If the user names files, docs, JSON, or accessible tickets, read them fully first.
+   - Use your available file-reading tools to read the full file, not partial snippets.
+   - If a file is too large for one read, read it in chunks until you have full coverage before moving on.
+   - Read mentioned files before searching the wider codebase.
+   - Get full context before decomposing the research.
 
-2. **Analyze and decompose the research question:**
-   - Break down the user's query into composable research areas
-   - Take time to ultrathink about the underlying patterns, connections, and architectural implications the user might be seeking
-   - Identify specific components, patterns, or concepts to investigate
-   - Create a research plan using TodoWrite to track all subtasks
-   - Consider which directories, files, or architectural patterns are relevant
+2. **Decompose the question.**
+   - Break the query into research areas.
+   - Think through patterns, connections, and architectural implications.
+   - Identify the components, patterns, or concepts to inspect.
+   - Create a research plan with your available planning or task-tracking tools.
+   - Select the relevant directories, files, and architectural patterns.
 
-3. **Research loop:**
-   - Pass 1 (Discovery): use `rg`, `rg --files`, and directory listings to locate candidate files
-   - Pass 2 (Deep reads): read the most relevant files fully
-   - Pass 3 (Patterns/tests): find similar patterns, entry points, and tests
-   - Keep a short notes section with file:line references as you go
-   - If the user explicitly asks for web research, include links in your report
+3. **Run the research loop.**
+   - Pass 1, discovery: use `rg`, `rg --files`, and directory listings to find candidate files.
+   - Pass 2, deep reads: read the most relevant files fully.
+   - Pass 3, patterns/tests: find similar patterns, entry points, and tests.
+   - Keep short notes with `file:line` references as you go.
+   - If the user explicitly asks for web research, include links in the report.
 
-4. **Document findings:**
-   - Locate relevant files and components
-   - Document how specific code works (without critiquing it)
-   - Find examples of existing patterns (without evaluating them)
+4. **Document findings.**
+   - Locate the relevant files and components.
+   - Document how specific code works.
+   - Include examples of existing patterns without evaluation.
 
-5. **Synthesize findings:**
-   - Prioritize live codebase findings as primary source of truth
-   - Connect findings across different components
-   - Include specific file paths and line numbers for reference
-   - Verify all paths are correct
-   - Highlight patterns, connections, and architectural decisions
-   - Answer the user's specific questions with concrete evidence
+5. **Synthesize.**
+   - Treat the live codebase as the primary source of truth.
+   - Connect findings across components.
+   - Include specific file paths and line numbers.
+   - Verify every path.
+   - Highlight patterns, connections, and architectural decisions only when they are directly evidenced in code or docs.
+   - Answer the user's question with concrete evidence.
 
-6. **Gather metadata for the research document:**
-   - Run the `~/.local/bin/spec-metadata` script to generate all relevant metadata
-   - Filename: `.coding-agent/research/YYYY-MM-DD-ENG-XXXX-description.md`
-     - Format: `YYYY-MM-DD-ENG-XXXX-description.md` where:
-       - YYYY-MM-DD is today's date
-       - ENG-XXXX is the ticket number (omit if no ticket)
-       - description is a brief kebab-case description of the research topic
-     - Examples:
-       - With ticket: `2025-01-08-ENG-1478-parent-child-tracking.md`
-       - Without ticket: `2025-01-08-authentication-flow.md`
+6. **Gather metadata before writing.**
+   - Run `~/.local/bin/spec-metadata` to generate the required metadata.
+   - If `spec-metadata` is unavailable or incomplete, derive the missing metadata from git, the repo, and the current date/time. Do not invent values.
+   - Use the filename `.coding-agent/research/YYYY-MM-DD-ENG-XXXX-description.md`.
+   - Format:
+     - `YYYY-MM-DD` is today's date.
+     - `ENG-XXXX` is the ticket number, omitted if there is no ticket.
+     - `description` is a short kebab-case research topic.
+   - Examples:
+     - With ticket: `2025-01-08-ENG-1478-parent-child-tracking.md`
+     - Without ticket: `2025-01-08-authentication-flow.md`
 
-7. **Generate research document:**
-   - Use the metadata gathered in step 6
-   - Structure the document with YAML frontmatter followed by content:
+7. **Write the research document.**
+   - Use the metadata from step 6.
+   - Preserve the directory structure exactly.
+   - Write YAML frontmatter first, then content:
      ```markdown
      ---
      date: [Current date and time with timezone in ISO format]
@@ -84,8 +90,10 @@ Then wait for the user's research query.
      repository: [Repository name]
      topic: "[User's Question/Topic]"
      tags: [research, codebase, relevant-component-names]
-     status: complete
+     status: [complete|in_progress]
      last_updated: [Current date in YYYY-MM-DD format]
+     last_updated_by: null
+     last_updated_note: null
      ---
 
      # Research: [User's Question/Topic]
@@ -121,49 +129,54 @@ Then wait for the user's research query.
      ## Related Research
      [Links to other research documents in .coding-agent/research/]
 
-     ## Open Questions
-     [Any areas that need further investigation]
+     ## Open Questions (if any)
+     [Only include this section when there are genuine unresolved questions worth asking the user about.]
      ```
 
-8. **Add GitHub permalinks (if applicable):**
-   - Check if on main branch or if commit is pushed: `git branch --show-current` and `git status`
-   - If on main/master or pushed, generate GitHub permalinks:
-     - Get repo info: `gh repo view --json owner,name`
-     - Create permalinks: `https://github.com/{owner}/{repo}/blob/{commit}/{file}#L{line}`
-   - Replace local file references with permalinks in the document
+8. **Add remote permalinks if applicable.**
+   - Check the branch and status with `git branch --show-current` and `git status`.
+   - Check whether the specific commit you are citing is available on the remote before generating permalinks.
+   - If the repo host and remote commit are confirmed, derive the host from the remote or repository info before building commit-based permalinks.
+   - Build permalinks with that confirmed host.
+   - If the relevant content exists only in local uncommitted changes or is not reachable at a stable remote commit, keep local file references.
+   - If the repo host or auth is unavailable, keep local file references instead of guessing.
 
-9. **Present findings:**
-   - Present a concise summary of findings to the user
-   - Include key file references for easy navigation
-   - Ask if they have follow-up questions or need clarification
+9. **Present findings.**
+   - Give a concise summary.
+   - Include key file references for navigation.
+   - Ask for follow-up questions or clarification.
 
-10. **Handle follow-up questions:**
-   - If the user has follow-up questions, append to the same research document
-   - Update the frontmatter fields `last_updated` and `last_updated_by` to reflect the update
-   - Add `last_updated_note: "Added follow-up research for [brief description]"` to frontmatter
-   - Add a new section: `## Follow-up Research [timestamp]`
-   - Continue updating the document and syncing
+10. **Handle follow-up research.**
+   - Append follow-up questions to the same research document only when they stay within the same research topic.
+   - If the scope shifts materially, start a new research document and cross-link it.
+   - Update `last_updated` in frontmatter.
+   - Add or update `last_updated_by` with the current agent or session identifier.
+   - Add or update `last_updated_note: "Added follow-up research for [brief description]"`.
+   - Add `## Follow-up Research [timestamp]`.
+   - Keep updating the same document on disk.
 
-## Important notes
-- Always run fresh codebase research - never rely solely on existing research documents
-- Focus on finding concrete file paths and line numbers for developer reference
-- Research documents should be self-contained with all necessary context
-- Document cross-component connections and how systems interact
-- Include temporal context (when the research was conducted)
-- Link to GitHub when possible for permanent references
-- **CRITICAL**: You are a documentarian, not an evaluator
-- **REMEMBER**: Document what IS, not what SHOULD BE
-- **NO RECOMMENDATIONS**: Only describe the current state of the codebase
-- **File reading**: Always read mentioned files FULLY (no limit/offset) before searching the wider codebase
-- **Critical ordering**: Follow the numbered steps exactly
-  - ALWAYS read mentioned files first before deeper research (step 1)
-  - ALWAYS gather metadata before writing the document (step 6 before step 7)
-  - NEVER write the research document with placeholder values
-  - ALWAYS preserve the exact directory structure
-  - This ensures paths are correct for editing and navigation
-- **Frontmatter consistency**:
-  - Always include frontmatter at the beginning of research documents
-  - Keep frontmatter fields consistent across all research documents
-  - Update frontmatter when adding follow-up research
-  - Use snake_case for multi-word field names (e.g., `last_updated`, `git_commit`)
-  - Tags should be relevant to the research topic and components studied
+## Notes
+- Run fresh research every time. Do not rely only on existing research documents.
+- Use concrete file paths and line numbers for developer reference.
+- Keep research documents self-contained.
+- Document cross-component connections and system interactions.
+- Include temporal context for when the research was conducted.
+- Link to the remote host when stable permalinks are available.
+- Documentarian only.
+- Record what is, not what should be.
+- No recommendations.
+- Always read mentioned files fully before wider searching.
+- Follow the numbered steps exactly.
+  - Always read mentioned files first before deeper research.
+  - Always gather metadata before writing the document.
+  - Never write the research document with placeholder values.
+  - Always preserve the exact directory structure.
+  - This keeps paths correct for editing and navigation.
+- Frontmatter consistency:
+  - Always include frontmatter at the beginning of research documents.
+  - Keep frontmatter fields consistent across research documents.
+  - On follow-up updates, add or update follow-up fields such as `last_updated_by` and `last_updated_note`.
+  - Use snake_case for multi-word field names, such as `last_updated` and `git_commit`.
+  - Keep tags relevant to the research topic and the components studied.
+- Use `status: complete` only when there are no unresolved open questions. Otherwise keep it `in_progress` until follow-up work is done.
+- Include `## Open Questions` only when there are genuine unresolved questions worth asking the user about.
