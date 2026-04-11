@@ -20,10 +20,15 @@ metadata_file="$tmpdir/worktree-metadata"
 picker_file="$tmpdir/picker"
 
 git -C "$repo_root" worktree list --porcelain |
-awk '
-  $1 == "worktree" { path = $2 }
-  $1 == "branch" && $2 ~ /^refs\/heads\// { print substr($2, 12) "\t" path }
-' > "$metadata_file"
+while IFS= read -r line; do
+  case "$line" in
+    "worktree "*) current_path="${line#worktree }" ;;
+    "branch refs/heads/"*)
+      branch="${line#branch refs/heads/}"
+      printf '%s\t%s\n' "$branch" "$current_path"
+      ;;
+  esac
+done > "$metadata_file"
 
 while IFS= read -r branch; do
   [ "$branch" = "$current_branch" ] && continue
