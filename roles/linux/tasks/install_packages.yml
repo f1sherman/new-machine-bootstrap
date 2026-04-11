@@ -54,6 +54,7 @@
   vars:
     github_repo: junegunn/fzf
     binary_name: fzf
+    pinned_release_tag: "{{ tool_versions.github_releases.fzf }}"
     asset_pattern: "fzf-{version}-linux_{arch}.tar.gz"
     install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
     download_type: tarball
@@ -63,7 +64,7 @@
     repo: 'https://github.com/junegunn/fzf.git'
     dest: '{{ ansible_facts["user_dir"] }}/.fzf'
     depth: 1
-    version: master
+    version: "{{ tool_versions.git_tags.fzf }}"
     update: yes
 
 - name: Create ~/.fzf/bin directory for vim plugin compatibility
@@ -90,6 +91,7 @@
   vars:
     github_repo: BurntSushi/ripgrep
     binary_name: rg
+    pinned_release_tag: "{{ tool_versions.github_releases.ripgrep }}"
     asset_pattern: "ripgrep_{version}-1_{arch}.deb"
     install_dest: /usr/bin/rg
     download_type: deb
@@ -101,6 +103,7 @@
   vars:
     github_repo: dandavison/delta
     binary_name: delta
+    pinned_release_tag: "{{ tool_versions.github_releases.delta }}"
     asset_pattern: "delta-{version}-{arch}-unknown-linux-gnu.tar.gz"
     install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
     download_type: tarball
@@ -118,6 +121,7 @@
   vars:
     github_repo: tmux/tmux-builds
     binary_name: tmux
+    pinned_release_tag: "{{ tool_versions.github_releases.tmux }}"
     asset_pattern: "tmux-{version}-linux-{arch}.tar.gz"
     install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
     download_type: tarball
@@ -144,16 +148,12 @@
   register: _glibc_version
   changed_when: false
 
-- name: Pin nvim to v0.10.4 for old glibc
-  set_fact:
-    pinned_release_tag: v0.10.4
-  when: _glibc_version.stdout is version('2.32', '<')
-
 - name: Install nvim
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
   vars:
     github_repo: neovim/neovim
     binary_name: nvim
+    pinned_release_tag: "{{ tool_versions.compatibility.neovim_glibc_legacy if _glibc_version.stdout is version('2.32', '<') else tool_versions.github_releases.neovim }}"
     asset_pattern: "nvim-linux-{arch}.tar.gz"
     install_dest: '{{ ansible_facts["user_dir"] }}/.local'
     download_type: tarball
@@ -164,15 +164,12 @@
       aarch64: arm64
       arm64: arm64
 
-- name: Clear pinned release tag
-  set_fact:
-    pinned_release_tag: ''
-
 - name: Install yq
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
   vars:
     github_repo: mikefarah/yq
     binary_name: yq
+    pinned_release_tag: "{{ tool_versions.github_releases.yq }}"
     asset_pattern: "yq_linux_{arch}"
     install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin/yq'
 
@@ -181,6 +178,7 @@
   vars:
     github_repo: ajeetdsouza/zoxide
     binary_name: zoxide
+    pinned_release_tag: "{{ tool_versions.github_releases.zoxide }}"
     asset_pattern: "zoxide-{version}-{arch}-unknown-linux-musl.tar.gz"
     install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
     download_type: tarball
@@ -210,13 +208,27 @@
   changed_when: false
   failed_when: false
 
+- name: Resolve existing mise binary path
+  set_fact:
+    linux_mise_bin: "{{ mise_check.stdout | trim if mise_check.rc == 0 else (mise_bin | default('')) }}"
+
+- name: Check installed mise version
+  shell: "{{ linux_mise_bin }} --version | awk '{print $2}'"
+  args:
+    executable: /bin/bash
+  register: linux_mise_version
+  changed_when: false
+  failed_when: false
+  when: linux_mise_bin | length > 0
+
 - name: Install mise
   shell: curl -fsSL https://mise.run | sh
   args:
     executable: /bin/bash
+  environment:
+    MISE_VERSION: "{{ tool_versions.runtimes.mise }}"
   when:
-    - mise_check.rc != 0
-    - mise_bin is not defined or mise_bin | length == 0
+    - linux_mise_bin | length == 0 or (linux_mise_version.stdout | default('')) != (tool_versions.runtimes.mise | regex_replace('^v', ''))
 
 - name: Resolve mise binary
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/resolve_mise_binary.yml'

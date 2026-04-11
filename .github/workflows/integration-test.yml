@@ -16,22 +16,34 @@ jobs:
       - name: Run provisioning
         run: bin/provision
 
-      - name: Verify key tools installed
+      - name: Verify pinned tool version wiring
+        run: bash tests/pinned-tool-versions.sh core
+
+      - name: Verify key tools installed at expected versions
         run: |
-          set -e
-          command -v zsh
-          command -v zoxide
-          command -v fzf
-          command -v rg
-          command -v tmux
-          command -v nvim
-          command -v delta
-          command -v bat
-          command -v fd
-          command -v yq
-          command -v jq
-          command -v mise
-          echo "All tools verified"
+          set -euo pipefail
+
+          expected_node="$(yq -r '.tool_versions.runtimes.node' vars/tool_versions.yml)"
+          expected_mise="$(yq -r '.tool_versions.runtimes.mise' vars/tool_versions.yml | sed 's/^v//')"
+          expected_ripgrep="$(yq -r '.tool_versions.github_releases.ripgrep' vars/tool_versions.yml)"
+          expected_delta="$(yq -r '.tool_versions.github_releases.delta' vars/tool_versions.yml)"
+          expected_tmux="$(yq -r '.tool_versions.github_releases.tmux' vars/tool_versions.yml | sed 's/^v//')"
+          expected_neovim="$(yq -r '.tool_versions.github_releases.neovim' vars/tool_versions.yml)"
+          expected_yq="$(yq -r '.tool_versions.github_releases.yq' vars/tool_versions.yml | sed 's/^v//')"
+          expected_zoxide="$(yq -r '.tool_versions.github_releases.zoxide' vars/tool_versions.yml | sed 's/^v//')"
+          expected_fzf="$(yq -r '.tool_versions.github_releases.fzf' vars/tool_versions.yml | sed 's/^v//')"
+
+          test "$(mise --version | awk '{print $2}')" = "$expected_mise"
+          test "$(mise current node | awk '{print $2}')" = "$expected_node"
+          test "$(rg --version | awk 'NR==1 {print $2}')" = "$expected_ripgrep"
+          test "$(delta --version | awk 'NR==1 {print $2}')" = "$expected_delta"
+          test "$(tmux -V | awk '{print $2}')" = "$expected_tmux"
+          test "$(nvim --version | awk 'NR==1 {print $2}')" = "$expected_neovim"
+          test "$(yq --version | sed -E 's/.* version v?([^ ]+).*/\1/')" = "$expected_yq"
+          test "$(zoxide --version | awk '{print $2}')" = "$expected_zoxide"
+          test "$(fzf --version | awk '{print $1}')" = "$expected_fzf"
+
+          echo "Expected versions verified"
 
       - name: Verify zsh config is valid
         run: zsh -n ~/.zshrc

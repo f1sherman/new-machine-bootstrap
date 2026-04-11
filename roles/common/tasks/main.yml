@@ -366,7 +366,7 @@
       git:
         dest: '{{ ansible_facts["user_dir"] }}/.codex/superpowers'
         repo: 'https://github.com/obra/superpowers.git'
-        version: main
+        version: "{{ tool_versions.git_tags.superpowers }}"
         update: yes
         force: no
 
@@ -407,14 +407,21 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
-- name: Get latest LTS Node.js version (Linux)
-  command: "{{ mise_bin }} latest node@lts"
-  register: linux_node_lts
+- name: Check if pinned Node.js version is installed (Linux)
+  shell: "{{ mise_bin }} ls node | awk '$1 == \"node\" && $2 == \"{{ tool_versions.runtimes.node }}\" { found = 1 } END { exit(found ? 0 : 1) }'"
+  register: linux_node_installed
   changed_when: false
+  failed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
+- name: Install pinned Node.js version if not installed (Linux)
+  command: "{{ mise_bin }} install node@{{ tool_versions.runtimes.node }}"
+  when:
+    - ansible_facts["os_family"] == "Debian"
+    - linux_node_installed.rc != 0
+
 - name: Set global Node.js version via mise (Linux)
-  command: "{{ mise_bin }} use --global node@{{ linux_node_lts.stdout }}"
+  command: "{{ mise_bin }} use --global node@{{ tool_versions.runtimes.node }}"
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
@@ -452,7 +459,7 @@
   changed_when: claude_vim_mode_result.stdout.strip() == 'changed'
 
 - name: Install or update Claude Code CLI to latest version
-  shell: curl -fsSL https://claude.ai/install.sh | bash
+  shell: curl -fsSL https://claude.ai/install.sh | bash -s -- latest
   changed_when: false
   register: claude_install
   failed_when:
@@ -626,7 +633,7 @@
 # PATH is extended because mise may have been installed during pre_tasks
 # and isn't in the inherited PATH yet.
 - name: Install or update Codex CLI via npm (Linux)
-  shell: "{{ mise_bin }} exec node@lts -- npm install -g @openai/codex@latest"
+  shell: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- npm install -g @openai/codex@latest"
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   when: ansible_facts["os_family"] == "Debian"
@@ -640,7 +647,7 @@
   when: ansible_facts["os_family"] == "Darwin"
 
 - name: Install or update pi-coding-agent via npm (Linux)
-  shell: "{{ mise_bin }} exec node@lts -- npm install -g @mariozechner/pi-coding-agent@latest"
+  shell: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- npm install -g @mariozechner/pi-coding-agent@latest"
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   when: ansible_facts["os_family"] == "Debian"
@@ -654,7 +661,7 @@
   when: ansible_facts["os_family"] == "Darwin"
 
 - name: Install pi-subdir-context plugin for pi-coding-agent (Linux)
-  shell: "{{ mise_bin }} exec node@lts -- pi install npm:pi-subdir-context"
+  shell: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- pi install npm:pi-subdir-context"
   register: pi_plugin_linux
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
@@ -666,7 +673,7 @@
 # regardless of which Node version the current directory's mise.toml selects.
 - name: Create ~/.local/bin symlinks for global npm tools (Linux)
   shell: |
-    node_bin="$("{{ mise_bin }}" where node@{{ linux_node_lts.stdout }})/bin"
+    node_bin="$("{{ mise_bin }}" where node@{{ tool_versions.runtimes.node }})/bin"
     for cmd in codex pi; do
       [ -x "$node_bin/$cmd" ] && ln -sf "$node_bin/$cmd" ~/.local/bin/"$cmd"
     done
