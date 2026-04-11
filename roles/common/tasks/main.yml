@@ -280,7 +280,7 @@
 
       - Do the work when you can.
       - Includes: provision, test, inspect state, SSH, click through webflows.
-      - Ask only for physical access, missing credentials, or real ambiguity.
+      - Ask only for physical access, access you do not have, or real ambiguity.
 
       ## tmux Worktree State
 
@@ -323,7 +323,7 @@
       - Always try Red/Green TDD.
       - This matters even without a test suite.
       - If you can script a test, do it.
-      - When feasible, write the failing test first, then make it pass.
+      - When feasible, prove the test fails the way you expect before making it pass.
 
       ## Git Commits
 
