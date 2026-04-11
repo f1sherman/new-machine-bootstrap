@@ -1,186 +1,87 @@
 ---
 name: personal:convert-skill-from-codex
 description: >
-  Convert a Codex skill to Claude Code format. You are Claude Code receiving a Codex skill and rewriting it for yourself.
+  Convert a Codex skill to Claude Code format. Rewrite the same intent in Claude Code language.
   Use when the user wants to port a Codex skill to Claude Code.
 ---
 
 # Convert Codex Skill to Claude Code
 
-You are Claude Code. You're receiving a Codex skill and need to rewrite it for yourself.
+You are Claude Code. Rewrite the source skill for your own use.
 
-## Finding Codex Skills
+## Read
 
-Codex skills are located at `~/.codex/skills/`. Each skill is a directory containing:
-- `SKILL.md` - The main skill definition
-- Additional files - Templates, scripts, examples, or other supporting files
+- Source path: `~/.codex/skills/<skill-name>/`
+- Read `SKILL.md` first.
+- Read extra files only when needed.
+- Focus on intent, workflow, and constraints.
 
-To list available Codex skills:
-```bash
-ls ~/.codex/skills/
-```
+## Start
 
-## Initial Response
+- If the user did not name a skill, list `~/.codex/skills/` and ask which one to convert.
+- Wait for the answer.
 
-If the user has not specified which skill to convert, list the available Codex skills and ask them to choose:
+## Rewrite
 
-```
-I'll help you convert a Codex skill to Claude Code format.
+- Keep the same scope and goal.
+- Express the workflow in Claude Code terms.
+- Use Claude agents and `Task` for parallel or isolated work.
+- Check `~/.claude/agents/` for useful agents.
+- Read agent frontmatter as needed: `name`, `description`, `tools`.
+- Use background execution and tool limits when helpful.
+- Stay in one conversation.
 
-Available Codex skills:
-[list from ~/.codex/skills/]
+## Agents
 
-Which skill would you like me to convert?
-```
+- Use agents for exploration, analysis, pattern finding, and web research when they fit.
+- Prefer the smallest agent set that covers the job.
 
-Then wait for the user's input before proceeding.
-
-## Your Approach
-
-Don't think about "adding Claude features to a Codex skill." Instead:
-
-1. Read the Codex skill to understand what it accomplishes
-2. Discover your available capabilities (sub-agents, tools)
-3. Write a fresh Claude Code skill that achieves the same goal using your native capabilities
-4. Express the workflow in your idiom
-
-## Process
-
-### Step 1: Understand the Source Skill
-
-Read the Codex skill from `~/.codex/skills/<skill-name>/`. Start with SKILL.md:
-- What is this skill trying to help the user accomplish?
-- What are the key steps in the workflow?
-- What constraints or guidelines matter?
-
-Focus on the INTENT, not the Codex-specific implementation details.
-
-### Step 2: Discover Your Capabilities
-
-**Discover available sub-agents:**
-Check `~/.claude/agents/` for available agents you can use:
+**Find agents:**
 ```bash
 ls ~/.claude/agents/
 ```
 
-Each agent file (`.md`) has YAML frontmatter describing:
-- `name`: The agent identifier (use this with the Task tool)
-- `description`: What the agent specializes in
-- `tools`: What tools the agent has access to
+## Translate
 
-Read the agent files to understand what specialized agents are available to you. Common patterns include agents for:
-- Codebase exploration and file discovery
-- Code analysis and understanding
-- Pattern finding and examples
-- Web research (if available)
+- `Codex` (the agent) -> `Claude Code`
+- `Codex attribution` -> `Claude attribution`
+- `Generated with Codex` -> `Generated with Claude`
+- `list-codex-sessions` -> `list-claude-sessions`
+- `read-codex-session` -> `read-claude-session`
+- `shell_command` -> the right Claude tool name
 
-**Your core capabilities:**
-- **Task tool**: Spawn sub-tasks that run in parallel with their own context
-- **Background execution**: Run long tasks in background while continuing work
-- **Tool restrictions**: Give sub-tasks limited tool access (e.g., read-only)
-- **Direct tools**: Grep, Glob, Read, Edit, Write, Bash, etc.
+## Tool Map
 
-### Step 3: Write Your Version
+| Codex tool | Claude tool |
+|------------|-------------|
+| `Read` tool | `shell_command` with `cat` or `nl -ba` |
+| `Bash` tool | `shell_command` |
+| `Glob` tool | `shell_command` with `rg --files -g "pattern"` |
+| `Grep` tool | `shell_command` with `rg` |
+| `Edit` tool | `apply_patch` |
+| `Write` tool | `shell_command` with heredoc or `apply_patch` |
+| `Task` tool (sub-agents) | Use `Task` with Claude agents |
+| `WebSearch` / `WebFetch` | Not available. Ask the user or skip. |
 
-Write a skill that accomplishes the same intent using your capabilities.
+## Pattern Swaps
 
-**Frontmatter:**
-```yaml
----
-name: personal:<skill-name>
-description: >
-  [What the skill does - write naturally, don't copy Codex's description]
----
-```
+- Sub-agent spawning -> use Task agents, then synthesize.
+- Task tool references -> use Task directly.
+- Main agent / sub-agents -> remove the hierarchy.
+- `personal:web-search-researcher` -> ask the user for the missing info.
+- `WebSearch` / `WebFetch` -> ask the user or skip.
 
-**Workflow:**
-Express the steps in your natural idiom:
-- You can spawn sub-tasks via the Task tool for parallel or isolated work
-- Reference any available agents you discovered in Step 2 that would help
-- You can run tasks in the background
-- You can restrict tools for sub-tasks (e.g., read-only analysis)
+## Supporting Files
 
-**Consider using sub-tasks when:**
-- Multiple independent operations could run in parallel
-- High-volume output would clutter your main context
-- Operations benefit from restricted tool access
-- Long-running tasks could run in background
-- A specialized agent exists that's well-suited for the task
+- Update templates, scripts, and examples.
+- Apply the same replacements everywhere in the skill directory.
 
-**Keep it sequential when:**
-- Steps depend on each other's results
-- The workflow is simple and linear
-- Sub-tasks would add complexity without benefit
-- No specialized agents would help
+## Validate
 
-### Step 4: Text Replacements
-
-Apply these replacements where they appear:
-
-| Codex | Claude Code |
-|-------|-------------|
-| `Codex` (the agent) | `Claude Code` |
-| `Codex attribution` | `Claude attribution` |
-| `Generated with Codex` | `Generated with Claude` |
-| `list-codex-sessions` | `list-claude-sessions` |
-| `read-codex-session` | `read-claude-session` |
-| `shell_command` | appropriate tool (Bash, Read, etc.) |
-
-### Step 5: Handle Supporting Files
-
-For each additional file in the skill directory:
-- Templates: Apply text replacements
-- Scripts: Update any Codex-specific commands
-- Examples: Update to reflect Claude Code patterns
-
-### Step 6: Write and Validate
-
-1. Write all files to `~/.claude/skills/<skill-name>/`
-2. Validate:
-   - [ ] No remaining "Codex" references (except when discussing cross-agent work)
-   - [ ] Workflow uses your native patterns naturally
-   - [ ] Any referenced agents actually exist in `~/.claude/agents/`
-   - [ ] YAML frontmatter is valid
-   - [ ] All source files accounted for
-
-3. Summarize:
-   ```
-   Converted: [skill name]
-
-   Intent: [what the skill accomplishes]
-
-   Key adaptations:
-   - [How you expressed the workflow in your idiom]
-   - [Any sub-agents you leveraged and why]
-   - [Text replacements made]
-
-   Output: [path]
-   ```
-
-## Example
-
-**Codex skill says:**
-```markdown
-Research the codebase:
-- Use `rg` to find files
-- Read relevant files with `shell_command cat`
-- Keep notes as you go
-```
-
-**If you have relevant agents**, you might write:
-```markdown
-Research the codebase:
-- Use a codebase exploration agent (if available) to find relevant files
-- Use an analysis agent (if available) to understand implementation details
-- Synthesize findings from sub-tasks
-```
-
-**If sub-tasks aren't warranted** or no relevant agents exist:
-```markdown
-Research the codebase:
-- Use Grep and Glob to find relevant files
-- Read the files to understand the implementation
-- Keep notes with file:line references
-```
-
-Choose based on whether parallelization actually helps the workflow and what agents are available to you.
+- Write the result to `~/.claude/skills/<skill-name>/`.
+- Check for stray `Codex` references.
+- Check the workflow still matches the source skill.
+- Check YAML frontmatter.
+- Check that all referenced agents exist in `~/.claude/agents/`.
+- Check all source files are accounted for.
+- Summarize: converted skill, intent, key adaptations, output path.
