@@ -29,6 +29,12 @@ make_repo() {
   git -C "$dir" commit -q --allow-empty -m init
 }
 
+make_repo_with_separate_git_dir() {
+  local dir="$1" gitdir="$2"
+  git -c init.templateDir= init -qb main --separate-git-dir "$gitdir" "$dir"
+  git -C "$dir" commit -q --allow-empty -m init
+}
+
 make_linked_worktree() {
   local repo="$1" branch="$2" path="$3"
   git -C "$repo" worktree add -q -b "$branch" "$path"
@@ -141,6 +147,7 @@ make_fzf_stub "$bin_dir"
 
 repo="$TMPROOT/repo"
 make_repo "$repo"
+repo_real="$(cd "$repo" && pwd -P)"
 
 plain_branch="feature/plain"
 clean_branch="feature/clean"
@@ -176,6 +183,17 @@ assert_contains "ordinary branch picker includes plain branch" "  $plain_branch"
 assert_contains "ordinary branch picker marks clean linked branch" "+ $clean_branch" "$input"
 assert_contains "ordinary branch picker marks dirty linked branch" "+ $dirty_branch" "$input"
 assert_not_contains "ordinary branch picker excludes current branch" " main" "$input"
+
+# --- Case 1b: refuse to delete a branch checked out in the main worktree ---
+stdout="$TMPROOT/stdout.1b"
+stderr="$TMPROOT/stderr.1b"
+input="$TMPROOT/picker.1b"
+rc="$(run_helper "$clean_wt" "+ main" "$input" "$stdout" "$stderr")"
+assert_eq "main worktree branch returns failure" "1" "$rc"
+assert_eq "main worktree branch leaves main present" "present" "$(git -C "$repo" show-ref --verify --quiet refs/heads/main && printf present || true)"
+assert_eq "main worktree branch leaves linked worktree present" "present" "$(git -C "$repo" worktree list --porcelain | grep -F "worktree $clean_wt_real" >/dev/null && printf present || true)"
+assert_contains "linked worktree picker marks main branch" "+ main" "$input"
+assert_contains "main worktree refusal mentions path" "$repo_real" "$stderr"
 
 # --- Case 2: delete a clean linked-worktree branch ---
 stdout="$TMPROOT/stdout.2"
@@ -222,6 +240,25 @@ assert_eq "cancel returns success" "0" "$rc"
 assert_eq "cancel prints nothing" "" "$(cat "$stdout")$(cat "$stderr")"
 assert_not_contains "picker excludes current branch" " main" "$input"
 assert_contains "picker marks linked branch with plus" "+ feature/dirty" "$input"
+
+separate_repo="$TMPROOT/separate-repo"
+separate_gitdir="$TMPROOT/separate-store.git"
+make_repo_with_separate_git_dir "$separate_repo" "$separate_gitdir"
+separate_gitdir_real="$(cd "$(dirname "$separate_gitdir")" && pwd -P)/$(basename "$separate_gitdir")"
+separate_linked="$TMPROOT/separate-linked"
+make_linked_worktree "$separate_repo" "feature/separate-linked" "$separate_linked"
+separate_linked_real="$(cd "$separate_linked" && pwd -P)"
+
+# --- Case 5: refuse to delete a branch whose primary checkout is reported as the common git dir ---
+stdout="$TMPROOT/stdout.5"
+stderr="$TMPROOT/stderr.5"
+input="$TMPROOT/picker.5"
+rc="$(run_helper "$separate_linked" "+ main" "$input" "$stdout" "$stderr")"
+assert_eq "separate git dir main branch returns failure" "1" "$rc"
+assert_eq "separate git dir main branch leaves main present" "present" "$(git -C "$separate_repo" show-ref --verify --quiet refs/heads/main && printf present || true)"
+assert_eq "separate git dir main branch leaves linked worktree present" "present" "$(git -C "$separate_repo" worktree list --porcelain | grep -F "worktree $separate_linked_real" >/dev/null && printf present || true)"
+assert_contains "separate git dir picker marks main branch" "+ main" "$input"
+assert_contains "separate git dir refusal mentions common git dir" "$separate_gitdir_real" "$stderr"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

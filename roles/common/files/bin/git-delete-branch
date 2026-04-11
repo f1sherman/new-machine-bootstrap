@@ -13,6 +13,9 @@ if [ -z "$current_branch" ]; then
   exit 1
 fi
 
+main_worktree_gitdir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir)"
+main_worktree_root="$(dirname "$main_worktree_gitdir")"
+
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -25,7 +28,12 @@ while IFS= read -r line; do
     "worktree "*) current_path="${line#worktree }" ;;
     "branch refs/heads/"*)
       branch="${line#branch refs/heads/}"
-      printf '%s\t%s\n' "$branch" "$current_path"
+      if [ "$current_path" = "$main_worktree_root" ] || [ "$current_path" = "$main_worktree_gitdir" ]; then
+        worktree_kind='main'
+      else
+        worktree_kind='linked'
+      fi
+      printf '%s\t%s\t%s\n' "$branch" "$current_path" "$worktree_kind"
       ;;
   esac
 done > "$metadata_file"
@@ -57,10 +65,16 @@ fi
 
 branch="${selected:2}"
 path="$(awk -F '\t' -v branch="$branch" '$1 == branch { print $2; exit }' "$metadata_file")"
+worktree_kind="$(awk -F '\t' -v branch="$branch" '$1 == branch { print $3; exit }' "$metadata_file")"
 
 if [ -z "$path" ]; then
   git -C "$repo_root" branch -D "$branch"
   exit 0
+fi
+
+if [ "$worktree_kind" = main ]; then
+  echo "Refusing to delete branch $branch because worktree at $path is the main working tree" >&2
+  exit 1
 fi
 
 if [ -n "$(git -C "$path" status --porcelain)" ]; then

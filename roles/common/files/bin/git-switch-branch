@@ -3,6 +3,7 @@ set -eu
 
 current_root="$(git rev-parse --show-toplevel)" || exit 1
 current_branch="$(git branch --show-current 2>/dev/null || true)"
+common_dir="$(git rev-parse --path-format=absolute --git-common-dir)" || exit 1
 worktree_pairs="$(
   git worktree list --porcelain | awk '
     /^worktree / { worktree = substr($0, 10) }
@@ -36,12 +37,12 @@ rows="$(
           awk -F '\t' -v branch="$branch" '$1 == branch { print $2; exit }'
       )"
 
-      if [ -n "$worktree_path" ] && [ "$worktree_path" != "$current_root" ]; then
+      if [ "$branch" = "$current_branch" ]; then
+        marker='*'
+      elif [ -n "$worktree_path" ] && [ "$worktree_path" != "$current_root" ]; then
         marker='+'
         action='cd'
         payload="$worktree_path"
-      elif [ "$branch" = "$current_branch" ]; then
-        marker='*'
       fi
 
       printf '%s\t%s\t%s %s\n' "$action" "$payload" "$marker" "$branch"
@@ -60,6 +61,13 @@ fi
 
 action="$(printf '%s' "$selection" | cut -f1)"
 payload="$(printf '%s' "$selection" | cut -f2)"
+display="$(printf '%s' "$selection" | cut -f3)"
 [ -n "$action" ] && [ -n "$payload" ] || exit 1
+
+if [ "$action" = cd ] && [ "$payload" = "$common_dir" ]; then
+  branch="${display#??}"
+  echo "Cannot switch to branch $branch because Git reports the primary worktree as $payload instead of a worktree directory" >&2
+  exit 1
+fi
 
 printf '%s\t%s\n' "$action" "$payload"
