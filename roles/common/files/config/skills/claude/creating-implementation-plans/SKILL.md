@@ -71,14 +71,20 @@ After clarifications:
 
 1. If the user corrects you, verify the correction in code before accepting it.
 2. Build a research todo list with TodoWrite.
-3. Research in passes:
+3. Spawn parallel sub-agents for focused research.
+   - Use `personal:codebase-locator` for additional file discovery.
+   - Use `personal:codebase-analyzer` for implementation details.
+   - Use `personal:codebase-pattern-finder` for similar features and examples.
+   - Keep each prompt focused and require file:line references.
+4. Wait for every sub-agent to finish before synthesis.
+5. Research in passes:
    - Pass 1: discovery with `rg`, `rg --files`, and directory listings
    - Pass 2: deep reads of the best candidates
    - Pass 3: patterns, tests, and examples
-4. Keep short notes with file:line references.
-5. Fill gaps with focused follow-up searches.
-6. Find conventions, integration points, dependencies, and tests.
-7. Present findings and design options:
+6. Keep short notes with file:line references.
+7. Fill gaps with focused follow-up searches.
+8. Find conventions, integration points, dependencies, and tests.
+9. Present findings and design options:
 
 ```text
 Based on my research, here is what I found:
