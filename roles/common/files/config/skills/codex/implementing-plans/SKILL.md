@@ -86,9 +86,9 @@ How would you like to handle each?
 
 If added to the current plan, fold them into the right phase. If deferred, leave them checked off with `(deferred to separate plan)`. If discarded, mark `(discarded)`.
 
-## Test
+## Red/Green TDD
 
-**Goal**: run every test you can. Only involve the human for what you cannot do.
+**Goal**: red/green discipline is required. Run every test you can. For human-required checks, tell the user exactly what to do and what to look for.
 
 Before the phase:
 
@@ -107,7 +107,8 @@ After the phase:
    - Fix any issue found, then re-run tests.
 4. Tests and self-review must pass back-to-back. Re-run tests after any self-review fix.
 5. Check off `Green` and `Self-Review` only after both pass consecutively.
-6. Present a phase summary for human review:
+6. If any check needs human action, tell the user the exact step and the expected result.
+7. Present a phase summary for human review:
    ```
    Phase [N]: [Name] — Ready for Review
 
@@ -122,10 +123,14 @@ After the phase:
    Tests passing:
    - [List of test commands and results]
 
+   Manual checks still needed (if any):
+   - [Exact step]
+   - [What success looks like]
+
    Ready to proceed to Phase [N+1]?
    ```
-7. Wait for human approval before the next phase.
-8. Check off `Human Review` once approved.
+8. Wait for human approval before the next phase.
+9. Check off `Human Review` once approved.
 
 ## If Stuck
 
