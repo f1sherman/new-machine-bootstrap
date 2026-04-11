@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s\n' "$(cd "$SCRIPT_DIR/../../../.." && pwd)")"
+ZSHRC="$ROOT/roles/common/templates/dotfiles/zshrc"
+ZSH_BIN="$(command -v zsh)"
+ENV_BIN="$(command -v env)"
+
+if [ ! -f "$ZSHRC" ]; then
+  printf 'ERROR: %s does not exist\n' "$ZSHRC" >&2
+  exit 2
+fi
+
+if [ -z "$ZSH_BIN" ] || [ -z "$ENV_BIN" ]; then
+  printf 'ERROR: required shell tools are missing\n' >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+mkdir -p "$TMPROOT/bin"
+ln -s "$ENV_BIN" "$TMPROOT/bin/env"
+
+cat > "$TMPROOT/bin/codex" <<'EOF'
+#!/bin/sh
+printf 'child=%s\n' "${OPENAI_API_KEY-__UNSET__}"
+EOF
+chmod +x "$TMPROOT/bin/codex"
+
+awk '
+  /^alias codex > \/dev\/null && unalias codex$/ { capture=1 }
+  capture { print }
+  capture && /^}$/ { exit }
+' "$ZSHRC" > "$TMPROOT/codex-wrapper.zsh"
+
+if ! grep -Fqx 'function codex() {' "$TMPROOT/codex-wrapper.zsh"; then
+  printf 'ERROR: failed to extract codex() wrapper from %s\n' "$ZSHRC" >&2
+  exit 2
+fi
+
+cat > "$TMPROOT/run.zsh" <<EOF
+set -eu
+source "$TMPROOT/codex-wrapper.zsh"
+codex
+print -r -- "parent=\${OPENAI_API_KEY-__UNSET__}"
+EOF
+
+expected=$'child=__UNSET__\nparent=secret'
+
+if output="$(PATH="$TMPROOT/bin" OPENAI_API_KEY=secret "$ZSH_BIN" -f "$TMPROOT/run.zsh" 2>&1)"; then
+  if [ "$output" = "$expected" ]; then
+    printf 'PASS  codex wrapper clears child OPENAI_API_KEY without mutating the parent shell\n'
+    exit 0
+  fi
+
+  printf 'FAIL  codex wrapper produced unexpected output\n' >&2
+  printf '      expected: %q\n' "$expected" >&2
+  printf '      actual  : %q\n' "$output" >&2
+  exit 1
+fi
+
+printf 'FAIL  codex wrapper did not execute successfully\n' >&2
+printf '      output: %s\n' "$output" >&2
+exit 1
