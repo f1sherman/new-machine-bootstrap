@@ -33,3 +33,5 @@ jobs:
         with:
           configurationFile: renovate.json
           token: ${{ steps.app_token.outputs.token }}
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}

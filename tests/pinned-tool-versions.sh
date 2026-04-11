@@ -124,6 +124,7 @@ run_renovate_checks() {
   assert_contains "$RENOVATE_RUN_WORKFLOW" "configurationFile: renovate.json" "renovate workflow uses renovate.json as its single config file"
   assert_contains "$RENOVATE_RUN_WORKFLOW" 'token: ${{ steps.app_token.outputs.token }}' "renovate workflow passes the GitHub App token to Renovate"
   assert_contains "$RENOVATE_RUN_WORKFLOW" 'repositories: ${{ github.event.repository.name }}' "renovate workflow scopes the GitHub App token to the current repository"
+  assert_contains "$RENOVATE_RUN_WORKFLOW" 'RENOVATE_REPOSITORIES: ${{ github.repository }}' "renovate workflow tells self-hosted Renovate to process the current repository"
   assert_not_contains "$RENOVATE_RUN_WORKFLOW" "GITHUB_TOKEN" "renovate workflow does not authenticate Renovate with GITHUB_TOKEN"
   assert_contains "$RENOVATE_SETUP_DOC" "RENOVATE_APP_ID" "GitHub App setup doc lists the App ID secret"
   assert_contains "$RENOVATE_SETUP_DOC" "RENOVATE_APP_PRIVATE_KEY" "GitHub App setup doc lists the App private key secret"
