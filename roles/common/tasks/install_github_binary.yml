@@ -121,17 +121,25 @@
   delay: 10
   when: _gh_needs_update and (download_type | default('binary')) == 'tarball'
 
+- name: "{{ binary_name }} | Create temporary .deb path"
+  tempfile:
+    state: file
+    prefix: "_gh_{{ binary_name }}."
+    suffix: ".deb"
+  register: _gh_deb_tempfile
+  when: _gh_needs_update and (download_type | default('binary')) == 'deb'
+
 - name: "{{ binary_name }} | Download .deb package"
   get_url:
     url: "{{ _gh_asset_url }}"
-    dest: "/tmp/_gh_{{ binary_name }}.deb"
+    dest: "{{ _gh_deb_tempfile.path }}"
   retries: 3
   delay: 10
   when: _gh_needs_update and (download_type | default('binary')) == 'deb'
 
 - name: "{{ binary_name }} | Check .deb dependencies are satisfiable"
   shell: |
-    dpkg-deb -f "/tmp/_gh_{{ binary_name }}.deb" Depends | tr ',' '\n' | while read -r dep; do
+    dpkg-deb -f "{{ _gh_deb_tempfile.path }}" Depends | tr ',' '\n' | while read -r dep; do
       dep=$(echo "$dep" | xargs)
       [ -z "$dep" ] && continue
       pkg=$(echo "$dep" | awk '{print $1}')
@@ -161,13 +169,13 @@
 
 - name: "{{ binary_name }} | Install .deb package"
   apt:
-    deb: "/tmp/_gh_{{ binary_name }}.deb"
+    deb: "{{ _gh_deb_tempfile.path }}"
   become: yes
   when: _gh_needs_update and (download_type | default('binary')) == 'deb' and _gh_deb_depcheck.rc | default(0) == 0
 
 - name: "{{ binary_name }} | Clean up .deb package"
   file:
-    path: "/tmp/_gh_{{ binary_name }}.deb"
+    path: "{{ _gh_deb_tempfile.path }}"
     state: absent
   when: _gh_needs_update and (download_type | default('binary')) == 'deb'
 
