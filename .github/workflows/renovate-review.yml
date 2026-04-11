@@ -12,7 +12,10 @@ jobs:
   review:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event.pull_request.user.login == 'renovate[bot]' || github.event.pull_request.user.login == 'renovate-bot'
+    if: >-
+      github.event.pull_request.user.login == 'renovate[bot]' ||
+      github.event.pull_request.user.login == 'renovate-bot' ||
+      github.event.pull_request.user.login == format('{0}[bot]', vars.RENOVATE_APP_SLUG)
 
     steps:
       - uses: actions/checkout@v4
