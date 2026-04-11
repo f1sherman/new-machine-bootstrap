@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/git-switch-branch"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+GIT_AUTHOR_NAME=test
+GIT_AUTHOR_EMAIL=test@example.com
+GIT_COMMITTER_NAME=test
+GIT_COMMITTER_EMAIL=test@example.com
+export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+
+pass=0
+fail=0
+
+install_fake_fzf() {
+  local bindir="$1"
+  mkdir -p "$bindir"
+  cat > "$bindir/fzf" <<'EOF'
+#!/usr/bin/env bash
+set -eu
+
+input="$(cat)"
+
+if [ -n "${FAKE_FZF_INPUT_FILE:-}" ]; then
+  printf '%s' "$input" > "$FAKE_FZF_INPUT_FILE"
+fi
+
+match="${FAKE_FZF_MATCH:?}"
+selected="$(printf '%s\n' "$input" | grep -F -m 1 -- "$match" || true)"
+[ -n "$selected" ] || exit 1
+printf '%s\n' "$selected"
+EOF
+  chmod +x "$bindir/fzf"
+}
+
+make_repo() {
+  local dir="$1"
+  git init -qb main "$dir"
+  git -C "$dir" commit -q --allow-empty -m init
+}
+
+assert_picker_markers() {
+  local input_file="$1"
+  local ok=0
+
+  grep -Fq $'\t* main' "$input_file" && ok=$((ok + 1))
+  grep -Fq $'\t+ feature/in-other-worktree' "$input_file" && ok=$((ok + 1))
+  grep -Fq $'\t  feature/available' "$input_file" && ok=$((ok + 1))
+
+  [ "$ok" -eq 3 ]
+}
+
+run_switch_case() {
+  local name="$1" repo="$2" match="$3" expected_output="$4" expected_branch="$5"
+  local bindir input_file rc output actual_branch
+
+  bindir="$(mktemp -d "$TMPROOT/fzfbin.XXXXXX")"
+  input_file="$(mktemp "$TMPROOT/fzfinput.XXXXXX")"
+  install_fake_fzf "$bindir"
+
+  output="$(
+    cd "$repo" &&
+    PATH="$bindir:$PATH" \
+    FAKE_FZF_MATCH="$match" \
+    FAKE_FZF_INPUT_FILE="$input_file" \
+    "$SCRIPT"
+  )"
+  rc=$?
+
+  actual_branch="$(git -C "$repo" branch --show-current)"
+
+  if [ "$rc" -eq 0 ] &&
+    [ "$output" = "$expected_output" ] &&
+    [ "$actual_branch" = "$expected_branch" ] &&
+    assert_picker_markers "$input_file"
+  then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      match          : %q\n' "$match"
+    printf '      expected output: %q\n' "$expected_output"
+    printf '      actual output  : %q\n' "$output"
+    printf '      expected branch: %q\n' "$expected_branch"
+    printf '      actual branch  : %q\n' "$actual_branch"
+    printf '      rc             : %s\n' "$rc"
+    printf '      markers ok     : %s\n' "$(assert_picker_markers "$input_file" && printf yes || printf no)"
+  fi
+}
+
+repo="$TMPROOT/repo"
+make_repo "$repo"
+git -C "$repo" branch feature/available
+git -C "$repo" branch feature/in-other-worktree
+git -C "$repo" worktree add -q "$TMPROOT/linked" feature/in-other-worktree
+linked_worktree_path="$(cd "$TMPROOT/linked" && pwd -P)"
+
+run_switch_case "ordinary branch selection returns checkout" "$repo" $'  feature/available' $'checkout\tfeature/available' "main"
+
+run_switch_case "linked worktree branch selection returns cd" "$repo" $'+ feature/in-other-worktree' $'cd\t'"$linked_worktree_path" "main"
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

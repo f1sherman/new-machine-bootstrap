@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -eu
+
+current_root="$(git rev-parse --show-toplevel)" || exit 1
+current_branch="$(git branch --show-current 2>/dev/null || true)"
+worktree_pairs="$(
+  git worktree list --porcelain | awk '
+    /^worktree / { worktree = substr($0, 10) }
+    /^branch refs\/heads\// {
+      branch = substr($0, 19)
+      print branch "\t" worktree
+    }
+  '
+)" || exit 1
+
+branches="$(
+  git for-each-ref \
+    --sort=refname \
+    --format='%(refname:short)' \
+    refs/heads
+)" || exit 1
+
+[ -n "$branches" ] || exit 0
+
+rows="$(
+  printf '%s\n' "$branches" |
+    while IFS= read -r branch; do
+      [ -n "$branch" ] || continue
+
+      marker=' '
+      action='checkout'
+      payload="$branch"
+
+      worktree_path="$(
+        printf '%s\n' "$worktree_pairs" |
+          awk -F '\t' -v branch="$branch" '$1 == branch { print $2; exit }'
+      )"
+
+      if [ -n "$worktree_path" ] && [ "$worktree_path" != "$current_root" ]; then
+        marker='+'
+        action='cd'
+        payload="$worktree_path"
+      elif [ "$branch" = "$current_branch" ]; then
+        marker='*'
+      fi
+
+      printf '%s\t%s\t%s %s\n' "$action" "$payload" "$marker" "$branch"
+    done
+)" || exit 1
+
+selection="$(
+  printf '%s\n' "$rows" | fzf +m --delimiter=$'\t' --with-nth=3
+)" || exit 0
+
+action="$(printf '%s' "$selection" | cut -f1)"
+payload="$(printf '%s' "$selection" | cut -f2)"
+[ -n "$action" ] && [ -n "$payload" ] || exit 1
+
+printf '%s\t%s\n' "$action" "$payload"
