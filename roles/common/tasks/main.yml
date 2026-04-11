@@ -332,6 +332,37 @@
     dest: '{{ ansible_facts["user_dir"] }}/.codex/AGENTS.md'
     state: link
 
+- name: Install superpowers via Codex native skill discovery
+  tags:
+    - superpowers
+  block:
+    - name: Create ~/.agents directory
+      file:
+        path: '{{ ansible_facts["user_dir"] }}/.agents'
+        state: directory
+        mode: '0755'
+
+    - name: Create ~/.agents/skills directory
+      file:
+        path: '{{ ansible_facts["user_dir"] }}/.agents/skills'
+        state: directory
+        mode: '0755'
+
+    - name: Clone superpowers repository for Codex native skill discovery
+      git:
+        dest: '{{ ansible_facts["user_dir"] }}/.codex/superpowers'
+        repo: 'https://github.com/obra/superpowers.git'
+        version: main
+        update: yes
+        force: no
+
+    - name: Link superpowers skills into ~/.agents/skills
+      file:
+        src: '{{ ansible_facts["user_dir"] }}/.codex/superpowers/skills'
+        dest: '{{ ansible_facts["user_dir"] }}/.agents/skills/superpowers'
+        state: link
+        force: yes
+
 - name: Create ccstatusline config directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/.config/ccstatusline'
