@@ -32,4 +32,4 @@ tool_versions:
 
   compatibility:
     # renovate: datasource=github-releases depName=neovim/neovim
-    neovim_glibc_legacy: v0.10.4
+    neovim_glibc_legacy: v0.12.0
