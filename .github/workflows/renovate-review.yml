@@ -1,0 +1,56 @@
+name: Renovate PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.user.login, 'renovate')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Review PR and post comment
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          gh pr view "$PR_NUMBER" --repo "$REPO" --json title,body > /tmp/pr.json
+          PR_TITLE="$(jq -r '.title' /tmp/pr.json)"
+
+          {
+            echo "You are reviewing a Renovate dependency update PR in this repository."
+            echo
+            echo "PR Title: $PR_TITLE"
+            echo
+            echo "PR Body (includes Renovate's changelog/release notes summary):"
+            jq -r '.body' /tmp/pr.json
+            echo
+            echo "Review the dependency update and check for:"
+            echo "1. Breaking changes that require code changes in this repo"
+            echo "2. Major version bumps that need migration work"
+            echo "3. Compatibility issues with the provisioning tasks in this repo"
+            echo
+            echo "Use the local repository contents to inspect how the dependency is used."
+            echo
+            echo "Format your response as a PR comment. Start with one of:"
+            echo "- '## Renovate Review: ✅ Mergeable'"
+            echo "- '## Renovate Review: ⚠️ Needs Review'"
+          } > /tmp/prompt.txt
+
+          REVIEW="$(claude -p \
+            --model claude-opus-4-6 \
+            --allowedTools 'Read,Grep,Glob' \
+            --max-turns 10 \
+            --output-format json < /tmp/prompt.txt | jq -r '.result')"
+
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$REVIEW"
