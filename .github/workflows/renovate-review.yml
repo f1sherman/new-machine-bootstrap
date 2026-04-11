@@ -11,6 +11,7 @@ permissions:
 jobs:
   review:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event.pull_request.user.login == 'renovate[bot]' || github.event.pull_request.user.login == 'renovate-bot'
 
     steps:

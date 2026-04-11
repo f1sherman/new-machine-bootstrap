@@ -123,7 +123,14 @@ run_review_workflow_checks() {
   assert_not_contains "$REVIEW_WORKFLOW" "contains(github.event.pull_request.user.login, 'renovate')" "review workflow no longer uses broad Renovate substring gating"
   assert_contains "$REVIEW_WORKFLOW" "github.event.pull_request.user.login == 'renovate[bot]'" "review workflow allows renovate[bot]"
   assert_contains "$REVIEW_WORKFLOW" "github.event.pull_request.user.login == 'renovate-bot'" "review workflow allows renovate-bot"
+  assert_contains "$REVIEW_WORKFLOW" "timeout-minutes: 10" "review workflow sets a job timeout"
   assert_contains "$REVIEW_WORKFLOW" "actions/checkout@v4" "review workflow uses GitHub Actions checkout"
+  assert_contains "$REVIEW_WORKFLOW" "npm install -g @anthropic-ai/claude-code" "review workflow installs Claude Code CLI"
+  assert_contains "$REVIEW_WORKFLOW" "gh pr view" "review workflow reads the PR metadata"
+  assert_contains "$REVIEW_WORKFLOW" "--json title,body" "review workflow fetches PR title and body"
+  assert_contains "$REVIEW_WORKFLOW" "claude -p" "review workflow runs Claude in prompt mode"
+  assert_contains "$REVIEW_WORKFLOW" "--allowedTools 'Read,Grep,Glob'" "review workflow restricts Claude tools"
+  assert_contains "$REVIEW_WORKFLOW" "gh pr comment" "review workflow posts the review comment"
 }
 
 case "${1:-all}" in
