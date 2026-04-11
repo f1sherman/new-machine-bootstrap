@@ -208,6 +208,19 @@
   changed_when: false
   failed_when: false
 
+- name: Resolve existing mise binary path
+  set_fact:
+    linux_mise_bin: "{{ mise_check.stdout | trim if mise_check.rc == 0 else (mise_bin | default('')) }}"
+
+- name: Check installed mise version
+  shell: "{{ linux_mise_bin }} --version | awk '{print $2}'"
+  args:
+    executable: /bin/bash
+  register: linux_mise_version
+  changed_when: false
+  failed_when: false
+  when: linux_mise_bin | length > 0
+
 - name: Install mise
   shell: curl -fsSL https://mise.run | sh
   args:
@@ -215,8 +228,7 @@
   environment:
     MISE_VERSION: "{{ tool_versions.runtimes.mise }}"
   when:
-    - mise_check.rc != 0
-    - mise_bin is not defined or mise_bin | length == 0
+    - linux_mise_bin | length == 0 or (linux_mise_version.stdout | default('')) != (tool_versions.runtimes.mise | regex_replace('^v', ''))
 
 - name: Resolve mise binary
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/resolve_mise_binary.yml'

@@ -82,6 +82,8 @@ run_install_checks() {
   assert_contains "$LINUX_INSTALLS" "shell: curl -fsSL https://mise.run | sh" "linux mise install keeps the upstream shell installer"
   assert_contains "$LINUX_INSTALLS" "environment:" "linux mise install defines an environment block"
   assert_contains "$LINUX_INSTALLS" "MISE_VERSION: \"{{ tool_versions.runtimes.mise }}\"" "linux mise install exports pinned MISE_VERSION"
+  assert_contains "$LINUX_INSTALLS" "Check installed mise version" "linux tasks check the installed mise version"
+  assert_contains "$LINUX_INSTALLS" "linux_mise_version.stdout | default('')" "linux mise install compares the installed version against the pin"
   assert_contains "$LINUX_MAIN" "version: \"{{ tool_versions.git_tags.tpm }}\"" "linux tpm clone uses catalog tag"
   assert_contains "$COMMON_MAIN" "version: \"{{ tool_versions.git_tags.superpowers }}\"" "common superpowers clone uses catalog tag"
   assert_contains "$COMMON_MAIN" "install node@{{ tool_versions.runtimes.node }}" "common Linux Node install uses pinned version"
@@ -101,6 +103,7 @@ run_install_checks() {
   assert_not_contains "$MACOS_MAIN" "latest node@lts" "macOS tasks no longer resolve latest Node LTS"
   assert_not_contains "$MACOS_MAIN" "('node  ' ~ tool_versions.runtimes.node) in installed_node_versions.stdout" "macOS Node detection no longer uses substring matching against stdout"
   assert_not_contains "$LINUX_INSTALLS" "shell: MISE_VERSION={{ tool_versions.runtimes.mise }} curl -fsSL https://mise.run | sh" "linux mise install no longer uses the inline MISE_VERSION shell form"
+  assert_not_contains "$LINUX_INSTALLS" "- mise_check.rc != 0" "linux mise install no longer only runs when the binary is missing"
 }
 
 run_renovate_checks() {
