@@ -6,45 +6,50 @@ description: >
   posts, or any written content that may contain AI-generated artifacts.
 ---
 
-# Humanizer: Remove AI Writing Patterns
+# Humanizer: remove AI writing patterns
 
-Identify and remove signs of AI-generated text to make writing sound more natural and human. Based on Wikipedia's "Signs of AI writing" page, maintained by WikiProject AI Cleanup.
+Strip AI tells. Make the text sound natural, human, and specific. Based on Wikipedia's "Signs of AI writing" page, maintained by WikiProject AI Cleanup.
 
 ## Task
 
 When given text to humanize:
 
-1. **Identify AI patterns** - Scan for the patterns listed below
-2. **Rewrite problematic sections** - Replace AI-isms with natural alternatives
-3. **Preserve meaning** - Keep the core message intact
-4. **Maintain voice** - Match the intended tone (formal, casual, technical, etc.)
-5. **Add soul** - Don't just remove bad patterns; inject actual personality
+1. **Find AI patterns** - Scan for the patterns below.
+2. **Rewrite the weak parts** - Replace AI-isms with plain alternatives.
+3. **Keep the meaning** - Preserve the core message.
+4. **Match the voice** - Stay formal, casual, technical, or whatever the text needs.
+5. **Keep source voice and neutrality** - Preserve neutral, factual, technical, or house-style-constrained text as neutral.
+6. **Add soul when it fits** - Remove slop, but do not inject opinions, feelings, first-person voice, tangents, or personality into text that should stay neutral.
+7. **Keep structure intact** - Preserve code spans, commands, links, headings, markup, and other formatting that should remain unchanged.
 
 ## Personality and Soul
 
-Avoiding AI patterns is only half the job. Sterile, voiceless writing is just as obvious as slop. Good writing has a human behind it.
+Cutting AI patterns is not enough. Clean but lifeless writing still reads fake. Good writing sounds like a person with an actual point of view.
+Use this section only when the source and context support a more personal voice. Do not force it onto neutral, factual, or technical text.
 
 ### Signs of soulless writing (even if technically "clean"):
-- Every sentence is the same length and structure
+- Every sentence has the same length and shape
 - No opinions, just neutral reporting
-- No acknowledgment of uncertainty or mixed feelings
-- No first-person perspective when appropriate
-- No humor, no edge, no personality
+- No uncertainty or mixed feelings
+- No first-person voice when it fits
+- No humor, edge, or personality
 - Reads like a Wikipedia article or press release
 
 ### How to add voice:
 
-**Have opinions.** Don't just report facts - react to them. "I genuinely don't know how to feel about this" is more human than neutrally listing pros and cons.
+**Have opinions.** Don't just report facts. React to them. "I genuinely don't know how to feel about this" sounds more human than a balanced list of pros and cons.
 
-**Vary your rhythm.** Short punchy sentences. Then longer ones that take their time getting where they're going. Mix it up.
+**Vary the rhythm.** Use short, sharp sentences. Then use longer ones that take their time. Don't keep the same cadence.
 
-**Acknowledge complexity.** Real humans have mixed feelings. "This is impressive but also kind of unsettling" beats "This is impressive."
+**Acknowledge complexity.** Real people are conflicted. "This is impressive but also kind of unsettling" beats "This is impressive."
 
-**Use "I" when it fits.** First person isn't unprofessional - it's honest.
+**Use "I" when it fits.** First person is not unprofessional. It is direct.
 
-**Let some mess in.** Perfect structure feels algorithmic. Tangents, asides, and half-formed thoughts are human.
+**Leave some rough edges.** Perfect structure feels mechanical. Tangents, asides, and half-formed thoughts feel human.
 
-**Be specific about feelings.** Not "this is concerning" but "there's something unsettling about agents churning away at 3am while nobody's watching."
+**Name the feeling.** Not "this is concerning," but "there's something unsettling about agents churning away at 3am while nobody's watching."
+
+**Stay within the source.** Do not invent specifics, facts, dates, causes, attributions, or sources. Use only details already in the input or separately verified.
 
 ## Content Patterns
 
@@ -52,37 +57,37 @@ Avoiding AI patterns is only half the job. Sterile, voiceless writing is just as
 
 **Words to watch:** stands/serves as, is a testament/reminder, a vital/significant/crucial/pivotal/key role/moment, underscores/highlights its importance, reflects broader, symbolizing its ongoing/enduring/lasting, setting the stage for, marking/shaping the, represents/marks a shift, key turning point, evolving landscape, indelible mark
 
-**Problem:** LLM writing puffs up importance by adding statements about how arbitrary aspects represent or contribute to a broader topic.
+**Problem:** AI inflates importance by turning ordinary facts into broad historical claims.
 
 **Before:**
 > The Statistical Institute of Catalonia was officially established in 1989, marking a pivotal moment in the evolution of regional statistics in Spain.
 
 **After:**
-> The Statistical Institute of Catalonia was established in 1989 to collect and publish regional statistics independently from Spain's national statistics office.
+> The Statistical Institute of Catalonia was established in 1989.
 
 ### 2. Undue Emphasis on Notability and Media Coverage
 
 **Words to watch:** independent coverage, local/regional/national media outlets, active social media presence
 
-**Problem:** LLMs hit readers over the head with claims of notability, often listing sources without context.
+**Problem:** AI overstates notability and lists outlets without context.
 
 **Before:**
 > Her views have been cited in The New York Times, BBC, Financial Times, and The Hindu. She maintains an active social media presence with over 500,000 followers.
 
 **After:**
-> In a 2024 New York Times interview, she argued that AI regulation should focus on outcomes rather than methods.
+> Her views have been cited in The New York Times, the BBC, the Financial Times, and The Hindu. She also has more than 500,000 social media followers.
 
 ### 3. Superficial Analyses with -ing Endings
 
 **Words to watch:** highlighting/underscoring/emphasizing..., ensuring..., reflecting/symbolizing..., contributing to..., cultivating/fostering..., showcasing...
 
-**Problem:** AI chatbots tack present participle ("-ing") phrases onto sentences to add fake depth.
+**Problem:** AI pads sentences with present-participle phrases to sound deeper.
 
 **Before:**
 > The temple's color palette resonates with the region's natural beauty, symbolizing Texas bluebonnets, showcasing how these elements have integrated into the traditional aesthetic.
 
 **After:**
-> The temple uses blue, green, and gold. The architect said these were chosen to reference local bluebonnets and the Gulf coast.
+> The temple's color palette reflects the region around it, including Texas bluebonnets.
 
 ### 4. Promotional and Advertisement-like Language
 
@@ -92,7 +97,7 @@ Avoiding AI patterns is only half the job. Sterile, voiceless writing is just as
 > Nestled within the breathtaking region of Gonder in Ethiopia, Alamata Raya Kobo stands as a vibrant town with a rich cultural heritage and stunning natural beauty.
 
 **After:**
-> Alamata Raya Kobo is a town in the Gonder region of Ethiopia, known for its weekly market and 18th-century church.
+> Alamata Raya Kobo is a town in the Gonder region of Ethiopia.
 
 ### 5. Vague Attributions and Weasel Words
 
@@ -102,7 +107,7 @@ Avoiding AI patterns is only half the job. Sterile, voiceless writing is just as
 > Experts believe it plays a crucial role in the regional ecosystem.
 
 **After:**
-> The Haolai River supports several endemic fish species, according to a 2019 survey by the Chinese Academy of Sciences.
+> Some experts say it plays an important role in the regional ecosystem.
 
 ### 6. Outline-like "Challenges and Future Prospects" Sections
 
@@ -112,7 +117,7 @@ Avoiding AI patterns is only half the job. Sterile, voiceless writing is just as
 > Despite its industrial prosperity, Korattur faces challenges typical of urban areas, including traffic congestion and water scarcity. Despite these challenges, Korattur continues to thrive.
 
 **After:**
-> Traffic congestion increased after 2015 when three new IT parks opened. The municipal corporation began a stormwater drainage project in 2022 to address recurring floods.
+> Korattur faces traffic congestion and water scarcity.
 
 ## Language and Grammar Patterns
 
@@ -132,11 +137,11 @@ Avoiding AI patterns is only half the job. Sterile, voiceless writing is just as
 
 ### 9. Negative Parallelisms
 
-**Problem:** Constructions like "Not only...but..." or "It's not just about..., it's..." are overused.
+**Problem:** "Not only...but..." and "It's not just about..., it's..." show up too often.
 
 ### 10. Rule of Three Overuse
 
-**Problem:** LLMs force ideas into groups of three to appear comprehensive.
+**Problem:** AI forces ideas into threes to sound complete.
 
 **Before:**
 > The event features keynote sessions, panel discussions, and networking opportunities. Attendees can expect innovation, inspiration, and industry insights.
@@ -146,7 +151,7 @@ Avoiding AI patterns is only half the job. Sterile, voiceless writing is just as
 
 ### 11. Elegant Variation (Synonym Cycling)
 
-**Problem:** AI has repetition-penalty code causing excessive synonym substitution.
+**Problem:** AI swaps in new words too often to avoid repetition.
 
 **Before:**
 > The protagonist faces many challenges. The main character must overcome obstacles. The central figure eventually triumphs. The hero returns home.
@@ -156,33 +161,35 @@ Avoiding AI patterns is only half the job. Sterile, voiceless writing is just as
 
 ### 12. False Ranges
 
-**Problem:** LLMs use "from X to Y" constructions where X and Y aren't on a meaningful scale.
+**Problem:** AI uses "from X to Y" even when X and Y are not on the same scale.
 
 ## Style Patterns
 
+These are heuristics, not automatic errors. Keep em dashes, boldface, title case, curly quotes, and similar formatting when they are intentional house style or required formatting.
+
 ### 13. Em Dash Overuse
 
-**Problem:** LLMs use em dashes more than humans, mimicking "punchy" sales writing.
+**Problem:** AI uses em dashes more than people do, often to sound punchy.
 
 ### 14. Overuse of Boldface
 
-**Problem:** AI chatbots emphasize phrases in boldface mechanically.
+**Problem:** AI bolds phrases mechanically.
 
 ### 15. Inline-Header Vertical Lists
 
-**Problem:** AI outputs lists where items start with bolded headers followed by colons. Prefer prose or simpler lists.
+**Problem:** AI writes lists where each item starts with a bold header and a colon. Prefer prose or simpler lists.
 
 ### 16. Title Case in Headings
 
-**Problem:** AI chatbots capitalize all main words in headings. Prefer sentence case.
+**Problem:** AI capitalizes every main word in headings. Use sentence case.
 
 ### 17. Emojis
 
-**Problem:** AI chatbots decorate headings or bullet points with emojis unprompted.
+**Problem:** AI adds emojis to headings or bullets without being asked.
 
 ### 18. Curly Quotation Marks
 
-**Problem:** ChatGPT uses curly quotes instead of straight quotes.
+**Problem:** ChatGPT often uses curly quotes instead of straight quotes.
 
 ## Communication Patterns
 
@@ -190,7 +197,7 @@ Avoiding AI patterns is only half the job. Sterile, voiceless writing is just as
 
 **Words to watch:** I hope this helps, Of course!, Certainly!, You're absolutely right!, Would you like..., let me know, here is a...
 
-**Problem:** Text meant as chatbot correspondence gets pasted as content.
+**Problem:** Chatbot copy leaks into the content.
 
 ### 20. Knowledge-Cutoff Disclaimers
 
@@ -228,22 +235,24 @@ Common replacements:
 
 ## Process
 
-1. Read the input text carefully
-2. Identify all instances of the patterns above
-3. Rewrite each problematic section
-4. Ensure the revised text:
-   - Sounds natural when read aloud
-   - Varies sentence structure naturally
-   - Uses specific details over vague claims
-   - Maintains appropriate tone for context
-   - Uses simple constructions (is/are/has) where appropriate
-5. Present the humanized version
+1. Read the input carefully.
+2. Find the patterns that genuinely apply. Do not treat every heuristic as an automatic error.
+3. Rewrite each weak section.
+4. Keep the source voice, tone, and structure where they matter.
+5. Do not invent facts, dates, causes, attributions, or sources.
+6. Preserve technical markup and document structure.
+7. Keep the result natural aloud.
+8. Vary sentence structure.
+9. Use specific details instead of vague claims.
+10. Keep the tone appropriate to the context.
+11. Use simple constructions like is/are/has when they fit.
+12. Return the humanized version.
 
 ## Output Format
 
 Provide:
 1. The rewritten text
-2. A brief summary of changes made (optional, if helpful)
+2. A brief summary of changes made, if helpful
 
 ## Reference
 
