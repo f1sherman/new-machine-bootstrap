@@ -8,36 +8,34 @@ description: >
 
 # Healthcare Expenses Spreadsheet
 
-Add healthcare expenses from a source document (explanation of benefits, receipt, invoice, etc.)
-into the `Unreimbursed Health Care Expenses.xlsx` spreadsheet.
+Add healthcare expenses from a source document into the `Unreimbursed Health Care Expenses.xlsx` spreadsheet.
 
-## Prerequisites Check
+## Prerequisites
 
-Before doing anything else, verify that the current directory contains:
+Check the current directory first.
 
-1. A file named exactly `Unreimbursed Health Care Expenses.xlsx`
-2. At least one other file (the source document containing the expenses)
+- `Unreimbursed Health Care Expenses.xlsx` must exist.
+- At least one other file must exist as the source document.
+- If multiple candidate source files exist and the intended one is unclear, ask the user before proceeding.
 
-If either is missing, stop and tell the user what's missing and what you expected to find.
+If either is missing, stop and state what is missing and what was expected.
 
-## Gathering Information
+## Extract Data
 
 Read the source document and extract expense line items. For each line item you need:
 
 - **Date**: The service or fill date
 - **Provider**: The provider or pharmacy name
-- **Amount**: The patient's out-of-pocket cost (NOT the plan-paid amount — the amount the
-  patient actually paid or owes)
-- **Notes**: A brief description of the service or item (e.g., drug name and dosage, type of
-  visit)
+- **Amount**: The patient's out-of-pocket cost, not the plan-paid amount.
+- **Notes**: Brief description of the service or item, such as drug name and dosage or visit type.
 
-You also need URLs for the Statement and Receipt columns. These may be the same URL or
-different URLs. If the user hasn't already provided them, ask for them before making any
-changes to the spreadsheet.
+Get URLs for the Statement and Receipt columns.
+They may be the same URL or different URLs.
+If they are missing, ask before changing the spreadsheet.
 
 ## Spreadsheet Format
 
-Each row in the spreadsheet has these columns:
+Each row uses these columns:
 
 | Column | Field     | Format |
 |--------|-----------|--------|
@@ -50,10 +48,10 @@ Each row in the spreadsheet has these columns:
 
 ## Process
 
-1. Read the existing spreadsheet to find the last row of data
-2. Read the source document and extract all expense line items
-3. Present the extracted line items to the user for review before modifying the spreadsheet
-4. If Statement and/or Receipt URLs have not been provided, ask for them
-5. Append new rows after the last existing data row
-6. Ensure Date (column A) and Amount (column C) are right-aligned to match existing rows
-7. After writing, confirm what was added
+1. Read the spreadsheet and find the last data row.
+2. Read the source document and extract all expense line items.
+3. Show the extracted line items to the user for review before modifying the spreadsheet.
+4. Ask for Statement and/or Receipt URLs if they have not been provided.
+5. Append new rows after the last existing data row.
+6. Keep Date in column A and Amount in column C right-aligned to match existing rows.
+7. After writing, confirm what was added.

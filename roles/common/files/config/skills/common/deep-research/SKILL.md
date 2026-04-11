@@ -6,50 +6,63 @@ description: >
   single-source lookups, or quick exploratory searches.
 ---
 
-# Deep Research Skill
+# Deep Research
 
-## Core Purpose
+## Core
 
-Transforms research questions into detailed reports using a three-agent system: a lead orchestrator, multiple researcher agents executing parallel searches, and a report-writer synthesizing findings.
+Turn research questions into detailed reports.
 
-## Agent Architecture
+Use a three-agent system:
 
-**Lead Agent (Orchestrator)**: Interviews users, plans research threads, coordinates subagents using Agent and AskUserQuestion tools.
+- Lead orchestrator: interview the user, plan threads, coordinate subagents with `Agent` and `AskUserQuestion`.
+- Researcher agents: run focused investigations in parallel with `WebSearch`, `WebFetch`, and `Write`.
+- Report-writer agent: synthesize notes with `Read`, `Glob`, and `Write` only.
 
-**Researcher Agents**: Execute focused investigations on assigned subtopics, employing WebSearch, WebFetch, and Write tools to save structured notes.
+## Five Phases
 
-**Report-Writer Agent**: Synthesizes research notes into final reports using Read, Glob, and Write tools exclusively.
+### Phase 1: Interview
 
-## Five-Phase Research Process
+Do 2-3 rounds of user interviews by default.
+Cover objective, depth, audience, key questions, time constraints, and scope.
+Use fewer rounds only when scope is narrow or the tool budget is tight, but still cover the topic adequately.
 
-**Phase 1: Interview**
-2-3 rounds of user interviews covering objectives, depth, audience, key questions, time constraints, and scope.
+### Phase 2: Landscape Mapping
 
-**Phase 2: Landscape Mapping**
-3-5 broad searches to map the topic landscape, identifying 10+ research threads, documented in `research_plan.md`.
+Run 3-5 broad searches by default.
+Map the topic landscape.
+Identify 10+ research threads.
+Record them in `research_plan.md`.
+Scale down only when scope or tool limits justify it, while still mapping the topic well enough to support the report.
 
-**Phase 3: Parallel Research**
-Launch 10+ researcher agents in parallel, each saving findings to `research_notes/[subtopic].md` with:
+### Phase 3: Parallel Research
+
+Launch 10+ researcher agents in parallel by default.
+Each writes `research_notes/[subtopic].md` with:
 - Summary
 - Key findings
 - Sources with URLs
 - Notable quotes
 - Identified gaps
+Use fewer agents only when scope is narrow or tool limits require it, but still cover the topic thoroughly.
 
-**Phase 4: Synthesis**
-Spawn report-writer agent to synthesize notes into a comprehensive report with:
+### Phase 4: Synthesis
+
+Spawn the report-writer agent.
+Produce a comprehensive report with:
 - Executive summary
-- Critical analysis organized by theme
+- Critical analysis by theme
 - Numbered citations
-- Identified limitations and conflicting information
+- Limitations and conflicting information
 
-**Phase 5: Delivery**
-Deliver output files and summarize key findings for user follow-up.
+### Phase 5: Delivery
 
-## Quality Standards
+Deliver the output files.
+Summarize the key findings for follow-up.
 
-- Prioritize authoritative, recent sources
-- Cross-reference claims across multiple researcher notes
-- Distinguish facts from expert opinions
-- Clearly identify conflicting information or research limitations
-- Include direct URLs for all cited sources
+## Standards
+
+- Prioritize authoritative, recent sources.
+- Cross-reference claims across multiple researcher notes.
+- Separate facts from expert opinion.
+- Call out conflicts and limitations.
+- Include direct URLs for every cited source.
