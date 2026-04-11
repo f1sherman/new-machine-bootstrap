@@ -30,7 +30,7 @@ Use the output to select by index. It shows:
 
 Ask which session to resume.
 
-To get the file path for a selected session (needed for step 2):
+To get the file path for a selected session (needed for the transcript load):
 ```bash
 list-claude-sessions --json | jq -r '.[] | select(.index == INDEX) | .file'
 ```
@@ -100,16 +100,14 @@ After user confirmation:
 # List recent sessions (last 10 by default)
 list-claude-sessions
 
-# List more sessions or filter by time/project
+# List more sessions or filter by time/project directory
 list-claude-sessions --limit 20 --days 30
-list-claude-sessions --project <project-name>
+# e.g. list-claude-sessions --project /Users/brian/projects/new-machine-bootstrap
+list-claude-sessions --project <project-dir>
 
 # Get JSON with file paths for programmatic access
 list-claude-sessions --json
 
 # Load full transcript for a session
 read-claude-session <session-file> --transcript
-
-# Get summary only
-read-claude-session <session-file>
 ```

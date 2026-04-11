@@ -30,7 +30,7 @@ Use the output to select by index. It shows:
 
 Ask which session to resume.
 
-To get the file path for a selected session (needed for step 2):
+To get the file path for a selected session (needed for the transcript load):
 ```bash
 list-codex-sessions --json | jq -r '.[] | select(.index == INDEX) | .file'
 ```
@@ -103,7 +103,4 @@ list-codex-sessions --json
 
 # Load full transcript for a session
 read-codex-session <session-file> --transcript
-
-# Get summary only
-read-codex-session <session-file>
 ```
