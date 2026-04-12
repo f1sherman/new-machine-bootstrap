@@ -29,7 +29,3 @@ tool_versions:
     mise: v2026.4.8
     # renovate: datasource=node-version depName=node
     node: 24.14.1
-
-  compatibility:
-    # renovate: datasource=github-releases depName=neovim/neovim
-    neovim_glibc_legacy: v0.10.4

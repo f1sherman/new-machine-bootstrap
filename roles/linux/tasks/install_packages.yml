@@ -142,18 +142,12 @@
     state: absent
   become: yes
 
-# nvim v0.11+ requires glibc 2.32+; pin to v0.10.4 on older systems (e.g. Ubuntu 20.04)
-- name: Check glibc version for nvim compatibility
-  shell: ldd --version 2>&1 | head -1 | grep -oP '[\d.]+$'
-  register: _glibc_version
-  changed_when: false
-
 - name: Install nvim
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
   vars:
     github_repo: neovim/neovim
     binary_name: nvim
-    pinned_release_tag: "{{ tool_versions.compatibility.neovim_glibc_legacy if _glibc_version.stdout is version('2.32', '<') else tool_versions.github_releases.neovim }}"
+    pinned_release_tag: "{{ tool_versions.github_releases.neovim }}"
     asset_pattern: "nvim-linux-{arch}.tar.gz"
     install_dest: '{{ ansible_facts["user_dir"] }}/.local'
     download_type: tarball
