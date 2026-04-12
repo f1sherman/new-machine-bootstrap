@@ -278,74 +278,70 @@
     content: |
       ## Bias Toward Action
 
-      When you can do something yourself, do it instead of asking me to do it. This includes:
-      - Running provisioning/deployment commands after making changes
-      - Validating changes by running tests or checks
-      - Checking current state before and after changes
-      - SSH-ing into a host and running a command
-      - Clicking through a webflow
-
-      Only ask me to do something if it requires physical interaction, access you don't have, or is genuinely ambiguous.
+      If you can do it, do it. Don't ask me to do agent-work.
+      - Run provision/deploy commands after changes.
+      - Run tests/checks.
+      - Check state before and after.
+      - SSH and run commands.
+      - Click through webflows.
+      - Ask only for physical interaction, missing access, or real ambiguity.
 
       ## tmux Worktree State
 
-      Inside tmux and using a git worktree:
-      - Prefer `worktree-start` when available. It handles local setup and publishes tmux pane state.
-      - If you switch by another path, run `tmux-agent-worktree set <absolute-path>`.
-      - If you return to the base repository, run `tmux-agent-worktree clear`.
+      In tmux + worktree:
+      - Prefer `worktree-start`.
+      - Switched another way: `tmux-agent-worktree set <absolute-path>`.
+      - Back at base repo: `tmux-agent-worktree clear`.
 
       ## Code Comments
 
-      - Add comments sparingly.
-      - Focus on why, especially for complex logic, not what.
-      - Only add high-value comments for clarity or when asked.
-      - Do not edit unrelated comments.
-      - NEVER talk to the user or describe changes through comments.
+      - Sparse.
+      - Why > what.
+      - Add only for clarity or on request.
+      - Leave unrelated comments alone.
+      - Never talk to the user through comments.
 
       ## GitHub API Rate Limits (gh CLI)
 
-      - GitHub limits: 5,000 requests/hour primary, plus secondary limits of 100 concurrent requests and 900 points/minute.
-      - Parallel Claude sessions share these limits.
-
-      **Guidelines:**
-      - **Prefer local git over API** - use `git log`, `git diff`, `git status` instead of `gh` when local data is enough
-      - **Reasonable polling intervals** - when waiting on CI or PR status, poll no more often than every 30 seconds
-      - **If rate limited** - stop, run `gh api rate_limit`, and tell the user the reset time
+      - Limits: 5,000/hour primary; 100 concurrent + 900 points/min secondary.
+      - Parallel Claude sessions share quota.
+      - Prefer local git when enough.
+      - Poll CI/PR no faster than every 30 seconds.
+      - If rate-limited: stop, run `gh api rate_limit`, report reset.
 
       ## JSON/YAML Parsing
 
-      - Never use Python or Ruby to parse JSON or YAML from the command line.
-      - Use `jq` or `yq`.
+      - No Python or Ruby.
+      - Use `jq` / `yq`.
 
       ## Multi-Line Commands
 
-      - Put multi-line commands in a script under `/tmp/`.
+      - Write a script in `/tmp/`.
       - Ask me to run the script.
-      - Do not ask me to copy and paste multi-line commands directly.
+      - No copy/paste blobs.
 
       ## Use Red/Green TDD
 
-      - Always try Red/Green TDD.
-      - This matters even without a test suite.
-      - If you can script a test, do it.
-      - When feasible, prove the test fails the way you expect before making it pass.
+      - Use Red/Green TDD when feasible.
+      - No suite? write a scriptable test.
+      - When practical, prove fail first; then make it pass.
 
       ## Git Commits
 
-      - You may create commits without asking.
-      - Use the personal:commit skill, not bare `git commit`.
-      - Ask before pushing.
+      - Commits ok without asking.
+      - Use `personal:commit`, not bare `git commit`.
+      - Ask before push.
 
       ## Temporary Files
 
-      - Put temporary work files in `./tmp` if it exists, or `/tmp` if it does not.
+      - Use `./tmp` if present; else `/tmp`.
 
       ## Verify Changes Actually Work
 
-      - Never call a change complete until you have tested it.
-      - Verify by running the relevant command, checking actual state, or otherwise proving the effect.
-      - Do not trust what the code should do; confirm it.
-      - If you cannot test it yourself, say exactly how to verify and that you could not confirm it.
+      - Not done until tested.
+      - Prove effect with command, state check, or equivalent.
+      - Don't trust intended behavior; verify.
+      - If you cannot verify, say how and say you could not confirm it.
     dest: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md'
     mode: '0600'
     backup: yes
