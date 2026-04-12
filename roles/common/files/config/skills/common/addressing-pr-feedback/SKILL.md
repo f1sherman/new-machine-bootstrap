@@ -9,7 +9,7 @@ description: >
 
 Resolve PR comments systematically.
 
-## Inputs
+## Arguments
 
 Use `$ARGUMENTS` as the PR selector.
 - Number: use it directly.
@@ -24,7 +24,7 @@ Use these exact paths:
 - `~/.claude/skills/addressing-pr-feedback/fetch-pr-comments.sh` to fetch all review and issue comments with file and line metadata.
 - `~/.claude/skills/addressing-pr-feedback/post-comment.sh` to post inline replies or top-level replies. Use `--quote` for top-level replies.
 
-## Flow
+## Process
 
 ### 1. Resolve PR
 
