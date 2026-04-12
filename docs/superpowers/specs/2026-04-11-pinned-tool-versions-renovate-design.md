@@ -55,14 +55,10 @@ tool_versions:
     superpowers: v5.0.7
 
   runtimes:
-    # renovate: datasource=node-version depName=node
-    node: 22.14.0
     # renovate: datasource=github-releases depName=jdx/mise
     mise: v2026.4.8
-
-  compatibility:
-    # renovate: datasource=github-releases depName=neovim/neovim
-    neovim_glibc_legacy: v0.10.4
+    # renovate: datasource=node-version depName=node
+    node: 24.14.1
 ```
 
 The structure must support these requirements:
@@ -111,17 +107,6 @@ This preserves the upstream install logic for platform detection, tarball select
 Remove runtime discovery via `mise latest node@lts` in both Linux and macOS task flows. Replace it with a single exact Node version from the version catalog and use that exact version for install and global selection.
 
 Implementation will pin the then-current LTS version as an exact value in `vars/tool_versions.yml`, and the playbook will stop resolving LTS dynamically during provisioning. Future updates happen through Renovate PRs against the catalog.
-
-#### Neovim compatibility override
-
-Keep the current old-glibc safety branch for Neovim.
-
-Implementation should model this as:
-
-- a normal managed Neovim pin for current systems
-- a separate compatibility override for legacy glibc hosts (`v0.10.4` today)
-
-This avoids losing the compatibility safeguard while still letting Renovate update the primary Neovim version.
 
 #### Claude Code exception
 
