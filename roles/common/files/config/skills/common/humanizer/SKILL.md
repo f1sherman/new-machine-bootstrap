@@ -6,7 +6,7 @@ description: >
   posts, or any written content that may contain AI-generated artifacts.
 ---
 
-# Humanizer: remove AI writing patterns
+# Humanizer: Remove AI Writing Patterns
 
 Strip AI tells. Make the text sound natural, human, and specific. Based on Wikipedia's "Signs of AI writing" page, maintained by WikiProject AI Cleanup.
 
