@@ -276,60 +276,19 @@
 - name: Create ~/.claude/CLAUDE.md file
   copy:
     content: |
-      ## Bias Toward Action
+      User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min tokens.
 
-      When you can do something yourself, do it instead of asking me to do it. This includes:
-      - Running provisioning/deployment commands after making changes
-      - Validating changes by running tests or checks
-      - Checking current state before and after changes
-      - SSH-ing into a host and running a command
-      - Clicking through a webflow
+      * Workspace: `~/projects/`
+      * Bias toward action. Only ask user when you can't do it yourself.
+      * Worktrees: create using `worktree-start`. Created other way: run `tmux-agent-worktree set <absolute-path>`. When done: `tmux-agent-worktree clear`.
+      * Comments: use sparingly. Explain why, not what.
+      * JSON/YAML parsing: use `jq` or `yq`, never use python or ruby.
+      * Multi-line commands: write script to `/tmp`. Do not ask user to copy/paste over multiple lines.
+      * Testing: use Red/Green TDD.
+      * Commits: no approval required for commits; ask before pushing.
+      * Temp files: prefer `./tmp` if exists, else `/tmp`
+      * Verification: end to end verify; confirm empirically.
 
-      Only ask me to do something if it requires physical interaction, access you don't have, or is genuinely ambiguous.
-
-      ## tmux Worktree State
-
-      When you are running inside tmux and you create or switch to a git worktree:
-      - Prefer `worktree-start` when it is available. It handles local worktree setup and publishes tmux pane state.
-      - If you create or switch to a worktree by some other means, immediately run `tmux-agent-worktree set <absolute-path>`.
-      - If you return from that worktree to the base repository, run `tmux-agent-worktree clear`.
-
-      ## Code Comments
-
-      Add code comments sparingly. Focus on why something is done, especially for complex logic, rather than what is done. Only add high-value comments if necessary for clarity or if requested by the user. Do not edit comments that are separate from the code you are changing. NEVER talk to the user or describe your changes through comments.
-
-      ## GitHub API Rate Limits (gh CLI)
-
-      GitHub enforces rate limits: 5,000 requests/hour primary, plus secondary limits (100 concurrent requests, 900 points/minute). Multiple parallel Claude sessions share these limits.
-
-      **Guidelines:**
-      - **Prefer local git over API** - use `git log`, `git diff`, `git status` instead of `gh` when the information is available locally
-      - **Reasonable polling intervals** - when waiting on CI or PR status, poll no more frequently than every 30 seconds
-      - **If rate limited** - stop making requests, run `gh api rate_limit` to check reset time, and inform the user
-
-      ## JSON/YAML Parsing
-
-      Never use python or ruby to parse JSON nor YAML from the command line. Always use `jq` or `yq`.
-
-      ## Multi-Line Commands
-
-      When you need me to run a multi-line command, write it to a script in `/tmp/` and ask me to run that script. Do not ask me to copy and paste multi-line commands directly.
-
-      ## Use Red/Green TDD
-
-      Always attempt to use Red/Green TDD. This is critical if the project has a test suite, but even if it does not have a test suite this still applies. If you can write a script to test it, you can use Red/Green TDD. Whenever feasible, create tests for your changes, verify that it fails in the way that you expect it to fail, then make your changes until your tests pass.
-
-      ## Git Commits
-
-      You may create commits without asking for approval, but use the personal:commit skill rather than bare `git commit`. Always ask before pushing.
-
-      ## Temporary Files
-
-      Rather than cluttering up the present working directory, put temporary work files in `./tmp` if it exists, or `/tmp` if it does not.
-
-      ## Verify Changes Actually Work
-
-      Never consider a change complete until you have tested it and confirmed it works. After making a fix or configuration change, always verify by running the relevant command, checking the actual state, or otherwise proving the change has the intended effect. Do not assume correctness based on what the code *should* do — confirm it empirically. If you cannot test something yourself (e.g., requires sudo or a reboot), tell the user exactly how to verify and that you were unable to confirm it.
     dest: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md'
     mode: '0600'
     backup: yes
