@@ -8,18 +8,10 @@ description: >
 
 # Session Catchup
 
-## Shape
+Summarize the current session in 2-3 sentences. Cover:
 
-Write 2-3 sentences.
+1. **What we're working on** — the goal or task
+2. **Where we left off** — the last completed step or action
+3. **What's next** — the immediate next step
 
-Cover:
-
-- What we are working on.
-- Where we left off.
-- What comes next.
-
-## Inputs
-
-Use tasks, recent tool calls, active plans, and conversation history.
-
-Be direct. No preamble. No filler.
+Use tasks (if any exist), recent tool calls, active plans, and conversation history to derive the summary. Be direct — no preamble, no filler.
