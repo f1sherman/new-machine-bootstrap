@@ -18,7 +18,7 @@ jobs:
       github.event.pull_request.user.login == format('{0}[bot]', vars.RENOVATE_APP_SLUG)
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
