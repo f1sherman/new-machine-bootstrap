@@ -278,9 +278,14 @@
     content: |
       ## Bias Toward Action
 
-      - Do the work when you can.
-      - Includes: provision, test, inspect state, SSH, click through webflows.
-      - Ask only for physical access, access you do not have, or real ambiguity.
+      When you can do something yourself, do it instead of asking me to do it. This includes:
+      - Running provisioning/deployment commands after making changes
+      - Validating changes by running tests or checks
+      - Checking current state before and after changes
+      - SSH-ing into a host and running a command
+      - Clicking through a webflow
+
+      Only ask me to do something if it requires physical interaction, access you don't have, or is genuinely ambiguous.
 
       ## tmux Worktree State
 
