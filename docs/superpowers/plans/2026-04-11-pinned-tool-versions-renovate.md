@@ -78,7 +78,6 @@ run_catalog_checks() {
   assert_contains "$CATALOG" "github_releases:" "catalog defines github release pins"
   assert_contains "$CATALOG" "git_tags:" "catalog defines git tag pins"
   assert_contains "$CATALOG" "runtimes:" "catalog defines runtime pins"
-  assert_contains "$CATALOG" "compatibility:" "catalog defines compatibility pins"
   assert_contains "$CATALOG" "fzf: v0.71.0" "catalog pins fzf"
   assert_contains "$CATALOG" "ripgrep: 15.1.0" "catalog pins ripgrep"
   assert_contains "$CATALOG" "delta: 0.19.2" "catalog pins delta"
@@ -88,7 +87,6 @@ run_catalog_checks() {
   assert_contains "$CATALOG" "zoxide: v0.9.9" "catalog pins zoxide"
   assert_contains "$CATALOG" "mise: v2026.4.8" "catalog pins mise"
   assert_contains "$CATALOG" "node: 24.14.1" "catalog pins Node.js"
-  assert_contains "$CATALOG" "neovim_glibc_legacy: v0.10.4" "catalog preserves legacy neovim compatibility pin"
 }
 
 run_install_checks() {
@@ -97,8 +95,7 @@ run_install_checks() {
   assert_contains "$LINUX_INSTALLS" "pinned_release_tag: \"{{ tool_versions.github_releases.ripgrep }}\"" "linux ripgrep install uses catalog pin"
   assert_contains "$LINUX_INSTALLS" "pinned_release_tag: \"{{ tool_versions.github_releases.delta }}\"" "linux delta install uses catalog pin"
   assert_contains "$LINUX_INSTALLS" "pinned_release_tag: \"{{ tool_versions.github_releases.tmux }}\"" "linux tmux install uses catalog pin"
-  assert_contains "$LINUX_INSTALLS" "tool_versions.github_releases.neovim" "linux neovim default install uses catalog pin"
-  assert_contains "$LINUX_INSTALLS" "tool_versions.compatibility.neovim_glibc_legacy" "linux neovim legacy override uses catalog pin"
+  assert_contains "$LINUX_INSTALLS" "pinned_release_tag: \"{{ tool_versions.github_releases.neovim }}\"" "linux neovim install uses catalog pin"
   assert_contains "$LINUX_INSTALLS" "pinned_release_tag: \"{{ tool_versions.github_releases.yq }}\"" "linux yq install uses catalog pin"
   assert_contains "$LINUX_INSTALLS" "pinned_release_tag: \"{{ tool_versions.github_releases.zoxide }}\"" "linux zoxide install uses catalog pin"
   assert_contains "$LINUX_INSTALLS" "MISE_VERSION={{ tool_versions.runtimes.mise }}" "linux mise install exports pinned MISE_VERSION"
@@ -225,10 +222,6 @@ tool_versions:
     mise: v2026.4.8
     # renovate: datasource=node-version depName=node
     node: 24.14.1
-
-  compatibility:
-    # renovate: datasource=github-releases depName=neovim/neovim
-    neovim_glibc_legacy: v0.10.4
 ```
 
 - [ ] **Step 2: Load the catalog from the playbook**
@@ -350,7 +343,7 @@ In `roles/linux/tasks/install_packages.yml`, make these exact edits:
   vars:
     github_repo: neovim/neovim
     binary_name: nvim
-    pinned_release_tag: "{{ tool_versions.compatibility.neovim_glibc_legacy if _glibc_version.stdout is version('2.32', '<') else tool_versions.github_releases.neovim }}"
+    pinned_release_tag: "{{ tool_versions.github_releases.neovim }}"
     asset_pattern: "nvim-linux-{arch}.tar.gz"
     install_dest: '{{ ansible_facts["user_dir"] }}/.local'
     download_type: tarball
@@ -395,8 +388,6 @@ In `roles/linux/tasks/install_packages.yml`, make these exact edits:
     - mise_check.rc != 0
     - mise_bin is not defined or mise_bin | length == 0
 ```
-
-Also delete the legacy `Pin nvim to v0.10.4 for old glibc` and `Clear pinned release tag` `set_fact` tasks entirely, because the include now chooses the tag inline.
 
 - [ ] **Step 3: Pin the floating git clones and Node versions**
 
