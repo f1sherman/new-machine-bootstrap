@@ -276,72 +276,18 @@
 - name: Create ~/.claude/CLAUDE.md file
   copy:
     content: |
-      ## Bias Toward Action
+      User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min tokens.
 
-      If you can do it, do it. Don't ask me to do agent-work.
-      - Run provision/deploy commands after changes.
-      - Run tests/checks.
-      - Check state before and after.
-      - SSH and run commands.
-      - Click through webflows.
-      - Ask only for physical interaction, missing access, or real ambiguity.
-
-      ## tmux Worktree State
-
-      In tmux + worktree:
-      - Prefer `worktree-start`.
-      - Switched another way: `tmux-agent-worktree set <absolute-path>`.
-      - Back at base repo: `tmux-agent-worktree clear`.
-
-      ## Code Comments
-
-      - Sparse.
-      - Why > what.
-      - Add only for clarity or on request.
-      - Leave unrelated comments alone.
-      - Never talk to the user through comments.
-
-      ## GitHub API Rate Limits (gh CLI)
-
-      - Limits: 5,000/hour primary; 100 concurrent + 900 points/min secondary.
-      - Parallel Claude sessions share quota.
-      - Prefer local git when enough.
-      - Poll CI/PR no faster than every 30 seconds.
-      - If rate-limited: stop, run `gh api rate_limit`, report reset.
-
-      ## JSON/YAML Parsing
-
-      - No Python or Ruby.
-      - Use `jq` / `yq`.
-
-      ## Multi-Line Commands
-
-      - Write a script in `/tmp/`.
-      - Ask me to run the script.
-      - No copy/paste blobs.
-
-      ## Use Red/Green TDD
-
-      - Use Red/Green TDD when feasible.
-      - No suite? write a scriptable test.
-      - When practical, prove fail first; then make it pass.
-
-      ## Git Commits
-
-      - Commits ok without asking.
-      - Use `personal:commit`, not bare `git commit`.
-      - Ask before push.
-
-      ## Temporary Files
-
-      - Use `./tmp` if present; else `/tmp`.
-
-      ## Verify Changes Actually Work
-
-      - Not done until tested.
-      - Prove effect with command, state check, or equivalent.
-      - Don't trust intended behavior; verify.
-      - If you cannot verify, say how and say you could not confirm it.
+      * Workspace: `~/projects/`
+      * Bias toward action. Only ask user when you can't do it yourself.
+      * Worktrees: create using `worktree-start`. Created other way: run `tmux-agent-worktree set <absolute-path>`. When done: `tmux-agent-worktree clear`.
+      * Comments: use sparingly. Explain why, not what.
+      * JSON/YAML parsing: use `jq` or `yq`, never use python or ruby.
+      * Multi-line commands: write script to `/tmp`. Do not ask user to copy/paste over multiple lines.
+      * Testing: use Red/Green TDD.
+      * Commits: no approval required for commits; ask before pushing.
+      * Temp files: prefer `./tmp` if exists, else `/tmp`
+      * Verification: end to end verify; confirm empirically.
     dest: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md'
     mode: '0600'
     backup: yes
