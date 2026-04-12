@@ -1,7 +1,7 @@
 # GitHub App Renovate Setup
 
 This repository runs Renovate from `.github/workflows/renovate.yml` using a GitHub App installation token.
-The workflow passes Renovate the global config file `renovate-global.json` so global-only settings do not trigger repository-config warnings.
+The workflow relies on the committed repository config file `renovate.json`; it does not pass a separate self-hosted config file through `configurationFile`.
 
 ## Required repository secrets
 
