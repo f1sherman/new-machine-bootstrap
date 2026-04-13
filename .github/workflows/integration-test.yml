@@ -45,6 +45,9 @@ jobs:
           }
 
           expected_node="$(catalog_value '.tool_versions.runtimes.node')"
+          actual_global_node="$(
+            "$user_mise" ls --global --json node | jq -r '.[0].version // empty'
+          )"
           expected_mise="$(
             catalog_value '.tool_versions.runtimes.mise' | strip_v
           )"
@@ -72,7 +75,7 @@ jobs:
 
           test "$("$user_mise" --version | awk '{print $2}')" = \
             "$expected_mise"
-          test "$("$user_mise" current node | awk '{print $2}')" = \
+          test "$actual_global_node" = \
             "$expected_node"
           test "$("$system_rg" --version | awk 'NR==1 {print $2}')" = \
             "$expected_ripgrep"
