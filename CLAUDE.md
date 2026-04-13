@@ -119,6 +119,7 @@ After making changes, ask the user to run `bin/provision` to apply them.
 - Shell scripts: Executable, clear variable names
 - Ansible: YAML with proper indentation, descriptive task names
 - Templates: Use Ansible variables for paths and user info
+- User input: When collecting text input from the user in Ruby scripts, always use `Readline.readline` (from the `readline` standard library) instead of `$stdin.gets`. Raw `$stdin.gets` doesn't support line editing — arrow keys, backspace, and other editing keys produce escape sequences instead of working as expected.
 
 ## Platform Detection
 
