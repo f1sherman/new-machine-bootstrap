@@ -3,6 +3,9 @@
 # agent worktree state, then fall back to argv/cwd heuristics, then pane cwd.
 set -u
 
+tmux_pane_ids_cache=""
+tmux_pane_ids_loaded=0
+
 get_process_lines() {
   local pane_tty="$1"
   if [ -n "${TMUX_AGENT_PANE_STATUS_PS_FILE:-}" ] && [ -f "${TMUX_AGENT_PANE_STATUS_PS_FILE}" ]; then
@@ -46,8 +49,22 @@ read_pane_option() {
     [ -f "$file" ] || return 1
     cat "$file"
   else
+    pane_exists "$pane_id" || return 1
     tmux show-options -pv -t "$pane_id" "$option_name" 2>/dev/null
   fi
+}
+
+pane_exists() {
+  local pane_id="$1"
+
+  [ -n "$pane_id" ] || return 1
+
+  if [ "$tmux_pane_ids_loaded" -eq 0 ]; then
+    tmux_pane_ids_cache="$(tmux list-panes -a -F '#{pane_id}' 2>/dev/null || true)"
+    tmux_pane_ids_loaded=1
+  fi
+
+  printf '%s\n' "$tmux_pane_ids_cache" | grep -Fxq "$pane_id"
 }
 
 extract_agent_path_from_args() {

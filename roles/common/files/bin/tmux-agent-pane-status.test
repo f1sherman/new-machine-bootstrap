@@ -78,6 +78,83 @@ run_case() {
   fi
 }
 
+run_tmux_case() {
+  local name="$1" expected="$2" expected_rc="$3" pane_id="$4" pane_tty="$5" pane_path="$6" ps_body="$7" pane_list="$8" forbidden_log="$9"
+  shift 9
+
+  local cwd_dir ps_file mock_bin tmux_log actual rc
+  cwd_dir="$(mktemp -d "$TMPROOT/cwd.XXXXXX")"
+  ps_file="$(mktemp "$TMPROOT/ps.XXXXXX")"
+  mock_bin="$(mktemp -d "$TMPROOT/bin.XXXXXX")"
+  tmux_log="$(mktemp "$TMPROOT/tmux.XXXXXX")"
+  printf '%s\n' "$ps_body" > "$ps_file"
+
+  while [ "$#" -gt 2 ]; do
+    case "$1" in
+      cwd)
+        printf '%s' "$3" > "$cwd_dir/$2"
+        shift 3
+        ;;
+      *)
+        printf 'ERROR: malformed fixture list for %s\n' "$name" >&2
+        exit 2
+        ;;
+    esac
+  done
+
+  if [ "$#" -ne 0 ]; then
+    printf 'ERROR: malformed fixture remainder for %s\n' "$name" >&2
+    exit 2
+  fi
+
+  cat > "$mock_bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -u
+
+printf '%s\n' "$*" >> "$TMUX_AGENT_PANE_STATUS_TMUX_LOG"
+
+case "${1:-}" in
+  list-panes)
+    printf '%s\n' "$TMUX_AGENT_PANE_STATUS_TMUX_PANES"
+    ;;
+  show-options)
+    exit 1
+    ;;
+  *)
+    printf 'unexpected tmux invocation: %s\n' "$*" >&2
+    exit 99
+    ;;
+esac
+EOF
+  chmod +x "$mock_bin/tmux"
+
+  if actual=$(
+    PATH="$mock_bin:$PATH" \
+    TMUX_AGENT_PANE_STATUS_PS_FILE="$ps_file" \
+    TMUX_AGENT_PANE_STATUS_CWD_MAP_DIR="$cwd_dir" \
+    TMUX_AGENT_PANE_STATUS_TMUX_LOG="$tmux_log" \
+    TMUX_AGENT_PANE_STATUS_TMUX_PANES="$pane_list" \
+    "$SCRIPT" "$pane_id" "$pane_tty" "$pane_path"
+  ); then
+    rc=0
+  else
+    rc=$?
+  fi
+
+  if [ "$actual" = "$expected" ] && [ "$rc" -eq "$expected_rc" ] && ! grep -Fq "$forbidden_log" "$tmux_log"; then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      expected : %q\n' "$expected"
+    printf '      actual   : %q\n' "$actual"
+    printf '      rc       : %s (expected %s)\n' "$rc" "$expected_rc"
+    printf '      tmux log :\n'
+    sed 's/^/        /' "$tmux_log"
+  fi
+}
+
 make_repo() {
   local dir="$1"
   git init -qb main "$dir"
@@ -259,6 +336,18 @@ run_case "nongit pane path renders empty" \
   "/dev/ttys091" \
   "$non_repo" \
   ""
+
+# --- Case 14: stale pane id skips explicit lookup and falls back to heuristics ---
+run_tmux_case "stale pane id skips explicit lookup" \
+  "(feature/wt-clean) [wt] " \
+  0 \
+  "%404" \
+  "/dev/ttys091" \
+  "$base_clean" \
+  $'9100 S+ codex codex' \
+  "%91" \
+  "show-options -pv -t %404" \
+  cwd 9100 "$wt_clean"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
