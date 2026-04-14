@@ -136,6 +136,8 @@ run_integration_checks() {
   assert_contains "$INTEGRATION_WORKFLOW" "vars/tool_versions.yml" "integration workflow reads the shared version catalog"
   assert_contains "$INTEGRATION_WORKFLOW" 'local_bin="$HOME/.local/bin"' "integration workflow resolves the user-local binary directory"
   assert_contains "$INTEGRATION_WORKFLOW" 'user_mise="$local_bin/mise"' "integration workflow checks the provisioned mise binary"
+  assert_contains "$INTEGRATION_WORKFLOW" "version -J | jq -r '.version | split(\" \")[0]'" "integration workflow reads the mise version from JSON output"
+  assert_not_contains "$INTEGRATION_WORKFLOW" '"$user_mise" --version | awk '\''{print $2}'\''' "integration workflow no longer reads the mise version from the second text token"
   assert_contains "$INTEGRATION_WORKFLOW" "mise_config_file=\"\$HOME/.config/mise/config.toml\"" "integration workflow resolves the global mise config file"
   assert_contains "$INTEGRATION_WORKFLOW" 'config get --file "$mise_config_file" tools.node' "integration workflow reads the global Node version from the global mise config"
   assert_not_contains "$INTEGRATION_WORKFLOW" "ls --global --json node" "integration workflow no longer reads the global Node version from mise ls JSON"
