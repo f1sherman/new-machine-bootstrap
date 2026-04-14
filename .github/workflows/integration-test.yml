@@ -3,7 +3,7 @@ name: Integration Test
 
 # yamllint disable-line rule:truthy
 on:
-  push:
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -35,6 +35,7 @@ jobs:
           system_rg="/usr/bin/rg"
           system_tmux="/usr/local/bin/tmux"
           catalog="vars/tool_versions.yml"
+          mise_config_file="$HOME/.config/mise/config.toml"
 
           catalog_value() {
             "$user_yq" -r "$1" "$catalog"
@@ -46,7 +47,7 @@ jobs:
 
           expected_node="$(catalog_value '.tool_versions.runtimes.node')"
           actual_global_node="$(
-            "$user_mise" ls --global --json node | jq -r '.[0].version // empty'
+            "$user_mise" config get --file "$mise_config_file" tools.node
           )"
           expected_mise="$(
             catalog_value '.tool_versions.runtimes.mise' | strip_v

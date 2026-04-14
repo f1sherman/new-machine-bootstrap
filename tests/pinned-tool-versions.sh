@@ -130,12 +130,16 @@ run_renovate_checks() {
 }
 
 run_integration_checks() {
+  assert_contains "$INTEGRATION_WORKFLOW" "pull_request:" "integration workflow runs on pull requests"
+  assert_not_contains "$INTEGRATION_WORKFLOW" "push:" "integration workflow no longer runs on post-merge pushes"
   assert_contains "$INTEGRATION_WORKFLOW" "bash tests/pinned-tool-versions.sh core" "integration workflow runs pinned-tool-versions regression test"
   assert_contains "$INTEGRATION_WORKFLOW" "vars/tool_versions.yml" "integration workflow reads the shared version catalog"
   assert_contains "$INTEGRATION_WORKFLOW" 'local_bin="$HOME/.local/bin"' "integration workflow resolves the user-local binary directory"
   assert_contains "$INTEGRATION_WORKFLOW" 'user_mise="$local_bin/mise"' "integration workflow checks the provisioned mise binary"
-  assert_contains "$INTEGRATION_WORKFLOW" "ls --global --json node" "integration workflow reads the global Node version from mise JSON"
-  assert_contains "$INTEGRATION_WORKFLOW" "jq -r '.[0].version // empty'" "integration workflow parses the global Node version with jq"
+  assert_contains "$INTEGRATION_WORKFLOW" "mise_config_file=\"\$HOME/.config/mise/config.toml\"" "integration workflow resolves the global mise config file"
+  assert_contains "$INTEGRATION_WORKFLOW" 'config get --file "$mise_config_file" tools.node' "integration workflow reads the global Node version from the global mise config"
+  assert_not_contains "$INTEGRATION_WORKFLOW" "ls --global --json node" "integration workflow no longer reads the global Node version from mise ls JSON"
+  assert_not_contains "$INTEGRATION_WORKFLOW" "jq -r '.[0].version // empty'" "integration workflow no longer parses the global Node version with jq"
   assert_not_contains "$INTEGRATION_WORKFLOW" "current node | awk '{print \$2}'" "integration workflow no longer parses mise current output with awk"
   assert_contains "$INTEGRATION_WORKFLOW" 'user_yq="$local_bin/yq"' "integration workflow checks the provisioned yq binary"
   assert_contains "$INTEGRATION_WORKFLOW" 'user_delta="$local_bin/delta"' "integration workflow checks the provisioned delta binary"
