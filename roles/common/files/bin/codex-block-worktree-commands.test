@@ -55,6 +55,7 @@ run_empty_case() {
 
 run_case "blocks raw worktree add" 'git worktree add -b foo ../foo' 'Use worktree-start instead.'
 run_case "blocks raw worktree remove" 'git worktree remove ../foo' 'Use worktree-delete instead.'
+run_allow_case "allows text mention of worktree add" 'echo git worktree add'
 run_allow_case "allows other commands" 'git status --short'
 run_empty_case "allows missing command" '{}'
 run_empty_case "allows empty command" '{"tool_input":{"command":""}}'

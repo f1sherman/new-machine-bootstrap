@@ -7,7 +7,7 @@ if [[ -z "$command" ]]; then
   exit 0
 fi
 
-if printf '%s\n' "$command" | grep -Eq '(^|[[:space:];(])git[[:space:]]+worktree[[:space:]]+add([[:space:]]|$)'; then
+if printf '%s\n' "$command" | grep -Eq '^[[:space:]]*git[[:space:]]+worktree[[:space:]]+add([[:space:]]|$)'; then
   jq -n '{
     "hookSpecificOutput": {
       "hookEventName": "PreToolUse",
@@ -18,7 +18,7 @@ if printf '%s\n' "$command" | grep -Eq '(^|[[:space:];(])git[[:space:]]+worktree
   exit 0
 fi
 
-if printf '%s\n' "$command" | grep -Eq '(^|[[:space:];(])git[[:space:]]+worktree[[:space:]]+remove([[:space:]]|$)'; then
+if printf '%s\n' "$command" | grep -Eq '^[[:space:]]*git[[:space:]]+worktree[[:space:]]+remove([[:space:]]|$)'; then
   jq -n '{
     "hookSpecificOutput": {
       "hookEventName": "PreToolUse",
