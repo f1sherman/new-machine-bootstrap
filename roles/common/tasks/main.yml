@@ -745,18 +745,19 @@
   shell: |
     set -euo pipefail
 
-    config_file='{{ ansible_facts["user_dir"] }}/.codex/config.toml'
-
     python3 -c 'import os, textwrap; exec(textwrap.dedent("""
+    import re
     from pathlib import Path
 
     config_file = Path(os.environ["CONFIG_FILE"])
     text = config_file.read_text() if config_file.exists() else ""
     lines = text.splitlines()
 
-    def is_section_header(line):
-        stripped = line.strip()
-        return stripped.startswith("[") and stripped.endswith("]")
+    section_header = re.compile(r"^\[(?P<name>[^\]]+)\](?:\s*[#;].*)?$")
+
+    def section_name(line):
+        match = section_header.match(line.strip())
+        return match.group("name") if match else None
 
     output = []
     i = 0
@@ -765,13 +766,13 @@
     while i < len(lines):
         line = lines[i]
 
-        if line.strip() == "[features]":
+        if section_name(line) == "features":
             found_features = True
             output.append(line)
             i += 1
 
             section_lines = []
-            while i < len(lines) and not is_section_header(lines[i]):
+            while i < len(lines) and section_name(lines[i]) is None:
                 section_lines.append(lines[i])
                 i += 1
 
@@ -810,7 +811,8 @@
         output.append("[features]")
         output.append("codex_hooks = true")
 
-    new_text = "\n".join(output) + "\n"
+    newline = chr(10)
+    new_text = newline.join(output) + newline
 
     if new_text != text:
         config_file.write_text(new_text)
@@ -826,11 +828,16 @@
   register: codex_hooks_feature_result
   changed_when: codex_hooks_feature_result.stdout.strip() == 'changed'
 
+- name: Enforce 0600 on ~/.codex/config.toml
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
+    mode: '0600'
+
 - name: Merge managed Codex worktree hook into ~/.codex/hooks.json
   shell: |
     set -euo pipefail
 
-    hooks_file='{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
+    hooks_file="${HOOKS_FILE:?}"
     managed_command='~/.local/bin/codex-block-worktree-commands'
 
     if [ -f "$hooks_file" ] && jq -e --arg cmd "$managed_command" '
@@ -870,8 +877,15 @@
     echo "changed"
   args:
     executable: /bin/bash
+  environment:
+    HOOKS_FILE: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
   register: codex_hooks_json_result
   changed_when: codex_hooks_json_result.stdout.strip() == 'changed'
+
+- name: Enforce 0600 on ~/.codex/hooks.json
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
+    mode: '0600'
 
 # Skills installation (shared across Claude Code and Codex)
 - name: Create ~/.claude/skills directory
