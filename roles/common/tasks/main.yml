@@ -821,6 +821,8 @@
     """))'
   args:
     executable: /bin/bash
+  environment:
+    CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
   register: codex_hooks_feature_result
   changed_when: codex_hooks_feature_result.stdout.strip() == 'changed'
 

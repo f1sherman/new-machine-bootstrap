@@ -35,6 +35,7 @@ require_literal 'Merge managed Codex worktree hook into ~/.codex/hooks.json' 'co
 require_literal 'codex_hooks = true' 'codex hooks feature flag is present'
 require_literal 'codex_hooks_seen = False' 'codex hooks mutation tracks existing entries'
 require_literal 'if stripped.startswith("codex_hooks") and not stripped.startswith("#"):' 'codex hooks mutation normalizes existing keys'
+require_literal "CONFIG_FILE: '{{ ansible_facts[\"user_dir\"] }}/.codex/config.toml'" 'codex hooks config task passes CONFIG_FILE'
 require_literal '~/.codex/hooks.json' 'hooks.json path is referenced'
 require_literal '~/.local/bin/codex-block-worktree-commands' 'managed hook command is referenced'
 require_literal 'matcher: "Bash"' 'managed hook targets Bash'
