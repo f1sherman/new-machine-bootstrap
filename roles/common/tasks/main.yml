@@ -741,6 +741,98 @@
   changed_when: codex_config_projects_result.stdout.strip() == 'changed'
   when: lookup('env', 'CODESPACES') != 'true'
 
+- name: Enable Codex hooks in ~/.codex/config.toml
+  shell: |
+    set -euo pipefail
+
+    config_file='{{ ansible_facts["user_dir"] }}/.codex/config.toml'
+
+    if [ -f "$config_file" ] && grep -Eq '^[[:space:]]*codex_hooks[[:space:]]*=[[:space:]]*true[[:space:]]*$' "$config_file"; then
+      echo "unchanged"
+      exit 0
+    fi
+
+    tmp_file="$(mktemp)"
+    if [ -f "$config_file" ] && [ -s "$config_file" ] && grep -Eq '^\[features\]$' "$config_file"; then
+      awk '
+        BEGIN { inserted = 0 }
+        {
+          print
+          if (!inserted && $0 == "[features]") {
+            print "codex_hooks = true"
+            inserted = 1
+          }
+        }
+        END {
+          if (!inserted) {
+            print "[features]"
+            print "codex_hooks = true"
+          }
+        }
+      ' "$config_file" > "$tmp_file"
+    else
+      if [ -f "$config_file" ] && [ -s "$config_file" ]; then
+        cat "$config_file" > "$tmp_file"
+        printf '\n' >> "$tmp_file"
+      fi
+      printf '[features]\ncodex_hooks = true\n' >> "$tmp_file"
+    fi
+
+    mv "$tmp_file" "$config_file"
+    chmod 600 "$config_file"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  register: codex_hooks_feature_result
+  changed_when: codex_hooks_feature_result.stdout.strip() == 'changed'
+
+- name: Merge managed Codex worktree hook into ~/.codex/hooks.json
+  shell: |
+    set -euo pipefail
+
+    hooks_file='{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
+    managed_command='~/.local/bin/codex-block-worktree-commands'
+
+    if [ -f "$hooks_file" ] && jq -e --arg cmd "$managed_command" '
+      .hooks.PreToolUse // []
+      | any(.matcher == "Bash" and any(.hooks[]?; .type == "command" and .command == $cmd))
+    ' "$hooks_file" >/dev/null 2>&1; then
+      echo "unchanged"
+      exit 0
+    fi
+
+    managed_entry="$(
+      jq -n --arg cmd "$managed_command" '{
+        matcher: "Bash",
+        hooks: [
+          {
+            type: "command",
+            command: $cmd
+          }
+        ]
+      }'
+    )"
+    tmp_file="$(mktemp)"
+
+    if [ -f "$hooks_file" ] && [ -s "$hooks_file" ]; then
+      jq --argjson entry "$managed_entry" '
+        .hooks //= {} |
+        .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry])
+      ' "$hooks_file" > "$tmp_file"
+    else
+      jq -n --argjson entry "$managed_entry" '
+        {hooks: {PreToolUse: [$entry]}}
+      ' > "$tmp_file"
+    fi
+
+    mv "$tmp_file" "$hooks_file"
+    chmod 600 "$hooks_file"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  register: codex_hooks_json_result
+  changed_when: codex_hooks_json_result.stdout.strip() == 'changed'
+
 # Skills installation (shared across Claude Code and Codex)
 - name: Create ~/.claude/skills directory
   file:
