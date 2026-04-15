@@ -132,6 +132,7 @@
     - { name: worktree-delete, mode: '0755' }
     - { name: worktree-merge, mode: '0755' }
     - { name: worktree-done, mode: '0755' }
+    - { name: codex-block-worktree-commands, mode: '0755' }
 
 - name: Install pick-files script
   copy:

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+command="$(jq -r '.tool_input.command // empty' 2>/dev/null || true)"
+
+if [[ -z "$command" ]]; then
+  exit 0
+fi
+
+if printf '%s\n' "$command" | grep -Eq '(^|[[:space:];(])git[[:space:]]+worktree[[:space:]]+add([[:space:]]|$)'; then
+  jq -n '{
+    "hookSpecificOutput": {
+      "hookEventName": "PreToolUse",
+      "permissionDecision": "deny",
+      "permissionDecisionReason": "Do not run git worktree add directly. Use worktree-start instead."
+    }
+  }'
+  exit 0
+fi
+
+if printf '%s\n' "$command" | grep -Eq '(^|[[:space:];(])git[[:space:]]+worktree[[:space:]]+remove([[:space:]]|$)'; then
+  jq -n '{
+    "hookSpecificOutput": {
+      "hookEventName": "PreToolUse",
+      "permissionDecision": "deny",
+      "permissionDecisionReason": "Do not run git worktree remove directly. Use worktree-delete instead."
+    }
+  }'
+  exit 0
+fi
+
+exit 0
