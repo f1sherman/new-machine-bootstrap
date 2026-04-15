@@ -186,7 +186,7 @@ branch_fragment_for_path() {
     wt_suffix=" [wt]"
   fi
 
-  if [ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ]; then
+  if [ -n "$(git --no-optional-locks -C "$path" status --porcelain 2>/dev/null)" ]; then
     printf '(*%s)%s ' "$branch" "$wt_suffix"
   else
     printf '(%s)%s ' "$branch" "$wt_suffix"
