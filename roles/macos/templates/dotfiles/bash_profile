@@ -195,6 +195,10 @@ worktree-cd() {
 
 worktree-merge() {
   local path
+  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    "$HOME/.local/bin/worktree-merge" "$@"
+    return $?
+  fi
   path="$("$HOME/.local/bin/worktree-merge" "$@" --print-path)" || return $?
   cd "$path" || return $?
   _worktree_sync_tmux_state
@@ -203,6 +207,10 @@ worktree-merge() {
 
 worktree-delete() {
   local path
+  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    "$HOME/.local/bin/worktree-delete" "$@"
+    return $?
+  fi
   path="$("$HOME/.local/bin/worktree-delete" "$@" --print-path)" || return $?
   cd "$path" || return $?
   _worktree_sync_tmux_state
@@ -211,6 +219,10 @@ worktree-delete() {
 
 worktree-done() {
   local path
+  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    "$HOME/.local/bin/worktree-done" "$@"
+    return $?
+  fi
   path="$("$HOME/.local/bin/worktree-done" "$@" --print-path)" || return $?
   cd "$path" || return $?
   _worktree_sync_tmux_state

@@ -11,9 +11,39 @@ fail() {
   exit 1
 }
 
-extract_wrapper() {
+extract_function() {
+  local template="$1" function_name="$2" dest="$3"
+  awk -v function_name="$function_name" '
+    $0 ~ "^" function_name "\\(\\) \\{" { in_function=1 }
+    in_function { print }
+    in_function && /^}$/ { exit }
+  ' "$template" >> "$dest"
+  printf '\n' >> "$dest"
+}
+
+extract_wrappers() {
   local template="$1" dest="$2"
-  awk '/^worktree-start\(\) \{/,/^}/' "$template" > "$dest"
+  : > "$dest"
+  extract_function "$template" worktree-start "$dest"
+  extract_function "$template" worktree-merge "$dest"
+  extract_function "$template" worktree-delete "$dest"
+  extract_function "$template" worktree-done "$dest"
+}
+
+write_simple_helper() {
+  local path="$1" usage="$2"
+  cat > "$path" <<EOF
+#!/bin/bash
+set -euo pipefail
+printf '%s\n' "\$*" >> "\$HELPER_LOG"
+if [[ "\${1:-}" == "--help" ]]; then
+  printf '%s\n' "$usage"
+  exit 0
+fi
+/bin/mkdir -p "\$WORKTREE_PATH"
+printf '%s\n' "\$WORKTREE_PATH"
+EOF
+  chmod +x "$path"
 }
 
 run_case() {
@@ -32,7 +62,7 @@ run_case() {
   local run_file="$case_root/run.${label}"
 
   mkdir -p "$helper_dir" "$case_root"
-  extract_wrapper "$template" "$wrapper_file"
+  extract_wrappers "$template" "$wrapper_file"
 
   cat > "$helper_dir/worktree-start" <<'EOF'
 #!/bin/bash
@@ -47,6 +77,9 @@ fi
 printf '%s\n' "$WORKTREE_PATH"
 EOF
   chmod +x "$helper_dir/worktree-start"
+  write_simple_helper "$helper_dir/worktree-merge" "Usage: worktree-merge [--print-path]"
+  write_simple_helper "$helper_dir/worktree-delete" "Usage: worktree-delete [--print-path]"
+  write_simple_helper "$helper_dir/worktree-done" "Usage: worktree-done [--print-path]"
 
   cat > "$run_file" <<EOF
 set -eu
@@ -68,6 +101,37 @@ _worktree_sync_tmux_state() {
 }
 worktree-start --branch feature/alpha --path "$case_root/requested-path" > "$stdout_file"
 printf 'cwd=%s\n' "\$PWD" >> "$stdout_file"
+
+check_lifecycle_wrapper() {
+  local name="\$1"
+  local helper_log="$case_root/\${name}-helper.log"
+  local help_sync_log="$case_root/\${name}-help-sync.log"
+  local sync_log="$case_root/\${name}-sync.log"
+  local help_stdout_file="$case_root/\${name}-help-stdout.txt"
+  local help_cwd_file="$case_root/\${name}-help-cwd.txt"
+  local stdout_file="$case_root/\${name}-stdout.txt"
+
+  cd "$case_root"
+  HELPER_LOG="\$helper_log"
+  export HELPER_LOG
+  _worktree_sync_tmux_state() {
+    printf '%s\n' "sync-current" >> "\$help_sync_log"
+  }
+  "worktree-\$name" --help > "\$help_stdout_file"
+  printf 'help-cwd=%s\n' "\$PWD" > "\$help_cwd_file"
+
+  HELPER_LOG="\$helper_log"
+  export HELPER_LOG
+  _worktree_sync_tmux_state() {
+    printf '%s\n' "sync-current" >> "\$sync_log"
+  }
+  "worktree-\$name" --branch feature/alpha --path "$case_root/requested-path" > "\$stdout_file"
+  printf 'cwd=%s\n' "\$PWD" >> "\$stdout_file"
+}
+
+check_lifecycle_wrapper merge
+check_lifecycle_wrapper delete
+check_lifecycle_wrapper done
 EOF
 
   if ! HOME="$home_dir" "$shell_bin" -f "$run_file"; then
@@ -83,6 +147,29 @@ EOF
   [ "$(sed -n '1p' "$stdout_file")" = "$worktree_path" ] || fail "$label wrapper did not print the helper path"
   [ "$(sed -n '2p' "$stdout_file")" = "cwd=$worktree_path" ] || fail "$label wrapper did not cd into the helper path"
   [ "$(cat "$sync_log")" = "sync-current" ] || fail "$label wrapper did not sync tmux state"
+
+  assert_lifecycle_wrapper() {
+    local name="$1"
+    local helper_log="$case_root/${name}-helper.log"
+    local help_sync_log="$case_root/${name}-help-sync.log"
+    local sync_log="$case_root/${name}-sync.log"
+    local help_stdout_file="$case_root/${name}-help-stdout.txt"
+    local help_cwd_file="$case_root/${name}-help-cwd.txt"
+    local stdout_file="$case_root/${name}-stdout.txt"
+
+    [ "$(sed -n '1p' "$help_stdout_file")" = "Usage: worktree-$name [--print-path]" ] || fail "$label $name wrapper help output mismatch"
+    [ "$(cat "$help_cwd_file")" = "help-cwd=$case_root" ] || fail "$label $name wrapper help path changed cwd"
+    [ ! -s "$help_sync_log" ] || fail "$label $name wrapper help path should not sync tmux state"
+    [ "$(sed -n '1p' "$helper_log")" = "--help" ] || fail "$label $name wrapper did not call helper with --help"
+    [ "$(sed -n '2p' "$helper_log")" = "--branch feature/alpha --path $case_root/requested-path --print-path" ] || fail "$label $name wrapper did not call helper with --print-path"
+    [ "$(sed -n '1p' "$stdout_file")" = "$worktree_path" ] || fail "$label $name wrapper did not print the helper path"
+    [ "$(sed -n '2p' "$stdout_file")" = "cwd=$worktree_path" ] || fail "$label $name wrapper did not cd into the helper path"
+    [ "$(cat "$sync_log")" = "sync-current" ] || fail "$label $name wrapper did not sync tmux state"
+  }
+
+  assert_lifecycle_wrapper merge
+  assert_lifecycle_wrapper delete
+  assert_lifecycle_wrapper done
 }
 
 zsh_bin="$(command -v zsh)"

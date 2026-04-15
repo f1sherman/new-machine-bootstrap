@@ -45,6 +45,11 @@ if [[ "$current_branch" == "$main_branch" ]]; then
   exit 1
 fi
 
+if [[ -d "$repo_root/.git" ]]; then
+  printf 'Error: worktree-delete must run from a linked worktree, not the primary checkout\n' >&2
+  exit 1
+fi
+
 if [[ -n "$("$(_worktree_cmd git)" -C "$repo_root" status --porcelain)" ]]; then
   printf 'Error: worktree has uncommitted changes; commit or stash first\n' >&2
   exit 1
