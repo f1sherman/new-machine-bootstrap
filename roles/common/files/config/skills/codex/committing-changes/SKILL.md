@@ -2,12 +2,12 @@
 name: personal:commit
 description: >
   Create git commits with no AI attribution.
-  Use when the user asks to commit changes. Invoking this skill is explicit approval to commit, but not to push.
+  Use when creating git commits in the current repository.
 ---
 
 # Commit Changes
 
-The user has approved committing, but not pushing. Delegate the git inspection and commit planning to a worker so the main conversation does not absorb the diff.
+Create the needed git commit or commits while keeping the main conversation focused on the higher-level task. Delegate the git inspection and commit planning to a worker so the main conversation does not absorb the diff.
 
 1. Write a 2-4 sentence summary of what you accomplished in this session - what changed, why, and any key decisions made. Include a list of the files that should be committed.
 2. Call `spawn_agent` with `agent_type: worker` and `fork_context: false` using the summary plus these instructions:
@@ -23,8 +23,7 @@ Use this process:
 5. For each commit, run `~/.codex/skills/committing-changes/commit.sh -m "<message>" file1 file2 ...`.
 6. If `commit.sh` fails only because a file is gitignored, rerun the same command with `--force`.
 7. If there are no changes to commit, return `No changes to commit.` and stop.
-8. Do not push. Pushing requires separate user approval.
-9. On success, return a short success message (e.g., "Committed." or "Created 2 commits."). On failure, return the actual error output.
+8. On success, return a short success message (e.g., "Committed." or "Created 2 commits."). On failure, return the actual error output.
 ```
 
 3. Call `wait_agent` on the spawned agent immediately so the handoff behaves like a foreground step.

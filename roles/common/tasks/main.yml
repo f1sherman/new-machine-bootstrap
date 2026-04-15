@@ -286,7 +286,6 @@
       * JSON/YAML parsing: use `jq` or `yq`, never use python or ruby.
       * Multi-line commands: write script to `/tmp`. Do not ask user to copy/paste over multiple lines.
       * Testing: use Red/Green TDD.
-      * Commits: no approval required for commits; ask before pushing.
       * Temp files: prefer `./tmp` if exists, else `/tmp`
       * Verification: end to end verify; confirm empirically.
 
