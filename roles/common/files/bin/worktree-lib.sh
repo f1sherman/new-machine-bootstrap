@@ -42,6 +42,36 @@ _worktree_sync_coding_agent_new_files() {
   "$(_worktree_cmd cp)" -R -n "${src}/." "${dst}/"
 }
 
+_worktree_main_branch() {
+  local origin_head
+  origin_head="$("$(_worktree_cmd git)" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  if [[ -n "$origin_head" ]]; then
+    printf '%s\n' "${origin_head#origin/}"
+  elif "$(_worktree_cmd git)" show-ref --verify --quiet refs/heads/main; then
+    printf '%s\n' main
+  else
+    printf '%s\n' master
+  fi
+}
+
+_worktree_main_path() {
+  local main_branch="$1" line main_path branch_name
+  main_path=""
+  while IFS= read -r line; do
+    if [[ "$line" == worktree\ * ]]; then
+      main_path="${line#worktree }"
+    elif [[ "$line" == branch\ refs/heads/* ]]; then
+      branch_name="${line#branch refs/heads/}"
+      if [[ "$branch_name" == "$main_branch" ]]; then
+        printf '%s\n' "$main_path"
+        return 0
+      fi
+      main_path=""
+    fi
+  done < <("$(_worktree_cmd git)" worktree list --porcelain)
+  return 1
+}
+
 _worktree_sync_tmux_state() {
   if command -v tmux-agent-worktree >/dev/null 2>&1; then
     tmux-agent-worktree sync-current >/dev/null 2>&1 || true

@@ -120,6 +120,19 @@
     path: '{{ ansible_facts["user_dir"] }}/.local/bin'
     state: directory
 
+- name: Install worktree helpers
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/{{ item.name }}'
+    src: '{{ playbook_dir }}/roles/common/files/bin/{{ item.name }}'
+    mode: '{{ item.mode }}'
+  loop:
+    - { name: worktree-lib.sh, mode: '0644' }
+    - { name: worktree-start, mode: '0755' }
+    - { name: worktree-delete, mode: '0755' }
+    - { name: worktree-merge, mode: '0755' }
+    - { name: worktree-done, mode: '0755' }
+
 - name: Install pick-files script
   copy:
     backup: yes
@@ -230,20 +243,6 @@
     backup: yes
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-agent-worktree'
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-agent-worktree'
-    mode: 0755
-
-- name: Install worktree library
-  copy:
-    backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/worktree-lib.sh'
-    src: '{{ playbook_dir }}/roles/common/files/bin/worktree-lib.sh'
-    mode: 0644
-
-- name: Install worktree-start script
-  copy:
-    backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/worktree-start'
-    src: '{{ playbook_dir }}/roles/common/files/bin/worktree-start'
     mode: 0755
 
 - name: Install tmux-agent-pane-status script

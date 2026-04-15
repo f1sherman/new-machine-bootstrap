@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=./worktree-lib.sh
+source "$SCRIPT_DIR/worktree-lib.sh"
+
+print_path="false"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --print-path)
+      print_path="true"
+      shift
+      ;;
+    -h|--help)
+      cat <<'EOF'
+Usage: worktree-done [--print-path]
+EOF
+      exit 0
+      ;;
+    -*)
+      printf 'Error: unknown option: %s\n' "$1" >&2
+      exit 1
+      ;;
+    *)
+      printf 'Error: unexpected argument: %s\n' "$1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+repo_root="$(_worktree_repo_root)" || {
+  printf 'Error: not inside a git repository\n' >&2
+  exit 1
+}
+current_branch="$("$(_worktree_cmd git)" -C "$repo_root" branch --show-current)"
+if [[ -z "$current_branch" ]]; then
+  printf 'Error: detached HEAD; checkout a branch first\n' >&2
+  exit 1
+fi
+
+main_branch="$(_worktree_main_branch)"
+if [[ "$current_branch" == "$main_branch" ]]; then
+  printf 'Error: already on %s; this command is for non-main worktrees\n' "$main_branch" >&2
+  exit 1
+fi
+
+if [[ -n "$("$(_worktree_cmd git)" -C "$repo_root" status --porcelain)" ]]; then
+  printf 'Error: worktree has uncommitted changes; commit or stash first\n' >&2
+  exit 1
+fi
+
+main_path="$(_worktree_main_path "$main_branch")" || {
+  printf 'Error: could not find main worktree for branch %s\n' "$main_branch" >&2
+  exit 1
+}
+
+if [[ -n "$("$(_worktree_cmd git)" -C "$main_path" status --porcelain)" ]]; then
+  printf 'Error: main worktree has uncommitted changes; clean it first\n' >&2
+  exit 1
+fi
+
+"$(_worktree_cmd git)" -C "$main_path" checkout -q "$main_branch"
+"$(_worktree_cmd git)" -C "$main_path" fetch -q || true
+if "$(_worktree_cmd git)" -C "$main_path" merge-base --is-ancestor "$current_branch" "origin/${main_branch}" 2>/dev/null; then
+  if [[ "$print_path" != "true" ]]; then
+    printf '==> Branch already merged on remote; fast-forwarding %s\n' "$main_branch"
+  fi
+  "$(_worktree_cmd git)" -C "$main_path" merge --ff-only --quiet "origin/${main_branch}"
+else
+  if [[ "$print_path" != "true" ]]; then
+    printf '==> Rebasing %s onto origin/%s\n' "$current_branch" "$main_branch"
+  fi
+  if ! "$(_worktree_cmd git)" -C "$repo_root" rebase --quiet "origin/${main_branch}"; then
+    printf 'Error: rebase has conflicts; resolve them in %s and run worktree-done again\n' "$repo_root" >&2
+    exit 1
+  fi
+  "$(_worktree_cmd git)" -C "$main_path" merge --quiet "$current_branch"
+  "$(_worktree_cmd git)" -C "$main_path" push --quiet
+fi
+
+_worktree_sync_coding_agent_new_files "${repo_root}/.coding-agent" "${main_path}/.coding-agent"
+
+"$(_worktree_cmd git)" -C "$main_path" worktree remove "$repo_root"
+"$(_worktree_cmd git)" -C "$main_path" branch -D --quiet "$current_branch"
+
+if [[ "$print_path" == "true" ]]; then
+  printf '%s\n' "$main_path"
+else
+  printf '==> Merged %s into %s and removed worktree:\n' "$current_branch" "$main_branch"
+  printf '    Branch: %s\n' "$current_branch"
+  printf '    Path: %s\n' "$repo_root"
+fi
