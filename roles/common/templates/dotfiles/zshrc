@@ -565,6 +565,7 @@ alias s='git status'
 # Show Disk Use of subdirectories, sort by size
 alias duss="du -d 1 -h 2>/dev/null | sort -hr"
 
+alias claude='env -u ANTHROPIC_API_KEY claude'
 alias claude-yolo='claude --dangerously-skip-permissions'
 alias codex-yolo='codex --dangerously-bypass-approvals-and-sandbox'
 
