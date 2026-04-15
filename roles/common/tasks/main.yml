@@ -120,6 +120,20 @@
     path: '{{ ansible_facts["user_dir"] }}/.local/bin'
     state: directory
 
+- name: Install worktree helpers
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/{{ item.name }}'
+    src: '{{ playbook_dir }}/roles/common/files/bin/{{ item.name }}'
+    mode: '{{ item.mode }}'
+  loop:
+    - { name: worktree-lib.sh, mode: '0644' }
+    - { name: worktree-start, mode: '0755' }
+    - { name: worktree-delete, mode: '0755' }
+    - { name: worktree-merge, mode: '0755' }
+    - { name: worktree-done, mode: '0755' }
+    - { name: codex-block-worktree-commands, mode: '0755' }
+
 - name: Install pick-files script
   copy:
     backup: yes
@@ -726,6 +740,152 @@
   register: codex_config_projects_result
   changed_when: codex_config_projects_result.stdout.strip() == 'changed'
   when: lookup('env', 'CODESPACES') != 'true'
+
+- name: Enable Codex hooks in ~/.codex/config.toml
+  shell: |
+    set -euo pipefail
+
+    python3 -c 'import os, textwrap; exec(textwrap.dedent("""
+    import re
+    from pathlib import Path
+
+    config_file = Path(os.environ["CONFIG_FILE"])
+    text = config_file.read_text() if config_file.exists() else ""
+    lines = text.splitlines()
+
+    section_header = re.compile(r"^\[(?P<name>[^\]]+)\](?:\s*[#;].*)?$")
+
+    def section_name(line):
+        match = section_header.match(line.strip())
+        return match.group("name") if match else None
+
+    output = []
+    i = 0
+    found_features = False
+
+    while i < len(lines):
+        line = lines[i]
+
+        if section_name(line) == "features":
+            found_features = True
+            output.append(line)
+            i += 1
+
+            section_lines = []
+            while i < len(lines) and section_name(lines[i]) is None:
+                section_lines.append(lines[i])
+                i += 1
+
+            section_output = []
+            codex_hooks_seen = False
+            for section_line in section_lines:
+                stripped = section_line.strip()
+                if stripped.startswith("codex_hooks") and not stripped.startswith("#"):
+                    if not codex_hooks_seen:
+                        section_output.append("codex_hooks = true")
+                        codex_hooks_seen = True
+                    continue
+                section_output.append(section_line)
+
+            if not codex_hooks_seen:
+                insertion_index = 0
+                while (
+                    insertion_index < len(section_output)
+                    and (
+                        section_output[insertion_index].strip() == ""
+                        or section_output[insertion_index].lstrip().startswith("#")
+                    )
+                ):
+                    insertion_index += 1
+                section_output.insert(insertion_index, "codex_hooks = true")
+
+            output.extend(section_output)
+            continue
+
+        output.append(line)
+        i += 1
+
+    if not found_features:
+        if output and output[-1] != "":
+            output.append("")
+        output.append("[features]")
+        output.append("codex_hooks = true")
+
+    newline = chr(10)
+    new_text = newline.join(output) + newline
+
+    if new_text != text:
+        config_file.write_text(new_text)
+        os.chmod(config_file, 0o600)
+        print("changed")
+    else:
+        print("unchanged")
+    """))'
+  args:
+    executable: /bin/bash
+  environment:
+    CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
+  register: codex_hooks_feature_result
+  changed_when: codex_hooks_feature_result.stdout.strip() == 'changed'
+
+- name: Enforce 0600 on ~/.codex/config.toml
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
+    mode: '0600'
+
+- name: Merge managed Codex worktree hook into ~/.codex/hooks.json
+  shell: |
+    set -euo pipefail
+
+    hooks_file="${HOOKS_FILE:?}"
+    managed_command='~/.local/bin/codex-block-worktree-commands'
+
+    if [ -f "$hooks_file" ] && jq -e --arg cmd "$managed_command" '
+      .hooks.PreToolUse // []
+      | any(.matcher == "Bash" and any(.hooks[]?; .type == "command" and .command == $cmd))
+    ' "$hooks_file" >/dev/null 2>&1; then
+      echo "unchanged"
+      exit 0
+    fi
+
+    managed_entry="$(
+      jq -n --arg cmd "$managed_command" '{
+        matcher: "Bash",
+        hooks: [
+          {
+            type: "command",
+            command: $cmd
+          }
+        ]
+      }'
+    )"
+    tmp_file="$(mktemp)"
+
+    if [ -f "$hooks_file" ] && [ -s "$hooks_file" ]; then
+      jq --argjson entry "$managed_entry" '
+        .hooks //= {} |
+        .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry])
+      ' "$hooks_file" > "$tmp_file"
+    else
+      jq -n --argjson entry "$managed_entry" '
+        {hooks: {PreToolUse: [$entry]}}
+      ' > "$tmp_file"
+    fi
+
+    mv "$tmp_file" "$hooks_file"
+    chmod 600 "$hooks_file"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  environment:
+    HOOKS_FILE: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
+  register: codex_hooks_json_result
+  changed_when: codex_hooks_json_result.stdout.strip() == 'changed'
+
+- name: Enforce 0600 on ~/.codex/hooks.json
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
+    mode: '0600'
 
 # Skills installation (shared across Claude Code and Codex)
 - name: Create ~/.claude/skills directory

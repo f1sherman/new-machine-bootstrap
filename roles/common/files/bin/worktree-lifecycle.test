@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DELETE_SCRIPT="$SCRIPT_DIR/worktree-delete"
+MERGE_SCRIPT="$SCRIPT_DIR/worktree-merge"
+DONE_SCRIPT="$SCRIPT_DIR/worktree-done"
+
+if [ ! -x "$DELETE_SCRIPT" ] || [ ! -x "$MERGE_SCRIPT" ] || [ ! -x "$DONE_SCRIPT" ]; then
+  printf 'ERROR: lifecycle scripts are not executable yet\n' >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+GIT_AUTHOR_NAME=test
+GIT_AUTHOR_EMAIL=test@example.com
+GIT_COMMITTER_NAME=test
+GIT_COMMITTER_EMAIL=test@example.com
+export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+
+create_repo() {
+  local name="$1"
+  local origin="$TMPROOT/${name}-origin.git"
+  local repo="$TMPROOT/${name}-repo"
+  git init -q --bare "$origin"
+  git init -qb main "$repo"
+  git -C "$repo" remote add origin "$origin"
+  git -C "$repo" commit -q --allow-empty -m init
+  git -C "$repo" push -q -u origin main
+  printf '%s\n' "$repo"
+}
+
+normalize_path() {
+  (cd "$1" && pwd -P)
+}
+
+delete_repo="$(normalize_path "$(create_repo delete)")"
+delete_wt="$TMPROOT/delete-wt"
+git -C "$delete_repo" worktree add -q -b feature/delete "$delete_wt"
+delete_wt="$(normalize_path "$delete_wt")"
+
+( cd "$delete_wt" && "$DELETE_SCRIPT" ) >"$TMPROOT/worktree-delete.out" 2>"$TMPROOT/worktree-delete.err"
+
+git -C "$delete_repo" show-ref --verify --quiet refs/heads/feature/delete && {
+  printf 'expected feature/delete branch to be removed\n' >&2
+  exit 1
+}
+
+git -C "$delete_repo" worktree list --porcelain | grep -Fq "worktree $delete_wt" && {
+  printf 'expected linked worktree metadata to be removed\n' >&2
+  exit 1
+}
+
+printf 'PASS  lifecycle helper removes clean linked worktree and branch\n'
+
+merge_repo="$(normalize_path "$(create_repo merge)")"
+merge_wt="$TMPROOT/merge-wt"
+git -C "$merge_repo" worktree add -q -b feature/merge "$merge_wt"
+merge_wt="$(normalize_path "$merge_wt")"
+printf '%s\n' 'merge change' >"$merge_wt/merge.txt"
+git -C "$merge_wt" add merge.txt
+git -C "$merge_wt" commit -q -m 'merge change'
+
+merge_path="$( cd "$merge_wt" && "$MERGE_SCRIPT" --print-path )"
+[ "$merge_path" = "$merge_repo" ] || {
+  printf 'expected merge helper to return main path, got %q\n' "$merge_path" >&2
+  exit 1
+}
+
+[ -f "$merge_repo/merge.txt" ] || {
+  printf 'expected merge helper to update main worktree\n' >&2
+  exit 1
+}
+
+printf 'PASS  lifecycle helper merges branch into main worktree\n'
+
+primary_repo="$(normalize_path "$(create_repo primary)")"
+primary_wt="$primary_repo"
+git -C "$primary_repo" checkout -q -b feature/primary
+primary_main_wt="$TMPROOT/primary-main-wt"
+git -C "$primary_repo" worktree add -q "$primary_main_wt" main
+primary_main_wt="$(normalize_path "$primary_main_wt")"
+printf '%s\n' 'primary change' >"$primary_wt/primary.txt"
+git -C "$primary_wt" add primary.txt
+git -C "$primary_wt" commit -q -m 'primary change'
+
+primary_stdout="$TMPROOT/worktree-done-primary.out"
+primary_stderr="$TMPROOT/worktree-done-primary.err"
+if ( cd "$primary_wt" && "$DONE_SCRIPT" --print-path ) >"$primary_stdout" 2>"$primary_stderr"; then
+  printf 'expected done helper to reject the primary checkout\n' >&2
+  exit 1
+fi
+
+[ ! -s "$primary_stdout" ] || {
+  printf 'expected rejected primary checkout to stay silent on stdout\n' >&2
+  exit 1
+}
+
+grep -Fq 'linked worktree' "$primary_stderr" || {
+  printf 'expected primary checkout rejection message\n' >&2
+  exit 1
+}
+
+[ ! -f "$primary_main_wt/primary.txt" ] || {
+  printf 'expected primary checkout rejection to avoid merging into main worktree\n' >&2
+  exit 1
+}
+
+printf 'PASS  lifecycle helper rejects primary checkout before side effects\n'
+
+delete_primary_repo="$(normalize_path "$(create_repo delete-primary)")"
+delete_primary_wt="$delete_primary_repo"
+git -C "$delete_primary_repo" checkout -q -b feature/delete-primary
+delete_primary_main_wt="$TMPROOT/delete-primary-main-wt"
+git -C "$delete_primary_repo" worktree add -q "$delete_primary_main_wt" main
+delete_primary_main_wt="$(normalize_path "$delete_primary_main_wt")"
+printf '%s\n' 'delete-primary change' >"$delete_primary_wt/delete-primary.txt"
+git -C "$delete_primary_wt" add delete-primary.txt
+git -C "$delete_primary_wt" commit -q -m 'delete-primary change'
+
+delete_primary_stdout="$TMPROOT/worktree-delete-primary.out"
+delete_primary_stderr="$TMPROOT/worktree-delete-primary.err"
+if ( cd "$delete_primary_wt" && "$DELETE_SCRIPT" --print-path ) >"$delete_primary_stdout" 2>"$delete_primary_stderr"; then
+  printf 'expected delete helper to reject the primary checkout\n' >&2
+  exit 1
+fi
+
+[ ! -s "$delete_primary_stdout" ] || {
+  printf 'expected rejected delete primary checkout to stay silent on stdout\n' >&2
+  exit 1
+}
+
+grep -Fq 'linked worktree' "$delete_primary_stderr" || {
+  printf 'expected delete primary checkout rejection message\n' >&2
+  exit 1
+}
+
+[ ! -f "$delete_primary_main_wt/delete-primary.txt" ] || {
+  printf 'expected delete primary checkout rejection to avoid side effects\n' >&2
+  exit 1
+}
+
+printf 'PASS  lifecycle helper rejects delete from primary checkout before side effects\n'
+
+merge_primary_repo="$(normalize_path "$(create_repo merge-primary)")"
+merge_primary_wt="$merge_primary_repo"
+git -C "$merge_primary_repo" checkout -q -b feature/merge-primary
+merge_primary_main_wt="$TMPROOT/merge-primary-main-wt"
+git -C "$merge_primary_repo" worktree add -q "$merge_primary_main_wt" main
+merge_primary_main_wt="$(normalize_path "$merge_primary_main_wt")"
+printf '%s\n' 'merge-primary change' >"$merge_primary_wt/merge-primary.txt"
+git -C "$merge_primary_wt" add merge-primary.txt
+git -C "$merge_primary_wt" commit -q -m 'merge-primary change'
+
+merge_primary_stdout="$TMPROOT/worktree-merge-primary.out"
+merge_primary_stderr="$TMPROOT/worktree-merge-primary.err"
+if ( cd "$merge_primary_wt" && "$MERGE_SCRIPT" --print-path ) >"$merge_primary_stdout" 2>"$merge_primary_stderr"; then
+  printf 'expected merge helper to reject the primary checkout\n' >&2
+  exit 1
+fi
+
+[ ! -s "$merge_primary_stdout" ] || {
+  printf 'expected rejected merge primary checkout to stay silent on stdout\n' >&2
+  exit 1
+}
+
+grep -Fq 'linked worktree' "$merge_primary_stderr" || {
+  printf 'expected merge primary checkout rejection message\n' >&2
+  exit 1
+}
+
+[ ! -f "$merge_primary_main_wt/merge-primary.txt" ] || {
+  printf 'expected merge primary checkout rejection to avoid side effects\n' >&2
+  exit 1
+}
+
+printf 'PASS  lifecycle helper rejects merge from primary checkout before side effects\n'
+
+done_repo="$(normalize_path "$(create_repo done)")"
+done_wt="$TMPROOT/done-wt"
+git -C "$done_repo" worktree add -q -b feature/done "$done_wt"
+done_wt="$(normalize_path "$done_wt")"
+printf '%s\n' 'done change' >"$done_wt/done.txt"
+git -C "$done_wt" add done.txt
+git -C "$done_wt" commit -q -m 'done change'
+
+done_path="$( cd "$done_wt" && "$DONE_SCRIPT" --print-path )"
+[ "$done_path" = "$done_repo" ] || {
+  printf 'expected done helper to return main path, got %q\n' "$done_path" >&2
+  exit 1
+}
+
+[ -f "$done_repo/done.txt" ] || {
+  printf 'expected done helper to update main worktree\n' >&2
+  exit 1
+}
+
+git -C "$done_repo" show-ref --verify --quiet refs/heads/feature/done && {
+  printf 'expected feature/done branch to be removed\n' >&2
+  exit 1
+}
+
+git -C "$done_repo" worktree list --porcelain | grep -Fq "worktree $done_wt" && {
+  printf 'expected done worktree metadata to be removed\n' >&2
+  exit 1
+}
+
+printf 'PASS  lifecycle helper finishes branch and removes worktree\n'

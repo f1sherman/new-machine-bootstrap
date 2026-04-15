@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/codex-block-worktree-commands"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+run_block_case() {
+  local name="$1"
+  local command="$2"
+  local reason="$3"
+  local output
+
+  output="$(jq -n --arg command "$command" '{tool_input:{command:$command}}' | "$SCRIPT")"
+  if printf '%s' "$output" | jq -e --arg reason "$reason" '. == {hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}' >/dev/null; then
+    printf 'PASS  %s\n' "$name"
+  else
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  fi
+}
+
+run_allow_case() {
+  local name="$1"
+  local command="$2"
+  local output
+
+  output="$(jq -n --arg command "$command" '{tool_input:{command:$command}}' | "$SCRIPT")"
+  [ -z "$output" ] || {
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
+run_empty_case() {
+  local name="$1"
+  local payload="$2"
+  local output
+
+  output="$(printf '%s' "$payload" | "$SCRIPT")"
+  [ -z "$output" ] || {
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
+run_block_case "blocks raw worktree add" 'git worktree add -b foo ../foo' 'Do not run git worktree add directly. Use worktree-start instead.'
+run_block_case "blocks raw worktree remove" 'git worktree remove ../foo' 'Do not run git worktree remove directly. Use worktree-delete instead.'
+run_block_case "blocks git -C invocation" 'git -C repo worktree add -b foo ../foo' 'Do not run git worktree add directly. Use worktree-start instead.'
+run_block_case "blocks assignment-prefixed invocation" 'GIT_DIR=.git git worktree add -b foo ../foo' 'Do not run git worktree add directly. Use worktree-start instead.'
+run_block_case "blocks command builtin invocation" 'command git worktree remove ../foo' 'Do not run git worktree remove directly. Use worktree-delete instead.'
+run_block_case "blocks chained invocation" 'cd repo && git worktree add -b foo ../foo' 'Do not run git worktree add directly. Use worktree-start instead.'
+run_allow_case "allows worktree-start helper" 'worktree-start foo'
+run_allow_case "allows worktree-delete helper" 'worktree-delete foo'
+run_allow_case "allows text mention of worktree add" 'echo git worktree add'
+run_allow_case "allows other commands" 'git status --short'
+run_empty_case "allows missing command" '{}'
+run_empty_case "allows empty command" '{"tool_input":{"command":""}}'
+
+printf 'PASS  blocker helper test suite\n'

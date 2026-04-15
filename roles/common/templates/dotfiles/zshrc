@@ -129,131 +129,15 @@ _worktree_sync_tmux_state() {
 }
 
 worktree-start() {
-  local branch path start_point print_path repo_root repo_name parent_dir safe_branch
-  branch=""
-  path=""
-  start_point="HEAD"
-  print_path="false"
-
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      -b|--branch)
-        branch="${2:-}"
-        shift 2
-        ;;
-      -p|--path)
-        path="${2:-}"
-        shift 2
-        ;;
-      -f|--from)
-        start_point="${2:-}"
-        shift 2
-        ;;
-      --print-path)
-        print_path="true"
-        shift
-        ;;
-      -h|--help)
-        cat <<'EOF'
-Usage: worktree-start <branch> [path]
-       worktree-start --branch <branch> [--path <path>] [--from <start-point>] [--print-path]
-
-Creates a new git worktree and branch from the current repository.
-Copies ~/.claude/settings.local.json into <worktree>/.claude/settings.local.json if present.
-EOF
-        return 0
-        ;;
-      -*)
-        echo "Error: unknown option: $1" >&2
-        return 1
-        ;;
-      *)
-        if [[ -z "$branch" ]]; then
-          branch="$1"
-        elif [[ -z "$path" ]]; then
-          path="$1"
-        else
-          echo "Error: unexpected argument: $1" >&2
-          return 1
-        fi
-        shift
-        ;;
-    esac
-  done
-
-  if [[ -z "$branch" ]]; then
-    echo "Error: branch name is required" >&2
-    return 1
+  local path
+  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    "$HOME/.local/bin/worktree-start" "$@"
+    return $?
   fi
-
-  repo_root="$(_worktree_repo_root)"
-  _worktree_debug "pwd=$PWD"
-  _worktree_debug "git=$(_worktree_cmd git)"
-  if [[ -x "$(_worktree_cmd printenv)" && -x "$(_worktree_cmd grep)" ]]; then
-    _worktree_debug "GIT env=$("$(_worktree_cmd printenv)" | "$(_worktree_cmd grep)" '^GIT_' || true)"
-  fi
-  _worktree_debug "repo_root=${repo_root:-<empty>}"
-  if [[ -z "$repo_root" ]]; then
-    echo "Error: not inside a git repository" >&2
-    return 1
-  fi
-
-  if [[ -z "$path" ]]; then
-    repo_name=$("$(_worktree_cmd basename)" "$repo_root")
-    parent_dir=$("$(_worktree_cmd dirname)" "$repo_root")
-    safe_branch="${branch//\//-}"
-    path="${parent_dir}/${repo_name}-${safe_branch}"
-  fi
-
-  if "$(_worktree_cmd git)" -C "$repo_root" show-ref --verify --quiet "refs/heads/$branch"; then
-    echo "Error: branch already exists: $branch" >&2
-    return 1
-  fi
-
-  if [[ -e "$path" ]]; then
-    echo "Error: path already exists: $path" >&2
-    return 1
-  fi
-
-  if ! "$(_worktree_cmd git)" -C "$repo_root" rev-parse --verify "$start_point" >/dev/null 2>&1; then
-    echo "Error: invalid start point: $start_point" >&2
-    return 1
-  fi
-
-  if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -b "$branch" "$path" "$start_point"; then
-    echo "Error: failed to create worktree" >&2
-    return 1
-  fi
-
-  _worktree_sync_coding_agent_new_files "${repo_root}/.coding-agent" "${path}/.coding-agent"
-
-  if [[ ! -e "${path}/.claude/settings.local.json" ]]; then
-    local settings_source="${repo_root}/.claude/settings.local.json"
-    [[ -f "$settings_source" ]] || settings_source="${HOME}/.claude/settings.local.json"
-    if [[ -f "$settings_source" ]]; then
-      "$(_worktree_cmd mkdir)" -p "${path}/.claude"
-      "$(_worktree_cmd cp)" -p "$settings_source" "${path}/.claude/settings.local.json"
-    fi
-  fi
-
-  # Trust the new worktree directory in Claude Code
-  if command -v claude-trust-directory >/dev/null 2>&1; then
-    claude-trust-directory "$path" 2>/dev/null || true
-  fi
-
-  if [[ "$print_path" == "true" ]]; then
-    printf '%s\n' "$path"
-    return 0
-  fi
-
-  if command -v mise >/dev/null 2>&1; then
-    mise trust "$path" >/dev/null 2>&1 || true
-  fi
-
-  cd "$path"
+  path="$("$HOME/.local/bin/worktree-start" "$@" --print-path)" || return $?
+  cd "$path" || return $?
   _worktree_sync_tmux_state
-  echo "==> Worktree created:"
-  echo "    Branch: $branch"
+  printf '%s\n' "$path"
 }
 
 worktree-create() {
@@ -265,130 +149,39 @@ worktree-cd() {
 }
 
 worktree-merge() {
-  local repo_root current_branch current_path main_branch main_path
-  repo_root="$(_worktree_repo_root)" || {
-    echo "Error: not inside a git repository" >&2
-    return 1
-  }
-  current_branch=$("$(_worktree_cmd git)" -C "$repo_root" branch --show-current)
-  if [[ -z "$current_branch" ]]; then
-    echo "Error: detached HEAD; checkout a branch first" >&2
-    return 1
+  local path
+  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    "$HOME/.local/bin/worktree-merge" "$@"
+    return $?
   fi
-  current_path="$repo_root"
-  main_branch="$(_worktree_main_branch)"
-  if [[ "$current_branch" == "$main_branch" ]]; then
-    echo "Error: already on ${main_branch}; this command is for non-main worktrees" >&2
-    return 1
-  fi
-  if [[ -n "$("$(_worktree_cmd git)" -C "$current_path" status --porcelain)" ]]; then
-    echo "Error: worktree has uncommitted changes; commit or stash first" >&2
-    return 1
-  fi
-  main_path="$(_worktree_main_path "$main_branch")" || {
-    echo "Error: could not find main worktree for branch ${main_branch}" >&2
-    return 1
-  }
-  if [[ -n "$("$(_worktree_cmd git)" -C "$main_path" status --porcelain)" ]]; then
-    echo "Error: main worktree has uncommitted changes; clean it first" >&2
-    return 1
-  fi
-  "$(_worktree_cmd git)" -C "$main_path" checkout "$main_branch"
-  "$(_worktree_cmd git)" -C "$main_path" merge "$current_branch"
-  cd "$main_path"
+  path="$("$HOME/.local/bin/worktree-merge" "$@" --print-path)" || return $?
+  cd "$path" || return $?
   _worktree_sync_tmux_state
-  echo "==> Merged ${current_branch} into ${main_branch}:"
-  echo "    Branch: ${current_branch}"
-  echo "    Main: ${main_path}"
+  printf '%s\n' "$path"
 }
 
 worktree-delete() {
-  local repo_root current_branch current_path main_branch main_path
-  repo_root="$(_worktree_repo_root)" || {
-    echo "Error: not inside a git repository" >&2
-    return 1
-  }
-  current_branch=$("$(_worktree_cmd git)" -C "$repo_root" branch --show-current)
-  if [[ -z "$current_branch" ]]; then
-    echo "Error: detached HEAD; checkout a branch first" >&2
-    return 1
+  local path
+  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    "$HOME/.local/bin/worktree-delete" "$@"
+    return $?
   fi
-  current_path="$repo_root"
-  main_branch="$(_worktree_main_branch)"
-  if [[ "$current_branch" == "$main_branch" ]]; then
-    echo "Error: already on ${main_branch}; this command is for non-main worktrees" >&2
-    return 1
-  fi
-  if [[ -n "$("$(_worktree_cmd git)" -C "$current_path" status --porcelain)" ]]; then
-    echo "Error: worktree has uncommitted changes; commit or stash first" >&2
-    return 1
-  fi
-  main_path="$(_worktree_main_path "$main_branch")" || {
-    echo "Error: could not find main worktree for branch ${main_branch}" >&2
-    return 1
-  }
-  cd "$main_path"
+  path="$("$HOME/.local/bin/worktree-delete" "$@" --print-path)" || return $?
+  cd "$path" || return $?
   _worktree_sync_tmux_state
-  "$(_worktree_cmd git)" -C "$main_path" worktree remove "$current_path"
-  "$(_worktree_cmd git)" -C "$main_path" branch -D "$current_branch"
-  echo "==> Removed worktree and deleted branch:"
-  echo "    Branch: ${current_branch}"
-  echo "    Path: ${current_path}"
+  printf '%s\n' "$path"
 }
 
 worktree-done() {
-  local repo_root current_branch current_path main_branch main_path
-  repo_root="$(_worktree_repo_root)" || {
-    echo "Error: not inside a git repository" >&2
-    return 1
-  }
-  current_branch=$("$(_worktree_cmd git)" -C "$repo_root" branch --show-current)
-  if [[ -z "$current_branch" ]]; then
-    echo "Error: detached HEAD; checkout a branch first" >&2
-    return 1
+  local path
+  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    "$HOME/.local/bin/worktree-done" "$@"
+    return $?
   fi
-  current_path="$repo_root"
-  main_branch="$(_worktree_main_branch)"
-  if [[ "$current_branch" == "$main_branch" ]]; then
-    echo "Error: already on ${main_branch}; this command is for non-main worktrees" >&2
-    return 1
-  fi
-  if [[ -n "$("$(_worktree_cmd git)" -C "$current_path" status --porcelain)" ]]; then
-    echo "Error: worktree has uncommitted changes; commit or stash first" >&2
-    return 1
-  fi
-  main_path="$(_worktree_main_path "$main_branch")" || {
-    echo "Error: could not find main worktree for branch ${main_branch}" >&2
-    return 1
-  }
-  if [[ -n "$("$(_worktree_cmd git)" -C "$main_path" status --porcelain)" ]]; then
-    echo "Error: main worktree has uncommitted changes; clean it first" >&2
-    return 1
-  fi
-  "$(_worktree_cmd git)" -C "$main_path" checkout "$main_branch"
-  "$(_worktree_cmd git)" -C "$main_path" fetch || true
-  if "$(_worktree_cmd git)" -C "$main_path" merge-base --is-ancestor "$current_branch" "origin/${main_branch}" 2>/dev/null; then
-    echo "==> Branch already merged on remote; fast-forwarding ${main_branch}"
-    "$(_worktree_cmd git)" -C "$main_path" merge --ff-only "origin/${main_branch}"
-  else
-    echo "==> Rebasing ${current_branch} onto origin/${main_branch}"
-    if ! "$(_worktree_cmd git)" -C "$current_path" rebase "origin/${main_branch}"; then
-      echo "Error: rebase has conflicts; resolve them in ${current_path} and run worktree-done again" >&2
-      return 1
-    fi
-    "$(_worktree_cmd git)" -C "$main_path" merge "$current_branch"
-    "$(_worktree_cmd git)" -C "$main_path" push
-  fi
-
-  _worktree_sync_coding_agent_new_files "${current_path}/.coding-agent" "${main_path}/.coding-agent"
-
-  cd "$main_path"
+  path="$("$HOME/.local/bin/worktree-done" "$@" --print-path)" || return $?
+  cd "$path" || return $?
   _worktree_sync_tmux_state
-  "$(_worktree_cmd git)" -C "$main_path" worktree remove "$current_path"
-  "$(_worktree_cmd git)" -C "$main_path" branch -D "$current_branch"
-  echo "==> Merged ${current_branch} into ${main_branch} and removed worktree:"
-  echo "    Branch: ${current_branch}"
-  echo "    Path: ${current_path}"
+  printf '%s\n' "$path"
 }
 
 wts() {
