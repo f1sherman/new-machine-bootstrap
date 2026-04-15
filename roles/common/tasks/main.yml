@@ -232,6 +232,20 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-agent-worktree'
     mode: 0755
 
+- name: Install worktree library
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/worktree-lib.sh'
+    src: '{{ playbook_dir }}/roles/common/files/bin/worktree-lib.sh'
+    mode: 0644
+
+- name: Install worktree-start script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/worktree-start'
+    src: '{{ playbook_dir }}/roles/common/files/bin/worktree-start'
+    mode: 0755
+
 - name: Install tmux-agent-pane-status script
   copy:
     backup: yes

@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=roles/common/files/bin/worktree-lib.sh
+source "$SCRIPT_DIR/worktree-lib.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: worktree-start <branch> [path]
+       worktree-start --branch <branch> [--path <path>] [--from <start-point>] [--print-path]
+EOF
+}
+
+default_worktree_path() {
+  local repo_root="$1" branch="$2" repo_name parent_dir safe_branch
+  repo_name=$("$(_worktree_cmd basename)" "$repo_root")
+  parent_dir=$("$(_worktree_cmd dirname)" "$repo_root")
+  safe_branch="${branch//\//-}"
+  printf '%s\n' "${parent_dir}/${repo_name}-${safe_branch}"
+}
+
+main() {
+  local branch path start_point print_path repo_root settings_source
+  branch=""
+  path=""
+  start_point="HEAD"
+  print_path="false"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -b|--branch)
+        branch="${2:-}"
+        shift 2
+        ;;
+      -p|--path)
+        path="${2:-}"
+        shift 2
+        ;;
+      -f|--from)
+        start_point="${2:-}"
+        shift 2
+        ;;
+      --print-path)
+        print_path="true"
+        shift
+        ;;
+      -h|--help)
+        usage
+        return 0
+        ;;
+      -*)
+        printf 'Error: unknown option: %s\n' "$1" >&2
+        return 1
+        ;;
+      *)
+        if [[ -z "$branch" ]]; then
+          branch="$1"
+        elif [[ -z "$path" ]]; then
+          path="$1"
+        else
+          printf 'Error: unexpected argument: %s\n' "$1" >&2
+          return 1
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -z "$branch" ]]; then
+    printf 'Error: branch name is required\n' >&2
+    return 1
+  fi
+
+  repo_root="$(_worktree_repo_root)"
+  _worktree_debug "pwd=$PWD"
+  _worktree_debug "git=$(_worktree_cmd git)"
+  if [[ -x "$(_worktree_cmd printenv)" && -x "$(_worktree_cmd grep)" ]]; then
+    _worktree_debug "GIT env=$("$(_worktree_cmd printenv)" | "$(_worktree_cmd grep)" '^GIT_' || true)"
+  fi
+  _worktree_debug "repo_root=${repo_root:-<empty>}"
+  if [[ -z "$repo_root" ]]; then
+    printf 'Error: not inside a git repository\n' >&2
+    return 1
+  fi
+
+  if [[ -z "$path" ]]; then
+    path="$(default_worktree_path "$repo_root" "$branch")"
+  fi
+
+  if "$(_worktree_cmd git)" -C "$repo_root" show-ref --verify --quiet "refs/heads/$branch"; then
+    printf 'Error: branch already exists: %s\n' "$branch" >&2
+    return 1
+  fi
+
+  if [[ -e "$path" ]]; then
+    printf 'Error: path already exists: %s\n' "$path" >&2
+    return 1
+  fi
+
+  if ! "$(_worktree_cmd git)" -C "$repo_root" rev-parse --verify "$start_point" >/dev/null 2>&1; then
+    printf 'Error: invalid start point: %s\n' "$start_point" >&2
+    return 1
+  fi
+
+  if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q -b "$branch" "$path" "$start_point"; then
+    printf 'Error: failed to create worktree\n' >&2
+    return 1
+  fi
+
+  _worktree_sync_coding_agent_new_files "${repo_root}/.coding-agent" "${path}/.coding-agent"
+
+  if [[ ! -e "${path}/.claude/settings.local.json" ]]; then
+    settings_source="${repo_root}/.claude/settings.local.json"
+    [[ -f "$settings_source" ]] || settings_source="${HOME}/.claude/settings.local.json"
+    if [[ -f "$settings_source" ]]; then
+      "$(_worktree_cmd mkdir)" -p "${path}/.claude"
+      "$(_worktree_cmd cp)" -p "$settings_source" "${path}/.claude/settings.local.json"
+    fi
+  fi
+
+  if command -v claude-trust-directory >/dev/null 2>&1; then
+    claude-trust-directory "$path" 2>/dev/null || true
+  fi
+
+  if command -v mise >/dev/null 2>&1; then
+    mise trust "$path" >/dev/null 2>&1 || true
+  fi
+
+  if [[ "$print_path" == "true" ]]; then
+    printf '%s\n' "$path"
+    return 0
+  fi
+
+  printf '==> Worktree created:\n'
+  printf '    Branch: %s\n' "$branch"
+}
+
+main "$@"

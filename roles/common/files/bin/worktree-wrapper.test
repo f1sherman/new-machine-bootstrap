@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+fail() {
+  printf 'FAIL  %s\n' "$1" >&2
+  exit 1
+}
+
+extract_wrapper() {
+  local template="$1" dest="$2"
+  awk '/^worktree-start\(\) \{/,/^}/' "$template" > "$dest"
+}
+
+run_case() {
+  local shell_bin="$1" template="$2" label="$3"
+  local case_root="$TMPROOT/$label"
+  local home_dir="$case_root/home"
+  local helper_dir="$home_dir/.local/bin"
+  local helper_log="$case_root/helper.log"
+  local sync_log="$case_root/sync.log"
+  local stdout_file="$case_root/stdout.txt"
+  local worktree_path="$case_root/created-worktree"
+  local wrapper_file="$case_root/wrapper.snippet"
+  local run_file="$case_root/run.${label}"
+
+  mkdir -p "$helper_dir" "$case_root"
+  extract_wrapper "$template" "$wrapper_file"
+
+  cat > "$helper_dir/worktree-start" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$HELPER_LOG"
+/bin/mkdir -p "$WORKTREE_PATH"
+printf '%s\n' "$WORKTREE_PATH"
+EOF
+  chmod +x "$helper_dir/worktree-start"
+
+  cat > "$run_file" <<EOF
+set -eu
+HELPER_LOG="$helper_log"
+WORKTREE_PATH="$worktree_path"
+SYNC_LOG="$sync_log"
+HOME="$home_dir"
+export HELPER_LOG WORKTREE_PATH
+_worktree_sync_tmux_state() {
+  printf '%s\n' "sync-current" >> "\$SYNC_LOG"
+}
+. "$wrapper_file"
+worktree-start --branch feature/alpha --path "$case_root/requested-path" > "$stdout_file"
+printf 'cwd=%s\n' "\$PWD" >> "$stdout_file"
+EOF
+
+  if ! HOME="$home_dir" "$shell_bin" -f "$run_file"; then
+    fail "$label wrapper run failed"
+  fi
+
+  [ "$(sed -n '1p' "$stdout_file")" = "$worktree_path" ] || fail "$label wrapper did not print the helper path"
+  [ "$(sed -n '2p' "$stdout_file")" = "cwd=$worktree_path" ] || fail "$label wrapper did not cd into the helper path"
+  [ "$(cat "$helper_log")" = "--branch feature/alpha --path $case_root/requested-path --print-path" ] || fail "$label wrapper did not call the helper with --print-path"
+  [ "$(cat "$sync_log")" = "sync-current" ] || fail "$label wrapper did not sync tmux state"
+}
+
+zsh_bin="$(command -v zsh)"
+bash_bin="$(command -v bash)"
+
+[ -n "$zsh_bin" ] || fail "missing zsh"
+[ -n "$bash_bin" ] || fail "missing bash"
+
+run_case "$zsh_bin" "$ROOT/roles/common/templates/dotfiles/zshrc" "zsh"
+run_case "$bash_bin" "$ROOT/roles/macos/templates/dotfiles/bash_profile" "bash"
+
+printf 'PASS  worktree wrapper smoke test\n'
