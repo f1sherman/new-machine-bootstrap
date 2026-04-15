@@ -33,6 +33,8 @@ require_literal() {
 require_literal 'Enable Codex hooks in ~/.codex/config.toml' 'codex hooks config task is present'
 require_literal 'Merge managed Codex worktree hook into ~/.codex/hooks.json' 'codex hook merge task is present'
 require_literal 'codex_hooks = true' 'codex hooks feature flag is present'
+require_literal 'codex_hooks_seen = False' 'codex hooks mutation tracks existing entries'
+require_literal 'if stripped.startswith("codex_hooks") and not stripped.startswith("#"):' 'codex hooks mutation normalizes existing keys'
 require_literal '~/.codex/hooks.json' 'hooks.json path is referenced'
 require_literal '~/.local/bin/codex-block-worktree-commands' 'managed hook command is referenced'
 require_literal 'matcher: "Bash"' 'managed hook targets Bash'

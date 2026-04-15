@@ -747,40 +747,78 @@
 
     config_file='{{ ansible_facts["user_dir"] }}/.codex/config.toml'
 
-    if [ -f "$config_file" ] && grep -Eq '^[[:space:]]*codex_hooks[[:space:]]*=[[:space:]]*true[[:space:]]*$' "$config_file"; then
-      echo "unchanged"
-      exit 0
-    fi
+    python3 -c 'import os, textwrap; exec(textwrap.dedent("""
+    from pathlib import Path
 
-    tmp_file="$(mktemp)"
-    if [ -f "$config_file" ] && [ -s "$config_file" ] && grep -Eq '^\[features\]$' "$config_file"; then
-      awk '
-        BEGIN { inserted = 0 }
-        {
-          print
-          if (!inserted && $0 == "[features]") {
-            print "codex_hooks = true"
-            inserted = 1
-          }
-        }
-        END {
-          if (!inserted) {
-            print "[features]"
-            print "codex_hooks = true"
-          }
-        }
-      ' "$config_file" > "$tmp_file"
-    else
-      if [ -f "$config_file" ] && [ -s "$config_file" ]; then
-        cat "$config_file" > "$tmp_file"
-        printf '\n' >> "$tmp_file"
-      fi
-      printf '[features]\ncodex_hooks = true\n' >> "$tmp_file"
-    fi
+    config_file = Path(os.environ["CONFIG_FILE"])
+    text = config_file.read_text() if config_file.exists() else ""
+    lines = text.splitlines()
 
-    mv "$tmp_file" "$config_file"
-    chmod 600 "$config_file"
-    echo "changed"
+    def is_section_header(line):
+        stripped = line.strip()
+        return stripped.startswith("[") and stripped.endswith("]")
+
+    output = []
+    i = 0
+    found_features = False
+
+    while i < len(lines):
+        line = lines[i]
+
+        if line.strip() == "[features]":
+            found_features = True
+            output.append(line)
+            i += 1
+
+            section_lines = []
+            while i < len(lines) and not is_section_header(lines[i]):
+                section_lines.append(lines[i])
+                i += 1
+
+            section_output = []
+            codex_hooks_seen = False
+            for section_line in section_lines:
+                stripped = section_line.strip()
+                if stripped.startswith("codex_hooks") and not stripped.startswith("#"):
+                    if not codex_hooks_seen:
+                        section_output.append("codex_hooks = true")
+                        codex_hooks_seen = True
+                    continue
+                section_output.append(section_line)
+
+            if not codex_hooks_seen:
+                insertion_index = 0
+                while (
+                    insertion_index < len(section_output)
+                    and (
+                        section_output[insertion_index].strip() == ""
+                        or section_output[insertion_index].lstrip().startswith("#")
+                    )
+                ):
+                    insertion_index += 1
+                section_output.insert(insertion_index, "codex_hooks = true")
+
+            output.extend(section_output)
+            continue
+
+        output.append(line)
+        i += 1
+
+    if not found_features:
+        if output and output[-1] != "":
+            output.append("")
+        output.append("[features]")
+        output.append("codex_hooks = true")
+
+    new_text = "\n".join(output) + "\n"
+
+    if new_text != text:
+        config_file.write_text(new_text)
+        os.chmod(config_file, 0o600)
+        print("changed")
+    else:
+        print("unchanged")
+    """))'
   args:
     executable: /bin/bash
   register: codex_hooks_feature_result
