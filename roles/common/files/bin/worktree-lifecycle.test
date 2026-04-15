@@ -76,6 +76,40 @@ merge_path="$( cd "$merge_wt" && "$MERGE_SCRIPT" --print-path )"
 
 printf 'PASS  lifecycle helper merges branch into main worktree\n'
 
+primary_repo="$(normalize_path "$(create_repo primary)")"
+primary_wt="$primary_repo"
+git -C "$primary_repo" checkout -q -b feature/primary
+primary_main_wt="$TMPROOT/primary-main-wt"
+git -C "$primary_repo" worktree add -q "$primary_main_wt" main
+primary_main_wt="$(normalize_path "$primary_main_wt")"
+printf '%s\n' 'primary change' >"$primary_wt/primary.txt"
+git -C "$primary_wt" add primary.txt
+git -C "$primary_wt" commit -q -m 'primary change'
+
+primary_stdout="$TMPROOT/worktree-done-primary.out"
+primary_stderr="$TMPROOT/worktree-done-primary.err"
+if ( cd "$primary_wt" && "$DONE_SCRIPT" --print-path ) >"$primary_stdout" 2>"$primary_stderr"; then
+  printf 'expected done helper to reject the primary checkout\n' >&2
+  exit 1
+fi
+
+[ ! -s "$primary_stdout" ] || {
+  printf 'expected rejected primary checkout to stay silent on stdout\n' >&2
+  exit 1
+}
+
+grep -Fq 'linked worktree' "$primary_stderr" || {
+  printf 'expected primary checkout rejection message\n' >&2
+  exit 1
+}
+
+[ ! -f "$primary_main_wt/primary.txt" ] || {
+  printf 'expected primary checkout rejection to avoid merging into main worktree\n' >&2
+  exit 1
+}
+
+printf 'PASS  lifecycle helper rejects primary checkout before side effects\n'
+
 done_repo="$(normalize_path "$(create_repo done)")"
 done_wt="$TMPROOT/done-wt"
 git -C "$done_repo" worktree add -q -b feature/done "$done_wt"
