@@ -114,12 +114,19 @@ run_renovate_checks() {
   assert_contains "$RENOVATE_CONFIG" "\"fileMatch\": [\"^vars/tool_versions\\\\.yml$\"]" "renovate regex manager targets vars/tool_versions.yml"
   assert_contains "$RENOVATE_CONFIG" "datasource=(?<datasource>[a-z-]+)" "renovate regex manager reads datasource annotations"
   assert_contains "$RENOVATE_CONFIG" "depName=(?<depName>[^\\\\s]+)" "renovate regex manager reads depName annotations"
-  assert_contains "$RENOVATE_CONFIG" "\"packageRules\": [" "renovate config defines package rules"
-  assert_contains "$RENOVATE_CONFIG" "\"description\": \"Keep superpowers updates explicit and easy to spot\"" "renovate config defines a dedicated superpowers rule"
-  assert_contains "$RENOVATE_CONFIG" "\"matchManagers\": [\"custom.regex\"]" "superpowers renovate rule targets the regex custom manager"
-  assert_contains "$RENOVATE_CONFIG" "\"matchPackageNames\": [\"obra/superpowers\"]" "superpowers renovate rule targets obra/superpowers"
-  assert_contains "$RENOVATE_CONFIG" "\"commitMessageTopic\": \"superpowers\"" "superpowers renovate rule uses a stable commit message topic"
-  assert_contains "$RENOVATE_CONFIG" "\"addLabels\": [\"superpowers\"]" "superpowers renovate rule adds a dedicated label"
+  if jq -e '
+    any(.packageRules[]?;
+      .description == "Keep superpowers updates explicit and easy to spot"
+      and .matchManagers == ["custom.regex"]
+      and .matchPackageNames == ["obra/superpowers"]
+      and .commitMessageTopic == "superpowers"
+      and .addLabels == ["superpowers"]
+    )
+  ' "$RENOVATE_CONFIG" >/dev/null 2>&1; then
+    pass_case "renovate config defines a dedicated superpowers rule"
+  else
+    fail_case "renovate config defines a dedicated superpowers rule" "missing packageRules entry for obra/superpowers with the expected fields in $RENOVATE_CONFIG"
+  fi
   assert_contains "$RENOVATE_RUN_WORKFLOW" "workflow_dispatch:" "renovate workflow supports manual dispatch"
   assert_contains "$RENOVATE_RUN_WORKFLOW" "- cron: '23 3 * * *'" "renovate workflow runs daily on the configured schedule"
   assert_contains "$RENOVATE_RUN_WORKFLOW" "uses: actions/create-github-app-token@v2.2.2" "renovate workflow mints a GitHub App token"
