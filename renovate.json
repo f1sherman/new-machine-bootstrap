@@ -12,5 +12,14 @@
         "#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+depName=(?<depName>[^\\s]+)\\s*\\n\\s+[a-z_]+:\\s*['\"]?(?<currentValue>[^'\"\\s]+)['\"]?"
       ]
     }
+  ],
+  "packageRules": [
+    {
+      "description": "Keep superpowers updates explicit and easy to spot",
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["obra/superpowers"],
+      "commitMessageTopic": "superpowers",
+      "addLabels": ["superpowers"]
+    }
   ]
 }
