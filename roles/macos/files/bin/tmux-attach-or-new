@@ -9,7 +9,11 @@ if [ "$(uname -s)" = "Darwin" ] && [ -f "$manifest" ]; then
   boot_epoch="$(sysctl -n kern.boottime | awk -F '[ ,}]+' '{print $4}')"
   marker_epoch="$(cat "$marker" 2>/dev/null || printf '0')"
 
-  if [ "$marker_epoch" -lt "$boot_epoch" ]; then
+  if [ "$marker_epoch" -lt "$boot_epoch" ] && \
+    jq -e --argjson boot_epoch "$boot_epoch" \
+      '(.saved_at | type) == "number" and .saved_at < $boot_epoch' \
+      "$manifest" >/dev/null 2>&1
+  then
     "$HOME/.local/bin/ghostty-layout-reconcile" >/dev/null 2>&1 &
   fi
 fi

@@ -59,8 +59,14 @@ EOF
   chmod +x "$home/.local/bin/tmux-restore-client"
 
   case "$manifest" in
-    present)
-      printf '{}' > "$state_dir/ghostty-layout.last-good.json"
+    preboot)
+      printf '{"saved_at":99}\n' > "$state_dir/ghostty-layout.last-good.json"
+      ;;
+    postboot)
+      printf '{"saved_at":100}\n' > "$state_dir/ghostty-layout.last-good.json"
+      ;;
+    invalid)
+      printf '{"saved_at":"oops"}\n' > "$state_dir/ghostty-layout.last-good.json"
       ;;
   esac
 
@@ -100,9 +106,10 @@ EOF
 }
 
 run_case "no-manifest-delegates-only" "missing" "missing" 1 0
-run_case "manifest-without-marker-runs-reconcile" "present" "missing" 1 1
-run_case "stale-marker-runs-reconcile" "present" "older" 1 1
-run_case "current-marker-skips-reconcile" "present" "current" 1 0
+run_case "preboot-manifest-without-marker-runs-reconcile" "preboot" "missing" 1 1
+run_case "stale-marker-runs-reconcile" "preboot" "older" 1 1
+run_case "current-marker-skips-reconcile" "preboot" "current" 1 0
+run_case "postboot-manifest-skips-reconcile" "postboot" "missing" 1 0
 
 printf '\n'
 printf 'passed=%s failed=%s\n' "$pass" "$fail"
