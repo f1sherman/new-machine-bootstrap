@@ -67,6 +67,14 @@ assert_task_env() {
   assert_eq "$actual" "$expected" "$name"
 }
 
+assert_task_mode() {
+  local task_name="$1" expected="$2" name="$3"
+  local actual
+
+  actual="$(yq -r ".[] | select(.name == \"$task_name\") | .file.mode // \"\"" "$MAIN_YML" || true)"
+  assert_eq "$actual" "$expected" "$name"
+}
+
 assert_task_loop_member() {
   local task_name="$1" member="$2" expected="$3" name="$4"
   local actual
@@ -116,6 +124,7 @@ assert_mode_0600() {
 
 assert_task_loop_member "Install worktree helpers" "codex-block-git-push-main" "1" 'worktree helper install loop includes codex-block-git-push-main'
 assert_task_env "$HOOK_TASK" 'HOOKS_FILE' '{{ ansible_facts["user_dir"] }}/.codex/hooks.json' 'push-to-main hook task wires HOOKS_FILE'
+assert_task_mode "$HOOKS_MODE_TASK" '0600' 'hooks mode task uses 0600'
 
 HOOK_SNIPPET="$(extract_task_shell "$HOOK_TASK")"
 
