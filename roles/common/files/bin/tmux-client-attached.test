@@ -43,3 +43,16 @@ TMUX_CLIENT_ATTACHED_GC_LOG="$TMPROOT/gc.log" \
 
 grep -Fqx 'set-environment -g PATH /usr/local/bin:/opt/homebrew/bin' "$log"
 grep -Fqx -- '--platform linux --days 14' "$TMPROOT/gc.log"
+
+darwin_log="$(mktemp "$TMPROOT/log-darwin.XXXXXX")"
+darwin_gc_log="$TMPROOT/gc-darwin.log"
+: > "$darwin_gc_log"
+PATH="$bindir:$PATH" \
+HOME="$TMPROOT/home" \
+TMUX_CLIENT_ATTACHED_LOG="$darwin_log" \
+TMUX_CLIENT_ATTACHED_GC_LOG="$darwin_gc_log" \
+TMUX_CLIENT_ATTACHED_UNAME=Darwin \
+"$SCRIPT" '/opt/homebrew/bin:/usr/local/bin'
+
+grep -Fqx 'set-environment -g PATH /opt/homebrew/bin:/usr/local/bin' "$darwin_log"
+[ ! -s "$darwin_gc_log" ]
