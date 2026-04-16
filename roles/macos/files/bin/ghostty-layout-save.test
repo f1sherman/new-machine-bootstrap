@@ -46,22 +46,29 @@ last_good="$home/.local/state/terminal-restore/ghostty-layout.last-good.json"
 [ -f "$last_good" ]
 [ "$(jq -r '.version' "$manifest")" = "1" ]
 [ "$(jq -r '.windows | length' "$manifest")" = "2" ]
+[ "$(jq -r '.windows[0].window_index' "$manifest")" = "1" ]
 [ "$(jq -r '.windows[0].tabs[1].session_name' "$manifest")" = "(beta)" ]
+[ "$(jq -r '.windows[0].tabs[0].tab_index' "$manifest")" = "1" ]
+[ "$(jq -r '.windows[0].tabs[1].working_directory' "$manifest")" = "/Users/brian/projects/beta" ]
 [ "$(jq -r '.focused_window_index' "$manifest")" = "2" ]
 [ "$(jq -r '.windows[1].selected_tab_index' "$manifest")" = "1" ]
+[ "$(jq -r '.windows[1].window_index' "$manifest")" = "2" ]
+[ "$(jq -r '.windows[1].tabs[0].tab_index' "$manifest")" = "1" ]
+[ "$(jq -r '.windows[1].tabs[0].working_directory' "$manifest")" = "/Users/brian/projects/gamma" ]
 [ "$(jq -r '(.saved_at | type)' "$manifest")" = "number" ]
 
 printf '{"windows":[{"tabs":[{"session_name":"keep"}]}]}\n' > "$last_good"
 if PATH="$bindir:$PATH" \
   HOME="$home" \
-  GHOSTTY_LAYOUT_SAVE_ROWS='garbage-without-tabs' \
-  GHOSTTY_LAYOUT_SAVE_FOCUSED_WINDOW_INDEX="2" \
+  GHOSTTY_LAYOUT_SAVE_ROWS="$rows" \
+  GHOSTTY_LAYOUT_SAVE_FOCUSED_WINDOW_INDEX="front-window" \
   "$SCRIPT" 2>/dev/null
 then
-  printf 'expected malformed row save to fail\n' >&2
+  printf 'expected malformed focused-window save to fail\n' >&2
   exit 1
 fi
 
 [ "$(jq -r '.windows[0].tabs[0].session_name' "$last_good")" = "keep" ]
+[ "$(jq -r '.focused_window_index' "$manifest")" = "2" ]
 
 printf 'PASS  ghostty-layout-save test suite\n'
