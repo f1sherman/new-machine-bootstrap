@@ -102,6 +102,8 @@ run_block_case "blocks env-selected repo bare push across segment boundary" "$fe
 run_block_case "blocks cd into main repo then push" "$feature_repo" "cd \"$main_repo\" && git push"
 run_block_case "blocks function-defined push" "$feature_repo" 'gp(){ git push origin main; }; gp'
 run_block_case "blocks variable-indirected push" "$feature_repo" 'cmd="git push origin main"; $cmd'
+run_block_case "blocks backtick command substitution push" "$feature_repo" 'echo `git push origin main`'
+run_block_case "blocks dollar-paren command substitution push" "$feature_repo" 'echo $(git push origin main)'
 run_block_case "blocks bare push on local main" "$main_repo" 'git push'
 run_block_case "blocks remote-only push on local main" "$main_repo" 'git push origin'
 run_block_case "blocks chained push segment" "$feature_repo" 'cd repo && git push origin main'

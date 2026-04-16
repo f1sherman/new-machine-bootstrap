@@ -169,6 +169,13 @@ def command_has_variable_command_indirection(command_text):
     return re.search(r'(?:^|[;&|(){}])\s*\$\{?[A-Za-z_][A-Za-z0-9_]*\}?(?=\s|$)', command_text) is not None
 
 
+def command_has_command_substitution_with_git_push(command_text):
+    return (
+        re.search(r'`[^`]*\bgit\s+push\b[^`]*`', command_text) is not None
+        or re.search(r'\$\([^)]*\bgit\s+push\b[^)]*\)', command_text) is not None
+    )
+
+
 def segment_mutates_repo_context(segment):
     index = 0
     while index < len(segment):
@@ -251,6 +258,7 @@ def segment_is_blocking(segment):
 if command_mentions_git_push(command) and (
     command_has_function_definition(command)
     or command_has_variable_command_indirection(command)
+    or command_has_command_substitution_with_git_push(command)
 ):
     print('deny')
     raise SystemExit(0)
