@@ -91,7 +91,7 @@ assert_not_contains_ci "$AGENTS_MD" "codespaces?" "AGENTS no longer mentions Cod
 assert_not_contains_ci "$CLAUDE_MD" "codespaces?" "CLAUDE no longer mentions Codespaces"
 assert_not_contains_ci "$GEMINI_MD" "codespaces?" "GEMINI no longer mentions Codespaces"
 
-assert_not_contains_ci "$PLAYBOOK_YML" "CODESPACES" "playbook no longer branches on CODESPACES"
+assert_contains "$PLAYBOOK_YML" "when: ansible_facts[\"os_family\"] == \"Debian\" and lookup('env', 'CODESPACES') != 'true'" "playbook keeps dev_host excluded from Codespaces"
 assert_not_contains_ci "$PROVISION_BIN" "codespaces?" "provision script no longer mentions Codespaces"
 assert_contains "$COMMON_TASKS" "repo: \"{{ 'https://github.com/f1sherman/dotvim.git' if lookup('env', 'CODESPACES') == 'true' or lookup('env', 'CI') == 'true' else 'git@github.com:f1sherman/dotvim.git' }}\"" "common role keeps the Codespaces-aware dotvim clone rule"
 assert_not_contains_ci "$COMMON_TASKS" "Configure Codex CLI config.toml for Codespaces" "common role no longer labels the workspace trust task as Codespaces-specific"
