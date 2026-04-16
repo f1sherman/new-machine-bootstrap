@@ -1,9 +1,9 @@
 #!/bin/bash
-# Universal provisioning script for macOS, Codespaces, and Linux dev hosts
+# Universal provisioning script for macOS and Linux dev hosts
 #
 # This script is written in Bash (not Ruby) because:
-# - Bash is available by default on macOS, Codespaces, and Linux
-# - Ruby is not installed by default in GitHub Codespaces or fresh Linux installs
+# - Bash is available by default on macOS and Linux
+# - Ruby is not installed by default on fresh Linux installs
 # - Mise (which provides Ruby) isn't configured until after this script runs
 #
 # This script bootstraps Ansible and runs the main playbook.
@@ -45,10 +45,6 @@ command_exists() {
 
 mac_os() {
   [[ "$OSTYPE" == "darwin"* ]]
-}
-
-in_codespaces() {
-  [[ "$CODESPACES" == "true" ]]
 }
 
 say_message() {
@@ -216,7 +212,7 @@ if ! command_exists ansible-playbook; then
 fi
 
 # On macOS, verify that bin/setup has been run (default shell must be Homebrew's zsh)
-if mac_os && ! in_codespaces; then
+if mac_os; then
   BREW_PREFIX=$(brew --prefix 2>/dev/null || echo "/opt/homebrew")
   EXPECTED_SHELL="$BREW_PREFIX/bin/zsh"
   CURRENT_SHELL=$(dscl . -read "/Users/$(whoami)" UserShell 2>/dev/null | awk '{print $2}')

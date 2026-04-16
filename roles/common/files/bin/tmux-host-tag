@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-if [ -n "$CODESPACES" ]; then
-  echo "[cs] ${CODESPACE_NAME:-$(hostname -s)}"
-elif [ -n "$DEVPOD_WORKSPACE_ID" ]; then
+if [ -n "$DEVPOD_WORKSPACE_ID" ]; then
   echo "[devpod] ${DEVPOD_WORKSPACE_ID}"
 elif [ -n "$SSH_CONNECTION" ]; then
   echo "[ssh] $(hostname -s)"

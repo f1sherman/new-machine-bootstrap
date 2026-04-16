@@ -37,4 +37,4 @@
     - role: macos
       when: ansible_facts["os_family"] == "Darwin"
     - role: dev_host
-      when: ansible_facts["os_family"] == "Debian" and lookup('env', 'CODESPACES') != 'true'
+      when: ansible_facts["os_family"] == "Debian"
