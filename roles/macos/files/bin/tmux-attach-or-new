@@ -4,6 +4,7 @@ set -euo pipefail
 state_dir="$HOME/.local/state/terminal-restore"
 manifest="$state_dir/ghostty-layout.last-good.json"
 marker="$state_dir/reconcile.done"
+reconcile_log="$state_dir/reconcile.log"
 
 if [ "$(uname -s)" = "Darwin" ] && [ -f "$manifest" ]; then
   boot_epoch="$(sysctl -n kern.boottime | awk -F '[ ,}]+' '{print $4}')"
@@ -14,7 +15,7 @@ if [ "$(uname -s)" = "Darwin" ] && [ -f "$manifest" ]; then
       '(.saved_at | type) == "number" and .saved_at < $boot_epoch' \
       "$manifest" >/dev/null 2>&1
   then
-    "$HOME/.local/bin/ghostty-layout-reconcile" >/dev/null 2>&1 &
+    "$HOME/.local/bin/ghostty-layout-reconcile" >/dev/null 2>>"$reconcile_log" &
   fi
 fi
 
