@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-restore-client"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+pass=0
+fail=0
+
+run_case() {
+  local name="$1" explicit="$2" list_output="$3" has_target="$4" expected_log="$5"
+  local bindir log actual rc
+
+  bindir="$(mktemp -d "$TMPROOT/bin.XXXXXX")"
+  log="$(mktemp "$TMPROOT/tmux.XXXXXX")"
+
+  cat > "$bindir/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -eu
+
+printf '%s\n' "$*" >> "$TMUX_RESTORE_CLIENT_LOG"
+
+case "${1:-}" in
+  has-session)
+    [ "${3:-}" = "$TMUX_RESTORE_CLIENT_HAS_TARGET" ]
+    ;;
+  list-sessions)
+    printf '%s\n' "$TMUX_RESTORE_CLIENT_LIST"
+    ;;
+  attach)
+    exit 0
+    ;;
+  new-session)
+    exit 0
+    ;;
+  *)
+    printf 'unexpected tmux invocation: %s\n' "$*" >&2
+    exit 99
+    ;;
+esac
+EOF
+  chmod +x "$bindir/tmux"
+
+  if [ -n "$explicit" ]; then
+    if actual=$( 
+      PATH="$bindir:$PATH" \
+      TMUX_RESTORE_CLIENT_LOG="$log" \
+      TMUX_RESTORE_CLIENT_LIST="$list_output" \
+      TMUX_RESTORE_CLIENT_HAS_TARGET="$has_target" \
+      "$SCRIPT" --session "$explicit"
+    ); then
+      rc=0
+    else
+      rc=$?
+    fi
+  else
+    if actual=$( 
+      PATH="$bindir:$PATH" \
+      TMUX_RESTORE_CLIENT_LOG="$log" \
+      TMUX_RESTORE_CLIENT_LIST="$list_output" \
+      TMUX_RESTORE_CLIENT_HAS_TARGET="$has_target" \
+      "$SCRIPT"
+    ); then
+      rc=0
+    else
+      rc=$?
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ] && grep -Fqx "$expected_log" "$log"; then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      rc: %s\n' "$rc"
+    printf '      log:\n'
+    sed 's/^/        /' "$log"
+  fi
+}
+
+run_case \
+  "explicit session wins" \
+  "focus" \
+  $'1\tother\n0\tfocus' \
+  "=focus" \
+  "attach -t =focus"
+
+run_case \
+  "first unattached session is reused" \
+  "" \
+  $'1\tbusy\n0\talpha\n0\tbeta' \
+  "" \
+  "attach -t =alpha"
+
+run_case \
+  "new session when nothing is reusable" \
+  "" \
+  "" \
+  "" \
+  "new-session"
+
+printf '\n'
+printf 'passed=%s failed=%s\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

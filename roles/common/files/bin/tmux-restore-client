@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=./tmux-restore-lib.sh
+source "$SCRIPT_DIR/tmux-restore-lib.sh"
+
+requested_session=""
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --session)
+      if [ "$#" -lt 2 ]; then
+        printf 'Missing value for --session\n' >&2
+        exit 1
+      fi
+      requested_session="$2"
+      shift 2
+      ;;
+    *)
+      printf 'Unknown option: %s\n' "$1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [ -n "$requested_session" ] && tmux has-session -t "=$requested_session" 2>/dev/null; then
+  exec tmux attach -t "=$requested_session"
+fi
+
+if tmux list-sessions >/dev/null 2>&1; then
+  reusable_session="$(
+    tmux list-sessions -F '#{session_attached}\t#{session_name}' 2>/dev/null | \
+      awk -F '\t' '$1 == "0" { print $2; exit }'
+  )"
+  if [ -n "$reusable_session" ]; then
+    exec tmux attach -t "=$reusable_session"
+  fi
+fi
+
+exec tmux new-session
