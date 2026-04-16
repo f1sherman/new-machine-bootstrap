@@ -233,13 +233,6 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-host-tag'
     mode: 0755
 
-- name: Install tmux-git-branch script
-  copy:
-    backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-git-branch'
-    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-git-branch'
-    mode: 0755
-
 - name: Install tmux-agent-worktree script
   copy:
     backup: yes
@@ -1021,6 +1014,11 @@
     - .local/bin/gsd-browser
     - .local/bin/gsd-cli
     - .pi/skills/gsd-browser
+
+- name: Remove deprecated tmux-git-branch script
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-git-branch'
+    state: absent
 
 - name: Remove deprecated Claude slash command files
   file:
