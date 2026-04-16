@@ -57,11 +57,18 @@ if [ -n "$manifest_path" ] && [ -f "$manifest_path" ]; then
   fi
 fi
 
-tmux list-sessions -F '#{session_name}\t#{session_attached}' 2>/dev/null | \
-while IFS=$'\t' read -r session_name attached; do
+tmux list-sessions -F '#{session_name}\t#{session_attached}\t#{session_created}' 2>/dev/null | \
+while IFS=$'\t' read -r session_name attached session_created; do
   [ -n "$session_name" ] || continue
 
-  marker_file="$(terminal_restore_sessions_dir)/$(terminal_restore_session_key "$session_name").unattached_since"
+  marker_prefix="$(terminal_restore_session_key "$session_name")"
+  marker_file="$(terminal_restore_sessions_dir)/${marker_prefix}.${session_created}.unattached_since"
+
+  for existing_marker in "$(terminal_restore_sessions_dir)/${marker_prefix}".*.unattached_since; do
+    [ -e "$existing_marker" ] || continue
+    [ "$existing_marker" = "$marker_file" ] && continue
+    rm -f "$existing_marker"
+  done
 
   if [ "$attached" != "0" ]; then
     rm -f "$marker_file"

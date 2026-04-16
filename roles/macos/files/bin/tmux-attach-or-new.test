@@ -14,6 +14,7 @@ trap 'rm -rf "$TMPROOT"' EXIT
 
 pass=0
 fail=0
+real_jq="$(command -v jq)"
 
 count_lines() {
   local needle="$1" path="$2"
@@ -26,11 +27,12 @@ count_lines() {
 
 run_case() {
   local name="$1" manifest="$2" marker="$3" expected_restore="$4" expected_reconcile="$5" expected_reconcile_stderr="$6"
-  local home bindir log state_dir marker_path reconcile_log rc
+  local home bindir log state_dir marker_path reconcile_log jq_path_log rc
 
   home="$(mktemp -d "$TMPROOT/home.XXXXXX")"
   bindir="$(mktemp -d "$TMPROOT/bin.XXXXXX")"
   log="$TMPROOT/$name.log"
+  jq_path_log="$TMPROOT/$name.jq-path.log"
   state_dir="$home/.local/state/terminal-restore"
   marker_path="$state_dir/reconcile.done"
   reconcile_log="$state_dir/reconcile.log"
@@ -56,6 +58,14 @@ exit 99
 EOF
   chmod +x "$bindir/tmux"
 
+  cat > "$bindir/jq" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$PATH" >> "$TMUX_ATTACH_OR_NEW_JQ_PATH_LOG"
+exec "$TMUX_ATTACH_OR_NEW_REAL_JQ" "$@"
+EOF
+  chmod +x "$bindir/jq"
+
   cat > "$home/.local/bin/ghostty-layout-reconcile" <<'EOF'
 #!/usr/bin/env bash
 printf 'reconcile\n' >> "$TMUX_ATTACH_OR_NEW_LOG"
@@ -66,6 +76,7 @@ EOF
   cat > "$home/.local/bin/tmux-restore-client" <<'EOF'
 #!/usr/bin/env bash
 printf 'restore-client\n' >> "$TMUX_ATTACH_OR_NEW_LOG"
+printf 'restore-path=%s\n' "$PATH" >> "$TMUX_ATTACH_OR_NEW_LOG"
 EOF
   chmod +x "$home/.local/bin/tmux-restore-client"
 
@@ -90,7 +101,13 @@ EOF
       ;;
   esac
 
-  if TMUX_ATTACH_OR_NEW_LOG="$log" PATH="$bindir:$PATH" HOME="$home" "$SCRIPT"; then
+  if TMUX_ATTACH_OR_NEW_LOG="$log" \
+    TMUX_ATTACH_OR_NEW_JQ_PATH_LOG="$jq_path_log" \
+    TMUX_ATTACH_OR_NEW_REAL_JQ="$real_jq" \
+    PATH="$bindir:/usr/bin:/bin" \
+    HOME="$home" \
+    "$SCRIPT"
+  then
     rc=0
   else
     rc=$?
@@ -130,3 +147,55 @@ run_case "invalid-saved-at-skips-reconcile" "invalid" "missing" 1 0 0
 printf '\n'
 printf 'passed=%s failed=%s\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
+
+path_home="$(mktemp -d "$TMPROOT/path-home.XXXXXX")"
+path_bindir="$(mktemp -d "$TMPROOT/path-bin.XXXXXX")"
+path_state_dir="$path_home/.local/state/terminal-restore"
+path_log="$TMPROOT/path-case.log"
+path_jq_log="$TMPROOT/path-case.jq.log"
+mkdir -p "$path_home/.local/bin" "$path_state_dir"
+printf '{"saved_at":99}\n' > "$path_state_dir/ghostty-layout.last-good.json"
+
+cat > "$path_bindir/uname" <<'EOF'
+#!/usr/bin/env bash
+printf 'Darwin\n'
+EOF
+chmod +x "$path_bindir/uname"
+
+cat > "$path_bindir/sysctl" <<'EOF'
+#!/usr/bin/env bash
+printf '{ sec = 100, usec = 0 } Wed Jan  1 00:01:40 2025\n'
+EOF
+chmod +x "$path_bindir/sysctl"
+
+cat > "$path_bindir/jq" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$PATH" >> "$TMUX_ATTACH_OR_NEW_JQ_PATH_LOG"
+exec "$TMUX_ATTACH_OR_NEW_REAL_JQ" "$@"
+EOF
+chmod +x "$path_bindir/jq"
+
+cat > "$path_home/.local/bin/ghostty-layout-reconcile" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$path_home/.local/bin/ghostty-layout-reconcile"
+
+cat > "$path_home/.local/bin/tmux-restore-client" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$PATH" > "$TMUX_ATTACH_OR_NEW_RESTORE_PATH_LOG"
+EOF
+chmod +x "$path_home/.local/bin/tmux-restore-client"
+
+TMUX_ATTACH_OR_NEW_JQ_PATH_LOG="$path_jq_log" \
+TMUX_ATTACH_OR_NEW_REAL_JQ="$real_jq" \
+TMUX_ATTACH_OR_NEW_RESTORE_PATH_LOG="$path_log" \
+PATH="$path_bindir:/usr/bin:/bin" \
+HOME="$path_home" \
+"$SCRIPT"
+
+grep -F '/opt/homebrew/bin' "$path_jq_log" >/dev/null
+grep -F '/usr/local/bin' "$path_jq_log" >/dev/null
+grep -F '/opt/homebrew/bin' "$path_log" >/dev/null
+grep -F '/usr/local/bin' "$path_log" >/dev/null

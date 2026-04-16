@@ -15,6 +15,8 @@ trap 'rm -rf "$TMPROOT"' EXIT
 bindir="$(mktemp -d "$TMPROOT/bin.XXXXXX")"
 home="$TMPROOT/home"
 mkdir -p "$home"
+real_jq="$(command -v jq)"
+jq_path_log="$TMPROOT/jq-path.log"
 
 cat > "$bindir/osascript" <<'EOF'
 #!/usr/bin/env bash
@@ -40,10 +42,20 @@ printf '%s' "${GHOSTTY_LAYOUT_SAVE_ROWS:-}"
 EOF
 chmod +x "$bindir/osascript"
 
+cat > "$bindir/jq" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$PATH" >> "$GHOSTTY_LAYOUT_SAVE_JQ_PATH_LOG"
+exec "$GHOSTTY_LAYOUT_SAVE_REAL_JQ" "$@"
+EOF
+chmod +x "$bindir/jq"
+
 rows=$'1\t2\t1\talpha\t/Users/brian/projects/alpha\n1\t2\t2\t(beta)\t/Users/brian/projects/beta\n2\t1\t1\tgamma\t/Users/brian/projects/gamma\n'
 
-PATH="$bindir:$PATH" \
+PATH="$bindir:/usr/bin:/bin" \
 HOME="$home" \
+GHOSTTY_LAYOUT_SAVE_REAL_JQ="$real_jq" \
+GHOSTTY_LAYOUT_SAVE_JQ_PATH_LOG="$jq_path_log" \
 GHOSTTY_LAYOUT_SAVE_ROWS="$rows" \
 GHOSTTY_LAYOUT_SAVE_FOCUSED_WINDOW_INDEX="2" \
 "$SCRIPT"
@@ -65,11 +77,15 @@ last_good="$home/.local/state/terminal-restore/ghostty-layout.last-good.json"
 [ "$(jq -r '.windows[1].tabs[0].tab_index' "$manifest")" = "1" ]
 [ "$(jq -r '.windows[1].tabs[0].working_directory' "$manifest")" = "/Users/brian/projects/gamma" ]
 [ "$(jq -r '(.saved_at | type)' "$manifest")" = "number" ]
+grep -F '/opt/homebrew/bin' "$jq_path_log" >/dev/null
+grep -F '/usr/local/bin' "$jq_path_log" >/dev/null
 
 empty_home="$TMPROOT/empty-home"
 mkdir -p "$empty_home"
-PATH="$bindir:$PATH" \
+PATH="$bindir:/usr/bin:/bin" \
 HOME="$empty_home" \
+GHOSTTY_LAYOUT_SAVE_REAL_JQ="$real_jq" \
+GHOSTTY_LAYOUT_SAVE_JQ_PATH_LOG="$jq_path_log" \
 GHOSTTY_LAYOUT_SAVE_ROWS="" \
 "$SCRIPT"
 [ ! -f "$empty_home/.local/state/terminal-restore/ghostty-layout.json" ]
@@ -77,8 +93,10 @@ GHOSTTY_LAYOUT_SAVE_ROWS="" \
 
 printf '{"windows":[{"tabs":[{"session_name":"keep"}]}]}\n' > "$last_good"
 manifest_before_malformed_rows="$(cat "$manifest")"
-if PATH="$bindir:$PATH" \
+if PATH="$bindir:/usr/bin:/bin" \
   HOME="$home" \
+  GHOSTTY_LAYOUT_SAVE_REAL_JQ="$real_jq" \
+  GHOSTTY_LAYOUT_SAVE_JQ_PATH_LOG="$jq_path_log" \
   GHOSTTY_LAYOUT_SAVE_ROWS='garbage-without-tabs' \
   GHOSTTY_LAYOUT_SAVE_FOCUSED_WINDOW_INDEX="2" \
   "$SCRIPT" 2>/dev/null
@@ -92,8 +110,10 @@ fi
 [ "$(cat "$manifest")" = "$manifest_before_malformed_rows" ]
 
 manifest_before_focused_window="$(cat "$manifest")"
-if PATH="$bindir:$PATH" \
+if PATH="$bindir:/usr/bin:/bin" \
   HOME="$home" \
+  GHOSTTY_LAYOUT_SAVE_REAL_JQ="$real_jq" \
+  GHOSTTY_LAYOUT_SAVE_JQ_PATH_LOG="$jq_path_log" \
   GHOSTTY_LAYOUT_SAVE_ROWS="$rows" \
   GHOSTTY_LAYOUT_SAVE_FOCUSED_WINDOW_INDEX="front-window" \
   "$SCRIPT" 2>/dev/null
@@ -106,8 +126,10 @@ fi
 [ "$(cat "$manifest")" = "$manifest_before_focused_window" ]
 
 manifest_before_row_failure="$(cat "$manifest")"
-if PATH="$bindir:$PATH" \
+if PATH="$bindir:/usr/bin:/bin" \
   HOME="$home" \
+  GHOSTTY_LAYOUT_SAVE_REAL_JQ="$real_jq" \
+  GHOSTTY_LAYOUT_SAVE_JQ_PATH_LOG="$jq_path_log" \
   GHOSTTY_LAYOUT_SAVE_ROWS_EXIT_CODE="1" \
   GHOSTTY_LAYOUT_SAVE_ROWS_STDERR="ghostty rows applescript failed" \
   "$SCRIPT" 2>/dev/null

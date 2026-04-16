@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+PATH="${PATH:-/usr/bin:/bin}:/opt/homebrew/bin:/usr/local/bin"
+export PATH
+
 state_dir="$HOME/.local/state/terminal-restore"
 manifest="$state_dir/ghostty-layout.last-good.json"
 marker="$state_dir/reconcile.done"

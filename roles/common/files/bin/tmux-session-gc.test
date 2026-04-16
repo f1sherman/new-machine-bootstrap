@@ -44,19 +44,25 @@ make_tmux "$bindir"
 
 mkdir -p "$linux_home/.local/state/terminal-restore/sessions"
 printf '%s' "$(( $(date +%s) - 15 * 24 * 60 * 60 ))" > \
-  "$linux_home/.local/state/terminal-restore/sessions/stale.unattached_since"
+  "$linux_home/.local/state/terminal-restore/sessions/stale.101.unattached_since"
 printf '%s' "$(date +%s)" > \
-  "$linux_home/.local/state/terminal-restore/sessions/attached.unattached_since"
+  "$linux_home/.local/state/terminal-restore/sessions/attached.103.unattached_since"
+printf '%s' "$(( $(date +%s) - 15 * 24 * 60 * 60 ))" > \
+  "$linux_home/.local/state/terminal-restore/sessions/reused.201.unattached_since"
 
 PATH="$bindir:$PATH" \
 HOME="$linux_home" \
 TMUX_SESSION_GC_LOG="$log" \
-TMUX_SESSION_GC_LIST=$'stale\t0\nfresh\t0\nattached\t1' \
+TMUX_SESSION_GC_LIST=$'stale\t0\t101\nfresh\t0\t102\nattached\t1\t103\nreused\t0\t202' \
 "$SCRIPT" --platform linux --days 14
 
 grep -Fqx 'kill-session -t =stale' "$log"
-[ -f "$linux_home/.local/state/terminal-restore/sessions/fresh.unattached_since" ]
-[ ! -f "$linux_home/.local/state/terminal-restore/sessions/attached.unattached_since" ]
+[ ! -f "$linux_home/.local/state/terminal-restore/sessions/stale.101.unattached_since" ]
+[ -f "$linux_home/.local/state/terminal-restore/sessions/fresh.102.unattached_since" ]
+[ ! -f "$linux_home/.local/state/terminal-restore/sessions/attached.103.unattached_since" ]
+[ ! -f "$linux_home/.local/state/terminal-restore/sessions/reused.201.unattached_since" ]
+[ -f "$linux_home/.local/state/terminal-restore/sessions/reused.202.unattached_since" ]
+! grep -Fq 'kill-session -t =reused' "$log"
 
 mac_home="$TMPROOT/mac-home"
 mkdir -p "$mac_home/.local/state/terminal-restore"
