@@ -84,6 +84,7 @@ make_repo "$feature_repo" feature/push-guard
 run_block_case "blocks explicit origin main" "$feature_repo" 'git push origin main'
 run_block_case "blocks sh wrapped push" "$feature_repo" "sh -c 'git push origin main'"
 run_block_case "blocks bash wrapped push" "$feature_repo" "bash -c 'git push origin main'"
+run_block_case "blocks zsh wrapped push" "$feature_repo" "zsh -c \"git push origin main\""
 run_block_case "blocks explicit HEAD:main" "$feature_repo" 'git push upstream HEAD:main'
 run_block_case "blocks explicit refs/heads/main destination" "$feature_repo" 'git push origin HEAD:refs/heads/main'
 run_block_case "blocks --all push" "$feature_repo" 'git push --all'
@@ -99,6 +100,8 @@ run_block_case "blocks repo-targeted --git-dir remote-only push on main" "$featu
 run_block_case "blocks env-selected repo bare push on main" "$feature_repo" "GIT_DIR=\"$main_repo/.git\" GIT_WORK_TREE=\"$main_repo\" git push"
 run_block_case "blocks env-selected repo bare push across segment boundary" "$feature_repo" "GIT_DIR=\"$main_repo/.git\" GIT_WORK_TREE=\"$main_repo\"; git push"
 run_block_case "blocks cd into main repo then push" "$feature_repo" "cd \"$main_repo\" && git push"
+run_block_case "blocks function-defined push" "$feature_repo" 'gp(){ git push origin main; }; gp'
+run_block_case "blocks variable-indirected push" "$feature_repo" 'cmd="git push origin main"; $cmd'
 run_block_case "blocks bare push on local main" "$main_repo" 'git push'
 run_block_case "blocks remote-only push on local main" "$main_repo" 'git push origin'
 run_block_case "blocks chained push segment" "$feature_repo" 'cd repo && git push origin main'

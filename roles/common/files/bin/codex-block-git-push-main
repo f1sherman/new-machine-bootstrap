@@ -63,7 +63,7 @@ def shell_wrapper_name(token):
 
 
 def is_shell_wrapper(token):
-    return shell_wrapper_name(token) in {'sh', 'bash'}
+    return shell_wrapper_name(token).endswith('sh')
 
 
 def refspec_targets_main(token):
@@ -157,6 +157,18 @@ def command_text_contains_git_push(command_text):
     return any(segment_contains_git_push(segment) for segment in token_segments(command_text))
 
 
+def command_mentions_git_push(command_text):
+    return re.search(r'\bgit\s+push\b', command_text) is not None
+
+
+def command_has_function_definition(command_text):
+    return re.search(r'\b[A-Za-z_][A-Za-z0-9_]*\s*\(\)\s*\{', command_text) is not None
+
+
+def command_has_variable_command_indirection(command_text):
+    return re.search(r'(?:^|[;&|(){}])\s*\$\{?[A-Za-z_][A-Za-z0-9_]*\}?(?=\s|$)', command_text) is not None
+
+
 def segment_mutates_repo_context(segment):
     index = 0
     while index < len(segment):
@@ -235,6 +247,13 @@ def segment_is_blocking(segment):
         return True
 
     return False
+
+if command_mentions_git_push(command) and (
+    command_has_function_definition(command)
+    or command_has_variable_command_indirection(command)
+):
+    print('deny')
+    raise SystemExit(0)
 
 context_mutated = False
 for segment in token_segments(command):
