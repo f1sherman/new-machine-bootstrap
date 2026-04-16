@@ -15,6 +15,10 @@
     update_cache: yes
     cache_valid_time: 3600
   become: yes
+  retries: 3
+  delay: 30
+  register: apt_cache_result
+  until: apt_cache_result is success
 
 - name: Install Linux packages
   apt:
