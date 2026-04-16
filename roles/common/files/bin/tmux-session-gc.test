@@ -45,6 +45,8 @@ make_tmux "$bindir"
 mkdir -p "$linux_home/.local/state/terminal-restore/sessions"
 printf '%s' "$(( $(date +%s) - 15 * 24 * 60 * 60 ))" > \
   "$linux_home/.local/state/terminal-restore/sessions/stale.unattached_since"
+printf '%s' "$(date +%s)" > \
+  "$linux_home/.local/state/terminal-restore/sessions/attached.unattached_since"
 
 PATH="$bindir:$PATH" \
 HOME="$linux_home" \
