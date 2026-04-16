@@ -84,9 +84,12 @@ make_repo "$feature_repo" feature/push-guard
 run_block_case "blocks explicit origin main" "$feature_repo" 'git push origin main'
 run_block_case "blocks explicit HEAD:main" "$feature_repo" 'git push upstream HEAD:main'
 run_block_case "blocks explicit refs/heads/main destination" "$feature_repo" 'git push origin HEAD:refs/heads/main'
+run_block_case "blocks repo-targeted -C bare push on main" "$feature_repo" "git -C \"$main_repo\" push"
+run_block_case "blocks repo-targeted --git-dir remote-only push on main" "$feature_repo" "git --git-dir \"$main_repo/.git\" --work-tree \"$main_repo\" push origin"
 run_block_case "blocks bare push on local main" "$main_repo" 'git push'
 run_block_case "blocks remote-only push on local main" "$main_repo" 'git push origin'
 run_block_case "blocks chained push segment" "$feature_repo" 'cd repo && git push origin main'
+run_block_case "blocks sudo wrapped push" "$feature_repo" 'sudo -E git push origin main'
 run_allow_case "allows feature branch remote push" "$feature_repo" 'git push origin'
 run_allow_case "allows explicit feature refspec from main" "$main_repo" 'git push origin feature/push-guard'
 run_allow_case "allows non-push commands" "$main_repo" 'git status --short'

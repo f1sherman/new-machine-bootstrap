@@ -17,10 +17,10 @@ import subprocess
 command = os.environ['COMMAND']
 
 
-def current_branch():
+def current_branch(repo_args):
     try:
         return subprocess.check_output(
-            ['git', 'branch', '--show-current'],
+            ['git', *repo_args, 'branch', '--show-current'],
             stderr=subprocess.DEVNULL,
             text=True,
         ).strip()
@@ -50,6 +50,10 @@ def is_assignment(token):
     return re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*=.*', token) is not None
 
 
+def is_shell_separator(token):
+    return token in {';', '&&', '||', '|', '(', ')'}
+
+
 def refspec_targets_main(token):
     token = token.lstrip('+')
     if token in {'main', 'refs/heads/main'}:
@@ -60,24 +64,56 @@ def refspec_targets_main(token):
     return dst in {'', 'main', 'refs/heads/main'}
 
 
-def segment_is_blocking(segment):
-    index = 0
-    while index < len(segment):
-        token = segment[index]
-        if token == 'env' or is_assignment(token) or token == 'command':
+def repo_flag_args(tokens, index):
+    repo_args = []
+    while index < len(tokens):
+        token = tokens[index]
+        if token == 'push' or is_shell_separator(token):
+            break
+        if token in {'-C', '--git-dir', '--work-tree'}:
+            repo_args.append(token)
+            index += 1
+            if index < len(tokens):
+                repo_args.append(tokens[index])
+                index += 1
+            continue
+        if token.startswith('--git-dir=') or token.startswith('--work-tree=') or token.startswith('-C'):
+            repo_args.append(token)
+            index += 1
+            continue
+        if token == '-c':
+            index += 1
+            if index < len(tokens):
+                index += 1
+            continue
+        if token.startswith('-'):
             index += 1
             continue
         break
+    return repo_args, index
 
-    if index >= len(segment) or segment[index] != 'git':
+
+def sudo_invocation(tokens, index):
+    while index < len(tokens) and tokens[index].startswith('-'):
+        index += 1
+    return index < len(tokens) and tokens[index] == 'git', index
+
+
+def segment_is_blocking(segment):
+    index = 0
+    while index < len(segment) and (segment[index] == 'env' or is_assignment(segment[index]) or segment[index] == 'command'):
+        index += 1
+
+    if index < len(segment) and segment[index] == 'sudo':
+        index += 1
+        is_git, index = sudo_invocation(segment, index)
+        if not is_git:
+            return False
+    elif index >= len(segment) or segment[index] != 'git':
         return False
     index += 1
 
-    while index < len(segment) and segment[index].startswith('-'):
-        option = segment[index]
-        index += 1
-        if option in {'-C', '-c', '--git-dir', '--work-tree'} and index < len(segment):
-            index += 1
+    repo_args, index = repo_flag_args(segment, index)
 
     if index >= len(segment) or segment[index] != 'push':
         return False
@@ -87,7 +123,7 @@ def segment_is_blocking(segment):
     if len(push_args) >= 2 and any(refspec_targets_main(token) for token in push_args[1:]):
         return True
 
-    if current_branch() == 'main' and len(push_args) <= 1:
+    if current_branch(repo_args) == 'main' and len(push_args) <= 1:
         return True
 
     return False
