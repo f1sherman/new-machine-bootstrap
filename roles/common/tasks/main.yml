@@ -600,7 +600,7 @@
     state: latest
   when: ansible_facts["os_family"] == "Darwin"
 
-# Codespaces: Use mise exec to run npm with mise's node (not nvm's).
+# Use mise exec to run npm with mise's node (not nvm's).
 # mise activate relies on PROMPT_COMMAND which doesn't fire in Ansible's
 # non-interactive shell, so we use mise exec instead.
 # PATH is extended because mise may have been installed during pre_tasks
@@ -655,8 +655,8 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
-# Trust settings for Codespaces
-- name: Configure Codex CLI config.toml for Codespaces
+# Trust settings for shared workspaces and ~/projects/
+- name: Configure Codex CLI config.toml for shared workspaces
   shell: |
     python3 -c '
     import os
@@ -693,11 +693,10 @@
     '
   environment:
     CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
-  register: codex_config_result
-  changed_when: codex_config_result.stdout.strip() == 'changed'
-  when: lookup('env', 'CODESPACES') == 'true'
+  register: codex_config_workspace_result
+  changed_when: codex_config_workspace_result.stdout.strip() == 'changed'
+  when: ansible_facts["os_family"] == "Debian"
 
-# Trust settings for ~/projects/ (macOS and dev host)
 - name: Configure Codex CLI config.toml for ~/projects/
   shell: |
     python3 -c '
@@ -739,7 +738,6 @@
     CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
   register: codex_config_projects_result
   changed_when: codex_config_projects_result.stdout.strip() == 'changed'
-  when: lookup('env', 'CODESPACES') != 'true'
 
 - name: Enable Codex hooks in ~/.codex/config.toml
   shell: |
