@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/ghostty-layout-save"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+bindir="$(mktemp -d "$TMPROOT/bin.XXXXXX")"
+home="$TMPROOT/home"
+mkdir -p "$home"
+
+cat > "$bindir/osascript" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+script="$(cat)"
+
+if printf '%s' "$script" | grep -Fq 'return index of front window'; then
+  printf '%s\n' "${GHOSTTY_LAYOUT_SAVE_FOCUSED_WINDOW_INDEX:-}"
+  exit 0
+fi
+
+printf '%s' "${GHOSTTY_LAYOUT_SAVE_ROWS:-}"
+EOF
+chmod +x "$bindir/osascript"
+
+rows=$'1\t2\t1\talpha\t/Users/brian/projects/alpha\n1\t2\t2\t(beta)\t/Users/brian/projects/beta\n2\t1\t1\tgamma\t/Users/brian/projects/gamma\n'
+
+PATH="$bindir:$PATH" \
+HOME="$home" \
+GHOSTTY_LAYOUT_SAVE_ROWS="$rows" \
+GHOSTTY_LAYOUT_SAVE_FOCUSED_WINDOW_INDEX="2" \
+"$SCRIPT"
+
+manifest="$home/.local/state/terminal-restore/ghostty-layout.json"
+last_good="$home/.local/state/terminal-restore/ghostty-layout.last-good.json"
+
+[ -f "$manifest" ]
+[ -f "$last_good" ]
+[ "$(jq -r '.version' "$manifest")" = "1" ]
+[ "$(jq -r '.windows | length' "$manifest")" = "2" ]
+[ "$(jq -r '.windows[0].tabs[1].session_name' "$manifest")" = "(beta)" ]
+[ "$(jq -r '.focused_window_index' "$manifest")" = "2" ]
+[ "$(jq -r '.windows[1].selected_tab_index' "$manifest")" = "1" ]
+[ "$(jq -r '(.saved_at | type)' "$manifest")" = "number" ]
+
+printf '{"windows":[{"tabs":[{"session_name":"keep"}]}]}\n' > "$last_good"
+if PATH="$bindir:$PATH" \
+  HOME="$home" \
+  GHOSTTY_LAYOUT_SAVE_ROWS='garbage-without-tabs' \
+  GHOSTTY_LAYOUT_SAVE_FOCUSED_WINDOW_INDEX="2" \
+  "$SCRIPT" 2>/dev/null
+then
+  printf 'expected malformed row save to fail\n' >&2
+  exit 1
+fi
+
+[ "$(jq -r '.windows[0].tabs[0].session_name' "$last_good")" = "keep" ]
+
+printf 'PASS  ghostty-layout-save test suite\n'

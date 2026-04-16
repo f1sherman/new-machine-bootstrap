@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_dir="$HOME/.local/state/terminal-restore"
+manifest="$state_dir/ghostty-layout.json"
+last_good="$state_dir/ghostty-layout.last-good.json"
+
+mkdir -p "$state_dir"
+
+rows="$(osascript <<'APPLESCRIPT' 2>/dev/null || true
+tell application "Ghostty"
+  if (count of windows) = 0 then return ""
+  set output to ""
+  repeat with w in windows
+    set selectedIndex to index of selected tab of w
+    repeat with t in tabs of w
+      set termRef to focused terminal of t
+      set output to output & (index of w as text) & tab & (selectedIndex as text) & tab & (index of t as text) & tab & (name of t as text) & tab & (working directory of termRef as text) & linefeed
+    end repeat
+  end repeat
+  return output
+end tell
+APPLESCRIPT
+)"
+
+[ -n "$rows" ] || exit 0
+
+focused_window_index="$(osascript <<'APPLESCRIPT' 2>/dev/null || true
+tell application "Ghostty"
+  if (count of windows) = 0 then return ""
+  return index of front window
+end tell
+APPLESCRIPT
+)"
+
+case "$focused_window_index" in
+  ''|*[!0-9]*)
+    focused_window_index=1
+    ;;
+esac
+
+tmp="$(mktemp "$state_dir/ghostty-layout.XXXXXX")"
+trap 'rm -f "$tmp"' EXIT
+
+printf '%s' "$rows" | jq -Rn --argjson focused_window_index "$focused_window_index" '
+  [inputs | select(length > 0) | split("\t")] as $rows
+  | {
+      version: 1,
+      saved_at: now | floor,
+      focused_window_index: $focused_window_index,
+      windows: (
+        $rows
+        | group_by(.[0] | tonumber)
+        | map({
+            window_index: (.[0][0] | tonumber),
+            selected_tab_index: (.[0][1] | tonumber),
+            tabs: map({
+              tab_index: (.[2] | tonumber),
+              session_name: .[3],
+              working_directory: .[4]
+            })
+          })
+      )
+    }
+' > "$tmp"
+
+jq -e '
+  .version == 1 and
+  (.saved_at | type == "number") and
+  (.focused_window_index | type == "number") and
+  (.windows | type == "array" and length > 0) and
+  all(.windows[];
+    (.window_index | type == "number") and
+    (.selected_tab_index | type == "number") and
+    (.tabs | type == "array" and length > 0) and
+    all(.tabs[];
+      (.tab_index | type == "number") and
+      (.session_name | type == "string") and
+      (.working_directory | type == "string")
+    )
+  )
+' "$tmp" >/dev/null
+
+mv "$tmp" "$manifest"
+cp "$manifest" "$last_good"
