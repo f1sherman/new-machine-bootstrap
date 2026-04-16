@@ -40,10 +40,9 @@ manifest_sessions=""
 manifest_loaded=0
 
 if [ -n "$manifest_path" ] && [ -f "$manifest_path" ]; then
-  manifest_sessions="$(
-    jq -r '.windows[]?.tabs[]?.session_name // empty' "$manifest_path" 2>/dev/null || true
-  )"
-  if [ -n "$manifest_sessions" ]; then
+  if manifest_sessions="$(
+    jq -r '.windows[]?.tabs[]?.session_name // empty' "$manifest_path" 2>/dev/null
+  )"; then
     manifest_loaded=1
   fi
 fi
