@@ -25,6 +25,8 @@ assert_contains "roles/common/tasks/main.yml" "tmux-restore-client"
 assert_contains "roles/common/tasks/main.yml" "tmux-session-gc"
 assert_contains "roles/common/tasks/main.yml" "tmux-client-attached"
 
+assert_contains "roles/macos/tasks/main.yml" "Create LaunchAgents directory"
+assert_contains "roles/macos/tasks/main.yml" "regexp: '^macos-applescript\\s*='"
 assert_contains "roles/macos/tasks/main.yml" "macos-applescript = true"
 assert_contains "roles/macos/tasks/main.yml" "com.user.ghostty-layout-save.plist"
 

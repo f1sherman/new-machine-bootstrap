@@ -126,11 +126,17 @@
     - 'clipboard-write = allow'
     - 'confirm-close-surface = false'
     - 'copy-on-select = clipboard'
-    - 'macos-applescript = true'
     - 'minimum-contrast = 1.1'
     - 'mouse-scroll-multiplier = 0.01'
     - 'scrollback-limit = 0'
     - 'term = xterm-256color'
+- name: Configure ghostty macOS AppleScript support
+  lineinfile:
+    path: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty/config'
+    regexp: '^macos-applescript\s*='
+    line: 'macos-applescript = true'
+    create: yes
+    mode: 0644
 - name: Configure ghostty command
   lineinfile:
     path: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty/config'
@@ -292,7 +298,6 @@
 - name: Load Ghostty layout save launchd job
   command: launchctl load {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-layout-save.plist
   changed_when: false
-  failed_when: false
 - name: Ensure Hammerspoon is installed
   homebrew:
     name: hammerspoon
