@@ -13,6 +13,7 @@ import os
 import re
 import shlex
 import subprocess
+from pathlib import PurePath
 
 command = os.environ['COMMAND']
 
@@ -57,6 +58,14 @@ def is_shell_separator(token):
     return token in {';', '&&', '||', '|', '(', ')'}
 
 
+def shell_wrapper_name(token):
+    return PurePath(token).name
+
+
+def is_shell_wrapper(token):
+    return shell_wrapper_name(token) in {'sh', 'bash'}
+
+
 def refspec_targets_main(token):
     token = token.lstrip('+')
     if token in {'main', 'refs/heads/main'}:
@@ -96,6 +105,26 @@ def repo_flag_args(tokens, index):
     return repo_args, index
 
 
+def shell_wrapper_payload(tokens, index):
+    if index + 1 >= len(tokens):
+        return None
+    if not is_shell_wrapper(tokens[index]):
+        return None
+    option = tokens[index + 1]
+    if not option.startswith('-') or 'c' not in option:
+        return None
+    if index + 2 >= len(tokens):
+        return None
+    return tokens[index + 2]
+
+
+def command_text_is_blocking(command_text):
+    for segment in token_segments(command_text):
+        if segment_is_blocking(segment):
+            return True
+    return False
+
+
 def segment_is_blocking(segment):
     index = 0
     repo_env = {}
@@ -123,6 +152,12 @@ def segment_is_blocking(segment):
             while index < len(segment) and segment[index].startswith('-'):
                 index += 1
             continue
+        payload = shell_wrapper_payload(segment, index)
+        if payload is not None:
+            if command_text_is_blocking(payload):
+                return True
+            index += 3
+            continue
         break
 
     if index >= len(segment) or segment[index] != 'git':
@@ -135,7 +170,11 @@ def segment_is_blocking(segment):
         return False
     index += 1
 
-    push_args = [token for token in segment[index:] if not token.startswith('-')]
+    push_tokens = segment[index:]
+    if any(token in {'--all', '--mirror'} for token in push_tokens):
+        return True
+
+    push_args = [token for token in push_tokens if not token.startswith('-')]
     if len(push_args) >= 2 and any(refspec_targets_main(token) for token in push_args[1:]):
         return True
 

@@ -82,8 +82,13 @@ make_repo "$main_repo" main
 make_repo "$feature_repo" feature/push-guard
 
 run_block_case "blocks explicit origin main" "$feature_repo" 'git push origin main'
+run_block_case "blocks sh wrapped push" "$feature_repo" "sh -c 'git push origin main'"
+run_block_case "blocks bash wrapped push" "$feature_repo" "bash -c 'git push origin main'"
 run_block_case "blocks explicit HEAD:main" "$feature_repo" 'git push upstream HEAD:main'
 run_block_case "blocks explicit refs/heads/main destination" "$feature_repo" 'git push origin HEAD:refs/heads/main'
+run_block_case "blocks --all push" "$feature_repo" 'git push --all'
+run_block_case "blocks --mirror push" "$feature_repo" 'git push --mirror'
+run_block_case "blocks origin --mirror push" "$feature_repo" 'git push origin --mirror'
 run_block_case "blocks time wrapped push" "$feature_repo" 'time git push origin main'
 run_block_case "blocks if wrapped push" "$feature_repo" 'if git push origin main; then echo ok; fi'
 run_block_case "blocks while wrapped push" "$feature_repo" 'while git push origin main; do :; done'
