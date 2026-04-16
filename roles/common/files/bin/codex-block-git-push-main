@@ -125,6 +125,59 @@ def command_text_is_blocking(command_text):
     return False
 
 
+def segment_contains_git_push(segment):
+    index = 0
+    while index < len(segment):
+        token = segment[index]
+        if token in {'env', 'command', 'if', 'then', 'do', 'else', 'elif', 'fi', 'done', '!'}:
+            index += 1
+            continue
+        if token in {'while', 'until', 'sudo', 'time', '{'}:
+            index += 1
+            while index < len(segment) and segment[index].startswith('-'):
+                index += 1
+            continue
+        payload = shell_wrapper_payload(segment, index)
+        if payload is not None:
+            if command_text_contains_git_push(payload):
+                return True
+            index += 3
+            continue
+        break
+
+    if index >= len(segment) or segment[index] != 'git':
+        return False
+    index += 1
+
+    _, index = repo_flag_args(segment, index)
+    return index < len(segment) and segment[index] == 'push'
+
+
+def command_text_contains_git_push(command_text):
+    return any(segment_contains_git_push(segment) for segment in token_segments(command_text))
+
+
+def segment_mutates_repo_context(segment):
+    index = 0
+    while index < len(segment):
+        token = segment[index]
+        if token == 'cd':
+            return True
+        if token == 'export':
+            index += 1
+            continue
+        if token in {'GIT_DIR', 'GIT_WORK_TREE'}:
+            return True
+        if is_assignment(token):
+            key, _ = token.split('=', 1)
+            if key in {'GIT_DIR', 'GIT_WORK_TREE'}:
+                return True
+            index += 1
+            continue
+        break
+    return False
+
+
 def segment_is_blocking(segment):
     index = 0
     repo_env = {}
@@ -183,10 +236,16 @@ def segment_is_blocking(segment):
 
     return False
 
+context_mutated = False
 for segment in token_segments(command):
+    if context_mutated and segment_contains_git_push(segment):
+        print('deny')
+        break
     if segment_is_blocking(segment):
         print('deny')
         break
+    if segment_mutates_repo_context(segment):
+        context_mutated = True
 else:
     print('allow')
 PY
