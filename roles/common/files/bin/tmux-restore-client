@@ -37,8 +37,8 @@ fi
 
 reusable_session="$(
   {
-    tmux list-sessions -F '#{session_attached}\t#{session_name}' 2>/dev/null || true
-  } | awk -F '\t' '$1 == "0" { print $2; exit }'
+    tmux list-sessions -F $'#{session_attached}\t#{session_name}' 2>/dev/null || true
+  } | awk -F $'\t' '$1 == "0" { print $2; exit }'
 )"
 if [ -n "$reusable_session" ]; then
   if attach_session "$reusable_session"; then

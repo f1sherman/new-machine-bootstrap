@@ -14,7 +14,7 @@ trap 'rm -rf "$TMPROOT"' EXIT
 
 pass=0
 fail=0
-LIST_SESSIONS_CMD='list-sessions -F #{session_attached}\t#{session_name}'
+LIST_SESSIONS_CMD=$'list-sessions -F #{session_attached}\t#{session_name}'
 
 run_case() {
   local name="$1" explicit="$2" list_output="$3" has_target="$4" expected_log="$5" list_behavior="${6:-normal}" attach_behavior="${7:-normal}"
