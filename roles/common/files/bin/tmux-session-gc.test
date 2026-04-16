@@ -89,11 +89,15 @@ grep -Fqx 'kill-session -t =keep-me' "$log3"
 grep -Fqx 'kill-session -t =remove-me' "$log3"
 ! grep -Fq 'kill-session -t =attached' "$log3"
 
-log4="$(mktemp "$TMPROOT/tmux-missing-manifest.XXXXXX")"
+cat > "$mac_home/.local/state/terminal-restore/ghostty-layout-malformed.json" <<'EOF'
+{"windows":[
+EOF
+
+log4="$(mktemp "$TMPROOT/tmux-malformed-manifest.XXXXXX")"
 PATH="$bindir:$PATH" \
 HOME="$mac_home" \
 TMUX_SESSION_GC_LOG="$log4" \
 TMUX_SESSION_GC_LIST=$'keep-me\t0\nremove-me\t0\nattached\t1' \
-"$SCRIPT" --platform macos --manifest "$mac_home/.local/state/terminal-restore/missing.json"
+"$SCRIPT" --platform macos --manifest "$mac_home/.local/state/terminal-restore/ghostty-layout-malformed.json"
 
 ! grep -Fq 'kill-session -t =' "$log4"
