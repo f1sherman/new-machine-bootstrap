@@ -37,11 +37,15 @@ terminal_restore_ensure_dirs
 now="$(date +%s)"
 threshold="$(( days * 24 * 60 * 60 ))"
 manifest_sessions=""
+manifest_loaded=0
 
 if [ -n "$manifest_path" ] && [ -f "$manifest_path" ]; then
   manifest_sessions="$(
     jq -r '.windows[]?.tabs[]?.session_name // empty' "$manifest_path" 2>/dev/null || true
   )"
+  if [ -n "$manifest_sessions" ]; then
+    manifest_loaded=1
+  fi
 fi
 
 tmux list-sessions -F '#{session_name}\t#{session_attached}' 2>/dev/null | \
@@ -57,7 +61,7 @@ while IFS=$'\t' read -r session_name attached; do
 
   case "$platform" in
     macos)
-      if ! printf '%s\n' "$manifest_sessions" | grep -Fxq "$session_name"; then
+      if [ "$manifest_loaded" -eq 1 ] && ! printf '%s\n' "$manifest_sessions" | grep -Fxq "$session_name"; then
         tmux kill-session -t "=$session_name"
       fi
       ;;
