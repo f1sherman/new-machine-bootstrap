@@ -24,8 +24,14 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+attach_session() {
+  tmux attach -t "=$1"
+}
+
 if [ -n "$requested_session" ] && tmux has-session -t "=$requested_session" 2>/dev/null; then
-  exec tmux attach -t "=$requested_session"
+  if attach_session "$requested_session"; then
+    exit 0
+  fi
 fi
 
 reusable_session="$(
@@ -34,7 +40,9 @@ reusable_session="$(
   } | awk -F '\t' '$1 == "0" { print $2; exit }'
 )"
 if [ -n "$reusable_session" ]; then
-  exec tmux attach -t "=$reusable_session"
+  if attach_session "$reusable_session"; then
+    exit 0
+  fi
 fi
 
 exec tmux new-session

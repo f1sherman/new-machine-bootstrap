@@ -16,7 +16,7 @@ pass=0
 fail=0
 
 run_case() {
-  local name="$1" explicit="$2" list_output="$3" has_target="$4" expected_log="$5" list_behavior="${6:-normal}"
+  local name="$1" explicit="$2" list_output="$3" has_target="$4" expected_log="$5" list_behavior="${6:-normal}" attach_behavior="${7:-normal}"
   local bindir log actual rc
 
   bindir="$(mktemp -d "$TMPROOT/bin.XXXXXX")"
@@ -57,6 +57,11 @@ case "${1:-}" in
     printf '%s\n' "$TMUX_RESTORE_CLIENT_LIST"
     ;;
   attach)
+    case "${TMUX_RESTORE_CLIENT_ATTACH_BEHAVIOR:-normal}" in
+      fail)
+        exit 99
+        ;;
+    esac
     exit 0
     ;;
   new-session)
@@ -71,13 +76,14 @@ EOF
   chmod +x "$bindir/tmux"
 
   if [ -n "$explicit" ]; then
-    if actual=$( 
+    if actual=$(
       PATH="$bindir:$PATH" \
       TMUX_RESTORE_CLIENT_LOG="$log" \
       TMUX_RESTORE_CLIENT_LIST="$list_output" \
       TMUX_RESTORE_CLIENT_HAS_TARGET="$has_target" \
       TMUX_RESTORE_CLIENT_LIST_BEHAVIOR="$list_behavior" \
       TMUX_RESTORE_CLIENT_LIST_COUNT_FILE="$count_file" \
+      TMUX_RESTORE_CLIENT_ATTACH_BEHAVIOR="$attach_behavior" \
       "$SCRIPT" --session "$explicit"
     ); then
       rc=0
@@ -85,13 +91,14 @@ EOF
       rc=$?
     fi
   else
-    if actual=$( 
+    if actual=$(
       PATH="$bindir:$PATH" \
       TMUX_RESTORE_CLIENT_LOG="$log" \
       TMUX_RESTORE_CLIENT_LIST="$list_output" \
       TMUX_RESTORE_CLIENT_HAS_TARGET="$has_target" \
       TMUX_RESTORE_CLIENT_LIST_BEHAVIOR="$list_behavior" \
       TMUX_RESTORE_CLIENT_LIST_COUNT_FILE="$count_file" \
+      TMUX_RESTORE_CLIENT_ATTACH_BEHAVIOR="$attach_behavior" \
       "$SCRIPT"
     ); then
       rc=0
@@ -127,11 +134,29 @@ run_case \
   "attach -t =alpha"
 
 run_case \
+  "explicit attach failure falls back to new-session" \
+  "focus" \
+  $'1\tother\n0\tfocus' \
+  "=focus" \
+  "new-session" \
+  "normal" \
+  "fail"
+
+run_case \
   "--session missing falls back to first unattached" \
   "missing" \
   $'1\tbusy\n0\talpha\n0\tbeta' \
   "" \
   "attach -t =alpha"
+
+run_case \
+  "unattached attach failure falls back to new-session" \
+  "" \
+  $'1\tbusy\n0\talpha\n0\tbeta' \
+  "" \
+  "new-session" \
+  "normal" \
+  "fail"
 
 run_case \
   "transient list-sessions failure falls back to new-session" \
