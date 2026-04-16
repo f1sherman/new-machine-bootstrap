@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-attach-or-new"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+pass=0
+fail=0
+
+run_case() {
+  local name="$1" manifest="$2" marker="$3" expected_restore="$4" expected_reconcile="$5"
+  local home bindir log state_dir marker_path rc
+
+  home="$(mktemp -d "$TMPROOT/home.XXXXXX")"
+  bindir="$(mktemp -d "$TMPROOT/bin.XXXXXX")"
+  log="$TMPROOT/$name.log"
+  state_dir="$home/.local/state/terminal-restore"
+  marker_path="$state_dir/reconcile.done"
+
+  mkdir -p "$home/.local/bin" "$state_dir"
+
+  cat > "$bindir/uname" <<'EOF'
+#!/usr/bin/env bash
+printf 'Darwin\n'
+EOF
+  chmod +x "$bindir/uname"
+
+  cat > "$bindir/sysctl" <<'EOF'
+#!/usr/bin/env bash
+printf '{ sec = 100, usec = 0 } Wed Jan  1 00:01:40 2025\n'
+EOF
+  chmod +x "$bindir/sysctl"
+
+  cat > "$bindir/tmux" <<'EOF'
+#!/usr/bin/env bash
+printf 'unexpected direct tmux invocation: %s\n' "$*" >&2
+exit 99
+EOF
+  chmod +x "$bindir/tmux"
+
+  cat > "$home/.local/bin/ghostty-layout-reconcile" <<'EOF'
+#!/usr/bin/env bash
+printf 'reconcile\n' >> "$TMUX_ATTACH_OR_NEW_LOG"
+EOF
+  chmod +x "$home/.local/bin/ghostty-layout-reconcile"
+
+  cat > "$home/.local/bin/tmux-restore-client" <<'EOF'
+#!/usr/bin/env bash
+printf 'restore-client\n' >> "$TMUX_ATTACH_OR_NEW_LOG"
+EOF
+  chmod +x "$home/.local/bin/tmux-restore-client"
+
+  case "$manifest" in
+    present)
+      printf '{}' > "$state_dir/ghostty-layout.last-good.json"
+      ;;
+  esac
+
+  case "$marker" in
+    older)
+      printf '99' > "$marker_path"
+      ;;
+    current)
+      printf '100' > "$marker_path"
+      ;;
+  esac
+
+  if TMUX_ATTACH_OR_NEW_LOG="$log" PATH="$bindir:$PATH" HOME="$home" "$SCRIPT"; then
+    rc=0
+  else
+    rc=$?
+  fi
+  sleep 1
+
+  restore_count="$(grep -cx 'restore-client' "$log" 2>/dev/null || true)"
+  reconcile_count="$(grep -cx 'reconcile' "$log" 2>/dev/null || true)"
+
+  if [ "$rc" -eq 0 ] && \
+    [ "$restore_count" -eq "$expected_restore" ] && \
+    [ "$reconcile_count" -eq "$expected_reconcile" ]
+  then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      rc: %s\n' "$rc"
+    printf '      restore=%s reconcile=%s\n' "$restore_count" "$reconcile_count"
+    printf '      log:\n'
+    sed 's/^/        /' "$log" 2>/dev/null || true
+  fi
+}
+
+run_case "no-manifest-delegates-only" "missing" "missing" 1 0
+run_case "manifest-without-marker-runs-reconcile" "present" "missing" 1 1
+run_case "stale-marker-runs-reconcile" "present" "older" 1 1
+run_case "current-marker-skips-reconcile" "present" "current" 1 0
+
+printf '\n'
+printf 'passed=%s failed=%s\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]
