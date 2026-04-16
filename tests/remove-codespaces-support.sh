@@ -51,6 +51,16 @@ assert_missing() {
   fi
 }
 
+assert_contains() {
+  local path="$1" needle="$2" name="$3"
+
+  if rg -n -F -- "$needle" "$path" >/dev/null 2>&1; then
+    pass_case "$name"
+  else
+    fail_case "$name" "missing '$needle' in $path"
+  fi
+}
+
 assert_not_contains_ci "$README_MD" "codespaces?" "README no longer mentions Codespaces"
 assert_not_contains_ci "$AGENTS_MD" "codespaces?" "AGENTS no longer mentions Codespaces"
 assert_not_contains_ci "$CLAUDE_MD" "codespaces?" "CLAUDE no longer mentions Codespaces"
@@ -58,7 +68,8 @@ assert_not_contains_ci "$GEMINI_MD" "codespaces?" "GEMINI no longer mentions Cod
 
 assert_not_contains_ci "$PLAYBOOK_YML" "CODESPACES" "playbook no longer branches on CODESPACES"
 assert_not_contains_ci "$PROVISION_BIN" "codespaces?" "provision script no longer mentions Codespaces"
-assert_not_contains_ci "$COMMON_TASKS" "codespaces?|CODESPACES|/workspaces/" "common role no longer carries Codespaces-specific logic"
+assert_contains "$COMMON_TASKS" "repo: \"{{ 'https://github.com/f1sherman/dotvim.git' if lookup('env', 'CODESPACES') == 'true' or lookup('env', 'CI') == 'true' else 'git@github.com:f1sherman/dotvim.git' }}\"" "common role keeps the Codespaces-aware dotvim clone rule"
+assert_not_contains_ci "$COMMON_TASKS" "/workspaces/" "common role no longer references /workspaces"
 assert_not_contains_ci "$TMUX_HOST_TAG" "codespaces?|CODESPACES|\\[cs\\]" "tmux host tag no longer labels Codespaces sessions"
 assert_not_contains_ci "$MACOS_TASKS" "codespaces?" "macOS role no longer mentions Codespaces"
 assert_missing "$MACOS_CLEANUP_CODESPACES" "cleanup-codespaces helper removed from repo"
