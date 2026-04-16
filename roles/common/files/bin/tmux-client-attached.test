@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-client-attached"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+bindir="$(mktemp -d "$TMPROOT/bin.XXXXXX")"
+log="$(mktemp "$TMPROOT/log.XXXXXX")"
+
+cat > "$bindir/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -eu
+printf '%s\n' "$*" >> "$TMUX_CLIENT_ATTACHED_LOG"
+EOF
+chmod +x "$bindir/tmux"
+
+cat > "$bindir/uname" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "${TMUX_CLIENT_ATTACHED_UNAME:-Linux}"
+EOF
+chmod +x "$bindir/uname"
+
+mkdir -p "$TMPROOT/home/.local/bin"
+cat > "$TMPROOT/home/.local/bin/tmux-session-gc" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$TMUX_CLIENT_ATTACHED_GC_LOG"
+EOF
+chmod +x "$TMPROOT/home/.local/bin/tmux-session-gc"
+
+PATH="$bindir:$PATH" \
+HOME="$TMPROOT/home" \
+TMUX_CLIENT_ATTACHED_LOG="$log" \
+TMUX_CLIENT_ATTACHED_GC_LOG="$TMPROOT/gc.log" \
+"$SCRIPT" '/usr/local/bin:/opt/homebrew/bin'
+
+grep -Fqx 'set-environment -g PATH /usr/local/bin:/opt/homebrew/bin' "$log"
+grep -Fqx -- '--platform linux --days 14' "$TMPROOT/gc.log"

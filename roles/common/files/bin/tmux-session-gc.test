@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-session-gc"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+make_tmux() {
+  local bindir="$1"
+  cat > "$bindir/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -eu
+
+printf '%s\n' "$*" >> "$TMUX_SESSION_GC_LOG"
+
+case "${1:-}" in
+  list-sessions)
+    printf '%s\n' "$TMUX_SESSION_GC_LIST"
+    ;;
+  kill-session)
+    exit 0
+    ;;
+  *)
+    printf 'unexpected tmux invocation: %s\n' "$*" >&2
+    exit 99
+    ;;
+esac
+EOF
+  chmod +x "$bindir/tmux"
+}
+
+linux_home="$TMPROOT/linux-home"
+mkdir -p "$linux_home"
+bindir="$(mktemp -d "$TMPROOT/bin.XXXXXX")"
+log="$(mktemp "$TMPROOT/tmux.XXXXXX")"
+make_tmux "$bindir"
+
+mkdir -p "$linux_home/.local/state/terminal-restore/sessions"
+printf '%s' "$(( $(date +%s) - 15 * 24 * 60 * 60 ))" > \
+  "$linux_home/.local/state/terminal-restore/sessions/stale.unattached_since"
+
+PATH="$bindir:$PATH" \
+HOME="$linux_home" \
+TMUX_SESSION_GC_LOG="$log" \
+TMUX_SESSION_GC_LIST=$'stale\t0\nfresh\t0\nattached\t1' \
+"$SCRIPT" --platform linux --days 14
+
+grep -Fqx 'kill-session -t =stale' "$log"
+[ -f "$linux_home/.local/state/terminal-restore/sessions/fresh.unattached_since" ]
+[ ! -f "$linux_home/.local/state/terminal-restore/sessions/attached.unattached_since" ]
+
+mac_home="$TMPROOT/mac-home"
+mkdir -p "$mac_home/.local/state/terminal-restore"
+cat > "$mac_home/.local/state/terminal-restore/ghostty-layout.json" <<'EOF'
+{"windows":[{"tabs":[{"session_name":"keep-me"}]}]}
+EOF
+
+log2="$(mktemp "$TMPROOT/tmux-mac.XXXXXX")"
+PATH="$bindir:$PATH" \
+HOME="$mac_home" \
+TMUX_SESSION_GC_LOG="$log2" \
+TMUX_SESSION_GC_LIST=$'keep-me\t0\nremove-me\t0\nattached\t1' \
+"$SCRIPT" --platform macos --manifest "$mac_home/.local/state/terminal-restore/ghostty-layout.json"
+
+grep -Fqx 'kill-session -t =remove-me' "$log2"
+! grep -Fq 'kill-session -t =keep-me' "$log2"

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+incoming_path="${1:-$PATH}"
+tmux set-environment -g PATH "$incoming_path"
+
+case "$(uname -s)" in
+  Linux)
+    "$HOME/.local/bin/tmux-session-gc" --platform linux --days 14 >/dev/null 2>&1 || true
+    ;;
+esac
