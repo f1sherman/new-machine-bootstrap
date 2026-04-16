@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+
+pass=0
+fail=0
+
+assert_contains() {
+  local file="$1"
+  local needle="$2"
+
+  if grep -Fq -- "$needle" "$REPO_ROOT/$file"; then
+    pass=$((pass + 1))
+    printf 'PASS  %s contains %s\n' "$file" "$needle"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s missing %s\n' "$file" "$needle"
+  fi
+}
+
+assert_contains "roles/common/tasks/main.yml" "tmux-restore-lib.sh"
+assert_contains "roles/common/tasks/main.yml" "tmux-restore-client"
+assert_contains "roles/common/tasks/main.yml" "tmux-session-gc"
+assert_contains "roles/common/tasks/main.yml" "tmux-client-attached"
+
+assert_contains "roles/macos/tasks/main.yml" "macos-applescript = true"
+assert_contains "roles/macos/tasks/main.yml" "com.user.ghostty-layout-save.plist"
+
+assert_contains "roles/macos/templates/dotfiles/tmux.conf" "tmux-client-attached"
+assert_contains "roles/macos/templates/dotfiles/tmux.conf" "@continuum-save-interval '5'"
+
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "tmux-client-attached"
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "@continuum-save-interval '5'"
+
+assert_contains "roles/dev_host/tasks/main.yml" 'exec {{ ansible_facts["user_dir"] }}/.local/bin/tmux-restore-client'
+
+printf '\n'
+printf 'passed=%s failed=%s\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

@@ -126,6 +126,7 @@
     - 'clipboard-write = allow'
     - 'confirm-close-surface = false'
     - 'copy-on-select = clipboard'
+    - 'macos-applescript = true'
     - 'minimum-contrast = 1.1'
     - 'mouse-scroll-multiplier = 0.01'
     - 'scrollback-limit = 0'
@@ -227,6 +228,12 @@
   command: hidutil property --set '{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x7000000E0}]}'
   changed_when: false
 
+- name: Create LaunchAgents directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents'
+    state: directory
+    mode: '0755'
+
 - name: Install Caps Lock to Control LaunchAgent plist
   template:
     src: launchd/com.user.capslock-to-control.plist
@@ -268,6 +275,24 @@
     mode: '0755'
   with_fileglob:
     - "bin/*"
+
+- name: Install Ghostty layout save LaunchAgent plist
+  template:
+    src: launchd/com.user.ghostty-layout-save.plist
+    dest: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-layout-save.plist'
+    mode: '0644'
+  register: ghostty_layout_save_plist
+
+- name: Unload Ghostty layout save launchd job if changed
+  command: launchctl unload {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-layout-save.plist
+  when: ghostty_layout_save_plist.changed
+  changed_when: false
+  failed_when: false
+
+- name: Load Ghostty layout save launchd job
+  command: launchctl load {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-layout-save.plist
+  changed_when: false
+  failed_when: false
 - name: Ensure Hammerspoon is installed
   homebrew:
     name: hammerspoon
@@ -390,9 +415,3 @@
     path: '/tmp/powerline-fonts'
     state: absent
   when: not meslo_font_check.stat.exists
-
-- name: Create LaunchAgents directory
-  file:
-    path: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents'
-    state: directory
-    mode: '0755'
