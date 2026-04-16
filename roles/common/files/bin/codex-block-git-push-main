@@ -17,10 +17,13 @@ import subprocess
 command = os.environ['COMMAND']
 
 
-def current_branch(repo_args):
+def current_branch(repo_args, repo_env):
     try:
+        env = os.environ.copy()
+        env.update(repo_env)
         return subprocess.check_output(
             ['git', *repo_args, 'branch', '--show-current'],
+            env=env,
             stderr=subprocess.DEVNULL,
             text=True,
         ).strip()
@@ -93,23 +96,33 @@ def repo_flag_args(tokens, index):
     return repo_args, index
 
 
-def sudo_invocation(tokens, index):
-    while index < len(tokens) and tokens[index].startswith('-'):
-        index += 1
-    return index < len(tokens) and tokens[index] == 'git', index
-
-
 def segment_is_blocking(segment):
     index = 0
-    while index < len(segment) and (segment[index] == 'env' or is_assignment(segment[index]) or segment[index] == 'command'):
-        index += 1
+    repo_env = {}
+    while index < len(segment):
+        token = segment[index]
+        if is_assignment(token):
+            key, value = token.split('=', 1)
+            if key in {'GIT_DIR', 'GIT_WORK_TREE'}:
+                repo_env[key] = value
+            index += 1
+            continue
+        if token in {'env', 'command', 'if', 'then', 'do', 'else', 'elif', 'fi', 'done', '!'}:
+            index += 1
+            continue
+        if token == 'time':
+            index += 1
+            while index < len(segment) and segment[index].startswith('-'):
+                index += 1
+            continue
+        if token == 'sudo':
+            index += 1
+            while index < len(segment) and segment[index].startswith('-'):
+                index += 1
+            continue
+        break
 
-    if index < len(segment) and segment[index] == 'sudo':
-        index += 1
-        is_git, index = sudo_invocation(segment, index)
-        if not is_git:
-            return False
-    elif index >= len(segment) or segment[index] != 'git':
+    if index >= len(segment) or segment[index] != 'git':
         return False
     index += 1
 
@@ -123,7 +136,7 @@ def segment_is_blocking(segment):
     if len(push_args) >= 2 and any(refspec_targets_main(token) for token in push_args[1:]):
         return True
 
-    if current_branch(repo_args) == 'main' and len(push_args) <= 1:
+    if current_branch(repo_args, repo_env) == 'main' and len(push_args) <= 1:
         return True
 
     return False
