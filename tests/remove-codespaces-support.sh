@@ -61,6 +61,31 @@ assert_contains() {
   fi
 }
 
+task_block() {
+  local path="$1" task_name="$2"
+
+  awk -v task="$task_name" '
+    $0 == "- name: " task { capture=1; print; next }
+    capture && /^- name: / { exit }
+    capture { print }
+  ' "$path"
+}
+
+assert_task_block_contains() {
+  local path="$1" task_name="$2" needle="$3" name="$4"
+  local block
+
+  block="$(task_block "$path" "$task_name")"
+
+  if [ -z "$block" ]; then
+    fail_case "$name" "missing task '$task_name' in $path"
+  elif printf '%s\n' "$block" | rg -n -F -- "$needle" >/dev/null 2>&1; then
+    pass_case "$name"
+  else
+    fail_case "$name" "missing '$needle' in task '$task_name' in $path"
+  fi
+}
+
 assert_not_contains_ci "$README_MD" "codespaces?" "README no longer mentions Codespaces"
 assert_not_contains_ci "$AGENTS_MD" "codespaces?" "AGENTS no longer mentions Codespaces"
 assert_not_contains_ci "$CLAUDE_MD" "codespaces?" "CLAUDE no longer mentions Codespaces"
@@ -69,7 +94,9 @@ assert_not_contains_ci "$GEMINI_MD" "codespaces?" "GEMINI no longer mentions Cod
 assert_not_contains_ci "$PLAYBOOK_YML" "CODESPACES" "playbook no longer branches on CODESPACES"
 assert_not_contains_ci "$PROVISION_BIN" "codespaces?" "provision script no longer mentions Codespaces"
 assert_contains "$COMMON_TASKS" "repo: \"{{ 'https://github.com/f1sherman/dotvim.git' if lookup('env', 'CODESPACES') == 'true' or lookup('env', 'CI') == 'true' else 'git@github.com:f1sherman/dotvim.git' }}\"" "common role keeps the Codespaces-aware dotvim clone rule"
-assert_not_contains_ci "$COMMON_TASKS" "/workspaces/" "common role no longer references /workspaces"
+assert_not_contains_ci "$COMMON_TASKS" "Configure Codex CLI config.toml for Codespaces" "common role no longer labels the workspace trust task as Codespaces-specific"
+assert_task_block_contains "$COMMON_TASKS" "Configure Codex CLI config.toml for shared workspaces" "glob.glob(\"/workspaces/*\")" "common role restores generic shared workspace trust"
+assert_task_block_contains "$COMMON_TASKS" "Configure Codex CLI config.toml for shared workspaces" "when: ansible_facts[\"os_family\"] == \"Debian\"" "shared workspace trust runs on Debian hosts without a Codespaces env gate"
 assert_not_contains_ci "$TMUX_HOST_TAG" "codespaces?|CODESPACES|\\[cs\\]" "tmux host tag no longer labels Codespaces sessions"
 assert_not_contains_ci "$MACOS_TASKS" "codespaces?" "macOS role no longer mentions Codespaces"
 assert_missing "$MACOS_CLEANUP_CODESPACES" "cleanup-codespaces helper removed from repo"

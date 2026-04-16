@@ -655,7 +655,48 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
-# Trust settings for ~/projects/
+# Trust settings for shared workspaces and ~/projects/
+- name: Configure Codex CLI config.toml for shared workspaces
+  shell: |
+    python3 -c '
+    import os
+    import glob
+
+    config_file = os.environ["CONFIG_FILE"]
+
+    existing_projects = set()
+    if os.path.exists(config_file):
+      with open(config_file, "r") as f:
+        for line in f:
+          if line.startswith("[projects."):
+            start = line.find("\"")
+            end = line.rfind("\"")
+            if start != -1 and end != -1 and start < end:
+              existing_projects.add(line[start+1:end])
+
+    changed = False
+    new_sections = []
+
+    for workspace_dir in glob.glob("/workspaces/*"):
+      if os.path.isdir(workspace_dir) and workspace_dir not in existing_projects:
+        new_sections.append(f"\n[projects.\"{workspace_dir}\"]\n")
+        new_sections.append("trust_level = \"trusted\"\n")
+        changed = True
+
+    if changed:
+      with open(config_file, "a") as f:
+        f.writelines(new_sections)
+      os.chmod(config_file, 0o600)
+      print("changed")
+    else:
+      print("unchanged")
+    '
+  environment:
+    CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
+  register: codex_config_workspace_result
+  changed_when: codex_config_workspace_result.stdout.strip() == 'changed'
+  when: ansible_facts["os_family"] == "Debian"
+
 - name: Configure Codex CLI config.toml for ~/projects/
   shell: |
     python3 -c '
