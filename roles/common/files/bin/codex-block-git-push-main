@@ -110,6 +110,9 @@ def segment_is_blocking(segment):
         if token in {'env', 'command', 'if', 'then', 'do', 'else', 'elif', 'fi', 'done', '!'}:
             index += 1
             continue
+        if token in {'while', 'until', '{'}:
+            index += 1
+            continue
         if token == 'time':
             index += 1
             while index < len(segment) and segment[index].startswith('-'):

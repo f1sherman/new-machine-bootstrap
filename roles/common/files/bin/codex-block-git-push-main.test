@@ -86,6 +86,9 @@ run_block_case "blocks explicit HEAD:main" "$feature_repo" 'git push upstream HE
 run_block_case "blocks explicit refs/heads/main destination" "$feature_repo" 'git push origin HEAD:refs/heads/main'
 run_block_case "blocks time wrapped push" "$feature_repo" 'time git push origin main'
 run_block_case "blocks if wrapped push" "$feature_repo" 'if git push origin main; then echo ok; fi'
+run_block_case "blocks while wrapped push" "$feature_repo" 'while git push origin main; do :; done'
+run_block_case "blocks until wrapped push" "$feature_repo" 'until git push origin main; do :; done'
+run_block_case "blocks brace-group wrapped push" "$feature_repo" '{ git push origin main; }'
 run_block_case "blocks repo-targeted -C bare push on main" "$feature_repo" "git -C \"$main_repo\" push"
 run_block_case "blocks repo-targeted --git-dir remote-only push on main" "$feature_repo" "git --git-dir \"$main_repo/.git\" --work-tree \"$main_repo\" push origin"
 run_block_case "blocks env-selected repo bare push on main" "$feature_repo" "GIT_DIR=\"$main_repo/.git\" GIT_WORK_TREE=\"$main_repo\" git push"
