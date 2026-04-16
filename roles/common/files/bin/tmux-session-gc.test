@@ -114,3 +114,16 @@ TMUX_SESSION_GC_LIST=$'keep-me\t0\nremove-me\t0\nattached\t1' \
 "$SCRIPT" --platform macos --manifest "$mac_home/.local/state/terminal-restore/ghostty-layout-wrong-shape.json"
 
 ! grep -Fq 'kill-session -t =' "$log5"
+
+cat > "$mac_home/.local/state/terminal-restore/ghostty-layout-invalid-tab.json" <<'EOF'
+{"windows":[{"tabs":["oops"]}]}
+EOF
+
+log6="$(mktemp "$TMPROOT/tmux-invalid-tab-manifest.XXXXXX")"
+PATH="$bindir:$PATH" \
+HOME="$mac_home" \
+TMUX_SESSION_GC_LOG="$log6" \
+TMUX_SESSION_GC_LIST=$'keep-me\t0\nremove-me\t0\nattached\t1' \
+"$SCRIPT" --platform macos --manifest "$mac_home/.local/state/terminal-restore/ghostty-layout-invalid-tab.json"
+
+! grep -Fq 'kill-session -t =' "$log6"
