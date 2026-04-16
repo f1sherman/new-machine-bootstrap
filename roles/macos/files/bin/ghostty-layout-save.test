@@ -23,8 +23,17 @@ set -euo pipefail
 script="$(cat)"
 
 if printf '%s' "$script" | grep -Fq 'return index of front window'; then
+  if [ -n "${GHOSTTY_LAYOUT_SAVE_FOCUSED_WINDOW_EXIT_CODE:-}" ]; then
+    printf '%s\n' "${GHOSTTY_LAYOUT_SAVE_FOCUSED_WINDOW_STDERR:-focused-window failure}" >&2
+    exit "$GHOSTTY_LAYOUT_SAVE_FOCUSED_WINDOW_EXIT_CODE"
+  fi
   printf '%s\n' "${GHOSTTY_LAYOUT_SAVE_FOCUSED_WINDOW_INDEX:-}"
   exit 0
+fi
+
+if [ -n "${GHOSTTY_LAYOUT_SAVE_ROWS_EXIT_CODE:-}" ]; then
+  printf '%s\n' "${GHOSTTY_LAYOUT_SAVE_ROWS_STDERR:-row collection failure}" >&2
+  exit "$GHOSTTY_LAYOUT_SAVE_ROWS_EXIT_CODE"
 fi
 
 printf '%s' "${GHOSTTY_LAYOUT_SAVE_ROWS:-}"
@@ -57,7 +66,32 @@ last_good="$home/.local/state/terminal-restore/ghostty-layout.last-good.json"
 [ "$(jq -r '.windows[1].tabs[0].working_directory' "$manifest")" = "/Users/brian/projects/gamma" ]
 [ "$(jq -r '(.saved_at | type)' "$manifest")" = "number" ]
 
+empty_home="$TMPROOT/empty-home"
+mkdir -p "$empty_home"
+PATH="$bindir:$PATH" \
+HOME="$empty_home" \
+GHOSTTY_LAYOUT_SAVE_ROWS="" \
+"$SCRIPT"
+[ ! -f "$empty_home/.local/state/terminal-restore/ghostty-layout.json" ]
+[ ! -f "$empty_home/.local/state/terminal-restore/ghostty-layout.last-good.json" ]
+
 printf '{"windows":[{"tabs":[{"session_name":"keep"}]}]}\n' > "$last_good"
+manifest_before_malformed_rows="$(cat "$manifest")"
+if PATH="$bindir:$PATH" \
+  HOME="$home" \
+  GHOSTTY_LAYOUT_SAVE_ROWS='garbage-without-tabs' \
+  GHOSTTY_LAYOUT_SAVE_FOCUSED_WINDOW_INDEX="2" \
+  "$SCRIPT" 2>/dev/null
+then
+  printf 'expected malformed row save to fail\n' >&2
+  exit 1
+fi
+
+[ "$(jq -r '.windows[0].tabs[0].session_name' "$last_good")" = "keep" ]
+[ "$(jq -r '.focused_window_index' "$manifest")" = "2" ]
+[ "$(cat "$manifest")" = "$manifest_before_malformed_rows" ]
+
+manifest_before_focused_window="$(cat "$manifest")"
 if PATH="$bindir:$PATH" \
   HOME="$home" \
   GHOSTTY_LAYOUT_SAVE_ROWS="$rows" \
@@ -69,6 +103,20 @@ then
 fi
 
 [ "$(jq -r '.windows[0].tabs[0].session_name' "$last_good")" = "keep" ]
-[ "$(jq -r '.focused_window_index' "$manifest")" = "2" ]
+[ "$(cat "$manifest")" = "$manifest_before_focused_window" ]
+
+manifest_before_row_failure="$(cat "$manifest")"
+if PATH="$bindir:$PATH" \
+  HOME="$home" \
+  GHOSTTY_LAYOUT_SAVE_ROWS_EXIT_CODE="1" \
+  GHOSTTY_LAYOUT_SAVE_ROWS_STDERR="ghostty rows applescript failed" \
+  "$SCRIPT" 2>/dev/null
+then
+  printf 'expected row collection osascript failure to fail\n' >&2
+  exit 1
+fi
+
+[ "$(jq -r '.windows[0].tabs[0].session_name' "$last_good")" = "keep" ]
+[ "$(cat "$manifest")" = "$manifest_before_row_failure" ]
 
 printf 'PASS  ghostty-layout-save test suite\n'

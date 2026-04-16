@@ -7,7 +7,7 @@ last_good="$state_dir/ghostty-layout.last-good.json"
 
 mkdir -p "$state_dir"
 
-rows="$(osascript <<'APPLESCRIPT' 2>/dev/null || true
+if ! rows="$(osascript <<'APPLESCRIPT'
 tell application "Ghostty"
   if (count of windows) = 0 then return ""
   set output to ""
@@ -21,7 +21,9 @@ tell application "Ghostty"
   return output
 end tell
 APPLESCRIPT
-)"
+)"; then
+  exit 1
+fi
 
 [ -n "$rows" ] || exit 0
 
