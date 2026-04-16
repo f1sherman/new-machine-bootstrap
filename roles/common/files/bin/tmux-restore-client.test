@@ -16,11 +16,12 @@ pass=0
 fail=0
 
 run_case() {
-  local name="$1" explicit="$2" list_output="$3" has_target="$4" expected_log="$5"
+  local name="$1" explicit="$2" list_output="$3" has_target="$4" expected_log="$5" list_behavior="${6:-normal}"
   local bindir log actual rc
 
   bindir="$(mktemp -d "$TMPROOT/bin.XXXXXX")"
   log="$(mktemp "$TMPROOT/tmux.XXXXXX")"
+  count_file="$TMPROOT/tmux.list-count.$RANDOM"
 
   cat > "$bindir/tmux" <<'EOF'
 #!/usr/bin/env bash
@@ -33,6 +34,26 @@ case "${1:-}" in
     [ "${3:-}" = "$TMUX_RESTORE_CLIENT_HAS_TARGET" ]
     ;;
   list-sessions)
+    count=0
+    if [ -n "${TMUX_RESTORE_CLIENT_LIST_COUNT_FILE:-}" ] && [ -f "$TMUX_RESTORE_CLIENT_LIST_COUNT_FILE" ]; then
+      count=$(cat "$TMUX_RESTORE_CLIENT_LIST_COUNT_FILE")
+    fi
+    count=$((count + 1))
+    if [ -n "${TMUX_RESTORE_CLIENT_LIST_COUNT_FILE:-}" ]; then
+      printf '%s\n' "$count" > "$TMUX_RESTORE_CLIENT_LIST_COUNT_FILE"
+    fi
+
+    case "${TMUX_RESTORE_CLIENT_LIST_BEHAVIOR:-normal}" in
+      fail_second)
+        if [ "$count" -eq 1 ]; then
+          exit 0
+        fi
+        if [ "$count" -eq 2 ]; then
+          exit 99
+        fi
+        ;;
+    esac
+
     printf '%s\n' "$TMUX_RESTORE_CLIENT_LIST"
     ;;
   attach)
@@ -55,6 +76,8 @@ EOF
       TMUX_RESTORE_CLIENT_LOG="$log" \
       TMUX_RESTORE_CLIENT_LIST="$list_output" \
       TMUX_RESTORE_CLIENT_HAS_TARGET="$has_target" \
+      TMUX_RESTORE_CLIENT_LIST_BEHAVIOR="$list_behavior" \
+      TMUX_RESTORE_CLIENT_LIST_COUNT_FILE="$count_file" \
       "$SCRIPT" --session "$explicit"
     ); then
       rc=0
@@ -67,6 +90,8 @@ EOF
       TMUX_RESTORE_CLIENT_LOG="$log" \
       TMUX_RESTORE_CLIENT_LIST="$list_output" \
       TMUX_RESTORE_CLIENT_HAS_TARGET="$has_target" \
+      TMUX_RESTORE_CLIENT_LIST_BEHAVIOR="$list_behavior" \
+      TMUX_RESTORE_CLIENT_LIST_COUNT_FILE="$count_file" \
       "$SCRIPT"
     ); then
       rc=0
@@ -100,6 +125,21 @@ run_case \
   $'1\tbusy\n0\talpha\n0\tbeta' \
   "" \
   "attach -t =alpha"
+
+run_case \
+  "--session missing falls back to first unattached" \
+  "missing" \
+  $'1\tbusy\n0\talpha\n0\tbeta' \
+  "" \
+  "attach -t =alpha"
+
+run_case \
+  "transient list-sessions failure falls back to new-session" \
+  "" \
+  $'1\tbusy\n0\talpha\n0\tbeta' \
+  "" \
+  "new-session" \
+  "fail_second"
 
 run_case \
   "new session when nothing is reusable" \

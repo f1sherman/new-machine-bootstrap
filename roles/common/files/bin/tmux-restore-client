@@ -28,14 +28,13 @@ if [ -n "$requested_session" ] && tmux has-session -t "=$requested_session" 2>/d
   exec tmux attach -t "=$requested_session"
 fi
 
-if tmux list-sessions >/dev/null 2>&1; then
-  reusable_session="$(
-    tmux list-sessions -F '#{session_attached}\t#{session_name}' 2>/dev/null | \
-      awk -F '\t' '$1 == "0" { print $2; exit }'
-  )"
-  if [ -n "$reusable_session" ]; then
-    exec tmux attach -t "=$reusable_session"
-  fi
+reusable_session="$(
+  {
+    tmux list-sessions -F '#{session_attached}\t#{session_name}' 2>/dev/null || true
+  } | awk -F '\t' '$1 == "0" { print $2; exit }'
+)"
+if [ -n "$reusable_session" ]; then
+  exec tmux attach -t "=$reusable_session"
 fi
 
 exec tmux new-session
