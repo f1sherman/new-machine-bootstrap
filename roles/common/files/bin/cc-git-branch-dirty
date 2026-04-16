@@ -24,7 +24,7 @@ if [ -z "$branch" ]; then
   exit 0
 fi
 
-if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+if [ -n "$(git --no-optional-locks status --porcelain 2>/dev/null)" ]; then
   printf '*%s\n' "$branch"
 else
   printf '%s\n' "$branch"
