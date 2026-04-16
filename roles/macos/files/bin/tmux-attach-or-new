@@ -3,6 +3,12 @@
 # Used as Ghostty's command so that restarting Ghostty reconnects to
 # existing sessions instead of creating new empty ones each time.
 
+# Ghostty wraps this in `bash --noprofile --norc`, so PATH is the bare
+# login default. Prepend Homebrew's bin so the tmux server inherits a
+# PATH that contains `tmux` itself — TPM shells out to `tmux show-option`
+# and fails otherwise.
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
+
 if tmux list-sessions &>/dev/null; then
   session=$(tmux list-sessions -F '#{session_attached} #{session_name}' 2>/dev/null |
     awk '$1 == "0" {print substr($0, index($0,$2)); exit}')
