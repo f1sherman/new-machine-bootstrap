@@ -33,9 +33,20 @@ jq -c '.windows[]?' "$manifest" | while IFS= read -r window_json; do
     session_name="$(jq -r '.session_name' <<<"$tab_json")"
     escaped_session_name="${session_name//\\/\\\\}"
     escaped_session_name="${escaped_session_name//\"/\\\"}"
+    retarget_block=""
 
     if tmux has-session -t "=$session_name" 2>/dev/null; then
-      osascript >/dev/null <<APPLESCRIPT
+      retarget_block=$(cat <<APPLESCRIPT
+  set t to focused terminal of targetTab
+  input text "tmux switch-client -t =${escaped_session_name}" to t
+  send key "enter" to t
+APPLESCRIPT
+)
+    else
+      printf 'Skipping missing tmux session: %s\n' "$session_name" >&2
+    fi
+
+    osascript >/dev/null <<APPLESCRIPT
 tell application "Ghostty"
   repeat while (count of windows) < ${window_index}
     create window
@@ -45,15 +56,12 @@ tell application "Ghostty"
     create tab in targetWindow
   end repeat
   set targetTab to tab ${tab_index} of targetWindow
-  set t to focused terminal of targetTab
-  input text "tmux switch-client -t =${escaped_session_name}" to t
-  send key "enter" to t
+${retarget_block}
   if ${selected_tab_index} = ${tab_index} then
     set selected tab of targetWindow to tab ${tab_index}
   end if
 end tell
 APPLESCRIPT
-    fi
   done
 done
 

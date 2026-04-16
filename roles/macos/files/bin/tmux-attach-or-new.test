@@ -110,6 +110,7 @@ run_case "preboot-manifest-without-marker-runs-reconcile" "preboot" "missing" 1 
 run_case "stale-marker-runs-reconcile" "preboot" "older" 1 1
 run_case "current-marker-skips-reconcile" "preboot" "current" 1 0
 run_case "postboot-manifest-skips-reconcile" "postboot" "missing" 1 0
+run_case "invalid-saved-at-skips-reconcile" "invalid" "missing" 1 0
 
 printf '\n'
 printf 'passed=%s failed=%s\n' "$pass" "$fail"

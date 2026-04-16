@@ -50,7 +50,10 @@ set -eu
 
 case "${1:-}" in
   has-session)
-    [ "${3:-}" = "=alpha" ] || [ "${3:-}" = "=beta" ]
+    case " ${GHOSTTY_RECONCILE_SESSIONS:-alpha beta} " in
+      *" ${3#=} "*) exit 0 ;;
+      *) exit 1 ;;
+    esac
     ;;
   *)
     exit 0
@@ -82,5 +85,35 @@ focus_line="$(grep -n 'set index of window 1 to 1' "$TMPROOT/osascript.log" | cu
 [ "$beta_line" -lt "$focus_line" ]
 grep -Fq 'set selected tab of targetWindow to tab 2' "$TMPROOT/osascript.log"
 grep -Fqx -- "--platform macos --manifest $home/.local/state/terminal-restore/ghostty-layout.last-good.json" "$TMPROOT/gc.log"
+
+cat > "$home/.local/state/terminal-restore/ghostty-layout.last-good.json" <<'EOF'
+{
+  "focused_window_index": 1,
+  "windows": [
+    {
+      "window_index": 1,
+      "selected_tab_index": 2,
+      "tabs": [
+        { "tab_index": 1, "session_name": "alpha" },
+        { "tab_index": 2, "session_name": "missing-beta" }
+      ]
+    }
+  ]
+}
+EOF
+
+rm -f "$home/.local/state/terminal-restore/reconcile.done"
+
+PATH="$bindir:$PATH" \
+HOME="$home" \
+GHOSTTY_RECONCILE_LOG="$TMPROOT/osascript-missing.log" \
+GHOSTTY_RECONCILE_GC_LOG="$TMPROOT/gc-missing.log" \
+GHOSTTY_RECONCILE_SESSIONS="alpha" \
+"$SCRIPT" 2>"$TMPROOT/reconcile-missing.stderr"
+
+grep -Fq 'tmux switch-client -t =alpha' "$TMPROOT/osascript-missing.log"
+! grep -Fq 'tmux switch-client -t =missing-beta' "$TMPROOT/osascript-missing.log"
+grep -Fq 'set selected tab of targetWindow to tab 2' "$TMPROOT/osascript-missing.log"
+grep -Fq 'Skipping missing tmux session: missing-beta' "$TMPROOT/reconcile-missing.stderr"
 
 printf 'PASS  ghostty-layout-reconcile test suite\n'
