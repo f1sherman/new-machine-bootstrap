@@ -32,6 +32,7 @@ if [ -n "$requested_session" ] && tmux has-session -t "=$requested_session" 2>/d
   if attach_session "$requested_session"; then
     exit 0
   fi
+  exec tmux new-session
 fi
 
 reusable_session="$(

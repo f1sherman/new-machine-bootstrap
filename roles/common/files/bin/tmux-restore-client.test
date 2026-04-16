@@ -14,10 +14,11 @@ trap 'rm -rf "$TMPROOT"' EXIT
 
 pass=0
 fail=0
+LIST_SESSIONS_CMD='list-sessions -F #{session_attached}\t#{session_name}'
 
 run_case() {
   local name="$1" explicit="$2" list_output="$3" has_target="$4" expected_log="$5" list_behavior="${6:-normal}" attach_behavior="${7:-normal}"
-  local bindir log actual rc
+  local bindir log rc
 
   bindir="$(mktemp -d "$TMPROOT/bin.XXXXXX")"
   log="$(mktemp "$TMPROOT/tmux.XXXXXX")"
@@ -44,11 +45,8 @@ case "${1:-}" in
     fi
 
     case "${TMUX_RESTORE_CLIENT_LIST_BEHAVIOR:-normal}" in
-      fail_second)
+      fail_first)
         if [ "$count" -eq 1 ]; then
-          exit 0
-        fi
-        if [ "$count" -eq 2 ]; then
           exit 99
         fi
         ;;
@@ -76,8 +74,7 @@ EOF
   chmod +x "$bindir/tmux"
 
   if [ -n "$explicit" ]; then
-    if actual=$(
-      PATH="$bindir:$PATH" \
+    if PATH="$bindir:$PATH" \
       TMUX_RESTORE_CLIENT_LOG="$log" \
       TMUX_RESTORE_CLIENT_LIST="$list_output" \
       TMUX_RESTORE_CLIENT_HAS_TARGET="$has_target" \
@@ -85,14 +82,13 @@ EOF
       TMUX_RESTORE_CLIENT_LIST_COUNT_FILE="$count_file" \
       TMUX_RESTORE_CLIENT_ATTACH_BEHAVIOR="$attach_behavior" \
       "$SCRIPT" --session "$explicit"
-    ); then
+    then
       rc=0
     else
       rc=$?
     fi
   else
-    if actual=$(
-      PATH="$bindir:$PATH" \
+    if PATH="$bindir:$PATH" \
       TMUX_RESTORE_CLIENT_LOG="$log" \
       TMUX_RESTORE_CLIENT_LIST="$list_output" \
       TMUX_RESTORE_CLIENT_HAS_TARGET="$has_target" \
@@ -100,14 +96,14 @@ EOF
       TMUX_RESTORE_CLIENT_LIST_COUNT_FILE="$count_file" \
       TMUX_RESTORE_CLIENT_ATTACH_BEHAVIOR="$attach_behavior" \
       "$SCRIPT"
-    ); then
+    then
       rc=0
     else
       rc=$?
     fi
   fi
 
-  if [ "$rc" -eq 0 ] && grep -Fqx "$expected_log" "$log"; then
+  if [ "$rc" -eq 0 ] && diff -u <(printf '%s\n' "$expected_log") "$log" >/dev/null; then
     pass=$((pass + 1))
     printf 'PASS  %s\n' "$name"
   else
@@ -122,23 +118,24 @@ EOF
 run_case \
   "explicit session wins" \
   "focus" \
-  $'1\tother\n0\tfocus' \
+  $'has-session -t =focus\nattach -t =focus' \
   "=focus" \
-  "attach -t =focus"
+  $'has-session -t =focus\nattach -t =focus'
 
 run_case \
   "first unattached session is reused" \
   "" \
   $'1\tbusy\n0\talpha\n0\tbeta' \
   "" \
-  "attach -t =alpha"
+  "${LIST_SESSIONS_CMD}
+attach -t =alpha"
 
 run_case \
   "explicit attach failure falls back to new-session" \
   "focus" \
   $'1\tother\n0\tfocus' \
   "=focus" \
-  "new-session" \
+  $'has-session -t =focus\nattach -t =focus\nnew-session' \
   "normal" \
   "fail"
 
@@ -147,31 +144,35 @@ run_case \
   "missing" \
   $'1\tbusy\n0\talpha\n0\tbeta' \
   "" \
-  "attach -t =alpha"
+  $'has-session -t =missing\n'"${LIST_SESSIONS_CMD}"$'\nattach -t =alpha'
 
 run_case \
   "unattached attach failure falls back to new-session" \
   "" \
   $'1\tbusy\n0\talpha\n0\tbeta' \
   "" \
-  "new-session" \
+  "${LIST_SESSIONS_CMD}
+attach -t =alpha
+new-session" \
   "normal" \
   "fail"
 
 run_case \
-  "transient list-sessions failure falls back to new-session" \
+  "list-sessions lookup failure falls back to new-session" \
   "" \
   $'1\tbusy\n0\talpha\n0\tbeta' \
   "" \
-  "new-session" \
-  "fail_second"
+  "${LIST_SESSIONS_CMD}
+new-session" \
+  "fail_first"
 
 run_case \
   "new session when nothing is reusable" \
   "" \
   "" \
   "" \
-  "new-session"
+  "${LIST_SESSIONS_CMD}
+new-session"
 
 printf '\n'
 printf 'passed=%s failed=%s\n' "$pass" "$fail"
