@@ -396,4 +396,9 @@ compinit
 # --cmd cd replaces the cd builtin; cdi opens interactive fzf picker
 # Must be initialized at the very end of ~/.zshrc (after compinit and any
 # other tools that register chpwd hooks)
-if command -v zoxide > /dev/null; then eval "$(zoxide init zsh --cmd cd)"; fi
+# Skip under Claude Code: its snapshot-replay shell can't restore
+# chpwd_functions, so zoxide can't track visits and its doctor would
+# false-positive on every cd.
+if [[ -z "$CLAUDECODE" ]] && command -v zoxide > /dev/null; then
+  eval "$(zoxide init zsh --cmd cd)"
+fi
