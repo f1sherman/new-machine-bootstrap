@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+reason='Do not push to main directly. Open a PR.'
+command="$(jq -r '.tool_input.command // empty' 2>/dev/null || true)"
+
+if [[ -z "$command" ]]; then
+  exit 0
+fi
+
+should_deny="$(COMMAND="$command" python3 - <<'PY'
+import os
+import re
+import shlex
+import subprocess
+
+command = os.environ['COMMAND']
+
+
+def current_branch():
+    try:
+        return subprocess.check_output(
+            ['git', 'branch', '--show-current'],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except subprocess.CalledProcessError:
+        return ''
+
+
+def token_segments(command_text):
+    lexer = shlex.shlex(command_text, posix=True, punctuation_chars=';&|()')
+    lexer.whitespace_split = True
+    tokens = list(lexer)
+    segments = []
+    current = []
+    for token in tokens:
+        if token in {';', '&&', '||', '|', '(', ')'}:
+            if current:
+                segments.append(current)
+                current = []
+            continue
+        current.append(token)
+    if current:
+        segments.append(current)
+    return segments
+
+
+def is_assignment(token):
+    return re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*=.*', token) is not None
+
+
+def refspec_targets_main(token):
+    token = token.lstrip('+')
+    if token in {'main', 'refs/heads/main'}:
+        return True
+    if ':' not in token:
+        return False
+    _, dst = token.rsplit(':', 1)
+    return dst in {'', 'main', 'refs/heads/main'}
+
+
+def segment_is_blocking(segment):
+    index = 0
+    while index < len(segment):
+        token = segment[index]
+        if token == 'env' or is_assignment(token) or token == 'command':
+            index += 1
+            continue
+        break
+
+    if index >= len(segment) or segment[index] != 'git':
+        return False
+    index += 1
+
+    while index < len(segment) and segment[index].startswith('-'):
+        option = segment[index]
+        index += 1
+        if option in {'-C', '-c', '--git-dir', '--work-tree'} and index < len(segment):
+            index += 1
+
+    if index >= len(segment) or segment[index] != 'push':
+        return False
+    index += 1
+
+    push_args = [token for token in segment[index:] if not token.startswith('-')]
+    if len(push_args) >= 2 and any(refspec_targets_main(token) for token in push_args[1:]):
+        return True
+
+    if current_branch() == 'main' and len(push_args) <= 1:
+        return True
+
+    return False
+
+for segment in token_segments(command):
+    if segment_is_blocking(segment):
+        print('deny')
+        break
+else:
+    print('allow')
+PY
+)"
+
+if [[ "$should_deny" != deny ]]; then
+  exit 0
+fi
+
+jq -n --arg reason "$reason" '{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": $reason
+  }
+}'

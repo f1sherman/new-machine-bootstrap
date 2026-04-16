@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/codex-block-git-push-main"
+REASON='Do not push to main directly. Open a PR.'
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+GIT_AUTHOR_NAME=test
+GIT_AUTHOR_EMAIL=test@example.com
+GIT_COMMITTER_NAME=test
+GIT_COMMITTER_EMAIL=test@example.com
+export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+
+make_repo() {
+  local path="$1"
+  local branch="$2"
+
+  git init -q "$path" >/dev/null
+  git -C "$path" commit -q --allow-empty -m init
+  git -C "$path" branch -M main
+  if [ "$branch" != "main" ]; then
+    git -C "$path" checkout -q -b "$branch" >/dev/null
+  fi
+}
+
+run_block_case() {
+  local name="$1"
+  local repo="$2"
+  local command="$3"
+  local output
+
+  output="$(cd "$repo" && jq -n --arg command "$command" '{tool_input:{command:$command}}' | "$SCRIPT")"
+  if printf '%s' "$output" | jq -e --arg reason "$REASON" '. == {hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}' >/dev/null; then
+    printf 'PASS  %s\n' "$name"
+  else
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  fi
+}
+
+run_allow_case() {
+  local name="$1"
+  local repo="$2"
+  local command="$3"
+  local output
+
+  output="$(cd "$repo" && jq -n --arg command "$command" '{tool_input:{command:$command}}' | "$SCRIPT")"
+  [ -z "$output" ] || {
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
+run_empty_case() {
+  local name="$1"
+  local payload="$2"
+  local output
+
+  output="$(printf '%s' "$payload" | "$SCRIPT")"
+  [ -z "$output" ] || {
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
+main_repo="$TMPROOT/main-repo"
+feature_repo="$TMPROOT/feature-repo"
+make_repo "$main_repo" main
+make_repo "$feature_repo" feature/push-guard
+
+run_block_case "blocks explicit origin main" "$feature_repo" 'git push origin main'
+run_block_case "blocks explicit HEAD:main" "$feature_repo" 'git push upstream HEAD:main'
+run_block_case "blocks explicit refs/heads/main destination" "$feature_repo" 'git push origin HEAD:refs/heads/main'
+run_block_case "blocks bare push on local main" "$main_repo" 'git push'
+run_block_case "blocks remote-only push on local main" "$main_repo" 'git push origin'
+run_block_case "blocks chained push segment" "$feature_repo" 'cd repo && git push origin main'
+run_allow_case "allows feature branch remote push" "$feature_repo" 'git push origin'
+run_allow_case "allows explicit feature refspec from main" "$main_repo" 'git push origin feature/push-guard'
+run_allow_case "allows non-push commands" "$main_repo" 'git status --short'
+run_allow_case "allows plain text mention of push" "$main_repo" 'echo git push origin main'
+run_empty_case "allows missing command" '{}'
+run_empty_case "allows empty command" '{"tool_input":{"command":""}}'
+
+printf 'PASS  push-to-main helper test suite\n'
