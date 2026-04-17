@@ -233,6 +233,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-host-tag'
     mode: 0755
 
+- name: Install tmux-pane-branch script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-pane-branch'
+    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-pane-branch'
+    mode: 0755
+
 - name: Install tmux-agent-worktree script
   copy:
     backup: yes
