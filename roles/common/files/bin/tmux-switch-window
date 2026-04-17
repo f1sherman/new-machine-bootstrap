@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Select any tmux window (across all sessions) via fzf and jump to it.
+# Bound to M-7 in tmux.conf — companion to M-8 (sessions).
+
+set -e
+
+# Popups run bash, not zsh, so .zshenv isn't sourced — ensure PATH has tools.
+for dir in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do
+  [[ -d "$dir" && ":$PATH:" != *":$dir:"* ]] && PATH="$dir:$PATH"
+done
+
+current=$(tmux display-message -p '#{session_name}:#{window_index}')
+
+target=$(tmux list-windows -a -F \
+  '#{session_name}:#{window_index}\t#{session_name} · #W · #{b:pane_current_path}' | \
+  grep -v "^${current}	" | \
+  fzf --reverse --no-multi --prompt="switch to window: " \
+    --header="current: ${current}" \
+    --delimiter=$'\t' --with-nth=2.. \
+    --preview='tmux capture-pane -e -p -t {1}' | \
+  cut -f1)
+
+[ -n "$target" ] && tmux switch-client -t "$target"
