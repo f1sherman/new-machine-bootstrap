@@ -28,7 +28,7 @@ pathprepend "${HOME}/.local/bin"
 # Homebrew env — hardcoded per-platform to avoid forking `brew --prefix` and
 # `brew shellenv` (both slow enough to add seconds to new-shell startup).
 # The values below are what `brew shellenv` would export, set directly.
-{% if ansible_os_family == "Darwin" %}
+{% if ansible_facts['os_family'] == "Darwin" %}
 export HOMEBREW_PREFIX="{{ brew_prefix }}"
 export HOMEBREW_CELLAR="{{ brew_prefix }}/Cellar"
 export HOMEBREW_REPOSITORY="{{ brew_prefix }}"
