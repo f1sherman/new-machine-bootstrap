@@ -226,11 +226,32 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-switch-session'
     mode: 0755
 
+- name: Install tmux-switch-window script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-switch-window'
+    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-switch-window'
+    mode: 0755
+
+- name: Install tmux-preview-window script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-preview-window'
+    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-preview-window'
+    mode: 0755
+
 - name: Install tmux-host-tag script
   copy:
     backup: yes
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-host-tag'
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-host-tag'
+    mode: 0755
+
+- name: Install tmux-pane-branch script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-pane-branch'
+    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-pane-branch'
     mode: 0755
 
 - name: Install tmux-agent-worktree script

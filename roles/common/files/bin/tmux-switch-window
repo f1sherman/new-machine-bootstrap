@@ -1,0 +1,31 @@
+#!/bin/bash
+# Select a window in the current tmux session via fzf and jump to it.
+# Bound to M-w in tmux.conf — companion to M-8 (cross-session switcher).
+
+set -e
+
+# Popups run bash, not zsh, so .zshenv isn't sourced — ensure PATH has tools.
+for dir in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do
+  [[ -d "$dir" && ":$PATH:" != *":$dir:"* ]] && PATH="$dir:$PATH"
+done
+
+# tmux doesn't interpret \t in -F strings; embed a literal tab via printf so
+# fzf's --delimiter works without a reformat step (awk/sed, another fork).
+# Current window is flagged `* ` via tmux's `window_active` conditional —
+# saves forking `display-message` just to build a header line.
+fmt=$(printf '%s\t%s%s · %s' \
+  '#{session_name}:#{window_index}' \
+  '#{?window_active,* ,  }' \
+  '#W' \
+  '#{b:pane_current_path}')
+
+selected=$(
+  tmux list-windows -F "$fmt" \
+    | fzf --reverse --no-multi --prompt="switch to window: " \
+        --delimiter=$'\t' --with-nth=2.. \
+        --preview='~/.local/bin/tmux-preview-window {1}' \
+        --preview-window='right:70%'
+)
+
+target="${selected%%$'\t'*}"
+[ -n "$target" ] && tmux switch-client -t "$target"
