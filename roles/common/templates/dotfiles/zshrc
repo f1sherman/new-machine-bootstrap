@@ -246,6 +246,14 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
   ssh-add -A 2>/dev/null
 fi
 
+# Add Docker CLI completions to fpath BEFORE prezto sources, so prezto's
+# own compinit picks them up. Previously a duplicate compinit ran at the end
+# of zshrc to re-scan the fpath after Docker added its dir, which rewrote
+# ~/.zcompdump on every shell start (~800ms per new tmux pane).
+if [[ -d "$HOME/.docker/completions" ]]; then
+  fpath=("$HOME/.docker/completions" $fpath)
+fi
+
 # Source Prezto.
 if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
@@ -386,11 +394,16 @@ if [[ ! -o login ]]; then
   if command -v mise > /dev/null; then eval "$(mise activate zsh)"; fi
 fi
 
-# The following lines have been added by Docker Desktop to enable Docker CLI completions.
-fpath=($HOME/.docker/completions $fpath)
+# Compinit with daily cache regeneration. Prezto's completion module is
+# disabled in .zpreztorc (for perf), so compinit has to run here. The full
+# compaudit + compdump is slow (~800ms); `compinit -C` skips the security
+# audit and reuses the existing dump. Full run happens at most once per 24h.
 autoload -Uz compinit
-compinit
-# End of Docker CLI completions
+if [[ -f ~/.zcompdump && -z ~/.zcompdump(#qNmh+24) ]]; then
+  compinit -C
+else
+  compinit
+fi
 
 # Initialize zoxide (smarter cd with frecency-based directory jumping)
 # --cmd cd replaces the cd builtin; cdi opens interactive fzf picker
