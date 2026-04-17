@@ -99,14 +99,15 @@ assert_not_contains "$COMMIT_SH" "push failed" "commit.sh no longer handles push
 assert_commit_invocation_approval "$CLAUDE_SKILL" "Claude commit skill"
 assert_commit_invocation_approval "$CODEX_SKILL" "Codex commit skill"
 
-assert_not_contains "$CODEX_SKILL" "Do not push. Pushing requires separate user approval." "Codex commit skill leaves pushing to callers instead of worker text"
+assert_contains "$CODEX_SKILL" "Do not push. Pushing requires separate user approval." "Codex commit skill keeps explicit no-push rule in worker prompt"
 assert_not_contains "$CODEX_SKILL" "If a push fails" "Codex worker instructions drop push failure handling"
 
 assert_contains "$COMMITTER_AGENT" "Do not push. Pushing requires separate user approval." "personal:committer forbids pushing"
 assert_not_contains "$COMMITTER_AGENT" "job is to create well-structured git commits and push them" "personal:committer drops push responsibility"
 assert_not_contains "$COMMITTER_AGENT" "The script handles staging, committing, and pushing" "personal:committer documents commit-only helper"
 
-assert_contains "$BLOCK_COMMIT_HOOK" "Use the /personal:commit skill instead" "git commit hook points at /personal:commit"
+assert_contains "$BLOCK_COMMIT_HOOK" "Invoke the \`personal:commit\` skill via the Skill tool instead" "git commit hook points at Skill tool invocation"
+assert_not_contains "$BLOCK_COMMIT_HOOK" "Use the /personal:commit skill instead" "git commit hook drops slash-syntax guidance"
 assert_not_contains "$BLOCK_COMMIT_HOOK" "committing-changes" "git commit hook drops the legacy skill name"
 assert_not_contains "$BLOCK_COMMIT_HOOK" "user approval" "git commit hook no longer claims the skill handles approval"
 

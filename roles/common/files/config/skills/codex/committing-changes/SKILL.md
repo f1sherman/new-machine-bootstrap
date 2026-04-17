@@ -10,6 +10,7 @@ description: >
 Invoking this skill is explicit approval to commit the current repository state. This skill does not push.
 
 Create the needed git commit or commits while keeping the main conversation focused on the higher-level task. Delegate the git inspection and commit planning to a worker so the main conversation does not absorb the diff.
+Do not push. Pushing requires separate user approval.
 
 1. Write a 2-4 sentence summary of what you accomplished in this session - what changed, why, and any key decisions made. Include a list of the files that should be committed.
 2. Call `spawn_agent` with `agent_type: worker` and `fork_context: false` using the summary plus these instructions:
