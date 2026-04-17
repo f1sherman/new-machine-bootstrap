@@ -144,7 +144,7 @@ chmod +x "$fake_bin/claude-trust-directory" "$fake_bin/mise" "$fake_bin/tmux-age
 default_path="$repo_real/.worktrees/feature-beta"
 default_stdout="$TMPROOT/default.stdout"
 default_stderr="$TMPROOT/default.stderr"
-if run_worktree_start "$default_stdout" "$default_stderr" feature/beta; then
+if run_worktree_start "$default_stdout" "$default_stderr" feature/beta --print-path; then
   :
 else
   status=$?
@@ -194,17 +194,33 @@ assert_json_eq "$(jq -nc --arg path "$json_path" '{status:"created", branch:"fea
 
 conflict_stdout="$TMPROOT/conflict.stdout"
 conflict_stderr="$TMPROOT/conflict.stderr"
-if run_worktree_start "$conflict_stdout" "$conflict_stderr" --branch feature/beta --path "$tmproot_real/conflicting-path"; then
-  fail "conflicting explicit --path unexpectedly succeeded"
+conflict_branch="feature/conflict"
+conflict_existing_path="$repo_real/.worktrees/feature-conflict"
+conflict_other_path="$tmproot_real/conflicting-path"
+if run_worktree_start "$conflict_stdout" "$conflict_stderr" --branch "$conflict_branch" --path "$conflict_existing_path" --print-path; then
+  :
+else
+  status=$?
+  printf 'conflict seed exited %s\n' "$status" >&2
+  cat "$conflict_stderr" >&2
+  exit "$status"
 fi
 
-assert_contains "disagreement with existing linked worktree path" "$conflict_stderr"
-assert_contains "$default_path" "$conflict_stderr"
+git -C "$repo" update-ref -d "refs/heads/$conflict_branch"
+
+if run_worktree_start "$conflict_stdout" "$conflict_stderr" --branch "$conflict_branch" --path "$conflict_other_path" --print-path; then
+  fail "conflicting explicit --path unexpectedly succeeded"
+else
+  status=$?
+  assert_contains "disagreement with existing linked worktree path" "$conflict_stderr"
+  assert_contains "$conflict_existing_path" "$conflict_stderr"
+fi
 
 stale_path="$repo_real/.worktrees/feature-stale"
 stale_stdout="$TMPROOT/stale.stdout"
 stale_stderr="$TMPROOT/stale.stderr"
-if run_worktree_start "$stale_stdout" "$stale_stderr" --branch feature/stale --path "$stale_path"; then
+stale_branch="feature/stale"
+if run_worktree_start "$stale_stdout" "$stale_stderr" --branch "$stale_branch" --path "$stale_path" --print-path; then
   :
 else
   status=$?
@@ -213,9 +229,11 @@ else
   exit "$status"
 fi
 
+git -C "$repo" update-ref -d "refs/heads/$stale_branch"
+
 rm -rf "$stale_path"
 
-if run_worktree_start "$stale_stdout" "$stale_stderr" --branch feature/stale --path "$stale_path"; then
+if run_worktree_start "$stale_stdout" "$stale_stderr" --branch "$stale_branch" --path "$stale_path" --print-path; then
   :
 else
   status=$?
@@ -232,7 +250,7 @@ assert_empty "$stale_stderr"
 tmux_path="$repo_real/.worktrees/feature-tmux"
 tmux_stdout="$TMPROOT/tmux.stdout"
 tmux_stderr="$TMPROOT/tmux.stderr"
-if TMUX=1 TMUX_PANE=%1 run_worktree_start "$tmux_stdout" "$tmux_stderr" --branch feature/tmux; then
+if TMUX=1 TMUX_PANE=%1 run_worktree_start "$tmux_stdout" "$tmux_stderr" --branch feature/tmux --print-path; then
   :
 else
   status=$?
@@ -247,7 +265,7 @@ assert_empty "$tmux_stderr"
 
 tmux_fail_stdout="$TMPROOT/tmux-fail.stdout"
 tmux_fail_stderr="$TMPROOT/tmux-fail.stderr"
-if TMUX=1 TMUX_PANE=%1 TMUX_SET_EXIT_CODE=23 run_worktree_start "$tmux_fail_stdout" "$tmux_fail_stderr" --branch feature/tmux-fail; then
+if TMUX=1 TMUX_PANE=%1 TMUX_SET_EXIT_CODE=23 run_worktree_start "$tmux_fail_stdout" "$tmux_fail_stderr" --branch feature/tmux-fail --print-path; then
   fail "tmux failure unexpectedly succeeded"
 fi
 
