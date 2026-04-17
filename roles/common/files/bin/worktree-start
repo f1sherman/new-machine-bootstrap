@@ -8,24 +8,21 @@ source "$SCRIPT_DIR/worktree-lib.sh"
 usage() {
   cat <<'EOF'
 Usage: worktree-start <branch> [path]
-       worktree-start --branch <branch> [--path <path>] [--from <start-point>] [--print-path]
+       worktree-start --branch <branch> [--path <path>] [--from <start-point>] [--print-path] [--json]
 EOF
 }
 
-default_worktree_path() {
-  local repo_root="$1" branch="$2" repo_name parent_dir safe_branch
-  repo_name=$("$(_worktree_cmd basename)" "$repo_root")
-  parent_dir=$("$(_worktree_cmd dirname)" "$repo_root")
-  safe_branch="${branch//\//-}"
-  printf '%s\n' "${parent_dir}/${repo_name}-${safe_branch}"
-}
-
 main() {
-  local branch path start_point print_path repo_root settings_source
+  local branch path start_point print_path json_output path_explicit repo_root settings_source
+  local default_root existing_branch_path existing_path_branch branch_ref_exists
+  local needs_prune repaired status path_json branch_json
   branch=""
   path=""
   start_point="HEAD"
   print_path="false"
+  json_output="false"
+  path_explicit="false"
+  repaired="false"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -35,6 +32,7 @@ main() {
         ;;
       -p|--path)
         path="${2:-}"
+        path_explicit="true"
         shift 2
         ;;
       -f|--from)
@@ -43,6 +41,10 @@ main() {
         ;;
       --print-path)
         print_path="true"
+        shift
+        ;;
+      --json)
+        json_output="true"
         shift
         ;;
       -h|--help)
@@ -85,27 +87,72 @@ main() {
   fi
 
   if [[ -z "$path" ]]; then
-    path="$(default_worktree_path "$repo_root" "$branch")"
+    path="$(_worktree_default_path "$repo_root" "$branch")"
+  fi
+  path="$(_worktree_normalize_path "$path")"
+  default_root="$(_worktree_default_root "$repo_root")"
+
+  if [[ "$path" == "$default_root" || "$path" == "$default_root/"* ]]; then
+    _worktree_prepare_default_root "$repo_root"
   fi
 
+  existing_branch_path="$(_worktree_find_branch_path "$repo_root" "$branch" || true)"
+  existing_path_branch="$(_worktree_find_path_branch "$repo_root" "$path" || true)"
+  needs_prune="false"
+
+  if [[ -n "$existing_branch_path" && ! -e "$existing_branch_path" ]]; then
+    needs_prune="true"
+  fi
+  if [[ -n "$existing_path_branch" && ! -e "$path" ]]; then
+    needs_prune="true"
+  fi
+
+  if [[ "$needs_prune" == "true" ]]; then
+    "$(_worktree_cmd git)" -C "$repo_root" worktree prune >/dev/null 2>&1 || true
+    repaired="true"
+    existing_branch_path="$(_worktree_find_branch_path "$repo_root" "$branch" || true)"
+    existing_path_branch="$(_worktree_find_path_branch "$repo_root" "$path" || true)"
+  fi
+
+  branch_ref_exists="false"
   if "$(_worktree_cmd git)" -C "$repo_root" show-ref --verify --quiet "refs/heads/$branch"; then
-    printf 'Error: branch already exists: %s\n' "$branch" >&2
-    return 1
+    branch_ref_exists="true"
   fi
 
-  if [[ -e "$path" ]]; then
-    printf 'Error: path already exists: %s\n' "$path" >&2
-    return 1
-  fi
-
-  if ! "$(_worktree_cmd git)" -C "$repo_root" rev-parse --verify "$start_point" >/dev/null 2>&1; then
-    printf 'Error: invalid start point: %s\n' "$start_point" >&2
-    return 1
-  fi
-
-  if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q -b "$branch" "$path" "$start_point"; then
-    printf 'Error: failed to create worktree\n' >&2
-    return 1
+  if [[ -n "$existing_branch_path" ]]; then
+    if [[ "$path_explicit" == "true" && "$path" != "$existing_branch_path" ]]; then
+      printf 'disagreement with existing linked worktree path\n' >&2
+      printf '%s\n' "$existing_branch_path" >&2
+      return 1
+    fi
+    if [[ ! -e "$existing_branch_path" ]]; then
+      printf 'Error: stale worktree metadata remains for branch %s: %s\n' "$branch" "$existing_branch_path" >&2
+      return 1
+    fi
+    path="$existing_branch_path"
+    status="existing"
+  else
+    if [[ -n "$existing_path_branch" && "$existing_path_branch" != "$branch" ]]; then
+      printf 'Error: path already linked to branch %s: %s\n' "$existing_path_branch" "$path" >&2
+      return 1
+    fi
+    if [[ -e "$path" && -z "$existing_path_branch" ]]; then
+      printf 'Error: path already exists: %s\n' "$path" >&2
+      return 1
+    fi
+    if [[ "$branch_ref_exists" == "true" ]]; then
+      printf 'Error: branch already exists: %s\n' "$branch" >&2
+      return 1
+    fi
+    if ! "$(_worktree_cmd git)" -C "$repo_root" rev-parse --verify "$start_point" >/dev/null 2>&1; then
+      printf 'Error: invalid start point: %s\n' "$start_point" >&2
+      return 1
+    fi
+    if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q -b "$branch" "$path" "$start_point"; then
+      printf 'Error: failed to create worktree\n' >&2
+      return 1
+    fi
+    status="created"
   fi
 
   _worktree_sync_coding_agent_new_files "${repo_root}/.coding-agent" "${path}/.coding-agent"
@@ -114,26 +161,47 @@ main() {
     settings_source="${repo_root}/.claude/settings.local.json"
     [[ -f "$settings_source" ]] || settings_source="${HOME}/.claude/settings.local.json"
     if [[ -f "$settings_source" ]]; then
-      "$(_worktree_cmd mkdir)" -p "${path}/.claude"
-      "$(_worktree_cmd cp)" -p "$settings_source" "${path}/.claude/settings.local.json"
+      if ! _worktree_copy_new_files "$settings_source" "${path}/.claude/settings.local.json"; then
+        _worktree_warn "failed to copy .claude/settings.local.json into $path"
+      fi
     fi
   fi
 
   if command -v claude-trust-directory >/dev/null 2>&1; then
-    claude-trust-directory "$path" 2>/dev/null || true
+    if ! claude-trust-directory "$path" >/dev/null 2>&1; then
+      _worktree_warn "claude-trust-directory failed for $path"
+    fi
   fi
 
   if command -v mise >/dev/null 2>&1; then
-    mise trust "$path" >/dev/null 2>&1 || true
+    if ! mise trust "$path" >/dev/null 2>&1; then
+      _worktree_warn "mise trust failed for $path"
+    fi
   fi
 
-  if [[ "$print_path" == "true" ]]; then
-    printf '%s\n' "$path"
+  if ! _worktree_publish_tmux_state "$path"; then
+    if [[ -n "${TMUX:-}" || -n "${TMUX_PANE:-}" ]]; then
+      printf 'tmux publish failed\n' >&2
+      printf '%s\n' "$path" >&2
+      return 1
+    fi
+  fi
+
+  if [[ "$repaired" == "true" ]]; then
+    status="repaired"
+  fi
+
+  if [[ "$json_output" == "true" ]]; then
+    branch_json="$(_worktree_json_escape "$branch")"
+    path_json="$(_worktree_json_escape "$path")"
+    printf '{"status":"%s","branch":"%s","path":"%s","repaired":%s}\n' "$status" "$branch_json" "$path_json" "$repaired"
     return 0
   fi
 
-  printf '==> Worktree created:\n'
-  printf '    Branch: %s\n' "$branch"
+  if [[ "$print_path" == "true" ]]; then
+    :
+  fi
+  printf '%s\n' "$path"
 }
 
 main "$@"
