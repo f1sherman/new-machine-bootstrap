@@ -229,7 +229,7 @@ _worktree_main_path() {
 _worktree_publish_tmux_state() {
   local path="$1"
 
-  [[ -n "${TMUX:-}" || -n "${TMUX_PANE:-}" ]] || return 0
+  [[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]] || return 0
   command -v tmux-agent-worktree >/dev/null 2>&1 || return 1
   tmux-agent-worktree set "$path"
 }

@@ -141,18 +141,26 @@ main() {
       return 1
     fi
     if [[ "$branch_ref_exists" == "true" ]]; then
-      printf 'Error: branch already exists: %s\n' "$branch" >&2
-      return 1
+      if [[ "$repaired" != "true" ]]; then
+        printf 'Error: branch already exists: %s\n' "$branch" >&2
+        return 1
+      fi
+      if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q "$path" "$branch"; then
+        printf 'Error: failed to repair worktree\n' >&2
+        return 1
+      fi
+      status="repaired"
+    else
+      if ! "$(_worktree_cmd git)" -C "$repo_root" rev-parse --verify "$start_point" >/dev/null 2>&1; then
+        printf 'Error: invalid start point: %s\n' "$start_point" >&2
+        return 1
+      fi
+      if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q -b "$branch" "$path" "$start_point"; then
+        printf 'Error: failed to create worktree\n' >&2
+        return 1
+      fi
+      status="created"
     fi
-    if ! "$(_worktree_cmd git)" -C "$repo_root" rev-parse --verify "$start_point" >/dev/null 2>&1; then
-      printf 'Error: invalid start point: %s\n' "$start_point" >&2
-      return 1
-    fi
-    if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q -b "$branch" "$path" "$start_point"; then
-      printf 'Error: failed to create worktree\n' >&2
-      return 1
-    fi
-    status="created"
   fi
 
   _worktree_sync_coding_agent_new_files "${repo_root}/.coding-agent" "${path}/.coding-agent"
@@ -180,7 +188,7 @@ main() {
   fi
 
   if ! _worktree_publish_tmux_state "$path"; then
-    if [[ -n "${TMUX:-}" || -n "${TMUX_PANE:-}" ]]; then
+    if [[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]]; then
       printf 'tmux publish failed\n' >&2
       printf '%s\n' "$path" >&2
       return 1

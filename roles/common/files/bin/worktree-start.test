@@ -206,8 +206,6 @@ else
   exit "$status"
 fi
 
-git -C "$repo" update-ref -d "refs/heads/$conflict_branch"
-
 if run_worktree_start "$conflict_stdout" "$conflict_stderr" --branch "$conflict_branch" --path "$conflict_other_path" --print-path; then
   fail "conflicting explicit --path unexpectedly succeeded"
 else
@@ -229,11 +227,9 @@ else
   exit "$status"
 fi
 
-git -C "$repo" update-ref -d "refs/heads/$stale_branch"
-
 rm -rf "$stale_path"
 
-if run_worktree_start "$stale_stdout" "$stale_stderr" --branch "$stale_branch" --path "$stale_path" --print-path; then
+if run_worktree_start "$stale_stdout" "$stale_stderr" --branch "$stale_branch" --path "$stale_path" --json; then
   :
 else
   status=$?
@@ -244,8 +240,23 @@ fi
 
 assert_dir "$stale_path"
 assert_file "$stale_path/file.txt"
-assert_eq "$stale_path" "$(cat "$stale_stdout")" "stale rerun stdout"
+assert_json_eq "$(jq -nc --arg path "$stale_path" '{status:"repaired", branch:"feature/stale", path:$path, repaired:true}')" "$stale_stdout"
 assert_empty "$stale_stderr"
+
+tmux_partial_stdout="$TMPROOT/tmux-partial.stdout"
+tmux_partial_stderr="$TMPROOT/tmux-partial.stderr"
+tmux_partial_path="$repo_real/.worktrees/feature-tmux-partial"
+if TMUX=1 TMUX_PANE= TMUX_SET_EXIT_CODE=23 run_worktree_start "$tmux_partial_stdout" "$tmux_partial_stderr" --branch feature/tmux-partial --print-path; then
+  :
+else
+  status=$?
+  printf 'tmux partial guard exited %s\n' "$status" >&2
+  cat "$tmux_partial_stderr" >&2
+  exit "$status"
+fi
+
+assert_eq "$tmux_partial_path" "$(cat "$tmux_partial_stdout")" "tmux partial stdout"
+assert_empty "$tmux_partial_stderr"
 
 tmux_path="$repo_real/.worktrees/feature-tmux"
 tmux_stdout="$TMPROOT/tmux.stdout"
