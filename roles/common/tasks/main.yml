@@ -233,6 +233,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-switch-window'
     mode: 0755
 
+- name: Install tmux-preview-window script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-preview-window'
+    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-preview-window'
+    mode: 0755
+
 - name: Install tmux-host-tag script
   copy:
     backup: yes
