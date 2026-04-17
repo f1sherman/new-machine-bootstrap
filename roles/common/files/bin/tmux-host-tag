@@ -1,8 +1,11 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# Prints a remote-context identifier (SSH host, devpod workspace, codespace
+# name). Silent for local sessions — no point telling you the name of the
+# machine you're sitting at.
 if [ -n "$DEVPOD_WORKSPACE_ID" ]; then
-  echo "[devpod] ${DEVPOD_WORKSPACE_ID}"
+  echo "$DEVPOD_WORKSPACE_ID"
+elif [ -n "$CODESPACES" ] && [ -n "$CODESPACE_NAME" ]; then
+  echo "$CODESPACE_NAME"
 elif [ -n "$SSH_CONNECTION" ]; then
-  echo "[ssh] $(hostname -s)"
-else
-  echo "[local] $(hostname -s)"
+  echo "$(hostname -s)"
 fi
