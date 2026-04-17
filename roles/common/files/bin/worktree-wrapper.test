@@ -24,10 +24,16 @@ extract_function() {
 extract_wrappers() {
   local template="$1" dest="$2"
   : > "$dest"
-  extract_function "$template" worktree-start "$dest"
   extract_function "$template" worktree-merge "$dest"
   extract_function "$template" worktree-delete "$dest"
   extract_function "$template" worktree-done "$dest"
+}
+
+assert_function_absent() {
+  local template="$1" function_name="$2" label="$3"
+  if rg -q "^${function_name}\\(\\) \\{" "$template"; then
+    fail "$label should not define ${function_name}()"
+  fi
 }
 
 write_simple_helper() {
@@ -62,21 +68,8 @@ run_case() {
   local run_file="$case_root/run.${label}"
 
   mkdir -p "$helper_dir" "$case_root"
+  assert_function_absent "$template" worktree-start "$label"
   extract_wrappers "$template" "$wrapper_file"
-
-  cat > "$helper_dir/worktree-start" <<'EOF'
-#!/bin/bash
-set -euo pipefail
-printf '%s\n' "$*" >> "$HELPER_LOG"
-if [[ "${1:-}" == "--help" ]]; then
-  printf 'Usage: worktree-start <branch> [path]\n'
-  printf '       worktree-start --branch <branch> [--path <path>] [--from <start-point>] [--print-path]\n'
-  exit 0
-fi
-/bin/mkdir -p "$WORKTREE_PATH"
-printf '%s\n' "$WORKTREE_PATH"
-EOF
-  chmod +x "$helper_dir/worktree-start"
   write_simple_helper "$helper_dir/worktree-merge" "Usage: worktree-merge [--print-path]"
   write_simple_helper "$helper_dir/worktree-delete" "Usage: worktree-delete [--print-path]"
   write_simple_helper "$helper_dir/worktree-done" "Usage: worktree-done [--print-path]"
@@ -94,14 +87,6 @@ _worktree_sync_tmux_state() {
   printf '%s\n' "sync-current" >> "\$HELP_SYNC_LOG"
 }
 . "$wrapper_file"
-worktree-start --help > "$help_stdout_file"
-printf 'help-cwd=%s\n' "\$PWD" > "$help_cwd_file"
-_worktree_sync_tmux_state() {
-  printf '%s\n' "sync-current" >> "\$SYNC_LOG"
-}
-worktree-start --branch feature/alpha --path "$case_root/requested-path" > "$stdout_file"
-printf 'cwd=%s\n' "\$PWD" >> "$stdout_file"
-
 check_lifecycle_wrapper() {
   local name="\$1"
   local helper_log="$case_root/\${name}-helper.log"
@@ -137,16 +122,6 @@ EOF
   if ! HOME="$home_dir" "$shell_bin" -f "$run_file"; then
     fail "$label wrapper run failed"
   fi
-
-  grep -Fqx 'Usage: worktree-start <branch> [path]' "$help_stdout_file" || fail "$label wrapper help output missing usage"
-  [ "$(sed -n '1p' "$help_stdout_file")" = "Usage: worktree-start <branch> [path]" ] || fail "$label wrapper help output mismatch"
-  [ "$(cat "$help_cwd_file")" = "help-cwd=$case_root" ] || fail "$label wrapper help path changed cwd"
-  [ ! -s "$help_sync_log" ] || fail "$label wrapper help path should not sync tmux state"
-  [ "$(sed -n '1p' "$helper_log")" = "--help" ] || fail "$label wrapper did not call helper with --help"
-  [ "$(sed -n '2p' "$helper_log")" = "--branch feature/alpha --path $case_root/requested-path --print-path" ] || fail "$label wrapper did not call helper with --print-path"
-  [ "$(sed -n '1p' "$stdout_file")" = "$worktree_path" ] || fail "$label wrapper did not print the helper path"
-  [ "$(sed -n '2p' "$stdout_file")" = "cwd=$worktree_path" ] || fail "$label wrapper did not cd into the helper path"
-  [ "$(cat "$sync_log")" = "sync-current" ] || fail "$label wrapper did not sync tmux state"
 
   assert_lifecycle_wrapper() {
     local name="$1"

@@ -128,18 +128,6 @@ _worktree_sync_tmux_state() {
   fi
 }
 
-worktree-start() {
-  local path
-  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-    "$HOME/.local/bin/worktree-start" "$@"
-    return $?
-  fi
-  path="$("$HOME/.local/bin/worktree-start" "$@" --print-path)" || return $?
-  cd "$path" || return $?
-  _worktree_sync_tmux_state
-  printf '%s\n' "$path"
-}
-
 worktree-create() {
   worktree-start "$@"
 }
