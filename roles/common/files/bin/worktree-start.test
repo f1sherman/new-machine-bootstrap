@@ -192,6 +192,35 @@ fi
 assert_empty "$json_stderr"
 assert_json_eq "$(jq -nc --arg path "$json_path" '{status:"created", branch:"feature/json", path:$path, repaired:false}')" "$json_stdout"
 
+reuse_stdout="$TMPROOT/reuse.stdout"
+reuse_stderr="$TMPROOT/reuse.stderr"
+reuse_branch="feature/reuse-spelling"
+reuse_path_real="$repo_real/.worktrees/feature-reuse-spelling"
+reuse_path_alt="./.worktrees/../.worktrees/feature-reuse-spelling"
+if [[ "$reuse_path_real" == /private/var/* ]]; then
+  reuse_path_alt="/var/${reuse_path_real#/private/var/}"
+fi
+if run_worktree_start "$reuse_stdout" "$reuse_stderr" --branch "$reuse_branch" --path "$reuse_path_real" --print-path; then
+  :
+else
+  status=$?
+  printf 'reuse seed exited %s\n' "$status" >&2
+  cat "$reuse_stderr" >&2
+  exit "$status"
+fi
+
+if run_worktree_start "$reuse_stdout" "$reuse_stderr" --branch "$reuse_branch" --path "$reuse_path_alt" --json; then
+  :
+else
+  status=$?
+  printf 'reuse rerun exited %s\n' "$status" >&2
+  cat "$reuse_stderr" >&2
+  exit "$status"
+fi
+
+assert_empty "$reuse_stderr"
+assert_json_eq "$(jq -nc --arg path "$reuse_path_real" '{status:"existing", branch:"feature/reuse-spelling", path:$path, repaired:false}')" "$reuse_stdout"
+
 conflict_stdout="$TMPROOT/conflict.stdout"
 conflict_stderr="$TMPROOT/conflict.stderr"
 conflict_branch="feature/conflict"
@@ -242,6 +271,36 @@ assert_dir "$stale_path"
 assert_file "$stale_path/file.txt"
 assert_json_eq "$(jq -nc --arg path "$stale_path" '{status:"repaired", branch:"feature/stale", path:$path, repaired:true}')" "$stale_stdout"
 assert_empty "$stale_stderr"
+
+stale_created_path="$repo_real/.worktrees/feature-stale-created"
+stale_created_stdout="$TMPROOT/stale-created.stdout"
+stale_created_stderr="$TMPROOT/stale-created.stderr"
+stale_created_branch="feature/stale-created"
+if run_worktree_start "$stale_created_stdout" "$stale_created_stderr" --branch "$stale_created_branch" --path "$stale_created_path" --print-path; then
+  :
+else
+  status=$?
+  printf 'stale-created initial exited %s\n' "$status" >&2
+  cat "$stale_created_stderr" >&2
+  exit "$status"
+fi
+
+git -C "$repo" update-ref -d "refs/heads/$stale_created_branch"
+rm -rf "$stale_created_path"
+
+if run_worktree_start "$stale_created_stdout" "$stale_created_stderr" --branch "$stale_created_branch" --path "$stale_created_path" --json; then
+  :
+else
+  status=$?
+  printf 'stale-created rerun exited %s\n' "$status" >&2
+  cat "$stale_created_stderr" >&2
+  exit "$status"
+fi
+
+assert_dir "$stale_created_path"
+assert_file "$stale_created_path/file.txt"
+assert_json_eq "$(jq -nc --arg path "$stale_created_path" '{status:"created", branch:"feature/stale-created", path:$path, repaired:false}')" "$stale_created_stdout"
+assert_empty "$stale_created_stderr"
 
 tmux_partial_stdout="$TMPROOT/tmux-partial.stdout"
 tmux_partial_stderr="$TMPROOT/tmux-partial.stderr"

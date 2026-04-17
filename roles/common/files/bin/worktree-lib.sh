@@ -57,13 +57,56 @@ _worktree_default_path() {
 
 _worktree_normalize_path() {
   local path="$1"
+  local existing_path
+  local canonical_path
+  local part
+  local -a pending_parts=()
+
   if [[ "$path" != /* ]]; then
     path="${PWD%/}/$path"
   fi
   while [[ "$path" != "/" && "$path" == */ ]]; do
     path="${path%/}"
   done
-  printf '%s\n' "$path"
+
+  existing_path="$path"
+  while [[ ! -e "$existing_path" && "$existing_path" != "/" ]]; do
+    if [[ ${#pending_parts[@]} -eq 0 ]]; then
+      pending_parts=("$("$(_worktree_cmd basename)" "$existing_path")")
+    else
+      pending_parts=("$("$(_worktree_cmd basename)" "$existing_path")" "${pending_parts[@]}")
+    fi
+    existing_path=$("$(_worktree_cmd dirname)" "$existing_path")
+  done
+
+  if [[ -d "$existing_path" ]]; then
+    canonical_path="$(cd "$existing_path" && pwd -P)"
+  else
+    canonical_path="$existing_path"
+  fi
+
+  if [[ ${#pending_parts[@]} -gt 0 ]]; then
+    for part in "${pending_parts[@]}"; do
+      case "$part" in
+        ""|".")
+          ;;
+        "..")
+          if [[ "$canonical_path" != "/" ]]; then
+            canonical_path=$("$(_worktree_cmd dirname)" "$canonical_path")
+          fi
+          ;;
+        *)
+          if [[ "$canonical_path" == "/" ]]; then
+            canonical_path="/$part"
+          else
+            canonical_path="${canonical_path}/$part"
+          fi
+          ;;
+      esac
+    done
+  fi
+
+  printf '%s\n' "$canonical_path"
 }
 
 _worktree_json_escape() {
@@ -109,7 +152,7 @@ _worktree_find_branch_path() {
       continue
     fi
     if [[ "$line" == worktree\ * ]]; then
-      current_path="${line#worktree }"
+      current_path="$(_worktree_normalize_path "${line#worktree }")"
       continue
     fi
     if [[ "$line" == "branch refs/heads/$branch" ]]; then
@@ -133,7 +176,7 @@ _worktree_find_path_branch() {
       continue
     fi
     if [[ "$line" == worktree\ * ]]; then
-      current_path="${line#worktree }"
+      current_path="$(_worktree_normalize_path "${line#worktree }")"
       continue
     fi
     if [[ "$current_path" == "$wanted_path" && "$line" == branch\ refs/heads/* ]]; then
