@@ -109,16 +109,6 @@ _worktree_normalize_path() {
   printf '%s\n' "$canonical_path"
 }
 
-_worktree_json_escape() {
-  local value="$1"
-  value="${value//\\/\\\\}"
-  value="${value//\"/\\\"}"
-  value="${value//$'\n'/\\n}"
-  value="${value//$'\r'/\\r}"
-  value="${value//$'\t'/\\t}"
-  printf '%s' "$value"
-}
-
 _worktree_ensure_gitignore_line() {
   local repo_root="$1"
   local ignore_file="$repo_root/.gitignore"

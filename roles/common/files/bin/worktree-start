@@ -15,7 +15,7 @@ EOF
 main() {
   local branch path start_point print_path json_output path_explicit repo_root settings_source
   local default_root existing_branch_path existing_path_branch branch_ref_exists
-  local needs_prune repaired metadata_pruned status path_json branch_json
+  local needs_prune repaired metadata_pruned status
   branch=""
   path=""
   start_point="HEAD"
@@ -202,9 +202,12 @@ main() {
   fi
 
   if [[ "$json_output" == "true" ]]; then
-    branch_json="$(_worktree_json_escape "$branch")"
-    path_json="$(_worktree_json_escape "$path")"
-    printf '{"status":"%s","branch":"%s","path":"%s","repaired":%s}\n' "$status" "$branch_json" "$path_json" "$repaired"
+    jq -nc \
+      --arg status "$status" \
+      --arg branch "$branch" \
+      --arg path "$path" \
+      --argjson repaired "$repaired" \
+      '{status:$status, branch:$branch, path:$path, repaired:$repaired}'
     return 0
   fi
 
