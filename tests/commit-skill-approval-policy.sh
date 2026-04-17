@@ -71,15 +71,14 @@ assert_yq_list_not_contains() {
   fi
 }
 
-assert_commit_only_skill() {
+assert_commit_invocation_approval() {
   local path="$1" label="$2"
 
-  assert_contains "$path" "Invoking this skill is explicit approval to commit, but not to push." "$label records commit-only approval"
-  assert_not_contains "$path" "Invoking this skill is explicit approval to commit and push." "$label drops commit-and-push approval"
+  assert_contains "$path" "Invoking this skill is explicit approval to commit the current repository state." "$label records invocation-based commit approval"
+  assert_not_contains "$path" "Invoking this skill is explicit approval to commit, but not to push." "$label drops the stale commit-only approval sentence"
+  assert_not_contains "$path" "~/.gsd/" "$label has no legacy GSD path references"
 }
 
-assert_contains "$MAIN_YML" "You may create commits without asking for approval, but use the personal:commit skill rather than bare \`git commit\`." "home guidance allows commits without approval via the skill"
-assert_contains "$MAIN_YML" "Always ask before pushing." "home guidance requires push approval"
 assert_not_contains "$MAIN_YML" "Never commit or push without explicit user approval." "home guidance removes combined approval rule"
 
 assert_yq_list_not_contains "$PERMISSIONS_YML" '.claude_permissions.allow[]?' 'Bash(git push *)' "Claude permissions stop auto-allowing git push"
@@ -97,17 +96,18 @@ assert_contains "$COMMIT_SH" "Commit created:" "commit.sh reports commit creatio
 assert_not_contains "$COMMIT_SH" "Commit created and pushed:" "commit.sh drops pushed status output"
 assert_not_contains "$COMMIT_SH" "push failed" "commit.sh no longer handles push failures"
 
-assert_commit_only_skill "$CLAUDE_SKILL" "Claude commit skill"
-assert_commit_only_skill "$CODEX_SKILL" "Codex commit skill"
+assert_commit_invocation_approval "$CLAUDE_SKILL" "Claude commit skill"
+assert_commit_invocation_approval "$CODEX_SKILL" "Codex commit skill"
 
-assert_contains "$CODEX_SKILL" "Do not push. Pushing requires separate user approval." "Codex worker instructions forbid pushing"
+assert_not_contains "$CODEX_SKILL" "Do not push. Pushing requires separate user approval." "Codex commit skill leaves pushing to callers instead of worker text"
 assert_not_contains "$CODEX_SKILL" "If a push fails" "Codex worker instructions drop push failure handling"
 
 assert_contains "$COMMITTER_AGENT" "Do not push. Pushing requires separate user approval." "personal:committer forbids pushing"
 assert_not_contains "$COMMITTER_AGENT" "job is to create well-structured git commits and push them" "personal:committer drops push responsibility"
 assert_not_contains "$COMMITTER_AGENT" "The script handles staging, committing, and pushing" "personal:committer documents commit-only helper"
 
-assert_contains "$BLOCK_COMMIT_HOOK" "Use the /personal:commit skill instead" "git commit hook still requires the personal:commit skill"
+assert_contains "$BLOCK_COMMIT_HOOK" "Use the /personal:commit skill instead" "git commit hook points at /personal:commit"
+assert_not_contains "$BLOCK_COMMIT_HOOK" "committing-changes" "git commit hook drops the legacy skill name"
 assert_not_contains "$BLOCK_COMMIT_HOOK" "user approval" "git commit hook no longer claims the skill handles approval"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

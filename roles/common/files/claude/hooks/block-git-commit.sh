@@ -1,6 +1,6 @@
 #!/bin/bash
-# Block direct git commit commands - use the committing-changes skill instead
-# Allows commit.sh (from the committing-changes skill) through.
+# Block direct git commit commands - use the /personal:commit skill instead
+# Allows commit.sh (from the personal:commit skill) through.
 
 COMMAND=$(cat | jq -r '.tool_input.command // empty')
 
@@ -14,7 +14,7 @@ if echo "$COMMAND" | grep -qE '\bgit\s+commit\b'; then
       "hookSpecificOutput": {
       "hookEventName": "PreToolUse",
       "permissionDecision": "deny",
-      "permissionDecisionReason": "Do not run git commit directly. Invoke the `committing-changes` skill via the Skill tool instead, which ensures proper commit practices (no AI attribution, atomic commits)."
+      "permissionDecisionReason": "Do not run git commit directly. Use the /personal:commit skill instead, which ensures proper commit practices (no AI attribution, atomic commits)."
     }
   }'
 else
