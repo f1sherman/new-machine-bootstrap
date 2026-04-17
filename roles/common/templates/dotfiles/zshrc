@@ -241,10 +241,9 @@ bgrep() {
   rg "$@" $(bundle list --paths)
 }
 
-# Load SSH keys into the keychain - http://stackoverflow.com/a/39715149/961521
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  ssh-add -A 2>/dev/null
-fi
+# `ssh-add -A` removed — modern macOS (>=10.12) with `UseKeychain yes` and
+# `AddKeysToAgent yes` in ~/.ssh/config loads keychain-stored keys on demand,
+# so we don't need to fork ssh-add on every interactive shell.
 
 # Add Docker CLI completions to fpath BEFORE prezto sources, so prezto's
 # own compinit picks them up. Previously a duplicate compinit ran at the end
@@ -254,6 +253,9 @@ if [[ -d "$HOME/.docker/completions" ]]; then
   fpath=("$HOME/.docker/completions" $fpath)
 fi
 
+# TODO: prezto's init.zsh + its precmd prompt setup adds ~0.6s to shell
+# startup (per pane-startup instrumentation). Investigate trimming modules
+# in .zpreztorc or switching to a lighter prompt framework.
 # Source Prezto.
 if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
@@ -388,10 +390,14 @@ if [ -f ~/.zshrc.local ]; then
   . ~/.zshrc.local
 fi
 
-# Only initialize mise here for non-login shells. For login shells, it will be
-# initialized in zlogin
+# Mise: non-login shells (interactive subshells) also need shim access.
+# Login shells set this in .zlogin; here we handle the interactive-only case.
 if [[ ! -o login ]]; then
-  if command -v mise > /dev/null; then eval "$(mise activate zsh)"; fi
+  _mise_shims="${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
+  if [[ -d "$_mise_shims" ]]; then
+    path=("$_mise_shims" $path)
+  fi
+  unset _mise_shims
 fi
 
 # Compinit with daily cache regeneration. Prezto's completion module is
@@ -413,5 +419,14 @@ fi
 # chpwd_functions, so zoxide can't track visits and its doctor would
 # false-positive on every cd.
 if [[ -z "$CLAUDECODE" ]] && command -v zoxide > /dev/null; then
-  eval "$(zoxide init zsh --cmd cd)"
+  # Cache the output of `zoxide init` to avoid forking zoxide on every shell.
+  # Regenerate only when the zoxide binary is newer than the cache file.
+  _zoxide_cache="${HOME}/.cache/zsh/zoxide-init.zsh"
+  _zoxide_bin="$(command -v zoxide)"
+  if [[ ! -f "$_zoxide_cache" || "$_zoxide_bin" -nt "$_zoxide_cache" ]]; then
+    mkdir -p "${_zoxide_cache:h}"
+    "$_zoxide_bin" init zsh --cmd cd > "$_zoxide_cache"
+  fi
+  source "$_zoxide_cache"
+  unset _zoxide_cache _zoxide_bin
 fi
