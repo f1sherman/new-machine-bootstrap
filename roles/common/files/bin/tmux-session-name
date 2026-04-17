@@ -12,6 +12,35 @@
 
 pane_id="${1:-${TMUX_PANE:-$(tmux display-message -p '#{pane_id}')}}"
 
+# Deduplicate concurrent runs for the same pane. Agents like Claude and Codex
+# update pane titles several times per second with spinner frames, which fires
+# the pane-title-changed hook at the same rate. Without this guard, instances
+# pile up, each making tmux RPCs back to the server, saturating it and making
+# pane switches take seconds.
+#
+# Uses bash noclobber + kill -0 (both builtins) so the hot "skip" path has
+# zero forks — crucial since the spinner can fire this ~5 times per second.
+_lockfile="${TMPDIR:-/tmp}/tmux-session-name.${pane_id#%}.lock"
+# Braces are a grouping (no subshell), so this runs in the current shell and
+# `2>/dev/null` also suppresses bash's own "cannot overwrite" redirect error.
+if ! { set -C; printf '%s\n' "$$" > "$_lockfile"; } 2>/dev/null; then
+  set +C
+  # Lock file exists. Is holder alive?
+  _holder=""
+  read -r _holder < "$_lockfile" 2>/dev/null || true
+  if [ -n "$_holder" ] && kill -0 "$_holder" 2>/dev/null; then
+    exit 0
+  fi
+  # Stale — take over.
+  rm -f "$_lockfile" 2>/dev/null
+  if ! { set -C; printf '%s\n' "$$" > "$_lockfile"; } 2>/dev/null; then
+    set +C
+    exit 0
+  fi
+fi
+set +C
+trap 'rm -f "$_lockfile" 2>/dev/null' EXIT
+
 # One tmux RPC fetches everything needed from the pane + session.
 pane_info=$(tmux display-message -p -t "$pane_id" '#{pane_tty}	#{pane_current_path}	#{pane_title}	#{session_id}	#{session_name}' 2>/dev/null) || exit 0
 [ -z "$pane_info" ] && exit 0
