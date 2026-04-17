@@ -15,7 +15,7 @@ EOF
 main() {
   local branch path start_point print_path json_output path_explicit repo_root settings_source
   local default_root existing_branch_path existing_path_branch branch_ref_exists
-  local needs_prune repaired metadata_pruned status
+  local needs_prune repaired repair_allowed status
   branch=""
   path=""
   start_point="HEAD"
@@ -23,7 +23,7 @@ main() {
   json_output="false"
   path_explicit="false"
   repaired="false"
-  metadata_pruned="false"
+  repair_allowed="false"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -103,14 +103,19 @@ main() {
 
   if [[ -n "$existing_branch_path" && ! -e "$existing_branch_path" ]]; then
     needs_prune="true"
+    if [[ "$existing_branch_path" == "$path" && ( -z "$existing_path_branch" || "$existing_path_branch" == "$branch" ) ]]; then
+      repair_allowed="true"
+    fi
   fi
   if [[ -n "$existing_path_branch" && ! -e "$path" ]]; then
     needs_prune="true"
+    if [[ "$existing_path_branch" == "$branch" && ( -z "$existing_branch_path" || "$existing_branch_path" == "$path" ) ]]; then
+      repair_allowed="true"
+    fi
   fi
 
   if [[ "$needs_prune" == "true" ]]; then
     "$(_worktree_cmd git)" -C "$repo_root" worktree prune >/dev/null 2>&1 || true
-    metadata_pruned="true"
     existing_branch_path="$(_worktree_find_branch_path "$repo_root" "$branch" || true)"
     existing_path_branch="$(_worktree_find_path_branch "$repo_root" "$path" || true)"
   fi
@@ -142,7 +147,7 @@ main() {
       return 1
     fi
     if [[ "$branch_ref_exists" == "true" ]]; then
-      if [[ "$metadata_pruned" != "true" ]]; then
+      if [[ "$repair_allowed" != "true" ]]; then
         printf 'Error: branch already exists: %s\n' "$branch" >&2
         return 1
       fi

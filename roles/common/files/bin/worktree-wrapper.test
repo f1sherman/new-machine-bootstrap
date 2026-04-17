@@ -24,6 +24,7 @@ extract_function() {
 extract_wrappers() {
   local template="$1" dest="$2"
   : > "$dest"
+  extract_function "$template" _worktree_has_help_flag "$dest"
   extract_function "$template" worktree-create "$dest"
   extract_function "$template" worktree-cd "$dest"
   extract_function "$template" wts "$dest"
@@ -45,10 +46,12 @@ write_simple_helper() {
 #!/bin/bash
 set -euo pipefail
 printf '%s\n' "\$*" >> "\$HELPER_LOG"
-if [[ "\${1:-}" == "--help" ]]; then
-  printf '%s\n' "$usage"
-  exit 0
-fi
+for arg in "\$@"; do
+  if [[ "\$arg" == "--help" || "\$arg" == "-h" ]]; then
+    printf '%s\n' "$usage"
+    exit 0
+  fi
+done
 /bin/mkdir -p "\$WORKTREE_PATH"
 printf '%s\n' "\$WORKTREE_PATH"
 EOF
@@ -95,7 +98,7 @@ check_wrapper() {
   _worktree_sync_tmux_state() {
     printf '%s\n' "sync-current" >> "\$help_sync_log"
   }
-  "\$wrapper_name" --help > "\$help_stdout_file"
+  "\$wrapper_name" feature/alpha --help > "\$help_stdout_file"
   printf 'help-cwd=%s\n' "\$PWD" > "\$help_cwd_file"
 
   HELPER_LOG="\$helper_log"
@@ -132,7 +135,7 @@ EOF
     [ "$(sed -n '1p' "$help_stdout_file")" = "Usage: $helper_name${3}" ] || fail "$label $wrapper_name help output mismatch"
     [ "$(cat "$help_cwd_file")" = "help-cwd=$case_root" ] || fail "$label $wrapper_name help path changed cwd"
     [ ! -s "$help_sync_log" ] || fail "$label $wrapper_name help path should not sync tmux state"
-    [ "$(sed -n '1p' "$helper_log")" = "--help" ] || fail "$label $wrapper_name did not call $helper_name with --help"
+    [ "$(sed -n '1p' "$helper_log")" = "feature/alpha --help" ] || fail "$label $wrapper_name did not forward help args to $helper_name"
     [ "$(sed -n '2p' "$helper_log")" = "--branch feature/alpha --path $case_root/requested-path --print-path" ] || fail "$label $wrapper_name did not call $helper_name with --print-path"
     [ "$(sed -n '1p' "$stdout_file")" = "$worktree_path" ] || fail "$label $wrapper_name did not print the helper path"
     [ "$(sed -n '2p' "$stdout_file")" = "cwd=$worktree_path" ] || fail "$label $wrapper_name did not cd into the helper path"

@@ -302,6 +302,29 @@ assert_file "$stale_created_path/file.txt"
 assert_json_eq "$(jq -nc --arg path "$stale_created_path" '{status:"created", branch:"feature/stale-created", path:$path, repaired:false}')" "$stale_created_stdout"
 assert_empty "$stale_created_stderr"
 
+collision_stale_path="$repo_real/.worktrees/feature-collision-stale"
+collision_stdout="$TMPROOT/collision.stdout"
+collision_stderr="$TMPROOT/collision.stderr"
+collision_stale_branch="feature/collision-stale"
+collision_existing_branch="feature/collision-existing"
+if run_worktree_start "$collision_stdout" "$collision_stderr" --branch "$collision_stale_branch" --path "$collision_stale_path" --print-path; then
+  :
+else
+  status=$?
+  printf 'collision stale seed exited %s\n' "$status" >&2
+  cat "$collision_stderr" >&2
+  exit "$status"
+fi
+
+git -C "$repo" branch "$collision_existing_branch" HEAD
+rm -rf "$collision_stale_path"
+
+if run_worktree_start "$collision_stdout" "$collision_stderr" --branch "$collision_existing_branch" --path "$collision_stale_path" --json; then
+  fail "collision repair unexpectedly succeeded"
+fi
+
+assert_contains "Error: branch already exists: $collision_existing_branch" "$collision_stderr"
+
 tmux_partial_stdout="$TMPROOT/tmux-partial.stdout"
 tmux_partial_stderr="$TMPROOT/tmux-partial.stderr"
 tmux_partial_path="$repo_real/.worktrees/feature-tmux-partial"
