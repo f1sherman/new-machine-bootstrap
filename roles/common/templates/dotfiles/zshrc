@@ -236,9 +236,6 @@ bgrep() {
   rg "$@" $(bundle list --paths)
 }
 
-# `ssh-add -A` removed — modern macOS (>=10.12) with `UseKeychain yes` and
-# `AddKeysToAgent yes` in ~/.ssh/config loads keychain-stored keys on demand,
-# so we don't need to fork ssh-add on every interactive shell.
 
 # --- Minimal shell setup (replaces prezto + powerlevel10k) ---
 
