@@ -11,12 +11,27 @@ fail() {
   exit 1
 }
 
-require_file() {
+assert_eq() {
+  local expected="$1"
+  local actual="$2"
+  local label="$3"
+
+  [ "$actual" = "$expected" ] || fail "$label: expected '$expected', got '$actual'"
+}
+
+assert_file() {
   local path="$1"
+
   [ -f "$path" ] || fail "missing expected file: $path"
 }
 
-require_contains() {
+assert_dir() {
+  local path="$1"
+
+  [ -d "$path" ] || fail "missing expected directory: $path"
+}
+
+assert_contains() {
   local needle="$1"
   local file="$2"
 
@@ -25,6 +40,47 @@ require_contains() {
     cat "$file" >&2
     exit 1
   }
+}
+
+assert_empty() {
+  local file="$1"
+
+  [ ! -s "$file" ] || {
+    printf 'expected empty stderr, got:\n' >&2
+    cat "$file" >&2
+    exit 1
+  }
+}
+
+assert_json_eq() {
+  local expected="$1"
+  local actual_file="$2"
+  local actual_json expected_json
+
+  if ! actual_json="$(jq -cS . <"$actual_file")"; then
+    printf 'invalid JSON output:\n' >&2
+    cat "$actual_file" >&2
+    exit 1
+  fi
+
+  expected_json="$(printf '%s' "$expected" | jq -cS .)"
+  assert_eq "$expected_json" "$actual_json" "json output"
+}
+
+run_worktree_start() {
+  local stdout_file="$1"
+  local stderr_file="$2"
+  shift 2
+
+  (
+    cd "$repo"
+    PATH="$fake_bin:$PATH" \
+    TRUST_LOG="$trust_log" \
+    MISE_LOG="$mise_log" \
+    TMUX_LOG="$tmux_log" \
+    HOME="$TMPROOT/home" \
+    "$SCRIPT" "$@"
+  ) >"$stdout_file" 2>"$stderr_file"
 }
 
 export GIT_AUTHOR_NAME=test
@@ -41,11 +97,11 @@ tmproot_real="$(cd "$TMPROOT" && pwd -P)"
 printf 'base\n' > "$repo/file.txt"
 git -C "$repo" add file.txt
 git -C "$repo" commit -q -m base
-base_commit="$(git -C "$repo" rev-parse HEAD)"
 
 mkdir -p "$repo/.coding-agent/nested" "$repo/.claude"
 printf 'keep me\n' > "$repo/.coding-agent/nested/note.txt"
 printf '{ "scope": "repo" }\n' > "$repo/.claude/settings.local.json"
+printf '# local repo ignores\n' > "$repo/.gitignore"
 
 printf 'next\n' > "$repo/file.txt"
 git -C "$repo" commit -q -am next
@@ -53,8 +109,14 @@ git -C "$repo" commit -q -am next
 fake_bin="$TMPROOT/bin"
 mkdir -p "$fake_bin"
 
-trust_log="$TMPROOT/claude-trust.log"
+trust_log="$TMPROOT/trust.log"
 mise_log="$TMPROOT/mise.log"
+tmux_log="$TMPROOT/tmux.log"
+: >"$trust_log"
+: >"$mise_log"
+: >"$tmux_log"
+
+mkdir -p "$TMPROOT/home/.claude"
 
 cat > "$fake_bin/claude-trust-directory" <<'EOF'
 #!/usr/bin/env bash
@@ -68,47 +130,239 @@ set -euo pipefail
 printf '%s\n' "$*" >> "$MISE_LOG"
 EOF
 
-chmod +x "$fake_bin/claude-trust-directory" "$fake_bin/mise"
+cat > "$fake_bin/tmux-agent-worktree" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$TMUX_LOG"
+if [ "${TMUX_SET_EXIT_CODE:-0}" -ne 0 ]; then
+  exit "$TMUX_SET_EXIT_CODE"
+fi
+EOF
 
-custom_path="$tmproot_real/custom-worktree"
-expected_custom_output="$custom_path"
-actual_custom_output="$(
-  (
-    cd "$repo"
-    PATH="$fake_bin:$PATH" \
-    TRUST_LOG="$trust_log" \
-    MISE_LOG="$mise_log" \
-    HOME="$TMPROOT/home" \
-    "$SCRIPT" --branch feature/alpha --path "$custom_path" --from HEAD~1 --print-path
-  )
-)"
+chmod +x "$fake_bin/claude-trust-directory" "$fake_bin/mise" "$fake_bin/tmux-agent-worktree"
 
-[ "$actual_custom_output" = "$expected_custom_output" ] || fail "custom-path invocation printed unexpected output"
+default_path="$repo_real/.worktrees/feature-beta"
+default_stdout="$TMPROOT/default.stdout"
+default_stderr="$TMPROOT/default.stderr"
+if run_worktree_start "$default_stdout" "$default_stderr" feature/beta --print-path; then
+  :
+else
+  status=$?
+  printf 'default run exited %s\n' "$status" >&2
+  cat "$default_stderr" >&2
+  exit "$status"
+fi
 
-require_file "$custom_path/file.txt"
-[ "$(git -C "$custom_path" rev-parse HEAD)" = "$base_commit" ] || fail "custom-path worktree checked out the wrong commit"
-require_file "$custom_path/.coding-agent/nested/note.txt"
-require_file "$custom_path/.claude/settings.local.json"
-require_contains "$custom_path" "$trust_log"
-require_contains "trust $custom_path" "$mise_log"
+assert_eq "$default_path" "$(cat "$default_stdout")" "default stdout"
+assert_empty "$default_stderr"
+assert_dir "$default_path"
+assert_file "$default_path/file.txt"
+assert_file "$default_path/.coding-agent/nested/note.txt"
+assert_file "$default_path/.claude/settings.local.json"
+assert_contains ".worktrees/" "$repo/.gitignore"
+assert_contains "$default_path" "$trust_log"
+assert_contains "trust $default_path" "$mise_log"
 
-default_path="$tmproot_real/repo-feature-beta"
-actual_default_output="$(
-  (
-    cd "$repo"
-    PATH="$fake_bin:$PATH" \
-    TRUST_LOG="$trust_log" \
-    MISE_LOG="$mise_log" \
-    HOME="$TMPROOT/home" \
-    "$SCRIPT" feature/beta --print-path
-  )
-)"
+print_path_stdout="$TMPROOT/print-path.stdout"
+print_path_stderr="$TMPROOT/print-path.stderr"
+if run_worktree_start "$print_path_stdout" "$print_path_stderr" feature/beta --print-path; then
+  :
+else
+  status=$?
+  printf 'print-path rerun exited %s\n' "$status" >&2
+  cat "$print_path_stderr" >&2
+  exit "$status"
+fi
 
-[ "$actual_default_output" = "$default_path" ] || fail "positional invocation printed unexpected path"
-require_file "$default_path/file.txt"
-require_file "$default_path/.coding-agent/nested/note.txt"
-require_file "$default_path/.claude/settings.local.json"
-require_contains "$default_path" "$trust_log"
-require_contains "trust $default_path" "$mise_log"
+assert_eq "$default_path" "$(cat "$print_path_stdout")" "--print-path stdout"
+assert_empty "$print_path_stderr"
 
-printf 'PASS  worktree-start smoke test\n'
+json_stdout="$TMPROOT/json.stdout"
+json_stderr="$TMPROOT/json.stderr"
+json_path="$repo_real/.worktrees/feature-json"
+if run_worktree_start "$json_stdout" "$json_stderr" --branch feature/json --json; then
+  :
+else
+  status=$?
+  printf 'json run exited %s\n' "$status" >&2
+  cat "$json_stderr" >&2
+  exit "$status"
+fi
+
+assert_empty "$json_stderr"
+assert_json_eq "$(jq -nc --arg path "$json_path" '{status:"created", branch:"feature/json", path:$path, repaired:false}')" "$json_stdout"
+
+reuse_stdout="$TMPROOT/reuse.stdout"
+reuse_stderr="$TMPROOT/reuse.stderr"
+reuse_branch="feature/reuse-spelling"
+reuse_path_real="$repo_real/.worktrees/feature-reuse-spelling"
+reuse_path_alt="./.worktrees/../.worktrees/feature-reuse-spelling"
+if [[ "$reuse_path_real" == /private/var/* ]]; then
+  reuse_path_alt="/var/${reuse_path_real#/private/var/}"
+fi
+if run_worktree_start "$reuse_stdout" "$reuse_stderr" --branch "$reuse_branch" --path "$reuse_path_real" --print-path; then
+  :
+else
+  status=$?
+  printf 'reuse seed exited %s\n' "$status" >&2
+  cat "$reuse_stderr" >&2
+  exit "$status"
+fi
+
+if run_worktree_start "$reuse_stdout" "$reuse_stderr" --branch "$reuse_branch" --path "$reuse_path_alt" --json; then
+  :
+else
+  status=$?
+  printf 'reuse rerun exited %s\n' "$status" >&2
+  cat "$reuse_stderr" >&2
+  exit "$status"
+fi
+
+assert_empty "$reuse_stderr"
+assert_json_eq "$(jq -nc --arg path "$reuse_path_real" '{status:"existing", branch:"feature/reuse-spelling", path:$path, repaired:false}')" "$reuse_stdout"
+
+conflict_stdout="$TMPROOT/conflict.stdout"
+conflict_stderr="$TMPROOT/conflict.stderr"
+conflict_branch="feature/conflict"
+conflict_existing_path="$repo_real/.worktrees/feature-conflict"
+conflict_other_path="$tmproot_real/conflicting-path"
+if run_worktree_start "$conflict_stdout" "$conflict_stderr" --branch "$conflict_branch" --path "$conflict_existing_path" --print-path; then
+  :
+else
+  status=$?
+  printf 'conflict seed exited %s\n' "$status" >&2
+  cat "$conflict_stderr" >&2
+  exit "$status"
+fi
+
+if run_worktree_start "$conflict_stdout" "$conflict_stderr" --branch "$conflict_branch" --path "$conflict_other_path" --print-path; then
+  fail "conflicting explicit --path unexpectedly succeeded"
+else
+  status=$?
+  assert_contains "disagreement with existing linked worktree path" "$conflict_stderr"
+  assert_contains "$conflict_existing_path" "$conflict_stderr"
+fi
+
+stale_path="$repo_real/.worktrees/feature-stale"
+stale_stdout="$TMPROOT/stale.stdout"
+stale_stderr="$TMPROOT/stale.stderr"
+stale_branch="feature/stale"
+if run_worktree_start "$stale_stdout" "$stale_stderr" --branch "$stale_branch" --path "$stale_path" --print-path; then
+  :
+else
+  status=$?
+  printf 'stale initial create exited %s\n' "$status" >&2
+  cat "$stale_stderr" >&2
+  exit "$status"
+fi
+
+rm -rf "$stale_path"
+
+if run_worktree_start "$stale_stdout" "$stale_stderr" --branch "$stale_branch" --path "$stale_path" --json; then
+  :
+else
+  status=$?
+  printf 'stale rerun exited %s\n' "$status" >&2
+  cat "$stale_stderr" >&2
+  exit "$status"
+fi
+
+assert_dir "$stale_path"
+assert_file "$stale_path/file.txt"
+assert_json_eq "$(jq -nc --arg path "$stale_path" '{status:"repaired", branch:"feature/stale", path:$path, repaired:true}')" "$stale_stdout"
+assert_empty "$stale_stderr"
+
+stale_created_path="$repo_real/.worktrees/feature-stale-created"
+stale_created_stdout="$TMPROOT/stale-created.stdout"
+stale_created_stderr="$TMPROOT/stale-created.stderr"
+stale_created_branch="feature/stale-created"
+if run_worktree_start "$stale_created_stdout" "$stale_created_stderr" --branch "$stale_created_branch" --path "$stale_created_path" --print-path; then
+  :
+else
+  status=$?
+  printf 'stale-created initial exited %s\n' "$status" >&2
+  cat "$stale_created_stderr" >&2
+  exit "$status"
+fi
+
+git -C "$repo" update-ref -d "refs/heads/$stale_created_branch"
+rm -rf "$stale_created_path"
+
+if run_worktree_start "$stale_created_stdout" "$stale_created_stderr" --branch "$stale_created_branch" --path "$stale_created_path" --json; then
+  :
+else
+  status=$?
+  printf 'stale-created rerun exited %s\n' "$status" >&2
+  cat "$stale_created_stderr" >&2
+  exit "$status"
+fi
+
+assert_dir "$stale_created_path"
+assert_file "$stale_created_path/file.txt"
+assert_json_eq "$(jq -nc --arg path "$stale_created_path" '{status:"created", branch:"feature/stale-created", path:$path, repaired:false}')" "$stale_created_stdout"
+assert_empty "$stale_created_stderr"
+
+collision_stale_path="$repo_real/.worktrees/feature-collision-stale"
+collision_stdout="$TMPROOT/collision.stdout"
+collision_stderr="$TMPROOT/collision.stderr"
+collision_stale_branch="feature/collision-stale"
+collision_existing_branch="feature/collision-existing"
+if run_worktree_start "$collision_stdout" "$collision_stderr" --branch "$collision_stale_branch" --path "$collision_stale_path" --print-path; then
+  :
+else
+  status=$?
+  printf 'collision stale seed exited %s\n' "$status" >&2
+  cat "$collision_stderr" >&2
+  exit "$status"
+fi
+
+git -C "$repo" branch "$collision_existing_branch" HEAD
+rm -rf "$collision_stale_path"
+
+if run_worktree_start "$collision_stdout" "$collision_stderr" --branch "$collision_existing_branch" --path "$collision_stale_path" --json; then
+  fail "collision repair unexpectedly succeeded"
+fi
+
+assert_contains "Error: branch already exists: $collision_existing_branch" "$collision_stderr"
+
+tmux_partial_stdout="$TMPROOT/tmux-partial.stdout"
+tmux_partial_stderr="$TMPROOT/tmux-partial.stderr"
+tmux_partial_path="$repo_real/.worktrees/feature-tmux-partial"
+if TMUX=1 TMUX_PANE= TMUX_SET_EXIT_CODE=23 run_worktree_start "$tmux_partial_stdout" "$tmux_partial_stderr" --branch feature/tmux-partial --print-path; then
+  :
+else
+  status=$?
+  printf 'tmux partial guard exited %s\n' "$status" >&2
+  cat "$tmux_partial_stderr" >&2
+  exit "$status"
+fi
+
+assert_eq "$tmux_partial_path" "$(cat "$tmux_partial_stdout")" "tmux partial stdout"
+assert_empty "$tmux_partial_stderr"
+
+tmux_path="$repo_real/.worktrees/feature-tmux"
+tmux_stdout="$TMPROOT/tmux.stdout"
+tmux_stderr="$TMPROOT/tmux.stderr"
+if TMUX=1 TMUX_PANE=%1 run_worktree_start "$tmux_stdout" "$tmux_stderr" --branch feature/tmux --print-path; then
+  :
+else
+  status=$?
+  printf 'tmux publish exited %s\n' "$status" >&2
+  cat "$tmux_stderr" >&2
+  exit "$status"
+fi
+
+assert_contains "set $tmux_path" "$tmux_log"
+assert_eq "$tmux_path" "$(cat "$tmux_stdout")" "tmux stdout"
+assert_empty "$tmux_stderr"
+
+tmux_fail_stdout="$TMPROOT/tmux-fail.stdout"
+tmux_fail_stderr="$TMPROOT/tmux-fail.stderr"
+if TMUX=1 TMUX_PANE=%1 TMUX_SET_EXIT_CODE=23 run_worktree_start "$tmux_fail_stdout" "$tmux_fail_stderr" --branch feature/tmux-fail --print-path; then
+  fail "tmux failure unexpectedly succeeded"
+fi
+
+assert_contains "tmux publish failed" "$tmux_fail_stderr"
+assert_contains "$repo_real/.worktrees/feature-tmux-fail" "$tmux_fail_stderr"
+
+printf 'PASS  worktree-start regression test\n'

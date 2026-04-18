@@ -128,9 +128,19 @@ _worktree_sync_tmux_state() {
   fi
 }
 
-worktree-start() {
+_worktree_has_help_flag() {
+  local arg
+  for arg in "$@"; do
+    if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+worktree-create() {
   local path
-  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  if _worktree_has_help_flag "$@"; then
     "$HOME/.local/bin/worktree-start" "$@"
     return $?
   fi
@@ -140,17 +150,21 @@ worktree-start() {
   printf '%s\n' "$path"
 }
 
-worktree-create() {
-  worktree-start "$@"
-}
-
 worktree-cd() {
-  worktree-start "$@"
+  local path
+  if _worktree_has_help_flag "$@"; then
+    "$HOME/.local/bin/worktree-start" "$@"
+    return $?
+  fi
+  path="$("$HOME/.local/bin/worktree-start" "$@" --print-path)" || return $?
+  cd "$path" || return $?
+  _worktree_sync_tmux_state
+  printf '%s\n' "$path"
 }
 
 worktree-merge() {
   local path
-  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  if _worktree_has_help_flag "$@"; then
     "$HOME/.local/bin/worktree-merge" "$@"
     return $?
   fi
@@ -162,7 +176,7 @@ worktree-merge() {
 
 worktree-delete() {
   local path
-  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  if _worktree_has_help_flag "$@"; then
     "$HOME/.local/bin/worktree-delete" "$@"
     return $?
   fi
@@ -174,7 +188,7 @@ worktree-delete() {
 
 worktree-done() {
   local path
-  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  if _worktree_has_help_flag "$@"; then
     "$HOME/.local/bin/worktree-done" "$@"
     return $?
   fi
@@ -185,7 +199,15 @@ worktree-done() {
 }
 
 wts() {
-  worktree-start "$@"
+  local path
+  if _worktree_has_help_flag "$@"; then
+    "$HOME/.local/bin/worktree-start" "$@"
+    return $?
+  fi
+  path="$("$HOME/.local/bin/worktree-start" "$@" --print-path)" || return $?
+  cd "$path" || return $?
+  _worktree_sync_tmux_state
+  printf '%s\n' "$path"
 }
 
 wtd() {
