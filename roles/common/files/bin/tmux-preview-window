@@ -1,0 +1,12 @@
+#!/bin/bash
+# Capture every visible pane of a tmux window for fzf preview. Used by
+# tmux-switch-window. Takes one arg: a `session:window` target.
+window="${1:-}"
+[ -n "$window" ] || exit 0
+
+tmux list-panes -t "$window" -F '#{pane_id}|#{pane_index}|#{pane_width}x#{pane_height}|#{pane_current_command}' 2>/dev/null \
+  | while IFS='|' read -r pane_id idx dims cmd; do
+      printf '\e[1m── pane %s (%s %s) ──\e[0m\n' "$idx" "$cmd" "$dims"
+      tmux capture-pane -e -p -t "$pane_id"
+      printf '\n'
+    done

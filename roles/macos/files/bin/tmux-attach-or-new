@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-PATH="${PATH:-/usr/bin:/bin}:/opt/homebrew/bin:/usr/local/bin"
+# Ghostty launches this via `bash --noprofile --norc`, so GUI startup may not
+# include Homebrew paths. Ensure jq/tmux/helper scripts can resolve first.
+PATH="${PATH:-/usr/bin:/bin}:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin"
 export PATH
 
 state_dir="$HOME/.local/state/terminal-restore"

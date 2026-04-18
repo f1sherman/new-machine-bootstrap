@@ -1,3 +1,0 @@
-# Initialize mise for login shells. This is the last init script that is run
-# after login.
-if command -v mise > /dev/null; then eval "$(mise activate zsh)"; fi

@@ -1,0 +1,34 @@
+#!/bin/bash
+# Prints " (branch)" for a path's git repo, or nothing.
+# Used by tmux `pane-border-format`. Pure bash — no forks — so running it once
+# per pane per status-refresh (every 5s) doesn't pile up fork-exec overhead.
+set -u
+
+path="${1:-}"
+[ -n "$path" ] && [ -d "$path" ] || exit 0
+
+# Walk up to find the .git directory/file.
+gitdir=
+while [ -n "$path" ] && [ "$path" != "/" ]; do
+  if [ -d "$path/.git" ]; then
+    gitdir="$path/.git"
+    break
+  elif [ -f "$path/.git" ]; then
+    # Worktree: .git is a file containing "gitdir: /absolute/or/rel/path".
+    IFS= read -r content < "$path/.git" || exit 0
+    real="${content#gitdir: }"
+    case "$real" in
+      /*) gitdir="$real" ;;
+      *)  gitdir="$path/$real" ;;
+    esac
+    break
+  fi
+  path="${path%/*}"
+done
+
+[ -n "$gitdir" ] && [ -r "$gitdir/HEAD" ] || exit 0
+
+IFS= read -r head < "$gitdir/HEAD" || exit 0
+case "$head" in
+  "ref: refs/heads/"*) printf ' (%s)' "${head#ref: refs/heads/}" ;;
+esac

@@ -1,0 +1,291 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+reason='Do not push to main directly. Open a PR.'
+command="$(jq -r '.tool_input.command // empty' 2>/dev/null || true)"
+
+if [[ -z "$command" ]]; then
+  exit 0
+fi
+
+should_deny="$(COMMAND="$command" python3 - <<'PY'
+import os
+import re
+import shlex
+import subprocess
+from pathlib import PurePath
+
+command = os.environ['COMMAND']
+
+
+def current_branch(repo_args, repo_env):
+    try:
+        env = os.environ.copy()
+        env.update(repo_env)
+        return subprocess.check_output(
+            ['git', *repo_args, 'branch', '--show-current'],
+            env=env,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except subprocess.CalledProcessError:
+        return ''
+
+
+def token_segments(command_text):
+    lexer = shlex.shlex(command_text, posix=True, punctuation_chars=';&|()')
+    lexer.whitespace_split = True
+    tokens = list(lexer)
+    segments = []
+    current = []
+    for token in tokens:
+        if token in {';', '&&', '||', '|', '(', ')'}:
+            if current:
+                segments.append(current)
+                current = []
+            continue
+        current.append(token)
+    if current:
+        segments.append(current)
+    return segments
+
+
+def is_assignment(token):
+    return re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*=.*', token) is not None
+
+
+def is_shell_separator(token):
+    return token in {';', '&&', '||', '|', '(', ')'}
+
+
+def shell_wrapper_name(token):
+    return PurePath(token).name
+
+
+def is_shell_wrapper(token):
+    return shell_wrapper_name(token).endswith('sh')
+
+
+def refspec_targets_main(token):
+    token = token.lstrip('+')
+    if token in {'main', 'refs/heads/main'}:
+        return True
+    if ':' not in token:
+        return False
+    _, dst = token.rsplit(':', 1)
+    return dst in {'', 'main', 'refs/heads/main'}
+
+
+def repo_flag_args(tokens, index):
+    repo_args = []
+    while index < len(tokens):
+        token = tokens[index]
+        if token == 'push' or is_shell_separator(token):
+            break
+        if token in {'-C', '--git-dir', '--work-tree'}:
+            repo_args.append(token)
+            index += 1
+            if index < len(tokens):
+                repo_args.append(tokens[index])
+                index += 1
+            continue
+        if token.startswith('--git-dir=') or token.startswith('--work-tree=') or token.startswith('-C'):
+            repo_args.append(token)
+            index += 1
+            continue
+        if token == '-c':
+            index += 1
+            if index < len(tokens):
+                index += 1
+            continue
+        if token.startswith('-'):
+            index += 1
+            continue
+        break
+    return repo_args, index
+
+
+def shell_wrapper_payload(tokens, index):
+    if index + 1 >= len(tokens):
+        return None
+    if not is_shell_wrapper(tokens[index]):
+        return None
+    option = tokens[index + 1]
+    if not option.startswith('-') or 'c' not in option:
+        return None
+    if index + 2 >= len(tokens):
+        return None
+    return tokens[index + 2]
+
+
+def command_text_is_blocking(command_text):
+    for segment in token_segments(command_text):
+        if segment_is_blocking(segment):
+            return True
+    return False
+
+
+def segment_contains_git_push(segment):
+    index = 0
+    while index < len(segment):
+        token = segment[index]
+        if token in {'env', 'command', 'if', 'then', 'do', 'else', 'elif', 'fi', 'done', '!'}:
+            index += 1
+            continue
+        if token in {'while', 'until', 'sudo', 'time', '{'}:
+            index += 1
+            while index < len(segment) and segment[index].startswith('-'):
+                index += 1
+            continue
+        payload = shell_wrapper_payload(segment, index)
+        if payload is not None:
+            if command_text_contains_git_push(payload):
+                return True
+            index += 3
+            continue
+        break
+
+    if index >= len(segment) or segment[index] != 'git':
+        return False
+    index += 1
+
+    _, index = repo_flag_args(segment, index)
+    return index < len(segment) and segment[index] == 'push'
+
+
+def command_text_contains_git_push(command_text):
+    return any(segment_contains_git_push(segment) for segment in token_segments(command_text))
+
+
+def command_mentions_git_push(command_text):
+    return re.search(r'\bgit\s+push\b', command_text) is not None
+
+
+def command_has_function_definition(command_text):
+    return re.search(r'\b[A-Za-z_][A-Za-z0-9_]*\s*\(\)\s*\{', command_text) is not None
+
+
+def command_has_variable_command_indirection(command_text):
+    return re.search(r'(?:^|[;&|(){}])\s*\$\{?[A-Za-z_][A-Za-z0-9_]*\}?(?=\s|$)', command_text) is not None
+
+
+def command_has_command_substitution_with_git_push(command_text):
+    return (
+        re.search(r'`[^`]*\bgit\s+push\b[^`]*`', command_text) is not None
+        or re.search(r'\$\([^)]*\bgit\s+push\b[^)]*\)', command_text) is not None
+    )
+
+
+def segment_mutates_repo_context(segment):
+    index = 0
+    while index < len(segment):
+        token = segment[index]
+        if token == 'cd':
+            return True
+        if token == 'export':
+            index += 1
+            continue
+        if token in {'GIT_DIR', 'GIT_WORK_TREE'}:
+            return True
+        if is_assignment(token):
+            key, _ = token.split('=', 1)
+            if key in {'GIT_DIR', 'GIT_WORK_TREE'}:
+                return True
+            index += 1
+            continue
+        break
+    return False
+
+
+def segment_is_blocking(segment):
+    index = 0
+    repo_env = {}
+    while index < len(segment):
+        token = segment[index]
+        if is_assignment(token):
+            key, value = token.split('=', 1)
+            if key in {'GIT_DIR', 'GIT_WORK_TREE'}:
+                repo_env[key] = value
+            index += 1
+            continue
+        if token in {'env', 'command', 'if', 'then', 'do', 'else', 'elif', 'fi', 'done', '!'}:
+            index += 1
+            continue
+        if token in {'while', 'until', '{'}:
+            index += 1
+            continue
+        if token == 'time':
+            index += 1
+            while index < len(segment) and segment[index].startswith('-'):
+                index += 1
+            continue
+        if token == 'sudo':
+            index += 1
+            while index < len(segment) and segment[index].startswith('-'):
+                index += 1
+            continue
+        payload = shell_wrapper_payload(segment, index)
+        if payload is not None:
+            if command_text_is_blocking(payload):
+                return True
+            index += 3
+            continue
+        break
+
+    if index >= len(segment) or segment[index] != 'git':
+        return False
+    index += 1
+
+    repo_args, index = repo_flag_args(segment, index)
+
+    if index >= len(segment) or segment[index] != 'push':
+        return False
+    index += 1
+
+    push_tokens = segment[index:]
+    if any(token in {'--all', '--mirror'} for token in push_tokens):
+        return True
+
+    push_args = [token for token in push_tokens if not token.startswith('-')]
+    if len(push_args) >= 2 and any(refspec_targets_main(token) for token in push_args[1:]):
+        return True
+
+    if current_branch(repo_args, repo_env) == 'main' and len(push_args) <= 1:
+        return True
+
+    return False
+
+if command_mentions_git_push(command) and (
+    command_has_function_definition(command)
+    or command_has_variable_command_indirection(command)
+    or command_has_command_substitution_with_git_push(command)
+):
+    print('deny')
+    raise SystemExit(0)
+
+context_mutated = False
+for segment in token_segments(command):
+    if context_mutated and segment_contains_git_push(segment):
+        print('deny')
+        break
+    if segment_is_blocking(segment):
+        print('deny')
+        break
+    if segment_mutates_repo_context(segment):
+        context_mutated = True
+else:
+    print('allow')
+PY
+)"
+
+if [[ "$should_deny" != deny ]]; then
+  exit 0
+fi
+
+jq -n --arg reason "$reason" '{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": $reason
+  }
+}'
