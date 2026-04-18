@@ -13,14 +13,8 @@
     marker: "# {mark} ANSIBLE MANAGED BLOCK - TMUX"
     block: |
       # Launch tmux on interactive login (SSH)
-      # Attach to unattached session if available, otherwise create new session
       if [ -z "$TMUX" ] && [ -t 0 ]; then
-        unattached=$(tmux list-sessions 2>/dev/null | grep -v '(attached)' | head -1 | cut -d: -f1)
-        if [ -n "$unattached" ]; then
-          exec tmux attach -t "$unattached"
-        else
-          exec tmux new-session
-        fi
+        exec {{ ansible_facts["user_dir"] }}/.local/bin/tmux-restore-client
       fi
 
 - name: Configure zsh exec in .bashrc

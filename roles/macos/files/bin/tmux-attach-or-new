@@ -1,20 +1,27 @@
 #!/bin/bash
-# Attach to an existing unattached tmux session, or create a new one.
-# Used as Ghostty's command so that restarting Ghostty reconnects to
-# existing sessions instead of creating new empty ones each time.
+set -euo pipefail
 
-# Ghostty wraps this in `bash --noprofile --norc`, so PATH is the bare
-# login default. Prepend Homebrew's bin so the tmux server inherits a
-# PATH that contains `tmux` itself — TPM shells out to `tmux show-option`
-# and fails otherwise.
-export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
+# Ghostty launches this via `bash --noprofile --norc`, so GUI startup may not
+# include Homebrew paths. Ensure jq/tmux/helper scripts can resolve first.
+PATH="${PATH:-/usr/bin:/bin}:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin"
+export PATH
 
-if tmux list-sessions &>/dev/null; then
-  session=$(tmux list-sessions -F '#{session_attached} #{session_name}' 2>/dev/null |
-    awk '$1 == "0" {print substr($0, index($0,$2)); exit}')
-  if [ -n "$session" ]; then
-    exec /opt/homebrew/bin/tmux attach -t "=$session"
+state_dir="$HOME/.local/state/terminal-restore"
+manifest="$state_dir/ghostty-layout.last-good.json"
+marker="$state_dir/reconcile.done"
+reconcile_log="$state_dir/reconcile.log"
+
+if [ "$(uname -s)" = "Darwin" ] && [ -f "$manifest" ]; then
+  boot_epoch="$(sysctl -n kern.boottime | awk -F '[ ,}]+' '{print $4}')"
+  marker_epoch="$(cat "$marker" 2>/dev/null || printf '0')"
+
+  if [ "$marker_epoch" -lt "$boot_epoch" ] && \
+    jq -e --argjson boot_epoch "$boot_epoch" \
+      '(.saved_at | type) == "number" and .saved_at < $boot_epoch' \
+      "$manifest" >/dev/null 2>&1
+  then
+    "$HOME/.local/bin/ghostty-layout-reconcile" >/dev/null 2>>"$reconcile_log" &
   fi
 fi
 
-exec /opt/homebrew/bin/tmux new-session
+exec "$HOME/.local/bin/tmux-restore-client"
