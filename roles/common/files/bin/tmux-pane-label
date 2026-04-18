@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+pane_tty="${1:-}"
+pane_current_path="${2:-}"
+
+[ -n "$pane_tty" ] || exit 0
+[ -n "$pane_current_path" ] || exit 0
+
+pane_procs="$(ps -o args= -t "$pane_tty" 2>/dev/null || true)"
+
+extract_ssh_host() {
+  local args="$1"
+  local parts part skip_next
+  read -r -a parts <<< "$args"
+
+  skip_next=0
+  for part in "${parts[@]}"; do
+    if [ "$skip_next" -eq 1 ]; then
+      skip_next=0
+      continue
+    fi
+
+    case "$part" in
+      -b|-c|-D|-E|-e|-F|-I|-i|-J|-L|-l|-m|-O|-o|-p|-Q|-R|-S|-W|-w)
+        skip_next=1
+        continue
+        ;;
+      -*)
+        continue
+        ;;
+      ssh)
+        continue
+        ;;
+      *)
+        printf '%s\n' "${part##*@}"
+        return 0
+        ;;
+    esac
+  done
+
+  return 1
+}
+
+extract_codespace_name() {
+  local args="$1"
+  local parts part next
+  read -r -a parts <<< "$args"
+
+  for ((i = 0; i < ${#parts[@]}; i++)); do
+    part="${parts[i]}"
+    case "$part" in
+      --codespace=*)
+        printf '%s\n' "${part#--codespace=}"
+        return 0
+        ;;
+      --codespace|-c)
+        next="${parts[i + 1]:-}"
+        [ -n "$next" ] || return 1
+        printf '%s\n' "$next"
+        return 0
+        ;;
+    esac
+  done
+
+  return 1
+}
+
+extract_devpod_workspace() {
+  local args="$1"
+  local parts
+  read -r -a parts <<< "$args"
+
+  if [ "${#parts[@]}" -ge 3 ] && [ "${parts[0]}" = "devpod" ] && [ "${parts[1]}" = "ssh" ]; then
+    case "${parts[2]}" in
+      -*)
+        return 1
+        ;;
+      *)
+        printf '%s\n' "${parts[2]}"
+        return 0
+        ;;
+    esac
+  fi
+
+  return 1
+}
+
+git_branch_for_path() {
+  local path="$1"
+  local gitdir head content real
+
+  while [ -n "$path" ] && [ "$path" != "/" ]; do
+    if [ -d "$path/.git" ]; then
+      gitdir="$path/.git"
+      break
+    fi
+
+    if [ -f "$path/.git" ]; then
+      IFS= read -r content < "$path/.git" || return 1
+      real="${content#gitdir: }"
+      case "$real" in
+        /*) gitdir="$real" ;;
+        *) gitdir="$path/$real" ;;
+      esac
+      break
+    fi
+
+    path="${path%/*}"
+  done
+
+  [ -n "${gitdir:-}" ] && [ -r "$gitdir/HEAD" ] || return 1
+  IFS= read -r head < "$gitdir/HEAD" || return 1
+  case "$head" in
+    ref:\ refs/heads/*)
+      printf '%s\n' "${head#ref: refs/heads/}"
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+dir_basename() {
+  local path="${1%/}"
+  path="${path##*/}"
+  [ -n "$path" ] || path="/"
+  printf '%s\n' "$path"
+}
+
+label=""
+
+if [[ "$pane_procs" == *"gh codespace ssh"* ]] || [[ "$pane_procs" == *"gh cs ssh"* ]]; then
+  label="$(extract_codespace_name "$pane_procs" || true)"
+  [ -n "$label" ] || label="codespace"
+elif [[ "$pane_procs" == *"devpod ssh"* ]]; then
+  label="$(extract_devpod_workspace "$pane_procs" || true)"
+  [ -n "$label" ] || label="devpod"
+elif [[ "$pane_procs" == ssh* ]] || [[ "$pane_procs" == *$'\nssh '* ]]; then
+  label="$(extract_ssh_host "$pane_procs" || true)"
+  [ -n "$label" ] || label="ssh"
+fi
+
+if [ -z "$label" ]; then
+  if branch="$(git_branch_for_path "$pane_current_path" 2>/dev/null)"; then
+    label="$branch $(dir_basename "$pane_current_path")"
+  else
+    label="$(dir_basename "$pane_current_path")"
+  fi
+fi
+
+printf '%s\n' "$label"
+exit 0
