@@ -52,8 +52,8 @@ assert_tmux_file() {
 
 assert_contains "roles/common/tasks/main.yml" "tmux-pane-label"
 assert_contains "roles/common/tasks/main.yml" "tmux-window-label"
-assert_contains "roles/common/templates/dotfiles/zshrc" 'command tmux-session-name "$TMUX_PANE" &>/dev/null &!'
-assert_contains "roles/common/templates/dotfiles/zshrc" 'command tmux-window-label "$TMUX_PANE" &>/dev/null &!'
+assert_contains "roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh" 'command tmux-session-name "$TMUX_PANE" &>/dev/null &!'
+assert_contains "roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh" 'command tmux-window-label "$TMUX_PANE" &>/dev/null &!'
 
 assert_tmux_file "roles/macos/templates/dotfiles/tmux.conf"
 assert_tmux_file "roles/linux/files/dotfiles/tmux.conf"
