@@ -131,3 +131,13 @@ run_case \
 
 output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" bash "$script" tty-shell-local "$tmp_dir" 2>/dev/null || true)"
 assert_not_contains "$output" "zsh" "shell-backed local pane never zsh"
+
+run_case \
+  "multiline ssh pane" \
+  "tty-multiline-ssh" \
+  "$tmp_dir" \
+  "claw02" \
+  $'zsh -l\nssh dev@claw02 -p 22'
+
+output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" bash "$script" tty-multiline-ssh "$tmp_dir" 2>/dev/null || true)"
+assert_not_contains "$output" "zsh" "multiline ssh pane never zsh"

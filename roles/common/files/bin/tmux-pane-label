@@ -130,16 +130,25 @@ dir_basename() {
 
 label=""
 
-if [[ "$pane_procs" == *"gh codespace ssh"* ]] || [[ "$pane_procs" == *"gh cs ssh"* ]]; then
-  label="$(extract_codespace_name "$pane_procs" || true)"
-  [ -n "$label" ] || label="codespace"
-elif [[ "$pane_procs" == *"devpod ssh"* ]]; then
-  label="$(extract_devpod_workspace "$pane_procs" || true)"
-  [ -n "$label" ] || label="devpod"
-elif [[ "$pane_procs" == ssh* ]] || [[ "$pane_procs" == *$'\nssh '* ]]; then
-  label="$(extract_ssh_host "$pane_procs" || true)"
-  [ -n "$label" ] || label="ssh"
-fi
+while IFS= read -r line; do
+  case "$line" in
+    *"gh codespace ssh"*|*"gh cs ssh"*)
+      label="$(extract_codespace_name "$line" || true)"
+      [ -n "$label" ] || label="codespace"
+      break
+      ;;
+    *"devpod ssh"*)
+      label="$(extract_devpod_workspace "$line" || true)"
+      [ -n "$label" ] || label="devpod"
+      break
+      ;;
+    ssh* )
+      label="$(extract_ssh_host "$line" || true)"
+      [ -n "$label" ] || label="ssh"
+      break
+      ;;
+  esac
+done <<< "$pane_procs"
 
 if [ -z "$label" ]; then
   if branch="$(git_branch_for_path "$pane_current_path" 2>/dev/null)"; then
