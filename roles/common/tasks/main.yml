@@ -1010,8 +1010,8 @@
 
 - name: Install shared commit helper to ~/.claude/skills
   copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/committing-changes/commit.sh'
-    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/committing-changes/commit.sh'
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/p-commit/commit.sh'
+    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/p-commit/commit.sh'
     mode: '0755'
 
 - name: Install common skills to ~/.codex/skills
@@ -1030,9 +1030,34 @@
 
 - name: Install shared commit helper to ~/.codex/skills
   copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/committing-changes/commit.sh'
-    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/committing-changes/commit.sh'
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/p-commit/commit.sh'
+    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/p-commit/commit.sh'
     mode: '0755'
+
+- name: Remove legacy custom skill and agent installs
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/{{ item }}'
+    state: absent
+  loop:
+    - .claude/skills/committing-changes
+    - .codex/skills/committing-changes
+    - .claude/skills/creating-implementation-plans
+    - .codex/skills/creating-implementation-plans
+    - .claude/skills/implementing-plans
+    - .codex/skills/implementing-plans
+    - .claude/skills/researching-codebases
+    - .codex/skills/researching-codebases
+    - .claude/skills/resuming-handoffs
+    - .codex/skills/resuming-handoffs
+    - .claude/skills/resuming-codex-sessions
+    - .codex/skills/resuming-claude-sessions
+    - .claude/skills/converting-from-codex
+    - .codex/skills/converting-from-claude
+    - .claude/agents/personal:committer.md
+    - .claude/agents/personal:codebase-analyzer.md
+    - .claude/agents/personal:codebase-locator.md
+    - .claude/agents/personal:codebase-pattern-finder.md
+    - .claude/agents/personal:web-search-researcher.md
 
 - name: Remove legacy GSD state
   file:
