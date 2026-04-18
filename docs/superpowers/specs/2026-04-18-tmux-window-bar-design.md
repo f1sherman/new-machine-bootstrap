@@ -6,12 +6,15 @@
 ## Goal
 
 Keep a persistent list of tmux windows visible at all times within the current
-session on both macOS and Linux dev hosts.
+session on both macOS and Linux dev hosts, while making the labels useful
+enough to replace generic shell names such as `zsh`.
 
 The target experience is:
 
-- a thin top bar acts like virtual tabs for the current tmux session
-- the existing bottom pane-border status remains in place for branch/path/host
+- a thin top bar stays visible for the current tmux session
+- the top bar and the active pane border use the same label text source
+- labels are branch-first when a branch exists
+- neither the top bar nor the pane border shows window or pane numbers
 - window switching bindings and popup navigation keep working as they do today
 
 ## Non-goals
@@ -19,48 +22,113 @@ The target experience is:
 - No cross-session tab bar. The always-on bar is current-session only.
 - No replacement for `M-w` window switching popup or `M-8` session switching.
 - No Ghostty-native tab logic or platform-specific UI layer.
-- No new window naming system. The bar reflects tmux window names as they are.
-- No extra path, branch, or host metadata in the top bar.
+- No visible window numbers or pane numbers in steady-state chrome.
+- No separate naming scheme for the top bar and active pane border.
 
 ## Background
 
 Both managed tmux configs currently share the same broad model:
 
-- `status off`
+- `status` enabled at the top
 - `pane-border-status bottom`
-- per-pane border content for branch, path, and host context
-- `M-w` popup window picker for preview-and-jump navigation
+- a persistent window list rendered from native tmux `window_name`
+- pane-border content for branch, path, and host context
 
-This keeps noise low, but it removes a persistent view of the window list. The
-current gap is awareness, not navigation: switching works, but the set of open
-windows is not visible unless the user opens a popup.
+This proved the top bar itself is useful, but the current label source is too
+weak: shell-backed windows often render as `zsh`, which adds no value.
+
+The repository already has some related naming infrastructure:
+
+- `tmux-session-name` derives session names from pane context
+- tmux hooks already fire on `pane-focus-in` and `client-session-changed`
+- zsh hooks already fire on `chpwd` and `precmd`
+
+Current gap:
+
+- session names are contextual, but window names are not
+- the pane border and top bar do not share one text source
+- the existing top bar shows identifiers the user does not want to keep
 
 ## Design Summary
 
-Use tmux's native status bar at the top as an always-on current-session window
-list, while preserving the existing bottom pane-border status unchanged.
+Keep tmux's native top status bar, but stop treating raw `window_name` as an
+authoritative label. Instead:
 
-This is intentionally the smallest viable design:
+- the active pane owns the window label
+- the top bar and pane border both derive text from the same helper logic
+- the top bar shows label text only, plus native activity/bell markers
+- the pane border shows the same label text with pane-focused styling
 
-- native tmux status bar only
-- current session only
-- tab-like labels: window index + window name
-- no new helper scripts for the bar
-- existing popup navigation remains available
+The label priority is:
+
+1. local git pane: `branch dir`
+2. local non-git pane: `dir`
+3. remote pane: host or remote context name
+
+Generic shell names such as `zsh` should never appear in either label.
 
 ## Components
 
 Managed files:
 
-1. `roles/macos/templates/dotfiles/tmux.conf`
-2. `roles/linux/files/dotfiles/tmux.conf`
+1. `roles/common/files/bin/tmux-pane-label`
+2. `roles/common/files/bin/tmux-window-label`
+3. `roles/common/templates/dotfiles/zshrc`
+4. `roles/common/tasks/main.yml`
+5. `roles/macos/templates/dotfiles/tmux.conf`
+6. `roles/linux/files/dotfiles/tmux.conf`
 
-No new runtime helper scripts are required in phase 1 unless implementation
-proves native tmux format strings are insufficient.
+`tmux-pane-label` is the shared text-source helper. `tmux-window-label`
+updates the current tmux window name from the active pane using the same text.
+
+## Label Rules
+
+### Local git panes
+
+Render:
+
+`branch dir`
+
+Examples:
+
+- `feature/tmux-bar new-machine-bootstrap`
+- `main dotfiles`
+
+The branch must come first so truncation preserves the highest-signal text for
+as long as possible.
+
+### Local non-git panes
+
+Render:
+
+`dir`
+
+Example:
+
+- `tmp`
+
+### Remote panes
+
+Render:
+
+- SSH host, when one is known
+- Codespace name or DevPod workspace name, when present
+- a generic `ssh` fallback only when no better remote identifier is available
+
+Examples:
+
+- `claw02`
+- `codespace-foo`
+- `workspace-123`
+
+### Generic shells
+
+Do not render shell process names such as `zsh`, `bash`, `sh`, or `login` as
+labels.
 
 ## Bar Layout
 
-The top bar should be configured as follows on both platforms:
+The top bar remains configured as follows on both platforms:
 
 - `status` enabled
 - `status-position top`
@@ -71,118 +139,134 @@ The top bar should be configured as follows on both platforms:
 - `status-right-length 0`
 - `window-status-separator` empty
 
-The bottom pane-border status stays enabled and unchanged:
+The bottom pane-border status remains enabled:
 
 - `pane-border-status bottom`
-- existing `pane-border-format`
-- existing active/inactive border styling
+- active/inactive pane border styling stays in place
 
-This creates a two-layer model:
+The steady-state text chrome contains no explicit window or pane numbers.
 
-- top bar: window awareness
-- bottom border: pane-specific detail
+## Top Bar Text
 
-## Window Labels
+The top bar renders:
 
-Each window in the top bar should render as a compact tab-like pill using:
+- the current tmux `window_name`, which is actively maintained from the active
+  pane's label text
+- native tmux `+` activity marker when present
+- native tmux `!` bell marker when present
 
-- tmux window index
-- tmux window name
+The top bar does not prepend a window index.
 
-No cwd, branch, host, pane command, or session name should appear in the top
-bar.
+Long labels may be truncated by tmux from the right. Because branch comes
+first, truncation still preserves the most important part longest.
 
-Long window names should be truncated to a fixed width of 18 visible
-characters so one verbose name cannot crowd out the rest of the bar. The index
-must always remain visible.
+## Pane Border Text
+
+The active pane border renders the same label text source as the top bar.
+
+It does not prepend a pane index.
+
+The pane border may still include surrounding style treatment and host-aware
+coloring, but the text content should stay aligned with the window label logic.
 
 ## Styling
 
-The active window should be visually prominent. Inactive windows should be
-muted but still readable.
+Use the same label text in both places, but keep distinct focus styling:
+
+- the top bar expresses active window vs inactive window
+- the pane border expresses active pane vs inactive pane
+
+This keeps the bars mentally aligned while preserving two different focus
+signals.
 
 Use the existing repo tmux palette explicitly:
 
 - overall status background: black
 - active window: bright cyan highlight with dark text
 - inactive windows: dark grey background with light text
+- active pane border: bright cyan
+- inactive pane border: dark grey
 
-The bar should read as lightweight chrome, not as a second detail-heavy status
-line.
+## Update Triggers
 
-## Activity and Alerts
+Window labels must update live while the user stays in the same pane.
 
-The bar should include compact native tmux activity markers only when present:
+The update triggers are:
 
-- `+` for activity
-- `!` for bell
+- `pane-focus-in`
+- `client-session-changed`
+- zsh `chpwd`
+- zsh `precmd`
 
-These markers should be appended to the window label, not expanded into extra
-text. No additional alert types or counters are introduced in phase 1.
+This keeps branch and directory changes reflected without requiring the user to
+leave and re-enter a pane.
 
 ## Interaction Rules
 
-- The always-on bar shows windows for the current tmux session only.
-- `M-n` and `M-p` continue to move through windows exactly as today.
-- `M-w` remains the richer navigator with previews and direct selection.
-- `M-8`, `M-9`, and `M-0` session-switching behavior remains unchanged.
-- The bar is informational first; it does not introduce new workflows.
-
-## Width Pressure
-
-The bar should spend its width budget on showing as many windows as possible.
-Because the chosen format is only `index + name`, no secondary metadata needs
-to be dropped at narrow widths.
-
-If the terminal becomes too narrow to show the full list cleanly:
-
-- tmux's normal clipping behavior is acceptable
-- labels remain single-line
-- truncation applies to the window name portion, not the index
-- `M-w` remains the fallback for full discovery
-
-Phase 1 does not attempt horizontal scrolling, multiple status rows, or
-adaptive metadata.
+- the always-on bar shows windows for the current tmux session only
+- `M-n` and `M-p` continue to move through windows exactly as today
+- `M-w` remains the richer navigator with previews and direct selection
+- `M-8`, `M-9`, and `M-0` session-switching behavior remain unchanged
+- the bar is informational first; it does not introduce new workflows
 
 ## Implementation Notes
 
-The implementation should prefer native tmux format strings and style options
-over shell commands in the status line. This keeps refresh cost low and avoids
-reintroducing fork-heavy status behavior.
+The top bar should keep using native tmux `window_name` rendering for cheap
+status refreshes. The design should not add expensive shelling-out to the top
+status line itself.
 
-The existing bottom-border format already carries branch/path/host context and
-should not be duplicated in the top bar.
+The shared label helper should be the single source of truth for both:
+
+- pane-border label text
+- active-pane-derived window names
+
+The existing `tmux-session-name` behavior may remain separate. This design does
+not require changing session naming as part of the window-label work.
 
 The same design should be applied in both tmux configs so macOS and Linux keep
 the same mental model.
+
+## Error Handling
+
+If the helper cannot determine one label source:
+
+- fall back to the next label source in the defined order
+- never emit an empty top-bar label when a directory or remote context is known
+- for local non-git panes, use the current directory basename
+- for remote panes, prefer SSH host, then Codespace name, then DevPod workspace
+- use generic `ssh` only when none of those remote identifiers is available
+
+If live update hooks fail, tmux should continue operating normally; the worst
+case should be a stale label, not broken pane or window navigation.
 
 ## Test Strategy
 
 Use red/green TDD for the implementation work.
 
-Automated regression coverage should be lightweight and config-focused:
+Automated regression coverage should include:
 
-1. add a small shell test that asserts both managed tmux configs include the
-   expected top-bar settings and still retain bottom pane-border status
-2. assert the existing window/session navigation bindings remain present
-3. keep the test narrow to configuration invariants, not full interactive tmux
-   rendering
+1. helper tests for local git, local non-git, and remote label derivation
+2. helper tests that generic shells do not become labels
+3. config tests that both managed tmux configs keep the top bar, pane border,
+   and navigation bindings
+4. config tests that visible window and pane numbers are absent
 
 Manual verification after provisioning:
 
 1. run `bin/provision`
 2. confirm the top bar is visible on macOS
 3. confirm the top bar is visible on Linux dev host
-4. confirm the bottom pane-border status still shows branch/path/host
-5. confirm active and inactive window styling are readable
-6. confirm `M-n`, `M-p`, and `M-w` still work
-7. confirm long names truncate cleanly
-8. confirm activity and bell markers appear only when relevant
+4. confirm shell-backed windows no longer show `zsh`
+5. confirm branch-first labels appear in git repos
+6. confirm non-git local panes fall back to directory name
+7. confirm remote panes show host or remote context
+8. confirm `+` and `!` markers still appear only when relevant
+9. confirm `M-n`, `M-p`, and `M-w` still work
 
 ## Out of Scope for Phase 1
 
 - adaptive density modes
 - cross-session tabs
-- per-window cwd in the top bar
+- explicit numeric window targeting in the visible chrome
+- explicit numeric pane targeting in the visible chrome
 - Ghostty tab integration
-- new tmux helper scripts purely for status formatting
