@@ -72,8 +72,6 @@ After making changes, apply them with `bin/provision` when the environment allow
 
 ## Agent Behavior
 - **Do it yourself**: If you can run a command such as `bin/provision` or `git commit`, do it directly instead of asking the user to run it.
-- **Spec approval is the only gate**: Get approval on the written spec. After that, proceed through implementation without extra approval prompts.
-- **Always use subagent execution**: If a workflow offers subagent-driven vs inline execution, choose subagent-driven automatically.
 - **Create PRs automatically**: Once verification passes and the work is complete, invoke `create-pull-request` without asking for PR approval.
 - **Always use worktrees**: Before making changes, create a git worktree using the `superpowers:using-git-worktrees` skill. Never work directly on the current branch.
 - **Always commit specs and plans**: Design specs and implementation plans must be committed under `docs/superpowers/` or `.coding-agent/`.
