@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+repo_root="$(cd "$script_dir/../../../.." && pwd)"
+
+pass=0
+fail=0
+
+assert_contains() {
+  local file="$1"
+  local needle="$2"
+
+  if grep -Fq -- "$needle" "$repo_root/$file"; then
+    pass=$((pass + 1))
+    printf 'PASS  %s contains %s\n' "$file" "$needle"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s missing %s\n' "$file" "$needle"
+  fi
+}
+
+assert_not_contains() {
+  local file="$1"
+  local needle="$2"
+
+  if grep -Fq -- "$needle" "$repo_root/$file"; then
+    fail=$((fail + 1))
+    printf 'FAIL  %s unexpectedly contains %s\n' "$file" "$needle"
+  else
+    pass=$((pass + 1))
+    printf 'PASS  %s omits %s\n' "$file" "$needle"
+  fi
+}
+
+assert_tmux_file() {
+  local file="$1"
+
+  assert_contains "$file" "set -g status on"
+  assert_contains "$file" "set -g status-position top"
+  assert_contains "$file" "set -g pane-border-status bottom"
+  assert_contains "$file" "set -g window-status-format ' #{window_name}#{?window_activity_flag,+,}#{?window_bell_flag,!,} '"
+  assert_contains "$file" "set -g window-status-current-format ' #{window_name}#{?window_activity_flag,+,}#{?window_bell_flag,!,} '"
+  assert_contains "$file" "set -g pane-border-format '#{?pane_active,#[bg=black#,fg=colour51],#[bg=black#,fg=colour240]} #(~/.local/bin/tmux-pane-label \"#{pane_tty}\" \"#{pane_current_path}\") '"
+  assert_contains "$file" 'tmux-window-label #{pane_id}'
+  assert_contains "$file" 'tmux-session-name #{pane_id}'
+  assert_not_contains "$file" '#{window_index}'
+  assert_not_contains "$file" '#{pane_index}'
+  assert_not_contains "$file" 'tmux-pane-branch'
+  assert_not_contains "$file" 'tmux-host-tag'
+}
+
+assert_contains "roles/common/tasks/main.yml" "tmux-pane-label"
+assert_contains "roles/common/tasks/main.yml" "tmux-window-label"
+assert_contains "roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh" 'command tmux-session-name "$TMUX_PANE" &>/dev/null &!'
+assert_contains "roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh" 'command tmux-window-label "$TMUX_PANE" &>/dev/null &!'
+
+assert_tmux_file "roles/macos/templates/dotfiles/tmux.conf"
+assert_tmux_file "roles/linux/files/dotfiles/tmux.conf"
+
+printf '\npassed=%s failed=%s\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

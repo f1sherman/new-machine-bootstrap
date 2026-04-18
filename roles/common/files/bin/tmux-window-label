@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+pane_id="${1:-${TMUX_PANE:-}}"
+[ -n "$pane_id" ] || exit 0
+
+pane_info="$(tmux display-message -p -t "$pane_id" '#{window_id}	#{pane_active}	#{window_name}	#{pane_tty}	#{pane_current_path}' 2>/dev/null || true)"
+[ -n "$pane_info" ] || exit 0
+
+IFS=$'\t' read -r window_id pane_active window_name pane_tty pane_current_path <<< "$pane_info"
+[ -n "$window_id" ] || exit 0
+[ "$pane_active" = "1" ] || exit 0
+
+label_helper="${TMUX_PANE_LABEL_BIN:-$HOME/.local/bin/tmux-pane-label}"
+if [ ! -x "$label_helper" ]; then
+  label_helper="tmux-pane-label"
+fi
+
+label="$("$label_helper" "$pane_tty" "$pane_current_path" 2>/dev/null || true)"
+[ -n "$label" ] || exit 0
+[ "$label" != "$window_name" ] || exit 0
+
+tmux rename-window -t "$window_id" "$label" 2>/dev/null || true
+exit 0

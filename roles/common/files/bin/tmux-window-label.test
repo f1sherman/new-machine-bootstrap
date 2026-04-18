@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script="$script_dir/tmux-window-label"
+
+tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/tmux-window-label.XXXXXX")"
+trap 'rm -rf "$tmp_root"' EXIT
+
+fake_bin="$tmp_root/fake-bin"
+mkdir -p "$fake_bin"
+
+tmux_log="$tmp_root/tmux.log"
+pane_label_log="$tmp_root/pane-label.log"
+: > "$tmux_log"
+: > "$pane_label_log"
+
+cat > "$fake_bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+log="${TMUX_LOG:?}"
+
+printf '%s\n' "$*" >> "$log"
+
+case "${1:-}" in
+  display-message)
+    printf '%s\n' "${TMUX_DISPLAY_OUTPUT:-}"
+    ;;
+  rename-window)
+    ;;
+esac
+EOF
+chmod +x "$fake_bin/tmux"
+
+cat > "$fake_bin/tmux-pane-label" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+log="${PANE_LABEL_LOG:?}"
+printf '%s|%s\n' "${1:-}" "${2:-}" >> "$log"
+printf '%s\n' "${PANE_LABEL_OUTPUT:-}"
+EOF
+chmod +x "$fake_bin/tmux-pane-label"
+
+assert_eq() {
+  local got="$1" want="$2" name="$3"
+  if [ "$got" != "$want" ]; then
+    printf 'not ok - %s\nexpected: %s\ngot: %s\n' "$name" "$want" "$got" >&2
+    exit 1
+  fi
+  printf 'ok - %s\n' "$name"
+}
+
+assert_empty_file() {
+  local file="$1" name="$2"
+  if [ -s "$file" ]; then
+    printf 'not ok - %s\nunexpected contents:\n' "$name" >&2
+    cat "$file" >&2
+    exit 1
+  fi
+  printf 'ok - %s\n' "$name"
+}
+
+assert_file_contains() {
+  local file="$1" needle="$2" name="$3"
+  if ! grep -Fqx -- "$needle" "$file"; then
+    printf 'not ok - %s\nmissing: %s\n' "$name" "$needle" >&2
+    exit 1
+  fi
+  printf 'ok - %s\n' "$name"
+}
+
+run_case() {
+  local pane_id="$1"
+  local display_output="$2"
+  local label_output="$3"
+
+  : > "$tmux_log"
+  : > "$pane_label_log"
+
+  PATH="$fake_bin:$PATH" \
+    HOME="$tmp_root/home" \
+    TMUX=1 \
+    TMUX_LOG="$tmux_log" \
+    TMUX_DISPLAY_OUTPUT="$display_output" \
+    TMUX_PANE_LABEL_BIN="$fake_bin/tmux-pane-label" \
+    PANE_LABEL_LOG="$pane_label_log" \
+    PANE_LABEL_OUTPUT="$label_output" \
+    bash "$script" "$pane_id"
+}
+
+mkdir -p "$tmp_root/home"
+
+run_case \
+  "%11" \
+  $'@7\t1\tmain dotfiles\t/dev/ttys001\t/tmp/repo' \
+  "feature/foo repo"
+
+assert_file_contains "$tmux_log" $'display-message -p -t %11 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}' "active pane queries tmux"
+assert_file_contains "$pane_label_log" "/dev/ttys001|/tmp/repo" "active pane derives label"
+assert_file_contains "$tmux_log" "rename-window -t @7 feature/foo repo" "active pane renames changed label"
+
+run_case \
+  "%12" \
+  $'@8\t1\tfeature/foo repo\t/dev/ttys002\t/tmp/repo' \
+  "feature/foo repo"
+
+assert_file_contains "$tmux_log" $'display-message -p -t %12 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}' "unchanged label queries tmux"
+assert_file_contains "$pane_label_log" "/dev/ttys002|/tmp/repo" "unchanged label still derives"
+if grep -Fq "rename-window" "$tmux_log"; then
+  printf 'not ok - unchanged label skips rename\nunexpected rename:\n' >&2
+  cat "$tmux_log" >&2
+  exit 1
+fi
+printf 'ok - unchanged label skips rename\n'
+
+run_case \
+  "%13" \
+  $'@9\t0\tmain dotfiles\t/dev/ttys003\t/tmp/repo' \
+  "feature/foo repo"
+
+assert_file_contains "$tmux_log" $'display-message -p -t %13 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}' "inactive pane queries tmux"
+assert_empty_file "$pane_label_log" "inactive pane skips label helper"
+if grep -Fq "rename-window" "$tmux_log"; then
+  printf 'not ok - inactive pane skips rename\nunexpected rename:\n' >&2
+  cat "$tmux_log" >&2
+  exit 1
+fi
+printf 'ok - inactive pane skips rename\n'

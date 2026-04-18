@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script="$script_dir/tmux-pane-label"
+
+tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/tmux-pane-label.XXXXXX")"
+trap 'rm -rf "$tmp_root"' EXIT
+
+fake_bin="$tmp_root/fake-bin"
+mkdir -p "$fake_bin"
+
+ps_log="$tmp_root/ps-calls"
+: > "$ps_log"
+
+cat > "$fake_bin/ps" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+log="${PS_CALL_LOG:?}"
+fixture_dir="${PS_FIXTURE_DIR:?}"
+
+tty=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o)
+      shift
+      [ "${1:-}" = "args=" ] || exit 2
+      ;;
+    -t)
+      shift
+      tty="${1:-}"
+      ;;
+  esac
+  shift || true
+done
+
+[ -n "$tty" ] || exit 2
+printf '%s\n' "$tty" >> "$log"
+
+fixture="$fixture_dir/$tty"
+[ -f "$fixture" ] || exit 0
+cat "$fixture"
+EOF
+chmod +x "$fake_bin/ps"
+
+assert_eq() {
+  local got="$1" want="$2" name="$3"
+  if [ "$got" != "$want" ]; then
+    printf 'not ok - %s\nexpected: %s\ngot: %s\n' "$name" "$want" "$got" >&2
+    exit 1
+  fi
+  printf 'ok - %s\n' "$name"
+}
+
+assert_not_contains() {
+  local got="$1" needle="$2" name="$3"
+  if [[ "$got" == *"$needle"* ]]; then
+    printf 'not ok - %s\nunexpected: %s\n' "$name" "$needle" >&2
+    exit 1
+  fi
+  printf 'ok - %s\n' "$name"
+}
+
+run_case() {
+  local name="$1" tty="$2" path="$3" expected="$4"
+  local fixture="$5"
+
+  printf '%s\n' "$fixture" > "$tmp_root/$tty"
+  : > "$ps_log"
+
+  local output status
+  output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" bash "$script" "$tty" "$path" 2>/dev/null || true)"
+  status="$(wc -l < "$ps_log" | tr -d ' ')"
+
+  assert_eq "$status" "1" "$name ps called once"
+  assert_eq "$output" "$expected" "$name output"
+}
+
+git_repo="$tmp_root/repo"
+mkdir -p "$git_repo"
+git_template="$tmp_root/git-template"
+mkdir -p "$git_template"
+git -c init.templateDir="$git_template" -C "$git_repo" init -b main >/dev/null
+printf 'ref: refs/heads/feature/foo\n' > "$git_repo/.git/HEAD"
+
+tmp_dir="$tmp_root/tmp"
+mkdir -p "$tmp_dir"
+
+run_case \
+  "local git pane" \
+  "tty-local-git" \
+  "$git_repo" \
+  "feature/foo repo" \
+  "shell: zsh"
+
+run_case \
+  "local non-git pane" \
+  "tty-local-tmp" \
+  "$tmp_dir" \
+  "tmp" \
+  "shell: login"
+
+run_case \
+  "plain ssh pane" \
+  "tty-ssh" \
+  "$tmp_dir" \
+  "claw02" \
+  "ssh dev@claw02 -p 22"
+
+run_case \
+  "codespaces pane" \
+  "tty-codespace" \
+  "$tmp_dir" \
+  "space-alpha" \
+  "gh codespace ssh --codespace space-alpha"
+
+run_case \
+  "devpod pane" \
+  "tty-devpod" \
+  "$tmp_dir" \
+  "workspace-beta" \
+  "devpod ssh workspace-beta"
+
+run_case \
+  "shell-backed local pane" \
+  "tty-shell-local" \
+  "$tmp_dir" \
+  "tmp" \
+  "zsh -l"
+
+output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" bash "$script" tty-shell-local "$tmp_dir" 2>/dev/null || true)"
+assert_not_contains "$output" "zsh" "shell-backed local pane never zsh"
+
+run_case \
+  "multiline ssh pane" \
+  "tty-multiline-ssh" \
+  "$tmp_dir" \
+  "claw02" \
+  $'zsh -l\nssh dev@claw02 -p 22'
+
+output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" bash "$script" tty-multiline-ssh "$tmp_dir" 2>/dev/null || true)"
+assert_not_contains "$output" "zsh" "multiline ssh pane never zsh"
