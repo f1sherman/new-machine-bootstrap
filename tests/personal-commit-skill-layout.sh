@@ -164,6 +164,10 @@ assert_exists "$CLAUDE_SKILL" "Claude commit skill exists"
 assert_exists "$CODEX_SKILL" "Codex commit skill exists"
 
 assert_contains "$CLAUDE_SKILL" "personal:committer" "Claude source skill dispatches personal:committer"
+assert_contains "$CLAUDE_SKILL" "Invoking this skill is explicit approval to commit the current repository state." "Claude source skill records commit approval on invocation"
+assert_contains "$CODEX_SKILL" "Invoking this skill is explicit approval to commit the current repository state." "Codex source skill records commit approval on invocation"
+assert_not_contains "$CLAUDE_SKILL" "~/.gsd/" "Claude source skill has no legacy GSD references"
+assert_not_contains "$CODEX_SKILL" "~/.gsd/" "Codex source skill has no legacy GSD references"
 
 assert_contains "$CODEX_SKILL" "spawn_agent" "Codex source skill uses spawn_agent"
 assert_contains "$CODEX_SKILL" "wait_agent" "Codex source skill waits immediately for the agent"

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Block direct git commit commands - use the committing-changes skill instead
+# Block direct git commit commands - use the `committing-changes` skill via the Skill tool instead
 # Allows commit.sh (from the committing-changes skill) through.
 
 COMMAND=$(cat | jq -r '.tool_input.command // empty')
