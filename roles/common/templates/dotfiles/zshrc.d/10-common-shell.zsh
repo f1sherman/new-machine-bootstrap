@@ -40,7 +40,7 @@ tempe() {
 export FZF_CTRL_T_COMMAND='rg --files --ignore-vcs'
 export FZF_CTRL_R_OPTS='--bind enter:accept-or-print-query'
 
-if [[ -d "${HOMEBREW_PREFIX}/share/zsh-completions" ]]; then
+if [[ -n "${HOMEBREW_PREFIX:-}" ]] && [[ -d "${HOMEBREW_PREFIX}/share/zsh-completions" ]]; then
   FPATH="${HOMEBREW_PREFIX}/share/zsh-completions:$FPATH"
 fi
 

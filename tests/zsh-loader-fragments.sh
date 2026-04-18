@@ -65,6 +65,11 @@ require_line "common shell fragment keeps canonical duss" \
 require_line "personal shell fragment keeps codex-yolo" \
   "alias codex-yolo='codex --dangerously-bypass-approvals-and-sandbox'" \
   "$PERSONAL_ZSHRC"
+if rg -q -F -- '/home/linuxbrew/.linuxbrew' "$COMMON_ZSHENV"; then
+  fail "common env fragment should not hardcode Linux Homebrew"
+else
+  pass "common env fragment no longer hardcodes Linux Homebrew"
+fi
 
 cp "$ZSHRC" "$tmp_dir/.zshrc"
 cp "$ZSHENV" "$tmp_dir/.zshenv"

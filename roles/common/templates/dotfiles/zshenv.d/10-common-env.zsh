@@ -26,15 +26,13 @@ pathprepend "${HOME}/.local/bin"
 export HOMEBREW_PREFIX="{{ brew_prefix }}"
 export HOMEBREW_CELLAR="{{ brew_prefix }}/Cellar"
 export HOMEBREW_REPOSITORY="{{ brew_prefix }}"
-{% else %}
-export HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew"
-export HOMEBREW_CELLAR="${HOMEBREW_PREFIX}/Cellar"
-export HOMEBREW_REPOSITORY="${HOMEBREW_PREFIX}/Homebrew"
 {% endif %}
+{% if ansible_facts['os_family'] == "Darwin" %}
 fpath=("${HOMEBREW_PREFIX}/share/zsh/site-functions" $fpath)
 pathprepend "${HOMEBREW_PREFIX}/bin"
 pathprepend "${HOMEBREW_PREFIX}/sbin"
 pathprepend "${HOMEBREW_PREFIX}/opt/curl/bin"
+{% endif %}
 pathprepend "/usr/local/sbin"
 pathprepend "/usr/local/bin"
 
