@@ -1,102 +1,12 @@
 # shellcheck shell=bash
 
-if [[ -n "$ZSH_ENV_LOADED" ]]; then
-  return 0  # Already loaded, skip rest of file
-fi
-export ZSH_ENV_LOADED=1
+for zshenv_fragment in "${ZDOTDIR:-$HOME}"/.zshenv.d/*.zsh(N); do
+  # shellcheck disable=SC1090
+  source "$zshenv_fragment"
+done
+unset zshenv_fragment
 
-# Prepend to path avoiding duplicates
-pathprepend() {
-  local dir="${1%/}"
-  if [ -d "${dir}" ]; then
-    if [[ ":$PATH:" != *":${dir}:"* ]]; then
-      PATH="${dir}:$PATH"
-    else
-      # Remove the directory from PATH
-      PATH=":$PATH:"
-      PATH=${PATH//:${dir}:/:}
-      PATH=${PATH#:}
-      PATH=${PATH%:}
-      # Add it to the beginning
-      PATH="${dir}:$PATH"
-    fi
-  fi
-}
-
-pathprepend "${HOME}/.local/bin"
-
-# Homebrew env — hardcoded per-platform to avoid forking `brew --prefix` and
-# `brew shellenv` (both slow enough to add seconds to new-shell startup).
-# The values below are what `brew shellenv` would export, set directly.
-{% if ansible_facts['os_family'] == "Darwin" %}
-export HOMEBREW_PREFIX="{{ brew_prefix }}"
-export HOMEBREW_CELLAR="{{ brew_prefix }}/Cellar"
-export HOMEBREW_REPOSITORY="{{ brew_prefix }}"
-{% else %}
-export HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew"
-export HOMEBREW_CELLAR="${HOMEBREW_PREFIX}/Cellar"
-export HOMEBREW_REPOSITORY="${HOMEBREW_PREFIX}/Homebrew"
-{% endif %}
-fpath=("${HOMEBREW_PREFIX}/share/zsh/site-functions" $fpath)
-pathprepend "${HOMEBREW_PREFIX}/bin"
-pathprepend "${HOMEBREW_PREFIX}/sbin"
-pathprepend "${HOMEBREW_PREFIX}/opt/curl/bin"
-
-# Standard macOS third-party bin dirs (normally added by /etc/paths via
-# path_helper, but we skip /etc/zprofile for perf — see tmux.conf note).
-# /usr/local/bin is where Docker Desktop puts its `docker` symlink.
-pathprepend "/usr/local/sbin"
-pathprepend "/usr/local/bin"
-
-# Mise shims on PATH. Kept in .zshenv (not .zlogin) so non-login shells also
-# see the right tool versions.
-_mise_shims="${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
-if [[ -d "$_mise_shims" ]]; then
-  pathprepend "$_mise_shims"
-fi
-unset _mise_shims
-
-# Load any machine-specific customizations
 if [ -f ~/.zshenv.local ]; then
   # shellcheck disable=SC1090
   . ~/.zshenv.local
 fi
-
-# Don't require merge commit editing for conflict-free merges, see http://git-blame.blogspot.com/2012/02/updates-to-git-merge-in-upcoming-1710.html
-export GIT_MERGE_AUTOEDIT=no
-
-# Increase bash history
-export HISTSIZE='32768';
-export HISTFILESIZE="${HISTSIZE}"
-
-# Use UTF-8
-export LANG='en_US.UTF-8'
-export LC_ALL='en_US.UTF-8'
-
-# Enable colors in ls
-export CLICOLOR='true'
-
-# Use solorized colors in ls
-export LSCOLORS='gxfxbEaEBxxEhEhBaDaCaD'
-
-# Allow use of a ripgrep configuration file
-export RIPGREP_CONFIG_PATH="${HOME}/.ripgreprc"
-
-export FZF_DEFAULT_COMMAND='rg --files'
-
-export PAGER='less -S'
-export GH_PAGER='delta'
-
-alias assume=". assume"
-
-# Sets ANTHROPIC_API_KEY and OPENAI_API_KEY.
-# Uppercase via zsh's ${(U)...} parameter expansion (no fork) instead of
-# shelling out to `tr` — the pipe was ~400ms per iteration under load.
-for API_NAME in "openai" "anthropic"; do
-  API_KEY_FILE="${HOME}/.config/api-keys/${API_NAME}"
-  if [ -f "$API_KEY_FILE" ] && [ -s "$API_KEY_FILE" ]; then
-    API_ENV_NAME="${(U)API_NAME}_API_KEY"
-    API_ENV_VALUE="$(<"$API_KEY_FILE")"
-    export "${API_ENV_NAME}=${API_ENV_VALUE}"
-  fi
-done
