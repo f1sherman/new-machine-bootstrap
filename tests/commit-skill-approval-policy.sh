@@ -106,9 +106,8 @@ assert_contains "$COMMITTER_AGENT" "Do not push. Pushing requires separate user 
 assert_not_contains "$COMMITTER_AGENT" "job is to create well-structured git commits and push them" "personal:committer drops push responsibility"
 assert_not_contains "$COMMITTER_AGENT" "The script handles staging, committing, and pushing" "personal:committer documents commit-only helper"
 
-assert_contains "$BLOCK_COMMIT_HOOK" "Invoke the \`personal:commit\` skill via the Skill tool instead" "git commit hook points at Skill tool invocation"
+assert_contains "$BLOCK_COMMIT_HOOK" "Invoke the \`committing-changes\` skill via the Skill tool instead" "git commit hook points at Claude's skill invocation"
 assert_not_contains "$BLOCK_COMMIT_HOOK" "Use the /personal:commit skill instead" "git commit hook drops slash-syntax guidance"
-assert_not_contains "$BLOCK_COMMIT_HOOK" "committing-changes" "git commit hook drops the legacy skill name"
 assert_not_contains "$BLOCK_COMMIT_HOOK" "user approval" "git commit hook no longer claims the skill handles approval"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
