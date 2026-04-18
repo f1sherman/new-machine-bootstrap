@@ -219,6 +219,16 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-session-name'
     mode: 0755
 
+- name: Install tmux label helpers
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/{{ item }}'
+    src: '{{ playbook_dir }}/roles/common/files/bin/{{ item }}'
+    mode: 0755
+  loop:
+    - tmux-pane-label
+    - tmux-window-label
+
 - name: Install terminal restore helpers
   copy:
     backup: yes

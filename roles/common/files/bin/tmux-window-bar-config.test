@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+repo_root="$(cd "$script_dir/../../../.." && pwd)"
 
 pass=0
 fail=0
@@ -11,7 +11,7 @@ assert_contains() {
   local file="$1"
   local needle="$2"
 
-  if grep -Fq -- "$needle" "$REPO_ROOT/$file"; then
+  if grep -Fq -- "$needle" "$repo_root/$file"; then
     pass=$((pass + 1))
     printf 'PASS  %s contains %s\n' "$file" "$needle"
   else
@@ -24,7 +24,7 @@ assert_not_contains() {
   local file="$1"
   local needle="$2"
 
-  if grep -Fq -- "$needle" "$REPO_ROOT/$file"; then
+  if grep -Fq -- "$needle" "$repo_root/$file"; then
     fail=$((fail + 1))
     printf 'FAIL  %s unexpectedly contains %s\n' "$file" "$needle"
   else
@@ -38,29 +38,25 @@ assert_tmux_file() {
 
   assert_contains "$file" "set -g status on"
   assert_contains "$file" "set -g status-position top"
-  assert_contains "$file" "set -g status-justify left"
-  assert_contains "$file" "set -g status-style 'bg=black,fg=colour252'"
-  assert_contains "$file" "set -g status-left ''"
-  assert_contains "$file" "set -g status-right ''"
-  assert_contains "$file" "set -g status-left-length 0"
-  assert_contains "$file" "set -g status-right-length 0"
-  assert_contains "$file" "set -g window-status-separator ''"
-  assert_contains "$file" "set -g window-status-style 'bg=colour236,fg=colour252'"
-  assert_contains "$file" "set -g window-status-current-style 'bg=colour51,fg=black,bold'"
-  assert_contains "$file" "set -g window-status-format ' #{window_index} #{=/18/...:window_name}#{?window_activity_flag,+,}#{?window_bell_flag,!,} '"
-  assert_contains "$file" "set -g window-status-current-format ' #{window_index} #{=/18/...:window_name}#{?window_activity_flag,+,}#{?window_bell_flag,!,} '"
   assert_contains "$file" "set -g pane-border-status bottom"
-  assert_contains "$file" "bind -n M-n next-window"
-  assert_contains "$file" "bind -n M-p previous-window"
-  assert_contains "$file" "bind-key -n M-w display-popup -E -w 95% -h 90% tmux-switch-window"
-  assert_contains "$file" "bind-key -n M-8 display-popup -E -w 60% -h 60% tmux-switch-session"
-  assert_not_contains "$file" "set -g status off"
-  assert_not_contains "$file" "set -g window-status-current-format ' | #(\$HOME/.local/bin/tmux-window-name #{pane_tty})'"
+  assert_contains "$file" "set -g window-status-format ' #{window_name}#{?window_activity_flag,+,}#{?window_bell_flag,!,} '"
+  assert_contains "$file" "set -g window-status-current-format ' #{window_name}#{?window_activity_flag,+,}#{?window_bell_flag,!,} '"
+  assert_contains "$file" 'tmux-pane-label "#{pane_tty}" "#{pane_current_path}"'
+  assert_contains "$file" 'tmux-window-label #{pane_id}'
+  assert_contains "$file" 'tmux-session-name #{pane_id}'
+  assert_not_contains "$file" '#{window_index}'
+  assert_not_contains "$file" '#{pane_index}'
+  assert_not_contains "$file" 'tmux-pane-branch'
+  assert_not_contains "$file" 'tmux-host-tag'
 }
+
+assert_contains "roles/common/tasks/main.yml" "tmux-pane-label"
+assert_contains "roles/common/tasks/main.yml" "tmux-window-label"
+assert_contains "roles/common/templates/dotfiles/zshrc" 'command tmux-session-name "$TMUX_PANE" &>/dev/null &!'
+assert_contains "roles/common/templates/dotfiles/zshrc" 'command tmux-window-label "$TMUX_PANE" &>/dev/null &!'
 
 assert_tmux_file "roles/macos/templates/dotfiles/tmux.conf"
 assert_tmux_file "roles/linux/files/dotfiles/tmux.conf"
 
-printf '\n'
-printf 'passed=%s failed=%s\n' "$pass" "$fail"
+printf '\npassed=%s failed=%s\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

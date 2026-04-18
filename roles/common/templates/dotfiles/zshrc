@@ -458,12 +458,13 @@ alias codex-yolo='codex --dangerously-bypass-approvals-and-sandbox'
 
 # Update tmux window name on directory change and before each prompt
 if [[ -n "$TMUX" ]]; then
-  _tmux_window_name_update() {
+  _tmux_label_update() {
     command tmux-session-name "$TMUX_PANE" &>/dev/null &!
+    command tmux-window-label "$TMUX_PANE" &>/dev/null &!
   }
   autoload -Uz add-zsh-hook
-  add-zsh-hook chpwd _tmux_window_name_update
-  add-zsh-hook precmd _tmux_window_name_update
+  add-zsh-hook chpwd _tmux_label_update
+  add-zsh-hook precmd _tmux_label_update
 fi
 
 # Load any machine-specific customizations
@@ -504,4 +505,3 @@ if [[ -z "$CLAUDECODE" ]] && command -v zoxide > /dev/null; then
   source "$_zoxide_cache"
   unset _zoxide_cache _zoxide_bin
 fi
-
