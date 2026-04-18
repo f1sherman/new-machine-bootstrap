@@ -1,10 +1,44 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-incoming_path="${1:-$PATH}"
-tmux set-environment -g PATH "$incoming_path"
+append_path_entry() {
+  local path_value="$1"
+  local entry="$2"
 
-case "$(uname -s)" in
+  case ":$path_value:" in
+    *":$entry:"*) printf '%s\n' "$path_value" ;;
+    *)
+      if [ -n "$path_value" ]; then
+        printf '%s:%s\n' "$path_value" "$entry"
+      else
+        printf '%s\n' "$entry"
+      fi
+      ;;
+  esac
+}
+
+platform="$(uname -s)"
+execution_path="${PATH:-/usr/bin:/bin}"
+incoming_path="${1:-$execution_path}"
+
+case "$platform" in
+  Darwin)
+    # GUI-launched clients often miss Homebrew bins on first attach.
+    execution_path="$(append_path_entry "$execution_path" /opt/homebrew/bin)"
+    execution_path="$(append_path_entry "$execution_path" /usr/local/bin)"
+    incoming_path="$(append_path_entry "$incoming_path" /opt/homebrew/bin)"
+    incoming_path="$(append_path_entry "$incoming_path" /usr/local/bin)"
+    ;;
+esac
+
+tmux_bin="$(PATH="$execution_path" command -v tmux)"
+
+PATH="$execution_path"
+export PATH
+
+"$tmux_bin" set-environment -g PATH "$incoming_path"
+
+case "$platform" in
   Linux)
     "$HOME/.local/bin/tmux-session-gc" --platform linux --days 14 >/dev/null 2>&1 || true
     ;;
