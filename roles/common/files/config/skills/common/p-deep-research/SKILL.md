@@ -1,5 +1,5 @@
 ---
-name: deep-research
+name: p-deep-research
 description: >
   Use when users need in-depth research on a complex topic or a comprehensive
   report requiring multiple sources and synthesis. Avoid for simple fact-finding,

@@ -1,5 +1,5 @@
 ---
-name: humanizer
+name: p-humanizer
 description: >
   Use when given text to remove AI writing patterns and make writing sound more
   natural and human. Apply when reviewing or editing prose, documentation, blog

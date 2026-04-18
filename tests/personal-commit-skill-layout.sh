@@ -224,14 +224,10 @@ done <<'EOF'
 .codex/skills/humanizer|cleanup removes Codex humanizer
 .claude/skills/validating-plans|cleanup removes Claude validate-plan
 .codex/skills/validating-plans|cleanup removes Codex validate-plan
-.claude/commands/catchup.md|cleanup removes Claude catchup command
-.codex/commands/catchup.md|cleanup removes Codex catchup command
-.claude/commands/creating-ics-files.md|cleanup removes Claude create-ics command
-.codex/commands/creating-ics-files.md|cleanup removes Codex create-ics command
-.claude/commands/deep-research.md|cleanup removes Claude deep-research command
-.codex/commands/deep-research.md|cleanup removes Codex deep-research command
-.claude/commands/humanizer.md|cleanup removes Claude humanizer command
-.codex/commands/humanizer.md|cleanup removes Codex humanizer command
+catchup.md|cleanup removes catchup command
+creating-ics-files.md|cleanup removes create-ics command
+deep-research.md|cleanup removes deep-research command
+humanizer.md|cleanup removes humanizer command
 EOF
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

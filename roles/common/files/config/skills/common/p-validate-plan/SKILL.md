@@ -1,5 +1,5 @@
 ---
-name: personal:validate-plan
+name: p-validate-plan
 description: >
   Validate that an implementation plan was executed correctly by verifying success criteria
   and identifying deviations or issues. Use after implementation work is complete.
@@ -161,7 +161,7 @@ Always verify:
 Recommended workflow:
 1. `p-implement-plan` - Execute the implementation
 2. `p-commit` - Create atomic commits for changes
-3. `personal:validate-plan` - Verify implementation correctness
+3. `p-validate-plan` - Verify implementation correctness
 
 The validation works best after commits are made, as it can analyze the git history to understand what was implemented.
 

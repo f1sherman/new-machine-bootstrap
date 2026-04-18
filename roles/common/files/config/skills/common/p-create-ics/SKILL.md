@@ -1,5 +1,5 @@
 ---
-name: creating-ics-files
+name: p-create-ics
 description: >
   Creates RFC 5545-compliant .ics calendar files from documents or metadata.
   Use when the user asks to create calendar events, meeting invites, or .ics files.

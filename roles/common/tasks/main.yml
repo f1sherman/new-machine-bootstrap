@@ -1041,8 +1041,18 @@
   loop:
     - .claude/skills/committing-changes
     - .codex/skills/committing-changes
+    - .claude/skills/catchup
+    - .codex/skills/catchup
+    - .claude/skills/creating-handoffs
+    - .codex/skills/creating-handoffs
+    - .claude/skills/creating-ics-files
+    - .codex/skills/creating-ics-files
     - .claude/skills/creating-implementation-plans
     - .codex/skills/creating-implementation-plans
+    - .claude/skills/deep-research
+    - .codex/skills/deep-research
+    - .claude/skills/humanizer
+    - .codex/skills/humanizer
     - .claude/skills/implementing-plans
     - .codex/skills/implementing-plans
     - .claude/skills/researching-codebases
@@ -1053,6 +1063,8 @@
     - .codex/skills/resuming-claude-sessions
     - .claude/skills/converting-from-codex
     - .codex/skills/converting-from-claude
+    - .claude/skills/validating-plans
+    - .codex/skills/validating-plans
     - .claude/agents/personal:committer.md
     - .claude/agents/personal:codebase-analyzer.md
     - .claude/agents/personal:codebase-locator.md
@@ -1083,6 +1095,10 @@
     path: '{{ ansible_facts["user_dir"] }}/.claude/commands/{{ item }}'
     state: absent
   with_items:
+    - 'catchup.md'
+    - 'creating-ics-files.md'
+    - 'deep-research.md'
+    - 'humanizer.md'
     - 'personal:commit.md'
     - 'personal:create-handoff.md'
     - 'personal:create-plan.md'
@@ -1103,6 +1119,10 @@
     path: '{{ ansible_facts["user_dir"] }}/.codex/commands/{{ item }}'
     state: absent
   with_items:
+    - 'catchup.md'
+    - 'creating-ics-files.md'
+    - 'deep-research.md'
+    - 'humanizer.md'
     - 'personal:commit.md'
     - 'personal:create-handoff.md'
     - 'personal:create-plan.md'

@@ -1,5 +1,5 @@
 ---
-name: personal:create-handoff
+name: p-create-handoff
 description: >
   Write concise handoff documents to transfer work context to another agent session.
   Use when the user asks to hand off or wrap up work for later.

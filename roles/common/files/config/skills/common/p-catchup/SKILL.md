@@ -1,5 +1,5 @@
 ---
-name: catchup
+name: p-catchup
 description: >
   Use when the user wants a quick summary of the current session context.
   Use when switching between sessions, losing track, or needing a refresher
