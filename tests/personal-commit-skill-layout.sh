@@ -4,9 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 MAIN_YML="$REPO_ROOT/roles/common/tasks/main.yml"
-COMMON_DIR="$REPO_ROOT/roles/common/files/config/skills/common/committing-changes"
-CLAUDE_SKILL="$REPO_ROOT/roles/common/files/config/skills/claude/committing-changes/SKILL.md"
-CODEX_SKILL="$REPO_ROOT/roles/common/files/config/skills/codex/committing-changes/SKILL.md"
+COMMON_DIR="$REPO_ROOT/roles/common/files/config/skills/common/p-commit"
+CLAUDE_SKILL="$REPO_ROOT/roles/common/files/config/skills/claude/p-commit/SKILL.md"
+CODEX_SKILL="$REPO_ROOT/roles/common/files/config/skills/codex/p-commit/SKILL.md"
 TASK_ROWS="$(mktemp)"
 FAIL_CONTEXT="$(mktemp)"
 trap 'rm -f "$TASK_ROWS" "$FAIL_CONTEXT"' EXIT
@@ -163,9 +163,15 @@ assert_missing "$COMMON_DIR/SKILL.md" "shared commit SKILL.md removed from commo
 assert_exists "$CLAUDE_SKILL" "Claude commit skill exists"
 assert_exists "$CODEX_SKILL" "Codex commit skill exists"
 
-assert_contains "$CLAUDE_SKILL" "personal:committer" "Claude source skill dispatches personal:committer"
+assert_contains "$CLAUDE_SKILL" "p-committer" "Claude source skill dispatches p-committer"
 assert_contains "$CLAUDE_SKILL" "Invoking this skill is explicit approval to commit the current repository state." "Claude source skill records commit approval on invocation"
 assert_contains "$CODEX_SKILL" "Invoking this skill is explicit approval to commit the current repository state." "Codex source skill records commit approval on invocation"
+assert_not_contains "$CLAUDE_SKILL" "committing-changes" "Claude source skill drops legacy committing-changes references"
+assert_not_contains "$CODEX_SKILL" "committing-changes" "Codex source skill drops legacy committing-changes references"
+assert_not_contains "$CLAUDE_SKILL" "personal:commit" "Claude source skill drops legacy personal:commit references"
+assert_not_contains "$CODEX_SKILL" "personal:commit" "Codex source skill drops legacy personal:commit references"
+assert_not_contains "$CLAUDE_SKILL" "personal:committer" "Claude source skill drops legacy personal:committer references"
+assert_not_contains "$CODEX_SKILL" "personal:committer" "Codex source skill drops legacy personal:committer references"
 assert_not_contains "$CLAUDE_SKILL" "~/.gsd/" "Claude source skill has no legacy GSD references"
 assert_not_contains "$CODEX_SKILL" "~/.gsd/" "Codex source skill has no legacy GSD references"
 
@@ -174,7 +180,7 @@ assert_contains "$CODEX_SKILL" "wait_agent" "Codex source skill waits immediatel
 assert_contains "$CODEX_SKILL" "agent_type: worker" "Codex source skill uses a worker agent"
 assert_contains "$CODEX_SKILL" "fork_context: false" "Codex source skill avoids inheriting full session context"
 assert_contains "$CODEX_SKILL" "2-4 sentence summary" "Codex source skill keeps the summary contract"
-assert_contains "$CODEX_SKILL" "~/.codex/skills/committing-changes/commit.sh" "Codex source skill uses the shared commit helper"
+assert_contains "$CODEX_SKILL" "~/.codex/skills/p-commit/commit.sh" "Codex source skill uses the shared commit helper"
 assert_contains "$CODEX_SKILL" "Report the worker result" "Codex source skill reports the worker result"
 assert_not_contains "$CODEX_SKILL" "personal:committer" "Codex source skill avoids personal:committer"
 
