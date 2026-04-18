@@ -321,7 +321,9 @@
 
       * Workspace: `~/projects/`
       * Bias toward action. Only ask user when you can't do it yourself.
+      * Spec approval: only approval gate. Get approval on the written spec, then proceed without another implementation approval prompt.
       * Plan execution: never ask whether to use subagent-driven or inline execution; always choose subagent execution.
+      * Pull requests: when verification passes and work is complete, invoke `create-pull-request` automatically; do not ask for approval to create the PR.
       * Worktrees: create using `worktree-start`. Created other way: run `tmux-agent-worktree set <absolute-path>`. When done: `tmux-agent-worktree clear`.
       * Comments: use sparingly. Explain why, not what.
       * JSON/YAML parsing: use `jq` or `yq`, never use python or ruby.
