@@ -4,7 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 MAIN_YML="$REPO_ROOT/roles/common/tasks/main.yml"
-COMMON_DIR="$REPO_ROOT/roles/common/files/config/skills/common/p-commit"
+COMMON_SKILLS_ROOT="$REPO_ROOT/roles/common/files/config/skills/common"
+COMMON_DIR="$COMMON_SKILLS_ROOT/p-commit"
 CLAUDE_SKILL="$REPO_ROOT/roles/common/files/config/skills/claude/p-commit/SKILL.md"
 CODEX_SKILL="$REPO_ROOT/roles/common/files/config/skills/codex/p-commit/SKILL.md"
 TASK_ROWS="$(mktemp)"
@@ -163,6 +164,20 @@ assert_missing "$COMMON_DIR/SKILL.md" "shared commit SKILL.md removed from commo
 assert_exists "$CLAUDE_SKILL" "Claude commit skill exists"
 assert_exists "$CODEX_SKILL" "Codex commit skill exists"
 
+while IFS='|' read -r skill relative_file frontmatter legacy_dir; do
+  local_file="$COMMON_SKILLS_ROOT/$relative_file"
+  assert_exists "$local_file" "$skill source skill exists"
+  assert_contains "$local_file" "$frontmatter" "$skill uses canonical frontmatter"
+  assert_missing "$COMMON_SKILLS_ROOT/$legacy_dir" "$skill removes legacy source directory"
+done <<'EOF'
+p-catchup|p-catchup/SKILL.md|name: p-catchup|catchup
+p-create-handoff|p-create-handoff/SKILL.md|name: p-create-handoff|creating-handoffs
+p-create-ics|p-create-ics/SKILL.md|name: p-create-ics|creating-ics-files
+p-deep-research|p-deep-research/SKILL.md|name: p-deep-research|deep-research
+p-humanizer|p-humanizer/SKILL.md|name: p-humanizer|humanizer
+p-validate-plan|p-validate-plan/SKILL.md|name: p-validate-plan|validating-plans
+EOF
+
 assert_contains "$CLAUDE_SKILL" "p-committer" "Claude source skill dispatches p-committer"
 assert_contains "$CLAUDE_SKILL" "Invoking this skill is explicit approval to commit the current repository state." "Claude source skill records commit approval on invocation"
 assert_contains "$CODEX_SKILL" "Invoking this skill is explicit approval to commit the current repository state." "Codex source skill records commit approval on invocation"
@@ -193,6 +208,31 @@ assert_copy_sequence "{{ ansible_facts[\"user_dir\"] }}/.codex/skills/" \
   "roles/common/files/config/skills/common/" \
   "roles/common/files/config/skills/codex/" \
   "Codex install order copies common before codex-specific"
+
+while IFS='|' read -r path name; do
+  assert_contains "$MAIN_YML" "$path" "$name"
+done <<'EOF'
+.claude/skills/catchup|cleanup removes Claude catchup
+.codex/skills/catchup|cleanup removes Codex catchup
+.claude/skills/creating-handoffs|cleanup removes Claude create-handoff
+.codex/skills/creating-handoffs|cleanup removes Codex create-handoff
+.claude/skills/creating-ics-files|cleanup removes Claude create-ics
+.codex/skills/creating-ics-files|cleanup removes Codex create-ics
+.claude/skills/deep-research|cleanup removes Claude deep-research
+.codex/skills/deep-research|cleanup removes Codex deep-research
+.claude/skills/humanizer|cleanup removes Claude humanizer
+.codex/skills/humanizer|cleanup removes Codex humanizer
+.claude/skills/validating-plans|cleanup removes Claude validate-plan
+.codex/skills/validating-plans|cleanup removes Codex validate-plan
+.claude/commands/catchup.md|cleanup removes Claude catchup command
+.codex/commands/catchup.md|cleanup removes Codex catchup command
+.claude/commands/creating-ics-files.md|cleanup removes Claude create-ics command
+.codex/commands/creating-ics-files.md|cleanup removes Codex create-ics command
+.claude/commands/deep-research.md|cleanup removes Claude deep-research command
+.codex/commands/deep-research.md|cleanup removes Codex deep-research command
+.claude/commands/humanizer.md|cleanup removes Claude humanizer command
+.codex/commands/humanizer.md|cleanup removes Codex humanizer command
+EOF
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 if [ "$fail" -ne 0 ]; then
