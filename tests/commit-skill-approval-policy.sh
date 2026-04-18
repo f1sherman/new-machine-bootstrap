@@ -99,7 +99,7 @@ assert_not_contains "$COMMIT_SH" "push failed" "commit.sh no longer handles push
 assert_commit_invocation_approval "$CLAUDE_SKILL" "Claude commit skill"
 assert_commit_invocation_approval "$CODEX_SKILL" "Codex commit skill"
 
-assert_contains "$CODEX_SKILL" "Do not push. Pushing requires separate user approval." "Codex commit skill keeps explicit no-push rule in worker prompt"
+assert_not_contains "$CODEX_SKILL" "Do not push. Pushing requires separate user approval." "Codex commit skill drops the explicit no-push rule in worker prompt"
 assert_not_contains "$CODEX_SKILL" "If a push fails" "Codex worker instructions drop push failure handling"
 
 assert_contains "$COMMITTER_AGENT" "Do not push. Pushing requires separate user approval." "personal:committer forbids pushing"
