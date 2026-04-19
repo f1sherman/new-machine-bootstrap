@@ -20,6 +20,19 @@ assert_contains() {
   fi
 }
 
+assert_not_contains() {
+  local file="$1"
+  local needle="$2"
+
+  if grep -Fq -- "$needle" "$REPO_ROOT/$file"; then
+    fail=$((fail + 1))
+    printf 'FAIL  %s unexpectedly contains %s\n' "$file" "$needle"
+  else
+    pass=$((pass + 1))
+    printf 'PASS  %s omits %s\n' "$file" "$needle"
+  fi
+}
+
 assert_contains "roles/common/tasks/main.yml" "tmux-restore-lib.sh"
 assert_contains "roles/common/tasks/main.yml" "tmux-restore-client"
 assert_contains "roles/common/tasks/main.yml" "tmux-session-gc"
@@ -34,7 +47,12 @@ assert_contains "roles/macos/templates/dotfiles/tmux.conf" "tmux-client-attached
 assert_contains "roles/macos/templates/dotfiles/tmux.conf" "@continuum-save-interval '5'"
 
 assert_contains "roles/linux/files/dotfiles/tmux.conf" "tmux-client-attached"
+assert_not_contains "roles/linux/files/dotfiles/tmux.conf" "set -g prefix F12"
+assert_not_contains "roles/linux/files/dotfiles/tmux.conf" "unbind C-b"
+assert_not_contains "roles/linux/files/dotfiles/tmux.conf" "bind F12 send-prefix"
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "tmux-resurrect"
 assert_contains "roles/linux/files/dotfiles/tmux.conf" "@continuum-save-interval '5'"
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "tmux-continuum"
 
 assert_contains "roles/dev_host/tasks/main.yml" 'exec {{ ansible_facts["user_dir"] }}/.local/bin/tmux-restore-client'
 
