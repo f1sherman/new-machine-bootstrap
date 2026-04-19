@@ -114,11 +114,19 @@ _worktree_ensure_gitignore_line() {
   local ignore_file="$repo_root/.gitignore"
   local tmp_file
 
+  if [[ -f "$ignore_file" ]] && "$(_worktree_cmd grep)" -Fqx '.worktrees/' "$ignore_file"; then
+    return 0
+  fi
+
   tmp_file="$("$(_worktree_cmd mktemp)" "${TMPDIR:-/tmp}/worktree-gitignore.XXXXXX")"
   if [[ -f "$ignore_file" ]]; then
-    "$(_worktree_cmd grep)" -Fvx '.worktrees/' "$ignore_file" > "$tmp_file" || true
+    "$(_worktree_cmd cat)" "$ignore_file" > "$tmp_file"
   else
     : > "$tmp_file"
+  fi
+
+  if [[ -s "$tmp_file" ]] && [[ -n "$("$(_worktree_cmd tail)" -c 1 "$tmp_file")" ]]; then
+    printf '\n' >> "$tmp_file"
   fi
   printf '.worktrees/\n' >> "$tmp_file"
   "$(_worktree_cmd mv)" "$tmp_file" "$ignore_file"

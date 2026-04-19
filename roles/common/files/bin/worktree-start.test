@@ -52,6 +52,21 @@ assert_empty() {
   }
 }
 
+assert_file_equals() {
+  local expected_file="$1"
+  local actual_file="$2"
+  local label="$3"
+
+  cmp -s "$expected_file" "$actual_file" || {
+    printf '%s mismatch\n' "$label" >&2
+    printf -- '--- expected ---\n' >&2
+    cat "$expected_file" >&2
+    printf -- '--- actual ---\n' >&2
+    cat "$actual_file" >&2
+    exit 1
+  }
+}
+
 assert_json_eq() {
   local expected="$1"
   local actual_file="$2"
@@ -101,7 +116,13 @@ git -C "$repo" commit -q -m base
 mkdir -p "$repo/.coding-agent/nested" "$repo/.claude"
 printf 'keep me\n' > "$repo/.coding-agent/nested/note.txt"
 printf '{ "scope": "repo" }\n' > "$repo/.claude/settings.local.json"
-printf '# local repo ignores\n' > "$repo/.gitignore"
+cat > "$repo/.gitignore" <<'EOF'
+# local repo ignores
+tmp/
+.worktrees/
+.claude/settings.local.json
+EOF
+cp "$repo/.gitignore" "$TMPROOT/gitignore.expected"
 
 printf 'next\n' > "$repo/file.txt"
 git -C "$repo" commit -q -am next
@@ -160,6 +181,7 @@ assert_file "$default_path/file.txt"
 assert_file "$default_path/.coding-agent/nested/note.txt"
 assert_file "$default_path/.claude/settings.local.json"
 assert_contains ".worktrees/" "$repo/.gitignore"
+assert_file_equals "$TMPROOT/gitignore.expected" "$repo/.gitignore" ".gitignore after initial worktree-start"
 assert_contains "$default_path" "$trust_log"
 assert_contains "trust $default_path" "$mise_log"
 
@@ -176,6 +198,7 @@ fi
 
 assert_eq "$default_path" "$(cat "$print_path_stdout")" "--print-path stdout"
 assert_empty "$print_path_stderr"
+assert_file_equals "$TMPROOT/gitignore.expected" "$repo/.gitignore" ".gitignore after repeated worktree-start"
 
 json_stdout="$TMPROOT/json.stdout"
 json_stderr="$TMPROOT/json.stderr"
