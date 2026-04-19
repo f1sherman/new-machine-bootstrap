@@ -29,3 +29,4 @@ tool_versions:
     mise: v2026.4.8
     # renovate: datasource=node-version depName=node
     node: 24.14.1
+    ruby: 4.0.2
