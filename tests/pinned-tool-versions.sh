@@ -187,9 +187,9 @@ run_review_workflow_checks() {
     fail_case "review workflow has been removed" "unexpected file present at $REVIEW_WORKFLOW"
   fi
 
-  assert_not_contains "$REPO_ROOT/.github/workflows" "CLAUDE_CODE_OAUTH_TOKEN" "GitHub workflows no longer reference the Claude OAuth token"
-  assert_not_contains "$REPO_ROOT/.github/workflows" "@anthropic-ai/claude-code" "GitHub workflows no longer install Claude Code"
-  assert_not_contains "$REPO_ROOT/.github/workflows" "claude -p" "GitHub workflows no longer run Claude prompt mode"
+  assert_not_contains "$REVIEW_WORKFLOW" "CLAUDE_CODE_OAUTH_TOKEN" "review workflow no longer references the Claude OAuth token"
+  assert_not_contains "$REVIEW_WORKFLOW" "@anthropic-ai/claude-code" "review workflow no longer install Claude Code"
+  assert_not_contains "$REVIEW_WORKFLOW" "claude -p" "review workflow no longer run Claude prompt mode"
 
   if [[ -f "$CODEX_REVIEW_DOC" ]]; then
     pass_case "Codex GitHub review setup doc exists"
