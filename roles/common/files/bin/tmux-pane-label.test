@@ -12,6 +12,8 @@ mkdir -p "$fake_bin"
 
 ps_log="$tmp_root/ps-calls"
 : > "$ps_log"
+tmux_log="$tmp_root/tmux-calls"
+: > "$tmux_log"
 
 cat > "$fake_bin/ps" <<'EOF'
 #!/usr/bin/env bash
@@ -20,12 +22,23 @@ set -euo pipefail
 log="${PS_CALL_LOG:?}"
 fixture_dir="${PS_FIXTURE_DIR:?}"
 
+mode=""
 tty=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -o)
       shift
-      [ "${1:-}" = "args=" ] || exit 2
+      case "${1:-}" in
+        args=)
+          mode="args"
+          ;;
+        pid=,stat=,comm=,args=)
+          mode="detail"
+          ;;
+        *)
+          exit 2
+          ;;
+      esac
       ;;
     -t)
       shift
@@ -36,13 +49,70 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -n "$tty" ] || exit 2
-printf '%s\n' "$tty" >> "$log"
+printf '%s\t%s\n' "$mode" "$tty" >> "$log"
 
-fixture="$fixture_dir/$tty"
+case "$mode" in
+  args)
+    fixture="$fixture_dir/$tty"
+    ;;
+  detail)
+    fixture="$fixture_dir/$tty.detail"
+    ;;
+  *)
+    exit 2
+    ;;
+esac
+
 [ -f "$fixture" ] || exit 0
 cat "$fixture"
 EOF
 chmod +x "$fake_bin/ps"
+
+cat > "$fake_bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+log="${TMUX_CALL_LOG:?}"
+fixture_dir="${TMUX_FIXTURE_DIR:?}"
+
+printf '%s\n' "$*" >> "$log"
+
+case "${1:-}" in
+  list-panes)
+    printf '%s\n' "${TMUX_PANE_IDS:-}"
+    ;;
+  show-options)
+    shift
+    pane_id=""
+    option_name=""
+
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t)
+          shift
+          pane_id="${1:-}"
+          ;;
+        -*)
+          ;;
+        @*)
+          option_name="$1"
+          ;;
+      esac
+      shift || true
+    done
+
+    [ -n "$pane_id" ] || exit 2
+    [ -n "$option_name" ] || exit 2
+    fixture="$fixture_dir/$pane_id.$option_name"
+    [ -f "$fixture" ] || exit 1
+    cat "$fixture"
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+EOF
+chmod +x "$fake_bin/tmux"
 
 assert_eq() {
   local got="$1" want="$2" name="$3"
@@ -56,15 +126,34 @@ assert_eq() {
 run_case() {
   local name="$1" tty="$2" path="$3" pane_current_command="$4" expected="$5"
   local fixture="$6" expected_ps_calls="$7"
+  local expected_tmux_calls="${8:-0}"
+  local pane_id="${9:-}" explicit_pid="${10:-}" explicit_path="${11:-}" detail_fixture="${12:-}"
 
   printf '%s\n' "$fixture" > "$tmp_root/$tty"
+  if [ -n "$detail_fixture" ]; then
+    printf '%s\n' "$detail_fixture" > "$tmp_root/$tty.detail"
+  fi
+  if [ -n "$pane_id" ]; then
+    printf '%s\n' "$explicit_pid" > "$tmp_root/$pane_id.@agent_worktree_pid"
+    printf '%s\n' "$explicit_path" > "$tmp_root/$pane_id.@agent_worktree_path"
+  fi
   : > "$ps_log"
+  : > "$tmux_log"
 
   local output ps_calls
-  output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" bash "$script" "$tty" "$path" "$pane_current_command" 2>/dev/null || true)"
+  local rc
+  if output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" TMUX_CALL_LOG="$tmux_log" TMUX_FIXTURE_DIR="$tmp_root" TMUX_PANE_IDS="${pane_id:-}" bash "$script" "$tty" "$path" "$pane_current_command" "${pane_id:-}" 2>/dev/null)"; then
+    rc=0
+  else
+    rc=$?
+  fi
   ps_calls="$(wc -l < "$ps_log" | tr -d ' ')"
+  local tmux_calls
+  tmux_calls="$(wc -l < "$tmux_log" | tr -d ' ')"
 
   assert_eq "$ps_calls" "$expected_ps_calls" "$name ps call count"
+  assert_eq "$tmux_calls" "$expected_tmux_calls" "$name tmux call count"
+  assert_eq "$rc" "0" "$name exit status"
   assert_eq "$output" "$expected" "$name output"
 }
 
@@ -78,6 +167,16 @@ printf 'ref: refs/heads/feature/foo\n' > "$git_repo/.git/HEAD"
 tmp_dir="$tmp_root/tmp"
 mkdir -p "$tmp_dir"
 
+agent_repo="$tmp_root/agent-repo"
+mkdir -p "$agent_repo"
+git_template="$tmp_root/git-template"
+mkdir -p "$git_template"
+git -c init.templateDir="$git_template" -C "$agent_repo" init -b main >/dev/null
+git -C "$agent_repo" commit -q --allow-empty -m init
+
+agent_wt="$tmp_root/agent-wt"
+git -C "$agent_repo" worktree add -q -b feature/agent-label "$agent_wt"
+
 run_case \
   "local git pane skips ps" \
   "tty-local-git" \
@@ -85,6 +184,7 @@ run_case \
   "zsh" \
   "feature/foo repo" \
   "shell: zsh" \
+  "0" \
   "0"
 
 run_case \
@@ -94,6 +194,17 @@ run_case \
   "bash" \
   "tmp" \
   "shell: login" \
+  "0" \
+  "0"
+
+run_case \
+  "agent pane without pane id keeps local fast path" \
+  "tty-agent-no-pane-id" \
+  "$git_repo" \
+  "codex" \
+  "feature/foo repo" \
+  "codex --cd /tmp/irrelevant" \
+  "0" \
   "0"
 
 run_case \
@@ -103,7 +214,8 @@ run_case \
   "ssh" \
   "claw02" \
   "ssh dev@claw02 -p 22" \
-  "1"
+  "1" \
+  "0"
 
 run_case \
   "codespaces pane keeps codespace label" \
@@ -112,7 +224,8 @@ run_case \
   "gh" \
   "space-alpha" \
   "gh codespace ssh --codespace space-alpha" \
-  "1"
+  "1" \
+  "0"
 
 run_case \
   "devpod pane keeps workspace label via ruby hint" \
@@ -121,7 +234,8 @@ run_case \
   "ruby" \
   "workspace-beta" \
   "devpod ssh workspace-beta" \
-  "1"
+  "1" \
+  "0"
 
 run_case \
   "ruby local pane falls back to local label" \
@@ -130,7 +244,8 @@ run_case \
   "ruby" \
   "tmp" \
   "ruby script/server" \
-  "1"
+  "1" \
+  "0"
 
 run_case \
   "empty hint preserves ssh label via slow path" \
@@ -139,7 +254,8 @@ run_case \
   "" \
   "claw02" \
   $'zsh -l\nssh dev@claw02 -p 22' \
-  "1"
+  "1" \
+  "0"
 
 run_case \
   "empty hint preserves local shell label via slow path" \
@@ -148,4 +264,89 @@ run_case \
   "" \
   "feature/foo repo" \
   "zsh -l" \
-  "1"
+  "1" \
+  "0"
+
+run_case \
+  "explicit agent pane overrides local fast path" \
+  "tty-explicit" \
+  "$tmp_dir" \
+  "codex" \
+  "feature/agent-label agent-wt" \
+  "codex --cd /tmp/irrelevant" \
+  "1" \
+  "2" \
+  "%91" \
+  "9100" \
+  "$agent_wt" \
+  $'9100 S+ codex codex --cd /tmp/irrelevant'
+
+run_case \
+  "background agent does not override remote foreground" \
+  "tty-explicit-background-agent" \
+  "$tmp_dir" \
+  "ruby" \
+  "workspace-beta" \
+  $'devpod ssh workspace-beta\ncodex --cd /tmp/irrelevant' \
+  "2" \
+  "0" \
+  "%91" \
+  "9101" \
+  "$agent_wt" \
+  $'9100 S+ devpod ssh workspace-beta\n9101 S codex codex --cd /tmp/irrelevant'
+
+run_case \
+  "explicit state falls back when pid mismatches" \
+  "tty-explicit-stale" \
+  "$tmp_dir" \
+  "ssh" \
+  "claw02" \
+  "ssh dev@claw02 -p 22" \
+  "2" \
+  "2" \
+  "%92" \
+  "9999" \
+  "$agent_wt" \
+  $'9100 S+ codex codex --cd /tmp/irrelevant'
+
+run_case \
+  "local pane with pane id keeps fast path" \
+  "tty-local-pane-id" \
+  "$git_repo" \
+  "bash" \
+  "feature/foo repo" \
+  "shell: login" \
+  "0" \
+  "0" \
+  "%93" \
+  "9100" \
+  "$agent_wt" \
+  $'9100 S+ codex codex --cd /tmp/irrelevant'
+
+run_case \
+  "invalid explicit path falls back to remote heuristic" \
+  "tty-explicit-invalid-path" \
+  "$tmp_dir" \
+  "ssh" \
+  "claw02" \
+  "ssh dev@claw02 -p 22" \
+  "2" \
+  "2" \
+  "%94" \
+  "9100" \
+  "/no/such/path" \
+  $'9100 S+ codex codex --cd /tmp/irrelevant'
+
+run_case \
+  "primary checkout explicit path falls back to remote heuristic" \
+  "tty-explicit-primary-checkout" \
+  "$tmp_dir" \
+  "ssh" \
+  "claw02" \
+  "ssh dev@claw02 -p 22" \
+  "2" \
+  "2" \
+  "%95" \
+  "9100" \
+  "$agent_repo" \
+  $'9100 S+ codex codex --cd /tmp/irrelevant'
