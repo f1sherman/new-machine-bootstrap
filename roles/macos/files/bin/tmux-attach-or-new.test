@@ -153,7 +153,7 @@ path_bindir="$(mktemp -d "$TMPROOT/path-bin.XXXXXX")"
 path_state_dir="$path_home/.local/state/terminal-restore"
 path_log="$TMPROOT/path-case.log"
 path_jq_log="$TMPROOT/path-case.jq.log"
-mkdir -p "$path_home/.local/bin" "$path_state_dir"
+mkdir -p "$path_home/.local/bin" "$path_home/.local/share/mise/shims" "$path_state_dir"
 printf '{"saved_at":99}\n' > "$path_state_dir/ghostty-layout.last-good.json"
 
 cat > "$path_bindir/uname" <<'EOF'
@@ -168,13 +168,13 @@ printf '{ sec = 100, usec = 0 } Wed Jan  1 00:01:40 2025\n'
 EOF
 chmod +x "$path_bindir/sysctl"
 
-cat > "$path_bindir/jq" <<'EOF'
+cat > "$path_home/.local/share/mise/shims/jq" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$PATH" >> "$TMUX_ATTACH_OR_NEW_JQ_PATH_LOG"
 exec "$TMUX_ATTACH_OR_NEW_REAL_JQ" "$@"
 EOF
-chmod +x "$path_bindir/jq"
+chmod +x "$path_home/.local/share/mise/shims/jq"
 
 cat > "$path_home/.local/bin/ghostty-layout-reconcile" <<'EOF'
 #!/usr/bin/env bash
@@ -195,7 +195,13 @@ PATH="$path_bindir:/usr/bin:/bin" \
 HOME="$path_home" \
 "$SCRIPT"
 
+jq_logged_path="$(tail -n 1 "$path_jq_log")"
+restore_logged_path="$(cat "$path_log")"
+[ "${jq_logged_path#"$path_home/.local/share/mise/shims:"}" != "$jq_logged_path" ]
+[ "${restore_logged_path#"$path_home/.local/share/mise/shims:"}" != "$restore_logged_path" ]
+grep -F "$path_home/.local/share/mise/shims" "$path_jq_log" >/dev/null
 grep -F '/opt/homebrew/bin' "$path_jq_log" >/dev/null
 grep -F '/usr/local/bin' "$path_jq_log" >/dev/null
+grep -F "$path_home/.local/share/mise/shims" "$path_log" >/dev/null
 grep -F '/opt/homebrew/bin' "$path_log" >/dev/null
 grep -F '/usr/local/bin' "$path_log" >/dev/null

@@ -3,11 +3,10 @@ set -euo pipefail
 
 pane_tty="${1:-}"
 pane_current_path="${2:-}"
+pane_current_command="${3:-}"
 
 [ -n "$pane_tty" ] || exit 0
 [ -n "$pane_current_path" ] || exit 0
-
-pane_procs="$(ps -o args= -t "$pane_tty" 2>/dev/null || true)"
 
 extract_ssh_host() {
   local args="$1"
@@ -128,6 +127,28 @@ dir_basename() {
   printf '%s\n' "$path"
 }
 
+local_label() {
+  if branch="$(git_branch_for_path "$pane_current_path" 2>/dev/null)"; then
+    printf '%s\n' "$branch $(dir_basename "$pane_current_path")"
+  else
+    dir_basename "$pane_current_path"
+  fi
+}
+
+is_remote_candidate_command() {
+  case "$1" in
+    ssh|gh|ruby) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+if [ -n "$pane_current_command" ] && ! is_remote_candidate_command "$pane_current_command"; then
+  local_label
+  exit 0
+fi
+
+pane_procs="$(ps -o args= -t "$pane_tty" 2>/dev/null || true)"
+
 label=""
 
 while IFS= read -r line; do
@@ -151,11 +172,7 @@ while IFS= read -r line; do
 done <<< "$pane_procs"
 
 if [ -z "$label" ]; then
-  if branch="$(git_branch_for_path "$pane_current_path" 2>/dev/null)"; then
-    label="$branch $(dir_basename "$pane_current_path")"
-  else
-    label="$(dir_basename "$pane_current_path")"
-  fi
+  label="$(local_label)"
 fi
 
 printf '%s\n' "$label"

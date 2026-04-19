@@ -93,6 +93,18 @@ pathadd() {
 }
 
 pathadd "${HOME}/.local/bin"
+export HOMEBREW_PREFIX="{{ brew_prefix }}"
+export HOMEBREW_CELLAR="{{ brew_prefix }}/Cellar"
+export HOMEBREW_REPOSITORY="{{ brew_prefix }}"
+pathadd "${HOMEBREW_PREFIX}/bin"
+pathadd "${HOMEBREW_PREFIX}/sbin"
+pathadd "${HOMEBREW_PREFIX}/opt/curl/bin"
+pathadd "/usr/local/sbin"
+pathadd "/usr/local/bin"
+
+_mise_shims="${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
+pathadd "$_mise_shims"
+unset _mise_shims
 
 _worktree_main_branch() {
   local origin_head

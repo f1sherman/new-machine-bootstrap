@@ -29,6 +29,7 @@ EOF
 chmod +x "$bindir/uname"
 
 mkdir -p "$TMPROOT/home/.local/bin"
+mkdir -p "$TMPROOT/home/.local/share/mise/shims"
 cat > "$TMPROOT/home/.local/bin/tmux-session-gc" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$TMUX_CLIENT_ATTACHED_GC_LOG"
@@ -41,7 +42,9 @@ TMUX_CLIENT_ATTACHED_LOG="$log" \
 TMUX_CLIENT_ATTACHED_GC_LOG="$TMPROOT/gc.log" \
 "$SCRIPT" '/usr/local/bin:/opt/homebrew/bin'
 
-grep -Fqx 'set-environment -g PATH /usr/local/bin:/opt/homebrew/bin' "$log"
+linux_path_line="$(cat "$log")"
+[ "${linux_path_line#"set-environment -g PATH $TMPROOT/home/.local/share/mise/shims:$TMPROOT/home/.local/bin:"}" != "$linux_path_line" ]
+grep -F '/usr/local/bin:/opt/homebrew/bin' "$log" >/dev/null
 grep -Fqx -- '--platform linux --days 14' "$TMPROOT/gc.log"
 
 darwin_log="$(mktemp "$TMPROOT/log-darwin.XXXXXX")"
@@ -52,9 +55,15 @@ HOME="$TMPROOT/home" \
 TMUX_CLIENT_ATTACHED_LOG="$darwin_log" \
 TMUX_CLIENT_ATTACHED_GC_LOG="$darwin_gc_log" \
 TMUX_CLIENT_ATTACHED_UNAME=Darwin \
-"$SCRIPT" '/opt/homebrew/bin:/usr/local/bin'
+"$SCRIPT" '/usr/bin:/bin'
 
-grep -Fqx 'set-environment -g PATH /opt/homebrew/bin:/usr/local/bin' "$darwin_log"
+darwin_path_line="$(cat "$darwin_log")"
+[ "${darwin_path_line#"set-environment -g PATH $TMPROOT/home/.local/share/mise/shims:"}" != "$darwin_path_line" ]
+grep -F "$TMPROOT/home/.local/bin" "$darwin_log" >/dev/null
+grep -F '/opt/homebrew/bin' "$darwin_log" >/dev/null
+grep -F '/opt/homebrew/sbin' "$darwin_log" >/dev/null
+grep -F '/usr/local/bin' "$darwin_log" >/dev/null
+grep -F '/usr/bin:/bin' "$darwin_log" >/dev/null
 [ ! -s "$darwin_gc_log" ]
 
 darwin_gui_log="$(mktemp "$TMPROOT/log-darwin-gui.XXXXXX")"
@@ -67,7 +76,11 @@ TMUX_CLIENT_ATTACHED_GC_LOG="$darwin_gui_gc_log" \
 TMUX_CLIENT_ATTACHED_UNAME=Darwin \
 "$SCRIPT" '/usr/bin:/bin:/usr/sbin:/sbin:/Applications/Ghostty.app/Contents/MacOS'
 
-grep -Fqx \
-  'set-environment -g PATH /usr/bin:/bin:/usr/sbin:/sbin:/Applications/Ghostty.app/Contents/MacOS:/opt/homebrew/bin:/usr/local/bin' \
-  "$darwin_gui_log"
+darwin_gui_path_line="$(cat "$darwin_gui_log")"
+[ "${darwin_gui_path_line#"set-environment -g PATH $TMPROOT/home/.local/share/mise/shims:"}" != "$darwin_gui_path_line" ]
+grep -F "$TMPROOT/home/.local/bin" "$darwin_gui_log" >/dev/null
+grep -F '/opt/homebrew/bin' "$darwin_gui_log" >/dev/null
+grep -F '/opt/homebrew/sbin' "$darwin_gui_log" >/dev/null
+grep -F '/usr/local/bin' "$darwin_gui_log" >/dev/null
+grep -F '/usr/bin:/bin:/usr/sbin:/sbin:/Applications/Ghostty.app/Contents/MacOS' "$darwin_gui_log" >/dev/null
 [ ! -s "$darwin_gui_gc_log" ]

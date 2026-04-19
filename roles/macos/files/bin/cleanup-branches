@@ -1,0 +1,456 @@
+#!/usr/bin/env ruby
+
+require 'json'
+require 'open3'
+require 'net/http'
+require 'tmpdir'
+require 'uri'
+
+def run_command(cmd, allow_failure: false)
+  stdout, stderr, status = Open3.capture3(cmd)
+  unless status.success? || allow_failure
+    $stderr.puts "Command failed: #{cmd}"
+    $stderr.puts stderr unless stderr.empty?
+    exit 1
+  end
+  stdout.strip
+end
+
+def detect_remote_type(url)
+  return :github if url.include?('github.com')
+  return :forgejo if url.include?('forgejo')
+  nil
+end
+
+def run_git_command(args, git_dir: nil, allow_failure: false)
+  cmd = ['git']
+  cmd << "--git-dir=#{git_dir}" if git_dir
+  cmd.concat(args)
+
+  stdout, stderr, status = Open3.capture3(*cmd)
+  unless status.success? || allow_failure
+    $stderr.puts "Command failed: #{cmd.join(' ')}"
+    $stderr.puts stderr unless stderr.empty?
+    exit 1
+  end
+
+  stdout.strip
+end
+
+def run_command_args(args, allow_failure: false)
+  stdout, stderr, status = Open3.capture3(*args)
+  unless status.success? || allow_failure
+    $stderr.puts "Command failed: #{args.join(' ')}"
+    $stderr.puts stderr unless stderr.empty?
+    exit 1
+  end
+
+  stdout.strip
+end
+
+def pr_state_github(owner_repo, branch)
+  local_sha = run_git_command(['rev-parse', '--verify', "#{branch}^{commit}"], allow_failure: true)
+  sha_match = nil
+  open_branch_match = nil
+  closed_branch_match = nil
+  page = 1
+
+  loop do
+    page_json = run_command_args(
+      ['gh', 'api', "repos/#{owner_repo}/pulls?state=all&per_page=100&page=#{page}"],
+      allow_failure: true
+    )
+    return 'LOOKUP_FAILED' if page_json.empty?
+    prs = JSON.parse(page_json)
+    return 'LOOKUP_FAILED' unless prs.is_a?(Array)
+
+    pr = prs.find { |candidate| candidate.dig('head', 'sha') == local_sha && candidate['state'] == 'open' }
+    return 'MERGED' if pr && pr['merged_at']
+    return pr['state'].upcase if pr
+
+    sha_match ||= prs.find { |candidate| candidate.dig('head', 'sha') == local_sha }
+    open_branch_match ||= prs.find { |candidate| candidate.dig('head', 'ref') == branch && candidate['state'] == 'open' }
+    closed_branch_match ||= prs.find { |candidate| candidate.dig('head', 'ref') == branch && candidate['state'] == 'closed' }
+
+    break if prs.empty?
+
+    page += 1
+  end
+
+  pr = sha_match || open_branch_match || closed_branch_match
+  return nil unless pr
+
+  return 'MERGED' if pr['merged_at']
+
+  pr['state']&.upcase
+rescue JSON::ParserError
+  'LOOKUP_FAILED'
+end
+
+def pr_state_forgejo(forgejo_url, token, owner, repo, branch)
+  http = Net::HTTP.new(URI(forgejo_url).host, URI(forgejo_url).port)
+  http.use_ssl = forgejo_url.start_with?('https')
+  local_sha = run_git_command(['rev-parse', '--verify', "#{branch}^{commit}"], allow_failure: true)
+  open_ref_match = nil
+  closed_ref_match = nil
+  partial_lookup_failure = false
+
+  %w[open closed].each do |state|
+    page = 1
+    loop do
+      uri = URI("#{forgejo_url}/api/v1/repos/#{owner}/#{repo}/pulls?state=#{state}&page=#{page}&limit=50")
+      req = Net::HTTP::Get.new(uri)
+      req['Authorization'] = "token #{token}"
+      response = http.request(req)
+      unless response.is_a?(Net::HTTPSuccess)
+        partial_lookup_failure = true
+        break
+      end
+
+      prs = JSON.parse(response.body)
+      pr = prs.find { |p| p.dig('head', 'sha') == local_sha && p['state'] == 'open' }
+      pr ||= prs.find { |p| p.dig('head', 'sha') == local_sha }
+      if pr
+        return 'MERGED' if pr['merged']
+        return state.upcase
+      end
+
+      if state == 'open' && open_ref_match.nil?
+        open_ref_match = prs.find { |p| p.dig('head', 'ref') == branch }
+      end
+      if state == 'closed' && closed_ref_match.nil?
+        closed_ref_match = prs.find { |p| p.dig('head', 'ref') == branch }
+      end
+
+      break if prs.empty?
+      page += 1
+    end
+  rescue StandardError
+    partial_lookup_failure = true
+    next
+  end
+
+  return 'LOOKUP_FAILED' if partial_lookup_failure
+  return 'OPEN' if open_ref_match
+  return 'CLOSED' if closed_ref_match
+
+  nil
+end
+
+def parse_worktree_entries(output)
+  output.split("\n\n").each_with_object([]) do |block, entries|
+    next if block.strip.empty?
+
+    entry = {}
+    block.each_line do |line|
+      key, value = line.strip.split(' ', 2)
+      entry[key] = value
+    end
+    entries << entry
+  end
+end
+
+def worktree_paths_for_branch(branch, git_dir: nil)
+  target_ref = "refs/heads/#{branch}"
+
+  parse_worktree_entries(run_git_command(['worktree', 'list', '--porcelain'], git_dir: git_dir))
+    .select { |entry| entry['branch'] == target_ref }
+    .map { |entry| entry['worktree'] }
+end
+
+def worktree_dirty?(path)
+  stdout, stderr, status = Open3.capture3('git', '-C', path, 'status', '--porcelain')
+  unless status.success?
+    raise "git status failed for #{path}: #{stderr.strip}"
+  end
+
+  !stdout.strip.empty?
+end
+
+def cleanup_worktrees_for_branch(branch, git_dir: nil, safe_dir: nil)
+  blocked = false
+
+  perform_cleanup = proc do
+    worktree_paths_for_branch(branch, git_dir: git_dir).each do |path|
+      if !Dir.exist?(path)
+        _, stderr, status = Open3.capture3('git', *(git_dir ? ["--git-dir=#{git_dir}"] : []), 'worktree', 'remove', '--force', path)
+        if status.success?
+          puts "  Removed worktree: #{path}"
+        else
+          reason = stderr.strip.empty? ? 'git worktree remove failed' : stderr.strip
+          puts "  Skipping branch deletion because worktree removal failed for #{path}: #{reason}"
+          blocked = true
+        end
+        next
+      end
+
+      if worktree_dirty?(path)
+        puts "  Skipping branch deletion because worktree is dirty: #{path}"
+        blocked = true
+        next
+      end
+
+      _, stderr, status = Open3.capture3('git', *(git_dir ? ["--git-dir=#{git_dir}"] : []), 'worktree', 'remove', path)
+      if status.success?
+        puts "  Removed worktree: #{path}"
+      else
+        reason = stderr.strip.empty? ? 'git worktree remove failed' : stderr.strip
+        puts "  Skipping branch deletion because worktree removal failed for #{path}: #{reason}"
+        blocked = true
+      end
+    rescue StandardError => e
+      puts "  Skipping branch deletion because worktree inspection failed for #{path}: #{e.message}"
+      blocked = true
+    end
+  end
+
+  if safe_dir
+    current_dir = File.expand_path(Dir.pwd)
+    branch_worktrees = worktree_paths_for_branch(branch, git_dir: git_dir).map { |path| File.expand_path(path) }
+    if branch_worktrees.include?(current_dir)
+      Dir.chdir(safe_dir)
+      perform_cleanup.call
+    else
+      Dir.chdir(safe_dir) { perform_cleanup.call }
+    end
+  else
+    perform_cleanup.call
+  end
+
+  !blocked
+end
+
+def delete_branch_with_worktrees(branch, git_dir: nil, safe_dir: nil)
+  return false unless cleanup_worktrees_for_branch(branch, git_dir: git_dir, safe_dir: safe_dir)
+
+  run_git_command(['branch', '-D', branch], git_dir: git_dir)
+  true
+end
+
+def delete_remote_branch(branch, git_dir: nil)
+  cmd = ['git']
+  cmd << "--git-dir=#{git_dir}" if git_dir
+  cmd.concat(['push', 'origin', '--delete', branch])
+
+  _, stderr, status = Open3.capture3(*cmd)
+  if status.success?
+    puts "  Deleted remote branch #{branch}"
+    true
+  else
+    ls_remote_cmd = ['git']
+    ls_remote_cmd << "--git-dir=#{git_dir}" if git_dir
+    ls_remote_cmd.concat(['ls-remote', '--exit-code', '--heads', 'origin', "refs/heads/#{branch}"])
+    _, _, ls_remote_status = Open3.capture3(*ls_remote_cmd)
+    if ls_remote_status.exitstatus == 2
+      puts "  Remote branch already absent: #{branch}"
+      return true
+    end
+
+    reason = stderr.strip.empty? ? 'git push origin --delete failed' : stderr.strip
+    puts "  Remote branch retained: #{branch} (#{reason})"
+    false
+  end
+end
+
+branch_filter = nil
+delete_remote = false
+auto_confirm = false
+
+idx = 0
+while idx < ARGV.length
+  arg = ARGV[idx]
+  case arg
+  when '--branch'
+    value = ARGV[idx + 1]
+    if value.nil? || value.start_with?('--')
+      $stderr.puts 'Error: --branch requires a branch name'
+      exit 1
+    end
+    branch_filter = value
+    idx += 2
+  when '--delete-remote'
+    delete_remote = true
+    idx += 1
+  when '--yes'
+    auto_confirm = true
+    idx += 1
+  else
+    if arg.start_with?('--')
+      $stderr.puts "Error: Unknown option #{arg}"
+      exit 1
+    end
+    $stderr.puts "Error: Unexpected argument #{arg}"
+    exit 1
+    idx += 1
+  end
+end
+
+unless run_command('git rev-parse --git-dir', allow_failure: true) != ''
+  $stderr.puts 'Error: Not in a git repository'
+  exit 1
+end
+
+target_git_dir = nil
+target_safe_dir = nil
+
+if branch_filter
+  common_git_dir = File.expand_path(run_command('git rev-parse --git-common-dir'))
+  branch_exists = system('git', "--git-dir=#{common_git_dir}", 'show-ref', '--verify', '--quiet', "refs/heads/#{branch_filter}")
+  if !branch_exists
+    puts "Branch not found: #{branch_filter}"
+    exit 0
+  end
+
+  current_worktree_root = File.expand_path(run_command('git rev-parse --show-toplevel'))
+  target_worktrees = worktree_paths_for_branch(branch_filter, git_dir: common_git_dir).map { |path| File.expand_path(path) }
+  target_git_dir = common_git_dir
+  if target_worktrees.include?(current_worktree_root)
+    candidate_safe_dir = File.dirname(common_git_dir)
+    target_safe_dir = candidate_safe_dir == current_worktree_root ? Dir.tmpdir : candidate_safe_dir
+  end
+end
+
+remote_url = run_command('git config --get remote.origin.url', allow_failure: true)
+if remote_url.empty?
+  $stderr.puts 'Error: No remote.origin.url configured'
+  exit 1
+end
+
+remote_type = detect_remote_type(remote_url)
+unless remote_type
+  $stderr.puts "Error: Remote origin is not GitHub or Forgejo (found: #{remote_url})"
+  exit 1
+end
+
+owner_repo = remote_url[%r{[:/]([^/]+/[^/]+?)(\.git)?$}, 1]
+owner, repo = owner_repo.split('/')
+
+if remote_type == :forgejo
+  forgejo_url = ENV['FORGEJO_URL'] || 'https://forgejo.brianjohn.com'
+  token_file = File.join(Dir.home, '.config/home-network/forgejo-token')
+
+  forgejo_token = ENV['FORGEJO_TOKEN']
+  if forgejo_token.nil? || forgejo_token.empty?
+    if File.exist?(token_file)
+      forgejo_token = File.read(token_file).strip
+    else
+      $stderr.puts "Error: No Forgejo token found. Set FORGEJO_TOKEN or create #{token_file}"
+      exit 1
+    end
+  end
+end
+
+original_branch = nil
+
+unless branch_filter
+  original_branch = run_command('git rev-parse --abbrev-ref HEAD')
+
+  if original_branch != 'main'
+    puts 'Switching to main branch...'
+    run_command('git checkout main')
+  end
+
+  puts 'Fetching from origin and pruning deleted branches...'
+  run_command('git fetch --prune origin')
+
+  branches = run_command("git for-each-ref --format='%(refname:short)' refs/heads/").split("\n")
+else
+  branches = [branch_filter]
+end
+
+if branch_filter && branches.empty?
+  puts "Branch not found: #{branch_filter}"
+  exit 0
+end
+
+puts "Found #{branches.size} local branches (including current branch)"
+puts
+
+puts "Repository: #{owner_repo} (#{remote_type})"
+puts
+
+deleted_branches = []
+
+branches.each do |branch|
+  next if branch == 'main'
+
+  if branch_filter
+    print "Checking #{branch}... "
+    $stdout.flush
+
+    if delete_branch_with_worktrees(branch, git_dir: target_git_dir, safe_dir: target_safe_dir)
+      puts 'deleted'
+      deleted_branches << branch
+      if delete_remote
+        delete_remote_branch(branch, git_dir: target_git_dir)
+      end
+    else
+      puts 'branch retained'
+      exit 1
+    end
+    next
+  end
+
+  print "Checking #{branch}... "
+  $stdout.flush
+
+  pr_state = case remote_type
+  when :github
+    pr_state_github(owner_repo, branch)
+  when :forgejo
+    pr_state_forgejo(forgejo_url, forgejo_token, owner, repo, branch)
+  end
+
+  if pr_state == 'LOOKUP_FAILED'
+    puts 'PR lookup failed; retaining branch'
+    next
+  end
+
+  if pr_state == 'MERGED'
+    puts 'merged PR found'
+    if delete_branch_with_worktrees(branch)
+      deleted_branches << branch
+      puts "  Deleted #{branch}"
+    else
+      puts '  Branch retained'
+    end
+    next
+  end
+
+  last_commit_epoch = run_command("git log -1 --format=%ct #{branch}", allow_failure: true).to_i
+  current_epoch = Time.now.to_i
+  week_in_seconds = 7 * 24 * 60 * 60
+
+  if (current_epoch - last_commit_epoch) > week_in_seconds
+    puts 'stale (>1 week old)'
+    last_commit_date = run_command("git log -1 --format=%ci #{branch}")
+    puts "  Last commit: #{last_commit_date}"
+    if auto_confirm
+      response = 'y'
+    else
+      print '  Delete this branch? (y/N): '
+      response = $stdin.gets.chomp
+    end
+
+    if response.match?(/^[Yy]$/)
+      if delete_branch_with_worktrees(branch)
+        deleted_branches << branch
+        puts '  Deleted'
+      else
+        puts '  Branch retained'
+      end
+    else
+      puts '  Skipped'
+    end
+  else
+    puts 'active'
+  end
+end
+
+puts
+puts 'Branch cleanup complete!'
+
+if original_branch && original_branch != 'main' && !deleted_branches.include?(original_branch)
+  puts "Switching back to #{original_branch}..."
+  run_command("git checkout #{original_branch}")
+end

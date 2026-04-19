@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+platform="$(uname -s)"
+execution_path="${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+incoming_path="${1:-$execution_path}"
+
 append_path_entry() {
-  local path_value="$1"
-  local entry="$2"
+  local path_value="$1" entry="${2%/}"
 
   case ":$path_value:" in
     *":$entry:"*) printf '%s\n' "$path_value" ;;
@@ -17,26 +20,58 @@ append_path_entry() {
   esac
 }
 
-platform="$(uname -s)"
-execution_path="${PATH:-/usr/bin:/bin}"
-incoming_path="${1:-$execution_path}"
+build_execution_path() {
+  local path_value="${1:-/usr/bin:/bin:/usr/sbin:/sbin}" platform_name="$2"
 
-case "$platform" in
-  Darwin)
-    # GUI-launched clients often miss Homebrew bins on first attach.
-    execution_path="$(append_path_entry "$execution_path" /opt/homebrew/bin)"
-    execution_path="$(append_path_entry "$execution_path" /usr/local/bin)"
-    incoming_path="$(append_path_entry "$incoming_path" /opt/homebrew/bin)"
-    incoming_path="$(append_path_entry "$incoming_path" /usr/local/bin)"
-    ;;
-esac
+  path_value="$(append_path_entry "$path_value" "$HOME/.local/bin")"
+  case "$platform_name" in
+    Darwin)
+      # GUI-launched clients often miss Homebrew bins on first attach.
+      path_value="$(append_path_entry "$path_value" /opt/homebrew/bin)"
+      path_value="$(append_path_entry "$path_value" /usr/local/bin)"
+      ;;
+  esac
+  path_value="$(append_path_entry "$path_value" "${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims")"
 
+  printf '%s\n' "$path_value"
+}
+
+normalize_path() {
+  local path_value="${1:-/usr/bin:/bin:/usr/sbin:/sbin}" platform_name="$2"
+
+  pathprepend() {
+    local dir="${1%/}"
+    [ -d "$dir" ] || return 0
+    PATH=":$PATH:"
+    PATH="${PATH//:$dir:/:}"
+    PATH="${PATH#:}"
+    PATH="${PATH%:}"
+    PATH="$dir:$PATH"
+  }
+
+  PATH="$path_value"
+  pathprepend "$HOME/.local/bin"
+  case "$platform_name" in
+    Darwin)
+      pathprepend "/usr/local/sbin"
+      pathprepend "/usr/local/bin"
+      pathprepend "/opt/homebrew/sbin"
+      pathprepend "/opt/homebrew/bin"
+      ;;
+  esac
+  pathprepend "${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
+
+  printf '%s\n' "$PATH"
+}
+
+execution_path="$(build_execution_path "$execution_path" "$platform")"
+normalized_incoming_path="$(normalize_path "$incoming_path" "$platform")"
 tmux_bin="$(PATH="$execution_path" command -v tmux)"
 
 PATH="$execution_path"
 export PATH
 
-"$tmux_bin" set-environment -g PATH "$incoming_path"
+"$tmux_bin" set-environment -g PATH "$normalized_incoming_path"
 
 case "$platform" in
   Linux)
