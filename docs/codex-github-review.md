@@ -2,7 +2,7 @@
 
 This repository no longer runs PR review from GitHub Actions.
 
-PR review now comes from Codex GitHub integration, using Brian's ChatGPT/Codex subscription instead of a repository API key or Claude OAuth token.
+PR review now comes from Codex GitHub integration, using Brian's ChatGPT/Codex subscription instead of a repository API key or Claude OAuth token. This applies repo-wide to all PRs, not Renovate-only.
 
 ## Setup
 
