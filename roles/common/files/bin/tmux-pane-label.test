@@ -53,27 +53,18 @@ assert_eq() {
   printf 'ok - %s\n' "$name"
 }
 
-assert_not_contains() {
-  local got="$1" needle="$2" name="$3"
-  if [[ "$got" == *"$needle"* ]]; then
-    printf 'not ok - %s\nunexpected: %s\n' "$name" "$needle" >&2
-    exit 1
-  fi
-  printf 'ok - %s\n' "$name"
-}
-
 run_case() {
-  local name="$1" tty="$2" path="$3" expected="$4"
-  local fixture="$5"
+  local name="$1" tty="$2" path="$3" pane_current_command="$4" expected="$5"
+  local fixture="$6" expected_ps_calls="$7"
 
   printf '%s\n' "$fixture" > "$tmp_root/$tty"
   : > "$ps_log"
 
-  local output status
-  output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" bash "$script" "$tty" "$path" 2>/dev/null || true)"
-  status="$(wc -l < "$ps_log" | tr -d ' ')"
+  local output ps_calls
+  output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" bash "$script" "$tty" "$path" "$pane_current_command" 2>/dev/null || true)"
+  ps_calls="$(wc -l < "$ps_log" | tr -d ' ')"
 
-  assert_eq "$status" "1" "$name ps called once"
+  assert_eq "$ps_calls" "$expected_ps_calls" "$name ps call count"
   assert_eq "$output" "$expected" "$name output"
 }
 
@@ -88,56 +79,55 @@ tmp_dir="$tmp_root/tmp"
 mkdir -p "$tmp_dir"
 
 run_case \
-  "local git pane" \
+  "local git pane skips ps" \
   "tty-local-git" \
   "$git_repo" \
+  "zsh" \
   "feature/foo repo" \
-  "shell: zsh"
+  "shell: zsh" \
+  "0"
 
 run_case \
-  "local non-git pane" \
+  "local non-git pane skips ps" \
   "tty-local-tmp" \
   "$tmp_dir" \
+  "bash" \
   "tmp" \
-  "shell: login"
+  "shell: login" \
+  "0"
 
 run_case \
-  "plain ssh pane" \
+  "plain ssh pane keeps host label" \
   "tty-ssh" \
   "$tmp_dir" \
+  "ssh" \
   "claw02" \
-  "ssh dev@claw02 -p 22"
+  "ssh dev@claw02 -p 22" \
+  "1"
 
 run_case \
-  "codespaces pane" \
+  "codespaces pane keeps codespace label" \
   "tty-codespace" \
   "$tmp_dir" \
+  "gh" \
   "space-alpha" \
-  "gh codespace ssh --codespace space-alpha"
+  "gh codespace ssh --codespace space-alpha" \
+  "1"
 
 run_case \
-  "devpod pane" \
+  "devpod pane keeps workspace label via ruby hint" \
   "tty-devpod" \
   "$tmp_dir" \
+  "ruby" \
   "workspace-beta" \
-  "devpod ssh workspace-beta"
+  "devpod ssh workspace-beta" \
+  "1"
 
 run_case \
-  "shell-backed local pane" \
-  "tty-shell-local" \
+  "ruby local pane falls back to local label" \
+  "tty-ruby-local" \
   "$tmp_dir" \
+  "ruby" \
   "tmp" \
-  "zsh -l"
-
-output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" bash "$script" tty-shell-local "$tmp_dir" 2>/dev/null || true)"
-assert_not_contains "$output" "zsh" "shell-backed local pane never zsh"
-
-run_case \
-  "multiline ssh pane" \
-  "tty-multiline-ssh" \
-  "$tmp_dir" \
-  "claw02" \
-  $'zsh -l\nssh dev@claw02 -p 22'
-
-output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" bash "$script" tty-multiline-ssh "$tmp_dir" 2>/dev/null || true)"
-assert_not_contains "$output" "zsh" "multiline ssh pane never zsh"
+  "ruby script/server" \
+  "1"

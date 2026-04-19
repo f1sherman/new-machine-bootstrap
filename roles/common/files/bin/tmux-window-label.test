@@ -38,7 +38,7 @@ cat > "$fake_bin/tmux-pane-label" <<'EOF'
 set -euo pipefail
 
 log="${PANE_LABEL_LOG:?}"
-printf '%s|%s\n' "${1:-}" "${2:-}" >> "$log"
+printf '%s|%s|%s\n' "${1:-}" "${2:-}" "${3:-}" >> "$log"
 printf '%s\n' "${PANE_LABEL_OUTPUT:-}"
 EOF
 chmod +x "$fake_bin/tmux-pane-label"
@@ -94,20 +94,20 @@ mkdir -p "$tmp_root/home"
 
 run_case \
   "%11" \
-  $'@7\t1\tmain dotfiles\t/dev/ttys001\t/tmp/repo' \
+  $'@7\t1\tmain dotfiles\t/dev/ttys001\t/tmp/repo\tzsh' \
   "feature/foo repo"
 
-assert_file_contains "$tmux_log" $'display-message -p -t %11 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}' "active pane queries tmux"
-assert_file_contains "$pane_label_log" "/dev/ttys001|/tmp/repo" "active pane derives label"
+assert_file_contains "$tmux_log" $'display-message -p -t %11 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}' "active pane queries tmux"
+assert_file_contains "$pane_label_log" "/dev/ttys001|/tmp/repo|zsh" "active pane derives label"
 assert_file_contains "$tmux_log" "rename-window -t @7 feature/foo repo" "active pane renames changed label"
 
 run_case \
   "%12" \
-  $'@8\t1\tfeature/foo repo\t/dev/ttys002\t/tmp/repo' \
+  $'@8\t1\tfeature/foo repo\t/dev/ttys002\t/tmp/repo\tzsh' \
   "feature/foo repo"
 
-assert_file_contains "$tmux_log" $'display-message -p -t %12 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}' "unchanged label queries tmux"
-assert_file_contains "$pane_label_log" "/dev/ttys002|/tmp/repo" "unchanged label still derives"
+assert_file_contains "$tmux_log" $'display-message -p -t %12 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}' "unchanged label queries tmux"
+assert_file_contains "$pane_label_log" "/dev/ttys002|/tmp/repo|zsh" "unchanged label still derives"
 if grep -Fq "rename-window" "$tmux_log"; then
   printf 'not ok - unchanged label skips rename\nunexpected rename:\n' >&2
   cat "$tmux_log" >&2
@@ -117,10 +117,10 @@ printf 'ok - unchanged label skips rename\n'
 
 run_case \
   "%13" \
-  $'@9\t0\tmain dotfiles\t/dev/ttys003\t/tmp/repo' \
+  $'@9\t0\tmain dotfiles\t/dev/ttys003\t/tmp/repo\tzsh' \
   "feature/foo repo"
 
-assert_file_contains "$tmux_log" $'display-message -p -t %13 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}' "inactive pane queries tmux"
+assert_file_contains "$tmux_log" $'display-message -p -t %13 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}' "inactive pane queries tmux"
 assert_empty_file "$pane_label_log" "inactive pane skips label helper"
 if grep -Fq "rename-window" "$tmux_log"; then
   printf 'not ok - inactive pane skips rename\nunexpected rename:\n' >&2
