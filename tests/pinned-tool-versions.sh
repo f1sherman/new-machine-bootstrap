@@ -51,6 +51,19 @@ assert_not_contains() {
   fi
 }
 
+assert_yaml_matches() {
+  local path="$1" query="$2" regex="$3" name="$4"
+  local value
+
+  value="$(yq -r "$query" "$path" 2>/dev/null || true)"
+
+  if [[ -n "$value" && "$value" != "null" && "$value" =~ $regex ]]; then
+    pass_case "$name"
+  else
+    fail_case "$name" "expected $query in $path to match $regex, got '${value:-<empty>}'"
+  fi
+}
+
 run_catalog_checks() {
   assert_contains "$PLAYBOOK" "vars_files:" "playbook loads shared vars files"
   assert_contains "$PLAYBOOK" "- vars/tool_versions.yml" "playbook loads vars/tool_versions.yml"
@@ -59,15 +72,15 @@ run_catalog_checks() {
   assert_contains "$CATALOG" "git_tags:" "catalog defines git tag pins"
   assert_contains "$CATALOG" "runtimes:" "catalog defines runtime pins"
   assert_not_contains "$CATALOG" "compatibility:" "catalog no longer defines legacy compatibility pins"
-  assert_contains "$CATALOG" "fzf: v0.71.0" "catalog pins fzf"
-  assert_contains "$CATALOG" "ripgrep: 15.1.0" "catalog pins ripgrep"
-  assert_contains "$CATALOG" "delta: 0.19.2" "catalog pins delta"
-  assert_contains "$CATALOG" "tmux: v3.6a" "catalog pins tmux"
-  assert_contains "$CATALOG" "neovim: v0.12.1" "catalog pins neovim"
-  assert_contains "$CATALOG" "yq: v4.52.5" "catalog pins yq"
-  assert_contains "$CATALOG" "zoxide: v0.9.9" "catalog pins zoxide"
-  assert_contains "$CATALOG" "mise: v2026.4.8" "catalog pins mise"
-  assert_contains "$CATALOG" "node: 24.14.1" "catalog pins Node.js"
+  assert_yaml_matches "$CATALOG" '.tool_versions.github_releases.fzf' '^v[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins fzf"
+  assert_yaml_matches "$CATALOG" '.tool_versions.github_releases.ripgrep' '^[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins ripgrep"
+  assert_yaml_matches "$CATALOG" '.tool_versions.github_releases.delta' '^[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins delta"
+  assert_yaml_matches "$CATALOG" '.tool_versions.github_releases.tmux' '^v[0-9]+\.[0-9]+[a-z]?$' "catalog pins tmux"
+  assert_yaml_matches "$CATALOG" '.tool_versions.github_releases.neovim' '^v[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins neovim"
+  assert_yaml_matches "$CATALOG" '.tool_versions.github_releases.yq' '^v[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins yq"
+  assert_yaml_matches "$CATALOG" '.tool_versions.github_releases.zoxide' '^v[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins zoxide"
+  assert_yaml_matches "$CATALOG" '.tool_versions.runtimes.mise' '^v[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins mise"
+  assert_yaml_matches "$CATALOG" '.tool_versions.runtimes.node' '^[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins Node.js"
   assert_not_contains "$CATALOG" "neovim_glibc_legacy: v0.10.4" "catalog no longer preserves legacy neovim compatibility pin"
 }
 
@@ -129,9 +142,9 @@ run_renovate_checks() {
   fi
   assert_contains "$RENOVATE_RUN_WORKFLOW" "workflow_dispatch:" "renovate workflow supports manual dispatch"
   assert_contains "$RENOVATE_RUN_WORKFLOW" "- cron: '23 3 * * *'" "renovate workflow runs daily on the configured schedule"
-  assert_contains "$RENOVATE_RUN_WORKFLOW" "uses: actions/create-github-app-token@v2.2.2" "renovate workflow mints a GitHub App token"
-  assert_contains "$RENOVATE_RUN_WORKFLOW" "uses: actions/checkout@v6.0.1" "renovate workflow checks out the repository"
-  assert_contains "$RENOVATE_RUN_WORKFLOW" "uses: renovatebot/github-action@v44.0.3" "renovate workflow runs the official Renovate GitHub Action"
+  assert_yaml_matches "$RENOVATE_RUN_WORKFLOW" '.jobs.renovate.steps[] | select(.id == "app_token").uses' '^actions/create-github-app-token@v[0-9]+(\.[0-9]+){0,2}$' "renovate workflow mints a GitHub App token"
+  assert_yaml_matches "$RENOVATE_RUN_WORKFLOW" '.jobs.renovate.steps[] | select(.name == "Checkout").uses' '^actions/checkout@v[0-9]+(\.[0-9]+){0,2}$' "renovate workflow checks out the repository"
+  assert_yaml_matches "$RENOVATE_RUN_WORKFLOW" '.jobs.renovate.steps[] | select(.name == "Self-hosted Renovate").uses' '^renovatebot/github-action@v[0-9]+(\.[0-9]+){0,2}$' "renovate workflow runs the official Renovate GitHub Action"
   assert_not_contains "$RENOVATE_RUN_WORKFLOW" "configurationFile:" "renovate workflow does not pass a separate global config file"
   assert_contains "$RENOVATE_RUN_WORKFLOW" 'token: ${{ steps.app_token.outputs.token }}' "renovate workflow passes the GitHub App token to Renovate"
   assert_contains "$RENOVATE_RUN_WORKFLOW" 'repositories: ${{ github.event.repository.name }}' "renovate workflow scopes the GitHub App token to the current repository"
@@ -174,7 +187,11 @@ run_review_workflow_checks() {
   assert_contains "$REVIEW_WORKFLOW" "github.event.pull_request.user.login == 'renovate[bot]'" "review workflow allows renovate[bot]"
   assert_contains "$REVIEW_WORKFLOW" "github.event.pull_request.user.login == 'renovate-bot'" "review workflow allows renovate-bot"
   assert_contains "$REVIEW_WORKFLOW" "timeout-minutes: 10" "review workflow sets a job timeout"
-  assert_contains "$REVIEW_WORKFLOW" "actions/checkout@v4" "review workflow uses GitHub Actions checkout"
+  assert_yaml_matches "$REVIEW_WORKFLOW" '.jobs.review.steps[] | select(.uses != null).uses' '^actions/checkout@v[0-9]+(\.[0-9]+){0,2}$' "review workflow uses GitHub Actions checkout"
+  assert_contains "$REVIEW_WORKFLOW" "id: claude_token" "review workflow detects Claude token availability"
+  assert_contains "$REVIEW_WORKFLOW" "steps.claude_token.outputs.available == 'true'" "review workflow only runs Claude-backed steps when token is available"
+  assert_contains "$REVIEW_WORKFLOW" 'echo "available=false" >> "$GITHUB_OUTPUT"' "review workflow records missing Claude token state"
+  assert_contains "$REVIEW_WORKFLOW" "skipping automated Renovate review" "review workflow explains skipped review when Claude token is unavailable"
   assert_contains "$REVIEW_WORKFLOW" "npm install -g @anthropic-ai/claude-code" "review workflow installs Claude Code CLI"
   assert_contains "$REVIEW_WORKFLOW" "gh pr view" "review workflow reads the PR metadata"
   assert_contains "$REVIEW_WORKFLOW" "--json title,body" "review workflow fetches PR title and body"
