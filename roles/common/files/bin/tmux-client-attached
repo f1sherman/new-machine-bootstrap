@@ -2,9 +2,40 @@
 set -euo pipefail
 
 incoming_path="${1:-$PATH}"
-tmux set-environment -g PATH "$incoming_path"
+platform="$(uname -s)"
 
-case "$(uname -s)" in
+normalize_path() {
+  local path_value="${1:-/usr/bin:/bin:/usr/sbin:/sbin}" platform_name="$2"
+
+  pathprepend() {
+    local dir="${1%/}"
+    [ -d "$dir" ] || return 0
+    PATH=":$PATH:"
+    PATH="${PATH//:$dir:/:}"
+    PATH="${PATH#:}"
+    PATH="${PATH%:}"
+    PATH="$dir:$PATH"
+  }
+
+  PATH="$path_value"
+  pathprepend "$HOME/.local/bin"
+  case "$platform_name" in
+    Darwin)
+      pathprepend "/usr/local/sbin"
+      pathprepend "/usr/local/bin"
+      pathprepend "/opt/homebrew/sbin"
+      pathprepend "/opt/homebrew/bin"
+      ;;
+  esac
+  pathprepend "${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
+
+  printf '%s\n' "$PATH"
+}
+
+normalized_path="$(normalize_path "$incoming_path" "$platform")"
+tmux set-environment -g PATH "$normalized_path"
+
+case "$platform" in
   Linux)
     "$HOME/.local/bin/tmux-session-gc" --platform linux --days 14 >/dev/null 2>&1 || true
     ;;

@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="${CLEANUP_BRANCHES_SCRIPT:-$SCRIPT_DIR/cleanup-branches}"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+GIT_AUTHOR_NAME=test
+GIT_AUTHOR_EMAIL=test@example.com
+GIT_COMMITTER_NAME=test
+GIT_COMMITTER_EMAIL=test@example.com
+export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+
+repo="$TMPROOT/repo"
+wt="$TMPROOT/topic-wt"
+wt_real=""
+
+git -c init.templateDir= init -qb main "$repo"
+git -C "$repo" remote add origin git@github.com:f1sherman/new-machine-bootstrap.git
+git -C "$repo" commit -q --allow-empty -m init
+git -C "$repo" worktree add -q -b topic "$wt"
+wt_real="$(cd "$wt" && pwd -P)"
+
+stdout="$TMPROOT/stdout"
+stderr="$TMPROOT/stderr"
+
+if (
+  cd "$wt"
+  /usr/bin/ruby "$SCRIPT" --branch topic
+) >"$stdout" 2>"$stderr"; then
+  status=0
+else
+  status=$?
+fi
+
+[ "$status" -eq 0 ] || {
+  printf 'expected cleanup-branches to succeed under /usr/bin/ruby, got %s\n' "$status" >&2
+  cat "$stdout" >&2
+  cat "$stderr" >&2
+  exit 1
+}
+
+if git -C "$repo" show-ref --verify --quiet refs/heads/topic; then
+  printf 'expected topic branch to be deleted\n' >&2
+  exit 1
+fi
+
+if git -C "$repo" worktree list --porcelain | grep -Fq "worktree $wt_real"; then
+  printf 'expected topic worktree metadata to be removed\n' >&2
+  exit 1
+fi
+
+[ ! -e "$wt_real" ] || {
+  printf 'expected topic worktree path to be removed\n' >&2
+  exit 1
+}
+
+grep -Fq 'Checking topic...' "$stdout" || {
+  printf 'expected cleanup output to mention checked branch\n' >&2
+  cat "$stdout" >&2
+  exit 1
+}
+
+grep -Fq 'deleted' "$stdout" || {
+  printf 'expected cleanup output to mention deleted branch\n' >&2
+  cat "$stdout" >&2
+  exit 1
+}
+
+printf 'PASS  cleanup-branches removes linked worktree under /usr/bin/ruby\n'

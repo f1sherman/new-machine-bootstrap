@@ -2,8 +2,25 @@
 set -euo pipefail
 
 # Ghostty launches this via `bash --noprofile --norc`, so GUI startup may not
-# include Homebrew paths. Ensure jq/tmux/helper scripts can resolve first.
-PATH="${PATH:-/usr/bin:/bin}:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin"
+# include mise or Homebrew paths. Normalize PATH before running helpers or
+# starting tmux so `env ruby` and other tool lookups hit managed installs first.
+pathprepend() {
+  local dir="${1%/}"
+  [ -d "$dir" ] || return 0
+  PATH=":$PATH:"
+  PATH="${PATH//:$dir:/:}"
+  PATH="${PATH#:}"
+  PATH="${PATH%:}"
+  PATH="$dir:$PATH"
+}
+
+PATH="${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+pathprepend "/usr/local/sbin"
+pathprepend "/usr/local/bin"
+pathprepend "/opt/homebrew/sbin"
+pathprepend "/opt/homebrew/bin"
+pathprepend "$HOME/.local/bin"
+pathprepend "${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
 export PATH
 
 state_dir="$HOME/.local/state/terminal-restore"

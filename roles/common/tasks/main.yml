@@ -436,6 +436,25 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
+- name: Check if pinned Ruby version is installed
+  shell: "{{ mise_bin }} ls ruby | awk '$1 == \"ruby\" && $2 == \"{{ tool_versions.runtimes.ruby }}\" { found = 1 } END { exit(found ? 0 : 1) }'"
+  register: ruby_installed
+  changed_when: false
+  failed_when: false
+
+- name: Install pinned Ruby version if not installed
+  command: "{{ mise_bin }} install ruby@{{ tool_versions.runtimes.ruby }}"
+  when: ruby_installed.rc != 0
+
+- name: Get current global Ruby version from mise config
+  shell: grep '^ruby = ' ~/.config/mise/config.toml 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo ""
+  register: current_global_ruby
+  changed_when: false
+
+- name: Set global Ruby version via mise
+  command: "{{ mise_bin }} use --global ruby@{{ tool_versions.runtimes.ruby }}"
+  when: current_global_ruby.stdout != tool_versions.runtimes.ruby
+
 - name: Configure Claude Code vim mode in ~/.claude.json
   shell: |
     python3 -c '
