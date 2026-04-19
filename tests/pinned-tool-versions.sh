@@ -14,6 +14,8 @@ RENOVATE_RUN_WORKFLOW="$REPO_ROOT/.github/workflows/renovate.yml"
 RENOVATE_SETUP_DOC="$REPO_ROOT/docs/renovate-github-app.md"
 INTEGRATION_WORKFLOW="$REPO_ROOT/.github/workflows/integration-test.yml"
 REVIEW_WORKFLOW="$REPO_ROOT/.github/workflows/renovate-review.yml"
+WORKFLOWS_DIR="$REPO_ROOT/.github/workflows"
+CODEX_REVIEW_DOC="$REPO_ROOT/docs/codex-github-review.md"
 
 pass=0
 fail=0
@@ -180,24 +182,26 @@ run_integration_checks() {
 }
 
 run_review_workflow_checks() {
-  assert_contains "$REVIEW_WORKFLOW" "permissions:" "review workflow declares explicit permissions"
-  assert_contains "$REVIEW_WORKFLOW" "pull-requests: write" "review workflow can post PR comments"
-  assert_contains "$REVIEW_WORKFLOW" "format('{0}[bot]', vars.RENOVATE_APP_SLUG)" "review workflow allows the configured GitHub App bot login"
-  assert_not_contains "$REVIEW_WORKFLOW" "contains(github.event.pull_request.user.login, 'renovate')" "review workflow no longer uses broad Renovate substring gating"
-  assert_contains "$REVIEW_WORKFLOW" "github.event.pull_request.user.login == 'renovate[bot]'" "review workflow allows renovate[bot]"
-  assert_contains "$REVIEW_WORKFLOW" "github.event.pull_request.user.login == 'renovate-bot'" "review workflow allows renovate-bot"
-  assert_contains "$REVIEW_WORKFLOW" "timeout-minutes: 10" "review workflow sets a job timeout"
-  assert_yaml_matches "$REVIEW_WORKFLOW" '.jobs.review.steps[] | select(.uses != null).uses' '^actions/checkout@v[0-9]+(\.[0-9]+){0,2}$' "review workflow uses GitHub Actions checkout"
-  assert_contains "$REVIEW_WORKFLOW" "id: claude_token" "review workflow detects Claude token availability"
-  assert_contains "$REVIEW_WORKFLOW" "steps.claude_token.outputs.available == 'true'" "review workflow only runs Claude-backed steps when token is available"
-  assert_contains "$REVIEW_WORKFLOW" 'echo "available=false" >> "$GITHUB_OUTPUT"' "review workflow records missing Claude token state"
-  assert_contains "$REVIEW_WORKFLOW" "skipping automated Renovate review" "review workflow explains skipped review when Claude token is unavailable"
-  assert_contains "$REVIEW_WORKFLOW" "npm install -g @anthropic-ai/claude-code" "review workflow installs Claude Code CLI"
-  assert_contains "$REVIEW_WORKFLOW" "gh pr view" "review workflow reads the PR metadata"
-  assert_contains "$REVIEW_WORKFLOW" "--json title,body" "review workflow fetches PR title and body"
-  assert_contains "$REVIEW_WORKFLOW" "claude -p" "review workflow runs Claude in prompt mode"
-  assert_contains "$REVIEW_WORKFLOW" "--allowedTools 'Read,Grep,Glob'" "review workflow restricts Claude tools"
-  assert_contains "$REVIEW_WORKFLOW" "gh pr comment" "review workflow posts the review comment"
+  if [[ ! -e "$REVIEW_WORKFLOW" ]]; then
+    pass_case "review workflow has been removed"
+  else
+    fail_case "review workflow has been removed" "unexpected file present at $REVIEW_WORKFLOW"
+  fi
+
+  assert_not_contains "$WORKFLOWS_DIR" "CLAUDE_CODE_OAUTH_TOKEN" "review workflow no longer references the Claude OAuth token"
+  assert_not_contains "$WORKFLOWS_DIR" "@anthropic-ai/claude-code" "review workflow no longer install Claude Code"
+  assert_not_contains "$WORKFLOWS_DIR" "claude -p" "review workflow no longer run Claude prompt mode"
+
+  if [[ -f "$CODEX_REVIEW_DOC" ]]; then
+    pass_case "Codex GitHub review setup doc exists"
+    assert_contains "$CODEX_REVIEW_DOC" "Codex" "Codex review doc mentions Codex"
+    assert_contains "$CODEX_REVIEW_DOC" "GitHub" "Codex review doc mentions GitHub"
+    assert_contains "$CODEX_REVIEW_DOC" "code review" "Codex review doc mentions code review"
+    assert_contains "$CODEX_REVIEW_DOC" "\`@codex review\`" "Codex review doc includes the manual fallback"
+    assert_contains "$CODEX_REVIEW_DOC" "\`CLAUDE_CODE_OAUTH_TOKEN\`" "Codex review doc explains the old Claude secret cleanup"
+  else
+    fail_case "Codex GitHub review setup doc exists" "missing $CODEX_REVIEW_DOC"
+  fi
 }
 
 case "${1:-all}" in
