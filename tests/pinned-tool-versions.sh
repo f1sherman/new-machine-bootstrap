@@ -14,6 +14,7 @@ RENOVATE_RUN_WORKFLOW="$REPO_ROOT/.github/workflows/renovate.yml"
 RENOVATE_SETUP_DOC="$REPO_ROOT/docs/renovate-github-app.md"
 INTEGRATION_WORKFLOW="$REPO_ROOT/.github/workflows/integration-test.yml"
 REVIEW_WORKFLOW="$REPO_ROOT/.github/workflows/renovate-review.yml"
+WORKFLOWS_DIR="$REPO_ROOT/.github/workflows"
 CODEX_REVIEW_DOC="$REPO_ROOT/docs/codex-github-review.md"
 
 pass=0
@@ -187,9 +188,9 @@ run_review_workflow_checks() {
     fail_case "review workflow has been removed" "unexpected file present at $REVIEW_WORKFLOW"
   fi
 
-  assert_not_contains "$REVIEW_WORKFLOW" "CLAUDE_CODE_OAUTH_TOKEN" "review workflow no longer references the Claude OAuth token"
-  assert_not_contains "$REVIEW_WORKFLOW" "@anthropic-ai/claude-code" "review workflow no longer install Claude Code"
-  assert_not_contains "$REVIEW_WORKFLOW" "claude -p" "review workflow no longer run Claude prompt mode"
+  assert_not_contains "$WORKFLOWS_DIR" "CLAUDE_CODE_OAUTH_TOKEN" "review workflow no longer references the Claude OAuth token"
+  assert_not_contains "$WORKFLOWS_DIR" "@anthropic-ai/claude-code" "review workflow no longer install Claude Code"
+  assert_not_contains "$WORKFLOWS_DIR" "claude -p" "review workflow no longer run Claude prompt mode"
 
   if [[ -f "$CODEX_REVIEW_DOC" ]]; then
     pass_case "Codex GitHub review setup doc exists"
