@@ -11,7 +11,7 @@ pane_id="${4:-}"
 
 get_process_lines() {
   local tty="$1"
-  ps -o pid=,stat=,comm=,args= -t "$tty" 2>/dev/null
+  ps -o args= -t "$tty" 2>/dev/null
 }
 
 is_agent_process() {
@@ -37,7 +37,7 @@ detect_agent_pid() {
         fg_pid="$pid"
         ;;
     esac
-  done < <(get_process_lines "$tty")
+  done < <(ps -o pid=,stat=,comm=,args= -t "$tty" 2>/dev/null)
 
   if [ -n "$fg_pid" ]; then
     printf '%s\n' "$fg_pid"
@@ -214,6 +214,11 @@ is_remote_candidate_command() {
   esac
 }
 
+if [ -n "$pane_current_command" ] && ! is_remote_candidate_command "$pane_current_command"; then
+  local_label
+  exit 0
+fi
+
 if [ -n "$pane_id" ]; then
   explicit_agent_pid="$(detect_agent_pid "$pane_tty" || true)"
   if [ -n "$explicit_agent_pid" ]; then
@@ -227,12 +232,7 @@ if [ -n "$pane_id" ]; then
   fi
 fi
 
-if [ -n "$pane_current_command" ] && ! is_remote_candidate_command "$pane_current_command"; then
-  local_label
-  exit 0
-fi
-
-pane_procs="$(ps -o args= -t "$pane_tty" 2>/dev/null || true)"
+pane_procs="$(get_process_lines "$pane_tty" || true)"
 
 label=""
 

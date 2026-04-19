@@ -126,7 +126,8 @@ assert_eq() {
 run_case() {
   local name="$1" tty="$2" path="$3" pane_current_command="$4" expected="$5"
   local fixture="$6" expected_ps_calls="$7"
-  local pane_id="${8:-}" explicit_pid="${9:-}" explicit_path="${10:-}" detail_fixture="${11:-}"
+  local expected_tmux_calls="${8:-0}"
+  local pane_id="${9:-}" explicit_pid="${10:-}" explicit_path="${11:-}" detail_fixture="${12:-}"
 
   printf '%s\n' "$fixture" > "$tmp_root/$tty"
   if [ -n "$detail_fixture" ]; then
@@ -137,12 +138,22 @@ run_case() {
     printf '%s\n' "$explicit_path" > "$tmp_root/$pane_id.@agent_worktree_path"
   fi
   : > "$ps_log"
+  : > "$tmux_log"
 
   local output ps_calls
-  output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" TMUX_CALL_LOG="$tmux_log" TMUX_FIXTURE_DIR="$tmp_root" TMUX_PANE_IDS="${pane_id:-}" bash "$script" "$tty" "$path" "$pane_current_command" "${pane_id:-}" 2>/dev/null || true)"
+  local rc
+  if output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" TMUX_CALL_LOG="$tmux_log" TMUX_FIXTURE_DIR="$tmp_root" TMUX_PANE_IDS="${pane_id:-}" bash "$script" "$tty" "$path" "$pane_current_command" "${pane_id:-}" 2>/dev/null)"; then
+    rc=0
+  else
+    rc=$?
+  fi
   ps_calls="$(wc -l < "$ps_log" | tr -d ' ')"
+  local tmux_calls
+  tmux_calls="$(wc -l < "$tmux_log" | tr -d ' ')"
 
   assert_eq "$ps_calls" "$expected_ps_calls" "$name ps call count"
+  assert_eq "$tmux_calls" "$expected_tmux_calls" "$name tmux call count"
+  assert_eq "$rc" "0" "$name exit status"
   assert_eq "$output" "$expected" "$name output"
 }
 
@@ -173,6 +184,7 @@ run_case \
   "zsh" \
   "feature/foo repo" \
   "shell: zsh" \
+  "0" \
   "0"
 
 run_case \
@@ -182,6 +194,7 @@ run_case \
   "bash" \
   "tmp" \
   "shell: login" \
+  "0" \
   "0"
 
 run_case \
@@ -191,7 +204,8 @@ run_case \
   "ssh" \
   "claw02" \
   "ssh dev@claw02 -p 22" \
-  "1"
+  "1" \
+  "0"
 
 run_case \
   "codespaces pane keeps codespace label" \
@@ -200,7 +214,8 @@ run_case \
   "gh" \
   "space-alpha" \
   "gh codespace ssh --codespace space-alpha" \
-  "1"
+  "1" \
+  "0"
 
 run_case \
   "devpod pane keeps workspace label via ruby hint" \
@@ -209,7 +224,8 @@ run_case \
   "ruby" \
   "workspace-beta" \
   "devpod ssh workspace-beta" \
-  "1"
+  "1" \
+  "0"
 
 run_case \
   "ruby local pane falls back to local label" \
@@ -218,7 +234,8 @@ run_case \
   "ruby" \
   "tmp" \
   "ruby script/server" \
-  "1"
+  "1" \
+  "0"
 
 run_case \
   "empty hint preserves ssh label via slow path" \
@@ -227,7 +244,8 @@ run_case \
   "" \
   "claw02" \
   $'zsh -l\nssh dev@claw02 -p 22' \
-  "1"
+  "1" \
+  "0"
 
 run_case \
   "empty hint preserves local shell label via slow path" \
@@ -236,7 +254,8 @@ run_case \
   "" \
   "feature/foo repo" \
   "zsh -l" \
-  "1"
+  "1" \
+  "0"
 
 run_case \
   "explicit state overrides remote heuristic" \
@@ -246,6 +265,7 @@ run_case \
   "feature/agent-label agent-wt" \
   "ssh dev@claw02 -p 22" \
   "1" \
+  "2" \
   "%91" \
   "9100" \
   "$agent_wt" \
@@ -259,7 +279,50 @@ run_case \
   "claw02" \
   "ssh dev@claw02 -p 22" \
   "2" \
+  "2" \
   "%92" \
   "9999" \
   "$agent_wt" \
+  $'9100 S+ codex codex --cd /tmp/irrelevant'
+
+run_case \
+  "local pane with pane id keeps fast path" \
+  "tty-local-pane-id" \
+  "$git_repo" \
+  "bash" \
+  "feature/foo repo" \
+  "shell: login" \
+  "0" \
+  "0" \
+  "%93" \
+  "9100" \
+  "$agent_wt" \
+  $'9100 S+ codex codex --cd /tmp/irrelevant'
+
+run_case \
+  "invalid explicit path falls back to remote heuristic" \
+  "tty-explicit-invalid-path" \
+  "$tmp_dir" \
+  "ssh" \
+  "claw02" \
+  "ssh dev@claw02 -p 22" \
+  "2" \
+  "2" \
+  "%94" \
+  "9100" \
+  "/no/such/path" \
+  $'9100 S+ codex codex --cd /tmp/irrelevant'
+
+run_case \
+  "primary checkout explicit path falls back to remote heuristic" \
+  "tty-explicit-primary-checkout" \
+  "$tmp_dir" \
+  "ssh" \
+  "claw02" \
+  "ssh dev@claw02 -p 22" \
+  "2" \
+  "2" \
+  "%95" \
+  "9100" \
+  "$agent_repo" \
   $'9100 S+ codex codex --cd /tmp/irrelevant'
