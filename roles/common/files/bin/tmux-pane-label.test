@@ -282,6 +282,20 @@ run_case \
   $'9100 S+ codex codex --cd /tmp/irrelevant'
 
 run_case \
+  "background agent does not override remote foreground" \
+  "tty-explicit-background-agent" \
+  "$tmp_dir" \
+  "ruby" \
+  "workspace-beta" \
+  $'devpod ssh workspace-beta\ncodex --cd /tmp/irrelevant' \
+  "2" \
+  "0" \
+  "%91" \
+  "9101" \
+  "$agent_wt" \
+  $'9100 S+ devpod ssh workspace-beta\n9101 S codex codex --cd /tmp/irrelevant'
+
+run_case \
   "explicit state falls back when pid mismatches" \
   "tty-explicit-stale" \
   "$tmp_dir" \

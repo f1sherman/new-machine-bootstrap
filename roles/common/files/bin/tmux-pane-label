@@ -25,13 +25,12 @@ is_agent_process() {
 }
 
 detect_agent_pid() {
-  local tty="$1" line pid stat comm args fg_pid="" any_pid=""
+  local tty="$1" line pid stat comm args fg_pid=""
 
   while IFS= read -r line || [ -n "$line" ]; do
     [ -z "$line" ] && continue
     read -r pid stat comm args <<< "$line"
     is_agent_process "${comm:-}" "${args:-}" || continue
-    any_pid="$pid"
     case "$stat" in
       *+*)
         fg_pid="$pid"
@@ -41,8 +40,6 @@ detect_agent_pid() {
 
   if [ -n "$fg_pid" ]; then
     printf '%s\n' "$fg_pid"
-  elif [ -n "$any_pid" ]; then
-    printf '%s\n' "$any_pid"
   fi
 }
 
