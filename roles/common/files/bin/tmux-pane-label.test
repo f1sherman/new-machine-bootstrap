@@ -131,3 +131,21 @@ run_case \
   "tmp" \
   "ruby script/server" \
   "1"
+
+run_case \
+  "empty hint preserves ssh label via slow path" \
+  "tty-ssh-multiline" \
+  "$tmp_dir" \
+  "" \
+  "claw02" \
+  $'zsh -l\nssh dev@claw02 -p 22' \
+  "1"
+
+run_case \
+  "empty hint preserves local shell label via slow path" \
+  "tty-local-shell" \
+  "$git_repo" \
+  "" \
+  "feature/foo repo" \
+  "zsh -l" \
+  "1"

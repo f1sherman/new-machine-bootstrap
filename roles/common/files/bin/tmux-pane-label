@@ -142,7 +142,7 @@ is_remote_candidate_command() {
   esac
 }
 
-if ! is_remote_candidate_command "$pane_current_command"; then
+if [ -n "$pane_current_command" ] && ! is_remote_candidate_command "$pane_current_command"; then
   local_label
   exit 0
 fi
