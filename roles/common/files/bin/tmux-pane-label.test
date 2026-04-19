@@ -198,6 +198,16 @@ run_case \
   "0"
 
 run_case \
+  "agent pane without pane id keeps local fast path" \
+  "tty-agent-no-pane-id" \
+  "$git_repo" \
+  "codex" \
+  "feature/foo repo" \
+  "codex --cd /tmp/irrelevant" \
+  "0" \
+  "0"
+
+run_case \
   "plain ssh pane keeps host label" \
   "tty-ssh" \
   "$tmp_dir" \

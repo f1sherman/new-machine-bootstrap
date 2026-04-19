@@ -221,7 +221,13 @@ is_agent_candidate_command() {
   esac
 }
 
-if [ -n "$pane_current_command" ] && \
+if [ -z "$pane_id" ] && [ -n "$pane_current_command" ] && \
+  ! is_remote_candidate_command "$pane_current_command"; then
+  local_label
+  exit 0
+fi
+
+if [ -n "$pane_id" ] && [ -n "$pane_current_command" ] && \
   ! is_remote_candidate_command "$pane_current_command" && \
   ! is_agent_candidate_command "$pane_current_command"; then
   local_label
