@@ -4,9 +4,79 @@ set -euo pipefail
 pane_tty="${1:-}"
 pane_current_path="${2:-}"
 pane_current_command="${3:-}"
+pane_id="${4:-}"
 
 [ -n "$pane_tty" ] || exit 0
 [ -n "$pane_current_path" ] || exit 0
+
+get_process_lines() {
+  local tty="$1"
+  ps -o pid=,stat=,comm=,args= -t "$tty" 2>/dev/null
+}
+
+is_agent_process() {
+  local comm="$1" args="$2"
+  case "$comm" in
+    claude|codex)
+      return 0
+      ;;
+  esac
+  printf '%s\n' "$args" | grep -Eq '(^|[[:space:]])([^[:space:]]*/)?(claude|codex)([[:space:]]|$)'
+}
+
+detect_agent_pid() {
+  local tty="$1" line pid stat comm args fg_pid="" any_pid=""
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    [ -z "$line" ] && continue
+    read -r pid stat comm args <<< "$line"
+    is_agent_process "${comm:-}" "${args:-}" || continue
+    any_pid="$pid"
+    case "$stat" in
+      *+*)
+        fg_pid="$pid"
+        ;;
+    esac
+  done < <(get_process_lines "$tty")
+
+  if [ -n "$fg_pid" ]; then
+    printf '%s\n' "$fg_pid"
+  elif [ -n "$any_pid" ]; then
+    printf '%s\n' "$any_pid"
+  fi
+}
+
+read_pane_option() {
+  local pane_id="$1" option_name="$2"
+  [ -n "$pane_id" ] || return 1
+  tmux show-options -pv -t "$pane_id" "$option_name" 2>/dev/null
+}
+
+is_git_worktree_path() {
+  local path="$1"
+  [ -d "$path" ] || return 1
+  [ "$(git -C "$path" rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]
+}
+
+is_linked_worktree() {
+  local path="$1" git_dir common_dir
+  git_dir="$(git -C "$path" rev-parse --path-format=absolute --git-dir 2>/dev/null)" || return 1
+  common_dir="$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+  [ "$git_dir" != "$common_dir" ]
+}
+
+on_named_branch() {
+  local path="$1" branch
+  branch="$(git -C "$path" branch --show-current 2>/dev/null)"
+  [ -n "$branch" ]
+}
+
+is_valid_explicit_path() {
+  local path="$1"
+  is_git_worktree_path "$path" || return 1
+  is_linked_worktree "$path" || return 1
+  on_named_branch "$path" || return 1
+}
 
 extract_ssh_host() {
   local args="$1"
@@ -128,10 +198,12 @@ dir_basename() {
 }
 
 local_label() {
-  if branch="$(git_branch_for_path "$pane_current_path" 2>/dev/null)"; then
-    printf '%s\n' "$branch $(dir_basename "$pane_current_path")"
+  local path="${1:-$pane_current_path}" branch
+
+  if branch="$(git_branch_for_path "$path" 2>/dev/null)"; then
+    printf '%s\n' "$branch $(dir_basename "$path")"
   else
-    dir_basename "$pane_current_path"
+    dir_basename "$path"
   fi
 }
 
@@ -141,6 +213,19 @@ is_remote_candidate_command() {
     *) return 1 ;;
   esac
 }
+
+if [ -n "$pane_id" ]; then
+  explicit_agent_pid="$(detect_agent_pid "$pane_tty" || true)"
+  if [ -n "$explicit_agent_pid" ]; then
+    explicit_worktree_pid="$(read_pane_option "$pane_id" "@agent_worktree_pid" 2>/dev/null || true)"
+    explicit_worktree_path="$(read_pane_option "$pane_id" "@agent_worktree_path" 2>/dev/null || true)"
+    if [ -n "$explicit_worktree_pid" ] && [ "$explicit_worktree_pid" = "$explicit_agent_pid" ] && \
+      [ -n "$explicit_worktree_path" ] && is_valid_explicit_path "$explicit_worktree_path"; then
+      local_label "$explicit_worktree_path"
+      exit 0
+    fi
+  fi
+fi
 
 if [ -n "$pane_current_command" ] && ! is_remote_candidate_command "$pane_current_command"; then
   local_label
