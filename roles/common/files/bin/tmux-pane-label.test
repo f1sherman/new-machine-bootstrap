@@ -258,12 +258,12 @@ run_case \
   "0"
 
 run_case \
-  "explicit state overrides remote heuristic" \
+  "explicit agent pane overrides local fast path" \
   "tty-explicit" \
   "$tmp_dir" \
-  "ssh" \
+  "codex" \
   "feature/agent-label agent-wt" \
-  "ssh dev@claw02 -p 22" \
+  "codex --cd /tmp/irrelevant" \
   "1" \
   "2" \
   "%91" \
