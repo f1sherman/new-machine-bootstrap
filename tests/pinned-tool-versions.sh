@@ -193,14 +193,14 @@ run_review_workflow_checks() {
 
   if [[ -f "$CODEX_REVIEW_DOC" ]]; then
     pass_case "Codex GitHub review setup doc exists"
+    assert_contains "$CODEX_REVIEW_DOC" "# Codex GitHub Review Setup" "Codex review doc has the expected title"
+    assert_contains "$CODEX_REVIEW_DOC" "Codex GitHub Review" "Codex review doc mentions the review workflow"
+    assert_contains "$CODEX_REVIEW_DOC" "Enable Codex code review" "Codex review doc explains how to enable review"
+    assert_contains "$CODEX_REVIEW_DOC" "\`@codex review\`" "Codex review doc includes the manual fallback"
+    assert_contains "$CODEX_REVIEW_DOC" "\`CLAUDE_CODE_OAUTH_TOKEN\`" "Codex review doc explains the old Claude secret cleanup"
   else
     fail_case "Codex GitHub review setup doc exists" "missing $CODEX_REVIEW_DOC"
   fi
-
-  assert_contains "$CODEX_REVIEW_DOC" "# Codex GitHub Review Setup" "Codex review doc has the expected title"
-  assert_contains "$CODEX_REVIEW_DOC" "Enable Codex code review for \`f1sherman/new-machine-bootstrap\`." "Codex review doc explains how to enable the repo"
-  assert_contains "$CODEX_REVIEW_DOC" "\`@codex review\`" "Codex review doc includes the manual fallback"
-  assert_contains "$CODEX_REVIEW_DOC" "\`CLAUDE_CODE_OAUTH_TOKEN\`" "Codex review doc explains the old Claude secret cleanup"
 }
 
 case "${1:-all}" in
