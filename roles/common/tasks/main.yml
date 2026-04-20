@@ -348,6 +348,7 @@
       * Pull requests: when verification passes and work is complete, invoke `create-pull-request` automatically; do not ask for approval to create the PR.
       * Worktrees: create using `worktree-start`. Created other way: run `tmux-agent-worktree set <absolute-path>`. When done: `tmux-agent-worktree clear`.
       * Comments: use sparingly. Explain why, not what.
+      * Scripts/snippets: write scripts in ruby; snippets in bash unless otherwise instructed.
       * JSON/YAML parsing: use `jq` or `yq`, never use python or ruby.
       * Multi-line commands: write script to `/tmp`. Do not ask user to copy/paste over multiple lines.
       * Testing: use Red/Green TDD.
