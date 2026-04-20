@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+path="${*:-}"
+
+[ -n "$path" ] || {
+  printf 'review-file: path is required\n' >&2
+  exit 1
+}
+
+page_output() {
+  case "${TMUX_REVIEW_PAGER_BIN:-}" in
+    cat)
+      cat
+      ;;
+    "")
+      if command -v less >/dev/null 2>&1; then
+        less -R
+      else
+        cat
+      fi
+      ;;
+    *)
+      "${TMUX_REVIEW_PAGER_BIN}"
+      ;;
+  esac
+}
+
+render_file_body() {
+  case "${TMUX_REVIEW_BAT_BIN:-}" in
+    cat)
+      cat "$path"
+      ;;
+    "")
+      if command -v bat >/dev/null 2>&1; then
+        bat --paging=never --style=numbers --color=always "$path"
+      else
+        cat "$path"
+      fi
+      ;;
+    *)
+      "${TMUX_REVIEW_BAT_BIN}" --paging=never --style=numbers --color=always "$path"
+      ;;
+  esac
+}
+
+if [ -z "${TMUX_REVIEW_RENDER:-}" ]; then
+  [ -n "${TMUX:-}" ] && [ -n "${TMUX_PANE:-}" ] || {
+    printf 'review-file: tmux is required\n' >&2
+    exit 1
+  }
+  exec "$SCRIPT_DIR/tmux-review-open" file "$path"
+fi
+
+[ -f "$path" ] || {
+  printf 'review-file: file not found: %s\n' "$path" >&2
+  exit 1
+}
+
+render_file_body | page_output

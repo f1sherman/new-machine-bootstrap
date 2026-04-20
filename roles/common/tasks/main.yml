@@ -290,6 +290,19 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-agent-pane-status'
     mode: 0755
 
+- name: Install tmux review helpers
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/{{ item.name }}'
+    src: '{{ playbook_dir }}/roles/common/files/bin/{{ item.name }}'
+    mode: '{{ item.mode }}'
+  loop:
+    - { name: tmux-review-lib.sh, mode: '0644' }
+    - { name: review-diff, mode: '0755' }
+    - { name: review-file, mode: '0755' }
+    - { name: tmux-review-open, mode: '0755' }
+    - { name: tmux-review-toggle, mode: '0755' }
+
 - name: Install tmux-window-name script
   copy:
     backup: yes
