@@ -25,7 +25,11 @@ printf '%s\n' "$*" >> "$log"
 
 case "${1:-}" in
   display-message)
-    printf '%s\n' "${TMUX_DISPLAY_OUTPUT:-}"
+    if [ "${*: -1}" = $'#{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}\t#{pane_title}\t#{pane_id}' ] && [ -n "${TMUX_DISPLAY_OUTPUT_WITH_TITLE:-}" ]; then
+      printf '%s\n' "${TMUX_DISPLAY_OUTPUT_WITH_TITLE}"
+    else
+      printf '%s\n' "${TMUX_DISPLAY_OUTPUT:-}"
+    fi
     ;;
   rename-window)
     ;;
@@ -94,19 +98,19 @@ mkdir -p "$tmp_root/home"
 
 run_case \
   "%11" \
-  $'@7\t1\tmain dotfiles\t/dev/ttys001\t/tmp/repo\tzsh\t%11' \
+  $'@7\t1\tmain dotfiles\t/dev/ttys001\t/tmp/repo\tzsh\tlocal-shell\t%11' \
   "feature/foo repo"
 
-assert_file_contains "$tmux_log" $'display-message -p -t %11 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}\t#{pane_id}' "active pane queries pane id"
+assert_file_contains "$tmux_log" $'display-message -p -t %11 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}\t#{pane_title}\t#{pane_id}' "active pane queries pane id"
 assert_file_contains "$pane_label_log" "/dev/ttys001|/tmp/repo|zsh|%11" "active pane derives label"
 assert_file_contains "$tmux_log" "rename-window -t @7 feature/foo repo" "active pane renames changed label"
 
 run_case \
   "%12" \
-  $'@8\t1\tfeature/foo repo\t/dev/ttys002\t/tmp/repo\tzsh\t%12' \
+  $'@8\t1\tfeature/foo repo\t/dev/ttys002\t/tmp/repo\tzsh\tlocal-shell\t%12' \
   "feature/foo repo"
 
-assert_file_contains "$tmux_log" $'display-message -p -t %12 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}\t#{pane_id}' "unchanged label queries pane id"
+assert_file_contains "$tmux_log" $'display-message -p -t %12 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}\t#{pane_title}\t#{pane_id}' "unchanged label queries pane id"
 assert_file_contains "$pane_label_log" "/dev/ttys002|/tmp/repo|zsh|%12" "unchanged label still derives"
 if grep -Fq "rename-window" "$tmux_log"; then
   printf 'not ok - unchanged label skips rename\nunexpected rename:\n' >&2
@@ -117,10 +121,10 @@ printf 'ok - unchanged label skips rename\n'
 
 run_case \
   "%13" \
-  $'@9\t0\tmain dotfiles\t/dev/ttys003\t/tmp/repo\tzsh\t%13' \
+  $'@9\t0\tmain dotfiles\t/dev/ttys003\t/tmp/repo\tzsh\tlocal-shell\t%13' \
   "feature/foo repo"
 
-assert_file_contains "$tmux_log" $'display-message -p -t %13 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}\t#{pane_id}' "inactive pane queries pane id"
+assert_file_contains "$tmux_log" $'display-message -p -t %13 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}\t#{pane_title}\t#{pane_id}' "inactive pane queries pane id"
 assert_empty_file "$pane_label_log" "inactive pane skips label helper"
 if grep -Fq "rename-window" "$tmux_log"; then
   printf 'not ok - inactive pane skips rename\nunexpected rename:\n' >&2
@@ -128,3 +132,20 @@ if grep -Fq "rename-window" "$tmux_log"; then
   exit 1
 fi
 printf 'ok - inactive pane skips rename\n'
+
+: > "$tmux_log"
+: > "$pane_label_log"
+
+PATH="$fake_bin:$PATH" \
+  HOME="$tmp_root/home" \
+  TMUX=1 \
+  TMUX_LOG="$tmux_log" \
+  TMUX_DISPLAY_OUTPUT_WITH_TITLE=$'@10\t1\tclaw02\t/dev/ttys004\t/tmp/repo\tssh\t(feature/foo) repo | claw02\t%14' \
+  TMUX_PANE_LABEL_BIN="$fake_bin/tmux-pane-label" \
+  PANE_LABEL_LOG="$pane_label_log" \
+  PANE_LABEL_OUTPUT="claw02" \
+  bash "$script" "%14"
+
+assert_file_contains "$tmux_log" $'display-message -p -t %14 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}\t#{pane_title}\t#{pane_id}' "remote title queries pane title"
+assert_empty_file "$pane_label_log" "remote title skips helper"
+assert_file_contains "$tmux_log" "rename-window -t @10 (feature/foo) repo | claw02" "remote title preserves synced label"
