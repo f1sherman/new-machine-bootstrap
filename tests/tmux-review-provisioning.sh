@@ -25,13 +25,13 @@ assert_contains "roles/common/tasks/main.yml" "tmux-review-toggle"
 assert_contains "roles/common/tasks/main.yml" "review-diff"
 assert_contains "roles/common/tasks/main.yml" "review-file"
 
-assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-d if-shell \"$is_ssh\" 'send-keys M-d'"
-assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-f if-shell \"$is_ssh\" 'send-keys M-f'"
-assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-r if-shell \"$is_ssh\" 'send-keys M-r'"
+assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-d if-shell \"\$is_ssh\" 'send-keys M-d'"
+assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-f if-shell \"\$is_ssh\" 'send-keys M-f'"
+assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-r if-shell \"\$is_ssh\" 'send-keys M-r'"
 
-assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-d if-shell \"$is_ssh\" 'send-keys M-d'"
-assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-f if-shell \"$is_ssh\" 'send-keys M-f'"
-assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-r if-shell \"$is_ssh\" 'send-keys M-r'"
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-d if-shell \"\$is_ssh\" 'send-keys M-d'"
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-f if-shell \"\$is_ssh\" 'send-keys M-f'"
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-r if-shell \"\$is_ssh\" 'send-keys M-r'"
 
 printf '\npassed=%s failed=%s\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
