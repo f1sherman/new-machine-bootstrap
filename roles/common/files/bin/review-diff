@@ -53,7 +53,7 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 }
 
 staged_output="$(cd "$repo_root" && git --no-pager diff --cached)"
-working_output="$(cd "$repo_root" && GIT_PAGER=cat "$SCRIPT_DIR/git-diff-untracked" --no-pager)"
+working_output="$(cd "$repo_root" && GIT_PAGER=cat "$SCRIPT_DIR/git-diff-untracked")"
 
 if [ -z "$staged_output" ] && [ -z "$working_output" ]; then
   printf 'working tree clean\n' | page_output
