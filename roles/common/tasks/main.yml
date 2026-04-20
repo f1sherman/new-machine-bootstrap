@@ -310,12 +310,10 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-window-name'
     mode: 0755
 
-- name: Install tmux-status-toggle script
-  copy:
-    backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-status-toggle'
-    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-status-toggle'
-    mode: 0755
+- name: Remove obsolete tmux-status-toggle script
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-status-toggle'
+    state: absent
 
 - name: Install claude-trust-directory script
   copy:
