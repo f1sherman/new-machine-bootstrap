@@ -215,10 +215,6 @@
 - name: Configure macOS defaults
   include_tasks: defaults.yml
 
-- name: Set timezone
-  command: systemsetup -settimezone “America/Chicago” > /dev/null
-  changed_when: false
-
 - name: Show the ~/Library folder
   command: chflags nohidden ~/Library
   changed_when: false

@@ -38,6 +38,7 @@ echo "    Done."
 echo "==> Configuring system settings..."
 sudo nvram SystemAudioVolume=" "
 sudo systemsetup -setrestartfreeze on
+sudo systemsetup -settimezone America/Chicago
 sudo defaults write /Library/Preferences/com.apple.loginwindow SHOWFULLNAME -bool true
 sudo defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool false
 sudo pmset -a hibernatemode 0
