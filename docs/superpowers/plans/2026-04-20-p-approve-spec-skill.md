@@ -25,9 +25,9 @@
 - Create: `tests/p-approve-spec-skill.sh`
 - Test: `bash tests/p-approve-spec-skill.sh`
 
-- [ ] **Step 1.1: Create the failing regression script**
+- [x] **Step 1.1: Create the failing regression script**
 
-Create `tests/p-approve-spec-skill.sh` with this exact content:
+Create `tests/p-approve-spec-skill.sh` with this exact content, then mark it executable with `chmod +x tests/p-approve-spec-skill.sh`:
 
 ```bash
 #!/usr/bin/env bash
@@ -102,7 +102,7 @@ printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
 ```
 
-- [ ] **Step 1.2: Run the regression and confirm it fails before the skill exists**
+- [x] **Step 1.2: Run the regression and confirm it fails before the skill exists**
 
 Run:
 
@@ -112,7 +112,7 @@ bash tests/p-approve-spec-skill.sh
 
 Expected: FAIL. At minimum, the output should include failures for the missing shared skill file and the missing expected wording.
 
-- [ ] **Step 1.3: Commit the red regression**
+- [x] **Step 1.3: Commit the red regression**
 
 Run:
 
@@ -131,7 +131,7 @@ Expected: one commit containing the new failing test plus this implementation pl
 - Create: `roles/common/files/config/skills/common/p-approve-spec/SKILL.md`
 - Test: `bash tests/p-approve-spec-skill.sh`
 
-- [ ] **Step 2.1: Create the shared skill with the approved wording**
+- [x] **Step 2.1: Create the shared skill with the approved wording**
 
 Create `roles/common/files/config/skills/common/p-approve-spec/SKILL.md` with this exact content:
 
@@ -147,12 +147,12 @@ description: >
 
 The spec is approved.
 
-Proceed with implementation immediately. Do not ask for another implementation approval prompt.
+Please proceed with implementation immediately. Do not ask for another implementation approval prompt.
 
-After verification passes and the work is complete, open a PR.
+After verification passes and the work is complete, open a PR when complete.
 ```
 
-- [ ] **Step 2.2: Re-run the regression and confirm it passes**
+- [x] **Step 2.2: Re-run the regression and confirm it passes**
 
 Run:
 
@@ -199,7 +199,7 @@ Run:
 ```bash
 rg -n -F "name: p-approve-spec" ~/.claude/skills/p-approve-spec/SKILL.md ~/.codex/skills/p-approve-spec/SKILL.md
 rg -n -F "The spec is approved." ~/.claude/skills/p-approve-spec/SKILL.md ~/.codex/skills/p-approve-spec/SKILL.md
-rg -n -F "Proceed with implementation immediately." ~/.claude/skills/p-approve-spec/SKILL.md ~/.codex/skills/p-approve-spec/SKILL.md
+rg -n -F "Please proceed with implementation immediately." ~/.claude/skills/p-approve-spec/SKILL.md ~/.codex/skills/p-approve-spec/SKILL.md
 rg -n -F "open a PR" ~/.claude/skills/p-approve-spec/SKILL.md ~/.codex/skills/p-approve-spec/SKILL.md
 ```
 
