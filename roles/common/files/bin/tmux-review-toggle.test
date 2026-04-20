@@ -121,12 +121,12 @@ seed_fake_tmux() {
 }
 
 run_toggle() {
-  local state_dir="$1" fake_tmux="$2" pane_id="$3"
+  local state_dir="$1" fake_dir="$2" fake_tmux="$3" pane_id="$4"
   if (
     export TMUX="/tmp/fake-tmux"
     export TMUX_PANE="$pane_id"
     export TMUX_REVIEW_STATE_DIR="$state_dir"
-    export TMUX_REVIEW_FAKE_DIR="$(dirname "$fake_tmux")/fake"
+    export TMUX_REVIEW_FAKE_DIR="$fake_dir"
     export TMUX_REVIEW_TMUX_BIN="$fake_tmux"
     "$SCRIPT"
   ); then
@@ -144,7 +144,7 @@ printf '%s\t%s\t%s\n' "%1" "@1" "$TMPROOT/repo" >> "$TMPROOT/fake1/panes.tsv"
 mkdir -p "$state_dir"
 printf '%s' "@21" > "$(state_file "$state_dir" "%1" "@review_window_id")"
 make_fake_tmux "$fake_tmux"
-if run_toggle "$state_dir" "$fake_tmux" "%1"; then
+if run_toggle "$state_dir" "$TMPROOT/fake1" "$fake_tmux" "%1"; then
   assert_eq "origin pane toggles to review window" "@21" "$(cat "$TMPROOT/fake1/switch_target")"
 else
   fail=$((fail + 1))
@@ -162,7 +162,7 @@ mkdir -p "$state_dir"
 printf '%s' "%1" > "$(state_file "$state_dir" "@21" "@review_origin_pane_id")"
 printf '%s' "@1" > "$(state_file "$state_dir" "@21" "@review_origin_window_id")"
 make_fake_tmux "$fake_tmux"
-if run_toggle "$state_dir" "$fake_tmux" "%91"; then
+if run_toggle "$state_dir" "$TMPROOT/fake2" "$fake_tmux" "%91"; then
   assert_eq "review pane selects origin window" "@1" "$(cat "$TMPROOT/fake2/select_window")"
   assert_eq "review pane selects origin pane" "%1" "$(cat "$TMPROOT/fake2/select_pane")"
 else
@@ -180,7 +180,7 @@ mkdir -p "$state_dir"
 printf '%s' "%1" > "$(state_file "$state_dir" "@21" "@review_origin_pane_id")"
 printf '%s' "@1" > "$(state_file "$state_dir" "@21" "@review_origin_window_id")"
 make_fake_tmux "$fake_tmux"
-if run_toggle "$state_dir" "$fake_tmux" "%91"; then
+if run_toggle "$state_dir" "$TMPROOT/fake3" "$fake_tmux" "%91"; then
   assert_eq "missing origin pane still selects origin window" "@1" "$(cat "$TMPROOT/fake3/select_window")"
 else
   fail=$((fail + 1))
@@ -196,7 +196,7 @@ printf '%s\t%s\t%s\n' "%1" "@1" "$TMPROOT/repo" >> "$TMPROOT/fake4/panes.tsv"
 mkdir -p "$state_dir"
 printf '%s' "@21" > "$(state_file "$state_dir" "%1" "@review_window_id")"
 make_fake_tmux "$fake_tmux"
-if run_toggle "$state_dir" "$fake_tmux" "%1"; then
+if run_toggle "$state_dir" "$TMPROOT/fake4" "$fake_tmux" "%1"; then
   assert_eq "missing review window emits message" "No review window for current pane" "$(cat "$TMPROOT/fake4/message")"
 else
   fail=$((fail + 1))

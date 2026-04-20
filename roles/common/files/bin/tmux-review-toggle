@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=./tmux-review-lib.sh
+. "$SCRIPT_DIR/tmux-review-lib.sh"
+
+tmux_review_require_tmux "tmux-review-toggle"
+
+tmux_bin="$(tmux_review_tmux_bin)"
+current_pane="$TMUX_PANE"
+current_window="$(tmux_review_current_window_id "$current_pane")" || {
+  printf 'tmux-review-toggle: could not resolve current window\n' >&2
+  exit 1
+}
+
+review_window="$(tmux_review_get_option pane "$current_pane" "@review_window_id" 2>/dev/null || true)"
+if [ -n "$review_window" ]; then
+  if tmux_review_window_exists "$review_window"; then
+    exec "$tmux_bin" switch-client -t "$review_window"
+  fi
+
+  tmux_review_clear_option pane "$current_pane" "@review_window_id"
+  tmux_review_message "No review window for current pane"
+  exit 0
+fi
+
+origin_pane="$(tmux_review_get_option window "$current_window" "@review_origin_pane_id" 2>/dev/null || true)"
+origin_window="$(tmux_review_get_option window "$current_window" "@review_origin_window_id" 2>/dev/null || true)"
+
+if [ -n "$origin_pane" ] && tmux_review_pane_exists "$origin_pane"; then
+  if [ -n "$origin_window" ] && tmux_review_window_exists "$origin_window"; then
+    "$tmux_bin" select-window -t "$origin_window"
+  fi
+  exec "$tmux_bin" select-pane -t "$origin_pane"
+fi
+
+if [ -n "$origin_window" ] && tmux_review_window_exists "$origin_window"; then
+  exec "$tmux_bin" select-window -t "$origin_window"
+fi
+
+tmux_review_message "No review peer for current window"

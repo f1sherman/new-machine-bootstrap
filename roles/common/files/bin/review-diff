@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+page_output() {
+  case "${TMUX_REVIEW_PAGER_BIN:-}" in
+    cat)
+      cat
+      ;;
+    "")
+      if command -v less >/dev/null 2>&1; then
+        less -R
+      else
+        cat
+      fi
+      ;;
+    *)
+      "${TMUX_REVIEW_PAGER_BIN}"
+      ;;
+  esac
+}
+
+render_diff_body() {
+  case "${TMUX_REVIEW_DELTA_BIN:-}" in
+    cat)
+      cat
+      ;;
+    "")
+      if command -v delta >/dev/null 2>&1; then
+        delta --paging=never
+      else
+        cat
+      fi
+      ;;
+    *)
+      "${TMUX_REVIEW_DELTA_BIN}" --paging=never
+      ;;
+  esac
+}
+
+if [ -z "${TMUX_REVIEW_RENDER:-}" ]; then
+  [ -n "${TMUX:-}" ] && [ -n "${TMUX_PANE:-}" ] || {
+    printf 'review-diff: tmux is required\n' >&2
+    exit 1
+  }
+  exec "$SCRIPT_DIR/tmux-review-open" diff "$@"
+fi
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+  printf 'review-diff: not inside a git repository\n' >&2
+  exit 1
+}
+
+staged_output="$(cd "$repo_root" && git --no-pager diff --cached)"
+working_output="$(cd "$repo_root" && GIT_PAGER=cat "$SCRIPT_DIR/git-diff-untracked" --no-pager)"
+
+if [ -z "$staged_output" ] && [ -z "$working_output" ]; then
+  printf 'working tree clean\n' | page_output
+  exit 0
+fi
+
+{
+  if [ -n "$staged_output" ]; then
+    printf '=== Staged Changes ===\n\n'
+    printf '%s' "$staged_output" | render_diff_body
+    printf '\n\n'
+  fi
+
+  if [ -n "$working_output" ]; then
+    printf '=== Working Tree Changes ===\n\n'
+    printf '%s' "$working_output" | render_diff_body
+    printf '\n'
+  fi
+} | page_output

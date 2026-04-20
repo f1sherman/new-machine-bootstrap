@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=./tmux-review-lib.sh
+. "$SCRIPT_DIR/tmux-review-lib.sh"
+
+mode="${1:-}"
+shift || true
+
+tmux_review_require_tmux "tmux-review-open"
+
+case "$mode" in
+  diff)
+    review_kind="diff"
+    review_subject=""
+    review_command="TMUX_REVIEW_RENDER=1 $(tmux_review_quote "$SCRIPT_DIR/review-diff")"
+    ;;
+  file)
+    review_kind="file"
+    review_subject="$*"
+    [ -n "$review_subject" ] || {
+      printf 'tmux-review-open: file path is required\n' >&2
+      exit 1
+    }
+    review_command="TMUX_REVIEW_RENDER=1 $(tmux_review_quote "$SCRIPT_DIR/review-file") $(tmux_review_quote "$review_subject")"
+    ;;
+  prompt-file)
+    tmux_bin="$(tmux_review_tmux_bin)"
+    prompt_command="run-shell -b '$(tmux_review_quote "$SCRIPT_DIR/review-file") \"%%\"'"
+    exec "$tmux_bin" command-prompt -p "review file:" "$prompt_command"
+    ;;
+  *)
+    printf 'tmux-review-open: unknown mode: %s\n' "$mode" >&2
+    exit 1
+    ;;
+esac
+
+tmux_bin="$(tmux_review_tmux_bin)"
+origin_pane="$TMUX_PANE"
+origin_window="$(tmux_review_current_window_id "$origin_pane")" || {
+  printf 'tmux-review-open: could not resolve origin window\n' >&2
+  exit 1
+}
+origin_path="$(tmux_review_current_path "$origin_pane")" || origin_path="$PWD"
+review_window="$(tmux_review_get_option pane "$origin_pane" "@review_window_id" 2>/dev/null || true)"
+
+if [ -n "$review_window" ] && ! tmux_review_window_exists "$review_window"; then
+  tmux_review_clear_option pane "$origin_pane" "@review_window_id"
+  review_window=""
+fi
+
+review_name="$(tmux_review_window_label "$origin_pane")"
+
+if [ -n "$review_window" ]; then
+  "$tmux_bin" respawn-window -k -t "$review_window" -c "$origin_path" "$review_command"
+else
+  review_window="$("$tmux_bin" new-window -d -P -F '#{window_id}' -n "$review_name" -c "$origin_path" "$review_command")"
+fi
+
+tmux_review_set_option pane "$origin_pane" "@review_window_id" "$review_window"
+tmux_review_set_option window "$review_window" "@review_origin_pane_id" "$origin_pane"
+tmux_review_set_option window "$review_window" "@review_origin_window_id" "$origin_window"
+tmux_review_set_option window "$review_window" "@review_kind" "$review_kind"
+if [ -n "$review_subject" ]; then
+  tmux_review_set_option window "$review_window" "@review_subject" "$review_subject"
+else
+  tmux_review_clear_option window "$review_window" "@review_subject"
+fi
+
+"$tmux_bin" switch-client -t "$review_window"

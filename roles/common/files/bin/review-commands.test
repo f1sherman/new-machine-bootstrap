@@ -45,10 +45,12 @@ assert_exit() {
 run_capture() {
   local stdout_file="$1" stderr_file="$2"
   shift 2
-  if "$@" >"$stdout_file" 2>"$stderr_file"; then
-    return 0
-  fi
-  return $?
+  local rc
+  set +e
+  "$@" >"$stdout_file" 2>"$stderr_file"
+  rc=$?
+  set -e
+  return "$rc"
 }
 
 stdout_file="$TMPROOT/stdout"
