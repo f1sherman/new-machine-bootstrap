@@ -36,15 +36,6 @@
     regexp: '.*mise.*'
     state: absent
 
-- name: Trust all project directories in Claude Code
-  shell: |
-    for dir in {{ ansible_facts["user_dir"] }}/projects/*/; do
-      {{ ansible_facts["user_dir"] }}/.local/bin/claude-trust-directory "$dir"
-    done
-  args:
-    executable: /bin/bash
-  changed_when: false
-
 - name: Configure Claude Code settings in .claude.json
   shell: |
     python3 -c '

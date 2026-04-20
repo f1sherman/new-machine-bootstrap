@@ -143,6 +143,7 @@ cat > "$fake_bin/claude-trust-directory" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "$TRUST_LOG"
+exit 23
 EOF
 
 cat > "$fake_bin/mise" <<'EOF'
@@ -182,7 +183,7 @@ assert_file "$default_path/.coding-agent/nested/note.txt"
 assert_file "$default_path/.claude/settings.local.json"
 assert_contains ".worktrees/" "$repo/.gitignore"
 assert_file_equals "$TMPROOT/gitignore.expected" "$repo/.gitignore" ".gitignore after initial worktree-start"
-assert_contains "$default_path" "$trust_log"
+[ ! -s "$trust_log" ] || fail "claude-trust-directory should not be called"
 assert_contains "trust $default_path" "$mise_log"
 
 print_path_stdout="$TMPROOT/print-path.stdout"
