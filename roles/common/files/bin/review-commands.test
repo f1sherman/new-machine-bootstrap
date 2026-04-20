@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DIFF_SCRIPT="$SCRIPT_DIR/review-diff"
+FILE_SCRIPT="$SCRIPT_DIR/review-file"
+
+if [ ! -x "$DIFF_SCRIPT" ] || [ ! -x "$FILE_SCRIPT" ]; then
+  printf 'ERROR: review command scripts are not executable (or do not exist)\n' >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+pass=0
+fail=0
+
+assert_contains() {
+  local name="$1" haystack="$2" needle="$3"
+  if [[ "$haystack" == *"$needle"* ]]; then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      missing needle: %q\n' "$needle"
+    printf '      haystack      : %q\n' "$haystack"
+  fi
+}
+
+assert_exit() {
+  local name="$1" expected="$2" actual="$3"
+  if [ "$expected" -eq "$actual" ]; then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      expected rc: %s\n' "$expected"
+    printf '      actual rc  : %s\n' "$actual"
+  fi
+}
+
+run_capture() {
+  local stdout_file="$1" stderr_file="$2"
+  shift 2
+  if "$@" >"$stdout_file" 2>"$stderr_file"; then
+    return 0
+  fi
+  return $?
+}
+
+stdout_file="$TMPROOT/stdout"
+stderr_file="$TMPROOT/stderr"
+
+# Case 1: user-facing review-diff requires tmux.
+if run_capture "$stdout_file" "$stderr_file" env -u TMUX -u TMUX_PANE "$DIFF_SCRIPT"; then
+  rc=0
+else
+  rc=$?
+fi
+assert_exit "review-diff outside tmux exits 1" 1 "$rc"
+assert_contains "review-diff outside tmux explains tmux requirement" "$(cat "$stderr_file")" "tmux is required"
+
+# Case 2: render-mode review-diff errors outside git.
+if (
+  cd "$TMPROOT" &&
+  run_capture "$stdout_file" "$stderr_file" env TMUX_REVIEW_RENDER=1 TMUX_REVIEW_PAGER_BIN=cat TMUX_REVIEW_DELTA_BIN=cat "$DIFF_SCRIPT"
+); then
+  rc=0
+else
+  rc=$?
+fi
+assert_exit "review-diff render mode outside git exits 1" 1 "$rc"
+assert_contains "review-diff render mode outside git explains repo requirement" "$(cat "$stderr_file")" "not inside a git repository"
+
+repo_dir="$TMPROOT/repo"
+mkdir -p "$repo_dir"
+git -C "$repo_dir" init -qb main
+GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com \
+  git -C "$repo_dir" commit -q --allow-empty -m init
+
+# Case 3: clean repo shows a short clean message in render mode.
+if (
+  cd "$repo_dir" &&
+  run_capture "$stdout_file" "$stderr_file" env TMUX_REVIEW_RENDER=1 TMUX_REVIEW_PAGER_BIN=cat TMUX_REVIEW_DELTA_BIN=cat "$DIFF_SCRIPT"
+); then
+  rc=0
+else
+  rc=$?
+fi
+assert_exit "review-diff clean repo exits 0" 0 "$rc"
+assert_contains "review-diff clean repo reports clean state" "$(cat "$stdout_file")" "working tree clean"
+
+# Case 4: render mode shows staged and working-tree sections together.
+printf 'base\n' > "$repo_dir/demo.txt"
+git -C "$repo_dir" add demo.txt
+GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com \
+  git -C "$repo_dir" commit -q -m demo
+printf 'base\nstaged\n' > "$repo_dir/demo.txt"
+git -C "$repo_dir" add demo.txt
+printf 'scratch\n' > "$repo_dir/scratch.txt"
+if (
+  cd "$repo_dir" &&
+  run_capture "$stdout_file" "$stderr_file" env TMUX_REVIEW_RENDER=1 TMUX_REVIEW_PAGER_BIN=cat TMUX_REVIEW_DELTA_BIN=cat "$DIFF_SCRIPT"
+); then
+  rc=0
+else
+  rc=$?
+fi
+assert_exit "review-diff mixed state exits 0" 0 "$rc"
+assert_contains "review-diff mixed state includes staged heading" "$(cat "$stdout_file")" "=== Staged Changes ==="
+assert_contains "review-diff mixed state includes working tree heading" "$(cat "$stdout_file")" "=== Working Tree Changes ==="
+assert_contains "review-diff mixed state includes untracked file" "$(cat "$stdout_file")" "scratch.txt"
+
+# Case 5: user-facing review-file requires tmux.
+if run_capture "$stdout_file" "$stderr_file" env -u TMUX -u TMUX_PANE "$FILE_SCRIPT" demo.txt; then
+  rc=0
+else
+  rc=$?
+fi
+assert_exit "review-file outside tmux exits 1" 1 "$rc"
+assert_contains "review-file outside tmux explains tmux requirement" "$(cat "$stderr_file")" "tmux is required"
+
+# Case 6: render-mode review-file errors on missing path.
+if (
+  cd "$repo_dir" &&
+  run_capture "$stdout_file" "$stderr_file" env TMUX_REVIEW_RENDER=1 TMUX_REVIEW_PAGER_BIN=cat TMUX_REVIEW_BAT_BIN=cat "$FILE_SCRIPT" missing.txt
+); then
+  rc=0
+else
+  rc=$?
+fi
+assert_exit "review-file missing path exits 1" 1 "$rc"
+assert_contains "review-file missing path explains missing file" "$(cat "$stderr_file")" "file not found"
+
+# Case 7: render-mode review-file prints file content.
+if (
+  cd "$repo_dir" &&
+  run_capture "$stdout_file" "$stderr_file" env TMUX_REVIEW_RENDER=1 TMUX_REVIEW_PAGER_BIN=cat TMUX_REVIEW_BAT_BIN=cat "$FILE_SCRIPT" demo.txt
+); then
+  rc=0
+else
+  rc=$?
+fi
+assert_exit "review-file render mode exits 0" 0 "$rc"
+assert_contains "review-file render mode prints content" "$(cat "$stdout_file")" "staged"
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

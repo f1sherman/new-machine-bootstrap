@@ -1,0 +1,308 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-review-open"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+pass=0
+fail=0
+
+state_file() {
+  printf '%s/%s.%s\n' "$1" "$2" "$3"
+}
+
+read_state() {
+  local path
+  path="$(state_file "$1" "$2" "$3")"
+  [ -f "$path" ] || return 1
+  cat "$path"
+}
+
+assert_eq() {
+  local name="$1" expected="$2" actual="$3"
+  if [ "$expected" = "$actual" ]; then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      expected: %q\n' "$expected"
+    printf '      actual  : %q\n' "$actual"
+  fi
+}
+
+assert_contains() {
+  local name="$1" haystack="$2" needle="$3"
+  if [[ "$haystack" == *"$needle"* ]]; then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      missing needle: %q\n' "$needle"
+    printf '      haystack      : %q\n' "$haystack"
+  fi
+}
+
+make_fake_tmux() {
+  local fake_tmux="$1"
+  cat > "$fake_tmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+fake_dir="${TMUX_REVIEW_FAKE_DIR:?}"
+cmd="${1:?}"
+shift || true
+
+find_pane_field() {
+  local pane_id="$1" field="$2" index=0
+  case "$field" in
+    window_id) index=2 ;;
+    path) index=3 ;;
+    *) exit 1 ;;
+  esac
+  awk -F $'\t' -v pane="$pane_id" -v index="$index" '$1 == pane { print $index; exit }' "$fake_dir/panes.tsv"
+}
+
+find_window_name() {
+  local window_id="$1"
+  awk -F $'\t' -v window="$window_id" '$1 == window { print $2; exit }' "$fake_dir/windows.tsv"
+}
+
+window_exists() {
+  grep -Fqx -- "$1" "$fake_dir/window_ids" 2>/dev/null
+}
+
+pane_exists() {
+  awk -F $'\t' -v pane="$1" '$1 == pane { found = 1 } END { exit found ? 0 : 1 }' "$fake_dir/panes.tsv"
+}
+
+case "$cmd" in
+  display-message)
+    if [ "${1:-}" = "-p" ]; then
+      shift
+      target=""
+      if [ "${1:-}" = "-t" ]; then
+        target="$2"
+        shift 2
+      fi
+      format="${1:-}"
+      case "$format" in
+        '#{window_id}')
+          if [[ "$target" == %* ]]; then
+            value="$(find_pane_field "$target" window_id || true)"
+            [ -n "$value" ] || exit 1
+            printf '%s\n' "$value"
+          else
+            window_exists "$target" || exit 1
+            printf '%s\n' "$target"
+          fi
+          ;;
+        '#{pane_current_path}')
+          value="$(find_pane_field "$target" path || true)"
+          [ -n "$value" ] || exit 1
+          printf '%s\n' "$value"
+          ;;
+        '#{window_name}')
+          window_id="$(find_pane_field "$target" window_id || true)"
+          [ -n "$window_id" ] || exit 1
+          value="$(find_window_name "$window_id" || true)"
+          [ -n "$value" ] || exit 1
+          printf '%s\n' "$value"
+          ;;
+        '#{pane_id}')
+          pane_exists "$target" || exit 1
+          printf '%s\n' "$target"
+          ;;
+        *)
+          exit 1
+          ;;
+      esac
+    else
+      printf '%s\n' "$*" > "$fake_dir/message"
+    fi
+    ;;
+  new-window)
+    name=""
+    path=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -n)
+          name="$2"
+          shift 2
+          ;;
+        -c)
+          path="$2"
+          shift 2
+          ;;
+        -d|-P|-F)
+          if [ "$1" = "-F" ]; then
+            shift 2
+          else
+            shift
+          fi
+          ;;
+        *)
+          break
+          ;;
+      esac
+    done
+    window_num="$(cat "$fake_dir/counter")"
+    printf '%s\n' $((window_num + 1)) > "$fake_dir/counter"
+    window_id="@${window_num}"
+    printf '%s\t%s\n' "$window_id" "$name" >> "$fake_dir/windows.tsv"
+    printf '%s\n' "$window_id" >> "$fake_dir/window_ids"
+    printf '%s\t%s\t%s\n' "$window_id" "$path" "$*" > "$fake_dir/new_window"
+    printf '%s\n' "$window_id"
+    ;;
+  respawn-window)
+    target=""
+    path=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t)
+          target="$2"
+          shift 2
+          ;;
+        -c)
+          path="$2"
+          shift 2
+          ;;
+        -k)
+          shift
+          ;;
+        *)
+          break
+          ;;
+      esac
+    done
+    printf '%s\t%s\t%s\n' "$target" "$path" "$*" > "$fake_dir/respawn_window"
+    ;;
+  switch-client)
+    [ "${1:-}" = "-t" ] || exit 1
+    printf '%s\n' "$2" > "$fake_dir/switch_target"
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+EOF
+  chmod +x "$fake_tmux"
+}
+
+seed_fake_tmux() {
+  local fake_dir="$1" counter="$2"
+  mkdir -p "$fake_dir"
+  : > "$fake_dir/windows.tsv"
+  : > "$fake_dir/window_ids"
+  : > "$fake_dir/panes.tsv"
+  printf '%s\n' "$counter" > "$fake_dir/counter"
+}
+
+run_open() {
+  local state_dir="$1" fake_tmux="$2" pane_id="$3"
+  shift 3
+  if (
+    export TMUX="/tmp/fake-tmux"
+    export TMUX_PANE="$pane_id"
+    export TMUX_REVIEW_STATE_DIR="$state_dir"
+    export TMUX_REVIEW_FAKE_DIR="$(dirname "$fake_tmux")/fake"
+    export TMUX_REVIEW_TMUX_BIN="$fake_tmux"
+    "$SCRIPT" "$@"
+  ); then
+    return 0
+  fi
+  return $?
+}
+
+repo_path="$TMPROOT/repo"
+mkdir -p "$repo_path"
+
+# Case 1: first diff review creates and maps a review window.
+state_dir="$TMPROOT/state1"
+fake_tmux="$TMPROOT/fake-tmux-1"
+seed_fake_tmux "$TMPROOT/fake1" 21
+printf '%s\t%s\n' "@1" "code" >> "$TMPROOT/fake1/windows.tsv"
+printf '%s\n' "@1" >> "$TMPROOT/fake1/window_ids"
+printf '%s\t%s\t%s\n' "%1" "@1" "$repo_path" >> "$TMPROOT/fake1/panes.tsv"
+make_fake_tmux "$fake_tmux"
+if run_open "$state_dir" "$fake_tmux" "%1" diff; then
+  assert_eq "diff create stores pane mapping" "@21" "$(read_state "$state_dir" "%1" "@review_window_id")"
+  assert_eq "diff create stores review origin pane" "%1" "$(read_state "$state_dir" "@21" "@review_origin_pane_id")"
+  assert_eq "diff create stores review origin window" "@1" "$(read_state "$state_dir" "@21" "@review_origin_window_id")"
+  assert_eq "diff create switches client" "@21" "$(cat "$TMPROOT/fake1/switch_target")"
+  assert_contains "diff create launches review-diff renderer" "$(cat "$TMPROOT/fake1/new_window")" "review-diff"
+  assert_contains "diff create marks render mode" "$(cat "$TMPROOT/fake1/new_window")" "TMUX_REVIEW_RENDER=1"
+else
+  fail=$((fail + 1))
+  printf 'FAIL  diff create exited nonzero\n'
+fi
+
+# Case 2: repeated diff review reuses the existing review window.
+state_dir="$TMPROOT/state2"
+fake_tmux="$TMPROOT/fake-tmux-2"
+seed_fake_tmux "$TMPROOT/fake2" 30
+printf '%s\t%s\n' "@1" "code" >> "$TMPROOT/fake2/windows.tsv"
+printf '%s\t%s\n' "@21" "review:1" >> "$TMPROOT/fake2/windows.tsv"
+printf '%s\n%s\n' "@1" "@21" >> "$TMPROOT/fake2/window_ids"
+printf '%s\t%s\t%s\n' "%1" "@1" "$repo_path" >> "$TMPROOT/fake2/panes.tsv"
+mkdir -p "$state_dir"
+printf '%s' "@21" > "$(state_file "$state_dir" "%1" "@review_window_id")"
+make_fake_tmux "$fake_tmux"
+if run_open "$state_dir" "$fake_tmux" "%1" diff; then
+  assert_eq "reuse keeps same review window id" "@21" "$(read_state "$state_dir" "%1" "@review_window_id")"
+  assert_eq "reuse switches to mapped review window" "@21" "$(cat "$TMPROOT/fake2/switch_target")"
+  assert_contains "reuse respawns review-diff in existing window" "$(cat "$TMPROOT/fake2/respawn_window")" "review-diff"
+else
+  fail=$((fail + 1))
+  printf 'FAIL  diff reuse exited nonzero\n'
+fi
+
+# Case 3: file review from a different pane creates a different review window.
+state_dir="$TMPROOT/state3"
+fake_tmux="$TMPROOT/fake-tmux-3"
+seed_fake_tmux "$TMPROOT/fake3" 22
+printf '%s\t%s\n' "@1" "code" >> "$TMPROOT/fake3/windows.tsv"
+printf '%s\t%s\n' "@2" "docs" >> "$TMPROOT/fake3/windows.tsv"
+printf '%s\n%s\n' "@1" "@2" >> "$TMPROOT/fake3/window_ids"
+printf '%s\t%s\t%s\n' "%1" "@1" "$repo_path" >> "$TMPROOT/fake3/panes.tsv"
+printf '%s\t%s\t%s\n' "%2" "@2" "$repo_path/docs" >> "$TMPROOT/fake3/panes.tsv"
+make_fake_tmux "$fake_tmux"
+if run_open "$state_dir" "$fake_tmux" "%2" file "notes file.md"; then
+  assert_eq "file create stores second pane mapping" "@22" "$(read_state "$state_dir" "%2" "@review_window_id")"
+  assert_eq "file create switches client" "@22" "$(cat "$TMPROOT/fake3/switch_target")"
+  assert_contains "file create launches review-file renderer" "$(cat "$TMPROOT/fake3/new_window")" "review-file"
+  assert_contains "file create preserves requested path" "$(cat "$TMPROOT/fake3/new_window")" "notes file.md"
+else
+  fail=$((fail + 1))
+  printf 'FAIL  file create exited nonzero\n'
+fi
+
+# Case 4: stale review window mapping is replaced with a new review window id.
+state_dir="$TMPROOT/state4"
+fake_tmux="$TMPROOT/fake-tmux-4"
+seed_fake_tmux "$TMPROOT/fake4" 40
+printf '%s\t%s\n' "@1" "code" >> "$TMPROOT/fake4/windows.tsv"
+printf '%s\n' "@1" >> "$TMPROOT/fake4/window_ids"
+printf '%s\t%s\t%s\n' "%1" "@1" "$repo_path" >> "$TMPROOT/fake4/panes.tsv"
+mkdir -p "$state_dir"
+printf '%s' "@99" > "$(state_file "$state_dir" "%1" "@review_window_id")"
+make_fake_tmux "$fake_tmux"
+if run_open "$state_dir" "$fake_tmux" "%1" diff; then
+  assert_eq "stale mapping replaced with new review window id" "@40" "$(read_state "$state_dir" "%1" "@review_window_id")"
+  assert_eq "stale mapping still switches to new review window" "@40" "$(cat "$TMPROOT/fake4/switch_target")"
+else
+  fail=$((fail + 1))
+  printf 'FAIL  stale mapping exited nonzero\n'
+fi
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]
