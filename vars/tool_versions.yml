@@ -26,7 +26,7 @@ tool_versions:
 
   runtimes:
     # renovate: datasource=github-releases depName=jdx/mise
-    mise: v2026.4.9
+    mise: v2026.4.10
     # renovate: datasource=node-version depName=node
     node: 24.14.1
     ruby: 4.0.2
