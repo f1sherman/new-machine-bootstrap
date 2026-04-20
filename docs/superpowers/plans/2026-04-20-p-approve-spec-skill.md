@@ -162,7 +162,7 @@ bash tests/p-approve-spec-skill.sh
 
 Expected: all checks print `PASS` and the script exits `0`.
 
-- [ ] **Step 2.3: Commit the green shared-skill change**
+- [x] **Step 2.3: Commit the green shared-skill change**
 
 Run:
 
@@ -182,7 +182,7 @@ Expected: one commit containing the shared skill and the passing regression.
 - Reference: `~/.claude/skills/p-approve-spec/SKILL.md`
 - Reference: `~/.codex/skills/p-approve-spec/SKILL.md`
 
-- [ ] **Step 3.1: Run provisioning**
+- [x] **Step 3.1: Run provisioning**
 
 Run:
 
@@ -192,7 +192,7 @@ bin/provision
 
 Expected: provisioning completes successfully and installs the updated shared skills.
 
-- [ ] **Step 3.2: Verify the installed Claude and Codex skill copies**
+- [x] **Step 3.2: Verify the installed Claude and Codex skill copies**
 
 Run:
 
@@ -215,7 +215,7 @@ Expected: all four commands return matches from both installed files.
 - Reference: `tests/p-approve-spec-skill.sh`
 - Reference: `roles/common/files/config/skills/common/p-approve-spec/SKILL.md`
 
-- [ ] **Step 4.1: Re-run final verification**
+- [x] **Step 4.1: Re-run final verification**
 
 Run:
 
@@ -228,7 +228,7 @@ Expected:
 - the regression exits `0`
 - `git status --short` prints nothing
 
-- [ ] **Step 4.2: Manually compare the final state to the spec**
+- [x] **Step 4.2: Manually compare the final state to the spec**
 
 Check these exact outcomes:
 
