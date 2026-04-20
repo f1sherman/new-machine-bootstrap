@@ -43,13 +43,13 @@ cmd="${1:?}"
 shift || true
 
 find_pane_field() {
-  local pane_id="$1" field="$2" index=0
+  local pane_id="$1" field="$2" field_index=0
   case "$field" in
-    window_id) index=2 ;;
-    path) index=3 ;;
+    window_id) field_index=2 ;;
+    path) field_index=3 ;;
     *) exit 1 ;;
   esac
-  awk -F $'\t' -v pane="$pane_id" -v index="$index" '$1 == pane { print $index; exit }' "$fake_dir/panes.tsv"
+  awk -F $'\t' -v pane="$pane_id" -v field_index="$field_index" '$1 == pane { print $field_index; exit }' "$fake_dir/panes.tsv"
 }
 
 window_exists() {
@@ -121,7 +121,7 @@ seed_fake_tmux() {
 }
 
 run_toggle() {
-  local state_dir="$1" fake_dir="$2" fake_tmux="$3" pane_id="$4"
+  local state_dir="$1" fake_dir="$2" fake_tmux="$3" pane_id="$4" status
   if (
     export TMUX="/tmp/fake-tmux"
     export TMUX_PANE="$pane_id"
@@ -131,8 +131,10 @@ run_toggle() {
     "$SCRIPT"
   ); then
     return 0
+  else
+    status=$?
+    return "$status"
   fi
-  return $?
 }
 
 # Case 1: origin pane jumps to its mapped review window.
@@ -201,6 +203,19 @@ if run_toggle "$state_dir" "$TMPROOT/fake4" "$fake_tmux" "%1"; then
 else
   fail=$((fail + 1))
   printf 'FAIL  missing review window exited nonzero\n'
+fi
+
+# Case 5: helper must propagate a script failure status.
+state_dir="$TMPROOT/state5"
+fake_tmux="$TMPROOT/fake-tmux-5"
+seed_fake_tmux "$TMPROOT/fake5"
+printf '%s\n' "@1" >> "$TMPROOT/fake5/window_ids"
+make_fake_tmux "$fake_tmux"
+if run_toggle "$state_dir" "$TMPROOT/fake5" "$fake_tmux" "%missing"; then
+  fail=$((fail + 1))
+  printf 'FAIL  missing current pane unexpectedly succeeded\n'
+else
+  assert_eq "missing current pane propagates status" "1" "$?"
 fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
