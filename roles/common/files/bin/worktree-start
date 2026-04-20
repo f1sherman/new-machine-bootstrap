@@ -182,12 +182,6 @@ main() {
     fi
   fi
 
-  if command -v claude-trust-directory >/dev/null 2>&1; then
-    if ! claude-trust-directory "$path" >/dev/null 2>&1; then
-      _worktree_warn "claude-trust-directory failed for $path"
-    fi
-  fi
-
   if command -v mise >/dev/null 2>&1; then
     if ! mise trust "$path" >/dev/null 2>&1; then
       _worktree_warn "mise trust failed for $path"
