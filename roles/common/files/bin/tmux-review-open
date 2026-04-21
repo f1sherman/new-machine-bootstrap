@@ -27,9 +27,11 @@ case "$mode" in
     ;;
   prompt-file)
     tmux_bin="$(tmux_review_tmux_bin)"
-    # tmux run-shell -b does not export TMUX_PANE; bake the origin pane into the
-    # nested command so review-file resolves back to this pane.
-    prompt_command="run-shell -b 'TMUX_PANE=$(tmux_review_quote "$TMUX_PANE") $(tmux_review_quote "$SCRIPT_DIR/review-file") \"%%\"'"
+    # tmux command-prompt rewrites %1..%9 as prompt responses, so a literal pane
+    # ID like %7 would be mangled. Emit the pane ID via a format spec instead;
+    # tmux expands #{pane_id} when run-shell executes, so TMUX_PANE reaches
+    # review-file intact.
+    prompt_command="run-shell -b 'TMUX_PANE=#{pane_id} $(tmux_review_quote "$SCRIPT_DIR/review-file") \"%%\"'"
     exec "$tmux_bin" command-prompt -p "review file:" "$prompt_command"
     ;;
   *)

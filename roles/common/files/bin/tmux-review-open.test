@@ -322,8 +322,10 @@ else
   printf 'FAIL  stale mapping exited nonzero\n'
 fi
 
-# Case 5: prompt-file mode bakes the origin pane into the nested run-shell so
-# review-file inherits TMUX_PANE (tmux's run-shell -b does not propagate it).
+# Case 5: prompt-file mode passes TMUX_PANE to the nested run-shell via a
+# format spec so tmux's command-prompt doesn't mis-interpret %N pane IDs as
+# prompt-response placeholders. A literal %7 would be rewritten to the user's
+# typed filename (or emptied for %2..%6,%8,%9), so we must NOT bake it.
 state_dir="$TMPROOT/state-prompt"
 fake_tmux="$TMPROOT/fake-tmux-prompt"
 seed_fake_tmux "$TMPROOT/fake-prompt" 60
@@ -333,8 +335,17 @@ printf '%s\t%s\t%s\n' "%7" "@1" "$repo_path" >> "$TMPROOT/fake-prompt/panes.tsv"
 make_fake_tmux "$fake_tmux"
 if run_open "$state_dir" "$TMPROOT/fake-prompt" "$fake_tmux" "%7" prompt-file; then
   assert_eq "prompt-file sets review prompt label" "review file:" "$(cat "$TMPROOT/fake-prompt/command_prompt_prompt")"
-  assert_contains "prompt-file injects TMUX_PANE into nested run-shell" "$(cat "$TMPROOT/fake-prompt/command_prompt_command")" "TMUX_PANE=%7"
+  assert_contains "prompt-file passes TMUX_PANE via format spec" "$(cat "$TMPROOT/fake-prompt/command_prompt_command")" "TMUX_PANE=#{pane_id}"
   assert_contains "prompt-file nested command invokes review-file" "$(cat "$TMPROOT/fake-prompt/command_prompt_command")" "review-file"
+  cmd_literal="$(cat "$TMPROOT/fake-prompt/command_prompt_command")"
+  if [[ "$cmd_literal" == *"%7"* || "$cmd_literal" == *"%1"* || "$cmd_literal" == *"%2"* || "$cmd_literal" == *"%3"* || "$cmd_literal" == *"%4"* || "$cmd_literal" == *"%5"* || "$cmd_literal" == *"%6"* || "$cmd_literal" == *"%8"* || "$cmd_literal" == *"%9"* ]]; then
+    fail=$((fail + 1))
+    printf 'FAIL  prompt-file template contains literal pane-id (tmux would treat %%N as prompt placeholder)\n'
+    printf '      template: %q\n' "$cmd_literal"
+  else
+    pass=$((pass + 1))
+    printf 'PASS  prompt-file template avoids literal %%N pane-id placeholders\n'
+  fi
 else
   fail=$((fail + 1))
   printf 'FAIL  prompt-file exited nonzero\n'
