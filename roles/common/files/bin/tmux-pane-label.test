@@ -218,21 +218,21 @@ run_case \
   "0"
 
 run_case \
-  "codespaces pane keeps codespace label" \
+  "codespaces pane uses unified remote suffix label" \
   "tty-codespace" \
   "$tmp_dir" \
   "gh" \
-  "space-alpha" \
+  "tmp | space-alpha" \
   "gh codespace ssh --codespace space-alpha" \
   "1" \
   "0"
 
 run_case \
-  "devpod pane keeps workspace label via ruby hint" \
+  "devpod pane uses unified remote suffix label" \
   "tty-devpod" \
   "$tmp_dir" \
   "ruby" \
-  "workspace-beta" \
+  "tmp | workspace-beta" \
   "devpod ssh workspace-beta" \
   "1" \
   "0"
@@ -286,7 +286,7 @@ run_case \
   "tty-explicit-background-agent" \
   "$tmp_dir" \
   "ruby" \
-  "workspace-beta" \
+  "tmp | workspace-beta" \
   $'devpod ssh workspace-beta\ncodex --cd /tmp/irrelevant' \
   "2" \
   "0" \

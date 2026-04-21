@@ -247,12 +247,20 @@ while IFS= read -r line; do
   case "$line" in
     *"gh codespace ssh"*|*"gh cs ssh"*)
       label="$(extract_codespace_name "$line" || true)"
-      [ -n "$label" ] || label="codespace"
+      if [ -n "$label" ]; then
+        label="$(remote_label "$pane_current_path" "$label")"
+      else
+        label="codespace"
+      fi
       break
       ;;
     *"devpod ssh"*)
       label="$(extract_devpod_workspace "$line" || true)"
-      [ -n "$label" ] || label="devpod"
+      if [ -n "$label" ]; then
+        label="$(remote_label "$pane_current_path" "$label")"
+      else
+        label="devpod"
+      fi
       break
       ;;
     ssh* )

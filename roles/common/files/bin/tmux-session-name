@@ -106,9 +106,9 @@ if grep -qE "$ssh_pattern" <<< "$pane_procs"; then
         name="$pane_title"
         ;;
       *)
-        if [ -z "$is_codespace" ] && [ -z "$is_devpod" ] && is_structured_remote_label "$current_name" && [ "$pane_title" = "$(remote_host_suffix "$current_name")" ]; then
+        if is_structured_remote_label "$current_name" && [ "$pane_title" = "$(remote_host_suffix "$current_name")" ]; then
           exit 0
-        elif [ -z "$is_codespace" ] && [ -z "$is_devpod" ] && [ -n "$ssh_host" ]; then
+        elif [ -z "$is_codespace" ] && [ -z "$is_devpod" ] && [ -n "$ssh_host" ] && [ "$pane_title" != "$ssh_host" ]; then
           name="$ssh_host | $pane_title"
         else
           name="$pane_title"

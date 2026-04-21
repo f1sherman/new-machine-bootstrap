@@ -79,6 +79,24 @@ run_publish_case() {
   assert_eq "$(cat "$client_tty")" "$(printf '\033]2;%s\033\\' "$expected")" "$label"
 }
 
+run_print_env_case() {
+  local label="$1" pane_path="$2" expected="$3"
+  local output
+
+  output="$(
+    TMUX=/tmp/fake \
+    TMUX_PANE=%91 \
+    TMUX_REMOTE_TITLE_PANE_PATH="$pane_path" \
+    TMUX_REMOTE_TITLE_CLIENT_TTY="$TMPROOT/$label.client" \
+    CODESPACES=true \
+    CODESPACE_NAME=space-alpha \
+    DEVPOD_WORKSPACE_ID=workspace-beta \
+    "$SCRIPT" print
+  )"
+
+  assert_eq "$output" "$expected" "$label"
+}
+
 main_repo="$TMPROOT/repo"
 make_repo "$main_repo"
 
@@ -124,3 +142,8 @@ run_publish_case \
   $'9100 S+ codex codex --cd /tmp/irrelevant' \
   "claw02" \
   "(feature/title-sync) repo | claw02"
+
+run_print_env_case \
+  "codespace host precedence wins over devpod" \
+  "$TMPROOT/tmp-dir" \
+  "tmp-dir | space-alpha"
