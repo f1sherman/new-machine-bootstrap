@@ -78,6 +78,11 @@ fixture_dir="${TMUX_FIXTURE_DIR:?}"
 printf '%s\n' "$*" >> "$log"
 
 case "${1:-}" in
+  display-message)
+    if [ "${*: -1}" = $'#{pane_title}\t#{window_name}' ]; then
+      printf '%s\n' "${TMUX_DISPLAY_OUTPUT:-}"
+    fi
+    ;;
   list-panes)
     printf '%s\n' "${TMUX_PANE_IDS:-}"
     ;;
@@ -128,6 +133,7 @@ run_case() {
   local fixture="$6" expected_ps_calls="$7"
   local expected_tmux_calls="${8:-0}"
   local pane_id="${9:-}" explicit_pid="${10:-}" explicit_path="${11:-}" detail_fixture="${12:-}"
+  local display_fixture="${13:-}"
 
   printf '%s\n' "$fixture" > "$tmp_root/$tty"
   if [ -n "$detail_fixture" ]; then
@@ -142,7 +148,7 @@ run_case() {
 
   local output ps_calls
   local rc
-  if output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" TMUX_CALL_LOG="$tmux_log" TMUX_FIXTURE_DIR="$tmp_root" TMUX_PANE_IDS="${pane_id:-}" bash "$script" "$tty" "$path" "$pane_current_command" "${pane_id:-}" 2>/dev/null)"; then
+  if output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" TMUX_CALL_LOG="$tmux_log" TMUX_FIXTURE_DIR="$tmp_root" TMUX_PANE_IDS="${pane_id:-}" TMUX_DISPLAY_OUTPUT="$display_fixture" bash "$script" "$tty" "$path" "$pane_current_command" "${pane_id:-}" 2>/dev/null)"; then
     rc=0
   else
     rc=$?
@@ -238,6 +244,36 @@ run_case \
   "0"
 
 run_case \
+  "structured remote title wins for pane label" \
+  "tty-structured-remote" \
+  "$git_repo" \
+  "ssh" \
+  "(feature/foo) repo | claw02" \
+  "ssh dev@claw02 -p 22" \
+  "0" \
+  "1" \
+  "%96" \
+  "" \
+  "" \
+  "" \
+  $'(feature/foo) repo | claw02\tany-window'
+
+run_case \
+  "degraded remote title preserves structured window label" \
+  "tty-degraded-remote" \
+  "$git_repo" \
+  "ssh" \
+  "(feature/foo) repo | claw02" \
+  "ssh dev@claw02 -p 22" \
+  "0" \
+  "1" \
+  "%97" \
+  "" \
+  "" \
+  "" \
+  $'claw02\t(feature/foo) repo | claw02'
+
+run_case \
   "ruby local pane falls back to local label" \
   "tty-ruby-local" \
   "$tmp_dir" \
@@ -289,7 +325,7 @@ run_case \
   "tmp | workspace-beta" \
   $'devpod ssh workspace-beta\ncodex --cd /tmp/irrelevant' \
   "2" \
-  "0" \
+  "1" \
   "%91" \
   "9101" \
   "$agent_wt" \
@@ -303,7 +339,7 @@ run_case \
   "tmp | claw02" \
   "ssh dev@claw02 -p 22" \
   "2" \
-  "2" \
+  "3" \
   "%92" \
   "9999" \
   "$agent_wt" \
@@ -331,7 +367,7 @@ run_case \
   "tmp | claw02" \
   "ssh dev@claw02 -p 22" \
   "2" \
-  "2" \
+  "3" \
   "%94" \
   "9100" \
   "/no/such/path" \
@@ -345,7 +381,7 @@ run_case \
   "tmp | claw02" \
   "ssh dev@claw02 -p 22" \
   "2" \
-  "2" \
+  "3" \
   "%95" \
   "9100" \
   "$agent_repo" \

@@ -199,6 +199,17 @@ remote_label() {
   "$label_formatter" remote "$1" "$2"
 }
 
+is_structured_remote_label() {
+  case "$1" in
+    *" | "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+remote_host_suffix() {
+  printf '%s\n' "${1##* | }"
+}
+
 is_remote_candidate_command() {
   case "$1" in
     ssh|gh|ruby) return 0 ;;
@@ -224,6 +235,21 @@ if [ -n "$pane_id" ] && [ -n "$pane_current_command" ] && \
   ! is_agent_candidate_command "$pane_current_command"; then
   local_label
   exit 0
+fi
+
+if [ -n "$pane_id" ] && is_remote_candidate_command "$pane_current_command"; then
+  remote_info="$(tmux display-message -p -t "$pane_id" '#{pane_title}	#{window_name}' 2>/dev/null || true)"
+  if [ -n "$remote_info" ]; then
+    IFS=$'\t' read -r pane_title window_name <<< "$remote_info"
+    if is_structured_remote_label "$pane_title"; then
+      printf '%s\n' "$pane_title"
+      exit 0
+    fi
+    if is_structured_remote_label "$window_name" && [ "$pane_title" = "$(remote_host_suffix "$window_name")" ]; then
+      printf '%s\n' "$window_name"
+      exit 0
+    fi
+  fi
 fi
 
 if [ -n "$pane_id" ]; then
