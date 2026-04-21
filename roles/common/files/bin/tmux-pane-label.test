@@ -182,7 +182,7 @@ run_case \
   "tty-local-git" \
   "$git_repo" \
   "zsh" \
-  "feature/foo repo" \
+  "(feature/foo) repo" \
   "shell: zsh" \
   "0" \
   "0"
@@ -202,17 +202,17 @@ run_case \
   "tty-agent-no-pane-id" \
   "$git_repo" \
   "codex" \
-  "feature/foo repo" \
+  "(feature/foo) repo" \
   "codex --cd /tmp/irrelevant" \
   "0" \
   "0"
 
 run_case \
-  "plain ssh pane keeps host label" \
+  "plain ssh pane becomes repo-first label" \
   "tty-ssh" \
-  "$tmp_dir" \
+  "$git_repo" \
   "ssh" \
-  "claw02" \
+  "repo | claw02" \
   "ssh dev@claw02 -p 22" \
   "1" \
   "0"
@@ -250,9 +250,9 @@ run_case \
 run_case \
   "empty hint preserves ssh label via slow path" \
   "tty-ssh-multiline" \
-  "$tmp_dir" \
+  "$git_repo" \
   "" \
-  "claw02" \
+  "repo | claw02" \
   $'zsh -l\nssh dev@claw02 -p 22' \
   "1" \
   "0"
@@ -262,7 +262,7 @@ run_case \
   "tty-local-shell" \
   "$git_repo" \
   "" \
-  "feature/foo repo" \
+  "(feature/foo) repo" \
   "zsh -l" \
   "1" \
   "0"
@@ -272,7 +272,7 @@ run_case \
   "tty-explicit" \
   "$tmp_dir" \
   "codex" \
-  "feature/agent-label agent-wt" \
+  "(feature/agent-label) agent-wt" \
   "codex --cd /tmp/irrelevant" \
   "1" \
   "2" \
@@ -300,7 +300,7 @@ run_case \
   "tty-explicit-stale" \
   "$tmp_dir" \
   "ssh" \
-  "claw02" \
+  "repo | claw02" \
   "ssh dev@claw02 -p 22" \
   "2" \
   "2" \
@@ -314,7 +314,7 @@ run_case \
   "tty-local-pane-id" \
   "$git_repo" \
   "bash" \
-  "feature/foo repo" \
+  "(feature/foo) repo" \
   "shell: login" \
   "0" \
   "0" \
@@ -328,7 +328,7 @@ run_case \
   "tty-explicit-invalid-path" \
   "$tmp_dir" \
   "ssh" \
-  "claw02" \
+  "repo | claw02" \
   "ssh dev@claw02 -p 22" \
   "2" \
   "2" \
@@ -342,7 +342,7 @@ run_case \
   "tty-explicit-primary-checkout" \
   "$tmp_dir" \
   "ssh" \
-  "claw02" \
+  "repo | claw02" \
   "ssh dev@claw02 -p 22" \
   "2" \
   "2" \

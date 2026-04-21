@@ -99,16 +99,16 @@ mkdir -p "$tmp_root/home"
 run_case \
   "%11" \
   $'@7\t1\tmain dotfiles\t/dev/ttys001\t/tmp/repo\tzsh\tlocal-shell\t%11' \
-  "feature/foo repo"
+  "(feature/foo) repo"
 
 assert_file_contains "$tmux_log" $'display-message -p -t %11 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}\t#{pane_title}\t#{pane_id}' "active pane queries pane id"
 assert_file_contains "$pane_label_log" "/dev/ttys001|/tmp/repo|zsh|%11" "active pane derives label"
-assert_file_contains "$tmux_log" "rename-window -t @7 feature/foo repo" "active pane renames changed label"
+assert_file_contains "$tmux_log" "rename-window -t @7 (feature/foo) repo" "active pane renames changed label"
 
 run_case \
   "%12" \
-  $'@8\t1\tfeature/foo repo\t/dev/ttys002\t/tmp/repo\tzsh\tlocal-shell\t%12' \
-  "feature/foo repo"
+  $'@8\t1\t(feature/foo) repo\t/dev/ttys002\t/tmp/repo\tzsh\tlocal-shell\t%12' \
+  "(feature/foo) repo"
 
 assert_file_contains "$tmux_log" $'display-message -p -t %12 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}\t#{pane_title}\t#{pane_id}' "unchanged label queries pane id"
 assert_file_contains "$pane_label_log" "/dev/ttys002|/tmp/repo|zsh|%12" "unchanged label still derives"
@@ -149,3 +149,17 @@ PATH="$fake_bin:$PATH" \
 assert_file_contains "$tmux_log" $'display-message -p -t %14 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}\t#{pane_title}\t#{pane_id}' "remote title queries pane title"
 assert_empty_file "$pane_label_log" "remote title skips helper"
 assert_file_contains "$tmux_log" "rename-window -t @10 (feature/foo) repo | claw02" "remote title preserves synced label"
+
+run_case \
+  "%15" \
+  $'@11\t1\t(feature/foo) repo | claw02\t/dev/ttys005\t/tmp/repo\tssh\tclaw02\t%15' \
+  "claw02"
+
+assert_file_contains "$tmux_log" $'display-message -p -t %15 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}\t#{pane_title}\t#{pane_id}' "degraded title queries pane title"
+assert_file_contains "$pane_label_log" "/dev/ttys005|/tmp/repo|ssh|%15" "degraded title still derives helper"
+if grep -Fq "rename-window" "$tmux_log"; then
+  printf 'not ok - degraded title must not overwrite structured remote window name\nunexpected rename:\n' >&2
+  cat "$tmux_log" >&2
+  exit 1
+fi
+printf 'ok - degraded title preserves structured remote window name\n'

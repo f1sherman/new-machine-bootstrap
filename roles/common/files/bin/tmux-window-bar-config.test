@@ -39,6 +39,7 @@ assert_tmux_file() {
   assert_contains "$file" "set -g status on"
   assert_contains "$file" "set -g status-position top"
   assert_contains "$file" "set -g pane-border-status bottom"
+  assert_contains "$file" "set -g window-status-separator ' || '"
   assert_contains "$file" "set -g window-status-format ' #{window_name}#{?window_bell_flag,!,} '"
   assert_contains "$file" "set -g window-status-current-format ' #{window_name}#{?window_bell_flag,!,} '"
   assert_contains "$file" "setw -g monitor-activity off"
