@@ -5,9 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 MAIN_YML="$REPO_ROOT/roles/common/tasks/main.yml"
 COMMON_SKILLS_ROOT="$REPO_ROOT/roles/common/files/config/skills/common"
-COMMON_DIR="$COMMON_SKILLS_ROOT/p-commit"
-CLAUDE_SKILL="$REPO_ROOT/roles/common/files/config/skills/claude/p-commit/SKILL.md"
-CODEX_SKILL="$REPO_ROOT/roles/common/files/config/skills/codex/p-commit/SKILL.md"
+COMMON_DIR="$COMMON_SKILLS_ROOT/_commit"
+CLAUDE_SKILL="$REPO_ROOT/roles/common/files/config/skills/claude/_commit/SKILL.md"
+CODEX_SKILL="$REPO_ROOT/roles/common/files/config/skills/codex/_commit/SKILL.md"
 TASK_ROWS="$(mktemp)"
 FAIL_CONTEXT="$(mktemp)"
 trap 'rm -f "$TASK_ROWS" "$FAIL_CONTEXT"' EXIT
@@ -170,12 +170,12 @@ while IFS='|' read -r skill relative_file frontmatter legacy_dir; do
   assert_contains "$local_file" "$frontmatter" "$skill uses canonical frontmatter"
   assert_missing "$COMMON_SKILLS_ROOT/$legacy_dir" "$skill removes legacy source directory"
 done <<'EOF'
-p-catchup|p-catchup/SKILL.md|name: p-catchup|catchup
-p-create-handoff|p-create-handoff/SKILL.md|name: p-create-handoff|creating-handoffs
-p-create-ics|p-create-ics/SKILL.md|name: p-create-ics|creating-ics-files
-p-deep-research|p-deep-research/SKILL.md|name: p-deep-research|deep-research
-p-humanizer|p-humanizer/SKILL.md|name: p-humanizer|humanizer
-p-validate-plan|p-validate-plan/SKILL.md|name: p-validate-plan|validating-plans
+_catchup|_catchup/SKILL.md|name: _catchup|catchup
+_create-handoff|_create-handoff/SKILL.md|name: _create-handoff|creating-handoffs
+_create-ics|_create-ics/SKILL.md|name: _create-ics|creating-ics-files
+_deep-research|_deep-research/SKILL.md|name: _deep-research|deep-research
+_humanizer|_humanizer/SKILL.md|name: _humanizer|humanizer
+_validate-plan|_validate-plan/SKILL.md|name: _validate-plan|validating-plans
 EOF
 
 assert_contains "$CLAUDE_SKILL" "p-committer" "Claude source skill dispatches p-committer"
@@ -195,7 +195,7 @@ assert_contains "$CODEX_SKILL" "wait_agent" "Codex source skill waits immediatel
 assert_contains "$CODEX_SKILL" "agent_type: worker" "Codex source skill uses a worker agent"
 assert_contains "$CODEX_SKILL" "fork_context: false" "Codex source skill avoids inheriting full session context"
 assert_contains "$CODEX_SKILL" "2-4 sentence summary" "Codex source skill keeps the summary contract"
-assert_contains "$CODEX_SKILL" "~/.codex/skills/p-commit/commit.sh" "Codex source skill uses the shared commit helper"
+assert_contains "$CODEX_SKILL" "~/.codex/skills/_commit/commit.sh" "Codex source skill uses the shared commit helper"
 assert_contains "$CODEX_SKILL" "Report the worker result" "Codex source skill reports the worker result"
 assert_not_contains "$CODEX_SKILL" "personal:committer" "Codex source skill avoids personal:committer"
 
@@ -212,6 +212,34 @@ assert_copy_sequence "{{ ansible_facts[\"user_dir\"] }}/.codex/skills/" \
 while IFS='|' read -r path name; do
   assert_contains "$MAIN_YML" "$path" "$name"
 done <<'EOF'
+.claude/skills/p-approve-spec|cleanup removes Claude p-approve-spec
+.codex/skills/p-approve-spec|cleanup removes Codex p-approve-spec
+.claude/skills/p-catchup|cleanup removes Claude p-catchup
+.codex/skills/p-catchup|cleanup removes Codex p-catchup
+.claude/skills/p-commit|cleanup removes Claude p-commit
+.codex/skills/p-commit|cleanup removes Codex p-commit
+.claude/skills/p-convert-skill-from-codex|cleanup removes Claude p-convert-skill-from-codex
+.codex/skills/p-convert-skill-from-claude|cleanup removes Codex p-convert-skill-from-claude
+.claude/skills/p-create-handoff|cleanup removes Claude p-create-handoff
+.codex/skills/p-create-handoff|cleanup removes Codex p-create-handoff
+.claude/skills/p-create-ics|cleanup removes Claude p-create-ics
+.codex/skills/p-create-ics|cleanup removes Codex p-create-ics
+.claude/skills/p-create-plan|cleanup removes Claude p-create-plan
+.codex/skills/p-create-plan|cleanup removes Codex p-create-plan
+.claude/skills/p-deep-research|cleanup removes Claude p-deep-research
+.codex/skills/p-deep-research|cleanup removes Codex p-deep-research
+.claude/skills/p-humanizer|cleanup removes Claude p-humanizer
+.codex/skills/p-humanizer|cleanup removes Codex p-humanizer
+.claude/skills/p-implement-plan|cleanup removes Claude p-implement-plan
+.codex/skills/p-implement-plan|cleanup removes Codex p-implement-plan
+.claude/skills/p-research-codebase|cleanup removes Claude p-research-codebase
+.codex/skills/p-research-codebase|cleanup removes Codex p-research-codebase
+.claude/skills/p-resume-codex-session|cleanup removes Claude p-resume-codex-session
+.codex/skills/p-resume-claude-session|cleanup removes Codex p-resume-claude-session
+.claude/skills/p-resume-handoff|cleanup removes Claude p-resume-handoff
+.codex/skills/p-resume-handoff|cleanup removes Codex p-resume-handoff
+.claude/skills/p-validate-plan|cleanup removes Claude p-validate-plan
+.codex/skills/p-validate-plan|cleanup removes Codex p-validate-plan
 .claude/skills/catchup|cleanup removes Claude catchup
 .codex/skills/catchup|cleanup removes Codex catchup
 .claude/skills/creating-handoffs|cleanup removes Claude create-handoff

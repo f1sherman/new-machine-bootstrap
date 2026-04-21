@@ -28,7 +28,7 @@ Your prompt contains a short summary of what was done and why, written by the ag
 3. **Execute commits:**
    - For each planned commit, call:
      ```bash
-     ~/.claude/skills/p-commit/commit.sh -m "Your commit message" file1 file2 ...
+     ~/.claude/skills/_commit/commit.sh -m "Your commit message" file1 file2 ...
      ```
    - If `commit.sh` fails because a file matches `.gitignore`, retry with `--force` (`-f`)
    - The script handles staging and committing

@@ -87,7 +87,7 @@ Run:
 
 ```bash
 git add tests/pinned-tool-versions.sh
-~/.codex/skills/p-commit/commit.sh -m "Lock review regression to Codex GitHub setup" tests/pinned-tool-versions.sh
+~/.codex/skills/_commit/commit.sh -m "Lock review regression to Codex GitHub setup" tests/pinned-tool-versions.sh
 ```
 
 Expected: one commit containing only the regression-script change.
@@ -173,7 +173,7 @@ Run:
 
 ```bash
 git add .github/workflows/renovate-review.yml docs/codex-github-review.md
-~/.codex/skills/p-commit/commit.sh -m "Move PR review setup to Codex GitHub integration" .github/workflows/renovate-review.yml docs/codex-github-review.md
+~/.codex/skills/_commit/commit.sh -m "Move PR review setup to Codex GitHub integration" .github/workflows/renovate-review.yml docs/codex-github-review.md
 ```
 
 Expected: one commit containing only the workflow deletion and the new setup doc.
