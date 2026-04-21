@@ -119,7 +119,6 @@ printf '{ "scope": "repo" }\n' > "$repo/.claude/settings.local.json"
 cat > "$repo/.gitignore" <<'EOF'
 # local repo ignores
 tmp/
-.worktrees/
 .claude/settings.local.json
 EOF
 cp "$repo/.gitignore" "$TMPROOT/gitignore.expected"
@@ -181,7 +180,6 @@ assert_dir "$default_path"
 assert_file "$default_path/file.txt"
 assert_file "$default_path/.coding-agent/nested/note.txt"
 assert_file "$default_path/.claude/settings.local.json"
-assert_contains ".worktrees/" "$repo/.gitignore"
 assert_file_equals "$TMPROOT/gitignore.expected" "$repo/.gitignore" ".gitignore after initial worktree-start"
 [ ! -s "$trust_log" ] || fail "claude-trust-directory should not be called"
 assert_contains "trust $default_path" "$mise_log"
