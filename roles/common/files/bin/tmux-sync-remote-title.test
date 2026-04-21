@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-sync-remote-title"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+bindir="$TMPROOT/bin"
+mkdir -p "$bindir"
+tmux_log="$TMPROOT/tmux.log"
+
+cat > "$bindir/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "$*" >> "$TMUX_SYNC_REMOTE_TITLE_LOG"
+
+case "${1:-}" in
+  display-message)
+    printf '%s\n' "${TMUX_SYNC_REMOTE_TITLE_DISPLAY_OUTPUT:-}"
+    ;;
+  rename-session|rename-window)
+    ;;
+esac
+EOF
+chmod +x "$bindir/tmux"
+
+assert_contains() {
+  local file="$1" needle="$2" label="$3"
+  if ! grep -Fqx -- "$needle" "$file"; then
+    printf 'FAIL  %s\nmissing: %s\n' "$label" "$needle" >&2
+    cat "$file" >&2
+    exit 1
+  fi
+  printf 'PASS  %s\n' "$label"
+}
+
+assert_not_contains() {
+  local file="$1" needle="$2" label="$3"
+  if grep -Fq -- "$needle" "$file"; then
+    printf 'FAIL  %s\nunexpected: %s\n' "$label" "$needle" >&2
+    cat "$file" >&2
+    exit 1
+  fi
+  printf 'PASS  %s\n' "$label"
+}
+
+run_case() {
+  local pane_id="$1" display_output="$2"
+  : > "$tmux_log"
+  PATH="$bindir:$PATH" \
+  TMUX=1 \
+  TMUX_SYNC_REMOTE_TITLE_LOG="$tmux_log" \
+  TMUX_SYNC_REMOTE_TITLE_DISPLAY_OUTPUT="$display_output" \
+  "$SCRIPT" "$pane_id"
+}
+
+run_case \
+  "%11" \
+  $'@7\t1\tssh\t/dev/ttys001\t(feature/foo) repo | claw02\t$1\tmain\tmain window'
+
+assert_contains "$tmux_log" $'display-message -p -t %11 #{window_id}\t#{pane_active}\t#{pane_current_command}\t#{pane_tty}\t#{pane_title}\t#{session_id}\t#{session_name}\t#{window_name}' "active remote pane queries tmux"
+assert_contains "$tmux_log" 'rename-session -t $1 (feature/foo) repo | claw02' "active remote pane renames session"
+assert_contains "$tmux_log" 'rename-window -t @7 (feature/foo) repo | claw02' "active remote pane renames window"
+
+run_case \
+  "%12" \
+  $'@8\t1\tssh\t/dev/ttys002\t2.1.92\t$2\tmain\tmain window'
+
+assert_not_contains "$tmux_log" 'rename-session' "noise title skips session rename"
+assert_not_contains "$tmux_log" 'rename-window' "noise title skips window rename"
+
+run_case \
+  "%13" \
+  $'@9\t0\tssh\t/dev/ttys003\t(feature/foo) repo | claw02\t$3\tmain\tmain window'
+
+assert_not_contains "$tmux_log" 'rename-session' "inactive pane skips session rename"
+assert_not_contains "$tmux_log" 'rename-window' "inactive pane skips window rename"
+
+run_case \
+  "%14" \
+  $'@10\t1\tgh\t/dev/ttys004\trepo | space-alpha\t$4\trepo | space-alpha\trepo | space-alpha'
+
+assert_not_contains "$tmux_log" 'rename-session' "unchanged session title skips rename"
+assert_not_contains "$tmux_log" 'rename-window' "unchanged window title skips rename"

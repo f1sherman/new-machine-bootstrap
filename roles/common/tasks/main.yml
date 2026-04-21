@@ -283,6 +283,20 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-agent-worktree'
     mode: 0755
 
+- name: Install tmux-remote-title script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-remote-title'
+    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-remote-title'
+    mode: 0755
+
+- name: Install tmux-sync-remote-title script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-sync-remote-title'
+    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-sync-remote-title'
+    mode: 0755
+
 - name: Install tmux-agent-pane-status script
   copy:
     backup: yes

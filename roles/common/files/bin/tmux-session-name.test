@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script="$script_dir/tmux-session-name"
+
+tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/tmux-session-name.XXXXXX")"
+trap 'rm -rf "$tmp_root"' EXIT
+
+fake_bin="$tmp_root/fake-bin"
+mkdir -p "$fake_bin"
+
+tmux_log="$tmp_root/tmux.log"
+: > "$tmux_log"
+
+cat > "$fake_bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+log="${TMUX_LOG:?}"
+printf '%s\n' "$*" >> "$log"
+
+case "${1:-}" in
+  display-message)
+    printf '%s\n' "${TMUX_DISPLAY_OUTPUT:-}"
+    ;;
+  has-session)
+    exit 1
+    ;;
+  rename-session)
+    ;;
+esac
+EOF
+chmod +x "$fake_bin/tmux"
+
+cat > "$fake_bin/ps" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "${1:-}" = "-o" ] && [ "${2:-}" = "args=" ]; then
+  printf '%s\n' "${PS_ARGS_OUTPUT:-}"
+fi
+EOF
+chmod +x "$fake_bin/ps"
+
+assert_file_contains() {
+  local file="$1" needle="$2" name="$3"
+  if ! grep -Fqx -- "$needle" "$file"; then
+    printf 'not ok - %s\nmissing: %s\n' "$name" "$needle" >&2
+    exit 1
+  fi
+  printf 'ok - %s\n' "$name"
+}
+
+run_case() {
+  : > "$tmux_log"
+
+  PATH="$fake_bin:$PATH" \
+    TMUX=1 \
+    TMPDIR="$tmp_root" \
+    TMUX_LOG="$tmux_log" \
+    TMUX_DISPLAY_OUTPUT=$'/dev/ttys001\t/tmp/repo\t(feature/foo) repo | claw02\t$1\tclaw02' \
+    PS_ARGS_OUTPUT="ssh dev@claw02" \
+    HOSTNAME="local-host" \
+    USER="brian" \
+    bash "$script" "%11"
+}
+
+run_case
+
+assert_file_contains "$tmux_log" $'display-message -p -t %11 #{pane_tty}\t#{pane_current_path}\t#{pane_title}\t#{session_id}\t#{session_name}' "structured remote title queries pane title"
+assert_file_contains "$tmux_log" "rename-session -t \$1 (feature/foo) repo | claw02" "structured remote title preserves synced label"

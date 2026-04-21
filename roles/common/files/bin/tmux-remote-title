@@ -1,0 +1,216 @@
+#!/usr/bin/env bash
+set -u
+
+mode="${1:-publish}"
+pane_id="${TMUX_PANE:-}"
+
+pane_info() {
+  if [ -n "${TMUX_REMOTE_TITLE_PANE_PATH:-}" ] || [ -n "${TMUX_REMOTE_TITLE_CLIENT_TTY:-}" ] || [ -n "${TMUX_REMOTE_TITLE_PANE_TTY:-}" ]; then
+    printf '%s\t%s\t%s\n' \
+      "${TMUX_REMOTE_TITLE_PANE_PATH:-}" \
+      "${TMUX_REMOTE_TITLE_CLIENT_TTY:-}" \
+      "${TMUX_REMOTE_TITLE_PANE_TTY:-}"
+    return 0
+  fi
+
+  [ -n "$pane_id" ] || return 1
+  tmux display-message -p -t "$pane_id" '#{pane_current_path}	#{client_tty}	#{pane_tty}' 2>/dev/null
+}
+
+read_pane_option() {
+  local option_name="$1"
+  if [ "$option_name" = "@agent_worktree_path" ] && [ -n "${TMUX_REMOTE_TITLE_WORKTREE_PATH:-}" ]; then
+    printf '%s\n' "$TMUX_REMOTE_TITLE_WORKTREE_PATH"
+    return 0
+  fi
+  if [ "$option_name" = "@agent_worktree_pid" ] && [ -n "${TMUX_REMOTE_TITLE_WORKTREE_PID:-}" ]; then
+    printf '%s\n' "$TMUX_REMOTE_TITLE_WORKTREE_PID"
+    return 0
+  fi
+
+  [ -n "$pane_id" ] || return 1
+  tmux show-options -pv -t "$pane_id" "$option_name" 2>/dev/null
+}
+
+get_process_lines() {
+  local pane_tty="$1"
+  if [ -n "${TMUX_REMOTE_TITLE_PS_FILE:-}" ] && [ -f "${TMUX_REMOTE_TITLE_PS_FILE}" ]; then
+    cat "${TMUX_REMOTE_TITLE_PS_FILE}"
+  elif [ -n "$pane_tty" ]; then
+    ps -o pid=,stat=,comm=,args= -t "$pane_tty" 2>/dev/null
+  fi
+}
+
+is_agent_process() {
+  local comm="$1" args="$2"
+  case "$comm" in
+    claude|codex)
+      return 0
+      ;;
+  esac
+  printf '%s\n' "$args" | grep -Eq '(^|[[:space:]])([^[:space:]]*/)?(claude|codex)([[:space:]]|$)'
+}
+
+detect_agent_pid() {
+  local pane_tty="$1"
+  local line pid stat comm args fg_pid="" any_pid=""
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    [ -z "$line" ] && continue
+    read -r pid stat comm args <<< "$line"
+    is_agent_process "${comm:-}" "${args:-}" || continue
+    any_pid="$pid"
+    case "$stat" in
+      *+*)
+        fg_pid="$pid"
+        ;;
+    esac
+  done < <(get_process_lines "$pane_tty")
+
+  if [ -n "$fg_pid" ]; then
+    printf '%s\n' "$fg_pid"
+  elif [ -n "$any_pid" ]; then
+    printf '%s\n' "$any_pid"
+  fi
+}
+
+dir_basename() {
+  local path="${1%/}"
+  path="${path##*/}"
+  [ -n "$path" ] || path="/"
+  printf '%s\n' "$path"
+}
+
+git_branch_for_path() {
+  local path="$1"
+  local gitdir head content real
+
+  while [ -n "$path" ] && [ "$path" != "/" ]; do
+    if [ -d "$path/.git" ]; then
+      gitdir="$path/.git"
+      break
+    fi
+
+    if [ -f "$path/.git" ]; then
+      IFS= read -r content < "$path/.git" || return 1
+      real="${content#gitdir: }"
+      case "$real" in
+        /*) gitdir="$real" ;;
+        *) gitdir="$path/$real" ;;
+      esac
+      break
+    fi
+
+    path="${path%/*}"
+  done
+
+  [ -n "${gitdir:-}" ] && [ -r "$gitdir/HEAD" ] || return 1
+  IFS= read -r head < "$gitdir/HEAD" || return 1
+  case "$head" in
+    ref:\ refs/heads/*)
+      printf '%s\n' "${head#ref: refs/heads/}"
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
+is_git_worktree_path() {
+  local path="$1"
+  [ -d "$path" ] || return 1
+  [ "$(git -C "$path" rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]
+}
+
+is_linked_worktree() {
+  local path="$1" git_dir common_dir
+  git_dir="$(git -C "$path" rev-parse --path-format=absolute --git-dir 2>/dev/null)" || return 1
+  common_dir="$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+  [ "$git_dir" != "$common_dir" ]
+}
+
+is_valid_explicit_path() {
+  local path="$1"
+  is_git_worktree_path "$path" || return 1
+  is_linked_worktree "$path" || return 1
+  git_branch_for_path "$path" >/dev/null 2>&1
+}
+
+is_dirty_path() {
+  local path="$1"
+  [ -n "$(git --no-optional-locks -C "$path" status --porcelain 2>/dev/null)" ]
+}
+
+host_tag() {
+  if [ -n "${TMUX_REMOTE_TITLE_HOST_TAG:-}" ]; then
+    printf '%s\n' "$TMUX_REMOTE_TITLE_HOST_TAG"
+  elif [ -n "${DEVPOD_WORKSPACE_ID:-}" ]; then
+    printf '%s\n' "$DEVPOD_WORKSPACE_ID"
+  elif [ -n "${CODESPACES:-}" ] && [ -n "${CODESPACE_NAME:-}" ]; then
+    printf '%s\n' "$CODESPACE_NAME"
+  elif [ -n "${SSH_CONNECTION:-}" ]; then
+    hostname -s 2>/dev/null
+  fi
+}
+
+explicit_title() {
+  local path="$1" host="$2" branch
+  branch="$(git_branch_for_path "$path" 2>/dev/null)" || return 1
+  if is_dirty_path "$path"; then
+    printf '(*%s) %s | %s\n' "$branch" "$(dir_basename "$path")" "$host"
+  else
+    printf '(%s) %s | %s\n' "$branch" "$(dir_basename "$path")" "$host"
+  fi
+}
+
+fallback_title() {
+  local path="$1" host="$2"
+  printf '%s | %s\n' "$(dir_basename "$path")" "$host"
+}
+
+main() {
+  local pane_path client_tty pane_tty host title worktree_path worktree_pid active_agent_pid
+  local info
+
+  info="$(pane_info)" || exit 0
+  [ -n "$info" ] || exit 0
+  IFS=$'\t' read -r pane_path client_tty pane_tty <<< "$info"
+  [ -n "$pane_path" ] || exit 0
+
+  host="$(host_tag)"
+  [ -n "$host" ] || exit 0
+
+  worktree_path="$(read_pane_option "@agent_worktree_path" 2>/dev/null || true)"
+  worktree_pid="$(read_pane_option "@agent_worktree_pid" 2>/dev/null || true)"
+
+  if [ -n "$worktree_path" ] && is_valid_explicit_path "$worktree_path"; then
+    if [ -z "$worktree_pid" ]; then
+      title="$(explicit_title "$worktree_path" "$host" || true)"
+    else
+      active_agent_pid="$(detect_agent_pid "$pane_tty")"
+      if [ -n "$active_agent_pid" ] && [ "$active_agent_pid" = "$worktree_pid" ]; then
+        title="$(explicit_title "$worktree_path" "$host" || true)"
+      fi
+    fi
+  fi
+
+  if [ -z "${title:-}" ]; then
+    title="$(fallback_title "$pane_path" "$host")"
+  fi
+
+  case "$mode" in
+    print)
+      printf '%s\n' "$title"
+      ;;
+    publish)
+      [ -n "$client_tty" ] || exit 0
+      printf '\033]2;%s\033\\' "$title" > "$client_tty"
+      ;;
+    *)
+      exit 0
+      ;;
+  esac
+}
+
+main
+exit 0
