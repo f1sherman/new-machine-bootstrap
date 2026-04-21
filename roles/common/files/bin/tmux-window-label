@@ -11,16 +11,33 @@ IFS=$'\t' read -r window_id pane_active window_name pane_tty pane_current_path p
 [ -n "$window_id" ] || exit 0
 [ "$pane_active" = "1" ] || exit 0
 
+is_remote_candidate_command() {
+  case "$1" in
+    ssh|gh|ruby) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_structured_remote_label() {
+  case "$1" in
+    *" | "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+remote_host_suffix() {
+  printf '%s\n' "${1##* | }"
+}
+
 label=""
-case "$pane_current_command" in
-  ssh|gh|ruby)
-    case "$pane_title" in
-      *" | "*)
-        label="$pane_title"
-        ;;
-    esac
-    ;;
-esac
+preserve_degraded_remote=0
+if is_remote_candidate_command "$pane_current_command"; then
+  if is_structured_remote_label "$pane_title"; then
+    label="$pane_title"
+  elif is_structured_remote_label "$window_name" && [ "$pane_title" = "$(remote_host_suffix "$window_name")" ]; then
+    preserve_degraded_remote=1
+  fi
+fi
 
 if [ -z "$label" ]; then
   label_helper="${TMUX_PANE_LABEL_BIN:-$HOME/.local/bin/tmux-pane-label}"
@@ -30,6 +47,7 @@ if [ -z "$label" ]; then
 
   label="$("$label_helper" "$pane_tty" "$pane_current_path" "$pane_current_command" "$pane_id" 2>/dev/null || true)"
 fi
+[ "$preserve_degraded_remote" = "0" ] || exit 0
 [ -n "$label" ] || exit 0
 [ "$label" != "$window_name" ] || exit 0
 

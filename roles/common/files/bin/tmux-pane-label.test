@@ -78,6 +78,11 @@ fixture_dir="${TMUX_FIXTURE_DIR:?}"
 printf '%s\n' "$*" >> "$log"
 
 case "${1:-}" in
+  display-message)
+    if [ "${*: -1}" = $'#{pane_title}\t#{window_name}' ]; then
+      printf '%s\n' "${TMUX_DISPLAY_OUTPUT:-}"
+    fi
+    ;;
   list-panes)
     printf '%s\n' "${TMUX_PANE_IDS:-}"
     ;;
@@ -128,6 +133,7 @@ run_case() {
   local fixture="$6" expected_ps_calls="$7"
   local expected_tmux_calls="${8:-0}"
   local pane_id="${9:-}" explicit_pid="${10:-}" explicit_path="${11:-}" detail_fixture="${12:-}"
+  local display_fixture="${13:-}"
 
   printf '%s\n' "$fixture" > "$tmp_root/$tty"
   if [ -n "$detail_fixture" ]; then
@@ -142,7 +148,7 @@ run_case() {
 
   local output ps_calls
   local rc
-  if output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" TMUX_CALL_LOG="$tmux_log" TMUX_FIXTURE_DIR="$tmp_root" TMUX_PANE_IDS="${pane_id:-}" bash "$script" "$tty" "$path" "$pane_current_command" "${pane_id:-}" 2>/dev/null)"; then
+  if output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" TMUX_CALL_LOG="$tmux_log" TMUX_FIXTURE_DIR="$tmp_root" TMUX_PANE_IDS="${pane_id:-}" TMUX_DISPLAY_OUTPUT="$display_fixture" bash "$script" "$tty" "$path" "$pane_current_command" "${pane_id:-}" 2>/dev/null)"; then
     rc=0
   else
     rc=$?
@@ -182,7 +188,7 @@ run_case \
   "tty-local-git" \
   "$git_repo" \
   "zsh" \
-  "feature/foo repo" \
+  "(feature/foo) repo" \
   "shell: zsh" \
   "0" \
   "0"
@@ -202,40 +208,70 @@ run_case \
   "tty-agent-no-pane-id" \
   "$git_repo" \
   "codex" \
-  "feature/foo repo" \
+  "(feature/foo) repo" \
   "codex --cd /tmp/irrelevant" \
   "0" \
   "0"
 
 run_case \
-  "plain ssh pane keeps host label" \
+  "plain ssh pane becomes repo-first label" \
   "tty-ssh" \
-  "$tmp_dir" \
+  "$git_repo" \
   "ssh" \
-  "claw02" \
+  "repo | claw02" \
   "ssh dev@claw02 -p 22" \
   "1" \
   "0"
 
 run_case \
-  "codespaces pane keeps codespace label" \
+  "codespaces pane uses unified remote suffix label" \
   "tty-codespace" \
   "$tmp_dir" \
   "gh" \
-  "space-alpha" \
+  "tmp | space-alpha" \
   "gh codespace ssh --codespace space-alpha" \
   "1" \
   "0"
 
 run_case \
-  "devpod pane keeps workspace label via ruby hint" \
+  "devpod pane uses unified remote suffix label" \
   "tty-devpod" \
   "$tmp_dir" \
   "ruby" \
-  "workspace-beta" \
+  "tmp | workspace-beta" \
   "devpod ssh workspace-beta" \
   "1" \
   "0"
+
+run_case \
+  "structured remote title wins for pane label" \
+  "tty-structured-remote" \
+  "$git_repo" \
+  "ssh" \
+  "(feature/foo) repo | claw02" \
+  "ssh dev@claw02 -p 22" \
+  "0" \
+  "1" \
+  "%96" \
+  "" \
+  "" \
+  "" \
+  $'(feature/foo) repo | claw02\tany-window'
+
+run_case \
+  "degraded remote title preserves structured window label" \
+  "tty-degraded-remote" \
+  "$git_repo" \
+  "ssh" \
+  "(feature/foo) repo | claw02" \
+  "ssh dev@claw02 -p 22" \
+  "0" \
+  "1" \
+  "%97" \
+  "" \
+  "" \
+  "" \
+  $'claw02\t(feature/foo) repo | claw02'
 
 run_case \
   "ruby local pane falls back to local label" \
@@ -250,9 +286,9 @@ run_case \
 run_case \
   "empty hint preserves ssh label via slow path" \
   "tty-ssh-multiline" \
-  "$tmp_dir" \
+  "$git_repo" \
   "" \
-  "claw02" \
+  "repo | claw02" \
   $'zsh -l\nssh dev@claw02 -p 22' \
   "1" \
   "0"
@@ -262,7 +298,7 @@ run_case \
   "tty-local-shell" \
   "$git_repo" \
   "" \
-  "feature/foo repo" \
+  "(feature/foo) repo" \
   "zsh -l" \
   "1" \
   "0"
@@ -272,7 +308,7 @@ run_case \
   "tty-explicit" \
   "$tmp_dir" \
   "codex" \
-  "feature/agent-label agent-wt" \
+  "(feature/agent-label) agent-repo" \
   "codex --cd /tmp/irrelevant" \
   "1" \
   "2" \
@@ -286,10 +322,10 @@ run_case \
   "tty-explicit-background-agent" \
   "$tmp_dir" \
   "ruby" \
-  "workspace-beta" \
+  "tmp | workspace-beta" \
   $'devpod ssh workspace-beta\ncodex --cd /tmp/irrelevant' \
   "2" \
-  "0" \
+  "1" \
   "%91" \
   "9101" \
   "$agent_wt" \
@@ -300,10 +336,10 @@ run_case \
   "tty-explicit-stale" \
   "$tmp_dir" \
   "ssh" \
-  "claw02" \
+  "tmp | claw02" \
   "ssh dev@claw02 -p 22" \
   "2" \
-  "2" \
+  "3" \
   "%92" \
   "9999" \
   "$agent_wt" \
@@ -314,7 +350,7 @@ run_case \
   "tty-local-pane-id" \
   "$git_repo" \
   "bash" \
-  "feature/foo repo" \
+  "(feature/foo) repo" \
   "shell: login" \
   "0" \
   "0" \
@@ -328,10 +364,10 @@ run_case \
   "tty-explicit-invalid-path" \
   "$tmp_dir" \
   "ssh" \
-  "claw02" \
+  "tmp | claw02" \
   "ssh dev@claw02 -p 22" \
   "2" \
-  "2" \
+  "3" \
   "%94" \
   "9100" \
   "/no/such/path" \
@@ -342,10 +378,10 @@ run_case \
   "tty-explicit-primary-checkout" \
   "$tmp_dir" \
   "ssh" \
-  "claw02" \
+  "tmp | claw02" \
   "ssh dev@claw02 -p 22" \
   "2" \
-  "2" \
+  "3" \
   "%95" \
   "9100" \
   "$agent_repo" \

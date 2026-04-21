@@ -12,6 +12,8 @@ mkdir -p "$fake_bin"
 
 tmux_log="$tmp_root/tmux.log"
 : > "$tmux_log"
+tmux_log_degraded="$tmp_root/tmux-degraded.log"
+: > "$tmux_log_degraded"
 
 cat > "$fake_bin/tmux" <<'EOF'
 #!/usr/bin/env bash
@@ -68,5 +70,51 @@ run_case() {
 
 run_case
 
+degraded_case() {
+  : > "$tmux_log_degraded"
+
+  PATH="$fake_bin:$PATH" \
+    TMUX=1 \
+    TMPDIR="$tmp_root" \
+    TMUX_LOG="$tmux_log_degraded" \
+    TMUX_DISPLAY_OUTPUT=$'/dev/ttys002\t/tmp/repo\tclaw02\t$1\t(feature/foo) repo | claw02' \
+    PS_ARGS_OUTPUT="ssh dev@claw02" \
+    HOSTNAME="local-host" \
+    USER="brian" \
+    bash "$script" "%12"
+}
+
+degraded_case
+
+degraded_without_structured_case() {
+  : > "$tmp_root/tmux-degraded-unstructured.log"
+
+  PATH="$fake_bin:$PATH" \
+    TMUX=1 \
+    TMPDIR="$tmp_root" \
+    TMUX_LOG="$tmp_root/tmux-degraded-unstructured.log" \
+    TMUX_DISPLAY_OUTPUT=$'/dev/ttys003\t/tmp/repo\tclaw02\t$1\tclaw02' \
+    PS_ARGS_OUTPUT="ssh dev@claw02" \
+    HOSTNAME="local-host" \
+    USER="brian" \
+    bash "$script" "%13"
+}
+
+degraded_without_structured_case
+
 assert_file_contains "$tmux_log" $'display-message -p -t %11 #{pane_tty}\t#{pane_current_path}\t#{pane_title}\t#{session_id}\t#{session_name}' "structured remote title queries pane title"
 assert_file_contains "$tmux_log" "rename-session -t \$1 (feature/foo) repo | claw02" "structured remote title preserves synced label"
+assert_file_contains "$tmux_log_degraded" $'display-message -p -t %12 #{pane_tty}\t#{pane_current_path}\t#{pane_title}\t#{session_id}\t#{session_name}' "degraded remote title queries pane title"
+if grep -Fq "rename-session" "$tmux_log_degraded"; then
+  printf 'not ok - degraded title must not replace structured remote session name\nunexpected rename:\n' >&2
+  cat "$tmux_log_degraded" >&2
+  exit 1
+fi
+printf 'ok - degraded title preserves structured remote session name\n'
+assert_file_contains "$tmp_root/tmux-degraded-unstructured.log" $'display-message -p -t %13 #{pane_tty}\t#{pane_current_path}\t#{pane_title}\t#{session_id}\t#{session_name}' "unstructured degraded title queries pane title"
+if grep -Fq "rename-session" "$tmp_root/tmux-degraded-unstructured.log"; then
+  printf 'not ok - degraded title must not introduce host pipe host session name\nunexpected rename:\n' >&2
+  cat "$tmp_root/tmux-degraded-unstructured.log" >&2
+  exit 1
+fi
+printf 'ok - degraded title avoids host pipe host session name\n'

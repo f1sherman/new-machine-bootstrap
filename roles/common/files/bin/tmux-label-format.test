@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script="$script_dir/tmux-label-format"
+
+tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/tmux-label-format.XXXXXX")"
+trap 'rm -rf "$tmp_root"' EXIT
+
+export GIT_AUTHOR_NAME=test
+export GIT_AUTHOR_EMAIL=test@example.com
+export GIT_COMMITTER_NAME=test
+export GIT_COMMITTER_EMAIL=test@example.com
+
+assert_eq() {
+  local got="$1" want="$2" name="$3"
+  if [ "$got" != "$want" ]; then
+    printf 'not ok - %s\nexpected: %s\ngot: %s\n' "$name" "$want" "$got" >&2
+    exit 1
+  fi
+  printf 'ok - %s\n' "$name"
+}
+
+make_repo() {
+  local dir="$1"
+  git -c init.templateDir="$tmp_root/git-template" init -q -b main "$dir"
+  git -C "$dir" commit -q --allow-empty -m init
+}
+
+repo="$tmp_root/repo"
+subrepo="$tmp_root/subrepo"
+superrepo="$tmp_root/super"
+worktree="$tmp_root/repo-worktree"
+
+mkdir -p "$tmp_root/git-template"
+
+make_repo "$repo"
+git -C "$repo" checkout -q -b feature/local
+assert_eq \
+  "$("$script" local "$repo")" \
+  "(feature/local) repo" \
+  "primary repo keeps repo basename"
+
+git -C "$repo" worktree add -q -b feature/worktree "$worktree"
+assert_eq \
+  "$("$script" local "$worktree")" \
+  "(feature/worktree) repo" \
+  "linked worktree keeps source repo basename"
+
+make_repo "$subrepo"
+make_repo "$superrepo"
+GIT_ALLOW_PROTOCOL=file git -C "$superrepo" submodule add -q "$subrepo" deps/subrepo
+git -C "$superrepo" commit -qam "add submodule" >/dev/null
+git -C "$superrepo/deps/subrepo" checkout -q -b feature/submodule
+
+assert_eq \
+  "$("$script" local "$superrepo/deps/subrepo")" \
+  "(feature/submodule) subrepo" \
+  "submodule checkout uses submodule basename"
+
+assert_eq \
+  "$("$script" remote "$superrepo/deps/subrepo" claw02)" \
+  "subrepo | claw02" \
+  "remote submodule fallback uses submodule basename"
