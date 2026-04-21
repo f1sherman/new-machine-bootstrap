@@ -120,8 +120,16 @@ claude_permissions:
     # Claude skills
     - "Bash(~/.local/bin/spec-metadata)"
     - "Bash(~/.claude/skills/p-commit/commit.sh *)"
-    - "Bash(~/.claude/skills/create-pull-request/create-draft-pr *)"
-    - "Bash(~/.claude/skills/create-pull-request/gather-pr-context *)"
+    - "Bash(bash ~/.local/share/skills/p-pr-workflow-common/agent-worktree-path.sh)"
+    - "Bash(bash ~/.local/share/skills/p-pr-workflow-common/context.sh *)"
+    - "Bash(bash ~/.local/share/skills/p-pr-workflow-common/run-review.sh *)"
+    - "Bash(bash ~/.local/share/skills/p-pr-workflow-common/classify-visual.sh *)"
+    - "Bash(bash ~/.local/share/skills/p-pr-forgejo/create.sh *)"
+    - "Bash(bash ~/.local/share/skills/p-pr-forgejo/post-demo.sh *)"
+    - "Bash(bash ~/.local/share/skills/p-pr-forgejo/upload-attachment.sh *)"
+    - "Bash(bash ~/.local/share/skills/p-pr-github/create.sh *)"
+    - "Bash(bash ~/.local/share/skills/p-pr-github/post-demo.sh *)"
+    - "Bash(bash ~/.local/share/skills/p-pr-monitor/run.sh *)"
 
     # File reads
     - "Read(//Users/brianjohn/projects/github-actions/pull-request-review/**)"
@@ -163,3 +171,5 @@ claude_permissions:
 
 claude_permissions_allow_remove:
   - "Bash(git push *)"
+  - "Bash(~/.claude/skills/create-pull-request/create-draft-pr *)"
+  - "Bash(~/.claude/skills/create-pull-request/gather-pr-context *)"

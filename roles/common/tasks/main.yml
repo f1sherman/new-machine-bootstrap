@@ -345,7 +345,7 @@
       * Workspace: `~/projects/`
       * Bias toward action. Only ask user when you can't do it yourself.
       * Spec approval and plan execution: the written spec is the only approval gate; once approved, proceed without another implementation approval prompt and always choose subagent execution automatically.
-      * Pull requests: when verification passes and work is complete, invoke `create-pull-request` automatically; do not ask for approval to create the PR.
+      * Pull requests: when verification passes and work is complete, invoke `p-pull-request` automatically; do not ask for approval to create the PR.
       * Worktrees: create using `worktree-start`. Created other way: run `tmux-agent-worktree set <absolute-path>`. When done: `tmux-agent-worktree clear`.
       * Comments: use sparingly. Explain why, not what.
       * Scripts/snippets: write scripts in ruby; snippets in bash unless otherwise instructed.
@@ -1077,6 +1077,84 @@
     src: '{{ playbook_dir }}/roles/common/files/config/skills/common/p-commit/commit.sh'
     dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/p-commit/commit.sh'
     mode: '0755'
+
+- name: Create shared PR workflow runtime directories
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/{{ item }}'
+    state: directory
+    mode: '0755'
+  loop:
+    - .local/share/skills/p-pr-workflow-common
+    - .local/share/skills/p-pr-monitor
+    - .local/share/skills/p-pr-forgejo
+    - .local/share/skills/p-pr-github
+
+- name: Install shared PR workflow common helpers
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/p-pr-workflow-common/{{ item }}'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/share/skills/p-pr-workflow-common/{{ item }}'
+    mode: preserve
+  loop:
+    - detect-platform.sh
+    - agent-worktree-path.sh
+    - context.sh
+    - classify-visual.sh
+    - run-review.sh
+
+- name: Install shared PR monitor helper
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/p-pr-monitor/run.sh'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/share/skills/p-pr-monitor/run.sh'
+    mode: preserve
+
+- name: Install shared Forgejo PR workflow helpers
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/p-pr-forgejo/{{ item }}'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/share/skills/p-pr-forgejo/{{ item }}'
+    mode: preserve
+  loop:
+    - create.sh
+    - post-demo.sh
+    - upload-attachment.sh
+    - state.sh
+
+- name: Install shared GitHub PR workflow helpers
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/p-pr-github/{{ item }}'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/share/skills/p-pr-github/{{ item }}'
+    mode: preserve
+  loop:
+    - create.sh
+    - post-demo.sh
+    - state.sh
+
+- name: Remove legacy PR workflow installs
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/{{ item }}'
+    state: absent
+  loop:
+    - .agents/skills/forgejo-pr
+    - .local/share/skills/forgejo-pr
+    - .local/share/skills/pr-workflow-common
+    - .local/share/skills/pr-monitor
+    - .local/share/skills/pr-forgejo
+    - .local/share/skills/pr-github
+    - .claude/skills/create-pull-request
+    - .claude/skills/pr-forgejo
+    - .claude/skills/pr-github
+    - .claude/skills/create-forgejo-demo
+    - .claude/skills/create-github-demo
+    - .claude/skills/monitor-forgejo-pr
+    - .claude/skills/monitor-github-pr
+    - .codex/skills/create-pull-request
+    - .codex/skills/pr-forgejo
+    - .codex/skills/pr-github
+    - .codex/skills/create-forgejo-demo
+    - .codex/skills/create-github-demo
+    - .codex/skills/monitor-forgejo-pr
+    - .codex/skills/monitor-github-pr
+    - .claude/skills/forgejo-pr
+    - .codex/skills/forgejo-pr
 
 - name: Remove legacy custom skill and agent installs
   file:
