@@ -3,6 +3,10 @@ set -u
 
 mode="${1:-publish}"
 pane_id="${TMUX_PANE:-}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+label_formatter="${TMUX_LABEL_FORMAT_BIN:-$script_dir/tmux-label-format}"
+
+[ -x "$label_formatter" ] || label_formatter="${HOME:-}/.local/bin/tmux-label-format"
 
 pane_info() {
   if [ -n "${TMUX_REMOTE_TITLE_PANE_PATH:-}" ] || [ -n "${TMUX_REMOTE_TITLE_CLIENT_TTY:-}" ] || [ -n "${TMUX_REMOTE_TITLE_PANE_TTY:-}" ]; then
@@ -74,13 +78,6 @@ detect_agent_pid() {
   fi
 }
 
-dir_basename() {
-  local path="${1%/}"
-  path="${path##*/}"
-  [ -n "$path" ] || path="/"
-  printf '%s\n' "$path"
-}
-
 git_branch_for_path() {
   local path="$1"
   local gitdir head content real
@@ -136,11 +133,6 @@ is_valid_explicit_path() {
   git_branch_for_path "$path" >/dev/null 2>&1
 }
 
-is_dirty_path() {
-  local path="$1"
-  [ -n "$(git --no-optional-locks -C "$path" status --porcelain 2>/dev/null)" ]
-}
-
 host_tag() {
   if [ -n "${TMUX_REMOTE_TITLE_HOST_TAG:-}" ]; then
     printf '%s\n' "$TMUX_REMOTE_TITLE_HOST_TAG"
@@ -151,21 +143,6 @@ host_tag() {
   elif [ -n "${SSH_CONNECTION:-}" ]; then
     hostname -s 2>/dev/null
   fi
-}
-
-explicit_title() {
-  local path="$1" host="$2" branch
-  branch="$(git_branch_for_path "$path" 2>/dev/null)" || return 1
-  if is_dirty_path "$path"; then
-    printf '(*%s) %s | %s\n' "$branch" "$(dir_basename "$path")" "$host"
-  else
-    printf '(%s) %s | %s\n' "$branch" "$(dir_basename "$path")" "$host"
-  fi
-}
-
-fallback_title() {
-  local path="$1" host="$2"
-  printf '%s | %s\n' "$(dir_basename "$path")" "$host"
 }
 
 main() {
@@ -185,17 +162,17 @@ main() {
 
   if [ -n "$worktree_path" ] && is_valid_explicit_path "$worktree_path"; then
     if [ -z "$worktree_pid" ]; then
-      title="$(explicit_title "$worktree_path" "$host" || true)"
+      title="$("$label_formatter" remote-explicit "$worktree_path" "$host" 2>/dev/null || true)"
     else
       active_agent_pid="$(detect_agent_pid "$pane_tty")"
       if [ -n "$active_agent_pid" ] && [ "$active_agent_pid" = "$worktree_pid" ]; then
-        title="$(explicit_title "$worktree_path" "$host" || true)"
+        title="$("$label_formatter" remote-explicit "$worktree_path" "$host" 2>/dev/null || true)"
       fi
     fi
   fi
 
   if [ -z "${title:-}" ]; then
-    title="$(fallback_title "$pane_path" "$host")"
+    title="$("$label_formatter" remote "$pane_path" "$host" 2>/dev/null || true)"
   fi
 
   case "$mode" in

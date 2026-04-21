@@ -272,7 +272,7 @@ run_case \
   "tty-explicit" \
   "$tmp_dir" \
   "codex" \
-  "(feature/agent-label) agent-wt" \
+  "(feature/agent-label) agent-repo" \
   "codex --cd /tmp/irrelevant" \
   "1" \
   "2" \
@@ -300,7 +300,7 @@ run_case \
   "tty-explicit-stale" \
   "$tmp_dir" \
   "ssh" \
-  "repo | claw02" \
+  "tmp | claw02" \
   "ssh dev@claw02 -p 22" \
   "2" \
   "2" \
@@ -328,7 +328,7 @@ run_case \
   "tty-explicit-invalid-path" \
   "$tmp_dir" \
   "ssh" \
-  "repo | claw02" \
+  "tmp | claw02" \
   "ssh dev@claw02 -p 22" \
   "2" \
   "2" \
@@ -342,7 +342,7 @@ run_case \
   "tty-explicit-primary-checkout" \
   "$tmp_dir" \
   "ssh" \
-  "repo | claw02" \
+  "tmp | claw02" \
   "ssh dev@claw02 -p 22" \
   "2" \
   "2" \

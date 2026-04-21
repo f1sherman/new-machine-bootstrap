@@ -11,6 +11,10 @@
 [ -z "$TMUX" ] && exit 0
 
 pane_id="${1:-${TMUX_PANE:-$(tmux display-message -p '#{pane_id}')}}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+label_formatter="${TMUX_LABEL_FORMAT_BIN:-$script_dir/tmux-label-format}"
+
+[ -x "$label_formatter" ] || label_formatter="${HOME:-}/.local/bin/tmux-label-format"
 
 # Deduplicate concurrent runs for the same pane. Agents like Claude and Codex
 # update pane titles several times per second with spinner frames, which fires
@@ -49,6 +53,17 @@ IFS=$'\t' read -r pane_tty pane_current_path pane_title session_id current_name 
 [ -z "$session_id" ] && exit 0
 
 ssh_pattern='(^ssh |gh (codespace|cs) ssh|devpod ssh)'
+
+is_structured_remote_label() {
+  case "$1" in
+    *" | "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+remote_host_suffix() {
+  printf '%s\n' "${1##* | }"
+}
 
 # Resolve a git branch by reading .git/HEAD directly — avoids forking `git`,
 # which under memory pressure can take hundreds of ms just to start up.
@@ -91,7 +106,9 @@ if grep -qE "$ssh_pattern" <<< "$pane_procs"; then
         name="$pane_title"
         ;;
       *)
-        if [ -z "$is_codespace" ] && [ -z "$is_devpod" ] && [ -n "$ssh_host" ]; then
+        if [ -z "$is_codespace" ] && [ -z "$is_devpod" ] && is_structured_remote_label "$current_name" && [ "$pane_title" = "$(remote_host_suffix "$current_name")" ]; then
+          exit 0
+        elif [ -z "$is_codespace" ] && [ -z "$is_devpod" ] && [ -n "$ssh_host" ]; then
           name="$ssh_host | $pane_title"
         else
           name="$pane_title"
@@ -116,13 +133,8 @@ else
     fi
   fi
 
-  dir_basename="${pane_current_path##*/}"
-  branch=$(_head_branch "$pane_current_path")
-  if [ -n "$branch" ]; then
-    name="($branch) $dir_basename"
-  else
-    name="$dir_basename"
-  fi
+  name="$("$label_formatter" local "$pane_current_path" 2>/dev/null || true)"
+  [ -n "$name" ] || exit 0
 
   # Append running program if it's not the shell
   # Uses ps stat flag: "+" means foreground process group

@@ -5,6 +5,10 @@ pane_tty="${1:-}"
 pane_current_path="${2:-}"
 pane_current_command="${3:-}"
 pane_id="${4:-}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+label_formatter="${TMUX_LABEL_FORMAT_BIN:-$script_dir/tmux-label-format}"
+
+[ -x "$label_formatter" ] || label_formatter="${HOME:-}/.local/bin/tmux-label-format"
 
 [ -n "$pane_tty" ] || exit 0
 [ -n "$pane_current_path" ] || exit 0
@@ -187,21 +191,12 @@ git_branch_for_path() {
   return 1
 }
 
-dir_basename() {
-  local path="${1%/}"
-  path="${path##*/}"
-  [ -n "$path" ] || path="/"
-  printf '%s\n' "$path"
+local_label() {
+  "$label_formatter" local "${1:-$pane_current_path}"
 }
 
-local_label() {
-  local path="${1:-$pane_current_path}" branch
-
-  if branch="$(git_branch_for_path "$path" 2>/dev/null)"; then
-    printf '%s\n' "$branch $(dir_basename "$path")"
-  else
-    dir_basename "$path"
-  fi
+remote_label() {
+  "$label_formatter" remote "$1" "$2"
 }
 
 is_remote_candidate_command() {
@@ -262,7 +257,11 @@ while IFS= read -r line; do
       ;;
     ssh* )
       label="$(extract_ssh_host "$line" || true)"
-      [ -n "$label" ] || label="ssh"
+      if [ -n "$label" ]; then
+        label="$(remote_label "$pane_current_path" "$label")"
+      else
+        label="ssh"
+      fi
       break
       ;;
   esac

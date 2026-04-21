@@ -226,6 +226,7 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/{{ item }}'
     mode: 0755
   loop:
+    - tmux-label-format
     - tmux-pane-label
     - tmux-window-label
 
