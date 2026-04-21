@@ -213,7 +213,7 @@ override/fallback cases.
 Run:
 
 ```bash
-~/.codex/skills/p-commit/commit.sh -m "Prefer tmux labels from agent worktree state" \
+~/.codex/skills/_commit/commit.sh -m "Prefer tmux labels from agent worktree state" \
   roles/common/files/bin/tmux-pane-label \
   roles/common/files/bin/tmux-pane-label.test
 ```
@@ -308,7 +308,7 @@ window-label helper and the tmux config templates.
 Run:
 
 ```bash
-~/.codex/skills/p-commit/commit.sh -m "Pass pane ids into tmux pane labels" \
+~/.codex/skills/_commit/commit.sh -m "Pass pane ids into tmux pane labels" \
   roles/common/files/bin/tmux-window-label \
   roles/common/files/bin/tmux-window-label.test \
   roles/common/files/bin/tmux-window-bar-config.test \
@@ -353,7 +353,7 @@ already-committed spec/plan artifacts on this branch.
 If the verification step forced follow-up edits, commit only those files with:
 
 ```bash
-~/.codex/skills/p-commit/commit.sh -m "Fix tmux worktree label verification gaps" <files...>
+~/.codex/skills/_commit/commit.sh -m "Fix tmux worktree label verification gaps" <files...>
 ```
 
 If no fixes were needed, do not create an extra commit.

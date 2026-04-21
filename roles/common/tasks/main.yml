@@ -1066,8 +1066,8 @@
 
 - name: Install shared commit helper to ~/.claude/skills
   copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/p-commit/commit.sh'
-    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/p-commit/commit.sh'
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/_commit/commit.sh'
+    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/_commit/commit.sh'
     mode: '0755'
 
 - name: Install common skills to ~/.codex/skills
@@ -1086,8 +1086,8 @@
 
 - name: Install shared commit helper to ~/.codex/skills
   copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/p-commit/commit.sh'
-    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/p-commit/commit.sh'
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/_commit/commit.sh'
+    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/_commit/commit.sh'
     mode: '0755'
 
 - name: Remove legacy custom skill and agent installs
@@ -1096,7 +1096,35 @@
     state: absent
   loop:
     - .claude/skills/committing-changes
+    - .claude/skills/p-approve-spec
+    - .claude/skills/p-catchup
+    - .claude/skills/p-commit
+    - .claude/skills/p-convert-skill-from-codex
+    - .claude/skills/p-create-handoff
+    - .claude/skills/p-create-ics
+    - .claude/skills/p-create-plan
+    - .claude/skills/p-deep-research
+    - .claude/skills/p-humanizer
+    - .claude/skills/p-implement-plan
+    - .claude/skills/p-research-codebase
+    - .claude/skills/p-resume-codex-session
+    - .claude/skills/p-resume-handoff
+    - .claude/skills/p-validate-plan
     - .codex/skills/committing-changes
+    - .codex/skills/p-approve-spec
+    - .codex/skills/p-catchup
+    - .codex/skills/p-commit
+    - .codex/skills/p-convert-skill-from-claude
+    - .codex/skills/p-create-handoff
+    - .codex/skills/p-create-ics
+    - .codex/skills/p-create-plan
+    - .codex/skills/p-deep-research
+    - .codex/skills/p-humanizer
+    - .codex/skills/p-implement-plan
+    - .codex/skills/p-research-codebase
+    - .codex/skills/p-resume-claude-session
+    - .codex/skills/p-resume-handoff
+    - .codex/skills/p-validate-plan
     - .claude/skills/catchup
     - .codex/skills/catchup
     - .claude/skills/creating-handoffs
