@@ -109,33 +109,9 @@ _worktree_normalize_path() {
   printf '%s\n' "$canonical_path"
 }
 
-_worktree_ensure_gitignore_line() {
-  local repo_root="$1"
-  local ignore_file="$repo_root/.gitignore"
-  local tmp_file
-
-  if [[ -f "$ignore_file" ]] && "$(_worktree_cmd grep)" -Fqx '.worktrees/' "$ignore_file"; then
-    return 0
-  fi
-
-  tmp_file="$("$(_worktree_cmd mktemp)" "${TMPDIR:-/tmp}/worktree-gitignore.XXXXXX")"
-  if [[ -f "$ignore_file" ]]; then
-    "$(_worktree_cmd cat)" "$ignore_file" > "$tmp_file"
-  else
-    : > "$tmp_file"
-  fi
-
-  if [[ -s "$tmp_file" ]] && [[ -n "$("$(_worktree_cmd tail)" -c 1 "$tmp_file")" ]]; then
-    printf '\n' >> "$tmp_file"
-  fi
-  printf '.worktrees/\n' >> "$tmp_file"
-  "$(_worktree_cmd mv)" "$tmp_file" "$ignore_file"
-}
-
 _worktree_prepare_default_root() {
   local repo_root="$1"
   "$(_worktree_cmd mkdir)" -p "$(_worktree_default_root "$repo_root")"
-  _worktree_ensure_gitignore_line "$repo_root"
 }
 
 _worktree_find_branch_path() {
