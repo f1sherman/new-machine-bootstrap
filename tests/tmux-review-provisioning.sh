@@ -29,9 +29,19 @@ assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-d if-s
 assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-f if-shell \"\$is_ssh\" 'send-keys M-f'"
 assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-r if-shell \"\$is_ssh\" 'send-keys M-r'"
 
+# tmux run-shell -b does not export TMUX_PANE; bindings must pass it explicitly
+# via format substitution so the review scripts can resolve the origin pane.
+assert_contains "roles/macos/templates/dotfiles/tmux.conf" "M-d' 'run-shell -b \"TMUX_PANE=#{pane_id}"
+assert_contains "roles/macos/templates/dotfiles/tmux.conf" "M-f' 'run-shell -b \"TMUX_PANE=#{pane_id}"
+assert_contains "roles/macos/templates/dotfiles/tmux.conf" "M-r' 'run-shell -b \"TMUX_PANE=#{pane_id}"
+
 assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-d if-shell \"\$is_ssh\" 'send-keys M-d'"
 assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-f if-shell \"\$is_ssh\" 'send-keys M-f'"
 assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-r if-shell \"\$is_ssh\" 'send-keys M-r'"
+
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "M-d' 'run-shell -b \"TMUX_PANE=#{pane_id}"
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "M-f' 'run-shell -b \"TMUX_PANE=#{pane_id}"
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "M-r' 'run-shell -b \"TMUX_PANE=#{pane_id}"
 
 printf '\npassed=%s failed=%s\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
