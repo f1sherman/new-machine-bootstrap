@@ -96,7 +96,7 @@ run_print_case \
   "9100" \
   $'9100 S+ codex codex --cd /tmp/irrelevant' \
   "claw02" \
-  "(feature/title-sync) linked-wt | claw02"
+  "(feature/title-sync) repo | claw02"
 
 run_print_case \
   "linked dirty worktree adds star" \
@@ -105,7 +105,7 @@ run_print_case \
   "9101" \
   $'9101 S+ codex codex --cd /tmp/irrelevant' \
   "claw02" \
-  "(*feature/dirty-title) dirty-wt | claw02"
+  "(*feature/dirty-title) repo | claw02"
 
 run_print_case \
   "stale explicit pid falls back to pane directory" \
@@ -123,4 +123,4 @@ run_publish_case \
   "9100" \
   $'9100 S+ codex codex --cd /tmp/irrelevant' \
   "claw02" \
-  "(feature/title-sync) linked-wt | claw02"
+  "(feature/title-sync) repo | claw02"
