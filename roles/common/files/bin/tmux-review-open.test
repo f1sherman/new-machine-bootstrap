@@ -190,6 +190,22 @@ case "$cmd" in
     [ "${1:-}" = "-t" ] || exit 1
     printf '%s\n' "$2" > "$fake_dir/switch_target"
     ;;
+  command-prompt)
+    prompt=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -p)
+          prompt="$2"
+          shift 2
+          ;;
+        *)
+          break
+          ;;
+      esac
+    done
+    printf '%s\n' "$prompt" > "$fake_dir/command_prompt_prompt"
+    printf '%s\n' "$*" > "$fake_dir/command_prompt_command"
+    ;;
   *)
     exit 1
     ;;
@@ -306,7 +322,25 @@ else
   printf 'FAIL  stale mapping exited nonzero\n'
 fi
 
-# Case 5: helper must propagate a script failure status.
+# Case 5: prompt-file mode bakes the origin pane into the nested run-shell so
+# review-file inherits TMUX_PANE (tmux's run-shell -b does not propagate it).
+state_dir="$TMPROOT/state-prompt"
+fake_tmux="$TMPROOT/fake-tmux-prompt"
+seed_fake_tmux "$TMPROOT/fake-prompt" 60
+printf '%s\t%s\n' "@1" "code" >> "$TMPROOT/fake-prompt/windows.tsv"
+printf '%s\n' "@1" >> "$TMPROOT/fake-prompt/window_ids"
+printf '%s\t%s\t%s\n' "%7" "@1" "$repo_path" >> "$TMPROOT/fake-prompt/panes.tsv"
+make_fake_tmux "$fake_tmux"
+if run_open "$state_dir" "$TMPROOT/fake-prompt" "$fake_tmux" "%7" prompt-file; then
+  assert_eq "prompt-file sets review prompt label" "review file:" "$(cat "$TMPROOT/fake-prompt/command_prompt_prompt")"
+  assert_contains "prompt-file injects TMUX_PANE into nested run-shell" "$(cat "$TMPROOT/fake-prompt/command_prompt_command")" "TMUX_PANE=%7"
+  assert_contains "prompt-file nested command invokes review-file" "$(cat "$TMPROOT/fake-prompt/command_prompt_command")" "review-file"
+else
+  fail=$((fail + 1))
+  printf 'FAIL  prompt-file exited nonzero\n'
+fi
+
+# Case 6: helper must propagate a script failure status.
 state_dir="$TMPROOT/state5"
 fake_tmux="$TMPROOT/fake-tmux-5"
 seed_fake_tmux "$TMPROOT/fake5" 50
