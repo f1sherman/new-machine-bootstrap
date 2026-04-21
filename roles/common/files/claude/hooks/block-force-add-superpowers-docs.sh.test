@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/block-force-add-superpowers-docs.sh"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+DENY_REASON='docs/superpowers/ may be gitignored intentionally (local working docs). Do not bypass .gitignore with -f / --force. If the dir is not ignored, run git add without the force flag. If it is ignored, skip the commit and leave the file as a local working doc.'
+
+run_block_case() {
+  local name="$1"
+  local command="$2"
+  local output
+
+  output="$(jq -n --arg command "$command" '{tool_input:{command:$command}}' | "$SCRIPT")"
+  if printf '%s' "$output" | jq -e --arg reason "$DENY_REASON" '. == {hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}' >/dev/null; then
+    printf 'PASS  %s\n' "$name"
+  else
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  fi
+}
+
+run_allow_case() {
+  local name="$1"
+  local command="$2"
+  local output
+
+  output="$(jq -n --arg command "$command" '{tool_input:{command:$command}}' | "$SCRIPT")"
+  [ -z "$output" ] || {
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
+run_empty_case() {
+  local name="$1"
+  local payload="$2"
+  local output
+
+  output="$(printf '%s' "$payload" | "$SCRIPT")"
+  [ -z "$output" ] || {
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
+run_block_case "blocks git add -f on superpowers path" 'git add -f docs/superpowers/foo.md'
+run_block_case "blocks git add --force on superpowers path" 'git add --force docs/superpowers/foo.md'
+run_block_case "blocks combined -Af on superpowers dir" 'git add -Af docs/superpowers/'
+run_block_case "blocks combined -fA on superpowers dir" 'git add -fA docs/superpowers/'
+run_block_case "blocks cd chain with --force" 'cd repo && git add --force docs/superpowers/plan.md'
+run_block_case "blocks git -C add -f" 'git -C repo add -f docs/superpowers/spec.md'
+run_block_case "blocks env-var prefixed git add" 'GIT_DIR=.git git add -f docs/superpowers/foo.md'
+run_block_case "blocks command git add" 'command git add -f docs/superpowers/foo.md'
+
+run_allow_case "allows git add without force on superpowers" 'git add docs/superpowers/foo.md'
+run_allow_case "allows git add -f on unrelated path" 'git add -f README.md'
+run_allow_case "allows git add -p" 'git add -p'
+run_allow_case "allows uppercase -F on git commit" 'git commit -F docs/superpowers/foo.md'
+run_allow_case "allows text mentioning force command" 'echo git add -f docs/superpowers/foo.md'
+run_allow_case "allows git add -f without a path" 'git add -f'
+run_allow_case "allows plain git status" 'git status --short'
+
+run_empty_case "allows missing command field" '{}'
+run_empty_case "allows empty command string" '{"tool_input":{"command":""}}'
+
+printf 'PASS  block-force-add-superpowers-docs test suite\n'
