@@ -1,23 +1,23 @@
 ---
-name: _find-agent-sessions
+name: _recover-agent-sessions
 description: >
   Find recent Claude and Codex sessions updated in a relative duration window.
   Use when the user is recovering after a restart, browsing recent agent work,
   or deciding which session to resume.
 ---
 
-# Find Agent Sessions
+# Recover Agent Sessions
 
-Run `_find-agent-sessions` with the user-provided duration, or no argument for
+Run `_recover-agent-sessions` with the user-provided duration, or no argument for
 the default 24h window.
 
 Examples:
 
 ```bash
-_find-agent-sessions
-_find-agent-sessions 4h
-_find-agent-sessions today
-_find-agent-sessions yesterday
+_recover-agent-sessions
+_recover-agent-sessions 4h
+_recover-agent-sessions today
+_recover-agent-sessions yesterday
 ```
 
 Use it as a browsing and triage tool first.

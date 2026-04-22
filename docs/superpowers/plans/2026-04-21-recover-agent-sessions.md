@@ -1,22 +1,22 @@
-# _find-agent-sessions Implementation Plan
+# _recover-agent-sessions Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a shared `_find-agent-sessions` skill and helper command that show recent Claude and Codex sessions in one recency-sorted list with progress summaries, conservative status guesses, and resume commands that always use `codex-yolo` or `claude-yolo`.
+**Goal:** Add a shared `_recover-agent-sessions` skill and helper command that show recent Claude and Codex sessions in one recency-sorted list with progress summaries, conservative status guesses, and resume commands that always use `codex-yolo` or `claude-yolo`.
 
 **Architecture:** Lock the contract first with one packaging regression and one helper-behavior regression. Then add the shared skill and helper, wire the helper into provisioning, rerun the focused tests, and finish with a real local end-to-end verification against installed copies and live session data.
 
-**Tech Stack:** Bash shell scripts, jq, Ansible provisioning, Markdown skills, repo-local shell regressions, Git
+**Tech Stack:** Ruby scripts, jq, Ansible provisioning, Markdown skills, repo-local Ruby regressions, Git
 
-**Spec:** `docs/superpowers/specs/2026-04-21-find-agent-sessions-design.md`
+**Spec:** `docs/superpowers/specs/2026-04-21-recover-agent-sessions-design.md`
 
 **File map:**
-- `tests/_find-agent-sessions-skill.sh` — packaging and wording regression for the shared skill and helper source.
-- `roles/common/files/bin/_find-agent-sessions` — new shared helper command that merges Claude and Codex session data, filters by duration, infers progress fields, and prints resume commands.
-- `roles/common/files/bin/_find-agent-sessions.test` — focused behavior regression for duration parsing, mixed recency ordering, status classification, and resume command formatting.
-- `roles/common/files/config/skills/common/_find-agent-sessions/SKILL.md` — shared skill installed into both Claude and Codex.
+- `tests/_recover-agent-sessions-skill.sh` — packaging and wording regression for the shared skill and helper source.
+- `roles/common/files/bin/_recover-agent-sessions` — new shared helper command that merges Claude and Codex session data, filters by duration, infers progress fields, and prints resume commands.
+- `roles/common/files/bin/_recover-agent-sessions.test` — focused behavior regression for duration parsing, mixed recency ordering, status classification, and resume command formatting.
+- `roles/common/files/config/skills/common/_recover-agent-sessions/SKILL.md` — shared skill installed into both Claude and Codex.
 - `roles/common/tasks/main.yml` — Ansible install step for the helper command.
-- `docs/superpowers/plans/2026-04-21-find-agent-sessions.md` — living implementation record for this work.
+- `docs/superpowers/plans/2026-04-21-recover-agent-sessions.md` — living implementation record for this work.
 
 ---
 
@@ -25,28 +25,28 @@
 ### Task 1: Add the packaging regression for the shared skill and helper
 
 **Files:**
-- Create: `tests/_find-agent-sessions-skill.sh`
-- Test: `bash tests/_find-agent-sessions-skill.sh`
+- Create: `tests/_recover-agent-sessions-skill.sh`
+- Test: `tests/_recover-agent-sessions-skill.sh`
 
 - [ ] **Step 1.1: Create the packaging regression**
 
-Create `tests/_find-agent-sessions-skill.sh` with a pass/fail harness matching the repo’s other top-level skill tests. Assert all of the following:
+Create `tests/_recover-agent-sessions-skill.sh` with a pass/fail harness matching the repo’s other top-level skill tests. Assert all of the following:
 
 ```text
-- roles/common/files/config/skills/common/_find-agent-sessions/SKILL.md exists
-- roles/common/files/config/skills/claude/_find-agent-sessions does not exist
-- roles/common/files/config/skills/codex/_find-agent-sessions does not exist
-- roles/common/files/bin/_find-agent-sessions exists
-- the shared skill contains "name: _find-agent-sessions"
+- roles/common/files/config/skills/common/_recover-agent-sessions/SKILL.md exists
+- roles/common/files/config/skills/claude/_recover-agent-sessions does not exist
+- roles/common/files/config/skills/codex/_recover-agent-sessions does not exist
+- roles/common/files/bin/_recover-agent-sessions exists
+- the shared skill contains "name: _recover-agent-sessions"
 - the shared skill mentions the default 24h window
 - the shared skill says resume commands should use codex-yolo and claude-yolo
-- roles/common/tasks/main.yml installs roles/common/files/bin/_find-agent-sessions into ~/.local/bin
+- roles/common/tasks/main.yml installs roles/common/files/bin/_recover-agent-sessions into ~/.local/bin
 ```
 
 Mark the script executable:
 
 ```bash
-chmod +x tests/_find-agent-sessions-skill.sh
+chmod +x tests/_recover-agent-sessions-skill.sh
 ```
 
 - [ ] **Step 1.2: Run the packaging regression and confirm it fails**
@@ -54,7 +54,7 @@ chmod +x tests/_find-agent-sessions-skill.sh
 Run:
 
 ```bash
-bash tests/_find-agent-sessions-skill.sh
+tests/_recover-agent-sessions-skill.sh
 ```
 
 Expected: FAIL because the new skill, helper, and install task do not exist yet.
@@ -62,12 +62,12 @@ Expected: FAIL because the new skill, helper, and install task do not exist yet.
 ### Task 2: Add the helper behavior regression
 
 **Files:**
-- Create: `roles/common/files/bin/_find-agent-sessions.test`
-- Test: `bash roles/common/files/bin/_find-agent-sessions.test`
+- Create: `roles/common/files/bin/_recover-agent-sessions.test`
+- Test: `roles/common/files/bin/_recover-agent-sessions.test`
 
 - [ ] **Step 2.1: Create the helper regression with synthetic Claude and Codex sessions**
 
-Create `roles/common/files/bin/_find-agent-sessions.test` as a temp-dir integration test similar to the existing adjacent `.test` files. In the test:
+Create `roles/common/files/bin/_recover-agent-sessions.test` as a temp-dir integration test similar to the existing adjacent `.test` files. In the test:
 
 1. Create temp `HOME`, `~/.claude/projects`, and `~/.codex/sessions` trees
 2. Write minimal Claude `*.jsonl` and Codex `*.jsonl` files with timestamps, cwd, branch, session id, and enough transcript content to exercise status inference
@@ -88,59 +88,54 @@ Use at least these synthetic sessions:
 Run:
 
 ```bash
-bash roles/common/files/bin/_find-agent-sessions.test
+roles/common/files/bin/_recover-agent-sessions.test
 ```
 
-Expected: FAIL because `_find-agent-sessions` does not exist yet.
+Expected: FAIL because `_recover-agent-sessions` does not exist yet.
 
 - [ ] **Step 2.3: Commit the red regressions and plan**
 
 Run:
 
 ```bash
-git add tests/_find-agent-sessions-skill.sh \
-  roles/common/files/bin/_find-agent-sessions.test \
-  docs/superpowers/plans/2026-04-21-find-agent-sessions.md
-git commit -m "Add _find-agent-sessions regression plan"
+git add tests/_recover-agent-sessions-skill.sh \
+  roles/common/files/bin/_recover-agent-sessions.test \
+  docs/superpowers/plans/2026-04-21-recover-agent-sessions.md
+git commit -m "Add _recover-agent-sessions regression plan"
 ```
 
 Expected: one commit containing the red regressions plus this implementation plan.
 
 ## Phase 2 — Add the shared helper and make the regressions pass
 
-### Task 3: Implement the `_find-agent-sessions` helper command
+### Task 3: Implement the `_recover-agent-sessions` helper command
 
 **Files:**
-- Create: `roles/common/files/bin/_find-agent-sessions`
-- Test: `bash roles/common/files/bin/_find-agent-sessions.test`
+- Create: `roles/common/files/bin/_recover-agent-sessions`
+- Test: `roles/common/files/bin/_recover-agent-sessions.test`
 
 - [ ] **Step 3.1: Create the helper skeleton and CLI parsing**
 
-Create `roles/common/files/bin/_find-agent-sessions` as an executable Bash script with:
+Create `roles/common/files/bin/_recover-agent-sessions` as an executable Ruby script with:
 
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
+```ruby
+#!/usr/bin/env ruby
+# frozen_string_literal: true
 
-window="${1:-24h}"
-json_output=false
+window = "24h"
+json_output = false
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --json)
-      json_output=true
-      shift
-      ;;
-    today|yesterday|[0-9]*h|[0-9]*d)
-      window="$1"
-      shift
-      ;;
-    *)
-      echo "Usage: _find-agent-sessions [24h|4h|2d|today|yesterday] [--json]" >&2
-      exit 1
-      ;;
-  esac
-done
+ARGV.each do |arg|
+  case arg
+  when "--json"
+    json_output = true
+  when "today", "yesterday", /\A\d+[hd]\z/
+    window = arg
+  else
+    warn "Usage: _recover-agent-sessions [24h|4h|2d|today|yesterday] [--json]"
+    exit 1
+  end
+end
 ```
 
 Add helpers for:
@@ -258,7 +253,7 @@ cd "<cwd>" && claude-yolo -r <session_id>
 Run:
 
 ```bash
-bash roles/common/files/bin/_find-agent-sessions.test
+roles/common/files/bin/_recover-agent-sessions.test
 ```
 
 Expected: PASS for:
@@ -273,19 +268,19 @@ Expected: PASS for:
 
 ## Phase 3 — Add the shared skill and wire the helper into provisioning
 
-### Task 4: Add the shared `_find-agent-sessions` skill and install step
+### Task 4: Add the shared `_recover-agent-sessions` skill and install step
 
 **Files:**
-- Create: `roles/common/files/config/skills/common/_find-agent-sessions/SKILL.md`
+- Create: `roles/common/files/config/skills/common/_recover-agent-sessions/SKILL.md`
 - Modify: `roles/common/tasks/main.yml`
-- Test: `bash tests/_find-agent-sessions-skill.sh`
+- Test: `tests/_recover-agent-sessions-skill.sh`
 
 - [ ] **Step 4.1: Create the shared skill**
 
-Create `roles/common/files/config/skills/common/_find-agent-sessions/SKILL.md` with wording that tells the agent to:
+Create `roles/common/files/config/skills/common/_recover-agent-sessions/SKILL.md` with wording that tells the agent to:
 
 ```text
-- run the _find-agent-sessions helper with the provided duration or default 24h
+- run the _recover-agent-sessions helper with the provided duration or default 24h
 - treat the output as a browsing/triage tool first, not an auto-resume tool
 - present the mixed Claude/Codex list to the user
 - use the generated resume command only when the user explicitly wants to continue a session
@@ -295,9 +290,9 @@ Create `roles/common/files/config/skills/common/_find-agent-sessions/SKILL.md` w
 Include quick examples:
 
 ```bash
-_find-agent-sessions
-_find-agent-sessions 4h
-_find-agent-sessions today
+_recover-agent-sessions
+_recover-agent-sessions 4h
+_recover-agent-sessions today
 ```
 
 - [ ] **Step 4.2: Add the provisioning task for the helper**
@@ -305,11 +300,11 @@ _find-agent-sessions today
 In `roles/common/tasks/main.yml`, add a dedicated copy task alongside the other session helpers:
 
 ```yaml
-- name: Install _find-agent-sessions helper
+- name: Install _recover-agent-sessions helper
   copy:
     backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/_find-agent-sessions'
-    src: '{{ playbook_dir }}/roles/common/files/bin/_find-agent-sessions'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/_recover-agent-sessions'
+    src: '{{ playbook_dir }}/roles/common/files/bin/_recover-agent-sessions'
     mode: 0755
 ```
 
@@ -320,7 +315,7 @@ Keep the task near `list-codex-sessions`, `list-claude-sessions`, `read-codex-se
 Run:
 
 ```bash
-bash tests/_find-agent-sessions-skill.sh
+tests/_recover-agent-sessions-skill.sh
 ```
 
 Expected: PASS for shared skill existence, helper existence, common-skill packaging, and install-task wiring.
@@ -331,13 +326,13 @@ Run:
 
 ```bash
 git add \
-  roles/common/files/bin/_find-agent-sessions \
-  roles/common/files/bin/_find-agent-sessions.test \
-  roles/common/files/config/skills/common/_find-agent-sessions/SKILL.md \
+  roles/common/files/bin/_recover-agent-sessions \
+  roles/common/files/bin/_recover-agent-sessions.test \
+  roles/common/files/config/skills/common/_recover-agent-sessions/SKILL.md \
   roles/common/tasks/main.yml \
-  tests/_find-agent-sessions-skill.sh \
-  docs/superpowers/plans/2026-04-21-find-agent-sessions.md
-git commit -m "Add _find-agent-sessions helper"
+  tests/_recover-agent-sessions-skill.sh \
+  docs/superpowers/plans/2026-04-21-recover-agent-sessions.md
+git commit -m "Add _recover-agent-sessions helper"
 ```
 
 Expected: one commit containing the new helper, skill, wiring, and passing regressions.
@@ -347,9 +342,9 @@ Expected: one commit containing the new helper, skill, wiring, and passing regre
 ### Task 5: Verify installed copies and real local-session behavior
 
 **Files:**
-- Reference: `~/.local/bin/_find-agent-sessions`
-- Reference: `~/.claude/skills/_find-agent-sessions/SKILL.md`
-- Reference: `~/.codex/skills/_find-agent-sessions/SKILL.md`
+- Reference: `~/.local/bin/_recover-agent-sessions`
+- Reference: `~/.claude/skills/_recover-agent-sessions/SKILL.md`
+- Reference: `~/.codex/skills/_recover-agent-sessions/SKILL.md`
 
 - [ ] **Step 5.1: Provision the local machine**
 
@@ -366,9 +361,9 @@ Expected: provisioning succeeds and installs the helper plus the shared skill co
 Run:
 
 ```bash
-test -x ~/.local/bin/_find-agent-sessions
-test -f ~/.claude/skills/_find-agent-sessions/SKILL.md
-test -f ~/.codex/skills/_find-agent-sessions/SKILL.md
+test -x ~/.local/bin/_recover-agent-sessions
+test -f ~/.claude/skills/_recover-agent-sessions/SKILL.md
+test -f ~/.codex/skills/_recover-agent-sessions/SKILL.md
 ```
 
 Expected: all three commands exit `0`.
@@ -378,9 +373,9 @@ Expected: all three commands exit `0`.
 Run:
 
 ```bash
-~/.local/bin/_find-agent-sessions
-~/.local/bin/_find-agent-sessions 4h
-~/.local/bin/_find-agent-sessions today
+~/.local/bin/_recover-agent-sessions
+~/.local/bin/_recover-agent-sessions 4h
+~/.local/bin/_recover-agent-sessions today
 ```
 
 Check the real output for:
@@ -401,8 +396,8 @@ If only one tool has recent sessions, note that explicitly and rely on the red/g
 Run:
 
 ```bash
-bash tests/_find-agent-sessions-skill.sh
-bash roles/common/files/bin/_find-agent-sessions.test
+tests/_recover-agent-sessions-skill.sh
+roles/common/files/bin/_recover-agent-sessions.test
 git status --short
 ```
 
@@ -415,4 +410,4 @@ Expected:
 
 ## Follow-ups
 
-- [ ] If the helper proves useful, consider teaching the existing `_resume-*` skills to recommend `_find-agent-sessions` when the user has multiple recent sessions.
+- [ ] If the helper proves useful, consider teaching the existing `_resume-*` skills to recommend `_recover-agent-sessions` when the user has multiple recent sessions.

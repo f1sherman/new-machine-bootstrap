@@ -5,10 +5,10 @@ require "pathname"
 require "shellwords"
 
 REPO_ROOT = Pathname.new(`git -C #{Shellwords.escape(__dir__)} rev-parse --show-toplevel`.strip)
-COMMON_SKILL = REPO_ROOT.join("roles/common/files/config/skills/common/_find-agent-sessions/SKILL.md")
-CLAUDE_SKILL_DIR = REPO_ROOT.join("roles/common/files/config/skills/claude/_find-agent-sessions")
-CODEX_SKILL_DIR = REPO_ROOT.join("roles/common/files/config/skills/codex/_find-agent-sessions")
-HELPER = REPO_ROOT.join("roles/common/files/bin/_find-agent-sessions")
+COMMON_SKILL = REPO_ROOT.join("roles/common/files/config/skills/common/_recover-agent-sessions/SKILL.md")
+CLAUDE_SKILL_DIR = REPO_ROOT.join("roles/common/files/config/skills/claude/_recover-agent-sessions")
+CODEX_SKILL_DIR = REPO_ROOT.join("roles/common/files/config/skills/codex/_recover-agent-sessions")
+HELPER = REPO_ROOT.join("roles/common/files/bin/_recover-agent-sessions")
 MAIN_YML = REPO_ROOT.join("roles/common/tasks/main.yml")
 
 pass = 0
@@ -53,17 +53,20 @@ def assert_contains(path, needle, label, pass_count, fail_count)
   end
 end
 
-pass, fail = assert_exists(COMMON_SKILL, "shared _find-agent-sessions skill exists", pass, fail)
-pass, fail = assert_missing(CLAUDE_SKILL_DIR, "no Claude-specific _find-agent-sessions override", pass, fail)
-pass, fail = assert_missing(CODEX_SKILL_DIR, "no Codex-specific _find-agent-sessions override", pass, fail)
-pass, fail = assert_exists(HELPER, "shared _find-agent-sessions helper exists", pass, fail)
+pass, fail = assert_exists(COMMON_SKILL, "shared _recover-agent-sessions skill exists", pass, fail)
+pass, fail = assert_missing(CLAUDE_SKILL_DIR, "no Claude-specific _recover-agent-sessions override", pass, fail)
+pass, fail = assert_missing(CODEX_SKILL_DIR, "no Codex-specific _recover-agent-sessions override", pass, fail)
+pass, fail = assert_exists(HELPER, "shared _recover-agent-sessions helper exists", pass, fail)
 
-pass, fail = assert_contains(COMMON_SKILL, "name: _find-agent-sessions", "skill uses canonical name", pass, fail)
+pass, fail = assert_contains(COMMON_SKILL, "name: _recover-agent-sessions", "skill uses canonical name", pass, fail)
 pass, fail = assert_contains(COMMON_SKILL, "default 24h", "skill documents the default window", pass, fail)
 pass, fail = assert_contains(COMMON_SKILL, "codex-yolo", "skill references codex-yolo", pass, fail)
 pass, fail = assert_contains(COMMON_SKILL, "claude-yolo", "skill references claude-yolo", pass, fail)
-pass, fail = assert_contains(MAIN_YML, "Install _find-agent-sessions helper", "Ansible installs the helper", pass, fail)
-pass, fail = assert_contains(MAIN_YML, ".local/bin/_find-agent-sessions", "Ansible installs into ~/.local/bin", pass, fail)
+pass, fail = assert_contains(MAIN_YML, "Install _recover-agent-sessions helper", "Ansible installs the helper", pass, fail)
+pass, fail = assert_contains(MAIN_YML, ".local/bin/_recover-agent-sessions", "Ansible installs into ~/.local/bin", pass, fail)
+pass, fail = assert_contains(MAIN_YML, ".local/bin/_find-agent-sessions", "Ansible removes the old helper install", pass, fail)
+pass, fail = assert_contains(MAIN_YML, ".claude/skills/_find-agent-sessions", "Ansible removes the old Claude skill install", pass, fail)
+pass, fail = assert_contains(MAIN_YML, ".codex/skills/_find-agent-sessions", "Ansible removes the old Codex skill install", pass, fail)
 
 puts
 puts "#{pass} passed, #{fail} failed"

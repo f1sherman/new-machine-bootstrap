@@ -6,7 +6,7 @@ require "open3"
 require "shellwords"
 require "time"
 
-USAGE = "Usage: _find-agent-sessions [24h|4h|2d|today|yesterday] [--json]\n"
+USAGE = "Usage: _recover-agent-sessions [24h|4h|2d|today|yesterday] [--json]\n"
 NO_SUMMARY = "recent session activity"
 
 def abort_usage
@@ -104,6 +104,16 @@ def truncate_text(text, max = 96)
   return text if text.length <= max
 
   "#{text[0, max - 3]}..."
+end
+
+def yaml_scalar(value)
+  text = value.to_s
+  return "''" if text.empty?
+
+  unsafe_yaml_leaders = ["-", "?", ":", "@", "`", "#", "!", "&", "*", "|", ">", "%", "[", "{", ","]
+  return text if text.match?(/\A[A-Za-z0-9._\/:-]+\z/) && !unsafe_yaml_leaders.include?(text[0])
+
+  "'#{text.gsub("'", "''")}'"
 end
 
 def shell_double_quote(text)
@@ -234,12 +244,40 @@ end
 def summary_candidates(read_json, preview, tool, file)
   candidates = []
   candidates << preview.to_s unless preview.to_s.empty?
-  candidates.concat(Array(read_json["user_messages"]).map(&:to_s))
-  candidates.concat(Array(read_json["assistant_messages"]).map(&:to_s))
-  candidates.concat(Array(read_json["shell_commands"]).map(&:to_s))
-  candidates.concat(Array(read_json["bash_commands"]).map(&:to_s))
+  candidates.concat(expanded_text_lines(read_json["user_messages"]))
+  candidates.concat(expanded_text_lines(read_json["assistant_messages"]))
+  candidates.concat(expanded_text_lines(read_json["shell_commands"]))
+  candidates.concat(expanded_text_lines(read_json["bash_commands"]))
   candidates.concat(recent_lines_for_tool(tool, file))
   candidates
+end
+
+def expanded_text_lines(values)
+  Array(values).flat_map do |value|
+    value.to_s.split(/\r?\n/).map(&:strip)
+  end
+end
+
+def session_finder_output?(line)
+  lower = trim_one_line(line).downcase
+  return true if lower.empty?
+  return true if lower.include?("likely resume targets:")
+  return true if lower.match?(/\A`?(?:\d+[hd]|today|yesterday)`? window\./)
+  return true if lower.start_with?("- tool:")
+  return true if lower.start_with?("session_id:")
+  return true if lower.start_with?("updated_at:")
+  return true if lower.start_with?("repo:")
+  return true if lower.start_with?("worktree:")
+  return true if lower.start_with?("cwd:")
+  return true if lower.start_with?("branch:")
+  return true if lower.start_with?("summary:")
+  return true if lower.start_with?("last_completed:")
+  return true if lower.start_with?("next_step:")
+  return true if lower.start_with?("status:")
+  return true if lower.start_with?("resume:")
+  return true if lower.start_with?("- `") && lower.include?("status `") && lower.include?("`resume:")
+
+  false
 end
 
 def summary_skip?(line)
@@ -274,6 +312,8 @@ def summary_skip?(line)
 
   return true if fixed_patterns.any? { |pattern| lower.include?(pattern) }
   return true if lower.include?("user name:") && lower.include?("work style:")
+  return true if lower.match?(/\A(?:~\/\.local\/bin\/)?_(?:find|recover)-agent-sessions(?:\s|$)/)
+  return true if session_finder_output?(line)
 
   false
 end
@@ -315,11 +355,11 @@ end
 
 def recent_signal_lines(read_json, tool, file)
   lines = []
-  lines.concat(Array(read_json["assistant_messages"]).map(&:to_s))
-  lines.concat(Array(read_json["shell_commands"]).map(&:to_s))
-  lines.concat(Array(read_json["bash_commands"]).map(&:to_s))
+  lines.concat(expanded_text_lines(read_json["assistant_messages"]))
+  lines.concat(expanded_text_lines(read_json["shell_commands"]))
+  lines.concat(expanded_text_lines(read_json["bash_commands"]))
   lines.concat(recent_lines_for_tool(tool, file))
-  lines
+  lines.reject { |line| summary_skip?(trim_one_line(line)) }
 end
 
 def cleanup_signal?(line)
@@ -562,23 +602,24 @@ def build_session_hash(tool, read_command, entry, start_epoch, end_epoch)
 end
 
 def render_human_output(entries)
-  lines = entries.map do |entry|
+  blocks = entries.map do |entry|
     block = []
-    block << "[#{entry.fetch("tool")}] #{entry.fetch("session_id")}"
-    block << "updated: #{entry.fetch("updated_at")}"
-    block << "repo: #{entry.fetch("repo")}"
-    block << "worktree: #{entry.fetch("worktree")}" unless entry.fetch("worktree").empty?
-    block << "cwd: #{entry.fetch("cwd")}"
-    block << "branch: #{entry.fetch("branch")}" unless entry.fetch("branch").empty?
-    block << "summary: #{entry.fetch("summary")}"
-    block << "last completed: #{entry.fetch("last_completed")}"
-    block << "next: #{entry.fetch("next_step")}"
-    block << "status: #{entry.fetch("status")}"
-    block << "resume: #{entry.fetch("resume")}"
+    block << "- tool: #{yaml_scalar(entry.fetch("tool"))}"
+    block << "  session_id: #{yaml_scalar(entry.fetch("session_id"))}"
+    block << "  updated_at: #{yaml_scalar(entry.fetch("updated_at"))}"
+    block << "  repo: #{yaml_scalar(entry.fetch("repo"))}"
+    block << "  worktree: #{yaml_scalar(entry.fetch("worktree"))}" unless entry.fetch("worktree").empty?
+    block << "  cwd: #{yaml_scalar(entry.fetch("cwd"))}"
+    block << "  branch: #{yaml_scalar(entry.fetch("branch"))}" unless entry.fetch("branch").empty?
+    block << "  summary: #{yaml_scalar(entry.fetch("summary"))}"
+    block << "  last_completed: #{yaml_scalar(entry.fetch("last_completed"))}"
+    block << "  next_step: #{yaml_scalar(entry.fetch("next_step"))}"
+    block << "  status: #{yaml_scalar(entry.fetch("status"))}"
+    block << "  resume: #{yaml_scalar(entry.fetch("resume"))}"
     block.join("\n")
   end
 
-  puts lines.join("\n")
+  puts blocks.join("\n\n")
 end
 
 window, json_output = parse_args(ARGV.dup)

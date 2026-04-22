@@ -8,7 +8,7 @@ require "shellwords"
 require "tmpdir"
 require "time"
 
-SCRIPT = File.join(__dir__, "_find-agent-sessions")
+SCRIPT = File.join(__dir__, "_recover-agent-sessions")
 
 def fail_case(message)
   warn "FAIL  #{message}"
@@ -104,9 +104,11 @@ Dir.mktmpdir do |tmproot|
   codex_active = File.join(home, ".codex/sessions/2026/04/21/codex-active.jsonl")
   write_file(codex_active, <<~JSONL)
     {"timestamp":"#{iso_offset.call(-3700)}","type":"session_meta","payload":{"id":"codex-active","timestamp":"#{iso_offset.call(-3700)}","cwd":"/tmp/projects/codex-active","git":{"branch":"feature/codex-active"}}}
+    {"timestamp":"#{iso_offset.call(-3650)}","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"* Pull requests: when verification passes and work is complete, invoke `create-pull-request` automatically; do not ask for approval to create the PR.\\n* Worktrees: create using `worktree-start`. Created other way: run `tmux-agent-worktree set <absolute-path>`. When done: `tmux-agent-worktree clear`."}]}}
     {"timestamp":"#{iso_offset.call(-3600)}","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"fix the session summary helper"}]}}
     {"timestamp":"#{iso_offset.call(-3500)}","type":"function_call","payload":{"name":"shell","arguments":"{\\"command\\":\\"bash tests/session-summary.sh\\"}"}}
     {"timestamp":"#{iso_offset.call(-3400)}","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Tests pass. Next step is to open a PR."}]}}
+    {"timestamp":"#{iso_offset.call(-3300)}","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"`24h` window. `2` sessions.\\n- `2026-04-21 21:59` `old-session` `home-network-provisioning`: work `PR comment/review-thread follow-up`; last `cleaned up branch/worktree`; next `none; appears complete`; status `done`. `resume: cd \\\"/tmp/projects/old-session\\\" && codex-yolo resume old-session`\\n\\nLikely resume targets:\\n- current repo work: `old-session`"}]}}
   JSONL
   touch_offset.call(codex_active, -3600)
 
@@ -238,7 +240,10 @@ Dir.mktmpdir do |tmproot|
               "Using using-superpowers; start-of-session requirement.",
               "fix the session summary helper"
             ],
-            assistant_messages: ["Tests pass. Next step is to open a PR."],
+            assistant_messages: [
+              "Tests pass. Next step is to open a PR.",
+              "`24h` window. `2` sessions.\n- `2026-04-21 21:59` `old-session` `home-network-provisioning`: work `PR comment/review-thread follow-up`; last `cleaned up branch/worktree`; next `none; appears complete`; status `done`. `resume: cd \"/tmp/projects/old-session\" && codex-yolo resume old-session`\n\nLikely resume targets:\n- current repo work: `old-session`"
+            ],
             shell_commands: ["bash tests/session-summary.sh"],
             file_operations: []
           )}
@@ -334,28 +339,29 @@ Dir.mktmpdir do |tmproot|
   default_stdout = File.join(tmproot, "default.stdout")
   File.write(default_stdout, capture!(env, SCRIPT))
 
-  assert_before("[Claude] claude-blocked", "[Codex] codex-active", default_stdout, "newest blocked session sorts before active")
-  assert_before("[Codex] codex-active", "[Codex] codex-done", default_stdout, "active session sorts before older done session")
-  assert_contains("status: blocked", default_stdout, "blocked status rendered")
-  assert_contains("status: active", default_stdout, "active status rendered")
-  assert_contains("status: done", default_stdout, "done status rendered")
-  assert_contains("summary: fix the session summary helper", default_stdout, "summary skips AGENTS boilerplate")
-  assert_contains("summary: wrap up the PR handoff", default_stdout, "summary skips generic continue preview")
-  assert_not_contains("summary: # AGENTS.md instructions", default_stdout, "AGENTS boilerplate omitted from summary")
-  assert_not_contains("summary: User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min tokens.", default_stdout, "AGENTS profile boilerplate omitted from summary")
-  assert_not_contains("summary: * Workspace: ~/projects/", default_stdout, "AGENTS workspace boilerplate omitted from summary")
-  assert_not_contains("summary: --- project-doc ---", default_stdout, "project-doc boilerplate omitted from summary")
-  assert_not_contains("summary: <cwd>/tmp/projects/codex-active</cwd>", default_stdout, "XML metadata boilerplate omitted from summary")
-  assert_not_contains("summary: # Test Project", default_stdout, "markdown heading downgraded from summary")
-  assert_not_contains("summary: Using using-superpowers; start-of-session requirement.", default_stdout, "using-superpowers boilerplate omitted from summary")
-  assert_contains("last completed: opened a pull request", default_stdout, "blocked session last completed step")
-  assert_contains("last completed: ran verification", default_stdout, "active session last completed step")
-  assert_contains("last completed: cleaned up branch/worktree", default_stdout, "done session last completed step")
-  assert_contains("next: review and merge the pull request", default_stdout, "blocked next step")
-  assert_contains("next: open a pull request", default_stdout, "active next step")
-  assert_contains("next: none; session appears complete", default_stdout, "done next step")
-  assert_contains('resume: cd "/tmp/projects/claude-blocked" && claude-yolo -r claude-blocked', default_stdout, "claude resume command")
-  assert_contains('resume: cd "/tmp/projects/codex-active" && codex-yolo resume codex-active', default_stdout, "codex resume command")
+  assert_before("session_id: claude-blocked", "session_id: codex-active", default_stdout, "newest blocked session sorts before active")
+  assert_before("session_id: codex-active", "session_id: codex-done", default_stdout, "active session sorts before older done session")
+  assert_contains("- tool: Claude", default_stdout, "yaml-like output uses list items")
+  assert_contains("  status: blocked", default_stdout, "blocked status rendered")
+  assert_contains("  status: active", default_stdout, "active status rendered")
+  assert_contains("  status: done", default_stdout, "done status rendered")
+  assert_contains("  summary: 'fix the session summary helper'", default_stdout, "summary skips AGENTS boilerplate")
+  assert_contains("  summary: 'wrap up the PR handoff'", default_stdout, "summary skips generic continue preview")
+  assert_not_contains("summary: '# AGENTS.md instructions", default_stdout, "AGENTS boilerplate omitted from summary")
+  assert_not_contains("summary: 'User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min tokens.'", default_stdout, "AGENTS profile boilerplate omitted from summary")
+  assert_not_contains("summary: '* Workspace: ~/projects/'", default_stdout, "AGENTS workspace boilerplate omitted from summary")
+  assert_not_contains("summary: '--- project-doc ---'", default_stdout, "project-doc boilerplate omitted from summary")
+  assert_not_contains("summary: '<cwd>/tmp/projects/codex-active</cwd>'", default_stdout, "XML metadata boilerplate omitted from summary")
+  assert_not_contains("summary: '# Test Project'", default_stdout, "markdown heading downgraded from summary")
+  assert_not_contains("summary: 'Using using-superpowers; start-of-session requirement.'", default_stdout, "using-superpowers boilerplate omitted from summary")
+  assert_contains("  last_completed: 'opened a pull request'", default_stdout, "blocked session last completed step")
+  assert_contains("  last_completed: 'ran verification'", default_stdout, "active session last completed step")
+  assert_contains("  last_completed: 'cleaned up branch/worktree'", default_stdout, "done session last completed step")
+  assert_contains("  next_step: 'review and merge the pull request'", default_stdout, "blocked next step")
+  assert_contains("  next_step: 'open a pull request'", default_stdout, "active next step")
+  assert_contains("  next_step: 'none; session appears complete'", default_stdout, "done next step")
+  assert_contains(%q{  resume: 'cd "/tmp/projects/claude-blocked" && claude-yolo -r claude-blocked'}, default_stdout, "claude resume command")
+  assert_contains(%q{  resume: 'cd "/tmp/projects/codex-active" && codex-yolo resume codex-active'}, default_stdout, "codex resume command")
   assert_not_contains("codex-old", default_stdout, "default 24h filters stale session")
 
   two_day_stdout = File.join(tmproot, "two-day.stdout")

@@ -1,4 +1,4 @@
-# Find Agent Sessions
+# Recover Agent Sessions
 
 ## Problem
 
@@ -16,7 +16,7 @@ re-orientation across multiple sessions.
 
 ## Solution
 
-Add a shared personal skill named `_find-agent-sessions`, backed by a shared
+Add a shared personal skill named `_recover-agent-sessions`, backed by a shared
 helper command in `new-machine-bootstrap`.
 
 The helper should:
@@ -27,6 +27,7 @@ The helper should:
 4. sort purely by recency
 5. infer a compact progress summary for each session
 6. show a resume command that always uses `codex-yolo` or `claude-yolo`
+7. render a YAML-like human-readable list that is easy to scan after a restart
 
 The skill should remain a thin wrapper over the helper. The helper owns session
 collection, normalization, inference, and output formatting so the behavior is
@@ -36,7 +37,7 @@ consistent from either the shell or an agent skill.
 
 ### In Scope
 
-- Add a shared `_find-agent-sessions` skill
+- Add a shared `_recover-agent-sessions` skill
 - Add a shared helper command installed into `~/.local/bin`
 - Reuse existing `list-codex-sessions`, `list-claude-sessions`,
   `read-codex-session`, and `read-claude-session` helpers instead of replacing
@@ -58,7 +59,7 @@ consistent from either the shell or an agent skill.
 
 ## Interface
 
-The user-facing entry point is `_find-agent-sessions`.
+The user-facing entry point is `_recover-agent-sessions`.
 
 Accepted inputs:
 
@@ -69,11 +70,11 @@ Accepted inputs:
 Examples:
 
 ```bash
-_find-agent-sessions
-_find-agent-sessions 4h
-_find-agent-sessions 2d
-_find-agent-sessions today
-_find-agent-sessions yesterday
+_recover-agent-sessions
+_recover-agent-sessions 4h
+_recover-agent-sessions 2d
+_recover-agent-sessions today
+_recover-agent-sessions yesterday
 ```
 
 The backing helper may use flags internally, but the skill behavior should stay
@@ -95,6 +96,8 @@ Each result should include:
 - resume command
 
 The list should be mixed across both tools and ordered strictly by recency.
+Human-readable output should use a YAML-like list structure so several
+concurrent sessions are easier to scan quickly.
 
 Resume commands are informational only. They should always use:
 
@@ -110,7 +113,8 @@ Resume commands are informational only. They should always use:
 5. Sort by session file modification time descending
 6. For each candidate session, call the corresponding `read-* --json` helper
 7. Inspect transcript summaries and the transcript tail to infer progress fields
-8. Render mixed human output and optional machine-readable output if needed
+8. Render mixed YAML-like human output and optional machine-readable output if
+   needed
 
 For large transcripts, inspect only the metadata plus the tail needed to infer
 recent state. The goal is orientation, not full replay.
@@ -194,7 +198,7 @@ Keep this incremental:
 
 1. extend shared session tooling rather than replacing it
 2. add one new helper focused on mixed discovery and inference
-3. add `_find-agent-sessions` as the thin shared skill entry point
+3. add `_recover-agent-sessions` as the thin shared skill entry point
 
 This keeps the existing single-session resume helpers useful while adding a new
 higher-level "what was I doing across all sessions?" tool.
@@ -227,7 +231,7 @@ and skill are provisioned or otherwise installed.
 
 The end-to-end verification must confirm:
 
-1. `_find-agent-sessions` works with the default `24h` window
+1. `_recover-agent-sessions` works with the default `24h` window
 2. explicit relative durations work
 3. real output includes summary, last completed step, likely next step, status,
    and resume command
