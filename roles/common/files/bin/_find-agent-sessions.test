@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/_find-agent-sessions"
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+fail() {
+  printf 'FAIL  %s\n' "$1" >&2
+  exit 1
+}
+
+assert_contains() {
+  local needle="$1"
+  local file="$2"
+  local label="$3"
+
+  if rg -n -F "$needle" "$file" > /dev/null; then
+    printf 'PASS  %s\n' "$label"
+  else
+    printf 'FAIL  %s\n' "$label" >&2
+    cat "$file" >&2
+    exit 1
+  fi
+}
+
+[ -x "$SCRIPT" ] || fail "missing helper under test: $SCRIPT"
+
+stdout_file="$TMPROOT/stdout"
+stderr_file="$TMPROOT/stderr"
+
+HOME="$TMPROOT/home" "$SCRIPT" >"$stdout_file" 2>"$stderr_file"
