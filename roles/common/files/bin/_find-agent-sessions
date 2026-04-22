@@ -1,637 +1,618 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env ruby
+# frozen_string_literal: true
 
-usage() {
-  cat <<'EOF' >&2
-Usage: _find-agent-sessions [24h|4h|2d|today|yesterday] [--json]
-EOF
-}
+require "json"
+require "open3"
+require "shellwords"
+require "time"
 
-window="24h"
-json_output=false
+USAGE = "Usage: _find-agent-sessions [24h|4h|2d|today|yesterday] [--json]\n"
+NO_SUMMARY = "recent session activity"
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --json)
-      json_output=true
-      shift
-      ;;
-    today|yesterday)
-      window="$1"
-      shift
-      ;;
-    [0-9]*h|[0-9]*d)
-      window="$1"
-      shift
-      ;;
-    *)
-      usage
-      exit 1
-      ;;
-  esac
-done
+def abort_usage
+  warn USAGE
+  exit 1
+end
 
-lower() {
-  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
-}
+def parse_args(argv)
+  window = "24h"
+  json_output = false
 
-trim_one_line() {
-  printf '%s' "$1" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g; s/^ *//; s/ *$//'
-}
+  until argv.empty?
+    arg = argv.shift
+    case arg
+    when "--json"
+      json_output = true
+    when "today", "yesterday"
+      window = arg
+    when /\A\d+[hd]\z/
+      window = arg
+    else
+      abort_usage
+    end
+  end
 
-truncate_text() {
-  local text="$1"
-  local max="${2:-96}"
+  [window, json_output]
+end
 
-  if [ "${#text}" -le "$max" ]; then
-    printf '%s\n' "$text"
+def command_exists?(command)
+  ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).any? do |dir|
+    path = File.join(dir, command)
+    File.file?(path) && File.executable?(path)
+  end
+end
+
+def capture_stdout(*command)
+  stdout, _stderr, status = Open3.capture3(*command)
+  status.success? ? stdout : ""
+rescue Errno::ENOENT
+  ""
+end
+
+def parse_json(text, fallback)
+  stripped = text.to_s.strip
+  return fallback if stripped.empty?
+
+  JSON.parse(stripped)
+rescue JSON::ParserError
+  fallback
+end
+
+def time_window(window)
+  now = Time.now
+
+  case window
+  when "today"
+    start = Time.local(now.year, now.month, now.day)
+    [start.to_i, now.to_i]
+  when "yesterday"
+    midnight = Time.local(now.year, now.month, now.day)
+    [(midnight - 86_400).to_i, midnight.to_i]
+  when /\A(\d+)h\z/
+    hours = Regexp.last_match(1).to_i
+    [now.to_i - (hours * 3600), now.to_i]
+  when /\A(\d+)d\z/
+    days = Regexp.last_match(1).to_i
+    [now.to_i - (days * 86_400), now.to_i]
   else
-    printf '%s...\n' "${text:0:$((max - 3))}"
-  fi
-}
+    abort_usage
+  end
+end
 
-reverse_lines() {
-  awk '{ lines[NR] = $0 } END { for (i = NR; i >= 1; i--) print lines[i] }'
-}
+def coarse_days(start_epoch, end_epoch)
+  duration = end_epoch - start_epoch
+  ((duration + 86_399) / 86_400) + 1
+end
 
-portable_file_epoch() {
-  local path="$1"
+def list_sessions(command, days)
+  return [] unless command_exists?(command)
 
-  if stat -f '%m' "$path" >/dev/null 2>&1; then
-    stat -f '%m' "$path"
+  parse_json(capture_stdout(command, "--json", "--days", days.to_s, "--limit", "500"), [])
+end
+
+def read_session(command, file)
+  return {} unless command_exists?(command)
+
+  parse_json(capture_stdout(command, file, "--json"), {})
+end
+
+def trim_one_line(text)
+  text.to_s.gsub(/\s+/, " ").strip
+end
+
+def truncate_text(text, max = 96)
+  return text if text.length <= max
+
+  "#{text[0, max - 3]}..."
+end
+
+def shell_double_quote(text)
+  text.to_s.gsub(/["\\$`]/) { |char| "\\#{char}" }
+end
+
+def repo_and_worktree_from_cwd(cwd)
+  return ["", ""] if cwd.to_s.empty?
+
+  marker = "/.worktrees/"
+  if cwd.include?(marker)
+    prefix, suffix = cwd.split(marker, 2)
+    [File.basename(prefix), suffix.to_s.split("/", 2).first.to_s]
   else
-    stat -c '%Y' "$path"
-  fi
-}
+    [File.basename(cwd), ""]
+  end
+end
 
-portable_epoch_label() {
-  ruby -rtime -e 'puts Time.at(Integer(ARGV[0])).localtime.strftime("%Y-%m-%d %H:%M")' -- "$1"
-}
+def push_recent(list, value, max_size)
+  return if value.to_s.empty?
 
-window_bounds() {
-  local now_epoch amount
+  list << value
+  list.shift while list.length > max_size
+end
 
-  now_epoch="$(date +%s)"
+def each_jsonl(file)
+  return enum_for(:each_jsonl, file) unless block_given?
 
-  case "$window" in
-    today)
-      ruby -e 'now = Time.now; start = Time.local(now.year, now.month, now.day).to_i; puts "#{start} #{now.to_i}"'
-      ;;
-    yesterday)
-      ruby -e 'now = Time.now; midnight = Time.local(now.year, now.month, now.day).to_i; puts "#{midnight - 86400} #{midnight}"'
-      ;;
-    *h)
-      amount="${window%h}"
-      printf '%s %s\n' "$((now_epoch - amount * 3600))" "$now_epoch"
-      ;;
-    *d)
-      amount="${window%d}"
-      printf '%s %s\n' "$((now_epoch - amount * 86400))" "$now_epoch"
-      ;;
-    *)
-      usage
-      exit 1
-      ;;
-  esac
-}
+  File.foreach(file) do |line|
+    next if line.strip.empty?
 
-coarse_days_for_window() {
-  local start_epoch="$1"
-  local end_epoch="$2"
-  local duration
+    parsed = parse_json(line, nil)
+    yield parsed if parsed.is_a?(Hash)
+  end
+end
 
-  duration=$((end_epoch - start_epoch))
-  printf '%s\n' "$((((duration + 86399) / 86400) + 1))"
-}
+def codex_recent_lines(file)
+  message_lines = []
+  command_lines = []
 
-command_json_array() {
-  local output="$1"
+  each_jsonl(file) do |row|
+    case row["type"]
+    when "response_item"
+      payload = row["payload"]
+      next unless payload.is_a?(Hash)
+      next unless payload["type"] == "message"
+      next unless %w[user assistant].include?(payload["role"])
 
-  if [ -n "$output" ]; then
-    printf '%s\n' "$output"
+      Array(payload["content"]).each do |item|
+        next unless item.is_a?(Hash)
+        next unless %w[input_text output_text].include?(item["type"])
+
+        push_recent(message_lines, item["text"].to_s, 80)
+      end
+    when "function_call"
+      payload = row["payload"]
+      next unless payload.is_a?(Hash)
+
+      args = parse_json(payload["arguments"], nil)
+      command = args.is_a?(Hash) ? args["command"] : nil
+      push_recent(command_lines, command.to_s, 40)
+    end
+  end
+
+  message_lines + command_lines
+end
+
+def claude_text_from_message(message)
+  content = message["content"]
+
+  case content
+  when String
+    content
+  when Array
+    content.map do |item|
+      next unless item.is_a?(Hash)
+      next unless item["type"] == "text"
+
+      item["text"]
+    end.compact.join("\n")
   else
-    printf '[]\n'
-  fi
-}
+    ""
+  end
+end
 
-tool_list_output() {
-  local cmd="$1"
-  local days="$2"
+def claude_recent_lines(file)
+  lines = []
 
-  if command -v "$cmd" >/dev/null 2>&1; then
-    "$cmd" --json --days "$days" --limit 500 2>/dev/null || true
-  fi
-}
+  each_jsonl(file) do |row|
+    case row["type"]
+    when "user"
+      next if row["isMeta"] == true
 
-tool_read_output() {
-  local cmd="$1"
-  local file="$2"
+      push_recent(lines, claude_text_from_message(row.fetch("message", {})), 80)
+    when "assistant"
+      push_recent(lines, claude_text_from_message(row.fetch("message", {})), 80)
+    end
+  end
 
-  if command -v "$cmd" >/dev/null 2>&1; then
-    "$cmd" "$file" --json 2>/dev/null || true
-  fi
-}
+  lines
+end
 
-repo_and_worktree_from_cwd() {
-  local cwd="$1"
-  local repo worktree suffix prefix
+def recent_lines_for_tool(tool, file)
+  tool == "Codex" ? codex_recent_lines(file) : claude_recent_lines(file)
+end
 
-  if [[ "$cwd" == *"/.worktrees/"* ]]; then
-    prefix="${cwd%%/.worktrees/*}"
-    suffix="${cwd#*/.worktrees/}"
-    repo="$(basename "$prefix")"
-    worktree="${suffix%%/*}"
+def entry_branch(entry)
+  entry["gitBranch"].to_s.tap do |branch|
+    return branch unless branch.empty?
+  end
+
+  git = entry["git"]
+  return "" unless git.is_a?(Hash)
+
+  git["branch"].to_s
+end
+
+def read_branch(read_json)
+  return read_json["git_branch"].to_s unless read_json["git_branch"].to_s.empty?
+  return read_json["gitBranch"].to_s unless read_json["gitBranch"].to_s.empty?
+
+  git = read_json["git"]
+  return "" unless git.is_a?(Hash)
+
+  git["branch"].to_s
+end
+
+def summary_candidates(read_json, preview, tool, file)
+  candidates = []
+  candidates << preview.to_s unless preview.to_s.empty?
+  candidates.concat(Array(read_json["user_messages"]).map(&:to_s))
+  candidates.concat(Array(read_json["assistant_messages"]).map(&:to_s))
+  candidates.concat(Array(read_json["shell_commands"]).map(&:to_s))
+  candidates.concat(Array(read_json["bash_commands"]).map(&:to_s))
+  candidates.concat(recent_lines_for_tool(tool, file))
+  candidates
+end
+
+def summary_skip?(line)
+  return true if line.empty?
+  return true if line.start_with?("<")
+  return true if line.start_with?("tool:")
+
+  lower = line.downcase
+  return true if lower == "--- project-doc ---"
+
+  fixed_patterns = [
+    "agents.md instructions",
+    "environment_context",
+    "you are codex",
+    "you are claude",
+    "the user interrupted the previous turn on purpose",
+    "using-superpowers",
+    "start-of-session requirement",
+    "* workspace:",
+    "* bias toward action.",
+    "* spec approval and plan execution:",
+    "* pull requests:",
+    "* worktrees:",
+    "* comments:",
+    "* scripts/snippets:",
+    "* json/yaml parsing:",
+    "* multi-line commands:",
+    "* testing:",
+    "* temp files:",
+    "* verification:"
+  ]
+
+  return true if fixed_patterns.any? { |pattern| lower.include?(pattern) }
+  return true if lower.include?("user name:") && lower.include?("work style:")
+
+  false
+end
+
+def weak_summary?(line)
+  lower = line.downcase
+  return true if lower.start_with?("#")
+
+  [
+    "continue",
+    "continue.",
+    "resume",
+    "resume.",
+    "test prompt",
+    "did you clean up?",
+    "merged, clean up",
+    "cleanup"
+  ].include?(lower)
+end
+
+def build_summary(read_json, preview, tool, file)
+  fallback = nil
+
+  summary_candidates(read_json, preview, tool, file).each do |candidate|
+    cleaned = trim_one_line(candidate)
+    next if cleaned.empty?
+    next if summary_skip?(cleaned)
+
+    if weak_summary?(cleaned)
+      fallback ||= cleaned
+      next
+    end
+
+    return truncate_text(cleaned)
+  end
+
+  fallback ? truncate_text(fallback) : NO_SUMMARY
+end
+
+def recent_signal_lines(read_json, tool, file)
+  lines = []
+  lines.concat(Array(read_json["assistant_messages"]).map(&:to_s))
+  lines.concat(Array(read_json["shell_commands"]).map(&:to_s))
+  lines.concat(Array(read_json["bash_commands"]).map(&:to_s))
+  lines.concat(recent_lines_for_tool(tool, file))
+  lines
+end
+
+def cleanup_signal?(line)
+  [
+    "worktree-done",
+    "worktree-delete",
+    "git worktree remove",
+    "git branch -d",
+    "tmux-agent-worktree clear",
+    "cleanup complete",
+    "cleaned up",
+    "branch cleanup",
+    "worktree cleanup"
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def merge_signal?(line)
+  line.include?("gh pr merge") ||
+    (line.include?("pr #") && line.include?(" merged")) ||
+    line.include?("pull request merged") ||
+    line.include?("merged the pull request") ||
+    line.include?("_merge_pull_request") ||
+    line.include?("merge pull request")
+end
+
+def pr_created_signal?(line)
+  line.include?("gh pr create") ||
+    line.include?("draft-pr") ||
+    line.include?("create-pull-request") ||
+    (line.include?("pr #") && line.include?(" opened")) ||
+    line.include?("pull request opened") ||
+    line.include?("pull request created") ||
+    line.include?("/pull/")
+end
+
+def blocked_signal?(line)
+  [
+    "waiting for review",
+    "waiting on review",
+    "please review",
+    "awaiting review",
+    "waiting for merge",
+    "waiting on merge",
+    "needs review",
+    "blocked on",
+    "requires manual",
+    "manual step",
+    "waiting for credentials",
+    "missing credential",
+    "needs credential"
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def verification_signal?(line)
+  [
+    "pytest",
+    "rspec",
+    "npm test",
+    "cargo test",
+    "go test",
+    "bash tests/",
+    ".test",
+    "tests pass",
+    "test passed",
+    "verification passed",
+    "ran verification"
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def plan_signal?(line)
+  [
+    "implementation plan",
+    "plan complete",
+    "wrote the plan",
+    "create-plan"
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def spec_signal?(line)
+  [
+    "spec written",
+    "design approved",
+    "design.md",
+    "wrote the spec"
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def commit_signal?(line)
+  [
+    "git commit",
+    "commit created",
+    "created commit",
+    "committed."
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def code_update_signal?(line)
+  [
+    "apply_patch",
+    "write:",
+    "edit:",
+    "updated code",
+    "implemented",
+    "made the change"
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def infer_last_completed(read_json, tool, file)
+  recent_signal_lines(read_json, tool, file).reverse_each do |line|
+    lower = line.to_s.downcase
+    next if lower.empty?
+
+    return "cleaned up branch/worktree" if cleanup_signal?(lower)
+    return "merged the pull request" if merge_signal?(lower)
+    return "opened a pull request" if pr_created_signal?(lower)
+    return "ran verification" if verification_signal?(lower)
+    return "wrote the implementation plan" if plan_signal?(lower)
+    return "wrote the spec" if spec_signal?(lower)
+    return "created a commit" if commit_signal?(lower)
+    return "updated code" if code_update_signal?(lower)
+  end
+
+  "captured recent session progress"
+end
+
+def infer_status(read_json, tool, file)
+  pr_created = false
+  merged = false
+  cleanup = false
+  blocked = false
+
+  recent_signal_lines(read_json, tool, file).each do |line|
+    lower = line.to_s.downcase
+    next if lower.empty?
+
+    pr_created ||= pr_created_signal?(lower)
+    merged ||= merge_signal?(lower)
+    cleanup ||= cleanup_signal?(lower)
+    blocked ||= blocked_signal?(lower)
+  end
+
+  if pr_created && merged && cleanup
+    "done"
+  elsif blocked || (pr_created && !merged)
+    "blocked"
   else
-    repo="$(basename "$cwd")"
-    worktree=""
-  fi
+    "active"
+  end
+end
 
-  printf '%s\t%s\n' "$repo" "$worktree"
-}
+def infer_next_step(status, read_json, tool, file, last_completed)
+  return "none; session appears complete" if status == "done"
+  return "review and merge the pull request" if status == "blocked"
 
-codex_recent_lines() {
-  local file="$1"
+  recent_signal_lines(read_json, tool, file).reverse_each do |line|
+    lower = line.to_s.downcase
+    next if lower.empty?
 
-  grep '"type":"response_item"' "$file" 2>/dev/null | tail -n 80 | \
-    jq -r '
-      select(.payload.type == "message" and (.payload.role == "user" or .payload.role == "assistant"))
-      | .payload.content[]?
-      | select(.type == "input_text" or .type == "output_text")
-      | .text
-    ' 2>/dev/null || true
+    if [
+      "open a pr",
+      "open the pr",
+      "open a pull request",
+      "create a pr",
+      "create the pr",
+      "create a pull request"
+    ].any? { |pattern| lower.include?(pattern) }
+      return "open a pull request"
+    end
 
-  grep '"type":"function_call"' "$file" 2>/dev/null | tail -n 40 | \
-    jq -r '.payload.arguments | fromjson? | .command // empty' 2>/dev/null || true
-}
+    if lower.include?("implement the plan") || lower.include?("next step is to implement the plan")
+      return "implement the plan"
+    end
+  end
 
-claude_recent_lines() {
-  local file="$1"
-
-  grep -E '"type":"(user|assistant)"' "$file" 2>/dev/null | tail -n 80 | while read -r line; do
-    local msg_type
-    msg_type="$(jq -r '.type // empty' <<< "$line" 2>/dev/null)"
-
-    case "$msg_type" in
-      user)
-        jq -r '
-          if .isMeta == true then
-            empty
-          elif (.message.content | type) == "string" then
-            .message.content
-          elif (.message.content | type) == "array" then
-            [.message.content[]? | select(.type == "text") | .text] | join("\n")
-          else
-            empty
-          end
-        ' <<< "$line" 2>/dev/null
-        ;;
-      assistant)
-        jq -r '
-          if (.message.content | type) == "array" then
-            [.message.content[]? | select(.type == "text") | .text] | join("\n")
-          else
-            empty
-          end
-        ' <<< "$line" 2>/dev/null
-        ;;
-    esac
-  done || true
-}
-
-recent_lines_for_tool() {
-  local tool="$1"
-  local file="$2"
-
-  if [ "$tool" = "Codex" ]; then
-    codex_recent_lines "$file"
+  case last_completed
+  when "merged the pull request"
+    "clean up the branch/worktree"
+  when "wrote the spec"
+    "write the implementation plan"
+  when "wrote the implementation plan"
+    "implement the plan"
   else
-    claude_recent_lines "$file"
-  fi
-}
+    "continue the next pending change"
+  end
+end
 
-summary_candidates() {
-  local read_json="$1"
-  local preview="$2"
-  local tool="$3"
-  local file="$4"
+def build_resume_command(tool, cwd, session_id)
+  quoted_cwd = shell_double_quote(cwd)
 
-  [ -n "$preview" ] && printf '%s\n' "$preview"
-
-  jq -r '(.user_messages // [])[]?, (.assistant_messages // [])[]?' <<< "$read_json" 2>/dev/null || true
-  jq -r '(.shell_commands // .bash_commands // [])[]?' <<< "$read_json" 2>/dev/null || true
-  recent_lines_for_tool "$tool" "$file"
-}
-
-build_summary() {
-  local read_json="$1"
-  local preview="$2"
-  local tool="$3"
-  local file="$4"
-  local candidate cleaned lc fallback=""
-
-  while IFS= read -r candidate; do
-    cleaned="$(trim_one_line "$candidate")"
-    [ -n "$cleaned" ] || continue
-    lc="$(lower "$cleaned")"
-    case "$lc" in
-      \<*|tool:*|"")
-        continue
-        ;;
-      "--- project-doc ---"|*"agents.md instructions"*|*"environment_context"*|*"you are codex"*|*"you are claude"*|*"the user interrupted the previous turn on purpose"*|*"using-superpowers"*|*"start-of-session requirement"*|*"user name:"*"work style:"*|*"* workspace:"*|*"* bias toward action."*|*"* spec approval and plan execution:"*|*"* pull requests:"*|*"* worktrees:"*|*"* comments:"*|*"* scripts/snippets:"*|*"* json/yaml parsing:"*|*"* multi-line commands:"*|*"* testing:"*|*"* temp files:"*|*"* verification:"*)
-        continue
-        ;;
-      \#*)
-        [ -n "$fallback" ] || fallback="$cleaned"
-        continue
-        ;;
-      "continue"|"continue."|"resume"|"resume."|"test prompt"|"test prompt "*|"did you clean up?"|"merged, clean up"|"cleanup")
-        [ -n "$fallback" ] || fallback="$cleaned"
-        continue
-        ;;
-    esac
-    truncate_text "$cleaned" 96
-    return
-  done < <(summary_candidates "$read_json" "$preview" "$tool" "$file")
-
-  if [ -n "$fallback" ]; then
-    truncate_text "$fallback" 96
-    return
-  fi
-
-  printf 'recent session activity\n'
-}
-
-recent_signal_lines() {
-  local read_json="$1"
-  local tool="$2"
-  local file="$3"
-
-  jq -r '(.assistant_messages // [])[]?, (.shell_commands // .bash_commands // [])[]?' <<< "$read_json" 2>/dev/null || true
-  recent_lines_for_tool "$tool" "$file"
-}
-
-is_cleanup_signal() {
-  case "$1" in
-    *worktree-done*|*worktree-delete*|*"git worktree remove"*|*"git branch -d"*|*"tmux-agent-worktree clear"*|*"cleanup complete"*|*"cleaned up"*|*"branch cleanup"*|*"worktree cleanup"*)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-is_merge_signal() {
-  case "$1" in
-    *"gh pr merge"*|*"pr #"*" merged"*|*"pull request merged"*|*"merged the pull request"*|*"_merge_pull_request"*|*"merge pull request"*)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-is_pr_created_signal() {
-  case "$1" in
-    *"gh pr create"*|*"draft-pr"*|*"create-pull-request"*|*"pr #"*" opened"*|*"pull request opened"*|*"pull request created"*|*"/pull/"*)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-is_blocked_signal() {
-  case "$1" in
-    *"waiting for review"*|*"waiting on review"*|*"please review"*|*"awaiting review"*|*"waiting for merge"*|*"waiting on merge"*|*"needs review"*|*"blocked on"*|*"requires manual"*|*"manual step"*|*"waiting for credentials"*|*"missing credential"*|*"needs credential"*)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-is_verification_signal() {
-  case "$1" in
-    *pytest*|*rspec*|*"npm test"*|*"cargo test"*|*"go test"*|*"bash tests/"*|*".test"*|*"tests pass"*|*"test passed"*|*"verification passed"*|*"ran verification"*)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-is_plan_signal() {
-  case "$1" in
-    *"implementation plan"*|*"plan complete"*|*"wrote the plan"*|*"create-plan"*)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-is_spec_signal() {
-  case "$1" in
-    *"spec written"*|*"design approved"*|*"design.md"*|*"wrote the spec"*)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-is_commit_signal() {
-  case "$1" in
-    *"git commit"*|*"commit created"*|*"created commit"*|*"committed."*)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-is_code_update_signal() {
-  case "$1" in
-    *apply_patch*|*"write:"*|*"edit:"*|*"updated code"*|*"implemented"*|*"made the change"*)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-infer_last_completed() {
-  local read_json="$1"
-  local tool="$2"
-  local file="$3"
-  local line lc
-
-  while IFS= read -r line; do
-    lc="$(lower "$line")"
-    [ -n "$lc" ] || continue
-
-    if is_cleanup_signal "$lc"; then
-      printf 'cleaned up branch/worktree\n'
-      return
-    fi
-    if is_merge_signal "$lc"; then
-      printf 'merged the pull request\n'
-      return
-    fi
-    if is_pr_created_signal "$lc"; then
-      printf 'opened a pull request\n'
-      return
-    fi
-    if is_verification_signal "$lc"; then
-      printf 'ran verification\n'
-      return
-    fi
-    if is_plan_signal "$lc"; then
-      printf 'wrote the implementation plan\n'
-      return
-    fi
-    if is_spec_signal "$lc"; then
-      printf 'wrote the spec\n'
-      return
-    fi
-    if is_commit_signal "$lc"; then
-      printf 'created a commit\n'
-      return
-    fi
-    if is_code_update_signal "$lc"; then
-      printf 'updated code\n'
-      return
-    fi
-  done < <(recent_signal_lines "$read_json" "$tool" "$file" | reverse_lines)
-
-  printf 'captured recent session progress\n'
-}
-
-infer_status() {
-  local read_json="$1"
-  local tool="$2"
-  local file="$3"
-  local line lc
-  local pr_created=false
-  local merged=false
-  local cleanup=false
-  local blocked=false
-
-  while IFS= read -r line; do
-    lc="$(lower "$line")"
-    [ -n "$lc" ] || continue
-
-    is_pr_created_signal "$lc" && pr_created=true
-    is_merge_signal "$lc" && merged=true
-    is_cleanup_signal "$lc" && cleanup=true
-    is_blocked_signal "$lc" && blocked=true
-  done < <(recent_signal_lines "$read_json" "$tool" "$file")
-
-  if $pr_created && $merged && $cleanup; then
-    printf 'done\n'
-  elif $blocked || { $pr_created && ! $merged; }; then
-    printf 'blocked\n'
+  if tool == "Codex"
+    %(cd "#{quoted_cwd}" && codex-yolo resume #{session_id})
   else
-    printf 'active\n'
-  fi
-}
+    %(cd "#{quoted_cwd}" && claude-yolo -r #{session_id})
+  end
+end
 
-infer_next_step() {
-  local status="$1"
-  local read_json="$2"
-  local tool="$3"
-  local file="$4"
-  local last_completed="$5"
-  local line lc
+def build_session_hash(tool, read_command, entry, start_epoch, end_epoch)
+  file = entry["file"].to_s
+  return nil if file.empty? || !File.file?(file)
 
-  case "$status" in
-    done)
-      printf 'none; session appears complete\n'
-      return
-      ;;
-    blocked)
-      printf 'review and merge the pull request\n'
-      return
-      ;;
-  esac
+  updated_epoch = File.mtime(file).to_i
+  return nil if updated_epoch < start_epoch || updated_epoch > end_epoch
 
-  while IFS= read -r line; do
-    lc="$(lower "$line")"
-    [ -n "$lc" ] || continue
+  read_json = read_session(read_command, file)
 
-    case "$lc" in
-      *"open a pr"*|*"open the pr"*|*"open a pull request"*|*"create a pr"*|*"create the pr"*|*"create a pull request"*)
-        printf 'open a pull request\n'
-        return
-        ;;
-      *"implement the plan"*|*"next step is to implement the plan"*)
-        printf 'implement the plan\n'
-        return
-        ;;
-    esac
-  done < <(recent_signal_lines "$read_json" "$tool" "$file" | reverse_lines)
+  cwd = entry["cwd"].to_s
+  cwd = read_json["cwd"].to_s if cwd.empty?
 
-  case "$last_completed" in
-    "merged the pull request")
-      printf 'clean up the branch/worktree\n'
-      ;;
-    "wrote the spec")
-      printf 'write the implementation plan\n'
-      ;;
-    "wrote the implementation plan")
-      printf 'implement the plan\n'
-      ;;
-    *)
-      printf 'continue the next pending change\n'
-      ;;
-  esac
-}
+  session_id = entry["sessionId"].to_s
+  session_id = entry["id"].to_s if session_id.empty?
+  session_id = read_json["session_id"].to_s if session_id.empty?
+  session_id = read_json["sessionId"].to_s if session_id.empty?
+  session_id = read_json["id"].to_s if session_id.empty?
 
-build_resume_command() {
-  local tool="$1"
-  local cwd="$2"
-  local session_id="$3"
+  git_branch = entry_branch(entry)
+  git_branch = read_branch(read_json) if git_branch.empty?
 
-  if [ "$tool" = "Codex" ]; then
-    printf 'cd "%s" && codex-yolo resume %s\n' "$cwd" "$session_id"
+  summary = build_summary(read_json, entry["preview"], tool, file)
+  last_completed = infer_last_completed(read_json, tool, file)
+  status = infer_status(read_json, tool, file)
+  next_step = infer_next_step(status, read_json, tool, file, last_completed)
+  repo, worktree = repo_and_worktree_from_cwd(cwd)
+
+  {
+    "tool" => tool,
+    "session_id" => session_id,
+    "updated_epoch" => updated_epoch,
+    "updated_at" => Time.at(updated_epoch).localtime.strftime("%Y-%m-%d %H:%M"),
+    "cwd" => cwd,
+    "repo" => repo,
+    "worktree" => worktree,
+    "branch" => git_branch,
+    "summary" => summary,
+    "last_completed" => last_completed,
+    "next_step" => next_step,
+    "status" => status,
+    "resume" => build_resume_command(tool, cwd, session_id),
+    "file" => file
+  }
+end
+
+def render_human_output(entries)
+  lines = entries.map do |entry|
+    block = []
+    block << "[#{entry.fetch("tool")}] #{entry.fetch("session_id")}"
+    block << "updated: #{entry.fetch("updated_at")}"
+    block << "repo: #{entry.fetch("repo")}"
+    block << "worktree: #{entry.fetch("worktree")}" unless entry.fetch("worktree").empty?
+    block << "cwd: #{entry.fetch("cwd")}"
+    block << "branch: #{entry.fetch("branch")}" unless entry.fetch("branch").empty?
+    block << "summary: #{entry.fetch("summary")}"
+    block << "last completed: #{entry.fetch("last_completed")}"
+    block << "next: #{entry.fetch("next_step")}"
+    block << "status: #{entry.fetch("status")}"
+    block << "resume: #{entry.fetch("resume")}"
+    block.join("\n")
+  end
+
+  puts lines.join("\n")
+end
+
+window, json_output = parse_args(ARGV.dup)
+start_epoch, end_epoch = time_window(window)
+days = coarse_days(start_epoch, end_epoch)
+
+entries = []
+list_sessions("list-codex-sessions", days).each do |entry|
+  next unless entry.is_a?(Hash)
+
+  session = build_session_hash("Codex", "read-codex-session", entry, start_epoch, end_epoch)
+  entries << session if session
+end
+
+list_sessions("list-claude-sessions", days).each do |entry|
+  next unless entry.is_a?(Hash)
+
+  session = build_session_hash("Claude", "read-claude-session", entry, start_epoch, end_epoch)
+  entries << session if session
+end
+
+entries.sort_by! { |entry| -entry.fetch("updated_epoch") }
+
+if entries.empty?
+  if json_output
+    puts "[]"
   else
-    printf 'cd "%s" && claude-yolo -r %s\n' "$cwd" "$session_id"
-  fi
-}
-
-build_session_json() {
-  local tool="$1"
-  local read_cmd="$2"
-  local entry="$3"
-  local file cwd session_id git_branch preview read_json updated_epoch updated_at
-  local summary last_completed status next_step resume repo worktree repo_meta
-
-  file="$(jq -r '.file // empty' <<< "$entry")"
-  [ -n "$file" ] || return
-  [ -f "$file" ] || return
-
-  updated_epoch="$(portable_file_epoch "$file")"
-  if [ "$updated_epoch" -lt "$start_epoch" ] || [ "$updated_epoch" -gt "$end_epoch" ]; then
-    return
-  fi
-
-  updated_at="$(portable_epoch_label "$updated_epoch")"
-  cwd="$(jq -r '.cwd // empty' <<< "$entry")"
-  session_id="$(jq -r '.sessionId // .id // empty' <<< "$entry")"
-  git_branch="$(jq -r '.gitBranch // .git.branch // empty' <<< "$entry")"
-  preview="$(jq -r '.preview // empty' <<< "$entry")"
-
-  read_json="$(tool_read_output "$read_cmd" "$file")"
-  [ -n "$read_json" ] || read_json='{}'
-
-  [ -n "$cwd" ] || cwd="$(jq -r '.cwd // empty' <<< "$read_json")"
-  [ -n "$session_id" ] || session_id="$(jq -r '.session_id // .sessionId // .id // empty' <<< "$read_json")"
-  [ -n "$git_branch" ] || git_branch="$(jq -r '.git_branch // .gitBranch // .git.branch // empty' <<< "$read_json")"
-
-  summary="$(build_summary "$read_json" "$preview" "$tool" "$file")"
-  last_completed="$(infer_last_completed "$read_json" "$tool" "$file")"
-  status="$(infer_status "$read_json" "$tool" "$file")"
-  next_step="$(infer_next_step "$status" "$read_json" "$tool" "$file" "$last_completed")"
-  resume="$(build_resume_command "$tool" "$cwd" "$session_id")"
-
-  repo_meta="$(repo_and_worktree_from_cwd "$cwd")"
-  repo="${repo_meta%%$'\t'*}"
-  worktree="${repo_meta#*$'\t'}"
-  [ "$repo" != "$repo_meta" ] || worktree=""
-
-  jq -nc \
-    --arg tool "$tool" \
-    --arg session_id "$session_id" \
-    --arg updated_at "$updated_at" \
-    --arg cwd "$cwd" \
-    --arg repo "$repo" \
-    --arg worktree "$worktree" \
-    --arg branch "$git_branch" \
-    --arg summary "$summary" \
-    --arg last_completed "$last_completed" \
-    --arg next_step "$next_step" \
-    --arg status "$status" \
-    --arg resume "$resume" \
-    --arg file "$file" \
-    --argjson updated_epoch "$updated_epoch" \
-    '{
-      tool: $tool,
-      session_id: $session_id,
-      updated_epoch: $updated_epoch,
-      updated_at: $updated_at,
-      cwd: $cwd,
-      repo: $repo,
-      worktree: $worktree,
-      branch: $branch,
-      summary: $summary,
-      last_completed: $last_completed,
-      next_step: $next_step,
-      status: $status,
-      resume: $resume,
-      file: $file
-    }'
-}
-
-render_human_output() {
-  jq -r '
-    .[] |
-    [
-      "[" + .tool + "] " + .session_id,
-      "updated: " + .updated_at,
-      "repo: " + .repo,
-      (if (.worktree | length) > 0 then "worktree: " + .worktree else empty end),
-      "cwd: " + .cwd,
-      (if (.branch | length) > 0 then "branch: " + .branch else empty end),
-      "summary: " + .summary,
-      "last completed: " + .last_completed,
-      "next: " + .next_step,
-      "status: " + .status,
-      "resume: " + .resume
-    ] | join("\n")
-  '
-}
-
-read -r start_epoch end_epoch <<< "$(window_bounds)"
-coarse_days="$(coarse_days_for_window "$start_epoch" "$end_epoch")"
-
-session_lines_file="$(mktemp)"
-trap 'rm -f "$session_lines_file"' EXIT
-
-codex_entries="$(command_json_array "$(tool_list_output list-codex-sessions "$coarse_days")")"
-claude_entries="$(command_json_array "$(tool_list_output list-claude-sessions "$coarse_days")")"
-
-while IFS= read -r entry; do
-  [ -n "$entry" ] || continue
-  build_session_json "Codex" "read-codex-session" "$entry" >> "$session_lines_file" || true
-done < <(jq -c '.[]?' <<< "$codex_entries" 2>/dev/null || true)
-
-while IFS= read -r entry; do
-  [ -n "$entry" ] || continue
-  build_session_json "Claude" "read-claude-session" "$entry" >> "$session_lines_file" || true
-done < <(jq -c '.[]?' <<< "$claude_entries" 2>/dev/null || true)
-
-if [ ! -s "$session_lines_file" ]; then
-  if $json_output; then
-    printf '[]\n'
-  else
-    printf 'No agent sessions found in the last %s.\n' "$window"
-  fi
+    puts "No agent sessions found in the last #{window}."
+  end
   exit 0
-fi
+end
 
-sorted_json="$(jq -s 'sort_by(-.updated_epoch)' "$session_lines_file")"
-
-if $json_output; then
-  printf '%s\n' "$sorted_json"
+if json_output
+  puts JSON.pretty_generate(entries)
 else
-  render_human_output <<< "$sorted_json"
-fi
+  render_human_output(entries)
+end
