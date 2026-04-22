@@ -11,23 +11,230 @@ fail() {
   exit 1
 }
 
+pass() {
+  printf 'PASS  %s\n' "$1"
+}
+
 assert_contains() {
   local needle="$1"
   local file="$2"
   local label="$3"
 
   if rg -n -F "$needle" "$file" > /dev/null; then
-    printf 'PASS  %s\n' "$label"
+    pass "$label"
   else
     printf 'FAIL  %s\n' "$label" >&2
+    printf 'missing %q in %s\n' "$needle" "$file" >&2
     cat "$file" >&2
     exit 1
   fi
 }
 
+assert_not_contains() {
+  local needle="$1"
+  local file="$2"
+  local label="$3"
+
+  if rg -n -F "$needle" "$file" > /dev/null; then
+    printf 'FAIL  %s\n' "$label" >&2
+    printf 'unexpected %q in %s\n' "$needle" "$file" >&2
+    cat "$file" >&2
+    exit 1
+  else
+    pass "$label"
+  fi
+}
+
+assert_before() {
+  local first="$1"
+  local second="$2"
+  local file="$3"
+  local label="$4"
+  local first_line second_line
+
+  first_line="$(rg -n -F "$first" "$file" | head -1 | cut -d: -f1)"
+  second_line="$(rg -n -F "$second" "$file" | head -1 | cut -d: -f1)"
+
+  [ -n "$first_line" ] || fail "$label: missing first marker"
+  [ -n "$second_line" ] || fail "$label: missing second marker"
+  [ "$first_line" -lt "$second_line" ] || fail "$label: order incorrect"
+  pass "$label"
+}
+
+iso_offset() {
+  ruby -rtime -e 'delta = Integer(ARGV[0]); puts (Time.now.utc + delta).iso8601' -- "$1"
+}
+
+touch_offset() {
+  ruby -e 'delta = Integer(ARGV[0]); puts (Time.now + delta).strftime("%Y%m%d%H%M.%S")' -- "$1"
+}
+
+midnight_offset() {
+  ruby -e 'mode = ARGV[0]; now = Time.now; midnight = Time.local(now.year, now.month, now.day); target = case mode when "today" then midnight + 60 when "yesterday" then midnight - 60 else raise "bad mode" end; puts target.strftime("%Y%m%d%H%M.%S")' -- "$1"
+}
+
+mkdir -p "$TMPROOT/home/.claude/projects/test-project"
+mkdir -p "$TMPROOT/home/.codex/sessions/2026/04/21"
+mkdir -p "$TMPROOT/bin"
+
+codex_active="$TMPROOT/home/.codex/sessions/2026/04/21/codex-active.jsonl"
+cat > "$codex_active" <<EOF
+{"timestamp":"$(iso_offset -3700)","type":"session_meta","payload":{"id":"codex-active","timestamp":"$(iso_offset -3700)","cwd":"/tmp/projects/codex-active","git":{"branch":"feature/codex-active"}}}
+{"timestamp":"$(iso_offset -3600)","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"fix the session summary helper"}]}}
+{"timestamp":"$(iso_offset -3500)","type":"function_call","payload":{"name":"shell","arguments":"{\"command\":\"bash tests/session-summary.sh\"}"}}
+{"timestamp":"$(iso_offset -3400)","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Tests pass. Next step is to open a PR."}]}}
+EOF
+touch -t "$(touch_offset -3600)" "$codex_active"
+
+codex_done="$TMPROOT/home/.codex/sessions/2026/04/21/codex-done.jsonl"
+cat > "$codex_done" <<EOF
+{"timestamp":"$(iso_offset -7300)","type":"session_meta","payload":{"id":"codex-done","timestamp":"$(iso_offset -7300)","cwd":"/tmp/projects/codex-done","git":{"branch":"feature/codex-done"}}}
+{"timestamp":"$(iso_offset -7200)","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"finish the PR workflow"}]}}
+{"timestamp":"$(iso_offset -7100)","type":"function_call","payload":{"name":"shell","arguments":"{\"command\":\"gh pr create --fill\"}"}}
+{"timestamp":"$(iso_offset -7000)","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"PR #77 opened."}]}}
+{"timestamp":"$(iso_offset -6900)","type":"function_call","payload":{"name":"shell","arguments":"{\"command\":\"gh pr merge 77 --squash\"}"}}
+{"timestamp":"$(iso_offset -6800)","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"PR #77 merged."}]}}
+{"timestamp":"$(iso_offset -6700)","type":"function_call","payload":{"name":"shell","arguments":"{\"command\":\"worktree-done\"}"}}
+{"timestamp":"$(iso_offset -6600)","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Cleanup complete."}]}}
+EOF
+touch -t "$(touch_offset -7200)" "$codex_done"
+
+claude_blocked="$TMPROOT/home/.claude/projects/test-project/claude-blocked.jsonl"
+cat > "$claude_blocked" <<EOF
+{"type":"user","message":{"role":"user","content":"wrap up the PR handoff"},"timestamp":"$(iso_offset -1900)","cwd":"/tmp/projects/claude-blocked","sessionId":"claude-blocked","version":"2.0.0","gitBranch":"feature/claude-blocked"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"PR #42 opened. Waiting for review before merge."}]},"timestamp":"$(iso_offset -1800)","cwd":"/tmp/projects/claude-blocked","sessionId":"claude-blocked","version":"2.0.0","gitBranch":"feature/claude-blocked"}
+EOF
+touch -t "$(touch_offset -1800)" "$claude_blocked"
+
+claude_yesterday="$TMPROOT/home/.claude/projects/test-project/claude-yesterday.jsonl"
+cat > "$claude_yesterday" <<EOF
+{"type":"user","message":{"role":"user","content":"resume the yesterday dashboard cleanup"},"timestamp":"$(iso_offset -90000)","cwd":"/tmp/projects/claude-yesterday","sessionId":"claude-yesterday","version":"2.0.0","gitBranch":"feature/claude-yesterday"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Wrote the implementation plan. Next step is to implement the plan."}]},"timestamp":"$(iso_offset -89000)","cwd":"/tmp/projects/claude-yesterday","sessionId":"claude-yesterday","version":"2.0.0","gitBranch":"feature/claude-yesterday"}
+EOF
+touch -t "$(midnight_offset yesterday)" "$claude_yesterday"
+
+codex_old="$TMPROOT/home/.codex/sessions/2026/04/18/codex-old.jsonl"
+mkdir -p "$(dirname "$codex_old")"
+cat > "$codex_old" <<EOF
+{"timestamp":"$(iso_offset -260000)","type":"session_meta","payload":{"id":"codex-old","timestamp":"$(iso_offset -260000)","cwd":"/tmp/projects/codex-old","git":{"branch":"feature/codex-old"}}}
+{"timestamp":"$(iso_offset -259900)","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"stale session"}]}}
+EOF
+touch -t "$(touch_offset -260000)" "$codex_old"
+
+cat > "$TMPROOT/bin/list-codex-sessions" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+cat <<'JSON'
+[
+  {"id":"codex-active","timestamp":"$(iso_offset -3700)","cwd":"/tmp/projects/codex-active","git":{"branch":"feature/codex-active"},"file":"$codex_active","preview":"# AGENTS.md instructions for /tmp/projects/codex-active","index":1},
+  {"id":"codex-done","timestamp":"$(iso_offset -7300)","cwd":"/tmp/projects/codex-done","git":{"branch":"feature/codex-done"},"file":"$codex_done","preview":"finish the PR workflow","index":2},
+  {"id":"codex-old","timestamp":"$(iso_offset -260000)","cwd":"/tmp/projects/codex-old","git":{"branch":"feature/codex-old"},"file":"$codex_old","preview":"stale session","index":3}
+]
+JSON
+EOF
+
+cat > "$TMPROOT/bin/list-claude-sessions" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+cat <<'JSON'
+[
+  {"sessionId":"claude-blocked","timestamp":"$(iso_offset -1900)","cwd":"/tmp/projects/claude-blocked","gitBranch":"feature/claude-blocked","file":"$claude_blocked","preview":"continue","index":1},
+  {"sessionId":"claude-yesterday","timestamp":"$(iso_offset -90000)","cwd":"/tmp/projects/claude-yesterday","gitBranch":"feature/claude-yesterday","file":"$claude_yesterday","preview":"resume the yesterday dashboard cleanup","index":2}
+]
+JSON
+EOF
+
+cat > "$TMPROOT/bin/read-codex-session" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+file="\$1"
+case "\$file" in
+  "$codex_active")
+    cat <<'JSON'
+{"session_id":"codex-active","cwd":"/tmp/projects/codex-active","timestamp":"$(iso_offset -3700)","git_branch":"feature/codex-active","git_commit":"deadbeef","user_messages":["User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min tokens.","* Workspace: ~/projects/","--- project-doc ---","  <cwd>/tmp/projects/codex-active</cwd>","# Test Project","Using using-superpowers; start-of-session requirement.","fix the session summary helper"],"assistant_messages":["Tests pass. Next step is to open a PR."],"shell_commands":["bash tests/session-summary.sh"],"file_operations":[]}
+JSON
+    ;;
+  "$codex_done")
+    cat <<'JSON'
+{"session_id":"codex-done","cwd":"/tmp/projects/codex-done","timestamp":"$(iso_offset -7300)","git_branch":"feature/codex-done","git_commit":"deadbeef","user_messages":["finish the PR workflow"],"assistant_messages":["PR #77 opened.","PR #77 merged.","Cleanup complete."],"shell_commands":["gh pr create --fill","gh pr merge 77 --squash","worktree-done"],"file_operations":[]}
+JSON
+    ;;
+  "$codex_old")
+    cat <<'JSON'
+{"session_id":"codex-old","cwd":"/tmp/projects/codex-old","timestamp":"$(iso_offset -260000)","git_branch":"feature/codex-old","git_commit":"deadbeef","user_messages":["stale session"],"assistant_messages":[],"shell_commands":[],"file_operations":[]}
+JSON
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+EOF
+
+cat > "$TMPROOT/bin/read-claude-session" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+file="\$1"
+case "\$file" in
+  "$claude_blocked")
+    cat <<'JSON'
+{"session_id":"claude-blocked","cwd":"/tmp/projects/claude-blocked","timestamp":"$(iso_offset -1900)","git_branch":"feature/claude-blocked","claude_code_version":"2.0.0","user_messages":["wrap up the PR handoff"],"assistant_messages":["PR #42 opened. Waiting for review before merge."],"bash_commands":[],"file_operations":[],"tool_uses":[]}
+JSON
+    ;;
+  "$claude_yesterday")
+    cat <<'JSON'
+{"session_id":"claude-yesterday","cwd":"/tmp/projects/claude-yesterday","timestamp":"$(iso_offset -90000)","git_branch":"feature/claude-yesterday","claude_code_version":"2.0.0","user_messages":["resume the yesterday dashboard cleanup"],"assistant_messages":["Wrote the implementation plan. Next step is to implement the plan."],"bash_commands":[],"file_operations":[],"tool_uses":[]}
+JSON
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+EOF
+
+chmod +x \
+  "$TMPROOT/bin/list-codex-sessions" \
+  "$TMPROOT/bin/list-claude-sessions" \
+  "$TMPROOT/bin/read-codex-session" \
+  "$TMPROOT/bin/read-claude-session"
+
 [ -x "$SCRIPT" ] || fail "missing helper under test: $SCRIPT"
 
-stdout_file="$TMPROOT/stdout"
-stderr_file="$TMPROOT/stderr"
+default_stdout="$TMPROOT/default.stdout"
+PATH="$TMPROOT/bin:$PATH" HOME="$TMPROOT/home" "$SCRIPT" >"$default_stdout"
 
-HOME="$TMPROOT/home" "$SCRIPT" >"$stdout_file" 2>"$stderr_file"
+assert_before "[Claude] claude-blocked" "[Codex] codex-active" "$default_stdout" "newest blocked session sorts before active"
+assert_before "[Codex] codex-active" "[Codex] codex-done" "$default_stdout" "active session sorts before older done session"
+assert_contains "status: blocked" "$default_stdout" "blocked status rendered"
+assert_contains "status: active" "$default_stdout" "active status rendered"
+assert_contains "status: done" "$default_stdout" "done status rendered"
+assert_contains "summary: fix the session summary helper" "$default_stdout" "summary skips AGENTS boilerplate"
+assert_contains "summary: wrap up the PR handoff" "$default_stdout" "summary skips generic continue preview"
+assert_not_contains "summary: # AGENTS.md instructions" "$default_stdout" "AGENTS boilerplate omitted from summary"
+assert_not_contains "summary: User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min tokens." "$default_stdout" "AGENTS profile boilerplate omitted from summary"
+assert_not_contains "summary: * Workspace: ~/projects/" "$default_stdout" "AGENTS workspace boilerplate omitted from summary"
+assert_not_contains "summary: --- project-doc ---" "$default_stdout" "project-doc boilerplate omitted from summary"
+assert_not_contains "summary: <cwd>/tmp/projects/codex-active</cwd>" "$default_stdout" "XML metadata boilerplate omitted from summary"
+assert_not_contains "summary: # Test Project" "$default_stdout" "markdown heading downgraded from summary"
+assert_not_contains "summary: Using using-superpowers; start-of-session requirement." "$default_stdout" "using-superpowers boilerplate omitted from summary"
+assert_contains "last completed: opened a pull request" "$default_stdout" "blocked session last completed step"
+assert_contains "last completed: ran verification" "$default_stdout" "active session last completed step"
+assert_contains "last completed: cleaned up branch/worktree" "$default_stdout" "done session last completed step"
+assert_contains "next: review and merge the pull request" "$default_stdout" "blocked next step"
+assert_contains "next: open a pull request" "$default_stdout" "active next step"
+assert_contains "next: none; session appears complete" "$default_stdout" "done next step"
+assert_contains "resume: cd \"/tmp/projects/claude-blocked\" && claude-yolo -r claude-blocked" "$default_stdout" "claude resume command"
+assert_contains "resume: cd \"/tmp/projects/codex-active\" && codex-yolo resume codex-active" "$default_stdout" "codex resume command"
+assert_not_contains "codex-old" "$default_stdout" "default 24h filters stale session"
+
+two_day_stdout="$TMPROOT/two-day.stdout"
+PATH="$TMPROOT/bin:$PATH" HOME="$TMPROOT/home" "$SCRIPT" 2d >"$two_day_stdout"
+assert_contains "claude-yesterday" "$two_day_stdout" "2d includes yesterday session"
+
+today_stdout="$TMPROOT/today.stdout"
+PATH="$TMPROOT/bin:$PATH" HOME="$TMPROOT/home" "$SCRIPT" today >"$today_stdout"
+assert_not_contains "claude-yesterday" "$today_stdout" "today excludes yesterday session"
+
+yesterday_stdout="$TMPROOT/yesterday.stdout"
+PATH="$TMPROOT/bin:$PATH" HOME="$TMPROOT/home" "$SCRIPT" yesterday >"$yesterday_stdout"
+assert_contains "claude-yesterday" "$yesterday_stdout" "yesterday includes yesterday session"
+assert_not_contains "claude-blocked" "$yesterday_stdout" "yesterday excludes today session"

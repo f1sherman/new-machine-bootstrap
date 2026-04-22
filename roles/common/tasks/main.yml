@@ -212,6 +212,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/read-claude-session'
     mode: 0755
 
+- name: Install _find-agent-sessions helper
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/_find-agent-sessions'
+    src: '{{ playbook_dir }}/roles/common/files/bin/_find-agent-sessions'
+    mode: 0755
+
 - name: Install tmux-session-name script
   copy:
     backup: yes
