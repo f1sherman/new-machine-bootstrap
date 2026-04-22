@@ -18,11 +18,15 @@ matches_git_add() {
   printf '%s\n' "$command" | grep -Eq "$pattern"
 }
 
-# True when the command contains a force flag: `--force` (exact) or a short
-# flag cluster containing lowercase `f` (`-f`, `-Af`, `-fA`, `-vf`, etc).
-# Uppercase `-F` is intentionally excluded — it is not a git-add force flag.
+# True when the command contains a force flag. Catches `--force` plus any
+# unambiguous long-option prefix — git accepts these as `--force`, e.g.
+# `git add --for ...` behaves like `git add --force ...`. So we match any
+# `--f…` token made of lowercase letters (optionally followed by `=value`).
+# Also catches short flag clusters containing lowercase `f` (`-f`, `-Af`,
+# `-fA`, `-vf`, etc). Uppercase `-F` / `--FORCE` are excluded — not git-add
+# force flags.
 has_force_flag() {
-  printf '%s\n' "$command" | grep -Eq '(^|[[:space:]])(--force)([[:space:]]|=|$)|(^|[[:space:]])-[a-zA-Z]*f[a-zA-Z]*([[:space:]]|$)'
+  printf '%s\n' "$command" | grep -Eq '(^|[[:space:]])--f[a-z]*([[:space:]]|=|$)|(^|[[:space:]])-[a-zA-Z]*f[a-zA-Z]*([[:space:]]|$)'
 }
 
 # True when the command mentions the superpowers docs path.

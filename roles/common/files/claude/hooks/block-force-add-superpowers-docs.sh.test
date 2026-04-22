@@ -56,6 +56,11 @@ run_empty_case() {
 
 run_block_case "blocks git add -f on superpowers path" 'git add -f docs/superpowers/foo.md'
 run_block_case "blocks git add --force on superpowers path" 'git add --force docs/superpowers/foo.md'
+run_block_case "blocks git add --forc prefix" 'git add --forc docs/superpowers/foo.md'
+run_block_case "blocks git add --for prefix" 'git add --for docs/superpowers/foo.md'
+run_block_case "blocks git add --fo prefix" 'git add --fo docs/superpowers/foo.md'
+run_block_case "blocks git add --f prefix" 'git add --f docs/superpowers/foo.md'
+run_block_case "blocks git add --force= with value" 'git add --force=true docs/superpowers/foo.md'
 run_block_case "blocks combined -Af on superpowers dir" 'git add -Af docs/superpowers/'
 run_block_case "blocks combined -fA on superpowers dir" 'git add -fA docs/superpowers/'
 run_block_case "blocks cd chain with --force" 'cd repo && git add --force docs/superpowers/plan.md'
