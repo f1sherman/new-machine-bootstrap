@@ -108,6 +108,15 @@ setopt PROMPT_SUBST
 PROMPT='%F{cyan}%~%f${_prompt_vi_mode}${_prompt_cmd_time_display}
 %(?.%F{green}.%F{red})❯%f '
 
+# Allow `prompt <theme>` (e.g. `prompt pure`) from ~/.zshrc.local. Prezto's
+# prompt module isn't loaded in full, so wire up promptinit directly and put
+# the bundled pure theme on fpath so both prompt_pure_setup and its async
+# autoload resolve.
+if [[ -d ~/.zprezto/modules/prompt/external/pure ]]; then
+  fpath=(~/.zprezto/modules/prompt/external/pure $fpath)
+fi
+autoload -Uz promptinit && promptinit 2>/dev/null
+
 if [[ -r ~/.zprezto/modules/autosuggestions/external/zsh-autosuggestions.zsh ]]; then
   source ~/.zprezto/modules/autosuggestions/external/zsh-autosuggestions.zsh
 fi
