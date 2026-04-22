@@ -56,6 +56,11 @@ run_empty_case() {
 
 run_block_case "blocks git add -f on superpowers path" 'git add -f docs/superpowers/foo.md'
 run_block_case "blocks git add --force on superpowers path" 'git add --force docs/superpowers/foo.md'
+run_block_case "blocks git add --forc prefix" 'git add --forc docs/superpowers/foo.md'
+run_block_case "blocks git add --for prefix" 'git add --for docs/superpowers/foo.md'
+run_block_case "blocks git add --fo prefix" 'git add --fo docs/superpowers/foo.md'
+run_block_case "blocks git add --f prefix" 'git add --f docs/superpowers/foo.md'
+run_block_case "blocks git add --force= with value" 'git add --force=true docs/superpowers/foo.md'
 run_block_case "blocks combined -Af on superpowers dir" 'git add -Af docs/superpowers/'
 run_block_case "blocks combined -fA on superpowers dir" 'git add -fA docs/superpowers/'
 run_block_case "blocks cd chain with --force" 'cd repo && git add --force docs/superpowers/plan.md'
@@ -70,6 +75,13 @@ run_allow_case "allows uppercase -F on git commit" 'git commit -F docs/superpowe
 run_allow_case "allows text mentioning force command" 'echo git add -f docs/superpowers/foo.md'
 run_allow_case "allows git add -f without a path" 'git add -f'
 run_allow_case "allows plain git status" 'git status --short'
+run_allow_case "allows non-force git add chained with echo --for" 'git add docs/superpowers/foo.md && echo --for'
+run_allow_case "allows non-force git add chained with echo --force" 'git add docs/superpowers/foo.md && echo --force'
+run_allow_case "allows echo --force before non-force git add" 'echo --force && git add docs/superpowers/foo.md'
+run_allow_case "allows force-add of different path chained with superpowers ls" 'git add -f unrelated.md && ls docs/superpowers'
+
+run_block_case "blocks force-add inside subshell" '(git add -f docs/superpowers/foo.md)'
+run_block_case "blocks force-add after unrelated command" 'ls && git add -f docs/superpowers/foo.md'
 
 run_empty_case "allows missing command field" '{}'
 run_empty_case "allows empty command string" '{"tool_input":{"command":""}}'
