@@ -365,6 +365,7 @@
       * JSON/YAML parsing: use `jq` or `yq`, never use python or ruby.
       * Multi-line commands: write script to `/tmp`. Do not ask user to copy/paste over multiple lines.
       * Testing: use Red/Green TDD.
+      * Superpowers specs/plans commit step: check `git check-ignore -q docs/superpowers`. If ignored, skip commit — keep local. Never `git add -f` / `--force` on `docs/superpowers/`.
       * Temp files: prefer `./tmp` if exists, else `/tmp`
       * Verification: end to end verify; confirm empirically.
 
