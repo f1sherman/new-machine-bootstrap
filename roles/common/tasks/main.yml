@@ -365,6 +365,7 @@
       * JSON/YAML parsing: use `jq` or `yq`, never use python or ruby.
       * Multi-line commands: write script to `/tmp`. Do not ask user to copy/paste over multiple lines.
       * Testing: use Red/Green TDD.
+      * Superpowers specs/plans commit step: check `git check-ignore -q docs/superpowers`. If ignored, skip commit — keep local. Never `git add -f` / `--force` on `docs/superpowers/`.
       * Temp files: prefer `./tmp` if exists, else `/tmp`
       * Verification: end to end verify; confirm empirically.
 
@@ -630,6 +631,26 @@
     executable: /bin/bash
   register: block_worktree_hook_result
   changed_when: "'already registered' not in block_worktree_hook_result.stdout"
+
+- name: Register PreToolUse Bash hook for blocking force-add of superpowers docs
+  shell: |
+    SETTINGS='{{ ansible_facts["user_dir"] }}/.claude/settings.json'
+    HOOK_CMD='~/.claude/hooks/block-force-add-superpowers-docs.sh'
+    if [ ! -f "$SETTINGS" ]; then
+      echo '{}' > "$SETTINGS"
+    fi
+    # Skip if this hook is already registered
+    if jq -e '.hooks.PreToolUse // [] | map(select(.hooks[]?.command == "'"$HOOK_CMD"'")) | length > 0' "$SETTINGS" > /dev/null 2>&1; then
+      echo "already registered"
+      exit 0
+    fi
+    HOOK_ENTRY='{"matcher":"Bash","hooks":[{"type":"command","command":"'"$HOOK_CMD"'"}]}'
+    jq --argjson entry "$HOOK_ENTRY" '.hooks //= {} | .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry])' "$SETTINGS" > "${SETTINGS}.tmp" \
+      && mv "${SETTINGS}.tmp" "$SETTINGS"
+  args:
+    executable: /bin/bash
+  register: block_force_add_superpowers_hook_result
+  changed_when: "'already registered' not in block_force_add_superpowers_hook_result.stdout"
 
 - name: Remove old claude-waiting hook registrations
   shell: |
