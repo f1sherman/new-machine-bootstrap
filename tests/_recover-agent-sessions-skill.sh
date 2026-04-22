@@ -62,6 +62,7 @@ pass, fail = assert_contains(COMMON_SKILL, "name: _recover-agent-sessions", "ski
 pass, fail = assert_contains(COMMON_SKILL, "default 24h", "skill documents the default window", pass, fail)
 pass, fail = assert_contains(COMMON_SKILL, "codex-yolo", "skill references codex-yolo", pass, fail)
 pass, fail = assert_contains(COMMON_SKILL, "claude-yolo", "skill references claude-yolo", pass, fail)
+pass, fail = assert_contains(COMMON_SKILL, "grouped YAML-like blocks", "skill documents the grouped human output", pass, fail)
 pass, fail = assert_contains(MAIN_YML, "Install _recover-agent-sessions helper", "Ansible installs the helper", pass, fail)
 pass, fail = assert_contains(MAIN_YML, ".local/bin/_recover-agent-sessions", "Ansible installs into ~/.local/bin", pass, fail)
 pass, fail = assert_contains(MAIN_YML, ".local/bin/_find-agent-sessions", "Ansible removes the old helper install", pass, fail)

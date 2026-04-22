@@ -603,20 +603,31 @@ end
 
 def render_human_output(entries)
   blocks = entries.map do |entry|
-    block = []
-    block << "- tool: #{yaml_scalar(entry.fetch("tool"))}"
-    block << "  session_id: #{yaml_scalar(entry.fetch("session_id"))}"
-    block << "  updated_at: #{yaml_scalar(entry.fetch("updated_at"))}"
-    block << "  repo: #{yaml_scalar(entry.fetch("repo"))}"
-    block << "  worktree: #{yaml_scalar(entry.fetch("worktree"))}" unless entry.fetch("worktree").empty?
-    block << "  cwd: #{yaml_scalar(entry.fetch("cwd"))}"
-    block << "  branch: #{yaml_scalar(entry.fetch("branch"))}" unless entry.fetch("branch").empty?
-    block << "  summary: #{yaml_scalar(entry.fetch("summary"))}"
-    block << "  last_completed: #{yaml_scalar(entry.fetch("last_completed"))}"
-    block << "  next_step: #{yaml_scalar(entry.fetch("next_step"))}"
-    block << "  status: #{yaml_scalar(entry.fetch("status"))}"
-    block << "  resume: #{yaml_scalar(entry.fetch("resume"))}"
-    block.join("\n")
+    session_lines = []
+    session_lines << "- session:"
+    session_lines << "    tool: #{yaml_scalar(entry.fetch("tool"))}"
+    session_lines << "    session_id: #{yaml_scalar(entry.fetch("session_id"))}"
+    session_lines << "    updated_at: #{yaml_scalar(entry.fetch("updated_at"))}"
+
+    location_lines = []
+    location_lines << "  location:"
+    location_lines << "    repo: #{yaml_scalar(entry.fetch("repo"))}"
+    location_lines << "    worktree: #{yaml_scalar(entry.fetch("worktree"))}" unless entry.fetch("worktree").empty?
+    location_lines << "    cwd: #{yaml_scalar(entry.fetch("cwd"))}"
+    location_lines << "    branch: #{yaml_scalar(entry.fetch("branch"))}" unless entry.fetch("branch").empty?
+
+    work_lines = []
+    work_lines << "  work:"
+    work_lines << "    summary: #{yaml_scalar(entry.fetch("summary"))}"
+    work_lines << "    last_completed: #{yaml_scalar(entry.fetch("last_completed"))}"
+    work_lines << "    next_step: #{yaml_scalar(entry.fetch("next_step"))}"
+    work_lines << "    status: #{yaml_scalar(entry.fetch("status"))}"
+
+    resume_lines = []
+    resume_lines << "  resume:"
+    resume_lines << "    command: #{yaml_scalar(entry.fetch("resume"))}"
+
+    [session_lines, location_lines, work_lines, resume_lines].map { |lines| lines.join("\n") }.join("\n\n")
   end
 
   puts blocks.join("\n\n")

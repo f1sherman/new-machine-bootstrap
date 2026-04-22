@@ -22,6 +22,9 @@ _recover-agent-sessions yesterday
 
 Use it as a browsing and triage tool first.
 
+The human-readable output prints grouped YAML-like blocks with `session`,
+`location`, `work`, and `resume` sections so multiple sessions stay readable.
+
 For each result, surface:
 
 1. what the session was working on
