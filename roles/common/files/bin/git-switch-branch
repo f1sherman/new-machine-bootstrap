@@ -4,50 +4,36 @@ set -eu
 current_root="$(git rev-parse --show-toplevel)" || exit 1
 current_branch="$(git branch --show-current 2>/dev/null || true)"
 common_dir="$(git rev-parse --path-format=absolute --git-common-dir)" || exit 1
-worktree_pairs="$(
-  git worktree list --porcelain | awk '
-    /^worktree / { worktree = substr($0, 10) }
-    /^branch refs\/heads\// {
-      branch = substr($0, 19)
-      print branch "\t" worktree
-    }
-  '
-)" || exit 1
-
-branches="$(
-  git for-each-ref \
-    --sort=refname \
-    --format='%(refname:short)' \
-    refs/heads
-)" || exit 1
-
-[ -n "$branches" ] || exit 0
 
 rows="$(
-  printf '%s\n' "$branches" |
-    while IFS= read -r branch; do
-      [ -n "$branch" ] || continue
-
-      marker=' '
-      action='checkout'
-      payload="$branch"
-
-      worktree_path="$(
-        printf '%s\n' "$worktree_pairs" |
-          awk -F '\t' -v branch="$branch" '$1 == branch { print $2; exit }'
-      )"
-
-      if [ "$branch" = "$current_branch" ]; then
-        marker='*'
-      elif [ -n "$worktree_path" ] && [ "$worktree_path" != "$current_root" ]; then
-        marker='+'
-        action='cd'
-        payload="$worktree_path"
-      fi
-
-      printf '%s\t%s\t%s %s\n' "$action" "$payload" "$marker" "$branch"
-    done
+  git for-each-ref \
+    --sort=refname \
+    --format='%(refname:short)%09%(worktreepath)' \
+    refs/heads |
+  awk -F '\t' \
+    -v current_branch="$current_branch" \
+    -v current_root="$current_root" \
+    '
+    {
+      branch = $1
+      worktree_path = $2
+      if (branch == "") next
+      marker = " "
+      action = "checkout"
+      payload = branch
+      if (branch == current_branch) {
+        marker = "*"
+      } else if (worktree_path != "" && worktree_path != current_root) {
+        marker = "+"
+        action = "cd"
+        payload = worktree_path
+      }
+      printf "%s\t%s\t%s %s\n", action, payload, marker, branch
+    }
+    '
 )" || exit 1
+
+[ -n "$rows" ] || exit 0
 
 if selection="$(
   printf '%s\n' "$rows" | fzf +m --delimiter=$'\t' --with-nth=3
