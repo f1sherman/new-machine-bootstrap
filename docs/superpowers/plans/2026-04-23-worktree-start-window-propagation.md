@@ -179,7 +179,7 @@ Expected: all pass.
 
 Focused green results on 2026-04-23: `bash roles/common/files/bin/tmux-agent-worktree.test` passed `16 passed, 0 failed`; `bash roles/common/files/bin/tmux-sync-remote-title.test` passed all 9 assertions; `bash roles/common/files/bin/tmux-window-bar-config.test` passed `42` assertions with `0` failures.
 
-- [ ] **Step 6: Commit the implementation**
+- [x] **Step 6: Commit the implementation**
 
 ```bash
 git add \
@@ -193,6 +193,8 @@ git add \
   roles/common/files/bin/tmux-window-bar-config.test
 git -c commit.gpgsign=false commit -m "Fix tmux worktree label propagation"
 ```
+
+Implementation committed in `0af1f3c` (`Fix tmux worktree label propagation`).
 
 ### Task 3: Verify the broader tmux label surface
 
