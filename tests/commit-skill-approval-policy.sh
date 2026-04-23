@@ -8,7 +8,7 @@ PERMISSIONS_YML="$REPO_ROOT/roles/common/vars/claude_permissions.yml"
 COMMIT_SH="$REPO_ROOT/roles/common/files/config/skills/common/_commit/commit.sh"
 CLAUDE_SKILL="$REPO_ROOT/roles/common/files/config/skills/claude/_commit/SKILL.md"
 CODEX_SKILL="$REPO_ROOT/roles/common/files/config/skills/codex/_commit/SKILL.md"
-COMMITTER_AGENT="$REPO_ROOT/roles/common/templates/dotfiles/claude/agents/p-committer.md"
+COMMITTER_AGENT="$REPO_ROOT/roles/common/templates/dotfiles/claude/agents/_committer.md"
 BLOCK_COMMIT_HOOK="$REPO_ROOT/roles/common/files/claude/hooks/block-git-commit.sh"
 
 pass=0
@@ -102,10 +102,10 @@ assert_commit_invocation_approval "$CODEX_SKILL" "Codex commit skill"
 assert_not_contains "$CODEX_SKILL" "Do not push. Pushing requires separate user approval." "Codex commit skill drops the explicit no-push rule in worker prompt"
 assert_not_contains "$CODEX_SKILL" "If a push fails" "Codex worker instructions drop push failure handling"
 
-assert_contains "$COMMITTER_AGENT" "Do not push. Pushing requires separate user approval." "p-committer forbids pushing"
-assert_not_contains "$COMMITTER_AGENT" "job is to create well-structured git commits and push them" "p-committer drops push responsibility"
-assert_not_contains "$COMMITTER_AGENT" "The script handles staging, committing, and pushing" "p-committer documents commit-only helper"
-assert_not_contains "$COMMITTER_AGENT" "personal:committer" "p-committer drops legacy agent name"
+assert_contains "$COMMITTER_AGENT" "Do not push. Pushing requires separate user approval." "_committer forbids pushing"
+assert_not_contains "$COMMITTER_AGENT" "job is to create well-structured git commits and push them" "_committer drops push responsibility"
+assert_not_contains "$COMMITTER_AGENT" "The script handles staging, committing, and pushing" "_committer documents commit-only helper"
+assert_not_contains "$COMMITTER_AGENT" "personal:committer" "_committer drops legacy agent name"
 
 assert_contains "$BLOCK_COMMIT_HOOK" "Invoke the \`_commit\` skill via the Skill tool instead" "git commit hook points at Claude's skill invocation"
 assert_not_contains "$BLOCK_COMMIT_HOOK" "Use the /personal:commit skill instead" "git commit hook drops slash-syntax guidance"

@@ -41,8 +41,8 @@ Then wait for the user's input.
 2. **Spawn initial research tasks to gather context**:
    Before asking the user any questions, use specialized agents to research in parallel:
 
-   - Use the `p-codebase-locator` agent to find all files related to the ticket/task
-   - Use the `p-codebase-analyzer` agent to understand how the current implementation works
+   - Use the `_codebase-locator` agent to find all files related to the ticket/task
+   - Use the `_codebase-analyzer` agent to understand how the current implementation works
 
    These agents will:
    - Find relevant source files, configs, and tests
@@ -95,9 +95,9 @@ After getting initial clarifications:
    - Use the right agent for each type of research:
 
    **For deeper investigation:**
-   - `p-codebase-locator` - To find more specific files (e.g., "find all files that handle [specific component]")
-   - `p-codebase-analyzer` - To understand implementation details (e.g., "analyze how [system] works")
-   - `p-codebase-pattern-finder` - To find similar features we can model after
+   - `_codebase-locator` - To find more specific files (e.g., "find all files that handle [specific component]")
+   - `_codebase-analyzer` - To understand implementation details (e.g., "analyze how [system] works")
+   - `_codebase-pattern-finder` - To find similar features we can model after
 
    Each agent knows how to:
    - Find the right files and code patterns

@@ -1,6 +1,6 @@
 ---
-name: p-codebase-analyzer
-description: Analyzes codebase implementation details. Call the `p-codebase-analyzer` agent when you need to find detailed information about specific components. As always, the more detailed your request prompt, the better! :)
+name: _codebase-analyzer
+description: Analyzes codebase implementation details. Call the `_codebase-analyzer` agent when you need to find detailed information about specific components. As always, the more detailed your request prompt, the better! :)
 tools: Read, Grep, Glob, LS
 model: sonnet
 ---

@@ -1176,6 +1176,11 @@
     - .claude/agents/personal:codebase-locator.md
     - .claude/agents/personal:codebase-pattern-finder.md
     - .claude/agents/personal:web-search-researcher.md
+    - .claude/agents/p-codebase-analyzer.md
+    - .claude/agents/p-codebase-locator.md
+    - .claude/agents/p-codebase-pattern-finder.md
+    - .claude/agents/p-committer.md
+    - .claude/agents/p-web-search-researcher.md
 
 - name: Remove legacy GSD state
   file:

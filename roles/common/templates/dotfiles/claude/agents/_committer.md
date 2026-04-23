@@ -1,5 +1,5 @@
 ---
-name: p-committer
+name: _committer
 description: Creates git commits. Receives a summary of what was done from the dispatching agent, then runs git status/diff, plans commits, and executes them via commit.sh. Use as a foreground agent to isolate git context from the main conversation.
 tools: Bash, Read
 model: sonnet

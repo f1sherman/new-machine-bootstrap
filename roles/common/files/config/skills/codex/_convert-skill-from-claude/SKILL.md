@@ -114,8 +114,8 @@ When you encounter these Claude patterns, express them in your idiom:
 ```markdown
 # Claude says:
 Spawn parallel sub-tasks:
-- Use `p-codebase-locator` to find files
-- Use `p-codebase-analyzer` to understand code
+- Use `_codebase-locator` to find files
+- Use `_codebase-analyzer` to understand code
 Wait for all to complete, then synthesize.
 
 # You write:
@@ -140,7 +140,7 @@ Research each aspect (use multi_tool_use.parallel for independent searches)
 
 **Claude-only capabilities:**
 - `WebSearch`/`WebFetch`: Note that this requires user assistance or skip
-- `p-web-search-researcher`: Ask user to provide information instead
+- `_web-search-researcher`: Ask user to provide information instead
 
 ### Step 5: Handle Supporting Files
 
@@ -181,9 +181,9 @@ For each additional file in the skill directory:
 **Claude skill says:**
 ```markdown
 Spawn parallel sub-tasks for research:
-- Use `p-codebase-locator` to find WHERE files live
-- Use `p-codebase-analyzer` to understand HOW code works
-- Use `p-codebase-pattern-finder` to find similar patterns
+- Use `_codebase-locator` to find WHERE files live
+- Use `_codebase-analyzer` to understand HOW code works
+- Use `_codebase-pattern-finder` to find similar patterns
 
 Wait for all sub-agents to complete and synthesize findings.
 ```
