@@ -24,6 +24,7 @@
   apt:
     name:
       - bat
+      - bubblewrap
       - curl
       - fd-find
       - gh

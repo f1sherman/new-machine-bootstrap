@@ -88,6 +88,7 @@ run_catalog_checks() {
 
 run_install_checks() {
   assert_contains "$LINUX_INSTALLS" "pinned_release_tag: \"{{ tool_versions.github_releases.fzf }}\"" "linux fzf release install uses catalog pin"
+  assert_contains "$LINUX_INSTALLS" "- bubblewrap" "linux package install includes bubblewrap for Codex sandboxing"
   assert_contains "$LINUX_INSTALLS" "version: \"{{ tool_versions.git_tags.fzf }}\"" "linux fzf shell clone uses catalog tag"
   assert_contains "$LINUX_INSTALLS" "pinned_release_tag: \"{{ tool_versions.github_releases.ripgrep }}\"" "linux ripgrep install uses catalog pin"
   assert_contains "$LINUX_INSTALLS" "pinned_release_tag: \"{{ tool_versions.github_releases.delta }}\"" "linux delta install uses catalog pin"
@@ -176,6 +177,7 @@ run_integration_checks() {
   assert_contains "$INTEGRATION_WORKFLOW" 'user_nvim="$local_bin/nvim"' "integration workflow checks the provisioned neovim binary"
   assert_contains "$INTEGRATION_WORKFLOW" 'user_zoxide="$local_bin/zoxide"' "integration workflow checks the provisioned zoxide binary"
   assert_contains "$INTEGRATION_WORKFLOW" 'user_fzf="$local_bin/fzf"' "integration workflow checks the provisioned fzf binary"
+  assert_contains "$INTEGRATION_WORKFLOW" 'system_bwrap="/usr/bin/bwrap"' "integration workflow checks the provisioned bubblewrap path"
   assert_contains "$INTEGRATION_WORKFLOW" 'system_rg="/usr/bin/rg"' "integration workflow checks the ripgrep package-installed path"
   assert_contains "$INTEGRATION_WORKFLOW" 'system_tmux="/usr/local/bin/tmux"' "integration workflow checks the tmux symlink path"
   assert_contains "$INTEGRATION_WORKFLOW" "Expected versions verified" "integration workflow verifies pinned versions"
