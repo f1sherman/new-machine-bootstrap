@@ -204,7 +204,7 @@ Implementation committed in `0af1f3c` (`Fix tmux worktree label propagation`).
 - Test: `roles/common/files/bin/tmux-remote-title.test`
 - Test: `roles/common/files/bin/worktree-wrapper.test`
 
-- [ ] **Step 1: Run the adjacent regression tests**
+- [x] **Step 1: Run the adjacent regression tests**
 
 Run:
 
@@ -217,7 +217,13 @@ bash roles/common/files/bin/worktree-wrapper.test
 
 Expected: all pass.
 
-- [ ] **Step 2: Run the full focused verification batch**
+Actual results on 2026-04-23:
+- `bash roles/common/files/bin/tmux-pane-label.test` passed (all cases reported `ok`)
+- `bash roles/common/files/bin/tmux-window-label.test` passed (all cases reported `ok`)
+- `bash roles/common/files/bin/tmux-remote-title.test` passed with 5 `PASS` assertions
+- `bash roles/common/files/bin/worktree-wrapper.test` passed with `PASS  worktree wrapper smoke test`
+
+- [x] **Step 2: Run the full focused verification batch**
 
 Run:
 
@@ -233,11 +239,22 @@ bash roles/common/files/bin/worktree-wrapper.test
 
 Expected: exit `0` with all harnesses reporting pass counts and zero failures.
 
-- [ ] **Step 3: Update this plan with actual results and completed checkboxes**
+Actual results on 2026-04-23:
+- Ran the full batch command exactly as written; exit `0`
+- `tmux-agent-worktree.test`: `16 passed, 0 failed`
+- `tmux-sync-remote-title.test`: 9 `PASS` assertions
+- `tmux-window-bar-config.test`: `passed=42 failed=0`
+- `tmux-pane-label.test`: passed (all cases reported `ok`)
+- `tmux-window-label.test`: passed (all cases reported `ok`)
+- `tmux-remote-title.test`: passed with 5 `PASS` assertions
+- `worktree-wrapper.test`: passed with `PASS  worktree wrapper smoke test`
+- Observed non-fatal existing warnings during git-backed cases: `warning: templates not found in /home/brian/.git_template`
+
+- [x] **Step 3: Update this plan with actual results and completed checkboxes**
 
 Record the exact commands run and whether they passed in this file before handing off for PR creation.
 
-- [ ] **Step 4: Commit the plan updates if they changed**
+- [x] **Step 4: Commit the plan updates if they changed**
 
 ```bash
 git add docs/superpowers/plans/2026-04-23-worktree-start-window-propagation.md
