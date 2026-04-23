@@ -67,7 +67,7 @@ run_case \
   $'@7\t1\tssh\t/dev/ttys001\t(feature/foo) repo | claw02\t$1\tmain\tmain window'
 
 assert_contains "$tmux_log" $'display-message -p -t %11 #{window_id}\t#{pane_active}\t#{pane_current_command}\t#{pane_tty}\t#{pane_title}\t#{session_id}\t#{session_name}\t#{window_name}' "active remote pane queries tmux"
-assert_contains "$tmux_log" 'rename-session -t $1 (feature/foo) repo | claw02' "active remote pane renames session"
+assert_not_contains "$tmux_log" 'rename-session' "active remote pane skips session rename"
 assert_contains "$tmux_log" 'rename-window -t @7 (feature/foo) repo | claw02' "active remote pane renames window"
 
 run_case \
