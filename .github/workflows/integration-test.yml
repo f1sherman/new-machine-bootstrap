@@ -32,6 +32,7 @@ jobs:
           user_nvim="$local_bin/nvim"
           user_zoxide="$local_bin/zoxide"
           user_fzf="$local_bin/fzf"
+          system_bwrap="/usr/bin/bwrap"
           system_rg="/usr/bin/rg"
           system_tmux="/usr/local/bin/tmux"
           catalog="vars/tool_versions.yml"
@@ -80,6 +81,7 @@ jobs:
           test "$actual_mise_version" = "$expected_mise"
           test "$actual_global_node" = \
             "$expected_node"
+          test -x "$system_bwrap"
           test "$("$system_rg" --version | awk 'NR==1 {print $2}')" = \
             "$expected_ripgrep"
           test "$("$user_delta" --version | awk 'NR==1 {print $2}')" = \
