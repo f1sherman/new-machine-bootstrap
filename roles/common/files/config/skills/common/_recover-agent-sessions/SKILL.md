@@ -25,6 +25,13 @@ Use it as a browsing and triage tool first.
 The human-readable output prints grouped YAML-like blocks with `session`,
 `location`, `work`, and `resume` sections so multiple sessions stay readable.
 
+When the user invokes this skill by name, return the helper's human-readable
+output verbatim by default.
+
+Do not rewrite it into `Blocked` / `Active` sections, compressed bullet lists,
+or any other alternate format unless the user explicitly asks for a summary or
+reformat.
+
 For each result, surface:
 
 1. what the session was working on
