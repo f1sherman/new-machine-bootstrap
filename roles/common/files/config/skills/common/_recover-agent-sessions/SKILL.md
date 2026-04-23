@@ -22,8 +22,9 @@ _recover-agent-sessions yesterday
 
 Use it as a browsing and triage tool first.
 
-The human-readable output prints grouped YAML-like blocks with `session`,
-`location`, `work`, and `resume` sections so multiple sessions stay readable.
+The human-readable output prints flat YAML-like entries with the most important
+fields first and `---` separators between sessions so multiple results stay
+readable.
 
 When the user invokes this skill by name, return the helper's human-readable
 output verbatim by default.

@@ -1,13 +1,21 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require "digest"
+require "fileutils"
 require "json"
 require "open3"
 require "shellwords"
+require "tempfile"
 require "time"
+require "tmpdir"
 
 USAGE = "Usage: _recover-agent-sessions [24h|4h|2d|today|yesterday] [--json]\n"
 NO_SUMMARY = "recent session activity"
+SUMMARY_CACHE_VERSION = 1
+SUMMARY_CONCURRENCY_CAP = 8
+SUMMARY_OUTPUT_KEYS = %w[summary status last_completed next_step].freeze
+SUMMARY_STATUS_VALUES = %w[active blocked done].freeze
 
 def abort_usage
   warn USAGE
@@ -36,10 +44,19 @@ def parse_args(argv)
 end
 
 def command_exists?(command)
+  if command.to_s.include?(File::SEPARATOR)
+    return File.file?(command) && File.executable?(command)
+  end
+
   ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).any? do |dir|
     path = File.join(dir, command)
     File.file?(path) && File.executable?(path)
   end
+end
+
+def codex_binary
+  candidate = ENV["RECOVER_AGENT_SESSIONS_CODEX_BIN"].to_s
+  candidate.empty? ? "codex" : candidate
 end
 
 def capture_stdout(*command)
@@ -243,8 +260,8 @@ end
 
 def summary_candidates(read_json, preview, tool, file)
   candidates = []
-  candidates << preview.to_s unless preview.to_s.empty?
   candidates.concat(expanded_text_lines(read_json["user_messages"]))
+  candidates << preview.to_s unless preview.to_s.empty?
   candidates.concat(expanded_text_lines(read_json["assistant_messages"]))
   candidates.concat(expanded_text_lines(read_json["shell_commands"]))
   candidates.concat(expanded_text_lines(read_json["bash_commands"]))
@@ -261,6 +278,7 @@ end
 def session_finder_output?(line)
   lower = trim_one_line(line).downcase
   return true if lower.empty?
+  return true if lower == "---"
   return true if lower.include?("likely resume targets:")
   return true if lower.match?(/\A`?(?:\d+[hd]|today|yesterday)`? window\./)
   return true if lower.start_with?("- tool:")
@@ -282,11 +300,14 @@ end
 
 def summary_skip?(line)
   return true if line.empty?
+  return true if line == "---"
   return true if line.start_with?("<")
   return true if line.start_with?("tool:")
 
   lower = line.downcase
   return true if lower == "--- project-doc ---"
+  return true if lower.start_with?("--- name:")
+  return true if lower == "# recover agent sessions"
 
   fixed_patterns = [
     "agents.md instructions",
@@ -307,7 +328,10 @@ def summary_skip?(line)
     "* multi-line commands:",
     "* testing:",
     "* temp files:",
-    "* verification:"
+    "* verification:",
+    "run `_recover-agent-sessions` with the user-provided duration",
+    "the human-readable output prints flat yaml-like entries",
+    "when the user invokes this skill by name"
   ]
 
   return true if fixed_patterns.any? { |pattern| lower.include?(pattern) }
@@ -334,13 +358,41 @@ def weak_summary?(line)
   ].include?(lower)
 end
 
+def normalize_summary_candidate(candidate)
+  cleaned = trim_one_line(candidate)
+  return nil if cleaned.empty?
+  return nil if summary_skip?(cleaned)
+
+  lower = cleaned.downcase
+  return nil if lower == "prompt received. ready."
+  return nil if lower == "test prompt"
+
+  if cleaned.match?(/\AUsing `?brainstorming`?\.\s*/i)
+    cleaned = cleaned.sub(/\AUsing `?brainstorming`?\.\s*/i, "")
+  end
+
+  if cleaned.match?(/\ARunning `?_(?:find|recover)-agent-sessions`?\b/i)
+    return "triage recent sessions"
+  end
+
+  cleaned = cleaned.sub(/\AFirst pass:\s*/i, "")
+  cleaned = cleaned.sub(/\ANext:\s*/i, "")
+  cleaned = cleaned.sub(/[;,]?\s*then\.\.\.\z/i, "")
+  cleaned = cleaned.sub(/\.\.\.\z/, "")
+
+  return "code review session" if cleaned.match?(/\AReview the code changes against the base branch\b/i)
+  return "spec compliance review" if cleaned.match?(/\ASpec compliance review only\b/i)
+  return "code quality review" if cleaned.match?(/\ACode quality review only\b/i)
+
+  trim_one_line(cleaned)
+end
+
 def build_summary(read_json, preview, tool, file)
   fallback = nil
 
   summary_candidates(read_json, preview, tool, file).each do |candidate|
-    cleaned = trim_one_line(candidate)
-    next if cleaned.empty?
-    next if summary_skip?(cleaned)
+    cleaned = normalize_summary_candidate(candidate)
+    next if cleaned.nil? || cleaned.empty?
 
     if weak_summary?(cleaned)
       fallback ||= cleaned
@@ -360,6 +412,28 @@ def recent_signal_lines(read_json, tool, file)
   lines.concat(expanded_text_lines(read_json["bash_commands"]))
   lines.concat(recent_lines_for_tool(tool, file))
   lines.reject { |line| summary_skip?(trim_one_line(line)) }
+end
+
+def review_blocked_signal?(line)
+  [
+    "waiting for review",
+    "waiting on review",
+    "please review",
+    "awaiting review",
+    "waiting for merge",
+    "waiting on merge",
+    "needs review"
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def manual_blocked_signal?(line)
+  [
+    "requires manual",
+    "manual step",
+    "waiting for credentials",
+    "missing credential",
+    "needs credential"
+  ].any? { |pattern| line.include?(pattern) }
 end
 
 def cleanup_signal?(line)
@@ -396,21 +470,9 @@ def pr_created_signal?(line)
 end
 
 def blocked_signal?(line)
-  [
-    "waiting for review",
-    "waiting on review",
-    "please review",
-    "awaiting review",
-    "waiting for merge",
-    "waiting on merge",
-    "needs review",
-    "blocked on",
-    "requires manual",
-    "manual step",
-    "waiting for credentials",
-    "missing credential",
-    "needs credential"
-  ].any? { |pattern| line.include?(pattern) }
+  review_blocked_signal?(line) ||
+    manual_blocked_signal?(line) ||
+    line.include?("blocked on")
 end
 
 def verification_signal?(line)
@@ -467,12 +529,12 @@ def code_update_signal?(line)
   ].any? { |pattern| line.include?(pattern) }
 end
 
-def infer_last_completed(read_json, tool, file)
+def infer_last_completed(status, read_json, tool, file)
   recent_signal_lines(read_json, tool, file).reverse_each do |line|
     lower = line.to_s.downcase
     next if lower.empty?
 
-    return "cleaned up branch/worktree" if cleanup_signal?(lower)
+    return "cleaned up branch/worktree" if status == "done" && cleanup_signal?(lower)
     return "merged the pull request" if merge_signal?(lower)
     return "opened a pull request" if pr_created_signal?(lower)
     return "ran verification" if verification_signal?(lower)
@@ -512,7 +574,20 @@ end
 
 def infer_next_step(status, read_json, tool, file, last_completed)
   return "none; session appears complete" if status == "done"
-  return "review and merge the pull request" if status == "blocked"
+
+  if status == "blocked"
+    recent_signal_lines(read_json, tool, file).reverse_each do |line|
+      lower = line.to_s.downcase
+      next if lower.empty?
+
+      return "review and merge the pull request" if review_blocked_signal?(lower) || pr_created_signal?(lower)
+      return "complete the required manual step" if manual_blocked_signal?(lower)
+      return "resolve the blocking dependency" if lower.include?("blocked on")
+    end
+
+    return "review and merge the pull request" if last_completed == "opened a pull request"
+    return "wait for the blocking dependency"
+  end
 
   recent_signal_lines(read_json, tool, file).reverse_each do |line|
     lower = line.to_s.downcase
@@ -556,6 +631,251 @@ def build_resume_command(tool, cwd, session_id)
   end
 end
 
+def summary_cache_root
+  base = ENV["XDG_CACHE_HOME"].to_s
+  base = File.join(Dir.home, ".cache") if base.empty?
+  File.join(base, "_recover-agent-sessions")
+end
+
+def summary_schema_path
+  FileUtils.mkdir_p(summary_cache_root)
+  path = File.join(summary_cache_root, "summary-schema-v#{SUMMARY_CACHE_VERSION}.json")
+  return path if File.file?(path)
+
+  schema = {
+    "type" => "object",
+    "additionalProperties" => false,
+    "properties" => {
+      "summary" => { "type" => "string" },
+      "status" => { "type" => "string", "enum" => SUMMARY_STATUS_VALUES },
+      "last_completed" => { "type" => "string" },
+      "next_step" => { "type" => "string" }
+    },
+    "required" => SUMMARY_OUTPUT_KEYS
+  }
+  File.write(path, JSON.pretty_generate(schema))
+  path
+end
+
+def summary_cache_path(entry)
+  digest = Digest::SHA256.hexdigest([
+    SUMMARY_CACHE_VERSION,
+    entry.fetch("tool"),
+    entry.fetch("session_id"),
+    entry.fetch("file"),
+    entry.fetch("updated_epoch").to_s
+  ].join("\0"))
+  File.join(summary_cache_root, "#{digest}.json")
+end
+
+def summary_payload_valid?(payload)
+  return false unless payload.is_a?(Hash)
+  return false unless SUMMARY_OUTPUT_KEYS.all? { |key| payload[key].is_a?(String) && !payload[key].strip.empty? }
+
+  SUMMARY_STATUS_VALUES.include?(payload["status"])
+end
+
+def normalize_summary_payload(payload)
+  return nil unless summary_payload_valid?(payload)
+
+  {
+    "summary" => truncate_text(trim_one_line(payload.fetch("summary"))),
+    "status" => trim_one_line(payload.fetch("status")),
+    "last_completed" => truncate_text(trim_one_line(payload.fetch("last_completed"))),
+    "next_step" => truncate_text(trim_one_line(payload.fetch("next_step")))
+  }
+end
+
+def load_cached_summary(entry)
+  path = summary_cache_path(entry)
+  return nil unless File.file?(path)
+
+  normalize_summary_payload(parse_json(File.read(path), nil))
+rescue Errno::ENOENT
+  nil
+end
+
+def write_cached_summary(entry, payload)
+  normalized = normalize_summary_payload(payload)
+  return nil unless normalized
+
+  FileUtils.mkdir_p(summary_cache_root)
+  path = summary_cache_path(entry)
+  tmp_path = "#{path}.tmp-#{Process.pid}-#{Thread.current.object_id}"
+  File.write(tmp_path, JSON.generate(normalized))
+  File.rename(tmp_path, path)
+  normalized
+ensure
+  File.delete(tmp_path) if defined?(tmp_path) && tmp_path && File.exist?(tmp_path)
+end
+
+def meaningful_prompt_lines(values)
+  Array(values).flat_map { |value| value.to_s.split(/\r?\n/) }
+    .map { |line| normalize_summary_candidate(line) }
+    .compact
+    .reject { |line| weak_summary?(line) }
+    .map { |line| truncate_text(line, 200) }
+end
+
+def prompt_tail_lines(read_json, tool, file)
+  recent_signal_lines(read_json, tool, file)
+    .map { |line| trim_one_line(line) }
+    .reject(&:empty?)
+    .last(40)
+    .map { |line| truncate_text(line, 200) }
+end
+
+def build_model_prompt(entry)
+  read_json = entry.fetch("_read_json")
+  file = entry.fetch("file")
+  tool = entry.fetch("tool")
+
+  initial_goal_lines = meaningful_prompt_lines([entry.fetch("_preview")] + Array(read_json["user_messages"])).first(8)
+  recent_tail = prompt_tail_lines(read_json, tool, file)
+  assistant_updates = meaningful_prompt_lines(read_json["assistant_messages"]).last(12)
+  commands = expanded_text_lines(read_json["shell_commands"]) +
+    expanded_text_lines(read_json["bash_commands"])
+  commands = commands.map { |line| truncate_text(trim_one_line(line), 200) }.reject(&:empty?).last(20)
+
+  sections = []
+  sections << "Summarize this coding-agent session for restart recovery."
+  sections << "Do not run commands or use tools. Use only the provided session data."
+  sections << "Return JSON matching the schema."
+  sections << "Rules:"
+  sections << "- summarize the actual work, not workflow narration"
+  sections << "- ignore AGENTS, SKILL docs, frontmatter, boilerplate, and session-finder output"
+  sections << "- prefer short concrete phrases"
+  sections << "- status is done only if a PR was created, merged, and branch/worktree cleanup happened"
+  sections << "- status is blocked if waiting on review, manual work, credentials, or another dependency"
+  sections << "- otherwise status is active"
+  sections << "- last_completed and next_step must be logically consistent"
+  sections << "- if cleanup happened before merge, do not report cleanup as last_completed"
+  sections << ""
+  sections << "Session metadata:"
+  sections << "session_id: #{entry.fetch("session_id")}"
+  sections << "tool: #{tool}"
+  sections << "repo: #{entry.fetch("repo")}"
+  sections << "worktree: #{entry.fetch("worktree")}" unless entry.fetch("worktree").empty?
+  sections << "branch: #{entry.fetch("branch")}" unless entry.fetch("branch").empty?
+  sections << "updated_at: #{entry.fetch("updated_at")}"
+  sections << ""
+  sections << "Initial goal lines:"
+  sections.concat(initial_goal_lines.empty? ? ["- none"] : initial_goal_lines.map { |line| "- #{line}" })
+  sections << ""
+  sections << "Recent assistant updates:"
+  sections.concat(assistant_updates.empty? ? ["- none"] : assistant_updates.map { |line| "- #{line}" })
+  sections << ""
+  sections << "Recent commands:"
+  sections.concat(commands.empty? ? ["- none"] : commands.map { |line| "- #{line}" })
+  sections << ""
+  sections << "Recent transcript tail:"
+  sections.concat(recent_tail.empty? ? ["- none"] : recent_tail.map { |line| "- #{line}" })
+  sections.join("\n")
+end
+
+def summarize_with_codex(entry)
+  binary = codex_binary
+  return nil unless command_exists?(binary)
+
+  prompt = build_model_prompt(entry)
+  schema_path = summary_schema_path
+
+  Tempfile.create(["recover-agent-sessions", ".json"]) do |output_file|
+    command = [
+      binary, "exec",
+      "--ephemeral",
+      "--sandbox", "read-only",
+      "--skip-git-repo-check",
+      "--ignore-rules",
+      "-C", Dir.tmpdir,
+      "--output-schema", schema_path,
+      "-o", output_file.path,
+      "-"
+    ]
+    _stdout, _stderr, status = Open3.capture3(*command, stdin_data: prompt)
+    return nil unless status.success?
+
+    normalize_summary_payload(parse_json(File.read(output_file.path), nil))
+  end
+rescue Errno::ENOENT
+  nil
+end
+
+def heuristic_summary_payload(entry)
+  read_json = entry.fetch("_read_json")
+  tool = entry.fetch("tool")
+  file = entry.fetch("file")
+  preview = entry.fetch("_preview")
+
+  status = infer_status(read_json, tool, file)
+  last_completed = infer_last_completed(status, read_json, tool, file)
+
+  {
+    "summary" => build_summary(read_json, preview, tool, file),
+    "status" => status,
+    "last_completed" => last_completed,
+    "next_step" => infer_next_step(status, read_json, tool, file, last_completed)
+  }
+end
+
+def merge_summary_payload!(entry, payload)
+  normalized = normalize_summary_payload(payload)
+  return false unless normalized
+
+  SUMMARY_OUTPUT_KEYS.each do |key|
+    entry[key] = normalized.fetch(key)
+  end
+  true
+end
+
+def hydrate_summaries(entries)
+  pending = Queue.new
+
+  entries.each do |entry|
+    cached = load_cached_summary(entry)
+    if cached
+      merge_summary_payload!(entry, cached)
+    else
+      pending << entry
+    end
+  end
+
+  worker_count = [SUMMARY_CONCURRENCY_CAP, pending.size].min
+
+  threads = Array.new(worker_count) do
+    Thread.new do
+      loop do
+        entry = pending.pop(true)
+        payload = summarize_with_codex(entry)
+        if payload
+          merge_summary_payload!(entry, payload)
+          write_cached_summary(entry, payload)
+        else
+          merge_summary_payload!(entry, heuristic_summary_payload(entry))
+        end
+      rescue ThreadError
+        break
+      rescue StandardError => e
+        warn "recover-agent-sessions summary error: #{e.class}: #{e.message}" if ENV["RECOVER_AGENT_SESSIONS_DEBUG"] == "1"
+        merge_summary_payload!(entry, heuristic_summary_payload(entry)) if defined?(entry) && entry
+      end
+    end
+  end
+  threads.each(&:join)
+
+  entries.each do |entry|
+    next if SUMMARY_OUTPUT_KEYS.all? { |key| entry[key].is_a?(String) && !entry[key].empty? }
+
+    merge_summary_payload!(entry, heuristic_summary_payload(entry))
+  end
+
+  entries
+end
+
+def public_entry(entry)
+  entry.reject { |key, _value| key.start_with?("_") || key == "file" }
+end
+
 def build_session_hash(tool, read_command, entry, start_epoch, end_epoch)
   file = entry["file"].to_s
   return nil if file.empty? || !File.file?(file)
@@ -576,11 +896,6 @@ def build_session_hash(tool, read_command, entry, start_epoch, end_epoch)
 
   git_branch = entry_branch(entry)
   git_branch = read_branch(read_json) if git_branch.empty?
-
-  summary = build_summary(read_json, entry["preview"], tool, file)
-  last_completed = infer_last_completed(read_json, tool, file)
-  status = infer_status(read_json, tool, file)
-  next_step = infer_next_step(status, read_json, tool, file, last_completed)
   repo, worktree = repo_and_worktree_from_cwd(cwd)
 
   {
@@ -592,45 +907,29 @@ def build_session_hash(tool, read_command, entry, start_epoch, end_epoch)
     "repo" => repo,
     "worktree" => worktree,
     "branch" => git_branch,
-    "summary" => summary,
-    "last_completed" => last_completed,
-    "next_step" => next_step,
-    "status" => status,
     "resume" => build_resume_command(tool, cwd, session_id),
-    "file" => file
+    "file" => file,
+    "_preview" => entry["preview"].to_s,
+    "_read_json" => read_json
   }
 end
 
 def render_human_output(entries)
   blocks = entries.map do |entry|
-    session_lines = []
-    session_lines << "- session:"
-    session_lines << "    tool: #{yaml_scalar(entry.fetch("tool"))}"
-    session_lines << "    session_id: #{yaml_scalar(entry.fetch("session_id"))}"
-    session_lines << "    updated_at: #{yaml_scalar(entry.fetch("updated_at"))}"
-
-    location_lines = []
-    location_lines << "  location:"
-    location_lines << "    repo: #{yaml_scalar(entry.fetch("repo"))}"
-    location_lines << "    worktree: #{yaml_scalar(entry.fetch("worktree"))}" unless entry.fetch("worktree").empty?
-    location_lines << "    cwd: #{yaml_scalar(entry.fetch("cwd"))}"
-    location_lines << "    branch: #{yaml_scalar(entry.fetch("branch"))}" unless entry.fetch("branch").empty?
-
-    work_lines = []
-    work_lines << "  work:"
-    work_lines << "    summary: #{yaml_scalar(entry.fetch("summary"))}"
-    work_lines << "    last_completed: #{yaml_scalar(entry.fetch("last_completed"))}"
-    work_lines << "    next_step: #{yaml_scalar(entry.fetch("next_step"))}"
-    work_lines << "    status: #{yaml_scalar(entry.fetch("status"))}"
-
-    resume_lines = []
-    resume_lines << "  resume:"
-    resume_lines << "    command: #{yaml_scalar(entry.fetch("resume"))}"
-
-    [session_lines, location_lines, work_lines, resume_lines].map { |lines| lines.join("\n") }.join("\n\n")
+    lines = []
+    lines << "summary: #{yaml_scalar(entry.fetch("summary"))}"
+    lines << "status: #{yaml_scalar(entry.fetch("status"))}"
+    lines << "repo: #{yaml_scalar(entry.fetch("repo"))}"
+    lines << "worktree: #{yaml_scalar(entry.fetch("worktree"))}" unless entry.fetch("worktree").empty?
+    lines << "branch: #{yaml_scalar(entry.fetch("branch"))}" unless entry.fetch("branch").empty?
+    lines << "last_completed: #{yaml_scalar(entry.fetch("last_completed"))}"
+    lines << "next_step: #{yaml_scalar(entry.fetch("next_step"))}"
+    lines << "updated_at: #{yaml_scalar(entry.fetch("updated_at"))}"
+    lines << "resume: #{yaml_scalar(entry.fetch("resume"))}"
+    lines.join("\n")
   end
 
-  puts blocks.join("\n\n")
+  puts blocks.join("\n---\n")
 end
 
 window, json_output = parse_args(ARGV.dup)
@@ -653,6 +952,7 @@ list_sessions("list-claude-sessions", days).each do |entry|
 end
 
 entries.sort_by! { |entry| -entry.fetch("updated_epoch") }
+hydrate_summaries(entries)
 
 if entries.empty?
   if json_output
@@ -664,7 +964,7 @@ if entries.empty?
 end
 
 if json_output
-  puts JSON.pretty_generate(entries)
+  puts JSON.pretty_generate(entries.map { |entry| public_entry(entry) })
 else
   render_human_output(entries)
 end

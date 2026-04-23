@@ -46,17 +46,37 @@ end
 def assert_before(first, second, file, label)
   first_line = nil
   second_line = nil
+  contents = File.read(file)
 
-  File.readlines(file, chomp: true).each_with_index do |line, index|
+  contents.lines(chomp: true).each_with_index do |line, index|
     first_line ||= index if line.include?(first)
     second_line ||= index if line.include?(second)
   end
 
-  fail_case("#{label}: missing first marker") if first_line.nil?
-  fail_case("#{label}: missing second marker") if second_line.nil?
+  if first_line.nil?
+    warn contents
+    fail_case("#{label}: missing first marker")
+  end
+  if second_line.nil?
+    warn contents
+    fail_case("#{label}: missing second marker")
+  end
   fail_case("#{label}: order incorrect") unless first_line < second_line
 
   pass_case(label)
+end
+
+def assert_occurrences(needle, expected_count, file, label)
+  contents = File.read(file)
+  actual_count = contents.scan(/^#{Regexp.escape(needle)}$/).length
+  if actual_count == expected_count
+    pass_case(label)
+  else
+    warn "FAIL  #{label}"
+    warn "expected #{expected_count} occurrence(s) of #{needle.inspect} in #{file}, got #{actual_count}"
+    warn contents
+    exit 1
+  end
 end
 
 def write_file(path, contents, mode: nil)
@@ -84,6 +104,8 @@ end
 Dir.mktmpdir do |tmproot|
   home = File.join(tmproot, "home")
   bin = File.join(tmproot, "bin")
+  codex_stub_name = "recover-agent-sessions-codex-stub"
+  codex_stub = File.join(bin, codex_stub_name)
   FileUtils.mkdir_p(File.join(home, ".claude/projects/test-project"))
   FileUtils.mkdir_p(File.join(home, ".codex/sessions/2026/04/21"))
   FileUtils.mkdir_p(bin)
@@ -125,12 +147,21 @@ Dir.mktmpdir do |tmproot|
   JSONL
   touch_offset.call(codex_done, -7200)
 
+  codex_skill_doc = File.join(home, ".codex/sessions/2026/04/21/codex-skill-doc.jsonl")
+  write_file(codex_skill_doc, <<~JSONL)
+    {"timestamp":"#{iso_offset.call(-5200)}","type":"session_meta","payload":{"id":"codex-skill-doc","timestamp":"#{iso_offset.call(-5200)}","cwd":"/tmp/projects/codex-skill-doc","git":{"branch":"feature/codex-skill-doc"}}}
+    {"timestamp":"#{iso_offset.call(-5150)}","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"--- name: _recover-agent-sessions description: > Find recent Claude and Codex sessions updated in a relative duration window."}]}}
+    {"timestamp":"#{iso_offset.call(-5100)}","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"fix _recover-agent-sessions skill output"}]}}
+  JSONL
+  touch_offset.call(codex_skill_doc, -5200)
+
   claude_blocked = File.join(home, ".claude/projects/test-project/claude-blocked.jsonl")
   write_file(claude_blocked, <<~JSONL)
     {"type":"user","message":{"role":"user","content":"wrap up the PR handoff"},"timestamp":"#{iso_offset.call(-1900)}","cwd":"/tmp/projects/claude-blocked","sessionId":"claude-blocked","version":"2.0.0","gitBranch":"feature/claude-blocked"}
     {"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"PR #42 opened. Waiting for review before merge."}]},"timestamp":"#{iso_offset.call(-1800)}","cwd":"/tmp/projects/claude-blocked","sessionId":"claude-blocked","version":"2.0.0","gitBranch":"feature/claude-blocked"}
+    {"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"tmux-agent-worktree clear"}]},"timestamp":"#{iso_offset.call(-1700)}","cwd":"/tmp/projects/claude-blocked","sessionId":"claude-blocked","version":"2.0.0","gitBranch":"feature/claude-blocked"}
   JSONL
-  touch_offset.call(claude_blocked, -1800)
+  touch_offset.call(claude_blocked, -1700)
 
   claude_yesterday = File.join(home, ".claude/projects/test-project/claude-yesterday.jsonl")
   write_file(claude_yesterday, <<~JSONL)
@@ -149,9 +180,7 @@ Dir.mktmpdir do |tmproot|
 
   write_file(
     File.join(bin, "list-codex-sessions"),
-    bash_stub(<<~BASH),
-      mode: 0o755
-    )
+    bash_stub(<<~BASH), mode: 0o755
       cat <<'JSON'
       #{JSON.pretty_generate([
         {
@@ -169,8 +198,17 @@ Dir.mktmpdir do |tmproot|
           cwd: "/tmp/projects/codex-done",
           git: { branch: "feature/codex-done" },
           file: codex_done,
-          preview: "finish the PR workflow",
+          preview: "Using brainstorming. First pass: finish the PR workflow; then...",
           index: 2
+        },
+        {
+          id: "codex-skill-doc",
+          timestamp: iso_offset.call(-5200),
+          cwd: "/tmp/projects/codex-skill-doc",
+          git: { branch: "feature/codex-skill-doc" },
+          file: codex_skill_doc,
+          preview: "continue",
+          index: 3
         },
         {
           id: "codex-old",
@@ -179,7 +217,7 @@ Dir.mktmpdir do |tmproot|
           git: { branch: "feature/codex-old" },
           file: codex_old,
           preview: "stale session",
-          index: 3
+          index: 4
         }
       ])}
       JSON
@@ -188,9 +226,7 @@ Dir.mktmpdir do |tmproot|
 
   write_file(
     File.join(bin, "list-claude-sessions"),
-    bash_stub(<<~BASH),
-      mode: 0o755
-    )
+    bash_stub(<<~BASH), mode: 0o755
       cat <<'JSON'
       #{JSON.pretty_generate([
         {
@@ -218,9 +254,7 @@ Dir.mktmpdir do |tmproot|
 
   write_file(
     File.join(bin, "read-codex-session"),
-    bash_stub(<<~BASH),
-      mode: 0o755
-    )
+    bash_stub(<<~BASH), mode: 0o755
       file="$1"
       case "$file" in
         #{Shellwords.escape(codex_active)})
@@ -264,6 +298,21 @@ Dir.mktmpdir do |tmproot|
           )}
           JSON
           ;;
+        #{Shellwords.escape(codex_skill_doc)})
+          cat <<'JSON'
+          #{JSON.generate(
+            session_id: "codex-skill-doc",
+            cwd: "/tmp/projects/codex-skill-doc",
+            timestamp: iso_offset.call(-5200),
+            git_branch: "feature/codex-skill-doc",
+            git_commit: "deadbeef",
+            user_messages: ["--- name: _recover-agent-sessions description: > Find recent Claude and Codex sessions updated in a relative duration window."],
+            assistant_messages: ["fix _recover-agent-sessions skill output"],
+            shell_commands: [],
+            file_operations: []
+          )}
+          JSON
+          ;;
         #{Shellwords.escape(codex_old)})
           cat <<'JSON'
           #{JSON.generate(
@@ -288,9 +337,7 @@ Dir.mktmpdir do |tmproot|
 
   write_file(
     File.join(bin, "read-claude-session"),
-    bash_stub(<<~BASH),
-      mode: 0o755
-    )
+    bash_stub(<<~BASH), mode: 0o755
       file="$1"
       case "$file" in
         #{Shellwords.escape(claude_blocked)})
@@ -332,45 +379,156 @@ Dir.mktmpdir do |tmproot|
     BASH
   )
 
+  write_file(
+    codex_stub,
+    bash_stub(<<~'BASH'), mode: 0o755
+      output_file=""
+      schema_file=""
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          -o)
+            output_file="$2"
+            shift 2
+            ;;
+          --output-schema)
+            schema_file="$2"
+            shift 2
+            ;;
+          *)
+            shift
+            ;;
+        esac
+      done
+
+      [[ -n "$output_file" ]] || exit 1
+      [[ -n "$schema_file" ]] || exit 1
+      [[ -f "$schema_file" ]] || exit 1
+
+      prompt="$(cat)"
+      session_id="$(printf '%s\n' "$prompt" | sed -n 's/^session_id: //p' | head -n1)"
+      [[ -n "$session_id" ]] || exit 1
+
+      if [[ -n "${CODEX_STUB_CALLS_FILE:-}" ]]; then
+        printf '%s\n' "$session_id" >> "$CODEX_STUB_CALLS_FILE"
+      fi
+
+      case "$session_id" in
+        codex-active)
+          payload='{"summary":"model: fix the session summary helper","status":"active","last_completed":"ran verification","next_step":"open a pull request"}'
+          ;;
+        codex-done)
+          payload='{"summary":"model: finish the PR workflow","status":"done","last_completed":"cleaned up branch/worktree","next_step":"none; session appears complete"}'
+          ;;
+        codex-skill-doc)
+          payload='{"summary":"model: fix _recover-agent-sessions skill output","status":"active","last_completed":"captured recent session progress","next_step":"continue the next pending change"}'
+          ;;
+        claude-blocked)
+          payload='{"summary":"model: wrap up the PR handoff","status":"blocked","last_completed":"opened a pull request","next_step":"review and merge the pull request"}'
+          ;;
+        claude-yesterday)
+          payload='{"summary":"model: yesterday dashboard cleanup","status":"active","last_completed":"wrote the implementation plan","next_step":"implement the plan"}'
+          ;;
+        *)
+          exit 1
+          ;;
+      esac
+
+      printf '%s' "$payload" > "$output_file"
+      printf '%s\n' "$payload"
+    BASH
+  )
+
   fail_case("missing helper under test: #{SCRIPT}") unless File.executable?(SCRIPT)
 
-  env = { "PATH" => "#{bin}:#{ENV.fetch('PATH', '')}", "HOME" => home }
+  codex_calls = File.join(tmproot, "codex-calls.log")
+  cache_home = File.join(tmproot, "cache")
+  env = {
+    "PATH" => "#{bin}:#{ENV.fetch('PATH', '')}",
+    "HOME" => home,
+    "XDG_CACHE_HOME" => cache_home,
+    "CODEX_STUB_CALLS_FILE" => codex_calls,
+    "RECOVER_AGENT_SESSIONS_CODEX_BIN" => codex_stub_name,
+    "RECOVER_AGENT_SESSIONS_DEBUG" => "1"
+  }
+
+  schema_probe = File.join(tmproot, "schema-probe.json")
+  output_probe = File.join(tmproot, "output-probe.json")
+  File.write(schema_probe, JSON.generate(
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      summary: { type: "string" },
+      status: { type: "string" },
+      last_completed: { type: "string" },
+      next_step: { type: "string" }
+    },
+    required: %w[summary status last_completed next_step]
+  ))
+  probe_env = env.merge("CODEX_STUB_CALLS_FILE" => "")
+  probe_stdout, probe_stderr, probe_status = Open3.capture3(
+    probe_env,
+    "bash", codex_stub, "exec", "--output-schema", schema_probe, "-o", output_probe, "-",
+    stdin_data: "session_id: codex-active\n"
+  )
+  warn probe_stdout unless probe_stdout.empty?
+  warn probe_stderr unless probe_stderr.empty?
+  fail_case("codex stub probe failed") unless probe_status.success?
+  fail_case("codex stub probe missing output file") unless File.file?(output_probe)
+  pass_case("codex stub probe writes output file")
 
   default_stdout = File.join(tmproot, "default.stdout")
   File.write(default_stdout, capture!(env, SCRIPT))
 
-  assert_before("session_id: claude-blocked", "session_id: codex-active", default_stdout, "newest blocked session sorts before active")
-  assert_before("session_id: codex-active", "session_id: codex-done", default_stdout, "active session sorts before older done session")
-  assert_contains("- session:", default_stdout, "yaml-like output uses grouped list items")
-  assert_contains("    tool: Claude", default_stdout, "session section renders tool")
-  assert_contains("  location:", default_stdout, "location section rendered")
-  assert_contains("  work:", default_stdout, "work section rendered")
-  assert_contains("    status: blocked", default_stdout, "blocked status rendered")
-  assert_contains("    status: active", default_stdout, "active status rendered")
-  assert_contains("    status: done", default_stdout, "done status rendered")
-  assert_contains("    summary: 'fix the session summary helper'", default_stdout, "summary skips AGENTS boilerplate")
-  assert_contains("    summary: 'wrap up the PR handoff'", default_stdout, "summary skips generic continue preview")
-  assert_not_contains("summary: '# AGENTS.md instructions", default_stdout, "AGENTS boilerplate omitted from summary")
-  assert_not_contains("summary: 'User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min tokens.'", default_stdout, "AGENTS profile boilerplate omitted from summary")
-  assert_not_contains("summary: '* Workspace: ~/projects/'", default_stdout, "AGENTS workspace boilerplate omitted from summary")
-  assert_not_contains("summary: '--- project-doc ---'", default_stdout, "project-doc boilerplate omitted from summary")
-  assert_not_contains("summary: '<cwd>/tmp/projects/codex-active</cwd>'", default_stdout, "XML metadata boilerplate omitted from summary")
-  assert_not_contains("summary: '# Test Project'", default_stdout, "markdown heading downgraded from summary")
-  assert_not_contains("summary: 'Using using-superpowers; start-of-session requirement.'", default_stdout, "using-superpowers boilerplate omitted from summary")
-  assert_contains("    last_completed: 'opened a pull request'", default_stdout, "blocked session last completed step")
-  assert_contains("    last_completed: 'ran verification'", default_stdout, "active session last completed step")
-  assert_contains("    last_completed: 'cleaned up branch/worktree'", default_stdout, "done session last completed step")
-  assert_contains("    next_step: 'review and merge the pull request'", default_stdout, "blocked next step")
-  assert_contains("    next_step: 'open a pull request'", default_stdout, "active next step")
-  assert_contains("    next_step: 'none; session appears complete'", default_stdout, "done next step")
-  assert_contains("  resume:", default_stdout, "resume section rendered")
-  assert_contains(%q{    command: 'cd "/tmp/projects/claude-blocked" && claude-yolo -r claude-blocked'}, default_stdout, "claude resume command")
-  assert_contains(%q{    command: 'cd "/tmp/projects/codex-active" && codex-yolo resume codex-active'}, default_stdout, "codex resume command")
+  assert_before("summary: 'model: wrap up the PR handoff'", "summary: 'model: fix the session summary helper'", default_stdout, "newest blocked session sorts before active")
+  assert_before("summary: 'model: fix the session summary helper'", "summary: 'model: fix _recover-agent-sessions skill output'", default_stdout, "active session sorts before older active session")
+  assert_before("summary: 'model: fix _recover-agent-sessions skill output'", "summary: 'model: finish the PR workflow'", default_stdout, "older done session sorts last among recent sessions")
+  assert_contains("---", default_stdout, "entries separated by divider lines")
+  assert_contains("summary: 'model: fix the session summary helper'", default_stdout, "model summary used for codex active session")
+  assert_contains("summary: 'model: wrap up the PR handoff'", default_stdout, "model summary used for claude blocked session")
+  assert_contains("summary: 'model: finish the PR workflow'", default_stdout, "model summary used for done session")
+  assert_contains("summary: 'model: fix _recover-agent-sessions skill output'", default_stdout, "model summary used for skill-doc session")
+  assert_before("summary: 'model: wrap up the PR handoff'", "status: blocked", default_stdout, "summary appears before status")
+  assert_before("status: blocked", "repo: claude-blocked", default_stdout, "status appears before repo")
+  assert_before("repo: claude-blocked", "last_completed: 'opened a pull request'", default_stdout, "repo appears before last completed")
+  assert_before("last_completed: 'opened a pull request'", "next_step: 'review and merge the pull request'", default_stdout, "last completed appears before next step")
+  assert_contains("status: blocked", default_stdout, "blocked status rendered")
+  assert_contains("status: active", default_stdout, "active status rendered")
+  assert_contains("status: done", default_stdout, "done status rendered")
+  assert_contains("last_completed: 'opened a pull request'", default_stdout, "blocked session last completed step")
+  assert_contains("last_completed: 'ran verification'", default_stdout, "active session last completed step")
+  assert_contains("last_completed: 'cleaned up branch/worktree'", default_stdout, "done session last completed step")
+  assert_contains("next_step: 'review and merge the pull request'", default_stdout, "blocked next step")
+  assert_contains("next_step: 'open a pull request'", default_stdout, "active next step")
+  assert_contains("next_step: 'none; session appears complete'", default_stdout, "done next step")
+  assert_contains(%q{resume: 'cd "/tmp/projects/claude-blocked" && claude-yolo -r claude-blocked'}, default_stdout, "claude resume command")
+  assert_contains(%q{resume: 'cd "/tmp/projects/codex-active" && codex-yolo resume codex-active'}, default_stdout, "codex resume command")
   assert_not_contains("codex-old", default_stdout, "default 24h filters stale session")
+  assert_occurrences("codex-active", 1, codex_calls, "first run summarizes codex-active once")
+  assert_occurrences("codex-done", 1, codex_calls, "first run summarizes codex-done once")
+  assert_occurrences("codex-skill-doc", 1, codex_calls, "first run summarizes codex-skill-doc once")
+  assert_occurrences("claude-blocked", 1, codex_calls, "first run summarizes claude-blocked once")
+
+  second_stdout = File.join(tmproot, "second.stdout")
+  File.write(second_stdout, capture!(env, SCRIPT))
+  assert_contains("summary: 'model: fix the session summary helper'", second_stdout, "cached model summary reused on second run")
+  assert_occurrences("codex-active", 1, codex_calls, "second run keeps codex-active cached")
+  assert_occurrences("codex-done", 1, codex_calls, "second run keeps codex-done cached")
+  assert_occurrences("codex-skill-doc", 1, codex_calls, "second run keeps codex-skill-doc cached")
+  assert_occurrences("claude-blocked", 1, codex_calls, "second run keeps claude-blocked cached")
+
+  touch_offset.call(codex_active, -300)
+  third_stdout = File.join(tmproot, "third.stdout")
+  File.write(third_stdout, capture!(env, SCRIPT))
+  assert_contains("summary: 'model: fix the session summary helper'", third_stdout, "changed session re-summarized successfully")
+  assert_occurrences("codex-active", 2, codex_calls, "mtime change invalidates only codex-active cache entry")
+  assert_occurrences("codex-done", 1, codex_calls, "mtime change leaves codex-done cached")
+  assert_occurrences("codex-skill-doc", 1, codex_calls, "mtime change leaves codex-skill-doc cached")
+  assert_occurrences("claude-blocked", 1, codex_calls, "mtime change leaves claude-blocked cached")
 
   two_day_stdout = File.join(tmproot, "two-day.stdout")
   File.write(two_day_stdout, capture!(env, SCRIPT, "2d"))
-  assert_contains("claude-yesterday", two_day_stdout, "2d includes yesterday session")
+  assert_contains("summary: 'model: yesterday dashboard cleanup'", two_day_stdout, "2d includes yesterday session via model summary")
+  assert_occurrences("claude-yesterday", 1, codex_calls, "2d run summarizes newly included session once")
 
   today_stdout = File.join(tmproot, "today.stdout")
   File.write(today_stdout, capture!(env, SCRIPT, "today"))
