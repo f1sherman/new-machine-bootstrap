@@ -12,7 +12,7 @@ require "tmpdir"
 
 USAGE = "Usage: _recover-agent-sessions [24h|4h|2d|today|yesterday] [--json]\n"
 NO_SUMMARY = "recent session activity"
-SUMMARY_CACHE_VERSION = 1
+SUMMARY_CACHE_VERSION = 2
 SUMMARY_CONCURRENCY_CAP = 8
 SUMMARY_OUTPUT_KEYS = %w[summary status last_completed next_step].freeze
 SUMMARY_STATUS_VALUES = %w[active blocked done].freeze
@@ -399,10 +399,10 @@ def build_summary(read_json, preview, tool, file)
       next
     end
 
-    return truncate_text(cleaned)
+    return cleaned
   end
 
-  fallback ? truncate_text(fallback) : NO_SUMMARY
+  fallback || NO_SUMMARY
 end
 
 def recent_signal_lines(read_json, tool, file)
@@ -679,10 +679,10 @@ def normalize_summary_payload(payload)
   return nil unless summary_payload_valid?(payload)
 
   {
-    "summary" => truncate_text(trim_one_line(payload.fetch("summary"))),
+    "summary" => trim_one_line(payload.fetch("summary")),
     "status" => trim_one_line(payload.fetch("status")),
-    "last_completed" => truncate_text(trim_one_line(payload.fetch("last_completed"))),
-    "next_step" => truncate_text(trim_one_line(payload.fetch("next_step")))
+    "last_completed" => trim_one_line(payload.fetch("last_completed")),
+    "next_step" => trim_one_line(payload.fetch("next_step"))
   }
 end
 

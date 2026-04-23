@@ -122,6 +122,9 @@ Dir.mktmpdir do |tmproot|
     time = mode == :today ? midnight + 60 : midnight - 60
     File.utime(time, time, path)
   end
+  long_model_summary = "model: fix the session summary helper and keep the full explanation visible in recover output without ellipsizing the important context"
+  long_model_last_completed = "ran verification across helper tests, skill tests, provisioning, and installed helper output with the full model-authored text intact"
+  long_model_next_step = "open a pull request or continue any follow-up cleanup while preserving the full recovery summary text end to end"
 
   codex_active = File.join(home, ".codex/sessions/2026/04/21/codex-active.jsonl")
   write_file(codex_active, <<~JSONL)
@@ -381,7 +384,7 @@ Dir.mktmpdir do |tmproot|
 
   write_file(
     codex_stub,
-    bash_stub(<<~'BASH'), mode: 0o755
+    bash_stub(<<~BASH), mode: 0o755
       output_file=""
       schema_file=""
       while [[ $# -gt 0 ]]; do
@@ -414,7 +417,12 @@ Dir.mktmpdir do |tmproot|
 
       case "$session_id" in
         codex-active)
-          payload='{"summary":"model: fix the session summary helper","status":"active","last_completed":"ran verification","next_step":"open a pull request"}'
+          payload='#{JSON.generate(
+            summary: long_model_summary,
+            status: "active",
+            last_completed: long_model_last_completed,
+            next_step: long_model_next_step
+          )}'
           ;;
         codex-done)
           payload='{"summary":"model: finish the PR workflow","status":"done","last_completed":"cleaned up branch/worktree","next_step":"none; session appears complete"}'
@@ -478,15 +486,17 @@ Dir.mktmpdir do |tmproot|
 
   default_stdout = File.join(tmproot, "default.stdout")
   File.write(default_stdout, capture!(env, SCRIPT))
+  default_json = File.join(tmproot, "default.json")
+  File.write(default_json, capture!(env, SCRIPT, "--json"))
 
-  assert_before("summary: 'model: wrap up the PR handoff'", "summary: 'model: fix the session summary helper'", default_stdout, "newest blocked session sorts before active")
-  assert_before("summary: 'model: fix the session summary helper'", "summary: 'model: fix _recover-agent-sessions skill output'", default_stdout, "active session sorts before older active session")
-  assert_before("summary: 'model: fix _recover-agent-sessions skill output'", "summary: 'model: finish the PR workflow'", default_stdout, "older done session sorts last among recent sessions")
-  assert_contains("---", default_stdout, "entries separated by divider lines")
-  assert_contains("summary: 'model: fix the session summary helper'", default_stdout, "model summary used for codex active session")
+  assert_contains("summary: '#{long_model_summary}'", default_stdout, "long model summary preserved in human output")
   assert_contains("summary: 'model: wrap up the PR handoff'", default_stdout, "model summary used for claude blocked session")
   assert_contains("summary: 'model: finish the PR workflow'", default_stdout, "model summary used for done session")
   assert_contains("summary: 'model: fix _recover-agent-sessions skill output'", default_stdout, "model summary used for skill-doc session")
+  assert_before("summary: 'model: wrap up the PR handoff'", "summary: '#{long_model_summary}'", default_stdout, "newest blocked session sorts before active")
+  assert_before("summary: '#{long_model_summary}'", "summary: 'model: fix _recover-agent-sessions skill output'", default_stdout, "active session sorts before older active session")
+  assert_before("summary: 'model: fix _recover-agent-sessions skill output'", "summary: 'model: finish the PR workflow'", default_stdout, "older done session sorts last among recent sessions")
+  assert_contains("---", default_stdout, "entries separated by divider lines")
   assert_before("summary: 'model: wrap up the PR handoff'", "status: blocked", default_stdout, "summary appears before status")
   assert_before("status: blocked", "repo: claude-blocked", default_stdout, "status appears before repo")
   assert_before("repo: claude-blocked", "last_completed: 'opened a pull request'", default_stdout, "repo appears before last completed")
@@ -495,11 +505,14 @@ Dir.mktmpdir do |tmproot|
   assert_contains("status: active", default_stdout, "active status rendered")
   assert_contains("status: done", default_stdout, "done status rendered")
   assert_contains("last_completed: 'opened a pull request'", default_stdout, "blocked session last completed step")
-  assert_contains("last_completed: 'ran verification'", default_stdout, "active session last completed step")
+  assert_contains("last_completed: '#{long_model_last_completed}'", default_stdout, "long last_completed preserved in human output")
   assert_contains("last_completed: 'cleaned up branch/worktree'", default_stdout, "done session last completed step")
   assert_contains("next_step: 'review and merge the pull request'", default_stdout, "blocked next step")
-  assert_contains("next_step: 'open a pull request'", default_stdout, "active next step")
+  assert_contains("next_step: '#{long_model_next_step}'", default_stdout, "long next_step preserved in human output")
   assert_contains("next_step: 'none; session appears complete'", default_stdout, "done next step")
+  assert_contains(%("summary": "#{long_model_summary}"), default_json, "long model summary preserved in json output")
+  assert_contains(%("last_completed": "#{long_model_last_completed}"), default_json, "long last_completed preserved in json output")
+  assert_contains(%("next_step": "#{long_model_next_step}"), default_json, "long next_step preserved in json output")
   assert_contains(%q{resume: 'cd "/tmp/projects/claude-blocked" && claude-yolo -r claude-blocked'}, default_stdout, "claude resume command")
   assert_contains(%q{resume: 'cd "/tmp/projects/codex-active" && codex-yolo resume codex-active'}, default_stdout, "codex resume command")
   assert_not_contains("codex-old", default_stdout, "default 24h filters stale session")
@@ -510,7 +523,7 @@ Dir.mktmpdir do |tmproot|
 
   second_stdout = File.join(tmproot, "second.stdout")
   File.write(second_stdout, capture!(env, SCRIPT))
-  assert_contains("summary: 'model: fix the session summary helper'", second_stdout, "cached model summary reused on second run")
+  assert_contains("summary: '#{long_model_summary}'", second_stdout, "cached model summary reused on second run")
   assert_occurrences("codex-active", 1, codex_calls, "second run keeps codex-active cached")
   assert_occurrences("codex-done", 1, codex_calls, "second run keeps codex-done cached")
   assert_occurrences("codex-skill-doc", 1, codex_calls, "second run keeps codex-skill-doc cached")
@@ -519,7 +532,7 @@ Dir.mktmpdir do |tmproot|
   touch_offset.call(codex_active, -300)
   third_stdout = File.join(tmproot, "third.stdout")
   File.write(third_stdout, capture!(env, SCRIPT))
-  assert_contains("summary: 'model: fix the session summary helper'", third_stdout, "changed session re-summarized successfully")
+  assert_contains("summary: '#{long_model_summary}'", third_stdout, "changed session re-summarized successfully")
   assert_occurrences("codex-active", 2, codex_calls, "mtime change invalidates only codex-active cache entry")
   assert_occurrences("codex-done", 1, codex_calls, "mtime change leaves codex-done cached")
   assert_occurrences("codex-skill-doc", 1, codex_calls, "mtime change leaves codex-skill-doc cached")
