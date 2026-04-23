@@ -47,14 +47,14 @@ Then wait for the user's research query.
    - You have specialized agents that know how to do specific research tasks:
 
    **For codebase research:**
-   - Use the `p-codebase-locator` agent to find WHERE files and components live
-   - Use the `p-codebase-analyzer` agent to understand HOW specific code works (without critiquing it)
-   - Use the `p-codebase-pattern-finder` agent to find examples of existing patterns (without evaluating them)
+   - Use the `_codebase-locator` agent to find WHERE files and components live
+   - Use the `_codebase-analyzer` agent to understand HOW specific code works (without critiquing it)
+   - Use the `_codebase-pattern-finder` agent to find examples of existing patterns (without evaluating them)
 
    **IMPORTANT**: All agents are documentarians, not critics. They will describe what exists without suggesting improvements or identifying issues.
 
    **For web research (only if user explicitly asks):**
-   - Use the `p-web-search-researcher` agent for external documentation and resources
+   - Use the `_web-search-researcher` agent for external documentation and resources
    - IF you use web-research agents, instruct them to return LINKS with their findings, and please INCLUDE those links in your final report
 
    The key is to use these agents intelligently:

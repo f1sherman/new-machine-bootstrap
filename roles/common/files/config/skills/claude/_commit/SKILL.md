@@ -12,5 +12,5 @@ Invoking this skill is explicit approval to commit the current repository state.
 Create the needed git commit or commits while preserving main context. Dispatch this to a subagent to preserve main context.
 
 1. Write a 2-4 sentence summary of what you accomplished in this session -- what changed, why, and any key decisions made. Include a list of the files that should be committed.
-2. Dispatch the `p-committer` agent as a **foreground** Agent with your summary and file list as the prompt
+2. Dispatch the `_committer` agent as a **foreground** Agent with your summary and file list as the prompt
 3. Report the agent's result to the user

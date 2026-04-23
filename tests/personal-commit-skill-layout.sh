@@ -178,7 +178,7 @@ _humanizer|_humanizer/SKILL.md|name: _humanizer|humanizer
 _validate-plan|_validate-plan/SKILL.md|name: _validate-plan|validating-plans
 EOF
 
-assert_contains "$CLAUDE_SKILL" "p-committer" "Claude source skill dispatches p-committer"
+assert_contains "$CLAUDE_SKILL" "_committer" "Claude source skill dispatches _committer"
 assert_contains "$CLAUDE_SKILL" "Invoking this skill is explicit approval to commit the current repository state." "Claude source skill records commit approval on invocation"
 assert_contains "$CODEX_SKILL" "Invoking this skill is explicit approval to commit the current repository state." "Codex source skill records commit approval on invocation"
 assert_not_contains "$CLAUDE_SKILL" "committing-changes" "Claude source skill drops legacy committing-changes references"
