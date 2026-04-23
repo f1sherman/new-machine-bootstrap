@@ -17,7 +17,7 @@
 - Modify: `roles/common/files/bin/tmux-sync-remote-title.test`
 - Modify: `roles/common/files/bin/tmux-window-bar-config.test`
 
-- [ ] **Step 1: Extend `tmux-agent-worktree.test` with window-refresh logging**
+- [x] **Step 1: Extend `tmux-agent-worktree.test` with window-refresh logging**
 
 Add a fake `tmux-window-label` helper next to the existing fake `tmux-remote-title` helper and log calls into `$window_label_log`.
 
@@ -48,7 +48,7 @@ assert_window_refresh_logged() {
 }
 ```
 
-- [ ] **Step 2: Change `tmux-sync-remote-title.test` to forbid session renames**
+- [x] **Step 2: Change `tmux-sync-remote-title.test` to forbid session renames**
 
 Replace the current session-rename expectation with a negative assertion:
 
@@ -59,7 +59,7 @@ assert_contains "$tmux_log" 'rename-window -t @7 (feature/foo) repo | claw02' "a
 
 Keep the existing noise-title, inactive-pane, and unchanged-title cases.
 
-- [ ] **Step 3: Change `tmux-window-bar-config.test` to forbid `tmux-session-name` hooks**
+- [x] **Step 3: Change `tmux-window-bar-config.test` to forbid `tmux-session-name` hooks**
 
 Replace the current positive assertions with negatives:
 
@@ -70,7 +70,7 @@ assert_not_contains "roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh
 
 Keep the existing positive assertions for `tmux-window-label`, `tmux-sync-remote-title`, and `tmux-remote-title publish`.
 
-- [ ] **Step 4: Run the focused red tests**
+- [x] **Step 4: Run the focused red tests**
 
 Run:
 
@@ -86,7 +86,9 @@ Expected:
 - `tmux-sync-remote-title.test` fails because the script still renames sessions
 - `tmux-window-bar-config.test` fails because the managed configs still reference `tmux-session-name`
 
-- [ ] **Step 5: Commit the red tests**
+- [x] **Step 5: Commit the red tests**
+
+Task 1 landed in prior commits `e7f03a66f2bde72777ad79687b3bfd2434a13807` (`Add tmux worktree propagation tests`) and `2af3134b0e3f2b7353157bf8c555103cfef9b1b9` (`Tighten tmux worktree test harness`).
 
 ```bash
 git add \
@@ -105,7 +107,7 @@ git -c commit.gpgsign=false commit -m "Add tmux worktree propagation tests"
 - Modify: `roles/macos/templates/dotfiles/tmux.conf`
 - Modify: `roles/linux/files/dotfiles/tmux.conf`
 
-- [ ] **Step 1: Add a window-refresh helper to `tmux-agent-worktree`**
+- [x] **Step 1: Add a window-refresh helper to `tmux-agent-worktree`**
 
 Insert a helper above `publish_title()`:
 
@@ -116,7 +118,7 @@ refresh_window_label() {
 }
 ```
 
-- [ ] **Step 2: Call the refresh helper from every state-change path**
+- [x] **Step 2: Call the refresh helper from every state-change path**
 
 Update `cmd_set`, `cmd_clear`, and `cmd_sync_current` so they refresh the current window before publishing the remote title:
 
@@ -136,7 +138,7 @@ Update `cmd_set`, `cmd_clear`, and `cmd_sync_current` so they refresh the curren
 
 Do the same after the successful writes in `cmd_sync_current`.
 
-- [ ] **Step 3: Make `tmux-sync-remote-title` window-only**
+- [x] **Step 3: Make `tmux-sync-remote-title` window-only**
 
 Drop `session_id` and `session_name` from the tmux format string and remove the `rename-session` line. The script should keep only the active-pane and structured-title guards plus:
 
@@ -144,7 +146,7 @@ Drop `session_id` and `session_name` from the tmux format string and remove the 
 [ "$pane_title" = "$window_name" ] || tmux rename-window -t "$window_id" "$pane_title" 2>/dev/null || true
 ```
 
-- [ ] **Step 4: Remove automatic `tmux-session-name` hooks from managed shell/tmux config**
+- [x] **Step 4: Remove automatic `tmux-session-name` hooks from managed shell/tmux config**
 
 In `roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh`, keep only:
 
@@ -163,7 +165,7 @@ set-hook -g client-session-changed 'run-shell -b "$HOME/.local/bin/tmux-remote-t
 
 Do not add any new session-name hook elsewhere.
 
-- [ ] **Step 5: Run the focused green tests**
+- [x] **Step 5: Run the focused green tests**
 
 Run:
 
@@ -174,6 +176,8 @@ bash roles/common/files/bin/tmux-window-bar-config.test
 ```
 
 Expected: all pass.
+
+Focused green results on 2026-04-23: `bash roles/common/files/bin/tmux-agent-worktree.test` passed `16 passed, 0 failed`; `bash roles/common/files/bin/tmux-sync-remote-title.test` passed all 9 assertions; `bash roles/common/files/bin/tmux-window-bar-config.test` passed `42` assertions with `0` failures.
 
 - [ ] **Step 6: Commit the implementation**
 
