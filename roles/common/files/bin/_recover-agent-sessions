@@ -1,0 +1,970 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "digest"
+require "fileutils"
+require "json"
+require "open3"
+require "shellwords"
+require "tempfile"
+require "time"
+require "tmpdir"
+
+USAGE = "Usage: _recover-agent-sessions [24h|4h|2d|today|yesterday] [--json]\n"
+NO_SUMMARY = "recent session activity"
+SUMMARY_CACHE_VERSION = 2
+SUMMARY_CONCURRENCY_CAP = 8
+SUMMARY_OUTPUT_KEYS = %w[summary status last_completed next_step].freeze
+SUMMARY_STATUS_VALUES = %w[active blocked done].freeze
+
+def abort_usage
+  warn USAGE
+  exit 1
+end
+
+def parse_args(argv)
+  window = "24h"
+  json_output = false
+
+  until argv.empty?
+    arg = argv.shift
+    case arg
+    when "--json"
+      json_output = true
+    when "today", "yesterday"
+      window = arg
+    when /\A\d+[hd]\z/
+      window = arg
+    else
+      abort_usage
+    end
+  end
+
+  [window, json_output]
+end
+
+def command_exists?(command)
+  if command.to_s.include?(File::SEPARATOR)
+    return File.file?(command) && File.executable?(command)
+  end
+
+  ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).any? do |dir|
+    path = File.join(dir, command)
+    File.file?(path) && File.executable?(path)
+  end
+end
+
+def codex_binary
+  candidate = ENV["RECOVER_AGENT_SESSIONS_CODEX_BIN"].to_s
+  candidate.empty? ? "codex" : candidate
+end
+
+def capture_stdout(*command)
+  stdout, _stderr, status = Open3.capture3(*command)
+  status.success? ? stdout : ""
+rescue Errno::ENOENT
+  ""
+end
+
+def parse_json(text, fallback)
+  stripped = text.to_s.strip
+  return fallback if stripped.empty?
+
+  JSON.parse(stripped)
+rescue JSON::ParserError
+  fallback
+end
+
+def time_window(window)
+  now = Time.now
+
+  case window
+  when "today"
+    start = Time.local(now.year, now.month, now.day)
+    [start.to_i, now.to_i]
+  when "yesterday"
+    midnight = Time.local(now.year, now.month, now.day)
+    [(midnight - 86_400).to_i, midnight.to_i]
+  when /\A(\d+)h\z/
+    hours = Regexp.last_match(1).to_i
+    [now.to_i - (hours * 3600), now.to_i]
+  when /\A(\d+)d\z/
+    days = Regexp.last_match(1).to_i
+    [now.to_i - (days * 86_400), now.to_i]
+  else
+    abort_usage
+  end
+end
+
+def coarse_days(start_epoch, end_epoch)
+  duration = end_epoch - start_epoch
+  ((duration + 86_399) / 86_400) + 1
+end
+
+def list_sessions(command, days)
+  return [] unless command_exists?(command)
+
+  parse_json(capture_stdout(command, "--json", "--days", days.to_s, "--limit", "500"), [])
+end
+
+def read_session(command, file)
+  return {} unless command_exists?(command)
+
+  parse_json(capture_stdout(command, file, "--json"), {})
+end
+
+def trim_one_line(text)
+  text.to_s.gsub(/\s+/, " ").strip
+end
+
+def truncate_text(text, max = 96)
+  return text if text.length <= max
+
+  "#{text[0, max - 3]}..."
+end
+
+def yaml_scalar(value)
+  text = value.to_s
+  return "''" if text.empty?
+
+  unsafe_yaml_leaders = ["-", "?", ":", "@", "`", "#", "!", "&", "*", "|", ">", "%", "[", "{", ","]
+  return text if text.match?(/\A[A-Za-z0-9._\/:-]+\z/) && !unsafe_yaml_leaders.include?(text[0])
+
+  "'#{text.gsub("'", "''")}'"
+end
+
+def shell_double_quote(text)
+  text.to_s.gsub(/["\\$`]/) { |char| "\\#{char}" }
+end
+
+def repo_and_worktree_from_cwd(cwd)
+  return ["", ""] if cwd.to_s.empty?
+
+  marker = "/.worktrees/"
+  if cwd.include?(marker)
+    prefix, suffix = cwd.split(marker, 2)
+    [File.basename(prefix), suffix.to_s.split("/", 2).first.to_s]
+  else
+    [File.basename(cwd), ""]
+  end
+end
+
+def push_recent(list, value, max_size)
+  return if value.to_s.empty?
+
+  list << value
+  list.shift while list.length > max_size
+end
+
+def each_jsonl(file)
+  return enum_for(:each_jsonl, file) unless block_given?
+
+  File.foreach(file) do |line|
+    next if line.strip.empty?
+
+    parsed = parse_json(line, nil)
+    yield parsed if parsed.is_a?(Hash)
+  end
+end
+
+def codex_recent_lines(file)
+  message_lines = []
+  command_lines = []
+
+  each_jsonl(file) do |row|
+    case row["type"]
+    when "response_item"
+      payload = row["payload"]
+      next unless payload.is_a?(Hash)
+      next unless payload["type"] == "message"
+      next unless %w[user assistant].include?(payload["role"])
+
+      Array(payload["content"]).each do |item|
+        next unless item.is_a?(Hash)
+        next unless %w[input_text output_text].include?(item["type"])
+
+        push_recent(message_lines, item["text"].to_s, 80)
+      end
+    when "function_call"
+      payload = row["payload"]
+      next unless payload.is_a?(Hash)
+
+      args = parse_json(payload["arguments"], nil)
+      command = args.is_a?(Hash) ? args["command"] : nil
+      push_recent(command_lines, command.to_s, 40)
+    end
+  end
+
+  message_lines + command_lines
+end
+
+def claude_text_from_message(message)
+  content = message["content"]
+
+  case content
+  when String
+    content
+  when Array
+    content.map do |item|
+      next unless item.is_a?(Hash)
+      next unless item["type"] == "text"
+
+      item["text"]
+    end.compact.join("\n")
+  else
+    ""
+  end
+end
+
+def claude_recent_lines(file)
+  lines = []
+
+  each_jsonl(file) do |row|
+    case row["type"]
+    when "user"
+      next if row["isMeta"] == true
+
+      push_recent(lines, claude_text_from_message(row.fetch("message", {})), 80)
+    when "assistant"
+      push_recent(lines, claude_text_from_message(row.fetch("message", {})), 80)
+    end
+  end
+
+  lines
+end
+
+def recent_lines_for_tool(tool, file)
+  tool == "Codex" ? codex_recent_lines(file) : claude_recent_lines(file)
+end
+
+def entry_branch(entry)
+  entry["gitBranch"].to_s.tap do |branch|
+    return branch unless branch.empty?
+  end
+
+  git = entry["git"]
+  return "" unless git.is_a?(Hash)
+
+  git["branch"].to_s
+end
+
+def read_branch(read_json)
+  return read_json["git_branch"].to_s unless read_json["git_branch"].to_s.empty?
+  return read_json["gitBranch"].to_s unless read_json["gitBranch"].to_s.empty?
+
+  git = read_json["git"]
+  return "" unless git.is_a?(Hash)
+
+  git["branch"].to_s
+end
+
+def summary_candidates(read_json, preview, tool, file)
+  candidates = []
+  candidates.concat(expanded_text_lines(read_json["user_messages"]))
+  candidates << preview.to_s unless preview.to_s.empty?
+  candidates.concat(expanded_text_lines(read_json["assistant_messages"]))
+  candidates.concat(expanded_text_lines(read_json["shell_commands"]))
+  candidates.concat(expanded_text_lines(read_json["bash_commands"]))
+  candidates.concat(recent_lines_for_tool(tool, file))
+  candidates
+end
+
+def expanded_text_lines(values)
+  Array(values).flat_map do |value|
+    value.to_s.split(/\r?\n/).map(&:strip)
+  end
+end
+
+def session_finder_output?(line)
+  lower = trim_one_line(line).downcase
+  return true if lower.empty?
+  return true if lower == "---"
+  return true if lower.include?("likely resume targets:")
+  return true if lower.match?(/\A`?(?:\d+[hd]|today|yesterday)`? window\./)
+  return true if lower.start_with?("- tool:")
+  return true if lower.start_with?("session_id:")
+  return true if lower.start_with?("updated_at:")
+  return true if lower.start_with?("repo:")
+  return true if lower.start_with?("worktree:")
+  return true if lower.start_with?("cwd:")
+  return true if lower.start_with?("branch:")
+  return true if lower.start_with?("summary:")
+  return true if lower.start_with?("last_completed:")
+  return true if lower.start_with?("next_step:")
+  return true if lower.start_with?("status:")
+  return true if lower.start_with?("resume:")
+  return true if lower.start_with?("- `") && lower.include?("status `") && lower.include?("`resume:")
+
+  false
+end
+
+def summary_skip?(line)
+  return true if line.empty?
+  return true if line == "---"
+  return true if line.start_with?("<")
+  return true if line.start_with?("tool:")
+
+  lower = line.downcase
+  return true if lower == "--- project-doc ---"
+  return true if lower.start_with?("--- name:")
+  return true if lower == "# recover agent sessions"
+
+  fixed_patterns = [
+    "agents.md instructions",
+    "environment_context",
+    "you are codex",
+    "you are claude",
+    "the user interrupted the previous turn on purpose",
+    "using-superpowers",
+    "start-of-session requirement",
+    "* workspace:",
+    "* bias toward action.",
+    "* spec approval and plan execution:",
+    "* pull requests:",
+    "* worktrees:",
+    "* comments:",
+    "* scripts/snippets:",
+    "* json/yaml parsing:",
+    "* multi-line commands:",
+    "* testing:",
+    "* temp files:",
+    "* verification:",
+    "run `_recover-agent-sessions` with the user-provided duration",
+    "the human-readable output prints flat yaml-like entries",
+    "when the user invokes this skill by name"
+  ]
+
+  return true if fixed_patterns.any? { |pattern| lower.include?(pattern) }
+  return true if lower.include?("user name:") && lower.include?("work style:")
+  return true if lower.match?(/\A(?:~\/\.local\/bin\/)?_(?:find|recover)-agent-sessions(?:\s|$)/)
+  return true if session_finder_output?(line)
+
+  false
+end
+
+def weak_summary?(line)
+  lower = line.downcase
+  return true if lower.start_with?("#")
+
+  [
+    "continue",
+    "continue.",
+    "resume",
+    "resume.",
+    "test prompt",
+    "did you clean up?",
+    "merged, clean up",
+    "cleanup"
+  ].include?(lower)
+end
+
+def normalize_summary_candidate(candidate)
+  cleaned = trim_one_line(candidate)
+  return nil if cleaned.empty?
+  return nil if summary_skip?(cleaned)
+
+  lower = cleaned.downcase
+  return nil if lower == "prompt received. ready."
+  return nil if lower == "test prompt"
+
+  if cleaned.match?(/\AUsing `?brainstorming`?\.\s*/i)
+    cleaned = cleaned.sub(/\AUsing `?brainstorming`?\.\s*/i, "")
+  end
+
+  if cleaned.match?(/\ARunning `?_(?:find|recover)-agent-sessions`?\b/i)
+    return "triage recent sessions"
+  end
+
+  cleaned = cleaned.sub(/\AFirst pass:\s*/i, "")
+  cleaned = cleaned.sub(/\ANext:\s*/i, "")
+  cleaned = cleaned.sub(/[;,]?\s*then\.\.\.\z/i, "")
+  cleaned = cleaned.sub(/\.\.\.\z/, "")
+
+  return "code review session" if cleaned.match?(/\AReview the code changes against the base branch\b/i)
+  return "spec compliance review" if cleaned.match?(/\ASpec compliance review only\b/i)
+  return "code quality review" if cleaned.match?(/\ACode quality review only\b/i)
+
+  trim_one_line(cleaned)
+end
+
+def build_summary(read_json, preview, tool, file)
+  fallback = nil
+
+  summary_candidates(read_json, preview, tool, file).each do |candidate|
+    cleaned = normalize_summary_candidate(candidate)
+    next if cleaned.nil? || cleaned.empty?
+
+    if weak_summary?(cleaned)
+      fallback ||= cleaned
+      next
+    end
+
+    return cleaned
+  end
+
+  fallback || NO_SUMMARY
+end
+
+def recent_signal_lines(read_json, tool, file)
+  lines = []
+  lines.concat(expanded_text_lines(read_json["assistant_messages"]))
+  lines.concat(expanded_text_lines(read_json["shell_commands"]))
+  lines.concat(expanded_text_lines(read_json["bash_commands"]))
+  lines.concat(recent_lines_for_tool(tool, file))
+  lines.reject { |line| summary_skip?(trim_one_line(line)) }
+end
+
+def review_blocked_signal?(line)
+  [
+    "waiting for review",
+    "waiting on review",
+    "please review",
+    "awaiting review",
+    "waiting for merge",
+    "waiting on merge",
+    "needs review"
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def manual_blocked_signal?(line)
+  [
+    "requires manual",
+    "manual step",
+    "waiting for credentials",
+    "missing credential",
+    "needs credential"
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def cleanup_signal?(line)
+  [
+    "worktree-done",
+    "worktree-delete",
+    "git worktree remove",
+    "git branch -d",
+    "tmux-agent-worktree clear",
+    "cleanup complete",
+    "cleaned up",
+    "branch cleanup",
+    "worktree cleanup"
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def merge_signal?(line)
+  line.include?("gh pr merge") ||
+    (line.include?("pr #") && line.include?(" merged")) ||
+    line.include?("pull request merged") ||
+    line.include?("merged the pull request") ||
+    line.include?("_merge_pull_request") ||
+    line.include?("merge pull request")
+end
+
+def pr_created_signal?(line)
+  line.include?("gh pr create") ||
+    line.include?("draft-pr") ||
+    line.include?("create-pull-request") ||
+    (line.include?("pr #") && line.include?(" opened")) ||
+    line.include?("pull request opened") ||
+    line.include?("pull request created") ||
+    line.include?("/pull/")
+end
+
+def blocked_signal?(line)
+  review_blocked_signal?(line) ||
+    manual_blocked_signal?(line) ||
+    line.include?("blocked on")
+end
+
+def verification_signal?(line)
+  [
+    "pytest",
+    "rspec",
+    "npm test",
+    "cargo test",
+    "go test",
+    "bash tests/",
+    ".test",
+    "tests pass",
+    "test passed",
+    "verification passed",
+    "ran verification"
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def plan_signal?(line)
+  [
+    "implementation plan",
+    "plan complete",
+    "wrote the plan",
+    "create-plan"
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def spec_signal?(line)
+  [
+    "spec written",
+    "design approved",
+    "design.md",
+    "wrote the spec"
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def commit_signal?(line)
+  [
+    "git commit",
+    "commit created",
+    "created commit",
+    "committed."
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def code_update_signal?(line)
+  [
+    "apply_patch",
+    "write:",
+    "edit:",
+    "updated code",
+    "implemented",
+    "made the change"
+  ].any? { |pattern| line.include?(pattern) }
+end
+
+def infer_last_completed(status, read_json, tool, file)
+  recent_signal_lines(read_json, tool, file).reverse_each do |line|
+    lower = line.to_s.downcase
+    next if lower.empty?
+
+    return "cleaned up branch/worktree" if status == "done" && cleanup_signal?(lower)
+    return "merged the pull request" if merge_signal?(lower)
+    return "opened a pull request" if pr_created_signal?(lower)
+    return "ran verification" if verification_signal?(lower)
+    return "wrote the implementation plan" if plan_signal?(lower)
+    return "wrote the spec" if spec_signal?(lower)
+    return "created a commit" if commit_signal?(lower)
+    return "updated code" if code_update_signal?(lower)
+  end
+
+  "captured recent session progress"
+end
+
+def infer_status(read_json, tool, file)
+  pr_created = false
+  merged = false
+  cleanup = false
+  blocked = false
+
+  recent_signal_lines(read_json, tool, file).each do |line|
+    lower = line.to_s.downcase
+    next if lower.empty?
+
+    pr_created ||= pr_created_signal?(lower)
+    merged ||= merge_signal?(lower)
+    cleanup ||= cleanup_signal?(lower)
+    blocked ||= blocked_signal?(lower)
+  end
+
+  if pr_created && merged && cleanup
+    "done"
+  elsif blocked || (pr_created && !merged)
+    "blocked"
+  else
+    "active"
+  end
+end
+
+def infer_next_step(status, read_json, tool, file, last_completed)
+  return "none; session appears complete" if status == "done"
+
+  if status == "blocked"
+    recent_signal_lines(read_json, tool, file).reverse_each do |line|
+      lower = line.to_s.downcase
+      next if lower.empty?
+
+      return "review and merge the pull request" if review_blocked_signal?(lower) || pr_created_signal?(lower)
+      return "complete the required manual step" if manual_blocked_signal?(lower)
+      return "resolve the blocking dependency" if lower.include?("blocked on")
+    end
+
+    return "review and merge the pull request" if last_completed == "opened a pull request"
+    return "wait for the blocking dependency"
+  end
+
+  recent_signal_lines(read_json, tool, file).reverse_each do |line|
+    lower = line.to_s.downcase
+    next if lower.empty?
+
+    if [
+      "open a pr",
+      "open the pr",
+      "open a pull request",
+      "create a pr",
+      "create the pr",
+      "create a pull request"
+    ].any? { |pattern| lower.include?(pattern) }
+      return "open a pull request"
+    end
+
+    if lower.include?("implement the plan") || lower.include?("next step is to implement the plan")
+      return "implement the plan"
+    end
+  end
+
+  case last_completed
+  when "merged the pull request"
+    "clean up the branch/worktree"
+  when "wrote the spec"
+    "write the implementation plan"
+  when "wrote the implementation plan"
+    "implement the plan"
+  else
+    "continue the next pending change"
+  end
+end
+
+def build_resume_command(tool, cwd, session_id)
+  quoted_cwd = shell_double_quote(cwd)
+
+  if tool == "Codex"
+    %(cd "#{quoted_cwd}" && codex-yolo resume #{session_id})
+  else
+    %(cd "#{quoted_cwd}" && claude-yolo -r #{session_id})
+  end
+end
+
+def summary_cache_root
+  base = ENV["XDG_CACHE_HOME"].to_s
+  base = File.join(Dir.home, ".cache") if base.empty?
+  File.join(base, "_recover-agent-sessions")
+end
+
+def summary_schema_path
+  FileUtils.mkdir_p(summary_cache_root)
+  path = File.join(summary_cache_root, "summary-schema-v#{SUMMARY_CACHE_VERSION}.json")
+  return path if File.file?(path)
+
+  schema = {
+    "type" => "object",
+    "additionalProperties" => false,
+    "properties" => {
+      "summary" => { "type" => "string" },
+      "status" => { "type" => "string", "enum" => SUMMARY_STATUS_VALUES },
+      "last_completed" => { "type" => "string" },
+      "next_step" => { "type" => "string" }
+    },
+    "required" => SUMMARY_OUTPUT_KEYS
+  }
+  File.write(path, JSON.pretty_generate(schema))
+  path
+end
+
+def summary_cache_path(entry)
+  digest = Digest::SHA256.hexdigest([
+    SUMMARY_CACHE_VERSION,
+    entry.fetch("tool"),
+    entry.fetch("session_id"),
+    entry.fetch("file"),
+    entry.fetch("updated_epoch").to_s
+  ].join("\0"))
+  File.join(summary_cache_root, "#{digest}.json")
+end
+
+def summary_payload_valid?(payload)
+  return false unless payload.is_a?(Hash)
+  return false unless SUMMARY_OUTPUT_KEYS.all? { |key| payload[key].is_a?(String) && !payload[key].strip.empty? }
+
+  SUMMARY_STATUS_VALUES.include?(payload["status"])
+end
+
+def normalize_summary_payload(payload)
+  return nil unless summary_payload_valid?(payload)
+
+  {
+    "summary" => trim_one_line(payload.fetch("summary")),
+    "status" => trim_one_line(payload.fetch("status")),
+    "last_completed" => trim_one_line(payload.fetch("last_completed")),
+    "next_step" => trim_one_line(payload.fetch("next_step"))
+  }
+end
+
+def load_cached_summary(entry)
+  path = summary_cache_path(entry)
+  return nil unless File.file?(path)
+
+  normalize_summary_payload(parse_json(File.read(path), nil))
+rescue Errno::ENOENT
+  nil
+end
+
+def write_cached_summary(entry, payload)
+  normalized = normalize_summary_payload(payload)
+  return nil unless normalized
+
+  FileUtils.mkdir_p(summary_cache_root)
+  path = summary_cache_path(entry)
+  tmp_path = "#{path}.tmp-#{Process.pid}-#{Thread.current.object_id}"
+  File.write(tmp_path, JSON.generate(normalized))
+  File.rename(tmp_path, path)
+  normalized
+ensure
+  File.delete(tmp_path) if defined?(tmp_path) && tmp_path && File.exist?(tmp_path)
+end
+
+def meaningful_prompt_lines(values)
+  Array(values).flat_map { |value| value.to_s.split(/\r?\n/) }
+    .map { |line| normalize_summary_candidate(line) }
+    .compact
+    .reject { |line| weak_summary?(line) }
+    .map { |line| truncate_text(line, 200) }
+end
+
+def prompt_tail_lines(read_json, tool, file)
+  recent_signal_lines(read_json, tool, file)
+    .map { |line| trim_one_line(line) }
+    .reject(&:empty?)
+    .last(40)
+    .map { |line| truncate_text(line, 200) }
+end
+
+def build_model_prompt(entry)
+  read_json = entry.fetch("_read_json")
+  file = entry.fetch("file")
+  tool = entry.fetch("tool")
+
+  initial_goal_lines = meaningful_prompt_lines([entry.fetch("_preview")] + Array(read_json["user_messages"])).first(8)
+  recent_tail = prompt_tail_lines(read_json, tool, file)
+  assistant_updates = meaningful_prompt_lines(read_json["assistant_messages"]).last(12)
+  commands = expanded_text_lines(read_json["shell_commands"]) +
+    expanded_text_lines(read_json["bash_commands"])
+  commands = commands.map { |line| truncate_text(trim_one_line(line), 200) }.reject(&:empty?).last(20)
+
+  sections = []
+  sections << "Summarize this coding-agent session for restart recovery."
+  sections << "Do not run commands or use tools. Use only the provided session data."
+  sections << "Return JSON matching the schema."
+  sections << "Rules:"
+  sections << "- summarize the actual work, not workflow narration"
+  sections << "- ignore AGENTS, SKILL docs, frontmatter, boilerplate, and session-finder output"
+  sections << "- prefer short concrete phrases"
+  sections << "- status is done only if a PR was created, merged, and branch/worktree cleanup happened"
+  sections << "- status is blocked if waiting on review, manual work, credentials, or another dependency"
+  sections << "- otherwise status is active"
+  sections << "- last_completed and next_step must be logically consistent"
+  sections << "- if cleanup happened before merge, do not report cleanup as last_completed"
+  sections << ""
+  sections << "Session metadata:"
+  sections << "session_id: #{entry.fetch("session_id")}"
+  sections << "tool: #{tool}"
+  sections << "repo: #{entry.fetch("repo")}"
+  sections << "worktree: #{entry.fetch("worktree")}" unless entry.fetch("worktree").empty?
+  sections << "branch: #{entry.fetch("branch")}" unless entry.fetch("branch").empty?
+  sections << "updated_at: #{entry.fetch("updated_at")}"
+  sections << ""
+  sections << "Initial goal lines:"
+  sections.concat(initial_goal_lines.empty? ? ["- none"] : initial_goal_lines.map { |line| "- #{line}" })
+  sections << ""
+  sections << "Recent assistant updates:"
+  sections.concat(assistant_updates.empty? ? ["- none"] : assistant_updates.map { |line| "- #{line}" })
+  sections << ""
+  sections << "Recent commands:"
+  sections.concat(commands.empty? ? ["- none"] : commands.map { |line| "- #{line}" })
+  sections << ""
+  sections << "Recent transcript tail:"
+  sections.concat(recent_tail.empty? ? ["- none"] : recent_tail.map { |line| "- #{line}" })
+  sections.join("\n")
+end
+
+def summarize_with_codex(entry)
+  binary = codex_binary
+  return nil unless command_exists?(binary)
+
+  prompt = build_model_prompt(entry)
+  schema_path = summary_schema_path
+
+  Tempfile.create(["recover-agent-sessions", ".json"]) do |output_file|
+    command = [
+      binary, "exec",
+      "--ephemeral",
+      "--sandbox", "read-only",
+      "--skip-git-repo-check",
+      "--ignore-rules",
+      "-C", Dir.tmpdir,
+      "--output-schema", schema_path,
+      "-o", output_file.path,
+      "-"
+    ]
+    _stdout, _stderr, status = Open3.capture3(*command, stdin_data: prompt)
+    return nil unless status.success?
+
+    normalize_summary_payload(parse_json(File.read(output_file.path), nil))
+  end
+rescue Errno::ENOENT
+  nil
+end
+
+def heuristic_summary_payload(entry)
+  read_json = entry.fetch("_read_json")
+  tool = entry.fetch("tool")
+  file = entry.fetch("file")
+  preview = entry.fetch("_preview")
+
+  status = infer_status(read_json, tool, file)
+  last_completed = infer_last_completed(status, read_json, tool, file)
+
+  {
+    "summary" => build_summary(read_json, preview, tool, file),
+    "status" => status,
+    "last_completed" => last_completed,
+    "next_step" => infer_next_step(status, read_json, tool, file, last_completed)
+  }
+end
+
+def merge_summary_payload!(entry, payload)
+  normalized = normalize_summary_payload(payload)
+  return false unless normalized
+
+  SUMMARY_OUTPUT_KEYS.each do |key|
+    entry[key] = normalized.fetch(key)
+  end
+  true
+end
+
+def hydrate_summaries(entries)
+  pending = Queue.new
+
+  entries.each do |entry|
+    cached = load_cached_summary(entry)
+    if cached
+      merge_summary_payload!(entry, cached)
+    else
+      pending << entry
+    end
+  end
+
+  worker_count = [SUMMARY_CONCURRENCY_CAP, pending.size].min
+
+  threads = Array.new(worker_count) do
+    Thread.new do
+      loop do
+        entry = pending.pop(true)
+        payload = summarize_with_codex(entry)
+        if payload
+          merge_summary_payload!(entry, payload)
+          write_cached_summary(entry, payload)
+        else
+          merge_summary_payload!(entry, heuristic_summary_payload(entry))
+        end
+      rescue ThreadError
+        break
+      rescue StandardError => e
+        warn "recover-agent-sessions summary error: #{e.class}: #{e.message}" if ENV["RECOVER_AGENT_SESSIONS_DEBUG"] == "1"
+        merge_summary_payload!(entry, heuristic_summary_payload(entry)) if defined?(entry) && entry
+      end
+    end
+  end
+  threads.each(&:join)
+
+  entries.each do |entry|
+    next if SUMMARY_OUTPUT_KEYS.all? { |key| entry[key].is_a?(String) && !entry[key].empty? }
+
+    merge_summary_payload!(entry, heuristic_summary_payload(entry))
+  end
+
+  entries
+end
+
+def public_entry(entry)
+  entry.reject { |key, _value| key.start_with?("_") || key == "file" }
+end
+
+def build_session_hash(tool, read_command, entry, start_epoch, end_epoch)
+  file = entry["file"].to_s
+  return nil if file.empty? || !File.file?(file)
+
+  updated_epoch = File.mtime(file).to_i
+  return nil if updated_epoch < start_epoch || updated_epoch > end_epoch
+
+  read_json = read_session(read_command, file)
+
+  cwd = entry["cwd"].to_s
+  cwd = read_json["cwd"].to_s if cwd.empty?
+
+  session_id = entry["sessionId"].to_s
+  session_id = entry["id"].to_s if session_id.empty?
+  session_id = read_json["session_id"].to_s if session_id.empty?
+  session_id = read_json["sessionId"].to_s if session_id.empty?
+  session_id = read_json["id"].to_s if session_id.empty?
+
+  git_branch = entry_branch(entry)
+  git_branch = read_branch(read_json) if git_branch.empty?
+  repo, worktree = repo_and_worktree_from_cwd(cwd)
+
+  {
+    "tool" => tool,
+    "session_id" => session_id,
+    "updated_epoch" => updated_epoch,
+    "updated_at" => Time.at(updated_epoch).localtime.strftime("%Y-%m-%d %H:%M"),
+    "cwd" => cwd,
+    "repo" => repo,
+    "worktree" => worktree,
+    "branch" => git_branch,
+    "resume" => build_resume_command(tool, cwd, session_id),
+    "file" => file,
+    "_preview" => entry["preview"].to_s,
+    "_read_json" => read_json
+  }
+end
+
+def render_human_output(entries)
+  blocks = entries.map do |entry|
+    lines = []
+    lines << "summary: #{yaml_scalar(entry.fetch("summary"))}"
+    lines << "status: #{yaml_scalar(entry.fetch("status"))}"
+    lines << "repo: #{yaml_scalar(entry.fetch("repo"))}"
+    lines << "worktree: #{yaml_scalar(entry.fetch("worktree"))}" unless entry.fetch("worktree").empty?
+    lines << "branch: #{yaml_scalar(entry.fetch("branch"))}" unless entry.fetch("branch").empty?
+    lines << "last_completed: #{yaml_scalar(entry.fetch("last_completed"))}"
+    lines << "next_step: #{yaml_scalar(entry.fetch("next_step"))}"
+    lines << "updated_at: #{yaml_scalar(entry.fetch("updated_at"))}"
+    lines << "resume: #{yaml_scalar(entry.fetch("resume"))}"
+    lines.join("\n")
+  end
+
+  puts blocks.join("\n---\n")
+end
+
+window, json_output = parse_args(ARGV.dup)
+start_epoch, end_epoch = time_window(window)
+days = coarse_days(start_epoch, end_epoch)
+
+entries = []
+list_sessions("list-codex-sessions", days).each do |entry|
+  next unless entry.is_a?(Hash)
+
+  session = build_session_hash("Codex", "read-codex-session", entry, start_epoch, end_epoch)
+  entries << session if session
+end
+
+list_sessions("list-claude-sessions", days).each do |entry|
+  next unless entry.is_a?(Hash)
+
+  session = build_session_hash("Claude", "read-claude-session", entry, start_epoch, end_epoch)
+  entries << session if session
+end
+
+entries.sort_by! { |entry| -entry.fetch("updated_epoch") }
+hydrate_summaries(entries)
+
+if entries.empty?
+  if json_output
+    puts "[]"
+  else
+    puts "No agent sessions found in the last #{window}."
+  end
+  exit 0
+end
+
+if json_output
+  puts JSON.pretty_generate(entries.map { |entry| public_entry(entry) })
+else
+  render_human_output(entries)
+end

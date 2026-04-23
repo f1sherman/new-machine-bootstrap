@@ -212,6 +212,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/read-claude-session'
     mode: 0755
 
+- name: Install _recover-agent-sessions helper
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/_recover-agent-sessions'
+    src: '{{ playbook_dir }}/roles/common/files/bin/_recover-agent-sessions'
+    mode: 0755
+
 - name: Install tmux-session-name script
   copy:
     backup: yes
@@ -1117,6 +1124,9 @@
     path: '{{ ansible_facts["user_dir"] }}/{{ item }}'
     state: absent
   loop:
+    - .local/bin/_find-agent-sessions
+    - .claude/skills/_find-agent-sessions
+    - .codex/skills/_find-agent-sessions
     - .claude/skills/committing-changes
     - .claude/skills/p-approve-spec
     - .claude/skills/p-catchup
