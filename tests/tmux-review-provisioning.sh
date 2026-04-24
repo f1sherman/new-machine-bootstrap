@@ -25,9 +25,9 @@ assert_contains "roles/common/tasks/main.yml" "tmux-review-toggle"
 assert_contains "roles/common/tasks/main.yml" "review-diff"
 assert_contains "roles/common/tasks/main.yml" "review-file"
 
-assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-d if-shell \"\$is_ssh\" 'send-keys M-d'"
-assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-f if-shell \"\$is_ssh\" 'send-keys M-f'"
-assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-r if-shell \"\$is_ssh\" 'send-keys M-r'"
+assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-d if-shell -F \"\$is_ssh\" 'send-keys M-d'"
+assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-f if-shell -F \"\$is_ssh\" 'send-keys M-f'"
+assert_contains "roles/macos/templates/dotfiles/tmux.conf" "bind-key -n M-r if-shell -F \"\$is_ssh\" 'send-keys M-r'"
 
 # tmux run-shell -b does not export TMUX_PANE; bindings must pass it explicitly
 # via format substitution so the review scripts can resolve the origin pane.
@@ -35,13 +35,19 @@ assert_contains "roles/macos/templates/dotfiles/tmux.conf" "M-d' 'run-shell -b \
 assert_contains "roles/macos/templates/dotfiles/tmux.conf" "M-f' 'run-shell -b \"TMUX_PANE=#{pane_id}"
 assert_contains "roles/macos/templates/dotfiles/tmux.conf" "M-r' 'run-shell -b \"TMUX_PANE=#{pane_id}"
 
-assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-d if-shell \"\$is_ssh\" 'send-keys M-d'"
-assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-f if-shell \"\$is_ssh\" 'send-keys M-f'"
-assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-r if-shell \"\$is_ssh\" 'send-keys M-r'"
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-d if-shell -F \"\$is_ssh\" 'send-keys M-d'"
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-f if-shell -F \"\$is_ssh\" 'send-keys M-f'"
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "bind-key -n M-r if-shell -F \"\$is_ssh\" 'send-keys M-r'"
 
 assert_contains "roles/linux/files/dotfiles/tmux.conf" "M-d' 'run-shell -b \"TMUX_PANE=#{pane_id}"
 assert_contains "roles/linux/files/dotfiles/tmux.conf" "M-f' 'run-shell -b \"TMUX_PANE=#{pane_id}"
 assert_contains "roles/linux/files/dotfiles/tmux.conf" "M-r' 'run-shell -b \"TMUX_PANE=#{pane_id}"
+
+# is_ssh must match SSH-family wrappers (autossh, sshpass), not just a bare
+# "ssh" process. Exact-match let wrapper panes fall through to the local
+# review flow instead of passing the keystroke through to the inner tmux.
+assert_contains "roles/macos/templates/dotfiles/tmux.conf" "m:*ssh*,#{pane_current_command}"
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "m:*ssh*,#{pane_current_command}"
 
 printf '\npassed=%s failed=%s\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
