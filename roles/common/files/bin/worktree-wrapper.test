@@ -156,7 +156,7 @@ bash_bin="$(command -v bash)"
 [ -n "$zsh_bin" ] || fail "missing zsh"
 [ -n "$bash_bin" ] || fail "missing bash"
 
-run_case "$zsh_bin" "$ROOT/roles/common/templates/dotfiles/zshrc" "zsh"
+run_case "$zsh_bin" "$ROOT/roles/common/templates/dotfiles/zshrc.d/50-personal-dev-shell.zsh" "zsh"
 run_case "$bash_bin" "$ROOT/roles/macos/templates/dotfiles/bash_profile" "bash"
 
 printf 'PASS  worktree wrapper smoke test\n'

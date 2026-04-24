@@ -64,29 +64,29 @@ run_case() {
 
 run_case \
   "%11" \
-  $'@7\t1\tssh\t/dev/ttys001\t(feature/foo) repo | claw02\t$1\tmain\tmain window'
+  $'@7\t1\tssh\t/dev/ttys001\t(feature/foo) repo | claw02\tmain window'
 
-assert_contains "$tmux_log" $'display-message -p -t %11 #{window_id}\t#{pane_active}\t#{pane_current_command}\t#{pane_tty}\t#{pane_title}\t#{session_id}\t#{session_name}\t#{window_name}' "active remote pane queries tmux"
-assert_contains "$tmux_log" 'rename-session -t $1 (feature/foo) repo | claw02' "active remote pane renames session"
+assert_contains "$tmux_log" $'display-message -p -t %11 #{window_id}\t#{pane_active}\t#{pane_current_command}\t#{pane_tty}\t#{pane_title}\t#{window_name}' "active remote pane queries tmux"
+assert_not_contains "$tmux_log" 'rename-session' "active remote pane skips session rename"
 assert_contains "$tmux_log" 'rename-window -t @7 (feature/foo) repo | claw02' "active remote pane renames window"
 
 run_case \
   "%12" \
-  $'@8\t1\tssh\t/dev/ttys002\t2.1.92\t$2\tmain\tmain window'
+  $'@8\t1\tssh\t/dev/ttys002\t2.1.92\tmain window'
 
 assert_not_contains "$tmux_log" 'rename-session' "noise title skips session rename"
 assert_not_contains "$tmux_log" 'rename-window' "noise title skips window rename"
 
 run_case \
   "%13" \
-  $'@9\t0\tssh\t/dev/ttys003\t(feature/foo) repo | claw02\t$3\tmain\tmain window'
+  $'@9\t0\tssh\t/dev/ttys003\t(feature/foo) repo | claw02\tmain window'
 
 assert_not_contains "$tmux_log" 'rename-session' "inactive pane skips session rename"
 assert_not_contains "$tmux_log" 'rename-window' "inactive pane skips window rename"
 
 run_case \
   "%14" \
-  $'@10\t1\tgh\t/dev/ttys004\trepo | space-alpha\t$4\trepo | space-alpha\trepo | space-alpha'
+  $'@10\t1\tgh\t/dev/ttys004\trepo | space-alpha\trepo | space-alpha'
 
 assert_not_contains "$tmux_log" 'rename-session' "unchanged session title skips rename"
 assert_not_contains "$tmux_log" 'rename-window' "unchanged window title skips rename"

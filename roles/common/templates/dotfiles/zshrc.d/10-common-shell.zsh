@@ -140,7 +140,6 @@ alias duss="du -d 1 -h 2>/dev/null | sort -hr"
 
 if [[ -n "$TMUX" ]]; then
   _tmux_label_update() {
-    command tmux-session-name "$TMUX_PANE" &>/dev/null &!
     command tmux-window-label "$TMUX_PANE" &>/dev/null &!
   }
   autoload -Uz add-zsh-hook

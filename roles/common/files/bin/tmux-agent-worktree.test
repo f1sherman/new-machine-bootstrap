@@ -24,6 +24,8 @@ pass=0
 fail=0
 remote_title_log="$TMPROOT/remote-title.log"
 : > "$remote_title_log"
+window_label_log="$TMPROOT/window-label.log"
+: > "$window_label_log"
 
 state_file() {
   local state_dir="$1" pane_id="$2" option_name="$3"
@@ -37,6 +39,11 @@ read_state() {
   cat "$path"
 }
 
+reset_helper_logs() {
+  : > "$remote_title_log"
+  : > "$window_label_log"
+}
+
 run_case() {
   local name="$1" expected_path="$2" expected_pid="$3" expected_rc="$4" command="$5"
   shift 5
@@ -46,6 +53,7 @@ run_case() {
   ps_file="$(mktemp "$TMPROOT/ps.XXXXXX")"
   printf '%s' "$1" > "$ps_file"
   shift
+  reset_helper_logs
 
   if (
     export TMUX="${TMUX:-/tmp/fake-tmux}"
@@ -54,6 +62,7 @@ run_case() {
     export TMUX_AGENT_WORKTREE_PANE_TTY="/dev/ttys091"
     export TMUX_AGENT_WORKTREE_PS_FILE="$ps_file"
     export TMUX_REMOTE_TITLE_LOG="$remote_title_log"
+    export TMUX_WINDOW_LABEL_LOG="$window_label_log"
     export PATH="$TMPROOT/bin:$PATH"
     "$SCRIPT" $command "$@"
   ); then
@@ -83,6 +92,7 @@ run_without_tmux_case() {
   local name="$1" command="$2"
   shift 2
   local rc
+  reset_helper_logs
   if env -u TMUX -u TMUX_PANE "$SCRIPT" $command "$@"; then
     rc=0
   else
@@ -121,6 +131,18 @@ assert_publish_logged() {
   : > "$remote_title_log"
 }
 
+assert_window_refresh_logged() {
+  local label="$1"
+  if grep -Fqx "%91" "$window_label_log"; then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$label"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$label"
+  fi
+  : > "$window_label_log"
+}
+
 main_repo="$TMPROOT/main-repo"
 make_repo "$main_repo"
 
@@ -133,6 +155,14 @@ cat > "$TMPROOT/bin/tmux-remote-title" <<'EOF'
 printf '%s\n' "$*" >> "$TMUX_REMOTE_TITLE_LOG"
 EOF
 chmod +x "$TMPROOT/bin/tmux-remote-title"
+
+cat > "$TMPROOT/bin/tmux-window-label" <<'EOF'
+#!/usr/bin/env bash
+pane_id="${1:-${TMUX_PANE:-}}"
+[ -n "$pane_id" ] || exit 0
+printf '%s\n' "$pane_id" >> "$TMUX_WINDOW_LABEL_LOG"
+EOF
+chmod +x "$TMPROOT/bin/tmux-window-label"
 
 plain_repo="$TMPROOT/plain-repo"
 make_repo "$plain_repo"
@@ -152,16 +182,19 @@ run_case "set with invalid path" "" "" 0 "set" $'9100 S+ codex codex' "/no/such/
 # --- Case 4: set with active agent and valid worktree ---
 run_case "set with active agent and valid worktree" "$linked_wt" "9100" 0 "set" $'9100 S+ codex codex' "$linked_wt"
 assert_publish_logged "set publishes remote title"
+assert_window_refresh_logged "set refreshes local window label"
 
 # --- Case 5: clear removes both pane options ---
 state_dir="$(mktemp -d "$TMPROOT/state-clear.XXXXXX")"
 printf '%s' "$linked_wt" > "$(state_file "$state_dir" "%91" "@agent_worktree_path")"
 printf '%s' "9100" > "$(state_file "$state_dir" "%91" "@agent_worktree_pid")"
-if TMUX=/tmp/fake TMUX_PANE=%91 TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" TMUX_REMOTE_TITLE_LOG="$remote_title_log" PATH="$TMPROOT/bin:$PATH" "$SCRIPT" clear; then
+reset_helper_logs
+if TMUX=/tmp/fake TMUX_PANE=%91 TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" TMUX_REMOTE_TITLE_LOG="$remote_title_log" TMUX_WINDOW_LABEL_LOG="$window_label_log" PATH="$TMPROOT/bin:$PATH" "$SCRIPT" clear; then
   if [ ! -e "$(state_file "$state_dir" "%91" "@agent_worktree_path")" ] && [ ! -e "$(state_file "$state_dir" "%91" "@agent_worktree_pid")" ]; then
     pass=$((pass + 1))
     printf 'PASS  clear removes both pane options\n'
     assert_publish_logged "clear publishes remote title"
+    assert_window_refresh_logged "clear refreshes local window label"
   else
     fail=$((fail + 1))
     printf 'FAIL  clear removes both pane options\n'
@@ -174,6 +207,7 @@ fi
 # --- Case 6: sync-current sets state from linked worktree cwd ---
 state_dir="$(mktemp -d "$TMPROOT/state-sync.XXXXXX")"
 printf '%s' $'9101 S+ codex codex' > "$TMPROOT/ps.sync"
+reset_helper_logs
 if (
   cd "$linked_wt" &&
   TMUX=/tmp/fake \
@@ -182,6 +216,7 @@ if (
   TMUX_AGENT_WORKTREE_PANE_TTY="/dev/ttys091" \
   TMUX_AGENT_WORKTREE_PS_FILE="$TMPROOT/ps.sync" \
   TMUX_REMOTE_TITLE_LOG="$remote_title_log" \
+  TMUX_WINDOW_LABEL_LOG="$window_label_log" \
   PATH="$TMPROOT/bin:$PATH" \
   "$SCRIPT" sync-current
 ); then
@@ -192,6 +227,7 @@ if [ "$(read_state "$state_dir" "%91" "@agent_worktree_path" 2>/dev/null || true
     pass=$((pass + 1))
     printf 'PASS  sync-current sets state from linked worktree cwd\n'
     assert_publish_logged "sync-current publishes remote title"
+    assert_window_refresh_logged "sync-current refreshes local window label"
   else
     fail=$((fail + 1))
     printf 'FAIL  sync-current sets state from linked worktree cwd\n'
@@ -205,6 +241,7 @@ fi
 printf '%s' "$linked_wt" > "$(state_file "$state_dir" "%91" "@agent_worktree_path")"
 printf '%s' "9101" > "$(state_file "$state_dir" "%91" "@agent_worktree_pid")"
 : > "$TMPROOT/ps.sync"
+reset_helper_logs
 if (
   cd "$linked_wt" &&
   TMUX=/tmp/fake \
@@ -212,6 +249,9 @@ if (
   TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
   TMUX_AGENT_WORKTREE_PANE_TTY="/dev/ttys091" \
   TMUX_AGENT_WORKTREE_PS_FILE="$TMPROOT/ps.sync" \
+  TMUX_REMOTE_TITLE_LOG="$remote_title_log" \
+  TMUX_WINDOW_LABEL_LOG="$window_label_log" \
+  PATH="$TMPROOT/bin:$PATH" \
   "$SCRIPT" sync-current
 ); then
   :
@@ -219,6 +259,7 @@ fi
 if [ ! -e "$(state_file "$state_dir" "%91" "@agent_worktree_path")" ] && [ ! -e "$(state_file "$state_dir" "%91" "@agent_worktree_pid")" ]; then
   pass=$((pass + 1))
   printf 'PASS  sync-current clears stale state when no active agent is found\n'
+  assert_window_refresh_logged "sync-current stale state clear refreshes local window label"
 else
   fail=$((fail + 1))
   printf 'FAIL  sync-current clears stale state when no active agent is found\n'
@@ -227,6 +268,7 @@ fi
 # --- Case 8: sync-current clears state from non-linked cwd ---
 printf '%s' "$linked_wt" > "$(state_file "$state_dir" "%91" "@agent_worktree_path")"
 printf '%s' "9101" > "$(state_file "$state_dir" "%91" "@agent_worktree_pid")"
+reset_helper_logs
 if (
   cd "$plain_repo" &&
   TMUX=/tmp/fake \
@@ -234,6 +276,9 @@ if (
   TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
   TMUX_AGENT_WORKTREE_PANE_TTY="/dev/ttys091" \
   TMUX_AGENT_WORKTREE_PS_FILE="$TMPROOT/ps.sync" \
+  TMUX_REMOTE_TITLE_LOG="$remote_title_log" \
+  TMUX_WINDOW_LABEL_LOG="$window_label_log" \
+  PATH="$TMPROOT/bin:$PATH" \
   "$SCRIPT" sync-current
 ); then
   :
@@ -241,6 +286,7 @@ fi
 if [ ! -e "$(state_file "$state_dir" "%91" "@agent_worktree_path")" ] && [ ! -e "$(state_file "$state_dir" "%91" "@agent_worktree_pid")" ]; then
   pass=$((pass + 1))
   printf 'PASS  sync-current clears state from non-linked cwd\n'
+  assert_window_refresh_logged "sync-current non-linked cwd clear refreshes local window label"
 else
   fail=$((fail + 1))
   printf 'FAIL  sync-current clears state from non-linked cwd\n'

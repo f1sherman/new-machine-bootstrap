@@ -46,7 +46,7 @@ assert_tmux_file() {
   assert_contains "$file" "set -g visual-activity off"
   assert_contains "$file" "set -g pane-border-format '#{?pane_active,#[bg=black#,fg=colour51],#[bg=black#,fg=colour240]} #(~/.local/bin/tmux-pane-label \"#{pane_tty}\" \"#{pane_current_path}\" \"#{pane_current_command}\" \"#{pane_id}\") '"
   assert_contains "$file" 'tmux-window-label #{pane_id}'
-  assert_contains "$file" 'tmux-session-name #{pane_id}'
+  assert_not_contains "$file" 'tmux-session-name'
   assert_contains "$file" 'tmux-sync-remote-title #{pane_id}'
   assert_contains "$file" 'tmux-remote-title publish'
   assert_not_contains "$file" 'window_activity_flag'
@@ -60,7 +60,7 @@ assert_contains "roles/common/tasks/main.yml" "tmux-pane-label"
 assert_contains "roles/common/tasks/main.yml" "tmux-window-label"
 assert_contains "roles/common/tasks/main.yml" "tmux-remote-title"
 assert_contains "roles/common/tasks/main.yml" "tmux-sync-remote-title"
-assert_contains "roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh" 'command tmux-session-name "$TMUX_PANE" &>/dev/null &!'
+assert_not_contains "roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh" 'tmux-session-name'
 assert_contains "roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh" 'command tmux-window-label "$TMUX_PANE" &>/dev/null &!'
 
 assert_tmux_file "roles/macos/templates/dotfiles/tmux.conf"
