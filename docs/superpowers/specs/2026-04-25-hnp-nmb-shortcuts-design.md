@@ -1,7 +1,7 @@
 # HNP And NMB Codex Shortcuts
 
 **Date:** 2026-04-25
-**Status:** Design approved, implementation pending
+**Status:** Approved
 **Repos affected:** `home-network-provisioning`, `new-machine-bootstrap`
 
 ## Background
