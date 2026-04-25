@@ -133,6 +133,12 @@ module CodexPrReview
     REPO_ROOT = MODULE_ROOT.join("../..").expand_path
     RUBRIC_PATH = MODULE_ROOT.join("upstream_review_prompt.md")
     SCHEMA_PATH = MODULE_ROOT.join("review_output_schema.json")
+    SENSITIVE_CODEX_ENV_NAMES = %w[
+      GITHUB_TOKEN
+      CODEX_AUTH_JSON
+      FORGEJO_TOKEN
+      FORGEJO_BOT_TOKEN
+    ].freeze
 
     attr_reader :api_base_url, :output_dir, :platform, :pr_number, :repo
 
@@ -146,6 +152,7 @@ module CodexPrReview
 
     def run
       reset_output_dir
+      trusted_codex_assets = prepare_trusted_codex_assets
 
       pr = client.pull_request
       write_json("pull-request.json", pr)
@@ -161,11 +168,11 @@ module CodexPrReview
         base_branch: base_ref,
         head_sha: head_sha,
         merge_base_sha: merge_base_sha,
-        rubric: rubric_text
+        rubric: trusted_codex_assets.fetch(:rubric_text)
       )
       write_text("prompt.txt", prompt)
 
-      output = run_codex(prompt)
+      output = run_codex(prompt, schema_path: trusted_codex_assets.fetch(:schema_path))
       write_json("review-output.json", output)
 
       diff_map = self.class.diff_map_from_patch(patch_text)
@@ -392,8 +399,23 @@ module CodexPrReview
       raise Error, "Missing required environment variable #{env_names.join(' or ')}"
     end
 
-    def rubric_text
-      @rubric_text ||= RUBRIC_PATH.read
+    def rubric_source_path
+      RUBRIC_PATH
+    end
+
+    def schema_source_path
+      SCHEMA_PATH
+    end
+
+    def prepare_trusted_codex_assets
+      FileUtils.mkdir_p(output_dir)
+      trusted_schema_path = output_dir.join("review-output-schema.json")
+      FileUtils.cp(schema_source_path, trusted_schema_path)
+
+      {
+        rubric_text: rubric_source_path.read,
+        schema_path: trusted_schema_path
+      }
     end
 
     def reset_output_dir
@@ -401,15 +423,17 @@ module CodexPrReview
       FileUtils.mkdir_p(output_dir)
     end
 
-    def run_codex(prompt)
+    def run_codex(prompt, schema_path:)
       review_output_path = output_dir.join("codex-review.json")
       stdout, stderr, status = Open3.capture3(
+        codex_env_overrides,
         "codex", "exec",
         "--sandbox", "read-only",
-        "--output-schema", SCHEMA_PATH.to_s,
+        "--output-schema", schema_path.to_s,
         "--output-last-message", review_output_path.to_s,
         "-",
-        stdin_data: prompt
+        stdin_data: prompt,
+        chdir: REPO_ROOT.to_s
       )
       write_text("codex-stdout.log", stdout)
       write_text("codex-stderr.log", stderr)
@@ -422,6 +446,10 @@ module CodexPrReview
       raise CommandError, "Missing required command: codex (#{e.message})"
     rescue JSON::ParserError => e
       raise Error, "Invalid JSON from codex exec: #{e.message}"
+    end
+
+    def codex_env_overrides
+      SENSITIVE_CODEX_ENV_NAMES.to_h { |env_name| [env_name, nil] }
     end
 
     def prepare_checkout(pr)
