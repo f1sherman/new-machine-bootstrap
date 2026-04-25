@@ -377,10 +377,19 @@ module CodexPrReview
     end
 
     def api_token
-      env_name = platform == "github" ? "GITHUB_TOKEN" : "FORGEJO_BOT_TOKEN"
-      ENV.fetch(env_name)
-    rescue KeyError
-      raise Error, "Missing required environment variable #{env_name}"
+      env_names =
+        if platform == "github"
+          %w[GITHUB_TOKEN]
+        else
+          %w[FORGEJO_BOT_TOKEN FORGEJO_TOKEN GITHUB_TOKEN]
+        end
+
+      env_names.each do |env_name|
+        value = ENV[env_name]
+        return value unless value.nil? || value.empty?
+      end
+
+      raise Error, "Missing required environment variable #{env_names.join(' or ')}"
     end
 
     def rubric_text

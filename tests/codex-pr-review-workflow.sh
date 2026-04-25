@@ -34,8 +34,13 @@ assert_absent() {
 
 assert_contains "types: [opened, reopened]" "trigger scope uses opened and reopened"
 assert_contains "workflow_dispatch:" "workflow supports manual dispatch"
+assert_contains "pull_request_target:" "workflow uses the trusted PR-target trigger"
 assert_contains "pull-requests: write" "workflow grants PR write permission"
+assert_contains 'ref: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}' "workflow checks out trusted base-branch code"
 assert_contains "bin/codex-ci-preflight" "workflow runs Codex preflight"
 assert_contains "ruby bin/codex-pr-review" "workflow uses the shared review helper"
+assert_contains '--repo "$REVIEW_REPO"' "workflow passes the repository explicitly"
+assert_contains '--pr-number "$REVIEW_PR_NUMBER"' "workflow passes the PR number explicitly"
 assert_contains "actions/upload-artifact@v4" "workflow uploads review artifacts on failure"
 assert_absent "synchronize" "workflow does not trigger on synchronize"
+assert_absent "pull_request:" "workflow no longer runs untrusted pull_request workflow code"

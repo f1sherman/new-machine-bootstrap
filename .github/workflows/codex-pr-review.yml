@@ -1,7 +1,7 @@
 name: Codex PR Review
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, reopened]
   workflow_dispatch:
     inputs:
@@ -21,6 +21,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
 
       - name: Install Codex CLI
         run: npm install -g @openai/codex
@@ -39,9 +40,16 @@ jobs:
           printf %s "$CODEX_AUTH_JSON" > "$HOME/.codex/auth.json"
           chmod 600 "$HOME/.codex/auth.json"
 
+          REVIEW_REPO="${GITHUB_REPOSITORY:-$(jq -r '.repository.full_name // empty' "$GITHUB_EVENT_PATH")}"
+          REVIEW_PR_NUMBER="$(jq -r '.pull_request.number // .inputs.pr_number // empty' "$GITHUB_EVENT_PATH")"
+          test -n "$REVIEW_REPO"
+          test -n "$REVIEW_PR_NUMBER"
+
           ruby bin/codex-ci-preflight
           ruby bin/codex-pr-review \
             --platform github \
+            --repo "$REVIEW_REPO" \
+            --pr-number "$REVIEW_PR_NUMBER" \
             --output-dir tmp/codex-pr-review
 
       - name: Upload review artifacts
