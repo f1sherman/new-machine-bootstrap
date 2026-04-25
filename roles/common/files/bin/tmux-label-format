@@ -53,7 +53,30 @@ pr_status_cache_dir() {
 pr_status_cache_key() {
   local remote_url="$1"
   local branch="$2"
-  printf '%s\n%s\n' "$remote_url" "$branch" | sha256sum | awk '{print $1}'
+  local digest
+
+  if command -v sha256sum >/dev/null 2>&1 && \
+    digest="$(printf '%s\n%s\n' "$remote_url" "$branch" | sha256sum 2>/dev/null | awk '{print $1}')" && \
+    [ -n "$digest" ]; then
+    printf '%s\n' "$digest"
+    return 0
+  fi
+
+  if command -v shasum >/dev/null 2>&1 && \
+    digest="$(printf '%s\n%s\n' "$remote_url" "$branch" | shasum -a 256 2>/dev/null | awk '{print $1}')" && \
+    [ -n "$digest" ]; then
+    printf '%s\n' "$digest"
+    return 0
+  fi
+
+  if command -v ruby >/dev/null 2>&1 && \
+    digest="$(printf '%s\n%s\n' "$remote_url" "$branch" | ruby -rdigest -e 'print Digest::SHA256.hexdigest(STDIN.read)' 2>/dev/null)" && \
+    [ -n "$digest" ]; then
+    printf '%s\n' "$digest"
+    return 0
+  fi
+
+  return 1
 }
 
 now_epoch() {

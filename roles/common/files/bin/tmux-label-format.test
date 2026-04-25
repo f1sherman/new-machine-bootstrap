@@ -31,7 +31,30 @@ make_repo() {
 pr_status_cache_key() {
   local remote_url="$1"
   local branch="$2"
-  printf '%s\n%s\n' "$remote_url" "$branch" | sha256sum | awk '{print $1}'
+  local digest
+
+  if command -v sha256sum >/dev/null 2>&1 && \
+    digest="$(printf '%s\n%s\n' "$remote_url" "$branch" | sha256sum 2>/dev/null | awk '{print $1}')" && \
+    [ -n "$digest" ]; then
+    printf '%s\n' "$digest"
+    return 0
+  fi
+
+  if command -v shasum >/dev/null 2>&1 && \
+    digest="$(printf '%s\n%s\n' "$remote_url" "$branch" | shasum -a 256 2>/dev/null | awk '{print $1}')" && \
+    [ -n "$digest" ]; then
+    printf '%s\n' "$digest"
+    return 0
+  fi
+
+  if command -v ruby >/dev/null 2>&1 && \
+    digest="$(printf '%s\n%s\n' "$remote_url" "$branch" | ruby -rdigest -e 'print Digest::SHA256.hexdigest(STDIN.read)' 2>/dev/null)" && \
+    [ -n "$digest" ]; then
+    printf '%s\n' "$digest"
+    return 0
+  fi
+
+  return 1
 }
 
 write_pr_cache() {
@@ -87,6 +110,19 @@ assert_eq \
   "$("$script" local "$github_repo")" \
   "(feature/github-pr gh#123) github-repo" \
   "matching GitHub cache appends display ref"
+
+fallback_bin="$tmp_root/fallback-bin"
+mkdir -p "$fallback_bin"
+cat > "$fallback_bin/sha256sum" <<'EOF'
+#!/usr/bin/env bash
+printf 'sha256sum should not be used in this test\n' >&2
+exit 127
+EOF
+chmod +x "$fallback_bin/sha256sum"
+assert_eq \
+  "$(PATH="$fallback_bin:$PATH" "$script" local "$github_repo")" \
+  "(feature/github-pr gh#123) github-repo" \
+  "cache key falls back when sha256sum is unavailable"
 
 forgejo_repo="$tmp_root/forgejo-repo"
 forgejo_remote_url="ssh://git@forgejo.example/brian/forgejo-repo.git"
