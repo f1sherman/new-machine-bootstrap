@@ -381,7 +381,7 @@ module CodexPrReview
         if platform == "github"
           %w[GITHUB_TOKEN]
         else
-          %w[FORGEJO_BOT_TOKEN FORGEJO_TOKEN GITHUB_TOKEN]
+          %w[FORGEJO_TOKEN GITHUB_TOKEN FORGEJO_BOT_TOKEN]
         end
 
       env_names.each do |env_name|
