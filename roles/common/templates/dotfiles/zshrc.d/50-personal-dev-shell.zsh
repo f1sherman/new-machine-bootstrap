@@ -230,7 +230,7 @@ function _codex_last_session_for_cwd() {
 
   canonical_cwd="$(builtin cd "$cwd" 2>/dev/null && pwd -P)" || canonical_cwd="$cwd"
   session_files=("${sessions_dir}"/**/*.jsonl(Nom))
-  (( ${#session_files[@]} > 0 )) || {
+  (( $#session_files > 0 )) || {
     print -u2 "No Codex sessions found under $sessions_dir"
     return 1
   }
