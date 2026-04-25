@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+pane_id="${1:-${TMUX_PANE:-}}"
+[ -n "$pane_id" ] || exit 0
+
+pane_info="$(tmux display-message -p -t "$pane_id" '#{window_id}	#{pane_active}	#{window_panes}	#{pane_current_command}	#{pane_title}	#{window_name}' 2>/dev/null || true)"
+[ -n "$pane_info" ] || exit 0
+
+IFS=$'\t' read -r window_id pane_active window_panes pane_current_command pane_title window_name <<< "$pane_info"
+[ "$pane_active" = "1" ] || exit 0
+
+is_remote_candidate_command() {
+  case "$1" in
+    ssh|gh|ruby) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_structured_remote_label() {
+  case "$1" in
+    *" | "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+remote_host_suffix() {
+  printf '%s\n' "${1##* | }"
+}
+
+status="bottom"
+if [ "$window_panes" = "1" ] && is_remote_candidate_command "$pane_current_command"; then
+  if is_structured_remote_label "$pane_title"; then
+    status="off"
+  elif is_structured_remote_label "$window_name" && [ "$pane_title" = "$(remote_host_suffix "$window_name")" ]; then
+    status="off"
+  fi
+fi
+
+tmux set-window-option -q -t "$window_id" pane-border-status "$status" 2>/dev/null || true
+exit 0

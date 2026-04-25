@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-sync-pane-border-status"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+bindir="$TMPROOT/bin"
+mkdir -p "$bindir"
+tmux_log="$TMPROOT/tmux.log"
+
+cat > "$bindir/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "$*" >> "$TMUX_SYNC_PANE_BORDER_STATUS_LOG"
+
+case "${1:-}" in
+  display-message)
+    printf '%s\n' "${TMUX_SYNC_PANE_BORDER_STATUS_DISPLAY_OUTPUT:-}"
+    ;;
+  set-window-option|setw)
+    ;;
+esac
+EOF
+chmod +x "$bindir/tmux"
+
+assert_contains() {
+  local file="$1" needle="$2" label="$3"
+  if ! grep -Fqx -- "$needle" "$file"; then
+    printf 'FAIL  %s\nmissing: %s\n' "$label" "$needle" >&2
+    cat "$file" >&2
+    exit 1
+  fi
+  printf 'PASS  %s\n' "$label"
+}
+
+assert_not_contains() {
+  local file="$1" needle="$2" label="$3"
+  if grep -Fq -- "$needle" "$file"; then
+    printf 'FAIL  %s\nunexpected: %s\n' "$label" "$needle" >&2
+    cat "$file" >&2
+    exit 1
+  fi
+  printf 'PASS  %s\n' "$label"
+}
+
+run_case() {
+  local pane_id="$1" display_output="$2"
+  : > "$tmux_log"
+  PATH="$bindir:$PATH" \
+  TMUX=1 \
+  TMUX_SYNC_PANE_BORDER_STATUS_LOG="$tmux_log" \
+  TMUX_SYNC_PANE_BORDER_STATUS_DISPLAY_OUTPUT="$display_output" \
+  "$SCRIPT" "$pane_id"
+}
+
+run_case \
+  "%11" \
+  $'@7\t1\t1\tssh\t(feature/foo) repo | claw02\tmain window'
+
+assert_contains "$tmux_log" $'display-message -p -t %11 #{window_id}\t#{pane_active}\t#{window_panes}\t#{pane_current_command}\t#{pane_title}\t#{window_name}' "single-pane remote queries tmux"
+assert_contains "$tmux_log" 'set-window-option -q -t @7 pane-border-status off' "single-pane remote hides outer pane border"
+
+run_case \
+  "%12" \
+  $'@8\t1\t1\tssh\tclaw02\t(feature/foo) repo | claw02'
+
+assert_contains "$tmux_log" 'set-window-option -q -t @8 pane-border-status off' "degraded remote title still hides outer pane border"
+
+run_case \
+  "%13" \
+  $'@9\t1\t1\tzsh\tlocal-shell\t(feature/foo) repo'
+
+assert_contains "$tmux_log" 'set-window-option -q -t @9 pane-border-status bottom' "local pane keeps outer pane border"
+
+run_case \
+  "%14" \
+  $'@10\t1\t2\tssh\t(feature/foo) repo | claw02\tmain window'
+
+assert_contains "$tmux_log" 'set-window-option -q -t @10 pane-border-status bottom' "multi-pane remote window keeps outer pane border"
+
+run_case \
+  "%15" \
+  $'@11\t0\t1\tssh\t(feature/foo) repo | claw02\tmain window'
+
+assert_not_contains "$tmux_log" 'set-window-option -q -t @11 pane-border-status off' "inactive pane skips hide"
+assert_not_contains "$tmux_log" 'set-window-option -q -t @11 pane-border-status bottom' "inactive pane skips reset"

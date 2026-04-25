@@ -192,11 +192,31 @@ git_branch_for_path() {
 }
 
 local_label() {
-  "$label_formatter" local "${1:-$pane_current_path}"
+  local path host
+  path="${1:-$pane_current_path}"
+  host="$(host_tag || true)"
+
+  if [ -n "$host" ]; then
+    "$label_formatter" remote-explicit "$path" "$host"
+  else
+    "$label_formatter" local "$path"
+  fi
 }
 
 remote_label() {
   "$label_formatter" remote "$1" "$2"
+}
+
+host_tag() {
+  if [ -n "${TMUX_PANE_LABEL_HOST_TAG:-}" ]; then
+    printf '%s\n' "$TMUX_PANE_LABEL_HOST_TAG"
+  elif [ -n "${CODESPACES:-}" ] && [ -n "${CODESPACE_NAME:-}" ]; then
+    printf '%s\n' "$CODESPACE_NAME"
+  elif [ -n "${DEVPOD_WORKSPACE_ID:-}" ]; then
+    printf '%s\n' "$DEVPOD_WORKSPACE_ID"
+  elif [ -n "${SSH_CONNECTION:-}" ]; then
+    hostname -s 2>/dev/null
+  fi
 }
 
 is_structured_remote_label() {
@@ -224,15 +244,24 @@ is_agent_candidate_command() {
   esac
 }
 
+explicit_agent_label() {
+  local explicit_agent_pid explicit_worktree_pid explicit_worktree_path
+
+  [ -n "$pane_id" ] || return 1
+  explicit_agent_pid="$(detect_agent_pid "$pane_tty" || true)"
+  [ -n "$explicit_agent_pid" ] || return 1
+
+  explicit_worktree_pid="$(read_pane_option "$pane_id" "@agent_worktree_pid" 2>/dev/null || true)"
+  explicit_worktree_path="$(read_pane_option "$pane_id" "@agent_worktree_path" 2>/dev/null || true)"
+  [ -n "$explicit_worktree_path" ] || return 1
+  [ "$explicit_worktree_pid" = "$explicit_agent_pid" ] || return 1
+  is_valid_explicit_path "$explicit_worktree_path" || return 1
+
+  local_label "$explicit_worktree_path"
+}
+
 if [ -z "$pane_id" ] && [ -n "$pane_current_command" ] && \
   ! is_remote_candidate_command "$pane_current_command"; then
-  local_label
-  exit 0
-fi
-
-if [ -n "$pane_id" ] && [ -n "$pane_current_command" ] && \
-  ! is_remote_candidate_command "$pane_current_command" && \
-  ! is_agent_candidate_command "$pane_current_command"; then
   local_label
   exit 0
 fi
@@ -252,17 +281,18 @@ if [ -n "$pane_id" ] && is_remote_candidate_command "$pane_current_command"; the
   fi
 fi
 
-if [ -n "$pane_id" ]; then
-  explicit_agent_pid="$(detect_agent_pid "$pane_tty" || true)"
-  if [ -n "$explicit_agent_pid" ]; then
-    explicit_worktree_pid="$(read_pane_option "$pane_id" "@agent_worktree_pid" 2>/dev/null || true)"
-    explicit_worktree_path="$(read_pane_option "$pane_id" "@agent_worktree_path" 2>/dev/null || true)"
-    if [ -n "$explicit_worktree_pid" ] && [ "$explicit_worktree_pid" = "$explicit_agent_pid" ] && \
-      [ -n "$explicit_worktree_path" ] && is_valid_explicit_path "$explicit_worktree_path"; then
-      local_label "$explicit_worktree_path"
-      exit 0
-    fi
+if explicit_label="$(explicit_agent_label 2>/dev/null || true)"; then
+  if [ -n "$explicit_label" ]; then
+    printf '%s\n' "$explicit_label"
+    exit 0
   fi
+fi
+
+if [ -n "$pane_id" ] && [ -n "$pane_current_command" ] && \
+  ! is_remote_candidate_command "$pane_current_command" && \
+  ! is_agent_candidate_command "$pane_current_command"; then
+  local_label
+  exit 0
 fi
 
 pane_procs="$(get_process_lines "$pane_tty" || true)"
