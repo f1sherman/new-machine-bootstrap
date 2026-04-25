@@ -1,0 +1,52 @@
+name: Codex PR Review
+
+on:
+  pull_request:
+    types: [opened, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to review
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install Codex CLI
+        run: npm install -g @openai/codex
+
+      - name: Review PR
+        env:
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          export HOME="$(mktemp -d /tmp/codex-home.XXXXXX)"
+          trap 'rm -rf "$HOME"' EXIT
+          mkdir -p "$HOME/.codex"
+          printf %s "$CODEX_AUTH_JSON" > "$HOME/.codex/auth.json"
+          chmod 600 "$HOME/.codex/auth.json"
+
+          ruby bin/codex-ci-preflight
+          ruby bin/codex-pr-review \
+            --platform github \
+            --output-dir tmp/codex-pr-review
+
+      - name: Upload review artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-pr-review
+          path: tmp/codex-pr-review
+          if-no-files-found: ignore

@@ -1,19 +1,21 @@
 # Codex GitHub Review Setup
 
-This repository no longer runs PR review from GitHub Actions.
+This repository runs automated Codex PR review from GitHub Actions.
 
-PR review now comes from Codex GitHub integration, using Brian's ChatGPT/Codex subscription instead of a repository API key or Claude OAuth token. This applies repo-wide to all PRs, not Renovate-only.
+The workflow lives at `.github/workflows/codex-pr-review.yml`. It runs on pull request `opened` and `reopened`, supports manual reruns through `workflow_dispatch`, and posts review comments back to the pull request using `GITHUB_TOKEN`.
 
 ## Setup
 
-1. Connect GitHub to Codex/ChatGPT.
-2. Enable Codex code review for `f1sherman/new-machine-bootstrap`.
-3. Confirm the repository is configured for PR review on open and update.
+1. Add the `CODEX_AUTH_JSON` repository secret.
+2. Confirm the workflow has `pull-requests: write` permission.
+3. Confirm `@openai/codex` installs successfully on Actions runners.
 
 ## Verify It Works
 
-1. Open a pull request, or push a new commit to an existing pull request.
-2. Confirm Codex posts or performs a review on the PR.
+1. Open a pull request or reopen an existing pull request.
+2. Confirm the `Codex PR Review` workflow runs.
+3. Confirm Codex posts a top-level verdict comment and any inline findings.
+4. Manually rerun the workflow with `workflow_dispatch` and the PR number when needed.
 
 ## Manual Fallback
 
