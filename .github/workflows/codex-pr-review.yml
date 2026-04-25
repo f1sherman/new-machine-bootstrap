@@ -45,7 +45,7 @@ jobs:
           test -n "$REVIEW_REPO"
           test -n "$REVIEW_PR_NUMBER"
 
-          ruby bin/codex-ci-preflight
+          ruby tools/codex-pr-review/ci_preflight.rb
           ruby bin/codex-pr-review \
             --platform github \
             --repo "$REVIEW_REPO" \
