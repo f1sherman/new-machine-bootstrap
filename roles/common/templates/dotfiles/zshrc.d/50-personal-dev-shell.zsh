@@ -189,6 +189,79 @@ function codex() {
   )
 }
 
+alias codex-yolo > /dev/null && unalias codex-yolo
+function codex-yolo() {
+  codex --dangerously-bypass-approvals-and-sandbox "$@"
+}
+
+function _codex_resume_pane_cwd() {
+  local pane="${1:-${TMUX_PANE:-}}" resolved_path
+  if [[ -n "${TMUX:-}" && -n "$pane" ]] && command -v tmux >/dev/null 2>&1; then
+    resolved_path="$(command tmux show-option -qv -pt "$pane" @agent_worktree_path 2>/dev/null)" || resolved_path=""
+    if [[ -n "$resolved_path" ]]; then
+      print -r -- "$resolved_path"
+      return 0
+    fi
+
+    resolved_path="$(command tmux display-message -p -t "$pane" '#{pane_current_path}' 2>/dev/null)" || resolved_path=""
+    if [[ -n "$resolved_path" ]]; then
+      print -r -- "$resolved_path"
+      return 0
+    fi
+  fi
+
+  print -r -- "$PWD"
+}
+
+function _codex_last_session_for_cwd() {
+  local cwd="$1" sessions_dir="${CODEX_SESSIONS_DIR:-$HOME/.codex/sessions}"
+  local canonical_cwd session_file session_id
+  local -a session_files
+
+  command -v jq >/dev/null 2>&1 || {
+    print -u2 "jq is required to find Codex sessions"
+    return 1
+  }
+
+  [[ -d "$sessions_dir" ]] || {
+    print -u2 "No Codex sessions directory: $sessions_dir"
+    return 1
+  }
+
+  canonical_cwd="$(builtin cd "$cwd" 2>/dev/null && pwd -P)" || canonical_cwd="$cwd"
+  session_files=("${sessions_dir}"/**/*.jsonl(Nom))
+  (( ${#session_files[@]} > 0 )) || {
+    print -u2 "No Codex sessions found under $sessions_dir"
+    return 1
+  }
+
+  for session_file in "${session_files[@]}"; do
+    session_id="$(
+      jq -r --arg cwd "$cwd" --arg canonical_cwd "$canonical_cwd" '
+        select(.type == "session_meta")
+        | .payload
+        | select((.cwd == $cwd) or (.cwd == $canonical_cwd))
+        | .id // empty
+      ' "$session_file" 2>/dev/null | head -n 1
+    )"
+    if [[ -n "$session_id" ]]; then
+      print -r -- "$session_id"
+      return 0
+    fi
+  done
+
+  print -u2 "No Codex session found for $cwd"
+  return 1
+}
+
+function codex-resume-pane() {
+  local pane="${1:-${TMUX_PANE:-}}" cwd session_id
+  cwd="$(_codex_resume_pane_cwd "$pane")" || return $?
+  session_id="$(_codex_last_session_for_cwd "$cwd")" || return $?
+  builtin cd "$cwd" || return $?
+  codex-yolo resume "$session_id"
+}
+
 alias b > /dev/null && unalias b
 function b() {
   local selection action value
@@ -255,3 +328,4 @@ alias s='git status'
 alias claude='env -u ANTHROPIC_API_KEY claude'
 alias claude-yolo='claude --dangerously-skip-permissions'
 alias codex-yolo='codex --dangerously-bypass-approvals-and-sandbox'
+alias cr='codex-resume-pane'
