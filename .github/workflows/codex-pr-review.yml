@@ -32,7 +32,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          export HOME="$(mktemp -d /tmp/codex-home.XXXXXX)"
+          mkdir -p tmp
+          export HOME="$(mktemp -d "$PWD/tmp/codex-home.XXXXXX")"
           trap 'rm -rf "$HOME"' EXIT
           mkdir -p "$HOME/.codex"
           printf %s "$CODEX_AUTH_JSON" > "$HOME/.codex/auth.json"

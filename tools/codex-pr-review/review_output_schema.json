@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
+  "additionalProperties": false,
   "required": [
     "findings",
     "overall_correctness",
@@ -12,6 +13,7 @@
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
           "title",
           "body",
@@ -36,6 +38,7 @@
           },
           "code_location": {
             "type": "object",
+            "additionalProperties": false,
             "required": [
               "absolute_file_path",
               "line_range"
@@ -46,6 +49,7 @@
               },
               "line_range": {
                 "type": "object",
+                "additionalProperties": false,
                 "required": [
                   "start",
                   "end"
