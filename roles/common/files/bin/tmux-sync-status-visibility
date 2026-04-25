@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+pane_id="${1:-${TMUX_PANE:-}}"
+[ -n "$pane_id" ] || exit 0
+
+pane_info="$(tmux display-message -p -t "$pane_id" '#{session_id}	#{pane_active}	#{client_termname}' 2>/dev/null || true)"
+[ -n "$pane_info" ] || exit 0
+
+IFS=$'\t' read -r session_id pane_active client_termname <<< "$pane_info"
+[ "$pane_active" = "1" ] || exit 0
+
+status="on"
+if [ -n "${SSH_CONNECTION:-}" ]; then
+  case "${client_termname:-}" in
+    tmux*)
+      status="off"
+      ;;
+  esac
+fi
+
+tmux set-option -q -t "$session_id" status "$status" 2>/dev/null || true
+exit 0

@@ -37,7 +37,6 @@ assert_tmux_file() {
   local file="$1"
 
   assert_contains "$file" "set -g status on"
-  assert_contains "$file" "if-shell '[ -n \"\${SSH_CONNECTION:-}\" ]' 'set -g status off'"
   assert_contains "$file" "set -g status-position top"
   assert_contains "$file" "set -g pane-border-status bottom"
   assert_contains "$file" "set -g window-status-separator ' || '"
@@ -47,6 +46,7 @@ assert_tmux_file() {
   assert_contains "$file" "set -g visual-activity off"
   assert_contains "$file" "set -g pane-border-format '#{?pane_active,#[bg=black#,fg=colour51],#[bg=black#,fg=colour240]} #(~/.local/bin/tmux-pane-label \"#{pane_tty}\" \"#{pane_current_path}\" \"#{pane_current_command}\" \"#{pane_id}\") '"
   assert_contains "$file" 'tmux-window-label #{pane_id}'
+  assert_contains "$file" 'tmux-sync-status-visibility #{pane_id}'
   assert_contains "$file" 'tmux-sync-pane-border-status #{pane_id}'
   assert_not_contains "$file" 'tmux-session-name'
   assert_contains "$file" 'tmux-sync-remote-title #{pane_id}'
@@ -60,6 +60,7 @@ assert_tmux_file() {
 
 assert_contains "roles/common/tasks/main.yml" "tmux-pane-label"
 assert_contains "roles/common/tasks/main.yml" "tmux-window-label"
+assert_contains "roles/common/tasks/main.yml" "tmux-sync-status-visibility"
 assert_contains "roles/common/tasks/main.yml" "tmux-sync-pane-border-status"
 assert_contains "roles/common/tasks/main.yml" "tmux-remote-title"
 assert_contains "roles/common/tasks/main.yml" "tmux-sync-remote-title"

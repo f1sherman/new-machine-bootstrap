@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-sync-status-visibility"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+bindir="$TMPROOT/bin"
+mkdir -p "$bindir"
+tmux_log="$TMPROOT/tmux.log"
+
+cat > "$bindir/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "$*" >> "$TMUX_SYNC_STATUS_VISIBILITY_LOG"
+
+case "${1:-}" in
+  display-message)
+    printf '%s\n' "${TMUX_SYNC_STATUS_VISIBILITY_DISPLAY_OUTPUT:-}"
+    ;;
+  set-option)
+    ;;
+esac
+EOF
+chmod +x "$bindir/tmux"
+
+assert_contains() {
+  local file="$1" needle="$2" label="$3"
+  if ! grep -Fqx -- "$needle" "$file"; then
+    printf 'FAIL  %s\nmissing: %s\n' "$label" "$needle" >&2
+    cat "$file" >&2
+    exit 1
+  fi
+  printf 'PASS  %s\n' "$label"
+}
+
+assert_not_contains() {
+  local file="$1" needle="$2" label="$3"
+  if grep -Fq -- "$needle" "$file"; then
+    printf 'FAIL  %s\nunexpected: %s\n' "$label" "$needle" >&2
+    cat "$file" >&2
+    exit 1
+  fi
+  printf 'PASS  %s\n' "$label"
+}
+
+run_case() {
+  local pane_id="$1" display_output="$2" ssh_connection="${3:-}"
+  : > "$tmux_log"
+  PATH="$bindir:$PATH" \
+    TMUX=1 \
+    TMUX_SYNC_STATUS_VISIBILITY_LOG="$tmux_log" \
+    TMUX_SYNC_STATUS_VISIBILITY_DISPLAY_OUTPUT="$display_output" \
+    SSH_CONNECTION="$ssh_connection" \
+    "$SCRIPT" "$pane_id"
+}
+
+run_case "%11" $'$1\t1\ttmux-256color' '1 2 3 4'
+assert_contains "$tmux_log" $'display-message -p -t %11 #{session_id}\t#{pane_active}\t#{client_termname}' "nested ssh queries tmux"
+assert_contains "$tmux_log" 'set-option -q -t $1 status off' "nested ssh hides status"
+
+run_case "%12" $'$2\t1\txterm-ghostty' '1 2 3 4'
+assert_contains "$tmux_log" 'set-option -q -t $2 status on' "direct ssh keeps status"
+
+run_case "%13" $'$3\t1\ttmux-256color' ''
+assert_contains "$tmux_log" 'set-option -q -t $3 status on' "local tmux keeps status"
+
+run_case "%14" $'$4\t0\ttmux-256color' '1 2 3 4'
+assert_not_contains "$tmux_log" 'set-option -q -t $4 status off' "inactive pane skips hide"
+assert_not_contains "$tmux_log" 'set-option -q -t $4 status on' "inactive pane skips reset"
