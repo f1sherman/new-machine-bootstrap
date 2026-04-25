@@ -2,6 +2,11 @@
 
 This repository bootstraps macOS machines and Linux development hosts using Ansible.
 
+## Repo Shorthand
+
+- `hnp` means `home-network-provisioning`.
+- `nmb` means `new-machine-bootstrap`.
+
 ## CRITICAL: Never Modify Files Outside This Repo
 
 When asked to change dotfiles, shell config, scripts, application settings, home directory configurations (for example `~/.zshrc`, `~/.gitconfig`, `~/.config/`), or any other managed configuration: **always edit the source files in this repository** (templates, roles, tasks, and scripts), never the deployed files in `~` or elsewhere on the filesystem. Deployed files will be overwritten on the next provision.
