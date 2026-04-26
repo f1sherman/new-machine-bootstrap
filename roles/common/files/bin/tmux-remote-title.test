@@ -147,3 +147,14 @@ run_print_env_case \
   "codespace host precedence wins over devpod" \
   "$TMPROOT/tmp-dir" \
   "tmp-dir | space-alpha"
+
+output="$(
+  TMUX=/tmp/fake \
+  TMUX_PANE=%91 \
+  TMUX_REMOTE_TITLE_PANE_PATH="$TMPROOT/tmp-dir" \
+  TMUX_REMOTE_TITLE_CLIENT_TTY="$TMPROOT/devpod-env.client" \
+  DEVPOD_WORKSPACE_ID=workspace-beta \
+  "$SCRIPT" print
+)"
+
+assert_eq "$output" "tmp-dir | workspace-beta" "devpod env host tag prints workspace name"

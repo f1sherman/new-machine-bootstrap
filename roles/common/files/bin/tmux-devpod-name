@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+args="${1:-}"
+ssh_host="${2:-}"
+
+extract_devpod_workspace() {
+  local line="$1" parts
+  read -r -a parts <<< "$line"
+
+  if [ "${#parts[@]}" -ge 3 ] && [ "${parts[0]}" = "devpod" ] && [ "${parts[1]}" = "ssh" ]; then
+    case "${parts[2]}" in
+      -*)
+        return 1
+        ;;
+      *)
+        printf '%s\n' "${parts[2]}"
+        return 0
+        ;;
+    esac
+  fi
+
+  return 1
+}
+
+if workspace="$(extract_devpod_workspace "$args" 2>/dev/null)"; then
+  printf '%s\n' "$workspace"
+elif [ -n "${DEVPOD_WORKSPACE_ID:-}" ]; then
+  printf '%s\n' "$DEVPOD_WORKSPACE_ID"
+elif [ -n "$ssh_host" ]; then
+  printf '%s\n' "$ssh_host"
+else
+  printf '%s\n' "devpod"
+fi

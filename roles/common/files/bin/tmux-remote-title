@@ -5,8 +5,10 @@ mode="${1:-publish}"
 pane_id="${TMUX_PANE:-}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 label_formatter="${TMUX_LABEL_FORMAT_BIN:-$script_dir/tmux-label-format}"
+devpod_name_helper="${TMUX_DEVPOD_NAME_BIN:-$script_dir/tmux-devpod-name}"
 
 [ -x "$label_formatter" ] || label_formatter="${HOME:-}/.local/bin/tmux-label-format"
+[ -x "$devpod_name_helper" ] || devpod_name_helper="${HOME:-}/.local/bin/tmux-devpod-name"
 
 pane_info() {
   if [ -n "${TMUX_REMOTE_TITLE_PANE_PATH:-}" ] || [ -n "${TMUX_REMOTE_TITLE_CLIENT_TTY:-}" ] || [ -n "${TMUX_REMOTE_TITLE_PANE_TTY:-}" ]; then
@@ -139,7 +141,7 @@ host_tag() {
   elif [ -n "${CODESPACES:-}" ] && [ -n "${CODESPACE_NAME:-}" ]; then
     printf '%s\n' "$CODESPACE_NAME"
   elif [ -n "${DEVPOD_WORKSPACE_ID:-}" ]; then
-    printf '%s\n' "$DEVPOD_WORKSPACE_ID"
+    "$devpod_name_helper" "" "$(hostname -s 2>/dev/null || true)" 2>/dev/null || true
   elif [ -n "${SSH_CONNECTION:-}" ]; then
     hostname -s 2>/dev/null
   fi
