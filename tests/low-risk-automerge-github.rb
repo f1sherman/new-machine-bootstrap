@@ -1,7 +1,9 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require "fileutils"
 require "minitest/autorun"
+require "tmpdir"
 
 require_relative "../tools/low-risk-automerge/common"
 require_relative "../tools/low-risk-automerge/github"
@@ -132,6 +134,30 @@ module LowRiskAutomerge
       assert_match(/Low-risk automerge skipped: fork pull request/, @client.posts.first.fetch(:payload).fetch("body"))
     end
 
+    def test_does_not_duplicate_existing_refusal_comment
+      @client.prs = [pull_request(head_repo: "other/repo")]
+      @client.comments[1] = [
+        review_comment(
+          body: "<!-- low-risk-automerge:v1 -->\nLow-risk automerge skipped: fork pull request"
+        )
+      ]
+
+      @runner.run(pr_number: 1)
+
+      assert_empty @client.posts
+    end
+
+    def test_cli_ignores_non_pr_issue_comment_events
+      path = write_event_payload({ "issue" => { "number" => 99 } })
+      old_path = ENV["LOW_RISK_AUTOMERGE_EVENT_PATH"]
+      ENV["LOW_RISK_AUTOMERGE_EVENT_PATH"] = path
+
+      assert_equal :no_pr_event, Cli.new(argv: []).send(:parse_pr_number)
+    ensure
+      ENV["LOW_RISK_AUTOMERGE_EVENT_PATH"] = old_path
+      FileUtils.rm_f(path) if path
+    end
+
     def test_sends_rebase_merge_request_with_current_head_sha
       @client.prs = [pull_request]
       @client.comments[1] = [review_comment(body: metadata_body(reviewed_head: "abc123"))]
@@ -164,6 +190,12 @@ module LowRiskAutomerge
 
     def metadata_body(reviewed_head:)
       MetadataParserTest::VALID_BODY.sub("reviewed_head: abc123", "reviewed_head: #{reviewed_head}")
+    end
+
+    def write_event_payload(payload)
+      path = File.join(Dir.mktmpdir("low-risk-automerge-event"), "event.json")
+      File.write(path, JSON.generate(payload))
+      path
     end
   end
 

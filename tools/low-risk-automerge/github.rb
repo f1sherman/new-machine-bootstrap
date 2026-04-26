@@ -86,11 +86,17 @@ module LowRiskAutomerge
     end
 
     def run(pr_number: nil)
+      return if pr_number == :no_pr_event
+
       pull_requests = pr_number ? [client.pull_request(pr_number)] : client.open_pull_requests
       pull_requests.compact.each do |pr|
         result = evaluate(pr)
         if result.merge?
-          merge(pr)
+          begin
+            merge(pr)
+          rescue HttpError => e
+            post_refusal(pr.fetch("number"), "merge failed: #{e.message}")
+          end
         else
           post_refusal(pr.fetch("number"), result.reason)
         end
@@ -161,7 +167,16 @@ module LowRiskAutomerge
     end
 
     def post_refusal(number, reason)
-      client.post_json("/issues/#{number}/comments", { "body" => "Low-risk automerge skipped: #{reason}" })
+      body = <<~MARKDOWN.strip
+        <!-- low-risk-automerge:v1 -->
+        Low-risk automerge skipped: #{reason}
+      MARKDOWN
+
+      return if client.issue_comments(number).any? do |comment|
+        comment.dig("user", "login") == bot_author && comment["body"].to_s.include?(body)
+      end
+
+      client.post_json("/issues/#{number}/comments", { "body" => body })
     end
 
     def blocked(reason)
@@ -205,9 +220,12 @@ module LowRiskAutomerge
       return nil unless path && File.file?(path)
 
       payload = JSON.parse(File.read(path))
+      return :no_pr_event if payload.key?("issue") && !payload.dig("issue", "pull_request")
+
       value = payload.dig("inputs", "pr_number") ||
               payload.dig("issue", "pull_request") && payload.dig("issue", "number") ||
-              payload.dig("pull_request", "number")
+              payload.dig("pull_request", "number") ||
+              payload.dig("workflow_run", "pull_requests", 0, "number")
       Integer(value, exception: false)
     rescue JSON::ParserError
       nil
