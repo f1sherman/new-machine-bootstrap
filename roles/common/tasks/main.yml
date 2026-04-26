@@ -1199,14 +1199,9 @@
     path: '{{ ansible_facts["user_dir"] }}/{{ item }}'
     state: absent
   loop:
-    - .claude/skills/gsd-browser
-    - .codex/skills/gsd-browser
     - .gsd
-    - .gsd-browser
     - .local/bin/gsd
-    - .local/bin/gsd-browser
     - .local/bin/gsd-cli
-    - .pi/skills/gsd-browser
 
 - name: Remove deprecated tmux-git-branch script
   file:
