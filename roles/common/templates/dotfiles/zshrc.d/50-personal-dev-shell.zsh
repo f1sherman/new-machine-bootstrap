@@ -320,14 +320,22 @@ function _codex_watch_pane_session_id() {
   return 1
 }
 
-function _codex_session_preexec() {
+function _codex_command_runs_session() {
   local command_line="$1"
-  [[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]] || return 0
   case "$command_line" in
-    codex*|codex-yolo*|*' codex '*|*' codex-yolo '*)
-      _codex_watch_pane_session_id "$TMUX_PANE" &!
+    codex*|codex-yolo*|codex-resume-pane*|cr|cr\ *|*' codex '*|*' codex-yolo '*|*' codex-resume-pane '*)
+      return 0
       ;;
   esac
+  return 1
+}
+
+function _codex_session_preexec() {
+  local command_line="$1" expanded_command="${2:-}"
+  [[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]] || return 0
+  if _codex_command_runs_session "$command_line" || _codex_command_runs_session "$expanded_command"; then
+    _codex_watch_pane_session_id "$TMUX_PANE" &!
+  fi
 }
 
 autoload -Uz add-zsh-hook

@@ -197,3 +197,26 @@ if rg -q -F -- 'set-option -pt %91 @codex_session_id pane-bound' "$tmux_log"; th
 else
   fail "active Codex process publishes pane-local session id with lsof fallback"
 fi
+
+: >"$tmux_log"
+HOME="$home" \
+PATH="$bin:$PATH" \
+TMUX=/tmp/tmux-socket \
+TMUX_PANE=%91 \
+FAKE_CODEX_SESSION_ID= \
+FAKE_AGENT_WORKTREE_PATH="$agent_path" \
+FAKE_PANE_CURRENT_PATH="$pane_path" \
+CODEX_TEST_LOG="$log" \
+TMUX_TEST_LOG="$tmux_log" \
+CODEX_SESSION_PROC_ROOT="$proc_root" \
+zsh -fic "
+  source '$PERSONAL_ZSHRC'
+  _codex_session_preexec cr codex-resume-pane
+  sleep 0.5
+"
+
+if rg -q -F -- 'set-option -pt %91 @codex_session_id pane-active' "$tmux_log"; then
+  pass "preexec watcher starts for cr alias expansion"
+else
+  fail "preexec watcher starts for cr alias expansion"
+fi
