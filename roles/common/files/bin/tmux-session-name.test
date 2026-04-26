@@ -102,6 +102,23 @@ degraded_without_structured_case() {
 
 degraded_without_structured_case
 
+devpod_env_case() {
+  : > "$tmp_root/tmux-devpod.log"
+
+  PATH="$fake_bin:$PATH" \
+    TMUX=1 \
+    TMPDIR="$tmp_root" \
+    TMUX_LOG="$tmp_root/tmux-devpod.log" \
+    TMUX_DISPLAY_OUTPUT=$'/dev/ttys004\t/tmp/repo\tdevpod\t$1\tdevpod' \
+    PS_ARGS_OUTPUT="devpod ssh --agent workspace-beta" \
+    DEVPOD_WORKSPACE_ID="workspace-beta" \
+    HOSTNAME="local-host" \
+    USER="brian" \
+    bash "$script" "%14"
+}
+
+devpod_env_case
+
 assert_file_contains "$tmux_log" $'display-message -p -t %11 #{pane_tty}\t#{pane_current_path}\t#{pane_title}\t#{session_id}\t#{session_name}' "structured remote title queries pane title"
 assert_file_contains "$tmux_log" "rename-session -t \$1 (feature/foo) repo | claw02" "structured remote title preserves synced label"
 assert_file_contains "$tmux_log_degraded" $'display-message -p -t %12 #{pane_tty}\t#{pane_current_path}\t#{pane_title}\t#{session_id}\t#{session_name}' "degraded remote title queries pane title"
@@ -118,3 +135,5 @@ if grep -Fq "rename-session" "$tmp_root/tmux-degraded-unstructured.log"; then
   exit 1
 fi
 printf 'ok - degraded title avoids host pipe host session name\n'
+assert_file_contains "$tmp_root/tmux-devpod.log" $'display-message -p -t %14 #{pane_tty}\t#{pane_current_path}\t#{pane_title}\t#{session_id}\t#{session_name}' "devpod env fallback queries pane title"
+assert_file_contains "$tmp_root/tmux-devpod.log" "rename-session -t \$1 workspace-beta" "devpod env fallback preserves workspace session name"

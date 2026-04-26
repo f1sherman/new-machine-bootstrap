@@ -135,6 +135,7 @@ run_case() {
   local pane_id="${9:-}" explicit_pid="${10:-}" explicit_path="${11:-}" detail_fixture="${12:-}"
   local display_fixture="${13:-}"
   local host_tag="${14:-}"
+  local devpod_workspace_id="${15:-}"
 
   printf '%s\n' "$fixture" > "$tmp_root/$tty"
   if [ -n "$detail_fixture" ]; then
@@ -149,7 +150,7 @@ run_case() {
 
   local output ps_calls
   local rc
-  if output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" TMUX_CALL_LOG="$tmux_log" TMUX_FIXTURE_DIR="$tmp_root" TMUX_PANE_IDS="${pane_id:-}" TMUX_DISPLAY_OUTPUT="$display_fixture" TMUX_PANE_LABEL_HOST_TAG="$host_tag" bash "$script" "$tty" "$path" "$pane_current_command" "${pane_id:-}" 2>/dev/null)"; then
+  if output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" TMUX_CALL_LOG="$tmux_log" TMUX_FIXTURE_DIR="$tmp_root" TMUX_PANE_IDS="${pane_id:-}" TMUX_DISPLAY_OUTPUT="$display_fixture" TMUX_PANE_LABEL_HOST_TAG="$host_tag" DEVPOD_WORKSPACE_ID="$devpod_workspace_id" bash "$script" "$tty" "$path" "$pane_current_command" "${pane_id:-}" 2>/dev/null)"; then
     rc=0
   else
     rc=$?
@@ -259,6 +260,22 @@ run_case \
   "devpod ssh workspace-beta" \
   "1" \
   "0"
+
+run_case \
+  "devpod pane falls back to env workspace name" \
+  "tty-devpod-env" \
+  "$tmp_dir" \
+  "ruby" \
+  "tmp | workspace-beta" \
+  "devpod ssh --agent workspace-beta" \
+  "1" \
+  "0" \
+  "" \
+  "" \
+  "" \
+  "" \
+  "" \
+  "workspace-beta"
 
 run_case \
   "structured remote title wins for pane label" \

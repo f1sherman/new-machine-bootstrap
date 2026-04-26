@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/codex-bind-tmux-pane"
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+
+pass() {
+  printf 'PASS  %s\n' "$1"
+}
+
+fail() {
+  printf 'FAIL  %s\n' "$1" >&2
+  exit 1
+}
+
+bin="$tmpdir/bin"
+log="$tmpdir/tmux.log"
+mkdir -p "$bin"
+
+cat > "$bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$TMUX_TEST_LOG"
+EOF
+chmod +x "$bin/tmux"
+
+payload="$tmpdir/payload.json"
+cat > "$payload" <<JSON
+{
+  "session_id": "019dcb09-session",
+  "transcript_path": "$tmpdir/session.jsonl",
+  "cwd": "$tmpdir/worktree",
+  "hook_event_name": "SessionStart",
+  "source": "resume"
+}
+JSON
+
+PATH="$bin:$PATH" \
+TMUX=/tmp/tmux-socket \
+TMUX_PANE=%91 \
+TMUX_TEST_LOG="$log" \
+"$SCRIPT" < "$payload"
+
+rg -q -F -- 'set-option -pt %91 @codex_session_id 019dcb09-session' "$log" \
+  || fail 'bind hook stores pane session id'
+pass 'bind hook stores pane session id'
+
+rg -q -F -- "set-option -pt %91 @codex_session_cwd $tmpdir/worktree" "$log" \
+  || fail 'bind hook stores pane session cwd'
+pass 'bind hook stores pane session cwd'
+
+rg -q -F -- "set-option -pt %91 @codex_session_transcript $tmpdir/session.jsonl" "$log" \
+  || fail 'bind hook stores pane transcript path'
+pass 'bind hook stores pane transcript path'
+
+: > "$log"
+env -u TMUX -u TMUX_PANE \
+  PATH="$bin:$PATH" \
+  TMUX_TEST_LOG="$log" \
+  "$SCRIPT" < "$payload"
+
+if [ -s "$log" ]; then
+  fail 'bind hook is quiet outside tmux'
+fi
+pass 'bind hook is quiet outside tmux'

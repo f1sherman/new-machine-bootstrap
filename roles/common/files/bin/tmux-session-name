@@ -13,8 +13,10 @@
 pane_id="${1:-${TMUX_PANE:-$(tmux display-message -p '#{pane_id}')}}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 label_formatter="${TMUX_LABEL_FORMAT_BIN:-$script_dir/tmux-label-format}"
+devpod_name_helper="${TMUX_DEVPOD_NAME_BIN:-$script_dir/tmux-devpod-name}"
 
 [ -x "$label_formatter" ] || label_formatter="${HOME:-}/.local/bin/tmux-label-format"
+[ -x "$devpod_name_helper" ] || devpod_name_helper="${HOME:-}/.local/bin/tmux-devpod-name"
 
 # Deduplicate concurrent runs for the same pane. Agents like Claude and Codex
 # update pane titles several times per second with spinner frames, which fires
@@ -100,6 +102,11 @@ if grep -qE "$ssh_pattern" <<< "$pane_procs"; then
   is_devpod=$(grep -qE 'devpod ssh' <<< "$pane_procs" && echo 1)
   ssh_host=$(grep -E '^ssh ' <<< "$pane_procs" | head -1 | awk '{print $NF}')
   ssh_host="${ssh_host##*@}"
+  devpod_name=""
+  if [ -n "$is_devpod" ]; then
+    devpod_line="$(grep -E 'devpod ssh' <<< "$pane_procs" | head -1)"
+    devpod_name="$("$devpod_name_helper" "$devpod_line" "${ssh_host:-}" 2>/dev/null || true)"
+  fi
   if [ -n "$pane_title" ] && [ "$pane_title" != "$HOSTNAME" ] && [ "$pane_title" != "$USER@$HOSTNAME" ]; then
     case "$pane_title" in
       *" | "*)
@@ -108,6 +115,8 @@ if grep -qE "$ssh_pattern" <<< "$pane_procs"; then
       *)
         if is_structured_remote_label "$current_name" && [ "$pane_title" = "$(remote_host_suffix "$current_name")" ]; then
           exit 0
+        elif [ -n "$is_devpod" ] && [ -n "$devpod_name" ]; then
+          name="$devpod_name"
         elif [ -z "$is_codespace" ] && [ -z "$is_devpod" ] && [ -n "$ssh_host" ] && [ "$pane_title" != "$ssh_host" ]; then
           name="$ssh_host | $pane_title"
         else
@@ -116,7 +125,11 @@ if grep -qE "$ssh_pattern" <<< "$pane_procs"; then
         ;;
     esac
   else
-    name="${ssh_host:-ssh}"
+    if [ -n "$is_devpod" ] && [ -n "$devpod_name" ]; then
+      name="$devpod_name"
+    else
+      name="${ssh_host:-ssh}"
+    fi
   fi
 else
   # Not SSH'd — if another pane in this session IS SSH'd, don't overwrite

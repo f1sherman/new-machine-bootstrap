@@ -7,8 +7,10 @@ pane_current_command="${3:-}"
 pane_id="${4:-}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 label_formatter="${TMUX_LABEL_FORMAT_BIN:-$script_dir/tmux-label-format}"
+devpod_name_helper="${TMUX_DEVPOD_NAME_BIN:-$script_dir/tmux-devpod-name}"
 
 [ -x "$label_formatter" ] || label_formatter="${HOME:-}/.local/bin/tmux-label-format"
+[ -x "$devpod_name_helper" ] || devpod_name_helper="${HOME:-}/.local/bin/tmux-devpod-name"
 
 [ -n "$pane_tty" ] || exit 0
 [ -n "$pane_current_path" ] || exit 0
@@ -132,26 +134,6 @@ extract_codespace_name() {
         ;;
     esac
   done
-
-  return 1
-}
-
-extract_devpod_workspace() {
-  local args="$1"
-  local parts
-  read -r -a parts <<< "$args"
-
-  if [ "${#parts[@]}" -ge 3 ] && [ "${parts[0]}" = "devpod" ] && [ "${parts[1]}" = "ssh" ]; then
-    case "${parts[2]}" in
-      -*)
-        return 1
-        ;;
-      *)
-        printf '%s\n' "${parts[2]}"
-        return 0
-        ;;
-    esac
-  fi
 
   return 1
 }
@@ -311,7 +293,7 @@ while IFS= read -r line; do
       break
       ;;
     *"devpod ssh"*)
-      label="$(extract_devpod_workspace "$line" || true)"
+      label="$("$devpod_name_helper" "$line" "$(host_tag || true)" 2>/dev/null || true)"
       if [ -n "$label" ]; then
         label="$(remote_label "$pane_current_path" "$label")"
       else

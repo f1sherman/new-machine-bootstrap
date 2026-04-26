@@ -213,6 +213,84 @@ function _codex_resume_pane_cwd() {
   print -r -- "$PWD"
 }
 
+function _codex_pane_session_id() {
+  local pane="${1:-${TMUX_PANE:-}}" session_id
+  [[ -n "${TMUX:-}" && -n "$pane" ]] || return 1
+  command -v tmux >/dev/null 2>&1 || return 1
+
+  session_id="$(command tmux show-option -qv -pt "$pane" @codex_session_id 2>/dev/null)" || session_id=""
+  [[ -n "$session_id" ]] || return 1
+  print -r -- "$session_id"
+}
+
+function _codex_pane_session_cwd() {
+  local pane="${1:-${TMUX_PANE:-}}" session_cwd
+  [[ -n "${TMUX:-}" && -n "$pane" ]] || return 1
+  command -v tmux >/dev/null 2>&1 || return 1
+
+  session_cwd="$(command tmux show-option -qv -pt "$pane" @codex_session_cwd 2>/dev/null)" || session_cwd=""
+  [[ -n "$session_cwd" ]] || return 1
+  print -r -- "$session_cwd"
+}
+
+function _codex_pane_session_transcript() {
+  local pane="${1:-${TMUX_PANE:-}}" transcript
+  [[ -n "${TMUX:-}" && -n "$pane" ]] || return 1
+  command -v tmux >/dev/null 2>&1 || return 1
+
+  transcript="$(command tmux show-option -qv -pt "$pane" @codex_session_transcript 2>/dev/null)" || transcript=""
+  [[ -n "$transcript" ]] || return 1
+  print -r -- "$transcript"
+}
+
+function _codex_clear_pane_session_id() {
+  local pane="${1:-${TMUX_PANE:-}}"
+  [[ -n "${TMUX:-}" && -n "$pane" ]] || return 1
+  command -v tmux >/dev/null 2>&1 || return 1
+  command tmux set-option -pt "$pane" @codex_session_id "" >/dev/null 2>&1
+  command tmux set-option -pt "$pane" @codex_session_cwd "" >/dev/null 2>&1
+  command tmux set-option -pt "$pane" @codex_session_transcript "" >/dev/null 2>&1
+}
+
+function _codex_cwd_matches() {
+  local left="$1" right="$2" canonical_left canonical_right
+  canonical_left="$(builtin cd "$left" 2>/dev/null && pwd -P)" || canonical_left="$left"
+  canonical_right="$(builtin cd "$right" 2>/dev/null && pwd -P)" || canonical_right="$right"
+  [[ "$left" == "$right" || "$left" == "$canonical_right" || "$canonical_left" == "$right" || "$canonical_left" == "$canonical_right" ]]
+}
+
+function _codex_session_file_matches_id_cwd() {
+  local session_file="$1" session_id="$2" cwd="$3" canonical_cwd
+
+  command -v jq >/dev/null 2>&1 || return 1
+  [[ -f "$session_file" ]] || return 1
+
+  canonical_cwd="$(builtin cd "$cwd" 2>/dev/null && pwd -P)" || canonical_cwd="$cwd"
+  jq -e --arg id "$session_id" --arg cwd "$cwd" --arg canonical_cwd "$canonical_cwd" '
+    select(.type == "session_meta")
+    | .payload
+    | select(.id == $id)
+    | select((.cwd == $cwd) or (.cwd == $canonical_cwd))
+    | .id
+  ' "$session_file" >/dev/null 2>&1
+}
+
+function _codex_session_id_matches_cwd() {
+  local session_id="$1" cwd="$2" sessions_dir="${CODEX_SESSIONS_DIR:-$HOME/.codex/sessions}"
+  local session_file
+  local -a session_files
+
+  [[ -d "$sessions_dir" ]] || return 1
+  session_files=("${sessions_dir}"/**/*.jsonl(Nom))
+  (( $#session_files > 0 )) || return 1
+
+  for session_file in "${session_files[@]}"; do
+    _codex_session_file_matches_id_cwd "$session_file" "$session_id" "$cwd" && return 0
+  done
+
+  return 1
+}
+
 function _codex_last_session_for_cwd() {
   local cwd="$1" sessions_dir="${CODEX_SESSIONS_DIR:-$HOME/.codex/sessions}"
   local canonical_cwd session_file session_id
@@ -255,9 +333,26 @@ function _codex_last_session_for_cwd() {
 }
 
 function codex-resume-pane() {
-  local pane="${1:-${TMUX_PANE:-}}" cwd session_id
+  local pane="${1:-${TMUX_PANE:-}}" cwd session_id session_cwd session_transcript
   cwd="$(_codex_resume_pane_cwd "$pane")" || return $?
-  session_id="$(_codex_last_session_for_cwd "$cwd")" || return $?
+  session_id="$(_codex_pane_session_id "$pane")" || session_id=""
+  session_cwd="$(_codex_pane_session_cwd "$pane")" || session_cwd=""
+  session_transcript="$(_codex_pane_session_transcript "$pane")" || session_transcript=""
+  if [[ -n "$session_id" && -z "$session_cwd" ]]; then
+    _codex_clear_pane_session_id "$pane" || true
+    session_id=""
+  elif [[ -n "$session_id" ]] && ! _codex_cwd_matches "$session_cwd" "$cwd"; then
+    _codex_clear_pane_session_id "$pane" || true
+    session_id=""
+  elif [[ -n "$session_id" ]] &&
+       ! _codex_session_file_matches_id_cwd "$session_transcript" "$session_id" "$cwd" &&
+       ! _codex_session_id_matches_cwd "$session_id" "$cwd"; then
+    _codex_clear_pane_session_id "$pane" || true
+    session_id=""
+  fi
+  if [[ -z "$session_id" ]]; then
+    session_id="$(_codex_last_session_for_cwd "$cwd")" || return $?
+  fi
   builtin cd "$cwd" || return $?
   codex-yolo resume "$session_id"
 }
