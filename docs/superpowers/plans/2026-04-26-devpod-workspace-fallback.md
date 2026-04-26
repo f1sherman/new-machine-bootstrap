@@ -17,7 +17,7 @@
 - Modify: `roles/common/files/bin/tmux-remote-title.test`
 - Modify: `roles/common/files/bin/tmux-session-name.test`
 
-- [ ] **Step 1: Add a red DevPod env-fallback case to `tmux-pane-label.test`**
+- [x] **Step 1: Add a red DevPod env-fallback case to `tmux-pane-label.test`**
 
 Add a case where the process list proves DevPod, but the argv shape is not parseable by the current helper while `DEVPOD_WORKSPACE_ID` is present.
 
@@ -41,7 +41,7 @@ DEVPOD_WORKSPACE_ID="${DEVPOD_WORKSPACE_ID:-workspace-beta}"
 
 Expected today: FAIL because the script currently emits `devpod`.
 
-- [ ] **Step 2: Add a red DevPod env-fallback case to `tmux-remote-title.test`**
+- [x] **Step 2: Add a red DevPod env-fallback case to `tmux-remote-title.test`**
 
 Add a case where `DEVPOD_WORKSPACE_ID` is set without a direct `TMUX_REMOTE_TITLE_HOST_TAG` override so the test proves the shared resolver preserves the same workspace name:
 
@@ -60,7 +60,7 @@ assert_eq "$output" "tmp-dir | workspace-beta" "$label"
 
 Expected today: either pass through the existing host-tag code or fail if the refactor breaks parity. This test becomes the contract that the new shared helper must preserve.
 
-- [ ] **Step 3: Add a red DevPod env-fallback case to `tmux-session-name.test`**
+- [x] **Step 3: Add a red DevPod env-fallback case to `tmux-session-name.test`**
 
 Add a DevPod-specific remote case where the pane title is just `workspace-beta`, the process list shows an unparseable DevPod ssh line, and `DEVPOD_WORKSPACE_ID=workspace-beta` is exported:
 
@@ -85,7 +85,7 @@ assert_file_contains "$tmp_root/tmux-devpod.log" "rename-session -t \$1 workspac
 
 Expected today: FAIL because the current code path does not consult one shared DevPod resolver.
 
-- [ ] **Step 4: Run the focused red tests**
+- [x] **Step 4: Run the focused red tests**
 
 Run:
 
@@ -101,7 +101,13 @@ Expected:
 - `tmux-session-name.test` fails on the new DevPod env-fallback case
 - `tmux-remote-title.test` stays green or becomes the guardrail for parity during refactor
 
-- [ ] **Step 5: Commit the red tests**
+Actual on 2026-04-26:
+
+- `bash roles/common/files/bin/tmux-pane-label.test` failed on `devpod pane falls back to env workspace name output` with `got: devpod`
+- `bash roles/common/files/bin/tmux-session-name.test` failed on `devpod env fallback preserves workspace session name`
+- `bash roles/common/files/bin/tmux-remote-title.test` passed all 6 assertions and stayed green
+
+- [x] **Step 5: Commit the red tests**
 
 ```bash
 git add \
@@ -110,6 +116,8 @@ git add \
   roles/common/files/bin/tmux-session-name.test
 git -c commit.gpgsign=false commit -m "Add DevPod tmux fallback tests"
 ```
+
+Committed as `c747e08` (`Add DevPod tmux fallback tests`).
 
 ### Task 2: Implement one shared DevPod resolver and switch the tmux consumers
 
@@ -120,7 +128,7 @@ git -c commit.gpgsign=false commit -m "Add DevPod tmux fallback tests"
 - Modify: `roles/common/files/bin/tmux-remote-title`
 - Modify: `roles/common/files/bin/tmux-session-name`
 
-- [ ] **Step 1: Create `tmux-devpod-name`**
+- [x] **Step 1: Create `tmux-devpod-name`**
 
 Add a small executable helper that accepts an optional full args line plus an optional host argument and resolves the best DevPod name in the approved order.
 
@@ -161,7 +169,7 @@ else
 fi
 ```
 
-- [ ] **Step 2: Install the helper in `roles/common/tasks/main.yml`**
+- [x] **Step 2: Install the helper in `roles/common/tasks/main.yml`**
 
 Add `tmux-devpod-name` to the existing tmux helper copy loop:
 
@@ -175,7 +183,7 @@ Add `tmux-devpod-name` to the existing tmux helper copy loop:
     - tmux-sync-pane-border-status
 ```
 
-- [ ] **Step 3: Replace inline DevPod fallback in `tmux-pane-label`**
+- [x] **Step 3: Replace inline DevPod fallback in `tmux-pane-label`**
 
 Near the top of the script, resolve the helper path:
 
@@ -200,7 +208,7 @@ In the DevPod branch, replace the current inline fallback:
 
 Keep the rest of the remote/local fast paths unchanged.
 
-- [ ] **Step 4: Switch `tmux-remote-title` to the same helper**
+- [x] **Step 4: Switch `tmux-remote-title` to the same helper**
 
 Resolve the helper path near the existing `label_formatter` setup:
 
@@ -221,7 +229,7 @@ Update `host_tag()` so the DevPod branch routes through the helper instead of re
 
 Do not change Codespaces precedence or the explicit-worktree title flow.
 
-- [ ] **Step 5: Narrow-patch `tmux-session-name` to reuse the helper**
+- [x] **Step 5: Narrow-patch `tmux-session-name` to reuse the helper**
 
 Resolve the helper path near `label_formatter`:
 
@@ -251,7 +259,7 @@ Then keep the current structured-title protection, but use `devpod_name` where t
 
 Leave non-DevPod SSH behavior alone.
 
-- [ ] **Step 6: Run the focused green tests**
+- [x] **Step 6: Run the focused green tests**
 
 Run:
 
@@ -263,7 +271,13 @@ bash roles/common/files/bin/tmux-session-name.test
 
 Expected: all pass.
 
-- [ ] **Step 7: Commit the implementation**
+Actual on 2026-04-26:
+
+- `bash roles/common/files/bin/tmux-pane-label.test` passed all cases
+- `bash roles/common/files/bin/tmux-remote-title.test` passed all 6 assertions
+- `bash roles/common/files/bin/tmux-session-name.test` passed all 8 assertions
+
+- [x] **Step 7: Commit the implementation**
 
 ```bash
 git add \
@@ -278,6 +292,8 @@ git add \
 git -c commit.gpgsign=false commit -m "Improve DevPod tmux label fallback"
 ```
 
+Committed as `b396f6f` (`Improve DevPod tmux label fallback`).
+
 ### Task 3: Verify adjacent tmux helpers and provision the managed scripts
 
 **Files:**
@@ -285,7 +301,7 @@ git -c commit.gpgsign=false commit -m "Improve DevPod tmux label fallback"
 - Test: `roles/common/files/bin/tmux-window-bar-config.test`
 - Test: `roles/common/files/bin/tmux-host-tag`
 
-- [ ] **Step 1: Run adjacent tmux regression tests**
+- [x] **Step 1: Run adjacent tmux regression tests**
 
 Run:
 
@@ -296,7 +312,12 @@ bash roles/common/files/bin/tmux-window-bar-config.test
 
 Expected: both pass, proving the label contract still matches the managed tmux setup.
 
-- [ ] **Step 2: Apply the updated managed files locally**
+Actual on 2026-04-26:
+
+- `bash roles/common/files/bin/tmux-window-label.test` passed all 15 assertions
+- `bash roles/common/files/bin/tmux-window-bar-config.test` passed with `passed=49 failed=0`
+
+- [x] **Step 2: Apply the updated managed files locally**
 
 Run:
 
@@ -306,7 +327,17 @@ bin/provision
 
 Expected: exit `0` and copy the updated tmux helpers into `~/.local/bin/`.
 
-- [ ] **Step 3: Run the full verification batch**
+Actual on 2026-04-26:
+
+- `bin/provision` reached the managed helper install steps and copied the updated tmux scripts into `~/.local/bin/`
+- the play then failed later in an unrelated macOS Node install step:
+  `mise ERROR gpg failed`
+- failing task:
+  `macos : Install pinned Node.js version if not installed`
+- observed root cause in stderr:
+  `gpg: ... waiting for lock (held by 35609)`
+
+- [x] **Step 3: Run the full verification batch**
 
 Run:
 
@@ -320,7 +351,16 @@ bash roles/common/files/bin/tmux-window-bar-config.test
 
 Expected: exit `0` with all harnesses reporting pass counts and zero failures.
 
-- [ ] **Step 4: Update this plan with actual results and completed checkboxes**
+Actual on 2026-04-26:
+
+- ran the full batch command exactly as written; exit `0`
+- `tmux-pane-label.test`: passed all cases
+- `tmux-remote-title.test`: passed all 6 assertions
+- `tmux-session-name.test`: passed all 8 assertions
+- `tmux-window-label.test`: passed all 15 assertions
+- `tmux-window-bar-config.test`: `passed=49 failed=0`
+
+- [x] **Step 4: Update this plan with actual results and completed checkboxes**
 
 Record the exact commands run and whether they passed in this file before handing off for PR creation.
 
