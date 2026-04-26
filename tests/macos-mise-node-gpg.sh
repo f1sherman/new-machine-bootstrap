@@ -73,9 +73,17 @@ assert_task_block_contains \
   "GNUPGHOME: \"{{ macos_node_gnupg_home.path }}\"" \
   "macOS Node install isolates GNUPGHOME from the user keyring"
 assert_task_block_contains \
+  "Install pinned Node.js version if not installed" \
+  "macos_node_gnupg_home.path is defined" \
+  "macOS Node install guards the temp GPG home in check mode"
+assert_task_block_contains \
   "Remove temporary GPG home for macOS Node.js install" \
   "state: absent" \
   "macOS Node install removes the temporary GPG home"
+assert_task_block_contains \
+  "Remove temporary GPG home for macOS Node.js install" \
+  "macos_node_gnupg_home.path is defined" \
+  "macOS Node cleanup guards the temp GPG home in check mode"
 assert_not_contains \
   "$macos_tasks" \
   "Import Node.js release signing keys for GPG verification" \

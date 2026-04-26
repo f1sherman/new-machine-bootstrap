@@ -86,13 +86,17 @@
   command: "{{ mise_bin }} install node@{{ tool_versions.runtimes.node }}"
   environment:
     GNUPGHOME: "{{ macos_node_gnupg_home.path }}"
-  when: macos_node_installed.rc != 0
+  when:
+    - macos_node_installed.rc != 0
+    - macos_node_gnupg_home.path is defined
 
 - name: Remove temporary GPG home for macOS Node.js install
   file:
     path: "{{ macos_node_gnupg_home.path }}"
     state: absent
-  when: macos_node_installed.rc != 0
+  when:
+    - macos_node_installed.rc != 0
+    - macos_node_gnupg_home.path is defined
 
 - name: Get current global Node.js version from mise config
   shell: grep '^node = ' ~/.config/mise/config.toml 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo ""
