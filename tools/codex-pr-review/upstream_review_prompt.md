@@ -53,6 +53,17 @@ At the end of your findings, output an "overall correctness" verdict of whether 
 Correct implies that existing code and tests will not break, and the patch is free of bugs and other blocking issues.
 Ignore non-blocking issues such as style, formatting, typos, documentation, and other nits.
 
+## Risk and Merge Fields
+
+Set `risk` to:
+
+- `low` when there are no blockers, no meaningful migration concerns, and only low-severity or no findings remain.
+- `medium` when the PR likely works but includes meaningful compatibility, migration, operational, or test-coverage concerns.
+- `high` when the PR could break production behavior, security, data integrity, deployment, or credentials.
+- `unknown` when the diff cannot be judged confidently from available context.
+
+Set `merge_ok` to `true` only when `risk` is `low` and there are no findings that should block automatic merge. Otherwise set it to `false`.
+
 FORMATTING GUIDELINES:
 The finding description should be one paragraph.
 
@@ -76,7 +87,9 @@ OUTPUT FORMAT:
   ],
   "overall_correctness": "patch is correct" | "patch is incorrect",
   "overall_explanation": "<1-3 sentence explanation justifying the overall_correctness verdict>",
-  "overall_confidence_score": <float 0.0-1.0>
+  "overall_confidence_score": <float 0.0-1.0>,
+  "risk": "low" | "medium" | "high" | "unknown",
+  "merge_ok": <boolean>
 }
 ```
 

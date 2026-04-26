@@ -104,6 +104,32 @@ module CodexPrReview
       assert_equal "review prompt", capture.fetch(:kwargs).fetch(:stdin_data)
     end
 
+    def test_top_level_comment_contains_structured_metadata
+      body = ReviewRunner.top_level_comment_body(
+        reviewed_at: "2026-04-26T18:00:00Z",
+        reviewed_sha: "abc123",
+        output: {
+          "findings" => [],
+          "overall_correctness" => "patch is correct",
+          "overall_confidence_score" => 0.91,
+          "overall_explanation" => "No actionable findings.",
+          "risk" => "low",
+          "merge_ok" => true
+        },
+        unplaced_findings: [],
+        inline_count: 0
+      )
+
+      assert_includes body, "<!-- codex-review:v1\n"
+      assert_includes body, "reviewed_head: abc123\n"
+      assert_includes body, "risk: low\n"
+      assert_includes body, "merge_ok: true\n"
+      assert_includes body, "reviewer: codex-pr-review\n"
+      assert_includes body, "Risk: Low"
+      assert_includes body, "Merge OK: Yes"
+      assert_includes body, "Reviewed Head: `abc123`"
+    end
+
     private
 
     def with_capture3_stub(replacement)

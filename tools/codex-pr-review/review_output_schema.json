@@ -6,7 +6,9 @@
     "findings",
     "overall_correctness",
     "overall_explanation",
-    "overall_confidence_score"
+    "overall_confidence_score",
+    "risk",
+    "merge_ok"
   ],
   "properties": {
     "findings": {
@@ -82,6 +84,18 @@
     },
     "overall_confidence_score": {
       "type": "number"
+    },
+    "risk": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "unknown"
+      ]
+    },
+    "merge_ok": {
+      "type": "boolean"
     }
   }
 }
