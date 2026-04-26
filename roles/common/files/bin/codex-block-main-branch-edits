@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+reason='File edit blocked on main. Move to a non-main branch/worktree per repo instructions, then retry.'
+command="$(jq -r '.tool_input.command // empty' 2>/dev/null || true)"
+
+emit_deny() {
+  jq -n --arg reason "$reason" '{
+    "hookSpecificOutput": {
+      "hookEventName": "PreToolUse",
+      "permissionDecision": "deny",
+      "permissionDecisionReason": $reason
+    }
+  }'
+}
+
+extract_paths() {
+  printf '%s\n' "$command" | sed -n -E 's/^\*\*\* (Add|Update|Delete) File: //p' | awk 'length && !seen[$0]++'
+}
+
+to_repo_path() {
+  local path="$1"
+
+  if [[ "$path" == "$repo_root"/* ]]; then
+    printf '%s\n' "${path#$repo_root/}"
+  else
+    printf '%s\n' "$path"
+  fi
+}
+
+if [[ -z "$command" ]]; then
+  exit 0
+fi
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$repo_root" ]]; then
+  exit 0
+fi
+
+branch="$(git -C "$repo_root" branch --show-current 2>/dev/null || true)"
+if [[ "$branch" != "main" ]]; then
+  exit 0
+fi
+
+found_path=0
+
+while IFS= read -r path; do
+  found_path=1
+  repo_path="$(to_repo_path "$path")"
+
+  if git -C "$repo_root" ls-files --error-unmatch -- "$repo_path" >/dev/null 2>&1; then
+    emit_deny
+    exit 0
+  fi
+
+  if git -C "$repo_root" check-ignore -q -- "$repo_path" >/dev/null 2>&1; then
+    continue
+  fi
+
+  emit_deny
+  exit 0
+done < <(extract_paths)
+
+if [ "$found_path" -eq 0 ]; then
+  exit 0
+fi
