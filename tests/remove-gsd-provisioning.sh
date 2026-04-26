@@ -6,6 +6,7 @@ REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 MAIN_YML="$REPO_ROOT/roles/common/tasks/main.yml"
 ROOT_GITIGNORE="$REPO_ROOT/.gitignore"
 HOME_GITIGNORE_TEMPLATE="$REPO_ROOT/roles/common/templates/dotfiles/gitignore"
+DEFAULT_NPM_PACKAGES="$REPO_ROOT/roles/macos/files/mise/default-npm-packages"
 GSD_SKILLS_DIR="$REPO_ROOT/roles/common/files/config/skills/gsd"
 
 pass=0
@@ -56,17 +57,19 @@ assert_missing() {
 
 assert_contains "$MAIN_YML" "Remove legacy GSD state" "playbook removes legacy GSD state"
 assert_contains "$MAIN_YML" ".local/bin/gsd" "cleanup removes legacy gsd shim"
-assert_contains "$MAIN_YML" ".local/bin/gsd-browser" "cleanup removes legacy gsd-browser binary"
-assert_contains "$MAIN_YML" ".gsd-browser" "cleanup removes legacy ~/.gsd-browser state"
+assert_not_contains "$MAIN_YML" ".claude/skills/gsd-browser" "cleanup preserves Claude gsd-browser skill"
+assert_not_contains "$MAIN_YML" ".codex/skills/gsd-browser" "cleanup preserves Codex gsd-browser skill"
+assert_not_contains "$MAIN_YML" ".local/bin/gsd-browser" "cleanup preserves gsd-browser binary"
+assert_not_contains "$MAIN_YML" ".gsd-browser" "cleanup preserves ~/.gsd-browser state"
+assert_not_contains "$MAIN_YML" ".pi/skills/gsd-browser" "cleanup preserves PI gsd-browser skill"
 assert_not_contains "$MAIN_YML" "Install or update GSD-2 via npm" "playbook no longer installs GSD"
 assert_not_contains "$MAIN_YML" "gsd-pi@latest" "playbook no longer provisions gsd-pi"
 assert_not_contains "$MAIN_YML" "Create GSD agent config directory" "playbook no longer creates ~/.gsd/agent"
 assert_not_contains "$MAIN_YML" "Configure GSD-2 defaults (model, thinking level)" "playbook no longer writes ~/.gsd settings"
 assert_not_contains "$MAIN_YML" "Symlink GSD node_modules into extensions so they can resolve dependencies" "playbook no longer wires GSD extensions"
 assert_not_contains "$MAIN_YML" "for cmd in gsd gsd-cli codex pi; do" "playbook no longer provisions gsd CLI symlinks"
-assert_not_contains "$MAIN_YML" "Install gsd-browser" "playbook no longer provisions gsd-browser"
-assert_not_contains "$MAIN_YML" "github_repo: gsd-build/gsd-browser" "playbook no longer fetches gsd-browser releases"
 assert_not_contains "$MAIN_YML" ".gsd/agent" "playbook no longer references ~/.gsd"
+assert_not_contains "$DEFAULT_NPM_PACKAGES" "gsd-pi" "macOS default npm packages no longer install gsd-pi"
 
 assert_missing "$GSD_SKILLS_DIR" "bundled GSD skills are removed from the repo"
 
