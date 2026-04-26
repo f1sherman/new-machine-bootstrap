@@ -70,9 +70,16 @@ chmod +x "$bin/tmux"
 cat >"$bin/ps" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' '9100 S+ codex codex --dangerously-bypass-approvals-and-sandbox'
+printf '%s\n' "${FAKE_PS_LINE:-9100 S+ codex codex --dangerously-bypass-approvals-and-sandbox}"
 EOF
 chmod +x "$bin/ps"
+
+cat >"$bin/lsof" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "${FAKE_LSOF_OUTPUT:-}"
+EOF
+chmod +x "$bin/lsof"
 
 cat >"$bin/codex" <<'EOF'
 #!/usr/bin/env bash
@@ -163,4 +170,30 @@ if rg -q -F -- 'set-option -pt %91 @codex_session_id pane-active' "$tmux_log"; t
   pass "active Codex process publishes pane-local session id"
 else
   fail "active Codex process publishes pane-local session id"
+fi
+
+: >"$tmux_log"
+HOME="$home" \
+PATH="$bin:$PATH" \
+TMUX=/tmp/tmux-socket \
+TMUX_PANE=%91 \
+FAKE_CODEX_SESSION_ID= \
+FAKE_AGENT_WORKTREE_PATH="$agent_path" \
+FAKE_PANE_CURRENT_PATH="$pane_path" \
+FAKE_PS_LINE='9101 S+ codex codex --dangerously-bypass-approvals-and-sandbox' \
+FAKE_LSOF_OUTPUT="p9101
+n$session_dir/pane-bound.jsonl" \
+CODEX_TEST_LOG="$log" \
+TMUX_TEST_LOG="$tmux_log" \
+CODEX_SESSION_PROC_ROOT="$tmp_dir/missing-proc" \
+zsh -fic "
+  source '$PERSONAL_ZSHRC'
+  [[ \"\$(_codex_active_session_id_for_pane %91)\" == pane-bound ]] || exit 40
+  _codex_publish_active_pane_session_id %91
+"
+
+if rg -q -F -- 'set-option -pt %91 @codex_session_id pane-bound' "$tmux_log"; then
+  pass "active Codex process publishes pane-local session id with lsof fallback"
+else
+  fail "active Codex process publishes pane-local session id with lsof fallback"
 fi

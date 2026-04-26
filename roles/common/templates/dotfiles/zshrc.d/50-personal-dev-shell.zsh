@@ -228,6 +228,26 @@ function _codex_session_id_from_file() {
   jq -r 'select(.type == "session_meta") | .payload.id // empty' "$session_file" 2>/dev/null | head -n 1
 }
 
+function _codex_session_id_from_lsof_pid() {
+  local pid="$1" line session_file session_id
+  command -v lsof >/dev/null 2>&1 || return 1
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      n*/.codex/sessions/*.jsonl)
+        session_file="${line#n}"
+        session_id="$(_codex_session_id_from_file "$session_file")"
+        if [[ -n "$session_id" ]]; then
+          print -r -- "$session_id"
+          return 0
+        fi
+        ;;
+    esac
+  done < <(lsof -p "$pid" -Fn 2>/dev/null)
+
+  return 1
+}
+
 function _codex_session_id_from_pid() {
   local pid="$1" proc_root="${CODEX_SESSION_PROC_ROOT:-/proc}"
   local fd session_file session_id
@@ -245,7 +265,14 @@ function _codex_session_id_from_pid() {
     esac
   done
 
-  return 1
+  _codex_session_id_from_lsof_pid "$pid"
+}
+
+function _codex_ps_for_tty() {
+  local pane_tty="$1" tty_name
+  ps -o pid=,stat=,comm=,args= -t "$pane_tty" 2>/dev/null
+  tty_name="${pane_tty#/dev/}"
+  [[ "$tty_name" == "$pane_tty" ]] || ps -o pid=,stat=,comm=,args= -t "$tty_name" 2>/dev/null
 }
 
 function _codex_active_session_id_for_pane() {
@@ -265,7 +292,7 @@ function _codex_active_session_id_for_pane() {
       print -r -- "$session_id"
       return 0
     fi
-  done < <(ps -o pid=,stat=,comm=,args= -t "$pane_tty" 2>/dev/null)
+  done < <(_codex_ps_for_tty "$pane_tty")
 
   return 1
 }
