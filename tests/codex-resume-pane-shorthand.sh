@@ -43,6 +43,9 @@ case "$1" in
       @codex_session_cwd)
         printf '%s\n' "${FAKE_CODEX_SESSION_CWD:-}"
         ;;
+      @codex_session_transcript)
+        printf '%s\n' "${FAKE_CODEX_SESSION_TRANSCRIPT:-}"
+        ;;
       @agent_worktree_path)
         printf '%s\n' "$FAKE_AGENT_WORKTREE_PATH"
         ;;
@@ -96,6 +99,7 @@ TMUX=/tmp/tmux-socket \
 TMUX_PANE=%91 \
 FAKE_CODEX_SESSION_ID= \
 FAKE_CODEX_SESSION_CWD= \
+FAKE_CODEX_SESSION_TRANSCRIPT= \
 FAKE_AGENT_WORKTREE_PATH="$agent_path" \
 FAKE_PANE_CURRENT_PATH="$pane_path" \
 CODEX_TEST_LOG="$log" \
@@ -118,6 +122,7 @@ TMUX=/tmp/tmux-socket \
 TMUX_PANE=%91 \
 FAKE_CODEX_SESSION_ID=pane-bound \
 FAKE_CODEX_SESSION_CWD="$agent_path" \
+FAKE_CODEX_SESSION_TRANSCRIPT="$session_dir/pane-bound.jsonl" \
 FAKE_AGENT_WORKTREE_PATH="$agent_path" \
 FAKE_PANE_CURRENT_PATH="$pane_path" \
 CODEX_TEST_LOG="$log" \
@@ -140,6 +145,7 @@ TMUX=/tmp/tmux-socket \
 TMUX_PANE=%91 \
 FAKE_CODEX_SESSION_ID=other-pane \
 FAKE_CODEX_SESSION_CWD="$pane_path" \
+FAKE_CODEX_SESSION_TRANSCRIPT="$session_dir/other-pane.jsonl" \
 FAKE_AGENT_WORKTREE_PATH="$agent_path" \
 FAKE_PANE_CURRENT_PATH="$pane_path" \
 CODEX_TEST_LOG="$log" \
@@ -170,6 +176,7 @@ TMUX=/tmp/tmux-socket \
 TMUX_PANE=%91 \
 FAKE_CODEX_SESSION_ID=other-pane \
 FAKE_CODEX_SESSION_CWD= \
+FAKE_CODEX_SESSION_TRANSCRIPT= \
 FAKE_AGENT_WORKTREE_PATH="$agent_path" \
 FAKE_PANE_CURRENT_PATH="$pane_path" \
 CODEX_TEST_LOG="$log" \
@@ -183,3 +190,26 @@ expected="$agent_path|--dangerously-bypass-approvals-and-sandbox resume pane-new
 actual="$(cat "$log")"
 [[ "$actual" == "$expected" ]] || fail "codex-resume-pane ignores unverifiable pane-local session id"
 pass "codex-resume-pane ignores unverifiable pane-local session id"
+
+: >"$log"
+: >"$tmux_log"
+HOME="$home" \
+PATH="$bin:$PATH" \
+TMUX=/tmp/tmux-socket \
+TMUX_PANE=%91 \
+FAKE_CODEX_SESSION_ID=missing-session \
+FAKE_CODEX_SESSION_CWD="$agent_path" \
+FAKE_CODEX_SESSION_TRANSCRIPT="$tmp_dir/missing-session.jsonl" \
+FAKE_AGENT_WORKTREE_PATH="$agent_path" \
+FAKE_PANE_CURRENT_PATH="$pane_path" \
+CODEX_TEST_LOG="$log" \
+TMUX_TEST_LOG="$tmux_log" \
+zsh -fic "
+  source '$PERSONAL_ZSHRC'
+  codex-resume-pane
+"
+
+expected="$agent_path|--dangerously-bypass-approvals-and-sandbox resume pane-newer"
+actual="$(cat "$log")"
+[[ "$actual" == "$expected" ]] || fail "codex-resume-pane ignores stale pane-local session id with matching cwd"
+pass "codex-resume-pane ignores stale pane-local session id with matching cwd"
