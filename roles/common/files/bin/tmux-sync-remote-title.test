@@ -90,3 +90,9 @@ run_case \
 
 assert_not_contains "$tmux_log" 'rename-session' "unchanged session title skips rename"
 assert_not_contains "$tmux_log" 'rename-window' "unchanged window title skips rename"
+
+run_case \
+  "%15" \
+  $'@11\t1\tssh\t/dev/ttys005\t13: (feature/foo) repo | claw02\tclaw02'
+
+assert_contains "$tmux_log" 'rename-window -t @11 (feature/foo) repo | claw02' "nested remote tmux title strips session prefix"

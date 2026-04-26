@@ -208,6 +208,18 @@ is_structured_remote_label() {
   esac
 }
 
+structured_remote_label() {
+  local title="${1:-}" nested_title
+
+  is_structured_remote_label "$title" || return 1
+  nested_title="${title#*: }"
+  if [ "$nested_title" != "$title" ] && is_structured_remote_label "$nested_title"; then
+    printf '%s\n' "$nested_title"
+  else
+    printf '%s\n' "$title"
+  fi
+}
+
 remote_host_suffix() {
   printf '%s\n' "${1##* | }"
 }
@@ -252,12 +264,14 @@ if [ -n "$pane_id" ] && is_remote_candidate_command "$pane_current_command"; the
   remote_info="$(tmux display-message -p -t "$pane_id" '#{pane_title}	#{window_name}' 2>/dev/null || true)"
   if [ -n "$remote_info" ]; then
     IFS=$'\t' read -r pane_title window_name <<< "$remote_info"
-    if is_structured_remote_label "$pane_title"; then
-      printf '%s\n' "$pane_title"
+    remote_label="$(structured_remote_label "$pane_title" 2>/dev/null || true)"
+    if [ -n "$remote_label" ]; then
+      printf '%s\n' "$remote_label"
       exit 0
     fi
-    if is_structured_remote_label "$window_name" && [ "$pane_title" = "$(remote_host_suffix "$window_name")" ]; then
-      printf '%s\n' "$window_name"
+    remote_label="$(structured_remote_label "$window_name" 2>/dev/null || true)"
+    if [ -n "$remote_label" ] && [ "$pane_title" = "$(remote_host_suffix "$remote_label")" ]; then
+      printf '%s\n' "$remote_label"
       exit 0
     fi
   fi

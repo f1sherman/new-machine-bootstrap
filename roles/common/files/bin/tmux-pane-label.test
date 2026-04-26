@@ -293,6 +293,21 @@ run_case \
   $'(feature/foo) repo | claw02\tany-window'
 
 run_case \
+  "nested remote tmux title strips session prefix" \
+  "tty-structured-remote-nested" \
+  "$git_repo" \
+  "ssh" \
+  "(feature/foo) repo | claw02" \
+  "ssh dev@claw02 -p 22" \
+  "0" \
+  "1" \
+  "%98" \
+  "" \
+  "" \
+  "" \
+  $'13: (feature/foo) repo | claw02\tany-window'
+
+run_case \
   "degraded remote title preserves structured window label" \
   "tty-degraded-remote" \
   "$git_repo" \

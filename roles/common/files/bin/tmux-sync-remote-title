@@ -18,13 +18,29 @@ case "$pane_current_command" in
     ;;
 esac
 
-case "$pane_title" in
-  *" | "*)
-    ;;
-  *)
-    exit 0
-    ;;
-esac
+structured_remote_label() {
+  local title="${1:-}" nested_title
 
+  case "$title" in
+    *" | "*)
+      nested_title="${title#*: }"
+      if [ "$nested_title" != "$title" ]; then
+        case "$nested_title" in
+          *" | "*)
+            printf '%s\n' "$nested_title"
+            return 0
+            ;;
+        esac
+      fi
+      printf '%s\n' "$title"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+pane_title="$(structured_remote_label "$pane_title" 2>/dev/null || true)"
+[ -n "$pane_title" ] || exit 0
 [ "$pane_title" = "$window_name" ] || tmux rename-window -t "$window_id" "$pane_title" 2>/dev/null || true
 exit 0

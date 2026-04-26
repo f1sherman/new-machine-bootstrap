@@ -25,17 +25,34 @@ is_structured_remote_label() {
   esac
 }
 
+structured_remote_label() {
+  local title="${1:-}" nested_title
+
+  is_structured_remote_label "$title" || return 1
+  nested_title="${title#*: }"
+  if [ "$nested_title" != "$title" ] && is_structured_remote_label "$nested_title"; then
+    printf '%s\n' "$nested_title"
+  else
+    printf '%s\n' "$title"
+  fi
+}
+
 remote_host_suffix() {
   printf '%s\n' "${1##* | }"
 }
 
 label=""
-preserve_degraded_remote=0
 if is_remote_candidate_command "$pane_current_command"; then
-  if is_structured_remote_label "$pane_title"; then
-    label="$pane_title"
-  elif is_structured_remote_label "$window_name" && [ "$pane_title" = "$(remote_host_suffix "$window_name")" ]; then
-    preserve_degraded_remote=1
+  label="$(structured_remote_label "$pane_title" 2>/dev/null || true)"
+  if [ -n "$label" ]; then
+    :
+  else
+    label="$(structured_remote_label "$window_name" 2>/dev/null || true)"
+    if [ -n "$label" ] && [ "$pane_title" = "$(remote_host_suffix "$label")" ]; then
+      :
+    else
+      label=""
+    fi
   fi
 fi
 
@@ -47,7 +64,6 @@ if [ -z "$label" ]; then
 
   label="$("$label_helper" "$pane_tty" "$pane_current_path" "$pane_current_command" "$pane_id" 2>/dev/null || true)"
 fi
-[ "$preserve_degraded_remote" = "0" ] || exit 0
 [ -n "$label" ] || exit 0
 [ "$label" != "$window_name" ] || exit 0
 

@@ -150,16 +150,48 @@ assert_file_contains "$tmux_log" $'display-message -p -t %14 #{window_id}\t#{pan
 assert_empty_file "$pane_label_log" "remote title skips helper"
 assert_file_contains "$tmux_log" "rename-window -t @10 (feature/foo) repo | claw02" "remote title preserves synced label"
 
+: > "$tmux_log"
+: > "$pane_label_log"
+
+PATH="$fake_bin:$PATH" \
+  HOME="$tmp_root/home" \
+  TMUX=1 \
+  TMUX_LOG="$tmux_log" \
+  TMUX_DISPLAY_OUTPUT_WITH_TITLE=$'@12\t1\tclaw02\t/dev/ttys006\t/tmp/repo\tssh\t13: (feature/foo) repo | claw02\t%16' \
+  TMUX_PANE_LABEL_BIN="$fake_bin/tmux-pane-label" \
+  PANE_LABEL_LOG="$pane_label_log" \
+  PANE_LABEL_OUTPUT="claw02" \
+  bash "$script" "%16"
+
+assert_empty_file "$pane_label_log" "nested remote title skips helper"
+assert_file_contains "$tmux_log" "rename-window -t @12 (feature/foo) repo | claw02" "nested remote title strips session prefix"
+
 run_case \
   "%15" \
   $'@11\t1\t(feature/foo) repo | claw02\t/dev/ttys005\t/tmp/repo\tssh\tclaw02\t%15' \
   "claw02"
 
 assert_file_contains "$tmux_log" $'display-message -p -t %15 #{window_id}\t#{pane_active}\t#{window_name}\t#{pane_tty}\t#{pane_current_path}\t#{pane_current_command}\t#{pane_title}\t#{pane_id}' "degraded title queries pane title"
-assert_file_contains "$pane_label_log" "/dev/ttys005|/tmp/repo|ssh|%15" "degraded title still derives helper"
+assert_empty_file "$pane_label_log" "degraded title reuses structured window label"
 if grep -Fq "rename-window" "$tmux_log"; then
   printf 'not ok - degraded title must not overwrite structured remote window name\nunexpected rename:\n' >&2
   cat "$tmux_log" >&2
   exit 1
 fi
 printf 'ok - degraded title preserves structured remote window name\n'
+
+: > "$tmux_log"
+: > "$pane_label_log"
+
+PATH="$fake_bin:$PATH" \
+  HOME="$tmp_root/home" \
+  TMUX=1 \
+  TMUX_LOG="$tmux_log" \
+  TMUX_DISPLAY_OUTPUT_WITH_TITLE=$'@13\t1\t13: (feature/foo) repo | claw02\t/dev/ttys007\t/tmp/repo\tssh\tclaw02\t%17' \
+  TMUX_PANE_LABEL_BIN="$fake_bin/tmux-pane-label" \
+  PANE_LABEL_LOG="$pane_label_log" \
+  PANE_LABEL_OUTPUT="claw02" \
+  bash "$script" "%17"
+
+assert_empty_file "$pane_label_log" "degraded nested remote title skips helper"
+assert_file_contains "$tmux_log" "rename-window -t @13 (feature/foo) repo | claw02" "degraded nested remote title strips session prefix"
