@@ -276,7 +276,7 @@ function _codex_ps_for_tty() {
 }
 
 function _codex_active_session_id_for_pane() {
-  local pane="${1:-${TMUX_PANE:-}}" pane_tty line pid stat comm args session_id
+  local pane="${1:-${TMUX_PANE:-}}" pane_tty line pid stat comm args session_id fallback_session_id
   [[ -n "${TMUX:-}" && -n "$pane" ]] || return 1
   command -v tmux >/dev/null 2>&1 || return 1
 
@@ -289,10 +289,18 @@ function _codex_active_session_id_for_pane() {
     [[ "$comm" == codex || "$args" == *codex* ]] || continue
     session_id="$(_codex_session_id_from_pid "$pid")" || session_id=""
     if [[ -n "$session_id" ]]; then
-      print -r -- "$session_id"
-      return 0
+      if [[ "$stat" == *+* ]]; then
+        print -r -- "$session_id"
+        return 0
+      fi
+      [[ -n "$fallback_session_id" ]] || fallback_session_id="$session_id"
     fi
   done < <(_codex_ps_for_tty "$pane_tty")
+
+  if [[ -n "$fallback_session_id" ]]; then
+    print -r -- "$fallback_session_id"
+    return 0
+  fi
 
   return 1
 }

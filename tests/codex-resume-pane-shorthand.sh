@@ -28,7 +28,7 @@ agent_path="$tmp_dir/agent-worktree"
 log="$tmp_dir/codex.log"
 tmux_log="$tmp_dir/tmux.log"
 proc_root="$tmp_dir/proc"
-mkdir -p "$bin" "$session_dir" "$pane_path" "$agent_path" "$proc_root/9100/fd"
+mkdir -p "$bin" "$session_dir" "$pane_path" "$agent_path" "$proc_root/9100/fd" "$proc_root/9102/fd"
 
 cat >"$bin/tmux" <<'EOF'
 #!/usr/bin/env bash
@@ -100,15 +100,20 @@ JSONL
 cat >"$session_dir/pane-active.jsonl" <<JSONL
 {"timestamp":"2026-04-25T18:00:00Z","type":"session_meta","payload":{"id":"pane-active","timestamp":"2026-04-25T18:00:00Z","cwd":"$agent_path","git":{"branch":"feature/active"}}}
 JSONL
+cat >"$session_dir/pane-background.jsonl" <<JSONL
+{"timestamp":"2026-04-25T13:30:00Z","type":"session_meta","payload":{"id":"pane-background","timestamp":"2026-04-25T13:30:00Z","cwd":"$agent_path","git":{"branch":"feature/background"}}}
+JSONL
 cat >"$session_dir/other-pane.jsonl" <<JSONL
 {"timestamp":"2026-04-25T17:00:00Z","type":"session_meta","payload":{"id":"other-pane","timestamp":"2026-04-25T17:00:00Z","cwd":"$pane_path","git":{"branch":"feature/other"}}}
 JSONL
 ln -s "$session_dir/pane-active.jsonl" "$proc_root/9100/fd/47"
+ln -s "$session_dir/pane-background.jsonl" "$proc_root/9102/fd/47"
 touch -t 202604251400 "$session_dir/pane-bound.jsonl"
 touch -t 202604251500 "$session_dir/pane-older.jsonl"
 touch -t 202604251600 "$session_dir/pane-newer.jsonl"
 touch -t 202604251700 "$session_dir/other-pane.jsonl"
 touch -t 202604251800 "$session_dir/pane-active.jsonl"
+touch -t 202604251330 "$session_dir/pane-background.jsonl"
 
 HOME="$home" \
 PATH="$bin:$PATH" \
@@ -220,3 +225,21 @@ if rg -q -F -- 'set-option -pt %91 @codex_session_id pane-active' "$tmux_log"; t
 else
   fail "preexec watcher starts for cr alias expansion"
 fi
+
+HOME="$home" \
+PATH="$bin:$PATH" \
+TMUX=/tmp/tmux-socket \
+TMUX_PANE=%91 \
+FAKE_CODEX_SESSION_ID= \
+FAKE_AGENT_WORKTREE_PATH="$agent_path" \
+FAKE_PANE_CURRENT_PATH="$pane_path" \
+FAKE_PS_LINE="9102 S codex codex --dangerously-bypass-approvals-and-sandbox
+9100 S+ codex codex --dangerously-bypass-approvals-and-sandbox" \
+CODEX_TEST_LOG="$log" \
+TMUX_TEST_LOG="$tmux_log" \
+CODEX_SESSION_PROC_ROOT="$proc_root" \
+zsh -fic "
+  source '$PERSONAL_ZSHRC'
+  [[ \"\$(_codex_active_session_id_for_pane %91)\" == pane-active ]] || exit 50
+"
+pass "active Codex process prefers foreground session"
