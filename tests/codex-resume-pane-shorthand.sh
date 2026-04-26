@@ -27,8 +27,7 @@ pane_path="$tmp_dir/pane-path"
 agent_path="$tmp_dir/agent-worktree"
 log="$tmp_dir/codex.log"
 tmux_log="$tmp_dir/tmux.log"
-proc_root="$tmp_dir/proc"
-mkdir -p "$bin" "$session_dir" "$pane_path" "$agent_path" "$proc_root/9100/fd" "$proc_root/9102/fd"
+mkdir -p "$bin" "$session_dir" "$pane_path" "$agent_path"
 
 cat >"$bin/tmux" <<'EOF'
 #!/usr/bin/env bash
@@ -41,6 +40,9 @@ case "$1" in
       @codex_session_id)
         printf '%s\n' "${FAKE_CODEX_SESSION_ID:-}"
         ;;
+      @codex_session_cwd)
+        printf '%s\n' "${FAKE_CODEX_SESSION_CWD:-}"
+        ;;
       @agent_worktree_path)
         printf '%s\n' "$FAKE_AGENT_WORKTREE_PATH"
         ;;
@@ -49,9 +51,6 @@ case "$1" in
   display-message)
     format="${@: -1}"
     case "$format" in
-      '#{pane_tty}')
-        printf '%s\n' '/dev/pts/91'
-        ;;
       '#{pane_current_path}')
         printf '%s\n' "$FAKE_PANE_CURRENT_PATH"
         ;;
@@ -66,20 +65,6 @@ case "$1" in
 esac
 EOF
 chmod +x "$bin/tmux"
-
-cat >"$bin/ps" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\n' "${FAKE_PS_LINE:-9100 S+ codex codex --dangerously-bypass-approvals-and-sandbox}"
-EOF
-chmod +x "$bin/ps"
-
-cat >"$bin/lsof" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-printf '%s\n' "${FAKE_LSOF_OUTPUT:-}"
-EOF
-chmod +x "$bin/lsof"
 
 cat >"$bin/codex" <<'EOF'
 #!/usr/bin/env bash
@@ -97,29 +82,20 @@ JSONL
 cat >"$session_dir/pane-bound.jsonl" <<JSONL
 {"timestamp":"2026-04-25T14:00:00Z","type":"session_meta","payload":{"id":"pane-bound","timestamp":"2026-04-25T14:00:00Z","cwd":"$agent_path","git":{"branch":"feature/bound"}}}
 JSONL
-cat >"$session_dir/pane-active.jsonl" <<JSONL
-{"timestamp":"2026-04-25T18:00:00Z","type":"session_meta","payload":{"id":"pane-active","timestamp":"2026-04-25T18:00:00Z","cwd":"$agent_path","git":{"branch":"feature/active"}}}
-JSONL
-cat >"$session_dir/pane-background.jsonl" <<JSONL
-{"timestamp":"2026-04-25T13:30:00Z","type":"session_meta","payload":{"id":"pane-background","timestamp":"2026-04-25T13:30:00Z","cwd":"$agent_path","git":{"branch":"feature/background"}}}
-JSONL
 cat >"$session_dir/other-pane.jsonl" <<JSONL
 {"timestamp":"2026-04-25T17:00:00Z","type":"session_meta","payload":{"id":"other-pane","timestamp":"2026-04-25T17:00:00Z","cwd":"$pane_path","git":{"branch":"feature/other"}}}
 JSONL
-ln -s "$session_dir/pane-active.jsonl" "$proc_root/9100/fd/47"
-ln -s "$session_dir/pane-background.jsonl" "$proc_root/9102/fd/47"
 touch -t 202604251400 "$session_dir/pane-bound.jsonl"
 touch -t 202604251500 "$session_dir/pane-older.jsonl"
 touch -t 202604251600 "$session_dir/pane-newer.jsonl"
 touch -t 202604251700 "$session_dir/other-pane.jsonl"
-touch -t 202604251800 "$session_dir/pane-active.jsonl"
-touch -t 202604251330 "$session_dir/pane-background.jsonl"
 
 HOME="$home" \
 PATH="$bin:$PATH" \
 TMUX=/tmp/tmux-socket \
 TMUX_PANE=%91 \
 FAKE_CODEX_SESSION_ID= \
+FAKE_CODEX_SESSION_CWD= \
 FAKE_AGENT_WORKTREE_PATH="$agent_path" \
 FAKE_PANE_CURRENT_PATH="$pane_path" \
 CODEX_TEST_LOG="$log" \
@@ -130,7 +106,7 @@ zsh -fic "
   codex-resume-pane
 "
 
-expected="$agent_path|--dangerously-bypass-approvals-and-sandbox resume pane-active"
+expected="$agent_path|--dangerously-bypass-approvals-and-sandbox resume pane-newer"
 actual="$(cat "$log")"
 [[ "$actual" == "$expected" ]] || fail "codex-resume-pane uses codex-yolo for newest session in current pane worktree"
 pass "codex-resume-pane uses codex-yolo for newest session in current pane worktree"
@@ -141,6 +117,7 @@ PATH="$bin:$PATH" \
 TMUX=/tmp/tmux-socket \
 TMUX_PANE=%91 \
 FAKE_CODEX_SESSION_ID=pane-bound \
+FAKE_CODEX_SESSION_CWD="$agent_path" \
 FAKE_AGENT_WORKTREE_PATH="$agent_path" \
 FAKE_PANE_CURRENT_PATH="$pane_path" \
 CODEX_TEST_LOG="$log" \
@@ -156,11 +133,13 @@ actual="$(cat "$log")"
 pass "codex-resume-pane prefers pane-local session id over newest cwd match"
 
 : >"$log"
+: >"$tmux_log"
 HOME="$home" \
 PATH="$bin:$PATH" \
 TMUX=/tmp/tmux-socket \
 TMUX_PANE=%91 \
 FAKE_CODEX_SESSION_ID=other-pane \
+FAKE_CODEX_SESSION_CWD="$pane_path" \
 FAKE_AGENT_WORKTREE_PATH="$agent_path" \
 FAKE_PANE_CURRENT_PATH="$pane_path" \
 CODEX_TEST_LOG="$log" \
@@ -170,96 +149,37 @@ zsh -fic "
   codex-resume-pane
 "
 
-expected="$agent_path|--dangerously-bypass-approvals-and-sandbox resume pane-active"
+expected="$agent_path|--dangerously-bypass-approvals-and-sandbox resume pane-newer"
 actual="$(cat "$log")"
 [[ "$actual" == "$expected" ]] || fail "codex-resume-pane ignores stale pane-local session id"
 pass "codex-resume-pane ignores stale pane-local session id"
 
-HOME="$home" \
-PATH="$bin:$PATH" \
-TMUX=/tmp/tmux-socket \
-TMUX_PANE=%91 \
-FAKE_CODEX_SESSION_ID= \
-FAKE_AGENT_WORKTREE_PATH="$agent_path" \
-FAKE_PANE_CURRENT_PATH="$pane_path" \
-CODEX_TEST_LOG="$log" \
-TMUX_TEST_LOG="$tmux_log" \
-CODEX_SESSION_PROC_ROOT="$proc_root" \
-zsh -fic "
-  source '$PERSONAL_ZSHRC'
-  [[ \"\$(_codex_active_session_id_for_pane %91)\" == pane-active ]] || exit 30
-  _codex_publish_active_pane_session_id %91
-"
-
-if rg -q -F -- 'set-option -pt %91 @codex_session_id pane-active' "$tmux_log"; then
-  pass "active Codex process publishes pane-local session id"
+if rg -q -F -- 'set-option -pt %91 @codex_session_id ' "$tmux_log" &&
+   rg -q -F -- 'set-option -pt %91 @codex_session_cwd ' "$tmux_log" &&
+   rg -q -F -- 'set-option -pt %91 @codex_session_transcript ' "$tmux_log"; then
+  pass "codex-resume-pane clears stale pane-local session options"
 else
-  fail "active Codex process publishes pane-local session id"
+  fail "codex-resume-pane clears stale pane-local session options"
 fi
 
+: >"$log"
 : >"$tmux_log"
 HOME="$home" \
 PATH="$bin:$PATH" \
 TMUX=/tmp/tmux-socket \
 TMUX_PANE=%91 \
-FAKE_CODEX_SESSION_ID= \
-FAKE_AGENT_WORKTREE_PATH="$agent_path" \
-FAKE_PANE_CURRENT_PATH="$pane_path" \
-FAKE_PS_LINE='9101 S+ codex codex --dangerously-bypass-approvals-and-sandbox' \
-FAKE_LSOF_OUTPUT="p9101
-n$session_dir/pane-bound.jsonl" \
-CODEX_TEST_LOG="$log" \
-TMUX_TEST_LOG="$tmux_log" \
-CODEX_SESSION_PROC_ROOT="$tmp_dir/missing-proc" \
-zsh -fic "
-  source '$PERSONAL_ZSHRC'
-  [[ \"\$(_codex_active_session_id_for_pane %91)\" == pane-bound ]] || exit 40
-  _codex_publish_active_pane_session_id %91
-"
-
-if rg -q -F -- 'set-option -pt %91 @codex_session_id pane-bound' "$tmux_log"; then
-  pass "active Codex process publishes pane-local session id with lsof fallback"
-else
-  fail "active Codex process publishes pane-local session id with lsof fallback"
-fi
-
-: >"$tmux_log"
-HOME="$home" \
-PATH="$bin:$PATH" \
-TMUX=/tmp/tmux-socket \
-TMUX_PANE=%91 \
-FAKE_CODEX_SESSION_ID= \
+FAKE_CODEX_SESSION_ID=other-pane \
+FAKE_CODEX_SESSION_CWD= \
 FAKE_AGENT_WORKTREE_PATH="$agent_path" \
 FAKE_PANE_CURRENT_PATH="$pane_path" \
 CODEX_TEST_LOG="$log" \
 TMUX_TEST_LOG="$tmux_log" \
-CODEX_SESSION_PROC_ROOT="$proc_root" \
 zsh -fic "
   source '$PERSONAL_ZSHRC'
-  _codex_session_preexec cr codex-resume-pane
-  sleep 0.5
+  codex-resume-pane
 "
 
-if rg -q -F -- 'set-option -pt %91 @codex_session_id pane-active' "$tmux_log"; then
-  pass "preexec watcher starts for cr alias expansion"
-else
-  fail "preexec watcher starts for cr alias expansion"
-fi
-
-HOME="$home" \
-PATH="$bin:$PATH" \
-TMUX=/tmp/tmux-socket \
-TMUX_PANE=%91 \
-FAKE_CODEX_SESSION_ID= \
-FAKE_AGENT_WORKTREE_PATH="$agent_path" \
-FAKE_PANE_CURRENT_PATH="$pane_path" \
-FAKE_PS_LINE="9102 S codex codex --dangerously-bypass-approvals-and-sandbox
-9100 S+ codex codex --dangerously-bypass-approvals-and-sandbox" \
-CODEX_TEST_LOG="$log" \
-TMUX_TEST_LOG="$tmux_log" \
-CODEX_SESSION_PROC_ROOT="$proc_root" \
-zsh -fic "
-  source '$PERSONAL_ZSHRC'
-  [[ \"\$(_codex_active_session_id_for_pane %91)\" == pane-active ]] || exit 50
-"
-pass "active Codex process prefers foreground session"
+expected="$agent_path|--dangerously-bypass-approvals-and-sandbox resume pane-newer"
+actual="$(cat "$log")"
+[[ "$actual" == "$expected" ]] || fail "codex-resume-pane ignores unverifiable pane-local session id"
+pass "codex-resume-pane ignores unverifiable pane-local session id"
