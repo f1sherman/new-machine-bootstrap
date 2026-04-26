@@ -134,6 +134,7 @@ run_case() {
   local expected_tmux_calls="${8:-0}"
   local pane_id="${9:-}" explicit_pid="${10:-}" explicit_path="${11:-}" detail_fixture="${12:-}"
   local display_fixture="${13:-}"
+  local host_tag="${14:-}"
 
   printf '%s\n' "$fixture" > "$tmp_root/$tty"
   if [ -n "$detail_fixture" ]; then
@@ -148,7 +149,7 @@ run_case() {
 
   local output ps_calls
   local rc
-  if output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" TMUX_CALL_LOG="$tmux_log" TMUX_FIXTURE_DIR="$tmp_root" TMUX_PANE_IDS="${pane_id:-}" TMUX_DISPLAY_OUTPUT="$display_fixture" bash "$script" "$tty" "$path" "$pane_current_command" "${pane_id:-}" 2>/dev/null)"; then
+  if output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" TMUX_CALL_LOG="$tmux_log" TMUX_FIXTURE_DIR="$tmp_root" TMUX_PANE_IDS="${pane_id:-}" TMUX_DISPLAY_OUTPUT="$display_fixture" TMUX_PANE_LABEL_HOST_TAG="$host_tag" bash "$script" "$tty" "$path" "$pane_current_command" "${pane_id:-}" 2>/dev/null)"; then
     rc=0
   else
     rc=$?
@@ -202,6 +203,22 @@ run_case \
   "shell: login" \
   "0" \
   "0"
+
+run_case \
+  "remote host local pane appends host suffix" \
+  "tty-remote-local-git" \
+  "$git_repo" \
+  "zsh" \
+  "(feature/foo) repo | claw02" \
+  "shell: zsh" \
+  "0" \
+  "0" \
+  "" \
+  "" \
+  "" \
+  "" \
+  "" \
+  "claw02"
 
 run_case \
   "agent pane without pane id keeps local fast path" \
@@ -350,10 +367,10 @@ run_case \
   "tty-local-pane-id" \
   "$git_repo" \
   "bash" \
-  "(feature/foo) repo" \
+  "(feature/agent-label) agent-repo" \
   "shell: login" \
-  "0" \
-  "0" \
+  "1" \
+  "2" \
   "%93" \
   "9100" \
   "$agent_wt" \
