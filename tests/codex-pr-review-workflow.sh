@@ -42,6 +42,6 @@ assert_contains "ruby bin/codex-pr-review" "workflow uses the shared review help
 assert_absent "bin/codex-ci-preflight" "workflow does not place preflight under bin"
 assert_contains '--repo "$REVIEW_REPO"' "workflow passes the repository explicitly"
 assert_contains '--pr-number "$REVIEW_PR_NUMBER"' "workflow passes the PR number explicitly"
-assert_contains "actions/upload-artifact@v4" "workflow uploads review artifacts on failure"
+assert_contains "uses: actions/upload-artifact@" "workflow uploads review artifacts on failure"
 assert_absent "synchronize" "workflow does not trigger on synchronize"
 assert_absent "pull_request:" "workflow no longer runs untrusted pull_request workflow code"
