@@ -33,6 +33,16 @@ assert_contains() {
   fi
 }
 
+assert_line_equals() {
+  local path="$1" expected="$2" name="$3"
+
+  if rg -n -x -F -- "$expected" "$path" >/dev/null; then
+    pass_case "$name"
+  else
+    fail_case "$name" "missing exact line '$expected' in $path"
+  fi
+}
+
 assert_not_contains() {
   local path="$1" needle="$2" name="$3"
 
@@ -56,7 +66,9 @@ assert_missing() {
 }
 
 assert_contains "$MAIN_YML" "Remove legacy GSD state" "playbook removes legacy GSD state"
-assert_contains "$MAIN_YML" ".local/bin/gsd" "cleanup removes legacy gsd shim"
+assert_line_equals "$MAIN_YML" "    - .gsd" "cleanup removes legacy ~/.gsd state"
+assert_line_equals "$MAIN_YML" "    - .local/bin/gsd" "cleanup removes legacy gsd shim"
+assert_line_equals "$MAIN_YML" "    - .local/bin/gsd-cli" "cleanup removes legacy gsd-cli shim"
 assert_not_contains "$MAIN_YML" ".claude/skills/gsd-browser" "cleanup preserves Claude gsd-browser skill"
 assert_not_contains "$MAIN_YML" ".codex/skills/gsd-browser" "cleanup preserves Codex gsd-browser skill"
 assert_not_contains "$MAIN_YML" ".local/bin/gsd-browser" "cleanup preserves gsd-browser binary"
