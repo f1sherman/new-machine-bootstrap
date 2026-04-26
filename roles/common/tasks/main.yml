@@ -134,6 +134,7 @@
     - { name: worktree-done, mode: '0755' }
     - { name: codex-block-worktree-commands, mode: '0755' }
     - { name: codex-block-git-push-main, mode: '0755' }
+    - { name: codex-block-main-branch-edits, mode: '0755' }
     - { name: codex-bind-tmux-pane, mode: '0755' }
 
 - name: Install pick-files script
@@ -643,6 +644,58 @@
   register: block_worktree_hook_result
   changed_when: "'already registered' not in block_worktree_hook_result.stdout"
 
+- name: Register PreToolUse Edit|MultiEdit|Write hook for blocking main-branch file edits
+  shell: |
+    set -euo pipefail
+
+    settings_file="${SETTINGS_FILE:?}"
+    hook_cmd='~/.claude/hooks/block-main-branch-edits.sh'
+
+    if [ ! -f "$settings_file" ]; then
+      echo '{}' > "$settings_file"
+    fi
+
+    if jq -e --arg cmd "$hook_cmd" '
+      .hooks.PreToolUse // []
+      | any(.matcher == "Edit|MultiEdit|Write" and any(.hooks[]?; .type == "command" and .command == $cmd))
+    ' "$settings_file" >/dev/null 2>&1; then
+      echo "unchanged"
+      exit 0
+    fi
+
+    managed_entry="$(
+      jq -n --arg cmd "$hook_cmd" '{
+        matcher: "Edit|MultiEdit|Write",
+        hooks: [
+          {
+            type: "command",
+            command: $cmd
+          }
+        ]
+      }'
+    )"
+    tmp_file="$(mktemp)"
+
+    if [ -f "$settings_file" ] && [ -s "$settings_file" ]; then
+      jq --argjson entry "$managed_entry" '
+        .hooks //= {} |
+        .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry])
+      ' "$settings_file" > "$tmp_file"
+    else
+      jq -n --argjson entry "$managed_entry" '
+        {hooks: {PreToolUse: [$entry]}}
+      ' > "$tmp_file"
+    fi
+
+    mv "$tmp_file" "$settings_file"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  environment:
+    SETTINGS_FILE: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
+  register: claude_main_edit_hook_result
+  changed_when: claude_main_edit_hook_result.stdout.strip() == 'changed'
+
 - name: Register PreToolUse Bash hook for blocking force-add of superpowers docs
   shell: |
     SETTINGS='{{ ansible_facts["user_dir"] }}/.claude/settings.json'
@@ -728,6 +781,11 @@
     executable: /bin/bash
   register: working_off_hook_result
   changed_when: "'already registered' not in working_off_hook_result.stdout"
+
+- name: Enforce 0600 on ~/.claude/settings.json
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
+    mode: '0600'
 
 - name: Install or update Codex CLI via npm (macOS)
   npm:
@@ -1115,6 +1173,54 @@
   register: codex_pane_session_hooks_json_result
   changed_when: codex_pane_session_hooks_json_result.stdout.strip() == 'changed'
 
+- name: Merge managed Codex main-branch edit hook into ~/.codex/hooks.json
+  shell: |
+    set -euo pipefail
+
+    hooks_file="${HOOKS_FILE:?}"
+    managed_command='~/.local/bin/codex-block-main-branch-edits'
+
+    if [ -f "$hooks_file" ] && jq -e --arg cmd "$managed_command" '
+      .hooks.PreToolUse // []
+      | any(.matcher == "apply_patch|Edit|Write" and any(.hooks[]?; .type == "command" and .command == $cmd))
+    ' "$hooks_file" >/dev/null 2>&1; then
+      echo "unchanged"
+      exit 0
+    fi
+
+    managed_entry="$(
+      jq -n --arg cmd "$managed_command" '{
+        matcher: "apply_patch|Edit|Write",
+        hooks: [
+          {
+            type: "command",
+            command: $cmd
+          }
+        ]
+      }'
+    )"
+    tmp_file="$(mktemp)"
+
+    if [ -f "$hooks_file" ] && [ -s "$hooks_file" ]; then
+      jq --argjson entry "$managed_entry" '
+        .hooks //= {} |
+        .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry])
+      ' "$hooks_file" > "$tmp_file"
+    else
+      jq -n --argjson entry "$managed_entry" '
+        {hooks: {PreToolUse: [$entry]}}
+      ' > "$tmp_file"
+    fi
+
+    mv "$tmp_file" "$hooks_file"
+    chmod 600 "$hooks_file"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  environment:
+    HOOKS_FILE: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
+  register: codex_main_edit_hooks_json_result
+  changed_when: codex_main_edit_hooks_json_result.stdout.strip() == 'changed'
 - name: Enforce 0600 on ~/.codex/hooks.json
   file:
     path: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
