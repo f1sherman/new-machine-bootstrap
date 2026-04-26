@@ -155,6 +155,26 @@ actual="$(cat "$log")"
 [[ "$actual" == "$expected" ]] || fail "codex-resume-pane prefers pane-local session id over newest cwd match"
 pass "codex-resume-pane prefers pane-local session id over newest cwd match"
 
+: >"$log"
+HOME="$home" \
+PATH="$bin:$PATH" \
+TMUX=/tmp/tmux-socket \
+TMUX_PANE=%91 \
+FAKE_CODEX_SESSION_ID=other-pane \
+FAKE_AGENT_WORKTREE_PATH="$agent_path" \
+FAKE_PANE_CURRENT_PATH="$pane_path" \
+CODEX_TEST_LOG="$log" \
+TMUX_TEST_LOG="$tmux_log" \
+zsh -fic "
+  source '$PERSONAL_ZSHRC'
+  codex-resume-pane
+"
+
+expected="$agent_path|--dangerously-bypass-approvals-and-sandbox resume pane-active"
+actual="$(cat "$log")"
+[[ "$actual" == "$expected" ]] || fail "codex-resume-pane ignores stale pane-local session id"
+pass "codex-resume-pane ignores stale pane-local session id"
+
 HOME="$home" \
 PATH="$bin:$PATH" \
 TMUX=/tmp/tmux-socket \

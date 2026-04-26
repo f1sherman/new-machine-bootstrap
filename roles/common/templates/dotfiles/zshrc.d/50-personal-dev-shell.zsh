@@ -223,9 +223,44 @@ function _codex_pane_session_id() {
   print -r -- "$session_id"
 }
 
+function _codex_clear_pane_session_id() {
+  local pane="${1:-${TMUX_PANE:-}}"
+  [[ -n "${TMUX:-}" && -n "$pane" ]] || return 1
+  command -v tmux >/dev/null 2>&1 || return 1
+  command tmux set-option -pt "$pane" @codex_session_id "" >/dev/null 2>&1
+}
+
 function _codex_session_id_from_file() {
   local session_file="$1"
   jq -r 'select(.type == "session_meta") | .payload.id // empty' "$session_file" 2>/dev/null | head -n 1
+}
+
+function _codex_session_id_matches_cwd() {
+  local session_id="$1" cwd="$2" sessions_dir="${CODEX_SESSIONS_DIR:-$HOME/.codex/sessions}"
+  local canonical_cwd session_file matched_id
+  local -a session_files
+
+  command -v jq >/dev/null 2>&1 || return 1
+  [[ -d "$sessions_dir" ]] || return 1
+
+  canonical_cwd="$(builtin cd "$cwd" 2>/dev/null && pwd -P)" || canonical_cwd="$cwd"
+  session_files=("${sessions_dir}"/**/*.jsonl(Nom))
+  (( $#session_files > 0 )) || return 1
+
+  for session_file in "${session_files[@]}"; do
+    matched_id="$(
+      jq -r --arg id "$session_id" --arg cwd "$cwd" --arg canonical_cwd "$canonical_cwd" '
+        select(.type == "session_meta")
+        | .payload
+        | select(.id == $id)
+        | select((.cwd == $cwd) or (.cwd == $canonical_cwd))
+        | .id // empty
+      ' "$session_file" 2>/dev/null | head -n 1
+    )"
+    [[ -n "$matched_id" ]] && return 0
+  done
+
+  return 1
 }
 
 function _codex_session_id_from_lsof_pid() {
@@ -394,9 +429,19 @@ function codex-resume-pane() {
   local pane="${1:-${TMUX_PANE:-}}" cwd session_id
   cwd="$(_codex_resume_pane_cwd "$pane")" || return $?
   session_id="$(_codex_pane_session_id "$pane")" || session_id=""
+  if [[ -n "$session_id" ]] && ! _codex_session_id_matches_cwd "$session_id" "$cwd"; then
+    _codex_clear_pane_session_id "$pane" || true
+    session_id=""
+  fi
   if [[ -z "$session_id" ]]; then
     session_id="$(_codex_active_session_id_for_pane "$pane")" || session_id=""
-    [[ -z "$session_id" ]] || _codex_publish_pane_session_id "$pane" "$session_id"
+    if [[ -n "$session_id" ]]; then
+      if _codex_session_id_matches_cwd "$session_id" "$cwd"; then
+        _codex_publish_pane_session_id "$pane" "$session_id"
+      else
+        session_id=""
+      fi
+    fi
   fi
   if [[ -z "$session_id" ]]; then
     session_id="$(_codex_last_session_for_cwd "$cwd")" || return $?
