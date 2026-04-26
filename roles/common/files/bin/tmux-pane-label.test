@@ -308,6 +308,21 @@ run_case \
   $'13: (feature/foo) repo | claw02\tany-window'
 
 run_case \
+  "colon label stays intact" \
+  "tty-structured-remote-colon" \
+  "$git_repo" \
+  "ssh" \
+  "api: server | claw02" \
+  "ssh dev@claw02 -p 22" \
+  "0" \
+  "1" \
+  "%99" \
+  "" \
+  "" \
+  "" \
+  $'api: server | claw02\tany-window'
+
+run_case \
   "degraded remote title preserves structured window label" \
   "tty-degraded-remote" \
   "$git_repo" \
@@ -321,6 +336,21 @@ run_case \
   "" \
   "" \
   $'claw02\t(feature/foo) repo | claw02'
+
+run_case \
+  "degraded colon label stays intact" \
+  "tty-degraded-remote-colon" \
+  "$git_repo" \
+  "ssh" \
+  "api: server | claw02" \
+  "ssh dev@claw02 -p 22" \
+  "0" \
+  "1" \
+  "%100" \
+  "" \
+  "" \
+  "" \
+  $'claw02\tapi: server | claw02'
 
 run_case \
   "ruby local pane falls back to local label" \

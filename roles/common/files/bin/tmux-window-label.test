@@ -166,6 +166,22 @@ PATH="$fake_bin:$PATH" \
 assert_empty_file "$pane_label_log" "nested remote title skips helper"
 assert_file_contains "$tmux_log" "rename-window -t @12 (feature/foo) repo | claw02" "nested remote title strips session prefix"
 
+: > "$tmux_log"
+: > "$pane_label_log"
+
+PATH="$fake_bin:$PATH" \
+  HOME="$tmp_root/home" \
+  TMUX=1 \
+  TMUX_LOG="$tmux_log" \
+  TMUX_DISPLAY_OUTPUT_WITH_TITLE=$'@14\t1\tclaw02\t/dev/ttys008\t/tmp/repo\tssh\tapi: server | claw02\t%18' \
+  TMUX_PANE_LABEL_BIN="$fake_bin/tmux-pane-label" \
+  PANE_LABEL_LOG="$pane_label_log" \
+  PANE_LABEL_OUTPUT="claw02" \
+  bash "$script" "%18"
+
+assert_empty_file "$pane_label_log" "colon label skips helper"
+assert_file_contains "$tmux_log" "rename-window -t @14 api: server | claw02" "colon label stays intact"
+
 run_case \
   "%15" \
   $'@11\t1\t(feature/foo) repo | claw02\t/dev/ttys005\t/tmp/repo\tssh\tclaw02\t%15' \
@@ -195,3 +211,24 @@ PATH="$fake_bin:$PATH" \
 
 assert_empty_file "$pane_label_log" "degraded nested remote title skips helper"
 assert_file_contains "$tmux_log" "rename-window -t @13 (feature/foo) repo | claw02" "degraded nested remote title strips session prefix"
+
+: > "$tmux_log"
+: > "$pane_label_log"
+
+PATH="$fake_bin:$PATH" \
+  HOME="$tmp_root/home" \
+  TMUX=1 \
+  TMUX_LOG="$tmux_log" \
+  TMUX_DISPLAY_OUTPUT_WITH_TITLE=$'@15\t1\tapi: server | claw02\t/dev/ttys009\t/tmp/repo\tssh\tclaw02\t%19' \
+  TMUX_PANE_LABEL_BIN="$fake_bin/tmux-pane-label" \
+  PANE_LABEL_LOG="$pane_label_log" \
+  PANE_LABEL_OUTPUT="claw02" \
+  bash "$script" "%19"
+
+assert_empty_file "$pane_label_log" "degraded colon label skips helper"
+if grep -Fq "rename-window" "$tmux_log"; then
+  printf 'not ok - degraded colon label preserves structured remote window name\nunexpected rename:\n' >&2
+  cat "$tmux_log" >&2
+  exit 1
+fi
+printf 'ok - degraded colon label preserves structured remote window name\n'

@@ -26,11 +26,14 @@ is_structured_remote_label() {
 }
 
 structured_remote_label() {
-  local title="${1:-}" nested_title
+  local title="${1:-}" nested_title prefix
 
   is_structured_remote_label "$title" || return 1
   nested_title="${title#*: }"
-  if [ "$nested_title" != "$title" ] && is_structured_remote_label "$nested_title"; then
+  prefix="${title%%: *}"
+  if [ "$nested_title" != "$title" ] && is_structured_remote_label "$nested_title" && {
+    [[ "$prefix" =~ ^[0-9]+$ ]] || [[ "$nested_title" == \(* ]];
+  }; then
     printf '%s\n' "$nested_title"
   else
     printf '%s\n' "$title"

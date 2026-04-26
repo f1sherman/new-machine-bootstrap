@@ -19,12 +19,13 @@ case "$pane_current_command" in
 esac
 
 structured_remote_label() {
-  local title="${1:-}" nested_title
+  local title="${1:-}" nested_title prefix
 
   case "$title" in
     *" | "*)
       nested_title="${title#*: }"
-      if [ "$nested_title" != "$title" ]; then
+      prefix="${title%%: *}"
+      if [ "$nested_title" != "$title" ] && { [[ "$prefix" =~ ^[0-9]+$ ]] || [[ "$nested_title" == \(* ]]; }; then
         case "$nested_title" in
           *" | "*)
             printf '%s\n' "$nested_title"
