@@ -1,0 +1,36 @@
+name: Low-Risk Automerge
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to evaluate
+        required: false
+        type: string
+  issue_comment:
+    types: [created, edited]
+  workflow_run:
+    workflows: ["Codex PR Review", "Integration Test"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  checks: read
+  statuses: read
+
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run low-risk automerge
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOW_RISK_AUTOMERGE_REPO: ${{ github.repository }}
+          LOW_RISK_AUTOMERGE_EVENT_PATH: ${{ github.event_path }}
+          LOW_RISK_AUTOMERGE_BOT_AUTHOR: github-actions[bot]
+        run: ruby tools/low-risk-automerge/github.rb
