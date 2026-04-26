@@ -213,6 +213,99 @@ function _codex_resume_pane_cwd() {
   print -r -- "$PWD"
 }
 
+function _codex_pane_session_id() {
+  local pane="${1:-${TMUX_PANE:-}}" session_id
+  [[ -n "${TMUX:-}" && -n "$pane" ]] || return 1
+  command -v tmux >/dev/null 2>&1 || return 1
+
+  session_id="$(command tmux show-option -qv -pt "$pane" @codex_session_id 2>/dev/null)" || session_id=""
+  [[ -n "$session_id" ]] || return 1
+  print -r -- "$session_id"
+}
+
+function _codex_session_id_from_file() {
+  local session_file="$1"
+  jq -r 'select(.type == "session_meta") | .payload.id // empty' "$session_file" 2>/dev/null | head -n 1
+}
+
+function _codex_session_id_from_pid() {
+  local pid="$1" proc_root="${CODEX_SESSION_PROC_ROOT:-/proc}"
+  local fd session_file session_id
+
+  for fd in "${proc_root}/${pid}/fd"/*(N); do
+    session_file="$(readlink "$fd" 2>/dev/null)" || continue
+    case "$session_file" in
+      */.codex/sessions/*.jsonl)
+        session_id="$(_codex_session_id_from_file "$session_file")"
+        if [[ -n "$session_id" ]]; then
+          print -r -- "$session_id"
+          return 0
+        fi
+        ;;
+    esac
+  done
+
+  return 1
+}
+
+function _codex_active_session_id_for_pane() {
+  local pane="${1:-${TMUX_PANE:-}}" pane_tty line pid stat comm args session_id
+  [[ -n "${TMUX:-}" && -n "$pane" ]] || return 1
+  command -v tmux >/dev/null 2>&1 || return 1
+
+  pane_tty="$(command tmux display-message -p -t "$pane" '#{pane_tty}' 2>/dev/null)" || pane_tty=""
+  [[ -n "$pane_tty" ]] || return 1
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] || continue
+    read -r pid stat comm args <<< "$line"
+    [[ "$comm" == codex || "$args" == *codex* ]] || continue
+    session_id="$(_codex_session_id_from_pid "$pid")" || session_id=""
+    if [[ -n "$session_id" ]]; then
+      print -r -- "$session_id"
+      return 0
+    fi
+  done < <(ps -o pid=,stat=,comm=,args= -t "$pane_tty" 2>/dev/null)
+
+  return 1
+}
+
+function _codex_publish_pane_session_id() {
+  local pane="$1" session_id="$2"
+  [[ -n "${TMUX:-}" && -n "$pane" && -n "$session_id" ]] || return 1
+  command -v tmux >/dev/null 2>&1 || return 1
+  command tmux set-option -pt "$pane" @codex_session_id "$session_id" >/dev/null 2>&1
+}
+
+function _codex_publish_active_pane_session_id() {
+  local pane="${1:-${TMUX_PANE:-}}" session_id
+  session_id="$(_codex_active_session_id_for_pane "$pane")" || return 1
+  _codex_publish_pane_session_id "$pane" "$session_id"
+}
+
+function _codex_watch_pane_session_id() {
+  emulate -L zsh
+  local pane="$1" attempt
+  for attempt in {1..80}; do
+    _codex_publish_active_pane_session_id "$pane" && return 0
+    sleep 0.25
+  done
+  return 1
+}
+
+function _codex_session_preexec() {
+  local command_line="$1"
+  [[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]] || return 0
+  case "$command_line" in
+    codex*|codex-yolo*|*' codex '*|*' codex-yolo '*)
+      _codex_watch_pane_session_id "$TMUX_PANE" &!
+      ;;
+  esac
+}
+
+autoload -Uz add-zsh-hook
+add-zsh-hook preexec _codex_session_preexec
+
 function _codex_last_session_for_cwd() {
   local cwd="$1" sessions_dir="${CODEX_SESSIONS_DIR:-$HOME/.codex/sessions}"
   local canonical_cwd session_file session_id
@@ -257,7 +350,14 @@ function _codex_last_session_for_cwd() {
 function codex-resume-pane() {
   local pane="${1:-${TMUX_PANE:-}}" cwd session_id
   cwd="$(_codex_resume_pane_cwd "$pane")" || return $?
-  session_id="$(_codex_last_session_for_cwd "$cwd")" || return $?
+  session_id="$(_codex_pane_session_id "$pane")" || session_id=""
+  if [[ -z "$session_id" ]]; then
+    session_id="$(_codex_active_session_id_for_pane "$pane")" || session_id=""
+    [[ -z "$session_id" ]] || _codex_publish_pane_session_id "$pane" "$session_id"
+  fi
+  if [[ -z "$session_id" ]]; then
+    session_id="$(_codex_last_session_for_cwd "$cwd")" || return $?
+  fi
   builtin cd "$cwd" || return $?
   codex-yolo resume "$session_id"
 }
