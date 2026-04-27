@@ -84,13 +84,16 @@ tmux_review_clear_option() {
 tmux_review_window_exists() {
   local tmux_bin
   tmux_bin="$(tmux_review_tmux_bin)"
-  "$tmux_bin" display-message -p -t "$1" '#{window_id}' >/dev/null 2>&1
+  # `display-message -p -t` returns rc=0 with empty stdout when the target is
+  # missing, so it cannot distinguish live from stale windows. `list-windows`
+  # fails for unknown targets.
+  "$tmux_bin" list-windows -t "$1" -F '' >/dev/null 2>&1
 }
 
 tmux_review_pane_exists() {
   local tmux_bin
   tmux_bin="$(tmux_review_tmux_bin)"
-  "$tmux_bin" display-message -p -t "$1" '#{pane_id}' >/dev/null 2>&1
+  "$tmux_bin" list-panes -t "$1" -F '' >/dev/null 2>&1
 }
 
 tmux_review_current_window_id() {
