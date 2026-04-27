@@ -16,6 +16,41 @@
   vars_files:
     - vars/tool_versions.yml
   pre_tasks:
+    - name: Verify Low Power Mode is enabled on battery only (macOS)
+      shell: |
+        if ! pmset -g cap 2>/dev/null | grep -qw lowpowermode; then
+          echo skip
+          exit 0
+        fi
+        pmset -g custom | awk '
+          /^Battery Power:/ { mode = "battery" }
+          /^AC Power:/      { mode = "ac" }
+          /^[[:space:]]*powermode[[:space:]]/ {
+            if (mode == "battery") battery = $2
+            else if (mode == "ac") ac = $2
+          }
+          END {
+            if (battery == "1" && ac != "1") print "ok"
+            else printf "battery=%s ac=%s\n", battery, ac
+          }
+        '
+      register: lpm_check
+      changed_when: false
+      when: ansible_facts["os_family"] == "Darwin"
+
+    - name: Require Low Power Mode on battery only (macOS)
+      fail:
+        msg: |
+          Low Power Mode is misconfigured ({{ lpm_check.stdout }}).
+          Required: enabled on battery, disabled on AC.
+          Run `bin/setup` to fix, or manually:
+            sudo pmset -b powermode 1
+            sudo pmset -c powermode 0
+      when:
+        - ansible_facts["os_family"] == "Darwin"
+        - lpm_check.stdout is defined
+        - lpm_check.stdout not in ["skip", "ok"]
+
     # Platform packages must be installed first - common role depends on them
     - name: Install platform packages (macOS)
       import_tasks: roles/macos/tasks/install_packages.yml
