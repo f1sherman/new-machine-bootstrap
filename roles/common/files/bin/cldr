@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# cldr — resume the Claude session bound to this tmux pane.
+#
+# Reads the pane option @persist_claude_session_id (set by the SessionStart
+# hook from the tmux-recovery-hardening work). If absent, falls back to
+# `claude --continue` (most recent session in cwd).
+set -u
+
+session_id=""
+if [ -n "${TMUX_PANE:-}" ]; then
+  session_id=$(tmux show-options -pqv -t "$TMUX_PANE" @persist_claude_session_id 2>/dev/null || true)
+fi
+
+if [ -n "$session_id" ]; then
+  exec claude --dangerously-skip-permissions --resume "$session_id" "$@"
+else
+  exec claude --dangerously-skip-permissions --continue "$@"
+fi
