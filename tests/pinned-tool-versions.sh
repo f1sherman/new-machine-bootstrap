@@ -14,6 +14,7 @@ RENOVATE_RUN_WORKFLOW="$REPO_ROOT/.github/workflows/renovate.yml"
 RENOVATE_SETUP_DOC="$REPO_ROOT/docs/renovate-github-app.md"
 INTEGRATION_WORKFLOW="$REPO_ROOT/.github/workflows/integration-test.yml"
 REVIEW_WORKFLOW="$REPO_ROOT/.github/workflows/renovate-review.yml"
+CODEX_REVIEW_WORKFLOW="$REPO_ROOT/.github/workflows/codex-pr-review.yml"
 WORKFLOWS_DIR="$REPO_ROOT/.github/workflows"
 CODEX_REVIEW_DOC="$REPO_ROOT/docs/codex-github-review.md"
 
@@ -190,19 +191,21 @@ run_review_workflow_checks() {
     fail_case "review workflow has been removed" "unexpected file present at $REVIEW_WORKFLOW"
   fi
 
+  if [[ ! -e "$CODEX_REVIEW_WORKFLOW" ]]; then
+    pass_case "Codex review workflow has been removed"
+  else
+    fail_case "Codex review workflow has been removed" "unexpected file present at $CODEX_REVIEW_WORKFLOW"
+  fi
+
   assert_not_contains "$WORKFLOWS_DIR" "CLAUDE_CODE_OAUTH_TOKEN" "review workflow no longer references the Claude OAuth token"
   assert_not_contains "$WORKFLOWS_DIR" "@anthropic-ai/claude-code" "review workflow no longer install Claude Code"
   assert_not_contains "$WORKFLOWS_DIR" "claude -p" "review workflow no longer run Claude prompt mode"
+  assert_not_contains "$WORKFLOWS_DIR" "bin/codex-pr-review" "review workflow no longer runs the repo-local Codex helper"
 
-  if [[ -f "$CODEX_REVIEW_DOC" ]]; then
-    pass_case "Codex GitHub review setup doc exists"
-    assert_contains "$CODEX_REVIEW_DOC" "Codex" "Codex review doc mentions Codex"
-    assert_contains "$CODEX_REVIEW_DOC" "GitHub" "Codex review doc mentions GitHub"
-    assert_contains "$CODEX_REVIEW_DOC" "code review" "Codex review doc mentions code review"
-    assert_contains "$CODEX_REVIEW_DOC" "\`@codex review\`" "Codex review doc includes the manual fallback"
-    assert_contains "$CODEX_REVIEW_DOC" "\`CLAUDE_CODE_OAUTH_TOKEN\`" "Codex review doc explains the old Claude secret cleanup"
+  if [[ ! -e "$CODEX_REVIEW_DOC" ]]; then
+    pass_case "Codex GitHub review setup doc has been removed"
   else
-    fail_case "Codex GitHub review setup doc exists" "missing $CODEX_REVIEW_DOC"
+    fail_case "Codex GitHub review setup doc has been removed" "unexpected file present at $CODEX_REVIEW_DOC"
   fi
 }
 
