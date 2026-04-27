@@ -43,6 +43,10 @@ sudo defaults write /Library/Preferences/com.apple.loginwindow SHOWFULLNAME -boo
 sudo defaults write /Library/Preferences/com.apple.loginwindow GuestEnabled -bool false
 sudo pmset -a hibernatemode 0
 sudo pmset -a sms 0
+if pmset -g cap 2>/dev/null | grep -qw lowpowermode; then
+  sudo pmset -b powermode 1
+  sudo pmset -c powermode 0
+fi
 sudo chflags nohidden /Volumes
 echo "    Done."
 
