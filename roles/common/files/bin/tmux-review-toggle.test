@@ -105,6 +105,28 @@ case "$cmd" in
     [ "${1:-}" = "-t" ] || exit 1
     printf '%s\n' "$2" > "$fake_dir/switch_target"
     ;;
+  list-windows)
+    target=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t) target="$2"; shift 2 ;;
+        -F) shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    window_exists "$target" || exit 1
+    ;;
+  list-panes)
+    target=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t) target="$2"; shift 2 ;;
+        -F) shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    pane_exists "$target" || exit 1
+    ;;
   *)
     exit 1
     ;;

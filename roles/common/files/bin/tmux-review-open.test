@@ -206,6 +206,28 @@ case "$cmd" in
     printf '%s\n' "$prompt" > "$fake_dir/command_prompt_prompt"
     printf '%s\n' "$*" > "$fake_dir/command_prompt_command"
     ;;
+  list-windows)
+    target=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t) target="$2"; shift 2 ;;
+        -F) shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    window_exists "$target" || exit 1
+    ;;
+  list-panes)
+    target=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t) target="$2"; shift 2 ;;
+        -F) shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    pane_exists "$target" || exit 1
+    ;;
   *)
     exit 1
     ;;

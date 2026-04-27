@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LIB="$SCRIPT_DIR/tmux-review-lib.sh"
+
+if [ ! -f "$LIB" ]; then
+  printf 'ERROR: %s missing\n' "$LIB" >&2
+  exit 2
+fi
+
+# shellcheck source=./tmux-review-lib.sh
+. "$LIB"
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+pass=0
+fail=0
+
+assert_rc() {
+  local name="$1" expected="$2" actual="$3"
+  if [ "$expected" -eq "$actual" ]; then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      expected rc: %s\n' "$expected"
+    printf '      actual rc  : %s\n' "$actual"
+  fi
+}
+
+# Fake tmux that mirrors REAL tmux 3.x behavior for unknown targets.
+#
+# Critical detail: real `tmux display-message -p -t @missing '#{window_id}'`
+# returns rc=0 with empty stdout. Earlier versions of these helpers leaned on
+# rc alone, which silently treated stale mappings as live windows and produced
+# `can't find window` errors deeper in the flow. Fake must mimic real behavior
+# so the regression stays caught.
+make_fake_tmux() {
+  local fake_tmux="$1"
+  cat > "$fake_tmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+fake_dir="${TMUX_REVIEW_FAKE_DIR:?}"
+cmd="${1:?}"
+shift || true
+
+window_exists() {
+  grep -Fqx -- "$1" "$fake_dir/window_ids" 2>/dev/null
+}
+
+pane_exists() {
+  grep -Fqx -- "$1" "$fake_dir/pane_ids" 2>/dev/null
+}
+
+case "$cmd" in
+  display-message)
+    [ "${1:-}" = "-p" ] || exit 1
+    shift
+    target=""
+    if [ "${1:-}" = "-t" ]; then
+      target="$2"
+      shift 2
+    fi
+    format="${1:-}"
+    case "$format" in
+      '#{window_id}')
+        if window_exists "$target"; then
+          printf '%s\n' "$target"
+        fi
+        # Real tmux returns rc=0 with empty stdout for unknown windows.
+        ;;
+      '#{pane_id}')
+        if pane_exists "$target"; then
+          printf '%s\n' "$target"
+        fi
+        ;;
+      *)
+        exit 1
+        ;;
+    esac
+    ;;
+  list-windows)
+    target=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t)
+          target="$2"
+          shift 2
+          ;;
+        -F)
+          shift 2
+          ;;
+        *)
+          shift
+          ;;
+      esac
+    done
+    window_exists "$target" || exit 1
+    ;;
+  list-panes)
+    target=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t)
+          target="$2"
+          shift 2
+          ;;
+        -F)
+          shift 2
+          ;;
+        *)
+          shift
+          ;;
+      esac
+    done
+    pane_exists "$target" || exit 1
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+EOF
+  chmod +x "$fake_tmux"
+}
+
+fake_dir="$TMPROOT/fake"
+fake_tmux="$TMPROOT/fake-tmux"
+mkdir -p "$fake_dir"
+printf '%s\n' "@1" "@2" > "$fake_dir/window_ids"
+printf '%s\n' "%1" "%5" > "$fake_dir/pane_ids"
+make_fake_tmux "$fake_tmux"
+
+export TMUX_REVIEW_FAKE_DIR="$fake_dir"
+export TMUX_REVIEW_TMUX_BIN="$fake_tmux"
+
+set +e
+tmux_review_window_exists "@1"; rc_window_live=$?
+tmux_review_window_exists "@99"; rc_window_dead=$?
+tmux_review_pane_exists "%1"; rc_pane_live=$?
+tmux_review_pane_exists "%99"; rc_pane_dead=$?
+set -e
+
+assert_rc "live window reports rc=0" 0 "$rc_window_live"
+assert_rc "missing window reports rc=1 (the regression)" 1 "$rc_window_dead"
+assert_rc "live pane reports rc=0" 0 "$rc_pane_live"
+assert_rc "missing pane reports rc=1" 1 "$rc_pane_dead"
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]
