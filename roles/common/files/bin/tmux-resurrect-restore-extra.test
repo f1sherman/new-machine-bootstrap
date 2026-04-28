@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-resurrect-restore-extra"
+[ -x "$SCRIPT" ] || { echo "ERROR: $SCRIPT not executable"; exit 2; }
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+fake_bin="$TMPROOT/fake-bin"
+mkdir -p "$fake_bin"
+
+# stub handler that records its invocation
+cat > "$fake_bin/tmux-restore-handler-claude_session_id" <<EOF
+#!/usr/bin/env bash
+echo "called \$1 \$2" > "$TMPROOT/handler.log"
+EOF
+chmod +x "$fake_bin/tmux-restore-handler-claude_session_id"
+
+cat > "$fake_bin/tmux-restore-handler-complex_value" <<EOF
+#!/usr/bin/env bash
+{
+  printf 'pane=%s\\n' "\$1"
+  printf 'value=%s' "\$2"
+} > "$TMPROOT/complex-handler.log"
+EOF
+chmod +x "$fake_bin/tmux-restore-handler-complex_value"
+
+# stub tmux: list-panes returns the live mapping
+cat > "$fake_bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "list-panes -a")
+    printf 'main\t0\t0\t%%99\n'
+    ;;
+esac
+EOF
+chmod +x "$fake_bin/tmux"
+
+# Build the resurrect dir + sidecar at the XDG_DATA_HOME default location
+mkdir -p "$TMPROOT/tmux/resurrect"
+ln -s tmux_resurrect_20260101T000000.txt "$TMPROOT/tmux/resurrect/last"
+touch "$TMPROOT/tmux/resurrect/tmux_resurrect_20260101T000000.txt"
+cat > "$TMPROOT/tmux/resurrect/tmux_resurrect_20260101T000000.txt.meta.json" <<EOF
+{
+  "version": 1,
+  "saved_at": "x",
+  "panes": {
+    "main:0.0": {
+      "claude_session_id": "abc-123",
+      "complex_value": "alpha=beta\nsecond line"
+    }
+  }
+}
+EOF
+
+# Sanity: the sidecar is valid JSON (jq exits nonzero on parse failure)
+jq empty "$TMPROOT/tmux/resurrect/tmux_resurrect_20260101T000000.txt.meta.json" \
+  || { echo "FAIL: sidecar not valid JSON"; exit 1; }
+
+PATH="$fake_bin:$PATH"; export PATH
+XDG_DATA_HOME="$TMPROOT" HOME="$TMPROOT" "$SCRIPT" || { echo "FAIL: nonzero exit"; exit 1; }
+
+[ -f "$TMPROOT/handler.log" ] && grep -q "called %99 abc-123" "$TMPROOT/handler.log" || {
+  echo "FAIL: handler not called with expected args"
+  cat "$TMPROOT/handler.log" 2>/dev/null
+  exit 1
+}
+
+expected_complex="$TMPROOT/expected-complex.log"
+printf 'pane=%%99\nvalue=alpha=beta\nsecond line' > "$expected_complex"
+cmp "$expected_complex" "$TMPROOT/complex-handler.log" || {
+  echo "FAIL: complex value did not round-trip"
+  cat "$TMPROOT/complex-handler.log" 2>/dev/null
+  exit 1
+}
+
+# Absolute `last` symlinks should resolve to their absolute target, not under
+# the resurrect directory twice.
+rm -f "$TMPROOT/handler.log" "$TMPROOT/tmux/resurrect/last"
+ln -s "$TMPROOT/tmux/resurrect/tmux_resurrect_20260101T000000.txt" "$TMPROOT/tmux/resurrect/last"
+XDG_DATA_HOME="$TMPROOT" HOME="$TMPROOT" "$SCRIPT" || { echo "FAIL: absolute-last case errored"; exit 1; }
+[ -f "$TMPROOT/handler.log" ] && grep -q "called %99 abc-123" "$TMPROOT/handler.log" || {
+  echo "FAIL: absolute last symlink did not resolve"
+  cat "$TMPROOT/handler.log" 2>/dev/null
+  exit 1
+}
+
+# No-live-pane case: sidecar references coord that doesn't appear in list-panes.
+# Should log a skip and not crash.
+rm -f "$TMPROOT/handler.log"
+rm -f "$TMPROOT/tmux/resurrect/last"
+ln -s tmux_resurrect_20260101T000000.txt "$TMPROOT/tmux/resurrect/last"
+cat > "$TMPROOT/tmux/resurrect/tmux_resurrect_20260101T000000.txt.meta.json" <<EOF
+{
+  "version": 1,
+  "saved_at": "x",
+  "panes": {
+    "ghost:9.9": { "claude_session_id": "no-such" }
+  }
+}
+EOF
+XDG_DATA_HOME="$TMPROOT" HOME="$TMPROOT" "$SCRIPT" || { echo "FAIL: no-live-pane case errored"; exit 1; }
+[ ! -f "$TMPROOT/handler.log" ] || { echo "FAIL: handler invoked for missing live pane"; exit 1; }
+grep -q "no live pane for ghost:9.9" "$TMPROOT/tmux/resurrect/restore-extra.log" \
+  || { echo "FAIL: skip notice not logged for missing live pane"; cat "$TMPROOT/tmux/resurrect/restore-extra.log"; exit 1; }
+
+# Restore the happy-path sidecar for the next case
+cat > "$TMPROOT/tmux/resurrect/tmux_resurrect_20260101T000000.txt.meta.json" <<EOF
+{
+  "version": 1,
+  "saved_at": "x",
+  "panes": {
+    "main:0.0": { "claude_session_id": "abc-123" }
+  }
+}
+EOF
+
+# Missing-handler case: should not error
+rm -f "$fake_bin/tmux-restore-handler-claude_session_id"
+rm -f "$fake_bin/tmux-restore-handler-complex_value"
+XDG_DATA_HOME="$TMPROOT" HOME="$TMPROOT" "$SCRIPT" || { echo "FAIL: missing-handler case errored"; exit 1; }
+
+# Missing-sidecar case: also should not error
+rm -f "$TMPROOT/tmux/resurrect/tmux_resurrect_20260101T000000.txt.meta.json"
+XDG_DATA_HOME="$TMPROOT" HOME="$TMPROOT" "$SCRIPT" || { echo "FAIL: missing-sidecar case errored"; exit 1; }
+
+echo "OK"

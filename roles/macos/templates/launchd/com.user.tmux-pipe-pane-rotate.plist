@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.tmux-pipe-pane-rotate</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-lc</string>
+        <string>{{ ansible_facts["user_dir"] }}/.local/bin/tmux-pipe-pane-rotate</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+    <key>StandardErrorPath</key>
+    <string>/tmp/tmux-pipe-pane-rotate.err</string>
+    <key>StandardOutPath</key>
+    <string>/tmp/tmux-pipe-pane-rotate.out</string>
+</dict>
+</plist>

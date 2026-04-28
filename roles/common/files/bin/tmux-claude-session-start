@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -u
+
+# Need TMUX_PANE to attach the option to the right pane
+[ -n "${TMUX_PANE:-}" ] || exit 0
+
+command -v jq >/dev/null 2>&1 || exit 0
+command -v tmux >/dev/null 2>&1 || exit 0
+
+# Read stdin JSON
+input="$(cat)"
+[ -n "$input" ] || exit 0
+
+# Extract session_id (defensive: don't crash on bad JSON)
+session_id="$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)"
+[ -n "$session_id" ] && [ "$session_id" != "null" ] || exit 0
+
+tmux set-option -pt "$TMUX_PANE" @persist_claude_session_id "$session_id" >/dev/null 2>&1 || exit 0

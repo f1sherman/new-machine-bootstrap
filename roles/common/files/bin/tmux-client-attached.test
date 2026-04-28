@@ -35,17 +35,24 @@ cat > "$TMPROOT/home/.local/bin/tmux-session-gc" <<'EOF'
 printf '%s\n' "$*" >> "$TMUX_CLIENT_ATTACHED_GC_LOG"
 EOF
 chmod +x "$TMPROOT/home/.local/bin/tmux-session-gc"
+cat > "$TMPROOT/home/.local/bin/tmux-pipe-pane-rotate" <<'EOF'
+#!/usr/bin/env bash
+printf 'rotated\n' >> "$TMUX_CLIENT_ATTACHED_ROTATE_LOG"
+EOF
+chmod +x "$TMPROOT/home/.local/bin/tmux-pipe-pane-rotate"
 
 PATH="$bindir:$PATH" \
 HOME="$TMPROOT/home" \
 TMUX_CLIENT_ATTACHED_LOG="$log" \
 TMUX_CLIENT_ATTACHED_GC_LOG="$TMPROOT/gc.log" \
+TMUX_CLIENT_ATTACHED_ROTATE_LOG="$TMPROOT/rotate.log" \
 "$SCRIPT" '/usr/local/bin:/opt/homebrew/bin'
 
 linux_path_line="$(cat "$log")"
 [ "${linux_path_line#"set-environment -g PATH $TMPROOT/home/.local/share/mise/shims:$TMPROOT/home/.local/bin:"}" != "$linux_path_line" ]
 grep -F '/usr/local/bin:/opt/homebrew/bin' "$log" >/dev/null
 grep -Fqx -- '--platform linux --days 14' "$TMPROOT/gc.log"
+grep -Fqx -- 'rotated' "$TMPROOT/rotate.log"
 
 darwin_log="$(mktemp "$TMPROOT/log-darwin.XXXXXX")"
 darwin_gc_log="$TMPROOT/gc-darwin.log"
@@ -54,6 +61,7 @@ PATH="$bindir:$PATH" \
 HOME="$TMPROOT/home" \
 TMUX_CLIENT_ATTACHED_LOG="$darwin_log" \
 TMUX_CLIENT_ATTACHED_GC_LOG="$darwin_gc_log" \
+TMUX_CLIENT_ATTACHED_ROTATE_LOG="$TMPROOT/rotate-darwin.log" \
 TMUX_CLIENT_ATTACHED_UNAME=Darwin \
 "$SCRIPT" '/usr/bin:/bin'
 
@@ -65,6 +73,7 @@ grep -F '/opt/homebrew/sbin' "$darwin_log" >/dev/null
 grep -F '/usr/local/bin' "$darwin_log" >/dev/null
 grep -F '/usr/bin:/bin' "$darwin_log" >/dev/null
 [ ! -s "$darwin_gc_log" ]
+[ ! -e "$TMPROOT/rotate-darwin.log" ] || [ ! -s "$TMPROOT/rotate-darwin.log" ]
 
 darwin_gui_log="$(mktemp "$TMPROOT/log-darwin-gui.XXXXXX")"
 darwin_gui_gc_log="$TMPROOT/gc-darwin-gui.log"
@@ -73,6 +82,7 @@ PATH="$bindir:$PATH" \
 HOME="$TMPROOT/home" \
 TMUX_CLIENT_ATTACHED_LOG="$darwin_gui_log" \
 TMUX_CLIENT_ATTACHED_GC_LOG="$darwin_gui_gc_log" \
+TMUX_CLIENT_ATTACHED_ROTATE_LOG="$TMPROOT/rotate-darwin-gui.log" \
 TMUX_CLIENT_ATTACHED_UNAME=Darwin \
 "$SCRIPT" '/usr/bin:/bin:/usr/sbin:/sbin:/Applications/Ghostty.app/Contents/MacOS'
 
@@ -84,3 +94,4 @@ grep -F '/opt/homebrew/sbin' "$darwin_gui_log" >/dev/null
 grep -F '/usr/local/bin' "$darwin_gui_log" >/dev/null
 grep -F '/usr/bin:/bin:/usr/sbin:/sbin:/Applications/Ghostty.app/Contents/MacOS' "$darwin_gui_log" >/dev/null
 [ ! -s "$darwin_gui_gc_log" ]
+[ ! -e "$TMPROOT/rotate-darwin-gui.log" ] || [ ! -s "$TMPROOT/rotate-darwin-gui.log" ]

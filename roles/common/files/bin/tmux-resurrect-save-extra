@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_file="${1:-}"
+[ -n "$state_file" ] && [ -f "$state_file" ] || exit 0
+
+dir="$(dirname "$state_file")"
+sidecar="$state_file.meta.json"
+tmp_sidecar="$(mktemp "$sidecar.XXXXXX")"
+trap 'rm -f "$tmp_sidecar"' EXIT
+
+saved_at="$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S%z)"
+
+panes_tsv="$(tmux list-panes -a -F '#{session_name}	#{window_index}	#{pane_index}	#{pane_id}')"
+
+json_encode() {
+  printf '%s' "$1" | jq -Rs .
+}
+
+{
+  printf '{\n'
+  printf '  "version": 1,\n'
+  printf '  "saved_at": %s,\n' "$(json_encode "$saved_at")"
+  printf '  "panes": {\n'
+
+  first=1
+  while IFS=$'\t' read -r sess win pane pid; do
+    [ -n "$pid" ] || continue
+    opts="$(tmux show-options -pq -t "$pid" 2>/dev/null | awk '$1 ~ /^@persist_/ { print $1 }' || true)"
+    [ -n "$opts" ] || continue
+
+    pane_first=1
+    pane_buf=""
+    while IFS= read -r opt; do
+      key="${opt#@persist_}"
+      val="$(tmux show-options -pqv -t "$pid" "$opt" 2>/dev/null || true)"
+      [ -n "$key" ] || continue
+      key_json="$(json_encode "$key")"
+      val_json="$(json_encode "$val")"
+      if [ $pane_first -eq 1 ]; then
+        pane_first=0
+      else
+        pane_buf="$pane_buf,"$'\n'
+      fi
+      pane_buf="$pane_buf      $key_json: $val_json"
+    done <<<"$opts"
+
+    [ -n "$pane_buf" ] || continue
+    if [ $first -eq 1 ]; then
+      first=0
+    else
+      printf ',\n'
+    fi
+    coord_json="$(json_encode "$sess:$win.$pane")"
+    printf '    %s: {\n' "$coord_json"
+    printf '%s\n' "$pane_buf"
+    printf '    }'
+  done <<<"$panes_tsv"
+
+  printf '\n  }\n'
+  printf '}\n'
+} > "$tmp_sidecar"
+
+mv "$tmp_sidecar" "$sidecar"
+trap - EXIT
+
+# last.safe rotation
+size="$(wc -c < "$state_file" | tr -d ' ')"
+pane_count="$(grep -c '^pane	' "$state_file" || true)"
+if [ "$size" -ge 1024 ] && [ "$pane_count" -ge 3 ]; then
+  cp "$state_file" "$dir/last.safe.tmp" && mv "$dir/last.safe.tmp" "$dir/last.safe"
+  cp "$sidecar" "$dir/last.safe.meta.json.tmp" && mv "$dir/last.safe.meta.json.tmp" "$dir/last.safe.meta.json"
+fi

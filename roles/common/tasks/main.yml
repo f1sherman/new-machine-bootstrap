@@ -137,6 +137,12 @@
     - { name: codex-block-main-branch-edits, mode: '0755' }
     - { name: codex-bind-tmux-pane, mode: '0755' }
     - { name: tmux-resurrect-recover, mode: '0755' }
+    - { name: tmux-claude-session-start, mode: '0755' }
+    - { name: tmux-resurrect-save-extra, mode: '0755' }
+    - { name: tmux-resurrect-restore-extra, mode: '0755' }
+    - { name: tmux-pipe-pane-start, mode: '0755' }
+    - { name: tmux-pipe-pane-rotate, mode: '0755' }
+    - { name: tmux-restore-handler-claude_session_id, mode: '0755' }
 
 - name: Install pick-files script
   copy:
@@ -795,6 +801,25 @@
     executable: /bin/bash
   register: working_off_hook_result
   changed_when: "'already registered' not in working_off_hook_result.stdout"
+
+- name: Register SessionStart hook to bind Claude session id to tmux pane
+  shell: |
+    SETTINGS='{{ ansible_facts["user_dir"] }}/.claude/settings.json'
+    HOOK_CMD='$HOME/.local/bin/tmux-claude-session-start'
+    if [ ! -f "$SETTINGS" ]; then
+      echo '{}' > "$SETTINGS"
+    fi
+    if jq -e '.hooks.SessionStart // [] | map(select(.hooks[]?.command == "'"$HOOK_CMD"'")) | length > 0' "$SETTINGS" > /dev/null 2>&1; then
+      echo "already registered"
+      exit 0
+    fi
+    HOOK_ENTRY='{"matcher":"","hooks":[{"type":"command","command":"'"$HOOK_CMD"'"}]}'
+    jq --argjson entry "$HOOK_ENTRY" '.hooks //= {} | .hooks.SessionStart = ((.hooks.SessionStart // []) + [$entry])' "$SETTINGS" > "${SETTINGS}.tmp" \
+      && mv "${SETTINGS}.tmp" "$SETTINGS"
+  args:
+    executable: /bin/bash
+  register: claude_session_start_hook_result
+  changed_when: "'already registered' not in claude_session_start_hook_result.stdout"
 
 - name: Enforce 0600 on ~/.claude/settings.json
   file:

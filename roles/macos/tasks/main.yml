@@ -294,6 +294,25 @@
 - name: Load Ghostty layout save launchd job
   command: launchctl load {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-layout-save.plist
   changed_when: false
+
+- name: Install tmux pipe-pane rotate LaunchAgent plist
+  template:
+    src: launchd/com.user.tmux-pipe-pane-rotate.plist
+    dest: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.tmux-pipe-pane-rotate.plist'
+    mode: '0644'
+  register: tmux_pipe_pane_rotate_plist
+
+- name: Unload tmux pipe-pane rotate launchd job if changed
+  command: launchctl unload {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.tmux-pipe-pane-rotate.plist
+  when: tmux_pipe_pane_rotate_plist.changed
+  changed_when: false
+  failed_when: false
+
+- name: Load tmux pipe-pane rotate launchd job
+  command: launchctl load {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.tmux-pipe-pane-rotate.plist
+  changed_when: false
+  failed_when: false
+
 - name: Ensure Hammerspoon is installed
   homebrew:
     name: hammerspoon

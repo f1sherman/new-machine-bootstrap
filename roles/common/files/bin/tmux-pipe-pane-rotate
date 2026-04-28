@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Scrollback log cleanup. Deletes files older than 7 days, then enforces a
+# 1 GB total size cap by deleting oldest files first.
+set -u
+
+dir="$HOME/.tmux/scrollback"
+[ -d "$dir" ] || exit 0
+
+# Age cleanup: anything older than 7 days. find -mtime +7 is portable across
+# BSD and GNU.
+find "$dir" -type f -mtime +7 -delete 2>/dev/null
+
+cap=$((1024 * 1024 * 1024))  # 1 GB
+
+# Detect stat flavor: BSD (macOS) uses -f, GNU uses -c.
+if stat -f '%m %z' /dev/null >/dev/null 2>&1; then
+  stat_fmt='-f'
+  stat_args='%m %z %N'
+else
+  stat_fmt='-c'
+  stat_args='%Y %s %n'
+fi
+
+# Build "<mtime> <size> <path>" lines for every remaining file, then sort
+# newest-first and delete files once the running total exceeds the cap.
+total=0
+# shellcheck disable=SC2086  # word split intended for stat args
+find "$dir" -type f -print0 2>/dev/null \
+  | xargs -0 stat "$stat_fmt" "$stat_args" 2>/dev/null \
+  | sort -rn \
+  | while IFS=' ' read -r _mtime size path; do
+      [ -n "${path:-}" ] || continue
+      total=$((total + size))
+      if [ "$total" -gt "$cap" ]; then
+        rm -f "$path"
+      fi
+    done
+
+exit 0

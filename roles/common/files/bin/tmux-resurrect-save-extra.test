@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-resurrect-save-extra"
+[ -x "$SCRIPT" ] || { echo "ERROR: $SCRIPT not executable"; exit 2; }
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+# Stub tmux that returns canned values
+fake_bin="$TMPROOT/fake-bin"
+mkdir -p "$fake_bin"
+cat > "$fake_bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "list-panes -a")
+    printf 'main\t0\t0\t%%1\nmain\t0\t1\t%%2\nmain\t0\t2\t%%3\n'
+    ;;
+  "show-options -pq")
+    case "$4" in
+      "%1")
+        echo '@persist_claude_session_id "abc-123"'
+        echo '@persist_other_key "xyz"'
+        ;;
+      "%2") ;;  # no persist options
+      "%3")
+        echo '@persist_weird_key "a\b\"c"'
+        ;;
+    esac
+    ;;
+  "show-options -pqv")
+    case "$4 $5" in
+      "%1 @persist_claude_session_id") printf '%s\n' 'abc-123' ;;
+      "%1 @persist_other_key") printf '%s\n' 'xyz' ;;
+      "%3 @persist_weird_key") printf '%s\n' 'a\b"c' ;;
+    esac
+    ;;
+esac
+EOF
+chmod +x "$fake_bin/tmux"
+PATH="$fake_bin:$PATH"; export PATH
+
+# Build a "substantial" save file (>=1KB, >=3 pane lines)
+state="$TMPROOT/tmux_resurrect_20260101T000000.txt"
+cat > "$state" <<EOF2
+pane	main	0	0	:*	0	t	:/tmp	1	zsh	:
+pane	main	0	0	:	1	t	:/tmp	0	zsh	:
+pane	main	0	0	:	2	t	:/tmp	0	zsh	:
+window	main	0	:main	1	:*	abc	off
+EOF2
+yes "padding" | head -200 >> "$state"
+
+"$SCRIPT" "$state" || { echo "FAIL: script exited nonzero"; exit 1; }
+
+# Sidecar exists
+[ -f "$state.meta.json" ] || { echo "FAIL: sidecar not written"; exit 1; }
+
+# Sidecar is valid JSON
+jq empty "$state.meta.json" || { echo "FAIL: sidecar is not valid JSON"; exit 1; }
+
+# Pane %1 has both keys with the right values (structural assertions)
+jq -e '.panes."main:0.0".claude_session_id == "abc-123"' "$state.meta.json" >/dev/null \
+  || { echo "FAIL: sidecar missing claude_session_id=abc-123 at main:0.0"; exit 1; }
+jq -e '.panes."main:0.0".other_key == "xyz"' "$state.meta.json" >/dev/null \
+  || { echo "FAIL: sidecar missing other_key=xyz at main:0.0"; exit 1; }
+
+# Pane %2 (no persist options) should not appear
+jq -e '.panes | has("main:0.1") | not' "$state.meta.json" >/dev/null \
+  || { echo "FAIL: pane main:0.1 should not appear (no persist options)"; exit 1; }
+
+# Pane %3 has the raw tmux option value preserved verbatim, not the
+# show-options quoted/escaped representation.
+expected_weird='a\b"c'
+jq -e --arg want "$expected_weird" '.panes."main:0.2".weird_key == $want' "$state.meta.json" >/dev/null \
+  || {
+    echo "FAIL: weird_key did not round-trip; got: $(jq -r '.panes."main:0.2".weird_key' "$state.meta.json")"
+    exit 1
+  }
+
+# last.safe rotated
+[ -f "$TMPROOT/last.safe" ] || { echo "FAIL: last.safe not created"; exit 1; }
+[ -f "$TMPROOT/last.safe.meta.json" ] || { echo "FAIL: last.safe.meta.json not created"; exit 1; }
+jq empty "$TMPROOT/last.safe.meta.json" || { echo "FAIL: last.safe.meta.json is not valid JSON"; exit 1; }
+
+# Test the threshold: a small file should NOT rotate
+small="$TMPROOT/tmux_resurrect_20260102T000000.txt"
+echo "pane	main	0	0	:	0	t	:/tmp	1	zsh	:" > "$small"
+rm -f "$TMPROOT/last.safe" "$TMPROOT/last.safe.meta.json"
+"$SCRIPT" "$small"
+[ ! -f "$TMPROOT/last.safe" ] || { echo "FAIL: small file rotated to last.safe"; exit 1; }
+
+echo "OK"

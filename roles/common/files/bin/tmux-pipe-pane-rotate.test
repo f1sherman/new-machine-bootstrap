@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-pipe-pane-rotate"
+[ -x "$SCRIPT" ] || { echo "ERROR: $SCRIPT not executable"; exit 2; }
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+# ---- Case 1: missing scrollback dir is tolerated ----
+HOME="$TMPROOT" "$SCRIPT" 2>"$TMPROOT/err1" || { echo "FAIL case1: nonzero exit on missing dir"; cat "$TMPROOT/err1"; exit 1; }
+[ ! -s "$TMPROOT/err1" ] || { echo "FAIL case1: stderr not empty"; cat "$TMPROOT/err1"; exit 1; }
+
+# ---- Case 2: age-based cleanup removes files older than 7 days ----
+sb="$TMPROOT/.tmux/scrollback"
+mkdir -p "$sb"
+touch "$sb/old1.log" "$sb/old2.log"
+# BSD touch: -t YYYYMMDDhhmm
+touch -t 197001011200 "$sb/old1.log"
+touch -t 197001011200 "$sb/old2.log"
+touch "$sb/recent1.log" "$sb/recent2.log"
+
+HOME="$TMPROOT" "$SCRIPT" || { echo "FAIL case2: nonzero exit"; exit 1; }
+
+[ ! -e "$sb/old1.log" ] || { echo "FAIL case2: old1.log not deleted"; ls -la "$sb"; exit 1; }
+[ ! -e "$sb/old2.log" ] || { echo "FAIL case2: old2.log not deleted"; ls -la "$sb"; exit 1; }
+[ -f "$sb/recent1.log" ] || { echo "FAIL case2: recent1.log unexpectedly deleted"; ls -la "$sb"; exit 1; }
+[ -f "$sb/recent2.log" ] || { echo "FAIL case2: recent2.log unexpectedly deleted"; ls -la "$sb"; exit 1; }
+
+# ---- Case 3: size cap enforces 1 GB total ----
+rm -rf "$sb"
+mkdir -p "$sb"
+# Create three sparse files each ~400MB; all are recent, so age cleanup leaves them.
+# Total ~1.2 GB, cap 1 GB → newest two (800MB) fit; oldest (a) pushes total to
+# 1.2GB > 1GB and should be deleted.
+truncate -s 400M "$sb/a.log"
+truncate -s 400M "$sb/b.log"
+truncate -s 400M "$sb/c.log"
+
+# Set distinct mtimes: a is oldest, c is newest. Use 2024 dates for all (recent enough).
+touch -t 202401010000 "$sb/a.log"
+touch -t 202401020000 "$sb/b.log"
+touch -t 202401030000 "$sb/c.log"
+
+# Bring all three within 7 days so age-cleanup leaves them, and so the size-cap
+# is the thing being tested. Just touch them to "now":
+touch "$sb/a.log"; sleep 1
+touch "$sb/b.log"; sleep 1
+touch "$sb/c.log"
+
+before_count=$(ls -1 "$sb" | wc -l | tr -d ' ')
+[ "$before_count" = "3" ] || { echo "FAIL case3 setup: expected 3 files, got $before_count"; ls -la "$sb"; exit 1; }
+
+HOME="$TMPROOT" "$SCRIPT" || { echo "FAIL case3: nonzero exit"; exit 1; }
+
+# Newest two (b and c) should remain; oldest (a) should be deleted.
+[ ! -e "$sb/a.log" ] || { echo "FAIL case3: oldest file (a.log) not deleted"; ls -la "$sb"; exit 1; }
+[ -f "$sb/b.log" ] || { echo "FAIL case3: b.log unexpectedly deleted"; ls -la "$sb"; exit 1; }
+[ -f "$sb/c.log" ] || { echo "FAIL case3: c.log unexpectedly deleted"; ls -la "$sb"; exit 1; }
+
+after_count=$(ls -1 "$sb" | wc -l | tr -d ' ')
+[ "$after_count" = "2" ] || { echo "FAIL case3: expected 2 files after rotation, got $after_count"; ls -la "$sb"; exit 1; }
+
+echo "OK"

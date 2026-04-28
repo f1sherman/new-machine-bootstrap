@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-restore-handler-claude_session_id"
+[ -x "$SCRIPT" ] || { echo "ERROR: $SCRIPT not executable"; exit 2; }
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+fake_bin="$TMPROOT/fake-bin"
+mkdir -p "$fake_bin"
+
+# Stub tmux: behavior is controlled by TMUX_DISPLAY_OUT (the value
+# display-message returns) and TMUX_DISPLAY_RC (its exit code).
+# All invocations are appended to TMUX_LOG as TSV lines:
+#   <subcommand>\t<full-arg-list>
+cat > "$fake_bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+sub="$1"
+printf '%s\t%s\n' "$sub" "$*" >> "$TMUX_LOG"
+case "$sub" in
+  display-message)
+    printf '%s' "${TMUX_DISPLAY_OUT-}"
+    exit "${TMUX_DISPLAY_RC:-0}"
+    ;;
+  send-keys)
+    exit 0
+    ;;
+esac
+EOF
+chmod +x "$fake_bin/tmux"
+PATH="$fake_bin:$PATH"; export PATH
+
+log="$TMPROOT/tmux.log"
+
+# ---------- Case 1: Happy path ----------
+: > "$log"
+TMUX_LOG="$log" TMUX_DISPLAY_OUT='%99' TMUX_DISPLAY_RC=0 \
+  "$SCRIPT" '%99' 'abc-uuid' \
+  || { echo "FAIL: happy path script exited nonzero"; exit 1; }
+
+# display-message must be invoked targeting %99
+grep -F -q $'display-message\tdisplay-message -p -t %99 #{pane_id}' "$log" \
+  || { echo "FAIL: display-message not invoked with -t %99"; cat "$log"; exit 1; }
+
+# send-keys must be invoked with -t %99, the full command string, and Enter
+grep -F -q $'send-keys\tsend-keys -t %99 claude --resume abc-uuid Enter' "$log" \
+  || { echo "FAIL: send-keys missing or wrong args"; cat "$log"; exit 1; }
+echo "PASS  happy path sends claude --resume to live pane"
+
+# ---------- Case 2a: Zero args ----------
+: > "$log"
+TMUX_LOG="$log" "$SCRIPT" \
+  || { echo "FAIL: zero-args script exited nonzero"; exit 1; }
+if grep -q '^send-keys' "$log"; then
+  echo "FAIL: zero-args invoked send-keys"; cat "$log"; exit 1
+fi
+if grep -q '^display-message' "$log"; then
+  echo "FAIL: zero-args invoked display-message"; cat "$log"; exit 1
+fi
+echo "PASS  zero args: no tmux invocation, exit 0"
+
+# ---------- Case 2b: One arg only ----------
+: > "$log"
+TMUX_LOG="$log" "$SCRIPT" '%99' \
+  || { echo "FAIL: one-arg script exited nonzero"; exit 1; }
+if grep -q '^send-keys' "$log"; then
+  echo "FAIL: one-arg invoked send-keys"; cat "$log"; exit 1
+fi
+if grep -q '^display-message' "$log"; then
+  echo "FAIL: one-arg invoked display-message"; cat "$log"; exit 1
+fi
+echo "PASS  one arg only: no tmux invocation, exit 0"
+
+# ---------- Case 2c: empty session_id ----------
+: > "$log"
+TMUX_LOG="$log" "$SCRIPT" '%99' '' \
+  || { echo "FAIL: empty-session-id script exited nonzero"; exit 1; }
+if grep -q '^send-keys' "$log"; then
+  echo "FAIL: empty session_id invoked send-keys"; cat "$log"; exit 1
+fi
+echo "PASS  empty session_id: no tmux invocation, exit 0"
+
+# ---------- Case 3a: Dead pane (display-message returns empty) ----------
+: > "$log"
+TMUX_LOG="$log" TMUX_DISPLAY_OUT='' TMUX_DISPLAY_RC=0 \
+  "$SCRIPT" '%99' 'abc-uuid' \
+  || { echo "FAIL: dead-pane (empty) script exited nonzero"; exit 1; }
+grep -q '^display-message' "$log" \
+  || { echo "FAIL: dead-pane (empty) did not probe with display-message"; cat "$log"; exit 1; }
+if grep -q '^send-keys' "$log"; then
+  echo "FAIL: dead-pane (empty) sent keys to gone pane"; cat "$log"; exit 1
+fi
+echo "PASS  dead pane (empty output): no send-keys, exit 0"
+
+# ---------- Case 3b: Dead pane (display-message errors) ----------
+: > "$log"
+TMUX_LOG="$log" TMUX_DISPLAY_OUT='' TMUX_DISPLAY_RC=1 \
+  "$SCRIPT" '%99' 'abc-uuid' \
+  || { echo "FAIL: dead-pane (error) script exited nonzero"; exit 1; }
+if grep -q '^send-keys' "$log"; then
+  echo "FAIL: dead-pane (error) sent keys to gone pane"; cat "$log"; exit 1
+fi
+echo "PASS  dead pane (display-message errors): no send-keys, exit 0"
+
+echo "OK"
