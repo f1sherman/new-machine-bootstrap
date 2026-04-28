@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-hook-run"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+bindir="$TMPROOT/bin"
+mkdir -p "$bindir"
+tmux_log="$TMPROOT/tmux.log"
+log_file="$TMPROOT/state/tmux/hooks.log"
+mkdir -p "$(dirname "$log_file")"
+
+# Stub `tmux` to record args; succeeds for set-option, errors otherwise.
+cat > "$bindir/tmux" <<'EOTMUX'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$TMUX_HOOK_RUN_TEST_LOG"
+case "${1:-}" in
+  set-option) exit 0 ;;
+  *) exit 1 ;;
+esac
+EOTMUX
+chmod +x "$bindir/tmux"
+
+# Stub `date` so timestamps are deterministic.
+cat > "$bindir/date" <<'EOD'
+#!/usr/bin/env bash
+printf '2026-04-28T12:00:00-0500\n'
+EOD
+chmod +x "$bindir/date"
+
+assert_exit_zero() {
+  local label="$1"; shift
+  if "$@"; then
+    printf 'PASS  %s\n' "$label"
+  else
+    printf 'FAIL  %s (exit %d)\n' "$label" "$?" >&2
+    exit 1
+  fi
+}
+
+assert_file_empty() {
+  local file="$1" label="$2"
+  if [ ! -s "$file" ]; then
+    printf 'PASS  %s\n' "$label"
+  else
+    printf 'FAIL  %s\nfile %s should be empty but contains:\n' "$label" "$file" >&2
+    cat "$file" >&2
+    exit 1
+  fi
+}
+
+assert_grep() {
+  local file="$1" pattern="$2" label="$3"
+  if grep -Fq -- "$pattern" "$file"; then
+    printf 'PASS  %s\n' "$label"
+  else
+    printf 'FAIL  %s\nmissing %q in %s:\n' "$label" "$pattern" "$file" >&2
+    cat "$file" >&2
+    exit 1
+  fi
+}
+
+assert_no_grep() {
+  local file="$1" pattern="$2" label="$3"
+  if [ ! -s "$file" ] || ! grep -Fq -- "$pattern" "$file"; then
+    printf 'PASS  %s\n' "$label"
+  else
+    printf 'FAIL  %s\nunexpectedly found %q in %s\n' "$label" "$pattern" "$file" >&2
+    exit 1
+  fi
+}
+
+run_wrapper() {
+  PATH="$bindir:/usr/bin:/bin" \
+  HOME="$TMPROOT" \
+  TMUX_HOOK_RUN_TEST_LOG="$tmux_log" \
+  "$SCRIPT" "$@"
+}
+
+reset_state() {
+  : > "$tmux_log"
+  : > "$log_file"
+}
+
+# --- Case 1: passing wrapped command ---
+reset_state
+cat > "$bindir/successful" <<'EOC'
+#!/usr/bin/env bash
+exit 0
+EOC
+chmod +x "$bindir/successful"
+assert_exit_zero "passing command exits 0" run_wrapper successful arg1 arg2
+assert_file_empty "$log_file" "passing command leaves log empty"
+assert_no_grep "$tmux_log" "set-option" "passing command does not call tmux set-option"
+
+# --- Case 2: failing wrapped command (writes stderr) ---
+reset_state
+cat > "$bindir/noisy_fail" <<'EOC'
+#!/usr/bin/env bash
+echo "boom: something broke" >&2
+exit 7
+EOC
+chmod +x "$bindir/noisy_fail"
+assert_exit_zero "failing command still exits 0" run_wrapper noisy_fail %53
+assert_grep "$log_file" "exit=7" "log records exit code"
+assert_grep "$log_file" "noisy_fail" "log records command name"
+assert_grep "$log_file" "boom: something broke" "log records stderr"
+assert_grep "$log_file" "2026-04-28T12:00:00-0500" "log records timestamp"
+assert_grep "$tmux_log" "set-option -gq @hook-last-error" "tmux set-option called with @hook-last-error"
+assert_grep "$tmux_log" "noisy_fail: boom: something broke" "tmux message contains short error"
+
+# --- Case 3: failing command with no stderr ---
+reset_state
+cat > "$bindir/silent_fail" <<'EOC'
+#!/usr/bin/env bash
+exit 3
+EOC
+chmod +x "$bindir/silent_fail"
+assert_exit_zero "silent failing command still exits 0" run_wrapper silent_fail
+assert_grep "$log_file" "exit=3" "silent failure logs exit code"
+assert_grep "$tmux_log" "silent_fail: exit 3" "silent failure surfaces fallback message"
+
+# --- Case 4: missing wrapped command ---
+reset_state
+assert_exit_zero "missing command still exits 0" run_wrapper this-does-not-exist arg
+assert_grep "$log_file" "this-does-not-exist" "missing command logged"
+assert_grep "$tmux_log" "set-option -gq @hook-last-error" "missing command sets @hook-last-error"
+
+# --- Case 5: stderr longer than 60 chars truncates ---
+reset_state
+long_msg="abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_extra_padding_past_sixty"
+cat > "$bindir/long_stderr_fail" <<EOC
+#!/usr/bin/env bash
+echo "$long_msg" >&2
+exit 1
+EOC
+chmod +x "$bindir/long_stderr_fail"
+assert_exit_zero "long-stderr command still exits 0" run_wrapper long_stderr_fail
+# The status-bar message stored via set-option must be at most 60 chars long.
+short_line="$(grep -F 'set-option -gq @hook-last-error' "$tmux_log" | tail -n1)"
+short_value="${short_line#*@hook-last-error }"
+short_value="${short_value#\"}"
+short_value="${short_value%\"}"
+if [ "${#short_value}" -le 60 ]; then
+  printf 'PASS  truncated message is %d chars (<=60)\n' "${#short_value}"
+else
+  printf 'FAIL  truncated message is %d chars: %q\n' "${#short_value}" "$short_value" >&2
+  exit 1
+fi
+
+# --- Case 6: no args ---
+reset_state
+assert_exit_zero "no-args invocation exits 0" run_wrapper
+assert_file_empty "$log_file" "no-args leaves log empty"
+assert_no_grep "$tmux_log" "set-option" "no-args does not touch tmux"
+
+printf '\nALL TESTS PASSED\n'
