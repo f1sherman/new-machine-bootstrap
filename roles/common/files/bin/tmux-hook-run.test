@@ -15,7 +15,7 @@ trap 'rm -rf "$TMPROOT"' EXIT
 bindir="$TMPROOT/bin"
 mkdir -p "$bindir"
 tmux_log="$TMPROOT/tmux.log"
-log_file="$TMPROOT/state/tmux/hooks.log"
+log_file="$TMPROOT/.local/state/tmux/hooks.log"
 mkdir -p "$(dirname "$log_file")"
 
 # Stub `tmux` to record args; succeeds for set-option, errors otherwise.
@@ -134,10 +134,12 @@ reset_state
 assert_exit_zero "missing command still exits 0" run_wrapper this-does-not-exist arg
 assert_grep "$log_file" "this-does-not-exist" "missing command logged"
 assert_grep "$tmux_log" "set-option -gq @hook-last-error" "missing command sets @hook-last-error"
+assert_grep "$tmux_log" "this-does-not-exist" "missing command name appears in @hook-last-error value"
 
 # --- Case 5: stderr longer than 60 chars truncates ---
 reset_state
 long_msg="abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_extra_padding_past_sixty"
+# Unquoted heredoc on purpose: we want $long_msg expanded into the stub.
 cat > "$bindir/long_stderr_fail" <<EOC
 #!/usr/bin/env bash
 echo "$long_msg" >&2
@@ -147,6 +149,10 @@ chmod +x "$bindir/long_stderr_fail"
 assert_exit_zero "long-stderr command still exits 0" run_wrapper long_stderr_fail
 # The status-bar message stored via set-option must be at most 60 chars long.
 short_line="$(grep -F 'set-option -gq @hook-last-error' "$tmux_log" | tail -n1)"
+if [ -z "$short_line" ]; then
+  printf 'FAIL  truncation: no set-option call found in tmux log\n' >&2
+  exit 1
+fi
 short_value="${short_line#*@hook-last-error }"
 short_value="${short_value#\"}"
 short_value="${short_value%\"}"
