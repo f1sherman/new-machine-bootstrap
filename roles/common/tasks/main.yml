@@ -143,6 +143,7 @@
     - { name: tmux-pipe-pane-start, mode: '0755' }
     - { name: tmux-pipe-pane-rotate, mode: '0755' }
     - { name: tmux-restore-handler-claude_session_id, mode: '0755' }
+    - { name: tmux-restore-handler-codex_session, mode: '0755' }
 
 - name: Install pick-files script
   copy:

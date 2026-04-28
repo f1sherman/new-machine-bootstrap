@@ -55,6 +55,18 @@ rg -q -F -- "set-option -pt %91 @codex_session_transcript $tmpdir/session.jsonl"
   || fail 'bind hook stores pane transcript path'
 pass 'bind hook stores pane transcript path'
 
+persist_line="$(grep -F -- 'set-option -pt %91 @persist_codex_session ' "$log" || true)"
+[ -n "$persist_line" ] || fail 'bind hook stores resurrect persistence payload'
+persist_json="$(printf '%s\n' "$persist_line" | awk '{print $NF}')"
+printf '%s' "$persist_json" \
+  | jq -e \
+      --arg session_id "019dcb09-session" \
+      --arg cwd "$tmpdir/worktree" \
+      --arg transcript_path "$tmpdir/session.jsonl" \
+      '.session_id == $session_id and .cwd == $cwd and .transcript_path == $transcript_path' >/dev/null \
+  || fail 'resurrect persistence payload preserves Codex session metadata'
+pass 'bind hook stores resurrect persistence payload'
+
 : > "$log"
 env -u TMUX -u TMUX_PANE \
   PATH="$bin:$PATH" \

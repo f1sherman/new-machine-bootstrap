@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-restore-handler-codex_session"
+[ -x "$SCRIPT" ] || { echo "ERROR: $SCRIPT not executable"; exit 2; }
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+fake_bin="$TMPROOT/fake-bin"
+mkdir -p "$fake_bin"
+
+cat > "$fake_bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+sub="$1"
+printf '%s\t%s\n' "$sub" "$*" >> "$TMUX_LOG"
+case "$sub" in
+  display-message)
+    printf '%s' "${TMUX_DISPLAY_OUT-}"
+    exit "${TMUX_DISPLAY_RC:-0}"
+    ;;
+  send-keys)
+    exit 0
+    ;;
+esac
+EOF
+chmod +x "$fake_bin/tmux"
+PATH="$fake_bin:$PATH"; export PATH
+
+log="$TMPROOT/tmux.log"
+payload='{"session_id":"019dcb09-session","cwd":"/tmp/work tree","transcript_path":"/tmp/session.jsonl"}'
+
+: > "$log"
+TMUX_LOG="$log" TMUX_DISPLAY_OUT='%99' TMUX_DISPLAY_RC=0 \
+  "$SCRIPT" '%99' "$payload" \
+  || { echo "FAIL: happy path script exited nonzero"; exit 1; }
+
+grep -F -q $'display-message\tdisplay-message -p -t %99 #{pane_id}' "$log" \
+  || { echo "FAIL: display-message not invoked with -t %99"; cat "$log"; exit 1; }
+
+grep -F -q $'send-keys\tsend-keys -t %99 cd \'/tmp/work tree\' && codex-yolo resume \'019dcb09-session\' Enter' "$log" \
+  || { echo "FAIL: send-keys missing or wrong resume command"; cat "$log"; exit 1; }
+echo "PASS  happy path sends codex resume command to live pane"
+
+: > "$log"
+TMUX_LOG="$log" "$SCRIPT" \
+  || { echo "FAIL: zero args script exited nonzero"; exit 1; }
+if grep -q '^send-keys' "$log"; then
+  echo "FAIL: zero args invoked send-keys"; cat "$log"; exit 1
+fi
+echo "PASS  zero args: no tmux invocation, exit 0"
+
+: > "$log"
+TMUX_LOG="$log" TMUX_DISPLAY_OUT='%99' TMUX_DISPLAY_RC=0 \
+  "$SCRIPT" '%99' '{"cwd":"/tmp/work tree"}' \
+  || { echo "FAIL: missing session id script exited nonzero"; exit 1; }
+if grep -q '^send-keys' "$log"; then
+  echo "FAIL: missing session id invoked send-keys"; cat "$log"; exit 1
+fi
+echo "PASS  missing session id: no send-keys, exit 0"
+
+: > "$log"
+TMUX_LOG="$log" TMUX_DISPLAY_OUT='' TMUX_DISPLAY_RC=1 \
+  "$SCRIPT" '%99' "$payload" \
+  || { echo "FAIL: dead pane script exited nonzero"; exit 1; }
+if grep -q '^send-keys' "$log"; then
+  echo "FAIL: dead pane sent keys"; cat "$log"; exit 1
+fi
+echo "PASS  dead pane: no send-keys, exit 0"
+
+: > "$log"
+TMUX_LOG="$log" TMUX_DISPLAY_OUT='%99' TMUX_DISPLAY_RC=0 \
+  "$SCRIPT" '%99' 'not json' \
+  || { echo "FAIL: malformed JSON script exited nonzero"; exit 1; }
+if grep -q '^send-keys' "$log"; then
+  echo "FAIL: malformed JSON invoked send-keys"; cat "$log"; exit 1
+fi
+echo "PASS  malformed JSON: no send-keys, exit 0"
+
+echo "OK"
