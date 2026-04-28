@@ -235,6 +235,12 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-session-name'
     mode: 0755
 
+- name: Create tmux state directory for hook logs
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.local/state/tmux'
+    state: directory
+    mode: 0755
+
 - name: Install tmux label helpers
   copy:
     backup: yes
