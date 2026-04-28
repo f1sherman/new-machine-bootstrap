@@ -1,0 +1,263 @@
+#!/usr/bin/env ruby
+# tmux-resurrect-recover — restore tmux sessions from the most recent
+# "substantial" tmux-resurrect snapshot when `last` has been clobbered by a
+# post-crash autosave.
+#
+# Usage:
+#   tmux-resurrect-recover [--dry-run] [--pick] [--source FILE] [--resurrect-dir DIR]
+#
+# Default behavior: choose `last.safe` (rotated by tmux-resurrect-save-extra)
+# when present, else the largest recent substantial save (>=1KB and >=3 panes),
+# repoint `last` to it, free file descriptors and disable cascade-prone hooks if
+# the tmux server is fd-locked, set TMUX env (works around a restore.sh bug
+# when invoked from a shell with empty TMUX), then run the resurrect restore
+# script. Re-sources tmux.conf afterward to reinstate hooks.
+#
+# `--pick` prints the chosen snapshot path and exits without touching tmux.
+
+require 'fileutils'
+require 'optparse'
+
+DEFAULT_RESURRECT_DIR = File.expand_path('~/.local/share/tmux/resurrect')
+DEFAULT_RESTORE_SCRIPT = File.expand_path('~/.tmux/plugins/tmux-resurrect/scripts/restore.sh')
+DEFAULT_TMUX_CONF = File.expand_path('~/.tmux.conf')
+SUBSTANTIAL_MIN_BYTES = 1024
+SUBSTANTIAL_MIN_PANES = 3
+CASCADE_HOOKS = %w[
+  pane-focus-in
+  pane-title-changed
+  client-session-changed
+  client-attached
+  after-new-session
+  after-new-window
+  after-split-window
+  window-linked
+].freeze
+FD_PRESSURE_THRESHOLD = 200
+
+opts = {
+  dry_run: false,
+  pick_only: false,
+  source: nil,
+  resurrect_dir: ENV['TMUX_RECOVER_RESURRECT_DIR'] || DEFAULT_RESURRECT_DIR,
+  restore_script: ENV['TMUX_RECOVER_RESTORE_SCRIPT'] || DEFAULT_RESTORE_SCRIPT,
+  tmux_conf: ENV['TMUX_RECOVER_TMUX_CONF'] || DEFAULT_TMUX_CONF,
+}
+
+OptionParser.new do |o|
+  o.banner = 'usage: tmux-resurrect-recover [--dry-run] [--pick] [--source FILE] [--resurrect-dir DIR]'
+  o.on('--dry-run') { opts[:dry_run] = true }
+  o.on('--pick') { opts[:pick_only] = true }
+  o.on('--source FILE') { |v| opts[:source] = v }
+  o.on('--resurrect-dir DIR') { |v| opts[:resurrect_dir] = v }
+  o.on('--restore-script PATH') { |v| opts[:restore_script] = v }
+  o.on('--tmux-conf PATH') { |v| opts[:tmux_conf] = v }
+end.parse!
+
+def log(msg)
+  warn "[tmux-resurrect-recover] #{msg}"
+end
+
+def panes_in_save(path)
+  count = 0
+  File.foreach(path) { |line| count += 1 if line.start_with?("pane\t") }
+  count
+end
+
+def substantial?(path)
+  return false unless File.file?(path)
+  File.size(path) >= SUBSTANTIAL_MIN_BYTES && panes_in_save(path) >= SUBSTANTIAL_MIN_PANES
+end
+
+def resolve_symlink(dir, name)
+  path = File.join(dir, name)
+  return nil unless File.symlink?(path) || File.file?(path)
+  if File.symlink?(path)
+    target = File.readlink(path)
+    target = File.expand_path(target, dir) unless target.start_with?('/')
+    target
+  else
+    path
+  end
+end
+
+def pick_snapshot(opts)
+  return File.expand_path(opts[:source]) if opts[:source]
+
+  dir = opts[:resurrect_dir]
+  unless File.directory?(dir)
+    log "resurrect dir not found: #{dir}"
+    return nil
+  end
+
+  safe = resolve_symlink(dir, 'last.safe')
+  if safe && File.file?(safe) && substantial?(safe)
+    return safe
+  end
+
+  last = resolve_symlink(dir, 'last')
+  if last && File.file?(last) && substantial?(last)
+    return last
+  end
+
+  candidates = Dir.glob(File.join(dir, 'tmux_resurrect_*.txt')).select { |p| substantial?(p) }
+  return nil if candidates.empty?
+
+  # Prefer the most recently saved substantial snapshot. Picking by size would
+  # let an older, larger session beat a smaller-but-recent pre-crash save.
+  candidates.max_by { |p| File.mtime(p) }
+end
+
+def tmux_server_pid(socket = nil)
+  socket ||= tmux_socket_path
+  return nil if socket.nil?
+  out = `lsof -t -- "#{socket}" 2>/dev/null`.split.first
+  return nil if out.nil?
+  Integer(out, 10)
+rescue ArgumentError
+  nil
+end
+
+def tmux_socket_path
+  return nil if ENV['TMUX'].to_s.empty? && !default_socket_exists?
+  if !ENV['TMUX'].to_s.empty?
+    return ENV['TMUX'].split(',').first
+  end
+  default_socket
+end
+
+def default_socket
+  "/tmp/tmux-#{Process.uid}/default"
+end
+
+def default_socket_exists?
+  File.socket?(default_socket) || File.socket?("/private#{default_socket}")
+end
+
+def child_pids_of(pid)
+  `ps -ax -o pid,ppid 2>/dev/null`.lines.drop(1).map(&:split).select { |p, pp| pp.to_i == pid }.map { |p, _| p.to_i }
+end
+
+def fd_count(pid)
+  out = `lsof -p #{pid} 2>/dev/null | wc -l`.strip
+  Integer(out, 10) rescue 0
+end
+
+def free_fds_and_hooks_if_overloaded(server_pid)
+  fds = fd_count(server_pid)
+  children = child_pids_of(server_pid)
+  log "tmux server fd_count=#{fds} child_count=#{children.size}"
+  return false if fds < FD_PRESSURE_THRESHOLD
+
+  log 'detected fd pressure; disabling cascade hooks and reaping hung children'
+  CASCADE_HOOKS.each do |h|
+    system('tmux', 'set-hook', '-gu', h, out: File::NULL, err: File::NULL)
+  end
+
+  hung = `ps -ax -o pid,ppid,comm 2>/dev/null`.lines.drop(1)
+    .map(&:split)
+    .select { |_, pp, comm| pp.to_i == server_pid && %w[sh bash].include?(comm) }
+    .map { |p, *| p.to_i }
+  hung.each_slice(50) do |batch|
+    Process.kill(:KILL, *batch) rescue nil
+  end
+  log "reaped #{hung.size} hung child shells"
+  sleep 1
+  true
+end
+
+def pause_continuum
+  current = `tmux show -gv @continuum-save-interval 2>/dev/null`.strip
+  current = '15' if current.empty?
+  system('tmux', 'set', '-g', '@continuum-save-interval', '0', out: File::NULL, err: File::NULL)
+  current
+end
+
+def resume_continuum(prior_value)
+  prior_value = '15' if prior_value.to_s.empty? || prior_value == '0'
+  system('tmux', 'set', '-g', '@continuum-save-interval', prior_value, out: File::NULL, err: File::NULL)
+end
+
+def repoint_last(dir, target_path)
+  link = File.join(dir, 'last')
+  backup = File.join(dir, 'last.crashed')
+  if File.symlink?(link) || File.file?(link)
+    File.delete(backup) if File.exist?(backup) || File.symlink?(backup)
+    File.rename(link, backup)
+    # If `last` was a regular file (not a symlink) and was the chosen snapshot,
+    # the file content is now at `last.crashed`. Track the move so the new
+    # symlink points at the preserved file rather than itself.
+    target_path = backup if target_path == link
+    log "moved existing last -> #{File.basename(backup)}"
+  end
+  rel = target_path.sub(dir + '/', '')
+  File.symlink(rel, link)
+  log "last -> #{rel}"
+end
+
+def ensure_tmux_env(server_pid)
+  return if ENV['TMUX'].to_s.split(',').first.to_s.length > 0
+  socket = tmux_socket_path
+  if socket.nil? || server_pid.nil?
+    abort 'TMUX env unset and tmux server not detected; run from inside tmux or pass --source explicitly'
+  end
+  ENV['TMUX'] = "#{socket},#{server_pid},0"
+  log "TMUX env set to #{ENV['TMUX']}"
+end
+
+def main(opts)
+  unless File.directory?(opts[:resurrect_dir])
+    abort "resurrect dir does not exist: #{opts[:resurrect_dir]}"
+  end
+
+  picked = pick_snapshot(opts)
+  if picked.nil?
+    abort 'no usable snapshot found (need substantial save: >=1KB and >=3 panes)'
+  end
+
+  if opts[:pick_only]
+    puts picked
+    return 0
+  end
+
+  log "selected snapshot: #{picked}"
+
+  if opts[:dry_run]
+    log "dry-run: would repoint #{File.join(opts[:resurrect_dir], 'last')} -> #{picked}"
+    log "dry-run: would run #{opts[:restore_script]}"
+    return 0
+  end
+
+  unless File.executable?(opts[:restore_script])
+    abort "restore script not executable: #{opts[:restore_script]}"
+  end
+
+  server_pid = tmux_server_pid
+  ensure_tmux_env(server_pid)
+
+  prior_continuum = pause_continuum
+  reaped = server_pid ? free_fds_and_hooks_if_overloaded(server_pid) : false
+  repoint_last(opts[:resurrect_dir], picked)
+
+  log 'running tmux-resurrect restore.sh'
+  restore_ok = system(opts[:restore_script])
+  restore_status = $?.exitstatus
+  log "restore script exit=#{restore_status}" unless restore_ok
+
+  if reaped && File.file?(opts[:tmux_conf])
+    log 're-sourcing tmux.conf to reinstate hooks'
+    system('tmux', 'source-file', opts[:tmux_conf], out: File::NULL, err: File::NULL)
+  end
+
+  resume_continuum(prior_continuum)
+
+  print_summary
+  restore_ok ? 0 : (restore_status || 1)
+end
+
+def print_summary
+  out = `tmux list-sessions -F '\#{session_name}\twindows=\#{session_windows}\tattached=\#{session_attached}' 2>&1`
+  log "sessions:\n#{out.chomp}"
+end
+
+exit(main(opts))

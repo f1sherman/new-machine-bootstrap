@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-resurrect-recover"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+pass=0
+fail=0
+
+# Resurrect-style state file with N panes; size determined by content padding.
+make_save() {
+  local path="$1" panes="$2" pad_bytes="${3:-0}"
+  : > "$path"
+  for i in $(seq 0 $((panes - 1))); do
+    printf 'pane\t0\t0\t0\t:\t%s\t:\t:/tmp\t1\tzsh\t:\n' "$i" >> "$path"
+  done
+  printf 'window\t0\t0\t:test\t1\t:*\tlayout\toff\n' >> "$path"
+  if [ "$pad_bytes" -gt 0 ]; then
+    head -c "$pad_bytes" /dev/zero | tr '\0' 'x' >> "$path"
+  fi
+}
+
+run_pick() {
+  local name="$1" setup_fn="$2" expected="$3"
+  local rdir
+  rdir="$(mktemp -d "$TMPROOT/r.XXXXXX")"
+  "$setup_fn" "$rdir"
+
+  local got
+  got="$("$SCRIPT" --pick --resurrect-dir "$rdir" 2>&1)"
+  local rc=$?
+
+  if [ "$rc" -ne 0 ] && [ "$expected" != "FAIL" ]; then
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n      rc=%s out=%s\n' "$name" "$rc" "$got"
+    return
+  fi
+
+  if [ "$expected" = "FAIL" ]; then
+    if [ "$rc" -ne 0 ]; then
+      pass=$((pass + 1))
+      printf 'PASS  %s\n' "$name"
+    else
+      fail=$((fail + 1))
+      printf 'FAIL  %s (expected nonzero exit; got out=%s)\n' "$name" "$got"
+    fi
+    return
+  fi
+
+  if [ "$(basename "$got")" = "$expected" ]; then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s (expected basename=%s, got=%s)\n' "$name" "$expected" "$got"
+  fi
+}
+
+# Setups for picking logic
+
+setup_last_safe_present() {
+  local rdir="$1"
+  make_save "$rdir/tmux_resurrect_old.txt" 5 1500
+  make_save "$rdir/tmux_resurrect_pre.txt" 30 5500
+  make_save "$rdir/tmux_resurrect_post.txt" 1 0   # post-crash tiny save
+  ln -s tmux_resurrect_post.txt "$rdir/last"
+  cp "$rdir/tmux_resurrect_pre.txt" "$rdir/last.safe"
+}
+
+setup_no_last_safe_pick_largest_substantial() {
+  local rdir="$1"
+  make_save "$rdir/tmux_resurrect_a.txt" 5 1500
+  make_save "$rdir/tmux_resurrect_b.txt" 30 6000   # largest substantial
+  make_save "$rdir/tmux_resurrect_c.txt" 2 0       # below pane minimum
+  ln -s tmux_resurrect_c.txt "$rdir/last"
+}
+
+setup_only_tiny_saves() {
+  local rdir="$1"
+  make_save "$rdir/tmux_resurrect_a.txt" 1 0
+  make_save "$rdir/tmux_resurrect_b.txt" 2 0
+  ln -s tmux_resurrect_b.txt "$rdir/last"
+}
+
+setup_recent_smaller_beats_older_larger() {
+  local rdir="$1"
+  make_save "$rdir/tmux_resurrect_old_big.txt" 30 8000
+  touch -t 202604011200 "$rdir/tmux_resurrect_old_big.txt"
+  make_save "$rdir/tmux_resurrect_recent_small.txt" 5 1500
+  touch -t 202604280900 "$rdir/tmux_resurrect_recent_small.txt"
+  make_save "$rdir/tmux_resurrect_post.txt" 1 0
+  ln -s tmux_resurrect_post.txt "$rdir/last"
+}
+
+setup_last_substantial() {
+  local rdir="$1"
+  make_save "$rdir/tmux_resurrect_pre.txt" 30 5500
+  ln -s tmux_resurrect_pre.txt "$rdir/last"
+}
+
+run_pick "last.safe wins when present" setup_last_safe_present "last.safe"
+run_pick "fallback: largest substantial save when no last.safe" setup_no_last_safe_pick_largest_substantial "tmux_resurrect_b.txt"
+run_pick "no usable snapshot exits nonzero" setup_only_tiny_saves "FAIL"
+run_pick "last is already substantial -> use last" setup_last_substantial "tmux_resurrect_pre.txt"
+run_pick "fallback prefers most recent substantial save over older larger one" setup_recent_smaller_beats_older_larger "tmux_resurrect_recent_small.txt"
+
+# --source override always wins (even non-resurrect path)
+run_source_override() {
+  local rdir override
+  rdir="$(mktemp -d "$TMPROOT/r.XXXXXX")"
+  setup_last_safe_present "$rdir"
+  override="$rdir/tmux_resurrect_old.txt"
+  local got rc
+  got="$("$SCRIPT" --pick --resurrect-dir "$rdir" --source "$override" 2>&1)"
+  rc=$?
+  if [ "$rc" -eq 0 ] && [ "$got" = "$override" ]; then
+    pass=$((pass + 1))
+    printf 'PASS  --source override wins\n'
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  --source override (rc=%s out=%s)\n' "$rc" "$got"
+  fi
+}
+
+run_source_override
+
+# Substantial threshold checks
+
+run_substantial_threshold() {
+  local name="$1" panes="$2" pad="$3" expect_substantial="$4"
+  local rdir
+  rdir="$(mktemp -d "$TMPROOT/r.XXXXXX")"
+  make_save "$rdir/tmux_resurrect_x.txt" "$panes" "$pad"
+  ln -s tmux_resurrect_x.txt "$rdir/last"
+
+  local got rc
+  got="$("$SCRIPT" --pick --resurrect-dir "$rdir" 2>&1)"
+  rc=$?
+
+  if [ "$expect_substantial" = "yes" ]; then
+    if [ "$rc" -eq 0 ] && [ "$(basename "$got")" = "tmux_resurrect_x.txt" ]; then
+      pass=$((pass + 1))
+      printf 'PASS  %s\n' "$name"
+    else
+      fail=$((fail + 1))
+      printf 'FAIL  %s (rc=%s out=%s)\n' "$name" "$rc" "$got"
+    fi
+  else
+    if [ "$rc" -ne 0 ]; then
+      pass=$((pass + 1))
+      printf 'PASS  %s\n' "$name"
+    else
+      fail=$((fail + 1))
+      printf 'FAIL  %s expected nonzero (out=%s)\n' "$name" "$got"
+    fi
+  fi
+}
+
+run_substantial_threshold "panes=3 pad=1100 -> substantial" 3 1100 "yes"
+run_substantial_threshold "panes=3 pad=0 -> too small" 3 0 "no"
+run_substantial_threshold "panes=2 pad=2000 -> too few panes" 2 2000 "no"
+
+# End-to-end test for repoint_last: when `last` is a regular file (not a
+# symlink) and is the chosen snapshot, the new symlink must target the renamed
+# backup file rather than self-link.
+run_repoint_regular_file() {
+  local rdir bindir restore tmuxconf
+  rdir="$(mktemp -d "$TMPROOT/r.XXXXXX")"
+  bindir="$(mktemp -d "$TMPROOT/bin.XXXXXX")"
+  make_save "$rdir/last" 5 1500   # `last` is a regular file (not a symlink)
+
+  cat > "$bindir/tmux" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+  chmod +x "$bindir/tmux"
+  restore="$bindir/restore.sh"
+  cat > "$restore" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+  chmod +x "$restore"
+  tmuxconf="$bindir/tmux.conf"
+  : > "$tmuxconf"
+
+  # Set TMUX so ensure_tmux_env doesn't abort; PATH-mocked tmux ignores it.
+  rc=0
+  PATH="$bindir:$PATH" TMUX="/tmp/dummy,1,0" \
+    "$SCRIPT" --resurrect-dir "$rdir" --restore-script "$restore" --tmux-conf "$tmuxconf" \
+    >/dev/null 2>&1 || rc=$?
+
+  local symlink_target
+  if [ -L "$rdir/last" ]; then
+    symlink_target="$(readlink "$rdir/last")"
+  else
+    symlink_target=""
+  fi
+
+  if [ "$rc" -eq 0 ] && [ "$symlink_target" = "last.crashed" ] && [ -f "$rdir/last.crashed" ]; then
+    pass=$((pass + 1))
+    printf 'PASS  repoint when last is a regular file targets backup, not self\n'
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  repoint when last is a regular file (rc=%s symlink->%s)\n' "$rc" "$symlink_target"
+  fi
+}
+
+run_repoint_regular_file
+
+printf '\n'
+printf 'passed=%s failed=%s\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

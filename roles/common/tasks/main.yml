@@ -136,6 +136,7 @@
     - { name: codex-block-git-push-main, mode: '0755' }
     - { name: codex-block-main-branch-edits, mode: '0755' }
     - { name: codex-bind-tmux-pane, mode: '0755' }
+    - { name: tmux-resurrect-recover, mode: '0755' }
 
 - name: Install pick-files script
   copy:
