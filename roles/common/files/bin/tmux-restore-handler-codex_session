@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -u
+
+pane="${1:-}"
+payload="${2:-}"
+[ -n "$pane" ] && [ -n "$payload" ] || exit 0
+
+command -v jq >/dev/null 2>&1 || exit 0
+
+live="$(tmux display-message -p -t "$pane" '#{pane_id}' 2>/dev/null || true)"
+[ -n "$live" ] || exit 0
+
+cmd="$(
+  printf '%s' "$payload" | jq -r '
+    .session_id as $session_id
+    | .cwd as $cwd
+    | if (($session_id // "") == "") or (($cwd // "") == "") then
+        empty
+      else
+        "cd " + ($cwd | @sh) + " && codex-yolo resume " + ($session_id | @sh)
+      end
+  ' 2>/dev/null
+)"
+[ -n "$cmd" ] || exit 0
+
+tmux send-keys -t "$pane" "$cmd" Enter
