@@ -43,6 +43,7 @@ assert_contains "roles/common/tasks/main.yml" "tmux-remote-title"
 assert_contains "roles/common/tasks/main.yml" "tmux-sync-remote-title"
 assert_contains "roles/common/tasks/main.yml" "tmux-restore-handler-codex_session"
 assert_contains "roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh" 'tmux-sync-pane-border-status "$TMUX_PANE"'
+assert_contains "roles/common/templates/dotfiles/zshrc.d/50-personal-dev-shell.zsh" 'set-option -upt "$pane" @persist_codex_session'
 
 assert_contains "roles/macos/tasks/main.yml" "Create LaunchAgents directory"
 assert_contains "roles/macos/tasks/main.yml" "regexp: '^macos-applescript\\s*='"

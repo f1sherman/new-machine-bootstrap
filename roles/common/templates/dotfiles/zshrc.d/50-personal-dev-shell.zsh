@@ -250,6 +250,7 @@ function _codex_clear_pane_session_id() {
   command tmux set-option -pt "$pane" @codex_session_id "" >/dev/null 2>&1
   command tmux set-option -pt "$pane" @codex_session_cwd "" >/dev/null 2>&1
   command tmux set-option -pt "$pane" @codex_session_transcript "" >/dev/null 2>&1
+  command tmux set-option -upt "$pane" @persist_codex_session >/dev/null 2>&1 || true
 }
 
 function _codex_cwd_matches() {
