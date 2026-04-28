@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Hook wrapper: runs a command, swallows failure (always exits 0), logs failures
+# to ~/.local/state/tmux/hooks.log, and sets the tmux user option
+# @hook-last-error so the status bar can surface the most recent failure.
+set -u
+
+if [ $# -lt 1 ]; then
+  exit 0
+fi
+
+log_file="${HOME}/.local/state/tmux/hooks.log"
+mkdir -p "$(dirname "$log_file")" 2>/dev/null || true
+
+# Run the wrapped command: discard stdout, capture stderr.
+err="$("$@" 2>&1 1>/dev/null)" || rc=$?
+rc="${rc:-0}"
+
+if [ "$rc" -eq 0 ]; then
+  exit 0
+fi
+
+ts="$(date '+%Y-%m-%dT%H:%M:%S%z')"
+printf '[%s] exit=%d cmd=%s\nstderr: %s\n' "$ts" "$rc" "$*" "$err" >> "$log_file"
+
+base="${1##*/}"
+first_line="${err%%$'\n'*}"
+if [ -n "$first_line" ]; then
+  msg="${base}: ${first_line}"
+else
+  msg="${base}: exit ${rc}"
+fi
+if [ "${#msg}" -gt 60 ]; then
+  msg="${msg:0:57}..."
+fi
+
+tmux set-option -gq @hook-last-error "$msg" 2>/dev/null || true
+
+exit 0
