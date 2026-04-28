@@ -261,6 +261,7 @@
     - tmux-window-label
     - tmux-sync-status-visibility
     - tmux-sync-pane-border-status
+    - tmux-hook-run
 
 - name: Install terminal restore helpers
   copy:
