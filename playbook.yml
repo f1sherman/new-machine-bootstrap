@@ -25,7 +25,7 @@
         pmset -g custom | awk '
           /^Battery Power:/ { mode = "battery" }
           /^AC Power:/      { mode = "ac" }
-          /^[[:space:]]*powermode[[:space:]]/ {
+          /^[[:space:]]*(low)?powermode[[:space:]]/ {
             if (mode == "battery") battery = $2
             else if (mode == "ac") ac = $2
           }
@@ -36,6 +36,7 @@
         '
       register: lpm_check
       changed_when: false
+      check_mode: no
       when: ansible_facts["os_family"] == "Darwin"
 
     - name: Require Low Power Mode on battery only (macOS)
