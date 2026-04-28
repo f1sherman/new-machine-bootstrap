@@ -44,7 +44,6 @@
       'shellcheck',
       'sqlparse',
       'ssh-copy-id',
-      'tmux',
       'tree',
       'uv',
       'vim',

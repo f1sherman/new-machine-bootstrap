@@ -137,6 +137,53 @@
     line: 'macos-applescript = true'
     create: yes
     mode: 0644
+- name: Detect vanilla Homebrew tmux
+  ansible.builtin.command: brew list --formula --versions tmux
+  register: vanilla_tmux_check
+  changed_when: false
+  failed_when: false
+
+- name: Uninstall vanilla Homebrew tmux (replaced by patched formula)
+  community.general.homebrew:
+    name: tmux
+    state: absent
+  when: vanilla_tmux_check.rc == 0
+
+- name: Detect installed patched tmux version
+  ansible.builtin.command: brew list --formula --versions tmux-patched
+  register: patched_tmux_check
+  changed_when: false
+  failed_when: false
+
+- name: Install patched Homebrew tmux formula
+  ansible.builtin.command:
+    cmd: 'brew install --formula {{ playbook_dir }}/roles/macos/files/homebrew/tmux-patched.rb'
+  when: '"3.6a" not in patched_tmux_check.stdout'
+  notify: Reload tmux config
+
+- name: Query upstream Homebrew tmux version
+  ansible.builtin.command: brew info --json=v2 tmux
+  register: upstream_tmux_info
+  changed_when: false
+
+- name: Fail if upstream Homebrew tmux has moved past 3.6a
+  ansible.builtin.fail:
+    msg: |
+      Upstream Homebrew tmux is now {{ upstream_version }}; the patched-3.6a
+      workaround in this repo can be removed.
+
+      Steps:
+        1. brew uninstall --formula tmux-patched
+        2. Delete roles/macos/files/homebrew/tmux-patched.rb
+        3. Remove the patched-tmux install + version-guard tasks from
+           roles/macos/tasks/main.yml
+        4. Re-add 'tmux' to the homebrew package list in
+           roles/macos/tasks/install_packages.yml
+        5. Commit and re-run bin/provision
+  vars:
+    upstream_version: '{{ (upstream_tmux_info.stdout | from_json).formulae[0].versions.stable }}'
+  when: upstream_version != "3.6a"
+
 - name: Configure ghostty command
   lineinfile:
     path: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty/config'
