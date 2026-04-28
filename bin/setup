@@ -1,10 +1,15 @@
 #!/bin/bash
-# One-time system setup for macOS (requires sudo)
+# One-time system setup for macOS (must be run as root via sudo)
 #
 # This script configures system-level settings that require root access.
 # It only needs to be run once per machine, or after a macOS update resets settings.
 #
-# Run this BEFORE bin/provision on a new machine.
+# Run this BEFORE bin/provision on a new machine:
+#
+#   sudo bin/setup
+#
+# Running as root in one shot avoids the per-statement password prompts that
+# happen when individual `sudo` calls can't reuse the credential cache.
 
 set -e
 
@@ -13,7 +18,27 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
   exit 1
 fi
 
-BREW_PREFIX=$(brew --prefix 2>/dev/null)
+if [[ $EUID -ne 0 ]]; then
+  echo "Error: bin/setup must be run as root."
+  echo "  Re-run with: sudo $0"
+  exit 1
+fi
+
+if [[ -z "${SUDO_USER:-}" || "$SUDO_USER" == "root" ]]; then
+  echo "Error: bin/setup must be invoked via sudo from a non-root user account."
+  echo "  Re-run with: sudo $0"
+  exit 1
+fi
+
+# The invoking user (and their homedir) — needed for per-user state like the
+# default shell and the flushdns sudoers entry.
+TARGET_USER="$SUDO_USER"
+TARGET_HOME=$(dscl . -read "/Users/$TARGET_USER" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+if [[ -z "$TARGET_HOME" ]]; then
+  TARGET_HOME="/Users/$TARGET_USER"
+fi
+
+BREW_PREFIX=$(sudo -u "$TARGET_USER" brew --prefix 2>/dev/null)
 if [[ -z "$BREW_PREFIX" ]]; then
   echo "Error: Homebrew is not installed. Install it first:"
   echo '  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
@@ -32,7 +57,7 @@ if ! grep -qF "$HOMEBREW_ZSH" /etc/shells; then
   echo "    Adding $HOMEBREW_ZSH to /etc/shells..."
   echo "$HOMEBREW_ZSH" | sudo tee -a /etc/shells >/dev/null
 fi
-sudo dscl . -create "/Users/$(whoami)" UserShell "$HOMEBREW_ZSH"
+dscl . -create "/Users/$TARGET_USER" UserShell "$HOMEBREW_ZSH"
 echo "    Done."
 
 echo "==> Configuring system settings..."
@@ -94,7 +119,7 @@ sudo launchctl limit maxfiles "$MAXFILES_SOFT" "$MAXFILES_HARD" 2>/dev/null || t
 echo "    Done. (a logout/login is required for already-running launchd children to inherit the new limit)"
 
 echo "==> Configuring flushdns sudoers entry..."
-FLUSHDNS_PATH="$HOME/.local/bin/flushdns"
+FLUSHDNS_PATH="$TARGET_HOME/.local/bin/flushdns"
 SUDOERS_LINE="%admin    ALL = (root) NOPASSWD: $FLUSHDNS_PATH"
 if sudo grep -qF "$FLUSHDNS_PATH" /etc/sudoers; then
   echo "    Already configured."
