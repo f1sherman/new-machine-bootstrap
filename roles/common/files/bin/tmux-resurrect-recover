@@ -180,10 +180,14 @@ end
 
 def repoint_last(dir, target_path)
   link = File.join(dir, 'last')
+  backup = File.join(dir, 'last.crashed')
   if File.symlink?(link) || File.file?(link)
-    backup = File.join(dir, 'last.crashed')
     File.delete(backup) if File.exist?(backup) || File.symlink?(backup)
     File.rename(link, backup)
+    # If `last` was a regular file (not a symlink) and was the chosen snapshot,
+    # the file content is now at `last.crashed`. Track the move so the new
+    # symlink points at the preserved file rather than itself.
+    target_path = backup if target_path == link
     log "moved existing last -> #{File.basename(backup)}"
   end
   rel = target_path.sub(dir + '/', '')

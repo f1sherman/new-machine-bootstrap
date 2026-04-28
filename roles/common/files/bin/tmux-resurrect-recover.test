@@ -168,6 +168,53 @@ run_substantial_threshold "panes=3 pad=1100 -> substantial" 3 1100 "yes"
 run_substantial_threshold "panes=3 pad=0 -> too small" 3 0 "no"
 run_substantial_threshold "panes=2 pad=2000 -> too few panes" 2 2000 "no"
 
+# End-to-end test for repoint_last: when `last` is a regular file (not a
+# symlink) and is the chosen snapshot, the new symlink must target the renamed
+# backup file rather than self-link.
+run_repoint_regular_file() {
+  local rdir bindir restore tmuxconf
+  rdir="$(mktemp -d "$TMPROOT/r.XXXXXX")"
+  bindir="$(mktemp -d "$TMPROOT/bin.XXXXXX")"
+  make_save "$rdir/last" 5 1500   # `last` is a regular file (not a symlink)
+
+  cat > "$bindir/tmux" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+  chmod +x "$bindir/tmux"
+  restore="$bindir/restore.sh"
+  cat > "$restore" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+  chmod +x "$restore"
+  tmuxconf="$bindir/tmux.conf"
+  : > "$tmuxconf"
+
+  # Set TMUX so ensure_tmux_env doesn't abort; PATH-mocked tmux ignores it.
+  rc=0
+  PATH="$bindir:$PATH" TMUX="/tmp/dummy,1,0" \
+    "$SCRIPT" --resurrect-dir "$rdir" --restore-script "$restore" --tmux-conf "$tmuxconf" \
+    >/dev/null 2>&1 || rc=$?
+
+  local symlink_target
+  if [ -L "$rdir/last" ]; then
+    symlink_target="$(readlink "$rdir/last")"
+  else
+    symlink_target=""
+  fi
+
+  if [ "$rc" -eq 0 ] && [ "$symlink_target" = "last.crashed" ] && [ -f "$rdir/last.crashed" ]; then
+    pass=$((pass + 1))
+    printf 'PASS  repoint when last is a regular file targets backup, not self\n'
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  repoint when last is a regular file (rc=%s symlink->%s)\n' "$rc" "$symlink_target"
+  fi
+}
+
+run_repoint_regular_file
+
 printf '\n'
 printf 'passed=%s failed=%s\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
