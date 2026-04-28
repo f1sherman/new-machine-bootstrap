@@ -103,7 +103,9 @@ def pick_snapshot(opts)
   candidates = Dir.glob(File.join(dir, 'tmux_resurrect_*.txt')).select { |p| substantial?(p) }
   return nil if candidates.empty?
 
-  candidates.max_by { |p| File.size(p) }
+  # Prefer the most recently saved substantial snapshot. Picking by size would
+  # let an older, larger session beat a smaller-but-recent pre-crash save.
+  candidates.max_by { |p| File.mtime(p) }
 end
 
 def tmux_server_pid(socket = nil)
@@ -234,7 +236,9 @@ def main(opts)
   repoint_last(opts[:resurrect_dir], picked)
 
   log 'running tmux-resurrect restore.sh'
-  system(opts[:restore_script]) || log("restore script exit=#{$?.exitstatus}")
+  restore_ok = system(opts[:restore_script])
+  restore_status = $?.exitstatus
+  log "restore script exit=#{restore_status}" unless restore_ok
 
   if reaped && File.file?(opts[:tmux_conf])
     log 're-sourcing tmux.conf to reinstate hooks'
@@ -244,7 +248,7 @@ def main(opts)
   resume_continuum(prior_continuum)
 
   print_summary
-  0
+  restore_ok ? 0 : (restore_status || 1)
 end
 
 def print_summary

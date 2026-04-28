@@ -90,6 +90,16 @@ setup_only_tiny_saves() {
   ln -s tmux_resurrect_b.txt "$rdir/last"
 }
 
+setup_recent_smaller_beats_older_larger() {
+  local rdir="$1"
+  make_save "$rdir/tmux_resurrect_old_big.txt" 30 8000
+  touch -t 202604011200 "$rdir/tmux_resurrect_old_big.txt"
+  make_save "$rdir/tmux_resurrect_recent_small.txt" 5 1500
+  touch -t 202604280900 "$rdir/tmux_resurrect_recent_small.txt"
+  make_save "$rdir/tmux_resurrect_post.txt" 1 0
+  ln -s tmux_resurrect_post.txt "$rdir/last"
+}
+
 setup_last_substantial() {
   local rdir="$1"
   make_save "$rdir/tmux_resurrect_pre.txt" 30 5500
@@ -100,6 +110,7 @@ run_pick "last.safe wins when present" setup_last_safe_present "last.safe"
 run_pick "fallback: largest substantial save when no last.safe" setup_no_last_safe_pick_largest_substantial "tmux_resurrect_b.txt"
 run_pick "no usable snapshot exits nonzero" setup_only_tiny_saves "FAIL"
 run_pick "last is already substantial -> use last" setup_last_substantial "tmux_resurrect_pre.txt"
+run_pick "fallback prefers most recent substantial save over older larger one" setup_recent_smaller_beats_older_larger "tmux_resurrect_recent_small.txt"
 
 # --source override always wins (even non-resurrect path)
 run_source_override() {
