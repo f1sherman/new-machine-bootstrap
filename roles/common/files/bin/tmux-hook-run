@@ -8,7 +8,7 @@ if [ $# -lt 1 ]; then
   exit 0
 fi
 
-log_file="${HOME}/.local/state/tmux/hooks.log"
+log_file="${HOME:-/tmp}/.local/state/tmux/hooks.log"
 mkdir -p "$(dirname "$log_file")" 2>/dev/null || true
 
 # Run the wrapped command: discard stdout, capture stderr.
@@ -23,7 +23,7 @@ ts="$(date '+%Y-%m-%dT%H:%M:%S%z')"
 printf '[%s] exit=%d cmd=%s\nstderr: %s\n' "$ts" "$rc" "$*" "$err" >> "$log_file"
 
 base="${1##*/}"
-first_line="${err%%$'\n'*}"
+first_line="${err%%[$'\r\n']*}"
 if [ -n "$first_line" ]; then
   msg="${base}: ${first_line}"
 else
