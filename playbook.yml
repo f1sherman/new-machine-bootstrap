@@ -52,6 +52,36 @@
         - lpm_check.stdout is defined
         - lpm_check.stdout not in ["skip", "ok"]
 
+    - name: Verify launchctl maxfiles soft limit (macOS)
+      shell: |
+        soft="$(launchctl limit maxfiles 2>/dev/null | awk '/maxfiles/ {print $2}')"
+        if [ -z "$soft" ]; then
+          echo skip
+          exit 0
+        fi
+        if [ "$soft" -ge 65536 ]; then
+          echo ok
+        else
+          echo "$soft"
+        fi
+      register: maxfiles_check
+      changed_when: false
+      check_mode: no
+      when: ansible_facts["os_family"] == "Darwin"
+
+    - name: Require launchctl maxfiles soft limit >= 65536 (macOS)
+      fail:
+        msg: |
+          launchctl maxfiles soft limit is {{ maxfiles_check.stdout }} (need >= 65536).
+          The default 256 causes tmux servers with many panes to fd-lock and
+          can no longer fork new sessions or windows. Run `bin/setup` to install
+          /Library/LaunchDaemons/limit.maxfiles.plist, then log out and back in
+          (or reboot) so launchd-started processes inherit the new limit.
+      when:
+        - ansible_facts["os_family"] == "Darwin"
+        - maxfiles_check.stdout is defined
+        - maxfiles_check.stdout not in ["skip", "ok"]
+
     # Platform packages must be installed first - common role depends on them
     - name: Install platform packages (macOS)
       import_tasks: roles/macos/tasks/install_packages.yml

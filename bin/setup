@@ -50,6 +50,49 @@ fi
 sudo chflags nohidden /Volumes
 echo "    Done."
 
+echo "==> Raising launchctl maxfiles soft limit..."
+# macOS ships with a 256-fd soft limit, which the tmux server inherits at boot.
+# Long-lived sessions with ~30+ panes plus per-pane subprocesses can exhaust 256
+# fds; once fd-locked, every tmux hook spawns a hung shell waiting on the locked
+# server, compounding the problem until tmux can no longer fork. A persistent
+# LaunchDaemon raises the limit for processes started by launchd at boot.
+MAXFILES_SOFT=65536
+MAXFILES_HARD=524288
+MAXFILES_PLIST=/Library/LaunchDaemons/limit.maxfiles.plist
+maxfiles_plist_body() {
+  cat <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>limit.maxfiles</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>launchctl</string>
+    <string>limit</string>
+    <string>maxfiles</string>
+    <string>$MAXFILES_SOFT</string>
+    <string>$MAXFILES_HARD</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>ServiceIPC</key>
+  <false/>
+</dict>
+</plist>
+PLIST
+}
+desired="$(maxfiles_plist_body)"
+if [[ ! -f "$MAXFILES_PLIST" ]] || ! sudo cmp -s <(printf '%s' "$desired") "$MAXFILES_PLIST"; then
+  printf '%s' "$desired" | sudo tee "$MAXFILES_PLIST" >/dev/null
+  sudo chown root:wheel "$MAXFILES_PLIST"
+  sudo chmod 0644 "$MAXFILES_PLIST"
+  sudo launchctl load -w "$MAXFILES_PLIST" 2>/dev/null || true
+fi
+sudo launchctl limit maxfiles "$MAXFILES_SOFT" "$MAXFILES_HARD" 2>/dev/null || true
+echo "    Done. (a logout/login is required for already-running launchd children to inherit the new limit)"
+
 echo "==> Configuring flushdns sudoers entry..."
 FLUSHDNS_PATH="$HOME/.local/bin/flushdns"
 SUDOERS_LINE="%admin    ALL = (root) NOPASSWD: $FLUSHDNS_PATH"
