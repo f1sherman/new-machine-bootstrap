@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -u
+
+dir="${XDG_DATA_HOME:-$HOME/.local/share}/tmux/resurrect"
+[ -d "$dir" ] || dir="$HOME/.tmux/resurrect"
+[ -d "$dir" ] || exit 0
+
+last="$dir/last"
+[ -L "$last" ] || exit 0
+target="$(readlink "$last")"
+case "$target" in
+  /*) state_file="$target" ;;
+  *) state_file="$dir/$target" ;;
+esac
+sidecar="$state_file.meta.json"
+[ -f "$sidecar" ] || exit 0
+
+log="$dir/restore-extra.log"
+
+# Snapshot live coordinate -> pane_id mapping as TSV. We do linear lookups
+# below to stay compatible with bash 3.2 (no associative arrays).
+live_panes="$(tmux list-panes -a -F '#{session_name}	#{window_index}	#{pane_index}	#{pane_id}')"
+
+lookup_pane_id() {
+  local want="$1" sess win pane pid
+  while IFS=$'\t' read -r sess win pane pid; do
+    [ -n "$pid" ] || continue
+    if [ "$sess:$win.$pane" = "$want" ]; then
+      printf '%s' "$pid"
+      return 0
+    fi
+  done <<<"$live_panes"
+  return 1
+}
+
+decode_base64() {
+  if printf '' | base64 --decode >/dev/null 2>&1; then
+    base64 --decode
+  elif printf '' | base64 -d >/dev/null 2>&1; then
+    base64 -d
+  else
+    base64 -D
+  fi
+}
+
+# Iterate over panes in sidecar. Values are base64 encoded by jq so arbitrary
+# strings do not get split by shell separators.
+panes="$(
+  jq -r '
+    .panes // {}
+    | to_entries[] as $pane
+    | $pane.value
+    | to_entries[]
+    | [$pane.key, .key, (.value | tostring | @base64)]
+    | @tsv
+  ' "$sidecar" 2>>"$log" || true
+)"
+
+[ -n "$panes" ] || exit 0
+
+while IFS=$'\t' read -r coord key value_b64; do
+  [ -n "$key" ] || continue
+  pid="$(lookup_pane_id "$coord" || true)"
+  if [ -z "$pid" ]; then
+    echo "$(date) skip: no live pane for $coord" >> "$log"
+    continue
+  fi
+  val="$(printf '%s' "$value_b64" | decode_base64 2>/dev/null || true)"
+  handler="$(command -v "tmux-restore-handler-$key" || true)"
+  if [ -z "$handler" ]; then
+    echo "$(date) skip: no handler for $key" >> "$log"
+    continue
+  fi
+  "$handler" "$pid" "$val" >>"$log" 2>&1 || echo "$(date) handler-failed: $key for $coord" >> "$log"
+done <<<"$panes"

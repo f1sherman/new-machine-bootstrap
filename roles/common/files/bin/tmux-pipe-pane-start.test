@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-pipe-pane-start"
+[ -x "$SCRIPT" ] || { echo "ERROR: $SCRIPT not executable"; exit 2; }
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+fake_bin="$TMPROOT/fake-bin"
+mkdir -p "$fake_bin"
+
+# Helper: create a tmux stub that returns scripted display-message values
+# and records pipe-pane invocations.
+make_tmux_stub() {
+  local sess="$1" win="$2" idx="$3" piped="$4"
+  cat > "$fake_bin/tmux" <<EOF
+#!/usr/bin/env bash
+log="$TMPROOT/tmux.log"
+printf '%s\n' "ARGS: \$*" >> "\$log"
+if [ "\$1" = "display-message" ]; then
+  # parse out the format string (last arg)
+  fmt="\${!#}"
+  case "\$fmt" in
+    '#{pane_pipe}') printf '%s\n' '$piped' ;;
+    '#{session_name}') printf '%s\n' '$sess' ;;
+    '#{window_index}') printf '%s\n' '$win' ;;
+    '#{pane_index}') printf '%s\n' '$idx' ;;
+    *) ;;
+  esac
+elif [ "\$1" = "pipe-pane" ]; then
+  # record full invocation including all args
+  printf 'PIPE-PANE:' >> "\$log"
+  for a in "\$@"; do printf ' [%s]' "\$a" >> "\$log"; done
+  printf '\n' >> "\$log"
+fi
+EOF
+  chmod +x "$fake_bin/tmux"
+}
+
+PATH="$fake_bin:$PATH"; export PATH
+
+# ---- Case 1: happy path ----
+rm -f "$TMPROOT/tmux.log"
+rm -rf "$TMPROOT/.tmux"
+make_tmux_stub "main" "0" "1" "0"
+HOME="$TMPROOT" "$SCRIPT" "%5" || { echo "FAIL case1: nonzero exit"; cat "$TMPROOT/tmux.log"; exit 1; }
+
+# pipe-pane was invoked
+grep -q '^PIPE-PANE:' "$TMPROOT/tmux.log" \
+  || { echo "FAIL case1: pipe-pane not invoked"; cat "$TMPROOT/tmux.log"; exit 1; }
+
+# pipe-pane invocation contains -O flag
+grep -E '^PIPE-PANE:.*\[-O\]' "$TMPROOT/tmux.log" >/dev/null \
+  || { echo "FAIL case1: pipe-pane missing -O flag"; cat "$TMPROOT/tmux.log"; exit 1; }
+
+# pipe-pane invocation contains the pane id
+grep -E '^PIPE-PANE:.*\[%5\]' "$TMPROOT/tmux.log" >/dev/null \
+  || { echo "FAIL case1: pipe-pane missing pane id %5"; cat "$TMPROOT/tmux.log"; exit 1; }
+
+# pipe-pane invocation contains a `cat >> ...` command pointing under scrollback dir
+grep -E "PIPE-PANE:.*\[cat >> .*\.tmux/scrollback/main-0-1-[0-9]{8}\.log\"\]" "$TMPROOT/tmux.log" >/dev/null \
+  || { echo "FAIL case1: pipe-pane command missing or wrong log path"; cat "$TMPROOT/tmux.log"; exit 1; }
+
+# scrollback dir was created
+[ -d "$TMPROOT/.tmux/scrollback" ] \
+  || { echo "FAIL case1: scrollback dir not created"; exit 1; }
+
+# ---- Case 2: already piped — no-op ----
+rm -f "$TMPROOT/tmux.log"
+make_tmux_stub "main" "0" "1" "1"
+HOME="$TMPROOT" "$SCRIPT" "%7" || { echo "FAIL case2: nonzero exit"; cat "$TMPROOT/tmux.log"; exit 1; }
+
+if grep -q '^PIPE-PANE:' "$TMPROOT/tmux.log"; then
+  echo "FAIL case2: pipe-pane was invoked despite pane_pipe=1"
+  cat "$TMPROOT/tmux.log"
+  exit 1
+fi
+
+# ---- Case 3: sanitization of session name with `/` and space ----
+rm -f "$TMPROOT/tmux.log"
+rm -rf "$TMPROOT/.tmux"
+make_tmux_stub "weird/name with space" "2" "3" "0"
+HOME="$TMPROOT" "$SCRIPT" "%9" || { echo "FAIL case3: nonzero exit"; cat "$TMPROOT/tmux.log"; exit 1; }
+
+# Slash and space replaced with underscores; should NOT contain / or space in basename
+# The log path appears inside a `cat >> "..."` arg
+log_arg="$(grep '^PIPE-PANE:' "$TMPROOT/tmux.log" | sed -n 's/.*\[cat >> "\(.*\)"\].*/\1/p')"
+[ -n "$log_arg" ] || { echo "FAIL case3: could not extract log path"; cat "$TMPROOT/tmux.log"; exit 1; }
+
+base="$(basename "$log_arg")"
+case "$base" in
+  *" "*) echo "FAIL case3: space not sanitized: $base"; exit 1 ;;
+esac
+# Check no slashes inside the basename portion (they would have been a path delimiter)
+# The session was 'weird/name with space' — sanitized expected like weird_name_with_space-2-3-YYYYMMDD.log
+echo "$base" | grep -E '^weird_name_with_space-2-3-[0-9]{8}\.log$' >/dev/null \
+  || { echo "FAIL case3: sanitized basename unexpected: $base"; exit 1; }
+
+echo "OK"

@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-claude-session-start"
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+
+pass() {
+  printf 'PASS  %s\n' "$1"
+}
+
+fail() {
+  printf 'FAIL  %s\n' "$1" >&2
+  exit 1
+}
+
+bin="$tmpdir/bin"
+log="$tmpdir/tmux.log"
+mkdir -p "$bin"
+
+cat > "$bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$TMUX_TEST_LOG"
+EOF
+chmod +x "$bin/tmux"
+
+# Case 1: happy path — stdin has session_id + TMUX_PANE set
+: > "$log"
+printf '%s' '{"session_id": "abc-uuid"}' \
+  | env PATH="$bin:$PATH" TMUX=/tmp/tmux-socket TMUX_PANE=%99 TMUX_TEST_LOG="$log" \
+    "$SCRIPT"
+
+rg -q -F -- '@persist_claude_session_id abc-uuid' "$log" \
+  || fail 'happy path stores session id on pane'
+rg -q -F -- '%99' "$log" \
+  || fail 'happy path targets the correct pane'
+pass 'happy path stores session id on pane'
+
+# Case 2: no tmux — TMUX_PANE unset; tmux must not be invoked
+: > "$log"
+printf '%s' '{"session_id": "should-not-store"}' \
+  | env -u TMUX -u TMUX_PANE PATH="$bin:$PATH" TMUX_TEST_LOG="$log" \
+    "$SCRIPT"
+
+if [ -s "$log" ]; then
+  fail 'no-tmux: script must not invoke tmux'
+fi
+pass 'no-tmux: script is quiet outside tmux'
+
+# Case 3a: empty session_id (null)
+: > "$log"
+printf '%s' '{"session_id": null}' \
+  | env PATH="$bin:$PATH" TMUX=/tmp/tmux-socket TMUX_PANE=%99 TMUX_TEST_LOG="$log" \
+    "$SCRIPT"
+
+if [ -s "$log" ]; then
+  fail 'null session_id: script must not invoke tmux'
+fi
+pass 'null session_id: no tmux invocation'
+
+# Case 3b: empty session_id (missing key)
+: > "$log"
+printf '%s' '{}' \
+  | env PATH="$bin:$PATH" TMUX=/tmp/tmux-socket TMUX_PANE=%99 TMUX_TEST_LOG="$log" \
+    "$SCRIPT"
+
+if [ -s "$log" ]; then
+  fail 'missing session_id: script must not invoke tmux'
+fi
+pass 'missing session_id: no tmux invocation'
+
+# Case 4: malformed JSON — must exit 0 and not invoke tmux
+: > "$log"
+set +e
+printf '%s' 'not json' \
+  | env PATH="$bin:$PATH" TMUX=/tmp/tmux-socket TMUX_PANE=%99 TMUX_TEST_LOG="$log" \
+    "$SCRIPT"
+rc=$?
+set -e
+if [ "$rc" -ne 0 ]; then
+  fail "malformed JSON: script must exit 0 (got $rc)"
+fi
+if [ -s "$log" ]; then
+  fail 'malformed JSON: script must not invoke tmux'
+fi
+pass 'malformed JSON: exits 0 without invoking tmux'

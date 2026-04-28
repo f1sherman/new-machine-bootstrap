@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Per-pane scrollback logger. Invoked by tmux's after-new-pane hook to
+# continuously stream pane output to ~/.tmux/scrollback/<sess>-<win>-<pane>-<date>.log
+# so output is preserved on disk independently of tmux-resurrect's tarball.
+set -u
+
+pane="${1:-}"
+[ -n "$pane" ] || exit 0
+
+# Skip if pipe-pane already active for this pane (pane_pipe=1).
+piped="$(tmux display-message -p -t "$pane" '#{pane_pipe}' 2>/dev/null || echo 0)"
+[ "$piped" = "1" ] && exit 0
+
+sess="$(tmux display-message -p -t "$pane" '#{session_name}' 2>/dev/null)"
+win="$(tmux display-message -p -t "$pane" '#{window_index}' 2>/dev/null)"
+idx="$(tmux display-message -p -t "$pane" '#{pane_index}' 2>/dev/null)"
+[ -n "$sess" ] && [ -n "$win" ] && [ -n "$idx" ] || exit 0
+
+# Sanitize session name: replace anything outside [A-Za-z0-9._-] with _
+safe_sess="$(printf '%s' "$sess" | LC_ALL=C tr -c 'A-Za-z0-9._-' '_')"
+
+dir="$HOME/.tmux/scrollback"
+mkdir -p "$dir"
+log="$dir/$safe_sess-$win-$idx-$(date +%Y%m%d).log"
+
+# -O = open mode (force start; do not toggle off if already piping). The early
+# pane_pipe check above handles the already-piped case explicitly.
+tmux pipe-pane -t "$pane" -O "cat >> \"$log\""
