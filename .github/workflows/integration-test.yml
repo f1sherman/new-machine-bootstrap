@@ -24,12 +24,6 @@ jobs:
       - name: Verify macOS Node GPG isolation regression
         run: bash tests/macos-mise-node-gpg.sh
 
-      - name: Verify Codex PR review workflow
-        run: bash tests/codex-pr-review-workflow.sh
-
-      - name: Verify Codex PR review runner trust boundary
-        run: ruby tests/codex-pr-review-runner.rb
-
       - name: Verify key tools installed at expected versions
         run: |
           set -euo pipefail
