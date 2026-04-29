@@ -56,6 +56,8 @@ assert_tmux_file() {
   assert_contains "$file" 'set -g status-right'
   assert_contains "$file" '@hook-last-error'
   assert_contains "$file" 'set -g status-right-length 80'
+  assert_contains "$file" "set -g status-left '#[bg=colour46,fg=black,bold] ❮ #S ❯ #[default] '"
+  assert_contains "$file" "set -g status-left-length 50"
   assert_contains "$file" 'bind h display-popup -E -h 80% -w 80% "less +G ~/.local/state/tmux/hooks.log"'
   assert_contains "$file" 'set-option -gq @hook-last-error ""'
   assert_contains "$file" 'tmux-remote-title publish'
