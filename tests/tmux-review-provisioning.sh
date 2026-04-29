@@ -49,5 +49,11 @@ assert_contains "roles/linux/files/dotfiles/tmux.conf" "M-r' 'run-shell -b \"TMU
 assert_contains "roles/macos/templates/dotfiles/tmux.conf" "m:*ssh*,#{pane_current_command}"
 assert_contains "roles/linux/files/dotfiles/tmux.conf" "m:*ssh*,#{pane_current_command}"
 
+# Escape hatch: panes whose foreground process name doesn't contain "ssh"
+# (e.g., a wrapper script) can opt in by setting the @is_remote_session
+# per-pane option for the lifetime of the connection.
+assert_contains "roles/macos/templates/dotfiles/tmux.conf" "!=:#{@is_remote_session},"
+assert_contains "roles/linux/files/dotfiles/tmux.conf" "!=:#{@is_remote_session},"
+
 printf '\npassed=%s failed=%s\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
