@@ -10,7 +10,7 @@ tool_versions:
     # renovate: datasource=github-releases depName=tmux/tmux-builds
     tmux: v3.6a
     # renovate: datasource=github-releases depName=neovim/neovim
-    neovim: v0.12.1
+    neovim: v0.12.2
     # renovate: datasource=github-releases depName=mikefarah/yq
     yq: v4.53.2
     # renovate: datasource=github-releases depName=ajeetdsouza/zoxide
