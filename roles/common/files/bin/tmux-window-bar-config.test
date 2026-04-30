@@ -67,7 +67,7 @@ assert_tmux_file() {
   assert_not_contains "$file" 'tmux-session-name'
   assert_not_contains "$file" '2>>$HOME/.local/state/tmux/hooks.log'
   assert_not_contains "$file" '>/dev/null 2>&1 || true'
-  assert_contains "$file" 'set -g status-right'
+  assert_contains "$file" "set -g status-right '#{?#{@pane-last-error}, #[bg=colour196#,fg=white#,bold] ! #{@pane-last-error} #[default],}'"
   assert_contains "$file" 'set -g status-right-length 80'
   assert_contains "$file" "set -g status-left '#[bg=colour46,fg=black,bold] ❮ #S ❯ #[default] '"
   assert_contains "$file" "set -g status-left-length 50"
