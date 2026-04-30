@@ -242,9 +242,9 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-session-name'
     mode: 0755
 
-- name: Create tmux state directory for hook logs
+- name: Create local state directory for failure logs
   file:
-    path: '{{ ansible_facts["user_dir"] }}/.local/state/tmux'
+    path: '{{ ansible_facts["user_dir"] }}/.local/state'
     state: directory
     mode: 0755
 
@@ -262,6 +262,7 @@
     - tmux-sync-status-visibility
     - tmux-sync-pane-border-status
     - tmux-hook-run
+    - report-pane-error
 
 - name: Install tmux attach/session helpers
   copy:

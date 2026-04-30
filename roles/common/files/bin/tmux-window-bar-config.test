@@ -44,22 +44,33 @@ assert_tmux_file() {
   assert_contains "$file" "set -g window-status-current-format ' #{window_name}#{?window_bell_flag,!,} '"
   assert_contains "$file" "setw -g monitor-activity off"
   assert_contains "$file" "set -g visual-activity off"
-  assert_contains "$file" "set -g pane-border-format '#{?pane_active,#[bg=black#,fg=colour51],#[bg=black#,fg=colour240]} #(~/.local/bin/tmux-pane-label \"#{pane_tty}\" \"#{pane_current_path}\" \"#{pane_current_command}\" \"#{pane_id}\") '"
-  assert_contains "$file" 'tmux-hook-run tmux-sync-pane-border-status #{pane_id}'
-  assert_contains "$file" 'tmux-hook-run tmux-sync-remote-title #{pane_id}'
-  assert_contains "$file" 'tmux-hook-run tmux-window-label #{pane_id}'
-  assert_contains "$file" 'tmux-hook-run tmux-sync-status-visibility #{pane_id}'
-  assert_contains "$file" 'tmux-hook-run tmux-remote-title publish'
+  # Pane-border-format: same label content + per-pane error sigil at the end.
+  assert_contains "$file" "set -g pane-border-format '#{?pane_active,#[bg=black#,fg=colour51],#[bg=black#,fg=colour240]} #(~/.local/bin/tmux-pane-label \"#{pane_tty}\" \"#{pane_current_path}\" \"#{pane_current_command}\" \"#{pane_id}\")#{?#{@pane-last-error}, #[bg=colour196#,fg=white#,bold] ! #[default],} '"
+
+  # Per-pane option name; old global option must be gone.
+  assert_contains "$file" '@pane-last-error'
+  assert_not_contains "$file" '@hook-last-error'
+
+  # Hook invocations carry pane id via env var so the wrapper can flag the right pane.
+  assert_contains "$file" 'TMUX_HOOK_PANE_ID=#{pane_id} $HOME/.local/bin/tmux-hook-run tmux-sync-pane-border-status #{pane_id}'
+  assert_contains "$file" 'TMUX_HOOK_PANE_ID=#{pane_id} $HOME/.local/bin/tmux-hook-run tmux-sync-remote-title #{pane_id}'
+  assert_contains "$file" 'TMUX_HOOK_PANE_ID=#{pane_id} $HOME/.local/bin/tmux-hook-run tmux-window-label #{pane_id}'
+  assert_contains "$file" 'TMUX_HOOK_PANE_ID=#{pane_id} $HOME/.local/bin/tmux-hook-run tmux-sync-status-visibility #{pane_id}'
+  assert_contains "$file" 'TMUX_HOOK_PANE_ID=#{pane_id} $HOME/.local/bin/tmux-hook-run tmux-remote-title publish'
+
+  # New keybind/log path; old log path forbidden.
+  assert_contains "$file" 'bind h display-popup -E -h 80% -w 80% "less +G ~/.local/state/failures.log"'
+  assert_contains "$file" 'set-option -pqu @pane-last-error'
+  assert_not_contains "$file" '~/.local/state/tmux/hooks.log'
+  assert_not_contains "$file" 'set-option -gq @hook-last-error ""'
+
   assert_not_contains "$file" 'tmux-session-name'
   assert_not_contains "$file" '2>>$HOME/.local/state/tmux/hooks.log'
   assert_not_contains "$file" '>/dev/null 2>&1 || true'
-  assert_contains "$file" 'set -g status-right'
-  assert_contains "$file" '@hook-last-error'
+  assert_contains "$file" "set -g status-right '#{?#{@pane-last-error}, #[bg=colour196#,fg=white#,bold] ! #{@pane-last-error} #[default],}'"
   assert_contains "$file" 'set -g status-right-length 80'
   assert_contains "$file" "set -g status-left '#[bg=colour46,fg=black,bold] ❮ #S ❯ #[default] '"
   assert_contains "$file" "set -g status-left-length 50"
-  assert_contains "$file" 'bind h display-popup -E -h 80% -w 80% "less +G ~/.local/state/tmux/hooks.log"'
-  assert_contains "$file" 'set-option -gq @hook-last-error ""'
   assert_contains "$file" 'tmux-remote-title publish'
   assert_not_contains "$file" 'window_activity_flag'
   assert_not_contains "$file" '#{window_index}'

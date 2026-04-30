@@ -14,28 +14,16 @@ trap 'rm -rf "$TMPROOT"' EXIT
 
 bindir="$TMPROOT/bin"
 mkdir -p "$bindir"
-tmux_log="$TMPROOT/tmux.log"
-log_file="$TMPROOT/.local/state/tmux/hooks.log"
-mkdir -p "$(dirname "$log_file")"
+report_log="$TMPROOT/report.log"
 
-# Stub `tmux` to record args; succeeds for set-option, errors otherwise.
-cat > "$bindir/tmux" <<'EOTMUX'
+# Stub report-pane-error: record argv, succeed.
+cat > "$bindir/report-pane-error" <<'EOR'
 #!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' "$*" >> "$TMUX_HOOK_RUN_TEST_LOG"
-case "${1:-}" in
-  set-option) exit 0 ;;
-  *) exit 1 ;;
-esac
-EOTMUX
-chmod +x "$bindir/tmux"
-
-# Stub `date` so timestamps are deterministic.
-cat > "$bindir/date" <<'EOD'
-#!/usr/bin/env bash
-printf '2026-04-28T12:00:00-0500\n'
-EOD
-chmod +x "$bindir/date"
+printf '%s\n' "$*" >> "$REPORT_LOG"
+exit 0
+EOR
+chmod +x "$bindir/report-pane-error"
 
 assert_exit_zero() {
   local label="$1"; shift
@@ -69,104 +57,78 @@ assert_grep() {
   fi
 }
 
-assert_no_grep() {
-  local file="$1" pattern="$2" label="$3"
-  if [ ! -s "$file" ] || ! grep -Fq -- "$pattern" "$file"; then
-    printf 'PASS  %s\n' "$label"
-  else
-    printf 'FAIL  %s\nunexpectedly found %q in %s\n' "$label" "$pattern" "$file" >&2
-    exit 1
-  fi
-}
-
 run_wrapper() {
   PATH="$bindir:/usr/bin:/bin" \
   HOME="$TMPROOT" \
-  TMUX_HOOK_RUN_TEST_LOG="$tmux_log" \
+  REPORT_LOG="$report_log" \
   "$SCRIPT" "$@"
 }
 
-reset_state() {
-  : > "$tmux_log"
-  : > "$log_file"
-}
+reset_state() { : > "$report_log"; }
 
-# --- Case 1: passing wrapped command ---
+# --- Case 1: passing wrapped command → no delegation ---
 reset_state
 cat > "$bindir/successful" <<'EOC'
 #!/usr/bin/env bash
 exit 0
 EOC
 chmod +x "$bindir/successful"
-assert_exit_zero "passing command exits 0" run_wrapper successful arg1 arg2
-assert_file_empty "$log_file" "passing command leaves log empty"
-assert_no_grep "$tmux_log" "set-option" "passing command does not call tmux set-option"
+assert_exit_zero "passing command exits 0" run_wrapper successful arg1
+assert_file_empty "$report_log" "passing command does not call report-pane-error"
 
-# --- Case 2: failing wrapped command (writes stderr) ---
+# --- Case 2: failing wrapped command → delegates with first-line stderr ---
 reset_state
 cat > "$bindir/noisy_fail" <<'EOC'
 #!/usr/bin/env bash
 echo "boom: something broke" >&2
+echo "second line" >&2
 exit 7
 EOC
 chmod +x "$bindir/noisy_fail"
-assert_exit_zero "failing command still exits 0" run_wrapper noisy_fail %53
-assert_grep "$log_file" "exit=7" "log records exit code"
-assert_grep "$log_file" "noisy_fail" "log records command name"
-assert_grep "$log_file" "boom: something broke" "log records stderr"
-assert_grep "$log_file" "2026-04-28T12:00:00-0500" "log records timestamp"
-assert_grep "$tmux_log" "set-option -gq @hook-last-error" "tmux set-option called with @hook-last-error"
-assert_grep "$tmux_log" "noisy_fail: boom: something broke" "tmux message contains short error"
+TMUX_HOOK_PANE_ID=%53 assert_exit_zero "failing command still exits 0" run_wrapper noisy_fail %53
+assert_grep "$report_log" "noisy_fail" "delegate gets command basename as name"
+assert_grep "$report_log" "boom: something broke" "delegate gets first stderr line as message"
+assert_grep "$report_log" "--pane %53" "delegate gets pane via TMUX_HOOK_PANE_ID"
 
-# --- Case 3: failing command with no stderr ---
+# --- Case 3: failing command with no stderr → delegates with synthetic message ---
 reset_state
 cat > "$bindir/silent_fail" <<'EOC'
 #!/usr/bin/env bash
 exit 3
 EOC
 chmod +x "$bindir/silent_fail"
-assert_exit_zero "silent failing command still exits 0" run_wrapper silent_fail
-assert_grep "$log_file" "exit=3" "silent failure logs exit code"
-assert_grep "$tmux_log" "silent_fail: exit 3" "silent failure surfaces fallback message"
+TMUX_HOOK_PANE_ID=%1 assert_exit_zero "silent failing command still exits 0" run_wrapper silent_fail
+assert_grep "$report_log" "silent_fail" "silent failure delegates"
+assert_grep "$report_log" "exit 3" "silent failure includes exit-3 fallback"
 
-# --- Case 4: missing wrapped command ---
+# --- Case 4: TMUX_HOOK_PANE_ID unset → delegate called without --pane ---
+# env -u cannot invoke a bash function, so we use bash -c to unset the var
+# and invoke the wrapper directly.
 reset_state
-assert_exit_zero "missing command still exits 0" run_wrapper this-does-not-exist arg
-assert_grep "$log_file" "this-does-not-exist" "missing command logged"
-assert_grep "$tmux_log" "set-option -gq @hook-last-error" "missing command sets @hook-last-error"
-assert_grep "$tmux_log" "this-does-not-exist" "missing command name appears in @hook-last-error value"
-
-# --- Case 5: stderr longer than 60 chars truncates ---
-reset_state
-long_msg="abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_extra_padding_past_sixty"
-# Unquoted heredoc on purpose: we want $long_msg expanded into the stub.
-cat > "$bindir/long_stderr_fail" <<EOC
-#!/usr/bin/env bash
-echo "$long_msg" >&2
-exit 1
-EOC
-chmod +x "$bindir/long_stderr_fail"
-assert_exit_zero "long-stderr command still exits 0" run_wrapper long_stderr_fail
-# The status-bar message stored via set-option must be at most 60 chars long.
-short_line="$(grep -F 'set-option -gq @hook-last-error' "$tmux_log" | tail -n1)"
-if [ -z "$short_line" ]; then
-  printf 'FAIL  truncation: no set-option call found in tmux log\n' >&2
+bash -c "
+  unset TMUX_HOOK_PANE_ID
+  PATH='$bindir:/usr/bin:/bin' \
+  HOME='$TMPROOT' \
+  REPORT_LOG='$report_log' \
+  '$SCRIPT' noisy_fail
+" && printf 'PASS  no pane id still exits 0\n' \
+  || { printf 'FAIL  expected exit 0 (case 4)\n' >&2; exit 1; }
+assert_grep "$report_log" "noisy_fail" "delegate still invoked"
+if grep -Fq -- "--pane" "$report_log"; then
+  printf 'FAIL  --pane unexpectedly forwarded when TMUX_HOOK_PANE_ID unset\n' >&2
   exit 1
-fi
-short_value="${short_line#*@hook-last-error }"
-short_value="${short_value#\"}"
-short_value="${short_value%\"}"
-if [ "${#short_value}" -le 60 ]; then
-  printf 'PASS  truncated message is %d chars (<=60)\n' "${#short_value}"
 else
-  printf 'FAIL  truncated message is %d chars: %q\n' "${#short_value}" "$short_value" >&2
-  exit 1
+  printf 'PASS  --pane omitted when TMUX_HOOK_PANE_ID unset\n'
 fi
 
-# --- Case 6: no args ---
+# --- Case 5: missing wrapped command → delegates ---
+reset_state
+TMUX_HOOK_PANE_ID=%4 assert_exit_zero "missing command exits 0" run_wrapper this-does-not-exist
+assert_grep "$report_log" "this-does-not-exist" "missing command name appears in delegate args"
+
+# --- Case 6: no args → no-op ---
 reset_state
 assert_exit_zero "no-args invocation exits 0" run_wrapper
-assert_file_empty "$log_file" "no-args leaves log empty"
-assert_no_grep "$tmux_log" "set-option" "no-args does not touch tmux"
+assert_file_empty "$report_log" "no-args does not call report-pane-error"
 
 printf '\nALL TESTS PASSED\n'
