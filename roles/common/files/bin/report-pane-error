@@ -7,8 +7,7 @@
 #
 # Pane id resolution: --pane flag > $TMUX_PANE > none (log-only).
 # If no message is given as the second positional arg, stdin is consumed and
-# the first non-empty line is used for the badge while the full content
-# goes to the log.
+# the first line is used for the badge while the full content goes to the log.
 set -u
 
 name=""
