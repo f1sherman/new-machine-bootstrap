@@ -1,26 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=./tmux-restore-lib.sh
-source "$SCRIPT_DIR/tmux-restore-lib.sh"
+state_dir="$HOME/.local/state/tmux/session-gc"
 
-platform=""
+session_key() {
+  printf '%s' "$1" | tr '/ :\t' '____'
+}
+
 days=14
-manifest_path=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --platform)
-      platform="${2:-}"
-      shift 2
-      ;;
     --days)
       days="${2:-}"
-      shift 2
-      ;;
-    --manifest)
-      manifest_path="${2:-}"
       shift 2
       ;;
     *)
@@ -30,41 +22,19 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-[ -n "$platform" ] || exit 0
-
-terminal_restore_ensure_dirs
+mkdir -p "$state_dir"
 
 now="$(date +%s)"
 threshold="$(( days * 24 * 60 * 60 ))"
-manifest_sessions=""
-manifest_loaded=0
-
-if [ -n "$manifest_path" ] && [ -f "$manifest_path" ]; then
-  if jq -e '
-    type == "object"
-    and (.windows | type == "array")
-    and all(
-      .windows[]?;
-      type == "object"
-      and (.tabs | type == "array")
-      and all(.tabs[]?; type == "object" and (.session_name | type == "string"))
-    )
-  ' "$manifest_path" >/dev/null 2>&1; then
-    manifest_sessions="$(
-      jq -r '.windows[]?.tabs[]?.session_name // empty' "$manifest_path" 2>/dev/null
-    )"
-    manifest_loaded=1
-  fi
-fi
 
 tmux list-sessions -F '#{session_name}\t#{session_attached}\t#{session_created}' 2>/dev/null | \
 while IFS=$'\t' read -r session_name attached session_created; do
   [ -n "$session_name" ] || continue
 
-  marker_prefix="$(terminal_restore_session_key "$session_name")"
-  marker_file="$(terminal_restore_sessions_dir)/${marker_prefix}.${session_created}.unattached_since"
+  marker_prefix="$(session_key "$session_name")"
+  marker_file="$state_dir/${marker_prefix}.${session_created}.unattached_since"
 
-  for existing_marker in "$(terminal_restore_sessions_dir)/${marker_prefix}".*.unattached_since; do
+  for existing_marker in "$state_dir/${marker_prefix}".*.unattached_since; do
     [ -e "$existing_marker" ] || continue
     [ "$existing_marker" = "$marker_file" ] && continue
     rm -f "$existing_marker"
@@ -75,23 +45,14 @@ while IFS=$'\t' read -r session_name attached session_created; do
     continue
   fi
 
-  case "$platform" in
-    macos)
-      if [ "$manifest_loaded" -eq 1 ] && ! printf '%s\n' "$manifest_sessions" | grep -Fxq "$session_name"; then
-        tmux kill-session -t "=$session_name"
-      fi
-      ;;
-    linux)
-      if [ ! -f "$marker_file" ]; then
-        printf '%s' "$now" > "$marker_file"
-        continue
-      fi
+  if [ ! -f "$marker_file" ]; then
+    printf '%s' "$now" > "$marker_file"
+    continue
+  fi
 
-      unattached_since="$(cat "$marker_file" 2>/dev/null || printf '0')"
-      if [ $(( now - unattached_since )) -gt "$threshold" ]; then
-        tmux kill-session -t "=$session_name"
-        rm -f "$marker_file"
-      fi
-      ;;
-  esac
+  unattached_since="$(cat "$marker_file" 2>/dev/null || printf '0')"
+  if [ $(( now - unattached_since )) -gt "$threshold" ]; then
+    tmux kill-session -t "=$session_name"
+    rm -f "$marker_file"
+  fi
 done

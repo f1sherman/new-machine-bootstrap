@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Ghostty (and other GUI terminals) launch this via `bash --noprofile --norc`,
+# so GUI startup may not include mise or Homebrew paths. Normalize PATH before
+# running tmux so it can find the right binaries.
+pathprepend() {
+  local dir="${1%/}"
+  [ -d "$dir" ] || return 0
+  PATH=":$PATH:"
+  PATH="${PATH//:$dir:/:}"
+  PATH="${PATH#:}"
+  PATH="${PATH%:}"
+  PATH="$dir:$PATH"
+}
+
+PATH="${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+pathprepend "/usr/local/sbin"
+pathprepend "/usr/local/bin"
+pathprepend "/opt/homebrew/sbin"
+pathprepend "/opt/homebrew/bin"
+pathprepend "$HOME/.local/bin"
+pathprepend "${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
+export PATH
+
+reusable=""
+if sessions="$(tmux list-sessions -F '#{session_attached}'$'\t''#{session_name}' 2>/dev/null)"; then
+  reusable="$(printf '%s\n' "$sessions" | awk -F'\t' '$1 == "0" { print $2; exit }')"
+fi
+
+if [ -n "$reusable" ]; then
+  exec tmux attach -t "=$reusable"
+fi
+
+exec tmux new-session

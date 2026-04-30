@@ -14,7 +14,7 @@
     block: |
       # Launch tmux on interactive login (SSH)
       if [ -z "$TMUX" ] && [ -t 0 ]; then
-        exec {{ ansible_facts["user_dir"] }}/.local/bin/tmux-restore-client
+        exec {{ ansible_facts["user_dir"] }}/.local/bin/tmux-attach-or-new
       fi
 
 - name: Configure zsh exec in .bashrc

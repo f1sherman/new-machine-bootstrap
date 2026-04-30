@@ -201,13 +201,11 @@
     line: 'command = {{ ansible_facts["user_dir"] }}/.local/bin/tmux-attach-or-new'
     create: yes
     mode: 0644
-- name: Configure ghostty window-save-state
+- name: Remove ghostty window-save-state setting
   lineinfile:
     path: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty/config'
     regexp: '^window-save-state\s*='
-    line: 'window-save-state = always'
-    create: yes
-    mode: 0644
+    state: absent
 - name: Create .vimtmp directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/.vimtmp'
@@ -335,22 +333,29 @@
   with_fileglob:
     - "bin/*"
 
-- name: Install Ghostty layout save LaunchAgent plist
-  template:
-    src: launchd/com.user.ghostty-layout-save.plist
-    dest: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-layout-save.plist'
-    mode: '0644'
+- name: Stat obsolete Ghostty layout save LaunchAgent plist
+  stat:
+    path: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-layout-save.plist'
   register: ghostty_layout_save_plist
 
-- name: Unload Ghostty layout save launchd job if changed
+- name: Unload obsolete Ghostty layout save launchd job
   command: launchctl unload {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-layout-save.plist
-  when: ghostty_layout_save_plist.changed
+  when: ghostty_layout_save_plist.stat.exists
   changed_when: false
   failed_when: false
 
-- name: Load Ghostty layout save launchd job
-  command: launchctl load {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-layout-save.plist
-  changed_when: false
+- name: Remove obsolete Ghostty layout save LaunchAgent plist
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-layout-save.plist'
+    state: absent
+
+- name: Remove obsolete Ghostty layout helper scripts
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.local/bin/{{ item }}'
+    state: absent
+  loop:
+    - ghostty-layout-save
+    - ghostty-layout-reconcile
 
 - name: Install tmux pipe-pane rotate LaunchAgent plist
   template:
