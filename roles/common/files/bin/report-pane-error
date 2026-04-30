@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# report-pane-error <name> [<message>] [--pane <pane_id>]
+#
+# Append a timestamped failure record to ~/.local/state/failures.log, and
+# (when a pane id is known) set @pane-last-error on that pane so the tmux
+# status indicator surfaces it. Always exits 0.
+#
+# Pane id resolution: --pane flag > $TMUX_PANE > none (log-only).
+# If no message is given as the second positional arg, stdin is consumed and
+# the first non-empty line is used for the badge while the full content
+# goes to the log.
+set -u
+
+name=""
+message=""
+pane_id="${TMUX_PANE:-}"
+
+# Parse args. Accept up to two positional (name, message) plus --pane <id>.
+positional=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --pane)
+      pane_id="${2:-}"
+      shift 2 || shift
+      ;;
+    --pane=*)
+      pane_id="${1#--pane=}"
+      shift
+      ;;
+    *)
+      positional+=("$1")
+      shift
+      ;;
+  esac
+done
+
+[ "${#positional[@]}" -ge 1 ] || exit 0
+name="${positional[0]}"
+if [ "${#positional[@]}" -ge 2 ]; then
+  message="${positional[1]}"
+fi
+
+stdin_content=""
+if [ ! -t 0 ]; then
+  stdin_content="$(cat || true)"
+fi
+if [ -z "$message" ]; then
+  message="${stdin_content%%[$'\r\n']*}"
+fi
+
+log_file="${HOME:-/tmp}/.local/state/failures.log"
+mkdir -p "$(dirname "$log_file")" 2>/dev/null || true
+
+ts="$(date '+%Y-%m-%dT%H:%M:%S%z')"
+{
+  printf '[%s] pane=%s name=%s\n' "$ts" "${pane_id:-none}" "$name"
+  printf 'message: %s\n' "$message"
+  if [ -n "$stdin_content" ]; then
+    printf '%s\n' "$stdin_content"
+  fi
+  printf -- '---\n'
+} >> "$log_file"
+
+if [ -n "$pane_id" ]; then
+  badge="${name}: ${message:-error}"
+  if [ "${#badge}" -gt 60 ]; then
+    badge="${badge:0:57}..."
+  fi
+  tmux set-option -pq -t "$pane_id" @pane-last-error "$badge" 2>/dev/null || true
+fi
+
+exit 0

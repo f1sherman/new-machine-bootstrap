@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/report-pane-error"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+bindir="$TMPROOT/bin"
+mkdir -p "$bindir"
+tmux_log="$TMPROOT/tmux.log"
+log_file="$TMPROOT/.local/state/failures.log"
+mkdir -p "$(dirname "$log_file")"
+
+# Stub tmux: record args, succeed for set-option, fail otherwise.
+cat > "$bindir/tmux" <<'EOTMUX'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$REPORT_PANE_ERROR_TEST_TMUX_LOG"
+case "${1:-}" in
+  set-option) exit 0 ;;
+  *) exit 1 ;;
+esac
+EOTMUX
+chmod +x "$bindir/tmux"
+
+# Stub date for deterministic timestamps.
+cat > "$bindir/date" <<'EOD'
+#!/usr/bin/env bash
+printf '2026-04-30T12:00:00-0500\n'
+EOD
+chmod +x "$bindir/date"
+
+run_primitive() {
+  PATH="$bindir:/usr/bin:/bin" \
+  HOME="$TMPROOT" \
+  REPORT_PANE_ERROR_TEST_TMUX_LOG="$tmux_log" \
+  "$SCRIPT" "$@"
+}
+
+reset_state() {
+  : > "$tmux_log"
+  : > "$log_file"
+}
+
+assert_exit_zero() {
+  local label="$1"; shift
+  if "$@"; then
+    printf 'PASS  %s\n' "$label"
+  else
+    printf 'FAIL  %s (exit %d)\n' "$label" "$?" >&2
+    exit 1
+  fi
+}
+
+assert_grep() {
+  local file="$1" pattern="$2" label="$3"
+  if grep -Fq -- "$pattern" "$file"; then
+    printf 'PASS  %s\n' "$label"
+  else
+    printf 'FAIL  %s\nmissing %q in %s:\n' "$label" "$pattern" "$file" >&2
+    cat "$file" >&2
+    exit 1
+  fi
+}
+
+assert_no_grep() {
+  local file="$1" pattern="$2" label="$3"
+  if [ ! -s "$file" ] || ! grep -Fq -- "$pattern" "$file"; then
+    printf 'PASS  %s\n' "$label"
+  else
+    printf 'FAIL  %s\nunexpectedly found %q in %s\n' "$label" "$pattern" "$file" >&2
+    exit 1
+  fi
+}
+
+# --- Case 1: --pane flag → log entry + tmux set-option on that pane ---
+reset_state
+assert_exit_zero "basic call exits 0" run_primitive my-source "boom message" --pane %42
+assert_grep "$log_file" "name=my-source" "log records source name"
+assert_grep "$log_file" "boom message" "log records message"
+assert_grep "$log_file" "pane=%42" "log records pane id"
+assert_grep "$log_file" "2026-04-30T12:00:00-0500" "log records timestamp"
+assert_grep "$tmux_log" "set-option -pq -t %42 @pane-last-error" "tmux set-option targets pane"
+assert_grep "$tmux_log" "my-source: boom message" "tmux value contains source: msg"
+
+# --- Case 2: $TMUX_PANE fallback ---
+reset_state
+TMUX_PANE=%9 assert_exit_zero "TMUX_PANE fallback exits 0" run_primitive my-src "fallback msg"
+assert_grep "$tmux_log" "set-option -pq -t %9 @pane-last-error" "uses TMUX_PANE when --pane omitted"
+
+# --- Case 3: no pane info → log only, no tmux call ---
+reset_state
+# env -u cannot invoke a shell function, so use a subshell to unset TMUX_PANE before delegating.
+assert_exit_zero "no-pane call exits 0" bash -c "
+  unset TMUX_PANE
+  PATH='$bindir:/usr/bin:/bin' \
+  HOME='$TMPROOT' \
+  REPORT_PANE_ERROR_TEST_TMUX_LOG='$tmux_log' \
+  '$SCRIPT' my-src 'no pane msg'
+"
+assert_grep "$log_file" "pane=none" "log records pane=none"
+assert_grep "$log_file" "no pane msg" "log records message"
+assert_no_grep "$tmux_log" "set-option" "no tmux set-option without pane info"
+
+# --- Case 4: message from stdin (multi-line) ---
+reset_state
+multiline="first line of stderr
+second line should be in log only"
+assert_exit_zero "stdin call exits 0" bash -c "
+  printf '%s\n' '$multiline' | \
+    PATH='$bindir:/usr/bin:/bin' \
+    HOME='$TMPROOT' \
+    REPORT_PANE_ERROR_TEST_TMUX_LOG='$tmux_log' \
+    TMUX_PANE='%17' \
+    '$SCRIPT' my-src
+"
+assert_grep "$log_file" "first line of stderr" "log includes first line"
+assert_grep "$log_file" "second line should be in log only" "log includes second line"
+assert_grep "$tmux_log" "my-src: first line of stderr" "badge uses only first line"
+assert_no_grep "$tmux_log" "second line should be in log only" "badge omits subsequent lines"
+
+# --- Case 5: long message truncates badge to <=60 chars ---
+reset_state
+long_msg="abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_extra"
+assert_exit_zero "long-message call exits 0" run_primitive my-src "$long_msg" --pane %1
+short_line="$(grep -F 'set-option -pq -t %1 @pane-last-error' "$tmux_log" | tail -n1)"
+if [ -z "$short_line" ]; then
+  printf 'FAIL  truncation: no set-option call found\n' >&2
+  exit 1
+fi
+short_value="${short_line#*@pane-last-error }"
+short_value="${short_value#\"}"
+short_value="${short_value%\"}"
+if [ "${#short_value}" -le 60 ]; then
+  printf 'PASS  truncated badge is %d chars (<=60)\n' "${#short_value}"
+else
+  printf 'FAIL  truncated badge is %d chars: %q\n' "${#short_value}" "$short_value" >&2
+  exit 1
+fi
+assert_grep "$log_file" "$long_msg" "full long message present in log"
+
+# --- Case 6: missing tmux still logs and exits 0 ---
+reset_state
+# Make tmux fail-not-found by overriding PATH for this call only.
+no_tmux_dir="$TMPROOT/no-tmux"; mkdir -p "$no_tmux_dir"
+cp "$bindir/date" "$no_tmux_dir/date"
+PATH="$no_tmux_dir:/usr/bin:/bin" \
+HOME="$TMPROOT" \
+REPORT_PANE_ERROR_TEST_TMUX_LOG="$tmux_log" \
+"$SCRIPT" my-src "msg without tmux" --pane %3 \
+  && printf 'PASS  exits 0 with no tmux on PATH\n' \
+  || { printf 'FAIL  expected exit 0 with no tmux\n' >&2; exit 1; }
+assert_grep "$log_file" "msg without tmux" "log entry written even without tmux"
+assert_no_grep "$tmux_log" "set-option" "stub tmux not called when not on PATH"
+
+printf '\nALL TESTS PASSED\n'
