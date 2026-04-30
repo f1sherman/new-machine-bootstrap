@@ -51,7 +51,7 @@ TMUX_CLIENT_ATTACHED_ROTATE_LOG="$TMPROOT/rotate.log" \
 linux_path_line="$(cat "$log")"
 [ "${linux_path_line#"set-environment -g PATH $TMPROOT/home/.local/share/mise/shims:$TMPROOT/home/.local/bin:"}" != "$linux_path_line" ]
 grep -F '/usr/local/bin:/opt/homebrew/bin' "$log" >/dev/null
-grep -Fqx -- '--platform linux --days 14' "$TMPROOT/gc.log"
+grep -Fqx -- '--days 14' "$TMPROOT/gc.log"
 grep -Fqx -- 'rotated' "$TMPROOT/rotate.log"
 
 darwin_log="$(mktemp "$TMPROOT/log-darwin.XXXXXX")"

@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-attach-or-new"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+pass=0
+fail=0
+LIST_SESSIONS_CMD=$'list-sessions -F #{session_attached}\t#{session_name}'
+
+run_case() {
+  local name="$1" list_output="$2" list_behavior="$3" expected_log="$4"
+  local fake_home bindir log rc
+
+  fake_home="$(mktemp -d "$TMPROOT/home.XXXXXX")"
+  # Fake tmux lives in $HOME/.local/bin so the script's PATH normalization
+  # (which prepends $HOME/.local/bin) puts it ahead of the real tmux.
+  bindir="$fake_home/.local/bin"
+  mkdir -p "$bindir"
+  log="$(mktemp "$TMPROOT/tmux.XXXXXX")"
+
+  cat > "$bindir/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -eu
+
+printf '%s\n' "$*" >> "$TMUX_ATTACH_LOG"
+
+case "${1:-}" in
+  list-sessions)
+    case "${TMUX_ATTACH_LIST_BEHAVIOR:-normal}" in
+      fail)
+        exit 1
+        ;;
+    esac
+    if [ -n "$TMUX_ATTACH_LIST" ]; then
+      printf '%s\n' "$TMUX_ATTACH_LIST"
+    fi
+    ;;
+  attach|new-session)
+    exit 0
+    ;;
+  *)
+    printf 'unexpected tmux invocation: %s\n' "$*" >&2
+    exit 99
+    ;;
+esac
+EOF
+  chmod +x "$bindir/tmux"
+
+  if PATH="$bindir:$PATH" \
+    TMUX_ATTACH_LOG="$log" \
+    TMUX_ATTACH_LIST="$list_output" \
+    TMUX_ATTACH_LIST_BEHAVIOR="$list_behavior" \
+    HOME="$fake_home" \
+    "$SCRIPT"
+  then
+    rc=0
+  else
+    rc=$?
+  fi
+
+  if [ "$rc" -eq 0 ] && diff -u <(printf '%s\n' "$expected_log") "$log" >/dev/null; then
+    pass=$((pass + 1))
+    printf 'PASS  %s\n' "$name"
+  else
+    fail=$((fail + 1))
+    printf 'FAIL  %s\n' "$name"
+    printf '      rc: %s\n' "$rc"
+    printf '      log:\n'
+    sed 's/^/        /' "$log"
+  fi
+}
+
+run_case \
+  "first unattached session is reused" \
+  $'1\tbusy\n0\talpha\n0\tbeta' \
+  "normal" \
+  "${LIST_SESSIONS_CMD}
+attach -t =alpha"
+
+run_case \
+  "all sessions attached starts a new one" \
+  $'1\tbusy\n1\tother' \
+  "normal" \
+  "${LIST_SESSIONS_CMD}
+new-session"
+
+run_case \
+  "no sessions starts a new one" \
+  "" \
+  "normal" \
+  "${LIST_SESSIONS_CMD}
+new-session"
+
+run_case \
+  "list-sessions failure (no server) starts a new one" \
+  "" \
+  "fail" \
+  "${LIST_SESSIONS_CMD}
+new-session"
+
+printf '\n'
+printf 'passed=%s failed=%s\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

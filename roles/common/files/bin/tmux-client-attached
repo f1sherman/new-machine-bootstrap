@@ -75,7 +75,7 @@ export PATH
 
 case "$platform" in
   Linux)
-    "$HOME/.local/bin/tmux-session-gc" --platform linux --days 14 >/dev/null 2>&1 || true
+    "$HOME/.local/bin/tmux-session-gc" --days 14 >/dev/null 2>&1 || true
     "$HOME/.local/bin/tmux-pipe-pane-rotate" >/dev/null 2>&1 || true
     ;;
 esac

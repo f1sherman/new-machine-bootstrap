@@ -263,17 +263,24 @@
     - tmux-sync-pane-border-status
     - tmux-hook-run
 
-- name: Install terminal restore helpers
+- name: Install tmux attach/session helpers
   copy:
     backup: yes
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin/{{ item.name }}'
     src: '{{ playbook_dir }}/roles/common/files/bin/{{ item.name }}'
     mode: '{{ item.mode }}'
   loop:
-    - { name: tmux-restore-lib.sh, mode: '0644' }
-    - { name: tmux-restore-client, mode: '0755' }
+    - { name: tmux-attach-or-new, mode: '0755' }
     - { name: tmux-session-gc, mode: '0755' }
     - { name: tmux-client-attached, mode: '0755' }
+
+- name: Remove obsolete terminal-restore helpers
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.local/bin/{{ item }}'
+    state: absent
+  loop:
+    - tmux-restore-client
+    - tmux-restore-lib.sh
 
 - name: Install tmux-switch-session script
   copy:
