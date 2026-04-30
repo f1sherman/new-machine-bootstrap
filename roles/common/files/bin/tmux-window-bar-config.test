@@ -66,6 +66,9 @@ assert_tmux_file() {
   assert_not_contains "$file" '#{pane_index}'
   assert_not_contains "$file" 'tmux-pane-branch'
   assert_not_contains "$file" 'tmux-host-tag'
+  assert_contains "$file" 'set -g allow-passthrough off'
+  assert_not_contains "$file" 'allow-passthrough all'
+  assert_not_contains "$file" 'allow-passthrough on'
 }
 
 assert_contains "roles/common/tasks/main.yml" "tmux-pane-label"
