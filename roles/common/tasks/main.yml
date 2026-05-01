@@ -274,6 +274,7 @@
     - { name: tmux-attach-or-new, mode: '0755' }
     - { name: tmux-session-gc, mode: '0755' }
     - { name: tmux-client-attached, mode: '0755' }
+    - { name: tmux-resurrect-restore-wrapper, mode: '0755' }
 
 - name: Remove obsolete terminal-restore helpers
   file:

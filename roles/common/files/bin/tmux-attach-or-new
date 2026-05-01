@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# DEBUG INSTRUMENTATION (added 2026-05-01 to diagnose missed auto-restore).
+# All logging is best-effort — must never break tmux launch.
+DEBUG_LOG="$HOME/.local/state/tmux-debug.log"
+mkdir -p "$(dirname "$DEBUG_LOG")" 2>/dev/null || true
+debug_log() { printf '[%s] tmux-attach-or-new pid=%s ppid=%s: %s\n' "$(date '+%H:%M:%S')" "$$" "$PPID" "$*" >> "$DEBUG_LOG" 2>/dev/null || true; }
+debug_log "INVOKED (tty=$(tty 2>/dev/null || echo none))"
+{ /bin/ps -axo pid,ppid,command 2>/dev/null | /usr/bin/grep -E '[t]mux' | sed 's/^/    /' >> "$DEBUG_LOG" 2>/dev/null; } || true
+
 # Ghostty (and other GUI terminals) launch this via `bash --noprofile --norc`,
 # so GUI startup may not include mise or Homebrew paths. Normalize PATH before
 # running tmux so it can find the right binaries.
@@ -25,11 +33,16 @@ export PATH
 
 reusable=""
 if sessions="$(tmux list-sessions -F '#{session_attached}'$'\t''#{session_name}' 2>/dev/null)"; then
+  debug_log "list-sessions OK; sessions: $(printf '%s' "$sessions" | tr '\n' '|')"
   reusable="$(printf '%s\n' "$sessions" | awk -F'\t' '$1 == "0" { print $2; exit }')"
+else
+  debug_log "list-sessions FAILED (no server yet)"
 fi
 
 if [ -n "$reusable" ]; then
+  debug_log "ATTACHING to existing session: $reusable"
   exec tmux attach -t "=$reusable"
 fi
 
+debug_log "CREATING new session"
 exec tmux new-session
