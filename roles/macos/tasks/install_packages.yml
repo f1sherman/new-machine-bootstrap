@@ -24,6 +24,7 @@
       'curl',
       'dark-mode',
       'fd',
+      'flock',
       'fzf',
       'gh',
       'git',

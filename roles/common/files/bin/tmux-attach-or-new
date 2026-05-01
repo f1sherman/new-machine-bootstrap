@@ -11,7 +11,7 @@ debug_log "INVOKED (tty=$(tty 2>/dev/null || echo none))"
 
 # Ghostty (and other GUI terminals) launch this via `bash --noprofile --norc`,
 # so GUI startup may not include mise or Homebrew paths. Normalize PATH before
-# running tmux so it can find the right binaries.
+# running tmux so it can find the right binaries (including flock).
 pathprepend() {
   local dir="${1%/}"
   [ -d "$dir" ] || return 0
@@ -31,13 +31,67 @@ pathprepend "$HOME/.local/bin"
 pathprepend "${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
 export PATH
 
-reusable=""
-if sessions="$(tmux list-sessions -F '#{session_attached}'$'\t''#{session_name}' 2>/dev/null)"; then
-  debug_log "list-sessions OK; sessions: $(printf '%s' "$sessions" | tr '\n' '|')"
-  reusable="$(printf '%s\n' "$sessions" | awk -F'\t' '$1 == "0" { print $2; exit }')"
+# Several terminal windows can run this script in parallel on login
+# (terminal restoring its previous windows). Without serialization the
+# bootstrap path below would race and only one of N parallel restores
+# would finish, leaving us with a mix of restored and empty sessions.
+# flock(2) gives us a kernel-level lock that auto-releases when the
+# holding process exits — no stale-lock recovery needed. macOS ships
+# flock(2) but not the flock(1) wrapper; provisioning installs it via
+# Homebrew (see roles/macos/tasks/install_packages.yml).
+LOCK_FILE="${TMUX_ATTACH_LOCK_FILE:-/tmp/tmux-attach-or-new.lock}"
+LOCK_TIMEOUT="${TMUX_ATTACH_LOCK_TIMEOUT:-30}"
+exec 9>"$LOCK_FILE"
+if flock -w "$LOCK_TIMEOUT" 9; then
+  debug_log "lock acquired"
+else
+  debug_log "lock timeout after ${LOCK_TIMEOUT}s, proceeding without lock"
+fi
+
+# Single list-sessions to determine both server presence and unattached set.
+sessions_output=""
+has_server=0
+if sessions_output="$(tmux list-sessions -F '#{session_attached}'$'\t''#{session_name}' 2>/dev/null)"; then
+  has_server=1
+  debug_log "list-sessions OK; sessions: $(printf '%s' "$sessions_output" | tr '\n' '|')"
 else
   debug_log "list-sessions FAILED (no server yet)"
 fi
+
+if [ "$has_server" = "0" ]; then
+  # First launch — boot the server with a placeholder session, then run
+  # tmux-resurrect's restore directly. Continuum's auto-restore is off
+  # (see tmux.conf) because its multi-tmux-process heuristic silently
+  # skips when several windows race to start the server.
+  debug_log "bootstrapping: tmux new-session -d -s __bootstrap__"
+  tmux new-session -d -s __bootstrap__
+
+  resurrect="$HOME/.tmux/plugins/tmux-resurrect/scripts/restore.sh"
+  if [ -x "$resurrect" ]; then
+    debug_log "running resurrect restore: $resurrect"
+    "$resurrect" >>"$DEBUG_LOG" 2>&1 || debug_log "resurrect restore exited non-zero"
+  else
+    debug_log "resurrect restore not found at $resurrect"
+  fi
+
+  # If restore brought in additional sessions, drop the placeholder so
+  # we don't attach to it.
+  sessions_output="$(tmux list-sessions -F '#{session_attached}'$'\t''#{session_name}' 2>/dev/null || true)"
+  count="$(printf '%s\n' "$sessions_output" | grep -c . || true)"
+  if [ "${count:-0}" -gt 1 ]; then
+    debug_log "restore created ${count} sessions, killing __bootstrap__"
+    tmux kill-session -t __bootstrap__ 2>/dev/null || true
+    sessions_output="$(tmux list-sessions -F '#{session_attached}'$'\t''#{session_name}' 2>/dev/null || true)"
+  fi
+fi
+
+reusable="$(printf '%s\n' "$sessions_output" | awk -F'\t' '$1 == "0" { print $2; exit }')"
+
+# Release the lock before exec'ing tmux. Without this the lock would be
+# held for the lifetime of the attached tmux client, blocking every
+# subsequent terminal window indefinitely.
+flock -u 9
+debug_log "lock released"
 
 if [ -n "$reusable" ]; then
   debug_log "ATTACHING to existing session: $reusable"

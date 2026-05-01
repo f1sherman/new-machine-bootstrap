@@ -256,6 +256,29 @@
     executable: /bin/bash
     creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
 
+# tmux-continuum ships an auto-start-at-login feature for macOS that we
+# don't use. The upstream osx_enable.sh / osx_disable.sh scripts run on
+# every tmux startup (osx_disable.sh unconditionally, even when
+# @continuum-boot is off, to clean up any stale auto-start file). We
+# replace both with no-op stubs to avoid unnecessary work on each
+# startup.
+- name: Recover any wiped tmux-continuum scripts from git
+  command: git checkout -- .
+  args:
+    chdir: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-continuum'
+  register: continuum_git_restore
+  changed_when: continuum_git_restore.stdout != "" or continuum_git_restore.stderr != ""
+  failed_when: false
+
+- name: Stub tmux-continuum auto-start scripts (no-op)
+  copy:
+    src: '{{ playbook_dir }}/roles/macos/files/tmux-continuum-stubs/handle_tmux_automatic_start/{{ item }}'
+    dest: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-continuum/scripts/handle_tmux_automatic_start/{{ item }}'
+    mode: '0755'
+  loop:
+    - osx_enable.sh
+    - osx_disable.sh
+
 - name: Enable Dark Mode
   command: dark-mode on
   changed_when: false
