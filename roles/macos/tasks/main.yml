@@ -480,6 +480,18 @@
         -- Bind the hotkeys for Apple Music
         local likeHotkeyObjects = bindAppleMusicHotkey({"cmd"}, "L", favoriteCurrentSong)
         local dislikeHotkeyObjects = bindAppleMusicHotkey({"cmd"}, "D", suggestLessAndSkip)
+
+        -- Periodic terminal-slowness sampler. Fires mac-slow-sample every 60s
+        -- (and once at startup). hs.task is non-blocking — the Lua side returns
+        -- immediately while the script runs in a child process.
+        local macSlowSampler = os.getenv("HOME") .. "/.local/bin/mac-slow-sample"
+        local function runMacSlowSample()
+          if hs.fs.attributes(macSlowSampler) then
+            hs.task.new(macSlowSampler, nil):start()
+          end
+        end
+        runMacSlowSample()
+        local macSlowTimer = hs.timer.doEvery(60, runMacSlowSample)
     dest: ~/.hammerspoon/init.lua
     mode: '0644'
 
