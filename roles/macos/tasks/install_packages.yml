@@ -81,10 +81,6 @@
     state: directory
     mode: 0755
 
-- name: Install FZF
-  shell: '{{ brew_prefix }}/opt/fzf/install --all'
-  changed_when: false
-
 - name: Check if llm-anthropic plugin is installed
   shell: llm plugins | jq -e '.[] | select(.name == "llm-anthropic")' > /dev/null 2>&1
   register: llm_anthropic_plugin_check
