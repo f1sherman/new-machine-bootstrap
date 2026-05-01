@@ -392,28 +392,28 @@
     state: directory
     mode: '0700'
 
-- name: Create ~/.claude/CLAUDE.md file
+# ~/.claude/CLAUDE.md is assembled from sorted fragments under
+# ~/.claude/CLAUDE.md.d/. nmb owns the 00-base.md fragment; downstream
+# provisioners (or the user, by hand) drop additional fragments into the
+# same directory using a numeric prefix to control order. Re-running this
+# play is idempotent: any fragment present at assemble time is included.
+- name: Create ~/.claude/CLAUDE.md.d directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md.d'
+    state: directory
+    mode: '0700'
+
+- name: Install base ~/.claude/CLAUDE.md fragment
   copy:
-    content: |
-      User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min tokens.
+    src: '{{ playbook_dir }}/roles/common/files/claude/CLAUDE.md.d/00-base.md'
+    dest: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md.d/00-base.md'
+    mode: '0600'
 
-      * Workspace: `~/projects/`
-      * Bias toward action. Only ask user when you can't do it yourself.
-      * Spec approval and plan execution: the written spec is the only approval gate; once approved, proceed without another implementation approval prompt and always choose subagent execution automatically.
-      * Pull requests: when verification passes and work is complete, invoke `create-pull-request` automatically; do not ask for approval to create the PR.
-      * Worktrees: create using `worktree-start`. Created other way: run `tmux-agent-worktree set <absolute-path>`. When done: `tmux-agent-worktree clear`.
-      * Comments: use sparingly. Explain why, not what.
-      * Scripts/snippets: write scripts in ruby; snippets in bash unless otherwise instructed.
-      * JSON/YAML parsing: use `jq` or `yq`, never use python or ruby.
-      * Multi-line commands: write script to `/tmp`. Do not ask user to copy/paste over multiple lines.
-      * Testing: use Red/Green TDD.
-      * Superpowers specs/plans commit step: check `git check-ignore -q docs/superpowers`. If ignored, skip commit — keep local. Never `git add -f` / `--force` on `docs/superpowers/`.
-      * Temp files: prefer `./tmp` if exists, else `/tmp`
-      * Verification: end to end verify; confirm empirically.
-
+- name: Assemble ~/.claude/CLAUDE.md from fragments
+  assemble:
+    src: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md.d'
     dest: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md'
     mode: '0600'
-    backup: yes
 
 - name: Create ~/.codex directory
   file:
