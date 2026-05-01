@@ -481,20 +481,12 @@
         local likeHotkeyObjects = bindAppleMusicHotkey({"cmd"}, "L", favoriteCurrentSong)
         local dislikeHotkeyObjects = bindAppleMusicHotkey({"cmd"}, "D", suggestLessAndSkip)
 
-        -- Periodic terminal-slowness sampler. Fires mac-slow-sample every 60s
-        -- (and once at startup). The timer is stashed on `hs` so it survives
-        -- Lua chunk scope — timers held only via `local` get GC'd after
-        -- init.lua finishes loading.
-        local macSlowSampler = os.getenv("HOME") .. "/.local/bin/mac-slow-sample"
-        local function runMacSlowSample()
-          local f = io.open(macSlowSampler, "r")
-          if not f then return end
-          f:close()
-          hs.task.new(macSlowSampler, nil):start()
-        end
-        runMacSlowSample()
-        if hs._macSlowTimer then hs._macSlowTimer:stop() end
-        hs._macSlowTimer = hs.timer.doEvery(60, runMacSlowSample)
+        -- Plugin hook: source ~/.hammerspoon/init.local.lua if it exists.
+        -- Personal/per-host extensions (timers, hotkeys, watchers) belong
+        -- there so this managed file stays generic.
+        local localInit = os.getenv("HOME") .. "/.hammerspoon/init.local.lua"
+        local f = io.open(localInit, "r")
+        if f then f:close(); dofile(localInit) end
     dest: ~/.hammerspoon/init.lua
     mode: '0644'
 
