@@ -31,13 +31,97 @@ pathprepend "$HOME/.local/bin"
 pathprepend "${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
 export PATH
 
-reusable=""
-if sessions="$(tmux list-sessions -F '#{session_attached}'$'\t''#{session_name}' 2>/dev/null)"; then
-  debug_log "list-sessions OK; sessions: $(printf '%s' "$sessions" | tr '\n' '|')"
-  reusable="$(printf '%s\n' "$sessions" | awk -F'\t' '$1 == "0" { print $2; exit }')"
+# Cross-platform mkdir-based lock. Several terminal windows can run this
+# script in parallel on login (terminal restoring its previous windows);
+# without serialization the bootstrap path below would race and only one
+# of N parallel restores would finish, leaving us with a mix of restored
+# and empty sessions. We use mkdir because flock(1) isn't available on
+# stock macOS. The PID file lets us reclaim a stale lock left by a
+# crashed prior run.
+LOCK_DIR="${TMUX_ATTACH_LOCK_DIR:-/tmp/tmux-attach-or-new.lock.d}"
+LOCK_PID_FILE="$LOCK_DIR/pid"
+LOCK_TIMEOUT="${TMUX_ATTACH_LOCK_TIMEOUT:-30}"
+lock_acquired=0
+
+acquire_lock() {
+  local elapsed=0
+  while true; do
+    if mkdir "$LOCK_DIR" 2>/dev/null; then
+      printf '%s' "$$" > "$LOCK_PID_FILE" 2>/dev/null || true
+      lock_acquired=1
+      debug_log "lock acquired"
+      return 0
+    fi
+    if [ -f "$LOCK_PID_FILE" ]; then
+      local holder
+      holder="$(cat "$LOCK_PID_FILE" 2>/dev/null || true)"
+      if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
+        debug_log "stale lock from pid=$holder, reclaiming"
+        rm -rf "$LOCK_DIR"
+        continue
+      fi
+    fi
+    if [ "$elapsed" -ge "$LOCK_TIMEOUT" ]; then
+      debug_log "lock timeout after ${LOCK_TIMEOUT}s, proceeding without lock"
+      return 1
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+}
+
+release_lock() {
+  if [ "$lock_acquired" = "1" ] && [ -d "$LOCK_DIR" ]; then
+    rm -rf "$LOCK_DIR"
+    lock_acquired=0
+    debug_log "lock released"
+  fi
+}
+
+trap release_lock EXIT
+acquire_lock || true   # Best-effort; on timeout we still proceed.
+
+# Single list-sessions to determine both server presence and unattached set.
+sessions_output=""
+has_server=0
+if sessions_output="$(tmux list-sessions -F '#{session_attached}'$'\t''#{session_name}' 2>/dev/null)"; then
+  has_server=1
+  debug_log "list-sessions OK; sessions: $(printf '%s' "$sessions_output" | tr '\n' '|')"
 else
   debug_log "list-sessions FAILED (no server yet)"
 fi
+
+if [ "$has_server" = "0" ]; then
+  # First launch — boot the server with a placeholder session, then run
+  # tmux-resurrect's restore directly. Continuum's auto-restore is off
+  # (see tmux.conf) because its multi-tmux-process heuristic silently
+  # skips when several windows race to start the server.
+  debug_log "bootstrapping: tmux new-session -d -s __bootstrap__"
+  tmux new-session -d -s __bootstrap__
+
+  resurrect="$HOME/.tmux/plugins/tmux-resurrect/scripts/restore.sh"
+  if [ -x "$resurrect" ]; then
+    debug_log "running resurrect restore: $resurrect"
+    "$resurrect" >>"$DEBUG_LOG" 2>&1 || debug_log "resurrect restore exited non-zero"
+  else
+    debug_log "resurrect restore not found at $resurrect"
+  fi
+
+  # If restore brought in additional sessions, drop the placeholder so
+  # we don't attach to it.
+  sessions_output="$(tmux list-sessions -F '#{session_attached}'$'\t''#{session_name}' 2>/dev/null || true)"
+  count="$(printf '%s\n' "$sessions_output" | grep -c . || true)"
+  if [ "${count:-0}" -gt 1 ]; then
+    debug_log "restore created ${count} sessions, killing __bootstrap__"
+    tmux kill-session -t __bootstrap__ 2>/dev/null || true
+    sessions_output="$(tmux list-sessions -F '#{session_attached}'$'\t''#{session_name}' 2>/dev/null || true)"
+  fi
+fi
+
+reusable="$(printf '%s\n' "$sessions_output" | awk -F'\t' '$1 == "0" { print $2; exit }')"
+
+release_lock
+trap - EXIT
 
 if [ -n "$reusable" ]; then
   debug_log "ATTACHING to existing session: $reusable"

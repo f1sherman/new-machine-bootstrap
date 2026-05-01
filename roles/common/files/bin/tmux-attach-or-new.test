@@ -14,51 +14,78 @@ trap 'rm -rf "$TMPROOT"' EXIT
 
 pass=0
 fail=0
-LIST_SESSIONS_CMD=$'list-sessions -F #{session_attached}\t#{session_name}'
 
-run_case() {
-  local name="$1" list_output="$2" list_behavior="$3" expected_log="$4"
-  local fake_home bindir log rc
-
-  fake_home="$(mktemp -d "$TMPROOT/home.XXXXXX")"
-  # Fake tmux lives in $HOME/.local/bin so the script's PATH normalization
-  # (which prepends $HOME/.local/bin) puts it ahead of the real tmux.
-  bindir="$fake_home/.local/bin"
-  mkdir -p "$bindir"
-  log="$(mktemp "$TMPROOT/tmux.XXXXXX")"
-
-  cat > "$bindir/tmux" <<'EOF'
+# Stateful tmux mock. Sessions live in a TSV state file (attached<TAB>name).
+# list-sessions reads it; new-session/kill-session mutate it. attach is a
+# no-op (we just check that the script exec'd attach as its last call).
+make_mock_tmux() {
+  cat > "$1" <<'EOF'
 #!/usr/bin/env bash
 set -eu
-
 printf '%s\n' "$*" >> "$TMUX_ATTACH_LOG"
-
-case "${1:-}" in
+op="${1:-}"; shift || true
+state="$TMUX_ATTACH_STATE"
+case "$op" in
   list-sessions)
-    case "${TMUX_ATTACH_LIST_BEHAVIOR:-normal}" in
-      fail)
-        exit 1
-        ;;
-    esac
-    if [ -n "$TMUX_ATTACH_LIST" ]; then
-      printf '%s\n' "$TMUX_ATTACH_LIST"
+    [ -s "$state" ] || exit 1
+    cat "$state"
+    ;;
+  new-session)
+    name=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -d|-A) shift ;;
+        -s) name="${2:-}"; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    if [ -z "$name" ]; then
+      n=0
+      while grep -q $'\t'"$n"$ "$state" 2>/dev/null; do n=$((n+1)); done
+      name="$n"
     fi
+    printf '0\t%s\n' "$name" >> "$state"
     ;;
-  attach|new-session)
-    exit 0
+  kill-session)
+    target=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -t) target="${2:-}"; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    grep -v $'\t'"$target"$ "$state" > "$state.tmp" 2>/dev/null || :
+    mv -f "$state.tmp" "$state" 2>/dev/null || :
     ;;
+  attach) : ;;
   *)
-    printf 'unexpected tmux invocation: %s\n' "$*" >&2
+    printf 'unexpected tmux invocation: %s %s\n' "$op" "$*" >&2
     exit 99
     ;;
 esac
 EOF
-  chmod +x "$bindir/tmux"
+  chmod +x "$1"
+}
+
+run_case() {
+  local name="$1" initial_state="$2" expected_last="$3"
+  local fake_home bindir log state lock rc last_invocation
+
+  fake_home="$(mktemp -d "$TMPROOT/home.XXXXXX")"
+  bindir="$fake_home/.local/bin"
+  mkdir -p "$bindir"
+  log="$fake_home/tmux.log"
+  state="$fake_home/state"
+  lock="$fake_home/lock.d"
+  printf '%s' "$initial_state" > "$state"
+
+  make_mock_tmux "$bindir/tmux"
 
   if PATH="$bindir:$PATH" \
     TMUX_ATTACH_LOG="$log" \
-    TMUX_ATTACH_LIST="$list_output" \
-    TMUX_ATTACH_LIST_BEHAVIOR="$list_behavior" \
+    TMUX_ATTACH_STATE="$state" \
+    TMUX_ATTACH_LOCK_DIR="$lock" \
+    TMUX_ATTACH_LOCK_TIMEOUT=2 \
     HOME="$fake_home" \
     "$SCRIPT"
   then
@@ -67,14 +94,17 @@ EOF
     rc=$?
   fi
 
-  if [ "$rc" -eq 0 ] && diff -u <(printf '%s\n' "$expected_log") "$log" >/dev/null; then
+  last_invocation="$(tail -1 "$log" 2>/dev/null || echo)"
+  if [ "$rc" -eq 0 ] && [ "$last_invocation" = "$expected_last" ]; then
     pass=$((pass + 1))
     printf 'PASS  %s\n' "$name"
   else
     fail=$((fail + 1))
     printf 'FAIL  %s\n' "$name"
     printf '      rc: %s\n' "$rc"
-    printf '      log:\n'
+    printf '      last invocation: %s\n' "$last_invocation"
+    printf '      expected:        %s\n' "$expected_last"
+    printf '      full log:\n'
     sed 's/^/        /' "$log"
   fi
 }
@@ -82,30 +112,17 @@ EOF
 run_case \
   "first unattached session is reused" \
   $'1\tbusy\n0\talpha\n0\tbeta' \
-  "normal" \
-  "${LIST_SESSIONS_CMD}
-attach -t =alpha"
+  "attach -t =alpha"
 
 run_case \
   "all sessions attached starts a new one" \
   $'1\tbusy\n1\tother' \
-  "normal" \
-  "${LIST_SESSIONS_CMD}
-new-session"
+  "new-session"
 
 run_case \
-  "no sessions starts a new one" \
+  "no server bootstraps and attaches to placeholder when restore is unavailable" \
   "" \
-  "normal" \
-  "${LIST_SESSIONS_CMD}
-new-session"
-
-run_case \
-  "list-sessions failure (no server) starts a new one" \
-  "" \
-  "fail" \
-  "${LIST_SESSIONS_CMD}
-new-session"
+  "attach -t =__bootstrap__"
 
 printf '\n'
 printf 'passed=%s failed=%s\n' "$pass" "$fail"
