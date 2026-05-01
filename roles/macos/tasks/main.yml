@@ -480,6 +480,13 @@
         -- Bind the hotkeys for Apple Music
         local likeHotkeyObjects = bindAppleMusicHotkey({"cmd"}, "L", favoriteCurrentSong)
         local dislikeHotkeyObjects = bindAppleMusicHotkey({"cmd"}, "D", suggestLessAndSkip)
+
+        -- Plugin hook: source ~/.hammerspoon/init.local.lua if it exists.
+        -- Personal/per-host extensions (timers, hotkeys, watchers) belong
+        -- there so this managed file stays generic.
+        local localInit = os.getenv("HOME") .. "/.hammerspoon/init.local.lua"
+        local f = io.open(localInit, "r")
+        if f then f:close(); dofile(localInit) end
     dest: ~/.hammerspoon/init.lua
     mode: '0644'
 
