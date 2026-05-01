@@ -15,4 +15,19 @@ input="$(cat)"
 session_id="$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)"
 [ -n "$session_id" ] && [ "$session_id" != "null" ] || exit 0
 
+# `source` distinguishes a fresh interactive startup from /clear, /compact, or
+# --resume. On startup (or unknown/legacy source), skip the overwrite when the
+# pane already has a session id — that means a nested `claude` (e.g. a skill
+# shelling out via `claude -p`) is firing the hook, and we must keep the outer
+# session id so `cldr` resumes the right one.
+source="$(printf '%s' "$input" | jq -r '.source // empty' 2>/dev/null)"
+
+case "$source" in
+  resume|clear|compact) ;;
+  *)
+    existing="$(tmux show-options -pqv -t "$TMUX_PANE" @persist_claude_session_id 2>/dev/null || true)"
+    [ -z "$existing" ] || exit 0
+    ;;
+esac
+
 tmux set-option -pt "$TMUX_PANE" @persist_claude_session_id "$session_id" >/dev/null 2>&1 || exit 0
