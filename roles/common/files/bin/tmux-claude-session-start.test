@@ -22,6 +22,10 @@ mkdir -p "$bin"
 cat > "$bin/tmux" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+if [ "${1:-}" = "show-options" ]; then
+  printf '%s' "${TMUX_TEST_EXISTING:-}"
+  exit 0
+fi
 printf '%s\n' "$*" >> "$TMUX_TEST_LOG"
 EOF
 chmod +x "$bin/tmux"
@@ -86,3 +90,59 @@ if [ -s "$log" ]; then
   fail 'malformed JSON: script must not invoke tmux'
 fi
 pass 'malformed JSON: exits 0 without invoking tmux'
+
+# Case 5: nested startup — source=startup with option already set → skip overwrite
+: > "$log"
+printf '%s' '{"session_id": "nested-uuid", "source": "startup"}' \
+  | env PATH="$bin:$PATH" TMUX=/tmp/tmux-socket TMUX_PANE=%99 \
+        TMUX_TEST_LOG="$log" TMUX_TEST_EXISTING="outer-uuid" \
+    "$SCRIPT"
+
+if [ -s "$log" ]; then
+  fail 'nested startup: must not overwrite existing session id'
+fi
+pass 'nested startup: skips when option already set'
+
+# Case 6: fresh startup — source=startup with option unset → set
+: > "$log"
+printf '%s' '{"session_id": "fresh-uuid", "source": "startup"}' \
+  | env PATH="$bin:$PATH" TMUX=/tmp/tmux-socket TMUX_PANE=%99 \
+        TMUX_TEST_LOG="$log" \
+    "$SCRIPT"
+
+rg -q -F -- '@persist_claude_session_id fresh-uuid' "$log" \
+  || fail 'fresh startup: must set session id when option unset'
+pass 'fresh startup: sets session id when option unset'
+
+# Case 7: source=clear with option set → overwrite
+: > "$log"
+printf '%s' '{"session_id": "post-clear-uuid", "source": "clear"}' \
+  | env PATH="$bin:$PATH" TMUX=/tmp/tmux-socket TMUX_PANE=%99 \
+        TMUX_TEST_LOG="$log" TMUX_TEST_EXISTING="pre-clear-uuid" \
+    "$SCRIPT"
+
+rg -q -F -- '@persist_claude_session_id post-clear-uuid' "$log" \
+  || fail 'clear: must overwrite existing session id'
+pass 'clear: overwrites existing session id'
+
+# Case 8: source=compact with option set → overwrite
+: > "$log"
+printf '%s' '{"session_id": "post-compact-uuid", "source": "compact"}' \
+  | env PATH="$bin:$PATH" TMUX=/tmp/tmux-socket TMUX_PANE=%99 \
+        TMUX_TEST_LOG="$log" TMUX_TEST_EXISTING="pre-compact-uuid" \
+    "$SCRIPT"
+
+rg -q -F -- '@persist_claude_session_id post-compact-uuid' "$log" \
+  || fail 'compact: must overwrite existing session id'
+pass 'compact: overwrites existing session id'
+
+# Case 9: source=resume with option set → overwrite
+: > "$log"
+printf '%s' '{"session_id": "resumed-uuid", "source": "resume"}' \
+  | env PATH="$bin:$PATH" TMUX=/tmp/tmux-socket TMUX_PANE=%99 \
+        TMUX_TEST_LOG="$log" TMUX_TEST_EXISTING="some-uuid" \
+    "$SCRIPT"
+
+rg -q -F -- '@persist_claude_session_id resumed-uuid' "$log" \
+  || fail 'resume: must overwrite existing session id'
+pass 'resume: overwrites existing session id'
