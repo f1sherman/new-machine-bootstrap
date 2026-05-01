@@ -281,6 +281,21 @@
     modification_time: preserve
     access_time: preserve
 
+- name: Stat Docker container directory
+  stat:
+    path: '{{ ansible_facts["user_dir"] }}/Library/Containers/com.docker.docker'
+  register: docker_container_dir
+
+- name: Exclude Docker container directory from Spotlight indexing
+  # Docker's VM disk image churns constantly and balloons mds_stores. Skip
+  # when Docker isn't installed yet so we don't create a stray dir.
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/Library/Containers/com.docker.docker/.metadata_never_index'
+    state: touch
+    modification_time: preserve
+    access_time: preserve
+  when: docker_container_dir.stat.exists
+
 - name: Remap Caps Lock to Control
   command: hidutil property --set '{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x7000000E0}]}'
   changed_when: false
