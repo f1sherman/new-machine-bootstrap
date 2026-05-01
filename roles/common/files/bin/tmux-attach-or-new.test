@@ -76,7 +76,7 @@ run_case() {
   mkdir -p "$bindir"
   log="$fake_home/tmux.log"
   state="$fake_home/state"
-  lock="$fake_home/lock.d"
+  lock="$fake_home/lock"
   printf '%s' "$initial_state" > "$state"
 
   make_mock_tmux "$bindir/tmux"
@@ -84,7 +84,7 @@ run_case() {
   if PATH="$bindir:$PATH" \
     TMUX_ATTACH_LOG="$log" \
     TMUX_ATTACH_STATE="$state" \
-    TMUX_ATTACH_LOCK_DIR="$lock" \
+    TMUX_ATTACH_LOCK_FILE="$lock" \
     TMUX_ATTACH_LOCK_TIMEOUT=2 \
     HOME="$fake_home" \
     "$SCRIPT"
