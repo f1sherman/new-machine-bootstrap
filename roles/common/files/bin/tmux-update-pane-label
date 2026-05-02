@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# tmux-update-pane-label
+# Compute the pane label via tmux-pane-label and stash it as the @pane-label
+# pane option. Designed to run from event hooks (pane-focus-in, after-split-
+# window, pane-title-changed, ...) so pane-border-format can read the cached
+# value as #{@pane-label} without re-shelling on every status refresh.
+set -u
+
+pane_id="${1:-}"
+[ -n "$pane_id" ] || exit 0
+
+# One tmux call to read everything we need. Pipe-delimited so paths with
+# spaces survive the read.
+state="$(tmux display-message -p -t "$pane_id" '#{pane_tty}|#{pane_current_path}|#{pane_current_command}' 2>/dev/null)" || exit 0
+[ -n "$state" ] || exit 0
+
+IFS='|' read -r tty path cmd <<< "$state"
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+labeler="${TMUX_PANE_LABEL_BIN:-$script_dir/tmux-pane-label}"
+[ -x "$labeler" ] || labeler="${HOME:-}/.local/bin/tmux-pane-label"
+
+label="$("$labeler" "$tty" "$path" "$cmd" "$pane_id" 2>/dev/null || true)"
+
+# Always set the option, even to empty, so the format string sees the latest
+# value. -p targets the specific pane; -t scopes the option.
+tmux set-option -pt "$pane_id" "@pane-label" "$label" 2>/dev/null || true
