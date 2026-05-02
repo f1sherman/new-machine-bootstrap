@@ -82,6 +82,24 @@ case "$cmd" in
       printf '%s\n' "$*" > "$fake_dir/display-message"
     fi
     ;;
+  list-panes)
+    target=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t)
+          target="$2"
+          shift 2
+          ;;
+        -F)
+          shift 2
+          ;;
+        *)
+          shift
+          ;;
+      esac
+    done
+    pane_exists "$target" || exit 1
+    ;;
   show-options)
     target=""
     option=""

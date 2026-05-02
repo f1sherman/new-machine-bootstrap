@@ -135,7 +135,7 @@ clear_pane_option() {
 pane_exists() {
   local pane="$1"
   [ -n "$pane" ] || return 1
-  tmux_spec_tmux display-message -p -t "$pane" '#{pane_id}' >/dev/null 2>&1
+  tmux_spec_tmux list-panes -t "$pane" -F '' >/dev/null 2>&1
 }
 
 pane_path() {
