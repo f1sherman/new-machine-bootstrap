@@ -79,6 +79,27 @@ assert_output_in_dir() {
   pass "$name"
 }
 
+assert_failure_stderr_contains() {
+  local needle="$1" name="$2" stdout="$3" stderr="$4"; shift 4
+  if "$@" >"$stdout" 2>"$stderr"; then
+    fail "$name"
+  fi
+  rg -q -F "$needle" "$stderr" || fail "$name"
+  pass "$name"
+}
+
+assert_failure_stderr_contains \
+  "tmux-spec-current: tmux is required" \
+  "unset TMUX reports required precondition" \
+  "$TMPROOT/no-tmux.out" "$TMPROOT/no-tmux.err" \
+  env -u TMUX "$SCRIPT"
+
+assert_failure_stderr_contains \
+  "tmux-spec-current: pane id is required" \
+  "missing pane id reports required precondition" \
+  "$TMPROOT/no-pane.out" "$TMPROOT/no-pane.err" \
+  env -u TMUX_PANE TMUX=/tmp/tmux "$SCRIPT"
+
 repo="$TMPROOT/repo"
 make_repo "$repo"
 repo="$(git -C "$repo" rev-parse --show-toplevel)"
