@@ -23,10 +23,10 @@ Strip `refresh_token` before deploying. Hosts run on the `access_token` only, wh
    ```bash
    codex login status   # or any command that triggers refresh
    ```
-2. **Verify auth_mode is chatgpt** and read the expiry:
+2. **Verify auth_mode is chatgpt** and read the expiry. The JWT payload is base64url-encoded, so substitute `-`/`_` to `+`/`/` before `@base64d`:
    ```bash
    jq -r '.auth_mode' ~/.codex/auth.json   # expect "chatgpt"
-   jq -r '.tokens.access_token | split(".") | .[1] | @base64d | fromjson | .exp | todate' ~/.codex/auth.json
+   jq -r '.tokens.access_token | split(".") | .[1] | gsub("-";"+") | gsub("_";"/") | @base64d | fromjson | .exp | todate' ~/.codex/auth.json
    ```
 3. **Generate portable auth.json** (drops `refresh_token`, keeps everything else). Use `mktemp` so the file is created with mode `0600` from the start — never write the bearer token to a predictable, possibly-symlinked path:
    ```bash
@@ -61,6 +61,6 @@ If the user asks to "save this for next time" or "add it to the repo", refuse an
 | Want | Command |
 |------|---------|
 | Check auth mode | `jq -r .auth_mode ~/.codex/auth.json` |
-| Check access_token expiry | `jq -r '.tokens.access_token \| split(".") \| .[1] \| @base64d \| fromjson \| .exp \| todate' ~/.codex/auth.json` |
+| Check access_token expiry | `jq -r '.tokens.access_token \| split(".") \| .[1] \| gsub("-";"+") \| gsub("_";"/") \| @base64d \| fromjson \| .exp \| todate' ~/.codex/auth.json` |
 | Generate portable file | `out=$(mktemp -t codex-auth-portable.XXXXXX) && jq 'del(.tokens.refresh_token)' ~/.codex/auth.json > "$out" && echo "$out"` |
-| Deploy | `scp "$out" host:~/.codex/auth.json && ssh host chmod 600 ~/.codex/auth.json && rm "$out"` |
+| Deploy | `scp "$out" host:'~/.codex/auth.json' && ssh host 'chmod 600 ~/.codex/auth.json' && rm "$out"` |
