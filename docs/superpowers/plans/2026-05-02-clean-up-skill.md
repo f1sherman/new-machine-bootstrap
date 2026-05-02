@@ -99,7 +99,7 @@ assert_executable "$HELPER_TEST" "git-clean-up test is executable"
 assert_exists "$MONITOR_PR" "managed _monitor-pr skill exists"
 assert_exists "$MONITOR_GITHUB" "managed _monitor-github-pr skill exists"
 assert_exists "$MONITOR_FORGEJO" "managed _monitor-forgejo-pr skill exists"
-assert_contains "$MONITOR_PR" "invoke `_clean-up`" "monitor skill invokes cleanup skill on merged"
+assert_contains "$MONITOR_PR" 'invoke `_clean-up`' "monitor skill invokes cleanup skill on merged"
 assert_contains "$MONITOR_GITHUB" "git-clean-up" "GitHub monitor skill names shared helper"
 assert_contains "$MONITOR_FORGEJO" "git-clean-up" "Forgejo monitor skill names shared helper"
 
