@@ -17,6 +17,7 @@ The workflow should:
 - return the user to an up-to-date `main`
 - remove the current branch and linked worktree when safe
 - aggressively prune other already-merged local branches
+- run automatically from the pull-request monitor after a PR is merged
 - keep guardrails around dirty worktrees and ambiguous merge state
 
 The skill should act as a thin trigger over a tested helper, not a second cleanup workflow system.
@@ -28,6 +29,7 @@ The skill should act as a thin trigger over a tested helper, not a second cleanu
 - `worktree-done` already handles the happy path for a linked worktree whose branch can be rebased and merged into `main`.
 - `git-delete-branch` already knows how to remove linked worktrees safely when deleting a chosen branch.
 - `roles/macos/files/bin/cleanup-branches` already contains useful remote PR-state lookup logic for GitHub and Forgejo, but it is macOS-only and mixes merged-branch pruning with stale-branch prompting.
+- The installed pull-request monitor currently treats `merged` as a terminal state and has runtime cleanup behavior wired to `cleanup-branches --branch "$HEAD_BRANCH" --delete-remote --yes`.
 
 That means the repo already has most of the primitives, but not a shared, tested, one-shot cleanup entry point that matches the desired policy.
 
@@ -49,6 +51,8 @@ The cleanup flow should:
 - retain ambiguous or dirty branches instead of forcing deletion
 - finish with remote prune and `git gc`
 
+The pull-request monitor should invoke this same cleanup path when a monitored PR reaches the merged terminal state.
+
 The trigger should behave the same in Claude and Codex.
 
 ## Design Summary
@@ -69,6 +73,31 @@ The skill stays short and operational. It should tell the agent to run the share
 - which branches were retained and why
 
 The helper owns all repo inspection, merge detection, worktree cleanup, branch deletion, and final pruning.
+
+## Pull-Request Monitor Integration
+
+The monitor integration should replace the old merged-cleanup dependency on the macOS-only `cleanup-branches` script.
+
+When `_monitor-pr` observes a `merged` terminal state, it should invoke `_clean-up` before clearing saved monitor state. Cleanup success remains part of the merged terminal handling:
+
+- if cleanup succeeds, clear the saved monitor state and stop
+- if cleanup fails, keep enough monitor state to retry or inspect the failure
+- if cleanup reports that a remote branch was retained or a branch was retained for safety, report that partial cleanup result instead of pretending cleanup fully succeeded
+
+The shared monitor runtime should use `git-clean-up` as the concrete cleanup implementation. A runtime script cannot literally invoke an agent skill, so the implementation boundary should be:
+
+- `_monitor-pr` documents `_clean-up` as the merged-state action
+- `_clean-up` documents `git-clean-up` as the command it runs
+- the monitor runtime calls `git-clean-up` directly for non-interactive merged cleanup
+
+`git-clean-up` should therefore support a monitor-compatible mode:
+
+- `--branch <branch>` to clean a specific merged branch even when the shell's current branch is no longer that branch
+- `--repo-dir <path>` so the monitor can use its authoritative `REPO_DIR`
+- `--delete-remote` for monitor-driven cleanup after a merged PR
+- `--yes` for non-interactive operation
+
+The default no-argument mode should remain the manual `_clean-up` path for the current repository.
 
 ## Merge Detection
 
@@ -112,6 +141,8 @@ Its flow should be:
 9. sweep other merged local branches
 10. prune remote-tracking refs and run `git gc`
 11. print a short summary and exit successfully
+
+In monitor-compatible mode, the helper should use the explicit `--repo-dir` and `--branch` values as authoritative, verify that the named branch is merged by the same hybrid rules, and then perform the same deletion and sweep logic from a safe directory.
 
 Hard-stop conditions should include:
 
@@ -182,6 +213,7 @@ Implementation should verify at three levels:
    - confirm `_clean-up/SKILL.md` exists under `roles/common/files/config/skills/common/`
    - confirm `git-clean-up` exists under `roles/common/files/bin/`
    - confirm `roles/common/tasks/main.yml` installs the helper
+   - confirm managed monitor instructions invoke `_clean-up` or the shared helper for merged cleanup instead of `cleanup-branches`
 2. Helper behavior
    - add `roles/common/files/bin/git-clean-up.test`
    - cover ancestor-merged linked-worktree cleanup
@@ -189,14 +221,17 @@ Implementation should verify at three levels:
    - cover hard stops for unmerged current branch and dirty worktrees
    - cover sweep pruning of other merged plain branches
    - cover retention of lookup-failed or ambiguous branches
+   - cover monitor-compatible `--repo-dir --branch --delete-remote --yes` cleanup
 3. Provisioned install
    - run `bin/provision`
    - confirm the skill is installed to both `~/.claude/skills/_clean-up/` and `~/.codex/skills/_clean-up/`
    - confirm the helper is installed to `~/.local/bin/git-clean-up`
+   - confirm merged PR monitor behavior uses `git-clean-up` rather than `cleanup-branches`
 
 ## Risks
 
 - If merge detection relies only on ancestry, squash/rebase-merged branches will be retained incorrectly.
 - If PR-state lookup becomes the only source of truth, cleanup will fail unnecessarily when host APIs or tokens are unavailable.
 - If the helper is too aggressive around dirty linked worktrees, it could delete work the user still needs.
+- If monitor cleanup and manual `_clean-up` drift apart, merged PR cleanup will behave differently depending on how it was triggered.
 - If the skill becomes too verbose, it will duplicate helper behavior instead of acting as a concise trigger.
