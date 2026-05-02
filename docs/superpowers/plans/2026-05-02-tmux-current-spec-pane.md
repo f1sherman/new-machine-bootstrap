@@ -810,12 +810,12 @@ Add a task near the other Codex `hooks.json` tasks:
     managed_command='~/.local/bin/agent-current-spec-hook'
     if [ -f "$hooks_file" ] && jq -e --arg cmd "$managed_command" '
       .hooks.PostToolUse // []
-      | any(.matcher == "Edit|Write" and any(.hooks[]?; .type == "command" and .command == $cmd))
+      | any(.matcher == "apply_patch|Edit|Write" and any(.hooks[]?; .type == "command" and .command == $cmd))
     ' "$hooks_file" >/dev/null 2>&1; then
       echo "unchanged"
       exit 0
     fi
-    managed_entry="$(jq -n --arg cmd "$managed_command" '{matcher:"Edit|Write",hooks:[{type:"command",command:$cmd}]}')"
+    managed_entry="$(jq -n --arg cmd "$managed_command" '{matcher:"apply_patch|Edit|Write",hooks:[{type:"command",command:$cmd}]}')"
     tmp_file="$(mktemp)"
     if [ -f "$hooks_file" ] && [ -s "$hooks_file" ]; then
       jq --argjson entry "$managed_entry" '.hooks //= {} | .hooks.PostToolUse = ((.hooks.PostToolUse // []) + [$entry])' "$hooks_file" > "$tmp_file"

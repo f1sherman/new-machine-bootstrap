@@ -104,7 +104,7 @@ Claude registration:
 Codex registration:
 
 - event: `PostToolUse`
-- matcher: `Edit|Write`
+- matcher: `apply_patch|Edit|Write`
 - source path: parse `tool_input.command` patch headers:
   - `*** Add File: <path>`
   - `*** Update File: <path>`
