@@ -584,7 +584,7 @@ Expected: one commit containing managed monitor skill source.
 - Modify: `roles/common/tasks/main.yml`
 - Test: `bash tests/_clean-up-skill.sh`
 
-- [ ] **Step 6.1: Import the current monitor runtime into repo source**
+- [x] **Step 6.1: Import the current monitor runtime into repo source**
 
 Create `roles/common/files/share/skills/_pr-monitor/run.sh` from the currently installed `~/.local/share/skills/_pr-monitor/run.sh`.
 
@@ -592,7 +592,7 @@ Preserve executable mode.
 
 Also import the runtime helper scripts referenced by the managed monitor skills and by `run.sh` so fresh machines do not depend on pre-existing unmanaged files.
 
-- [ ] **Step 6.2: Remove runtime merged cleanup**
+- [x] **Step 6.2: Remove runtime merged cleanup**
 
 In `roles/common/files/share/skills/_pr-monitor/run.sh`, remove the `run_merged_cleanup` function and replace the `merged)` case with:
 
@@ -605,7 +605,7 @@ merged)
 
 The runtime should contain no `cleanup-branches` or `run_merged_cleanup` reference after this change. `_monitor-pr` owns the follow-up `_clean-up` invocation.
 
-- [ ] **Step 6.3: Install managed shared runtime files**
+- [x] **Step 6.3: Install managed shared runtime files**
 
 In `roles/common/tasks/main.yml`, add tasks near the skill install section:
 
@@ -624,7 +624,7 @@ In `roles/common/tasks/main.yml`, add tasks near the skill install section:
     directory_mode: '0755'
 ```
 
-- [ ] **Step 6.4: Run packaging regression**
+- [x] **Step 6.4: Run packaging regression**
 
 Run:
 
@@ -634,7 +634,9 @@ bash tests/_clean-up-skill.sh
 
 Expected: all checks pass.
 
-- [ ] **Step 6.5: Commit monitor runtime integration**
+Verified: `bash tests/_clean-up-skill.sh` reported `37 passed, 0 failed`.
+
+- [x] **Step 6.5: Commit monitor runtime integration**
 
 Run:
 
@@ -645,6 +647,10 @@ git commit -m "Delegate merged PR cleanup to _clean-up"
 
 Expected: one commit containing managed monitor runtime source and install tasks.
 
+Committed:
+- `b634dbf Install shared PR monitor runtime`
+- `ec25ba3 Package PR monitor runtime helpers`
+
 ## Phase 5 — Provision and verify installed behavior
 
 ### Task 7: Run focused and full verification
@@ -654,7 +660,7 @@ Expected: one commit containing managed monitor runtime source and install tasks
 - Reference: `roles/common/files/config/skills/common/_clean-up/SKILL.md`
 - Reference: `roles/common/files/share/skills/_pr-monitor/run.sh`
 
-- [ ] **Step 7.1: Run source regressions**
+- [x] **Step 7.1: Run source regressions**
 
 Run:
 
@@ -665,7 +671,11 @@ bash roles/common/files/bin/git-clean-up.test
 
 Expected: both pass.
 
-- [ ] **Step 7.2: Run related existing regressions**
+Verified:
+- `bash tests/_clean-up-skill.sh`: `37 passed, 0 failed`
+- `bash roles/common/files/bin/git-clean-up.test`: `39 passed, 0 failed`
+
+- [x] **Step 7.2: Run related existing regressions**
 
 Run:
 
@@ -677,7 +687,13 @@ bash roles/macos/files/bin/cleanup-branches.test
 
 Expected: all pass. `cleanup-branches.test` remains as compatibility coverage for the old macOS helper, even though monitor runtime no longer depends on it.
 
-- [ ] **Step 7.3: Run provisioning**
+Verified:
+- `bash roles/common/files/bin/worktree-lifecycle.test`: exited `0`
+- `bash roles/common/files/bin/git-delete-branch.test`: `32 passed, 0 failed`
+- `bash roles/macos/files/bin/cleanup-branches.test`: passed
+- `ansible-playbook playbook.yml --syntax-check`: passed
+
+- [x] **Step 7.3: Run provisioning**
 
 Run:
 
@@ -693,16 +709,23 @@ Expected: provisioning completes and installs:
 - `~/.claude/skills/_monitor-pr/SKILL.md`
 - `~/.codex/skills/_monitor-pr/SKILL.md`
 - `~/.local/share/skills/_pr-monitor/run.sh`
+- `~/.local/share/skills/_pr-monitor/state.sh`
+- `~/.local/share/skills/_pr-workflow-common/`
+- `~/.local/share/skills/_pr-github/`
+- `~/.local/share/skills/_pr-forgejo/`
 
 If full provisioning is blocked by host sudo requirements, create a temporary focused Ansible playbook under `/tmp` that runs only the relevant copy tasks from `roles/common/tasks/main.yml`, then report that limitation explicitly.
 
-- [ ] **Step 7.4: Verify installed files match managed source**
+Verified: `bin/provision` completed with `failed=0`; log `/tmp/provision-20260502-115328.log`.
+
+- [x] **Step 7.4: Verify installed files match managed source**
 
 Run:
 
 ```bash
 cmp -s roles/common/files/config/skills/common/_clean-up/SKILL.md ~/.claude/skills/_clean-up/SKILL.md
 cmp -s roles/common/files/config/skills/common/_clean-up/SKILL.md ~/.codex/skills/_clean-up/SKILL.md
+cmp -s roles/common/files/bin/git-clean-up ~/.local/bin/git-clean-up
 cmp -s roles/common/files/share/skills/_pr-monitor/run.sh ~/.local/share/skills/_pr-monitor/run.sh
 rg -n -F 'invoke `_clean-up`' ~/.claude/skills/_monitor-pr/SKILL.md ~/.codex/skills/_monitor-pr/SKILL.md
 rg -n -F 'run_merged_cleanup' ~/.local/share/skills/_pr-monitor/run.sh && exit 1 || true
@@ -711,7 +734,9 @@ rg -n -F 'cleanup-branches' ~/.local/share/skills/_pr-monitor/run.sh && exit 1 |
 
 Expected: `cmp` commands exit `0`; `_monitor-pr` invokes `_clean-up`; installed runtime contains neither `run_merged_cleanup` nor `cleanup-branches`.
 
-- [ ] **Step 7.5: Commit final verification record**
+Verified: focused install check script reported `install checks passed`.
+
+- [x] **Step 7.5: Commit final verification record**
 
 Update checked boxes and any verified-command notes in this plan, then run:
 
