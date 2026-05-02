@@ -28,12 +28,13 @@ Strip `refresh_token` before deploying. Hosts run on the `access_token` only, wh
    jq -r '.auth_mode' ~/.codex/auth.json   # expect "chatgpt"
    jq -r '.tokens.access_token | split(".") | .[1] | @base64d | fromjson | .exp | todate' ~/.codex/auth.json
    ```
-3. **Generate portable auth.json** (drops `refresh_token`, keeps everything else):
+3. **Generate portable auth.json** (drops `refresh_token`, keeps everything else). Use `mktemp` so the file is created with mode `0600` from the start — never write the bearer token to a predictable, possibly-symlinked path:
    ```bash
-   jq 'del(.tokens.refresh_token)' ~/.codex/auth.json > /tmp/codex-auth-portable.json
-   chmod 600 /tmp/codex-auth-portable.json
+   out=$(mktemp -t codex-auth-portable.XXXXXX)
+   jq 'del(.tokens.refresh_token)' ~/.codex/auth.json > "$out"
+   echo "$out"
    ```
-4. **Deploy** to each headless host at `~/.codex/auth.json` with `0600` perms. Use `scp`, `ansible-playbook --extra-vars`, etc. — whatever the user's provisioning flow is.
+4. **Deploy** to each headless host at `~/.codex/auth.json` with `0600` perms. Use `scp`, `ansible-playbook --extra-vars`, etc. — whatever the user's provisioning flow is. Delete `$out` after deployment (`shred -u "$out"` if available, else `rm "$out"`).
 5. **Tell the user the expiry timestamp** so they know when to redeploy.
 
 ## Critical guidance — do NOT hard-code
@@ -61,5 +62,5 @@ If the user asks to "save this for next time" or "add it to the repo", refuse an
 |------|---------|
 | Check auth mode | `jq -r .auth_mode ~/.codex/auth.json` |
 | Check access_token expiry | `jq -r '.tokens.access_token \| split(".") \| .[1] \| @base64d \| fromjson \| .exp \| todate' ~/.codex/auth.json` |
-| Generate portable file | `jq 'del(.tokens.refresh_token)' ~/.codex/auth.json > /tmp/codex-auth-portable.json && chmod 600 /tmp/codex-auth-portable.json` |
-| Deploy | `scp /tmp/codex-auth-portable.json host:~/.codex/auth.json && ssh host chmod 600 ~/.codex/auth.json` |
+| Generate portable file | `out=$(mktemp -t codex-auth-portable.XXXXXX) && jq 'del(.tokens.refresh_token)' ~/.codex/auth.json > "$out" && echo "$out"` |
+| Deploy | `scp "$out" host:~/.codex/auth.json && ssh host chmod 600 ~/.codex/auth.json && rm "$out"` |
