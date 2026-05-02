@@ -153,6 +153,8 @@ def ancestor_merged?(branch, main_branch, git_dir:)
 end
 
 def pr_state_github(owner_repo, branch, git_dir:)
+  return 'LOOKUP_FAILED' unless command_available?('gh')
+
   local_sha = run_git(['rev-parse', '--verify', "#{branch}^{commit}"], git_dir: git_dir, allow_failure: true).output
   result = run_command_args(['gh', 'api', "repos/#{owner_repo}/pulls?state=all&per_page=100"], allow_failure: true)
   return 'LOOKUP_FAILED' unless result.success?
@@ -167,7 +169,7 @@ def pr_state_github(owner_repo, branch, git_dir:)
   return 'MERGED' if pr['merged_at']
 
   pr['state']&.upcase
-rescue JSON::ParserError
+rescue JSON::ParserError, SystemCallError
   'LOOKUP_FAILED'
 end
 

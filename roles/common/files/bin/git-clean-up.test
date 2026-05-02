@@ -115,7 +115,7 @@ run_cleanup() {
 
   if (
     cd "$repo_dir" &&
-    PATH="$TMPROOT/bin:$PATH" \
+    PATH="${FAKE_CLEANUP_PATH:-$TMPROOT/bin:$PATH}" \
     FAKE_GH_LOG="${FAKE_GH_LOG:-}" \
     FAKE_GH_EXIT="${FAKE_GH_EXIT:-}" \
     FAKE_GH_STATE_JSON="${FAKE_GH_STATE_JSON:-[]}" \
@@ -407,6 +407,24 @@ rc="$(run_cleanup "$current_wt" "$stdout" "$stderr")"
 unset FAKE_GH_EXIT
 assert_eq "sweep lookup-failed returns success" "0" "$rc"
 assert_branch_present "sweep retains lookup-failed branch" "$repo" feature/sweep-lookup-retained
+
+# --- Sweep: missing gh retains branch when ancestry does not prove merge ---
+repo="$(create_origin_repo sweep-missing-gh)"
+current_wt="$(make_linked_branch "$repo" feature/sweep-missing-gh-current "$TMPROOT/sweep-missing-gh-current-wt")"
+make_commit "$current_wt" sweep-missing-gh-current
+merge_branch_to_main "$repo" feature/sweep-missing-gh-current
+make_plain_branch_commit "$repo" feature/sweep-missing-gh-retained sweep-missing-gh-retained
+stdout="$TMPROOT/sweep-missing-gh.out"
+stderr="$TMPROOT/sweep-missing-gh.err"
+no_gh_bin="$TMPROOT/no-gh-bin"
+mkdir -p "$no_gh_bin"
+make_tmux_stub "$no_gh_bin"
+FAKE_CLEANUP_PATH="$no_gh_bin:/usr/bin:/bin"
+FAKE_GH_STATE_JSON=""
+rc="$(run_cleanup "$current_wt" "$stdout" "$stderr")"
+unset FAKE_CLEANUP_PATH
+assert_eq "sweep missing gh returns success" "0" "$rc"
+assert_branch_present "sweep retains missing-gh branch" "$repo" feature/sweep-missing-gh-retained
 
 # --- Sweep: dirty linked worktree for another branch is retained and reported ---
 repo="$(create_origin_repo sweep-dirty-linked)"
