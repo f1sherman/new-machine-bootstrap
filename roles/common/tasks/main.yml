@@ -228,6 +228,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/cldr'
     mode: 0755
 
+- name: Install cdxr script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/cdxr'
+    src: '{{ playbook_dir }}/roles/common/files/bin/cdxr'
+    mode: 0755
+
 - name: Install _recover-agent-sessions helper
   copy:
     backup: yes
