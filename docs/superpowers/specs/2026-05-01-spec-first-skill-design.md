@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add a managed shared skill for users who want design discipline but do not want the agent to ask clarifying questions. The skill should turn a rough request into a written design spec by making reasonable assumptions, documenting those assumptions, and stopping at the written-spec approval gate before implementation planning.
+Add managed shared skills for users who want design discipline but do not want the agent to ask clarifying questions. `_spec-first` should turn a rough request into a written design spec by making reasonable assumptions, documenting those assumptions, and stopping at the written-spec approval gate before implementation planning. `_spec-to-plan` should do the same design work, self-approve the spec, and move directly to implementation planning.
 
 ## Non-Goals
 
@@ -10,17 +10,19 @@ Add a managed shared skill for users who want design discipline but do not want 
 - Do not change the pinned `obra/superpowers` version.
 - Do not add runtime-specific Claude or Codex variants unless shared wording is insufficient.
 - Do not weaken the Superpowers hard gate against any implementation action before spec approval.
+- Do not let `_spec-to-plan` invoke implementation skills directly; it may only move to `writing-plans`.
 
 ## Assumptions
 
 - This repository is the source of truth for Brian's managed skills.
 - Shared skills belong under `roles/common/files/config/skills/common/` and are copied into both `~/.claude/skills/` and `~/.codex/skills/`.
-- The managed skill should use the repository's underscore naming convention: `_spec-first`.
+- The managed skills should use the repository's underscore naming convention: `_spec-first` and `_spec-to-plan`.
 - A standalone skill is safer than relying on another named skill, because future agents using `_spec-first` may not know any external process it references.
+- A read-only reviewer subagent can improve the silent question and approval pass when the runtime supports subagents, but the main agent must own the final spec.
 
 ## Approaches
 
-Recommended: create `roles/common/files/config/skills/common/_spec-first/SKILL.md`. It inlines the design process: context exploration, scope assessment, alternatives, design-quality guidance, spec writing, self-review, user review, and transition to `writing-plans`. It replaces clarifying questions with assumptions and replaces section approvals with one written-spec approval.
+Recommended: create `roles/common/files/config/skills/common/_spec-first/SKILL.md` and `roles/common/files/config/skills/common/_spec-to-plan/SKILL.md`. Both inline the design process: context exploration, scope assessment, a silent question pass, alternatives, internal design approval, design-quality guidance, spec writing, and self-review. `_spec-first` asks the user to review the written spec before planning. `_spec-to-plan` self-approves the spec and invokes `writing-plans` immediately.
 
 Alternative: modify the upstream Superpowers checkout. That works only on the current machine and gets lost on future provisioning, so it is not source controlled by this repo.
 
@@ -28,21 +30,31 @@ Alternative: add Claude-specific and Codex-specific variants. That adds duplicat
 
 ## Design
 
-The new shared skill will:
+The `_spec-first` shared skill will:
 
 - Trigger when the user asks to skip questions, make assumptions, or just deliver a Superpowers-style spec.
 - Be self-contained; do not require the agent to know another named design skill.
 - Preserve the no-implementation hard gate, including "or take any implementation action" coverage.
 - Require local context exploration before writing.
 - Require scope assessment and decomposition for oversized requests.
+- Run a silent question pass and answer likely clarifying questions internally.
+- Use one read-only reviewer subagent for the silent question and approval pass when subagents are available.
 - Skip non-blocking clarifying questions.
 - Document assumptions in the spec.
 - Include alternatives and a recommended approach.
+- Run internal design-section approvals before producing the written spec.
 - Include design guidance for isolated components, existing-codebase fit, and targeted refactoring.
 - Save the spec to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` unless the user specifies another location.
 - Self-review the spec for unfinished markers, contradictions, ambiguity, and scope drift.
 - Always check whether `docs/superpowers` is ignored before committing the design spec; when it is ignored, keep the spec local.
 - Ask the user to review the written spec before invoking `writing-plans`.
+
+The `_spec-to-plan` shared skill will use the same design workflow, but after self-review it will:
+
+- Skip user spec approval.
+- Self-approve the written spec only when assumptions, scope, approach, and verification are coherent.
+- Invoke `writing-plans` immediately.
+- Continue to block implementation action from the skill itself.
 
 No Ansible task changes are needed because existing common-skill install tasks already copy `roles/common/files/config/skills/common/` to both agent skill directories.
 
@@ -59,11 +71,14 @@ If the user requests changes after reviewing the spec, the agent updates the spe
 Verify that:
 
 - `roles/common/files/config/skills/common/_spec-first/SKILL.md` exists.
+- `roles/common/files/config/skills/common/_spec-to-plan/SKILL.md` exists.
 - No runtime-specific `_spec-first` override exists under `roles/common/files/config/skills/claude/` or `roles/common/files/config/skills/codex/`.
+- No runtime-specific `_spec-to-plan` override exists under `roles/common/files/config/skills/claude/` or `roles/common/files/config/skills/codex/`.
 - The skill has canonical frontmatter and skip-question wording.
 - The skill does not reference another named design skill for its core process.
 - The skill preserves the implementation gate, including "or take any implementation action", and the `writing-plans` transition.
 - The skill includes the anti-pattern warning, isolation guidance, existing-codebase guidance, and spec self-review details inline.
 - The skill always checks ignored `docs/superpowers` paths before committing the spec for review.
+- `_spec-to-plan` skips user spec review, self-approves the spec, and invokes `writing-plans` immediately.
 - Existing common-skill installation tasks still target both Claude and Codex.
-- The repository's targeted skill regression test passes.
+- The repository's targeted skill regression tests pass.

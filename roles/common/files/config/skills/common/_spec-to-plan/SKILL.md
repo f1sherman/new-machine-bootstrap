@@ -1,23 +1,25 @@
 ---
-name: _spec-first
+name: _spec-to-plan
 description: >
-  Use when a user wants a design/spec for a feature, change, or plan
-  but explicitly asks to skip clarifying questions, make reasonable assumptions,
-  or just deliver the spec.
+  Use when a user wants a design/spec and implementation plan for a feature,
+  change, or plan but explicitly asks to skip clarifying questions, make
+  assumptions, skip spec approval, or proceed directly to planning.
 ---
 
-# Spec-First Design
+# Spec To Plan
 
-Turn rough ideas into design specs without an interactive question loop.
+Turn rough ideas into a self-approved design spec, then move directly to
+implementation planning without an interactive question or spec-approval loop.
 
 Start by understanding local context, infer reasonable assumptions, compare
-approaches, write one complete spec, self-review it, then stop for user approval
-before implementation planning.
+approaches, write one complete spec, self-review it, self-approve it, then
+invoke `writing-plans` immediately.
 
 <HARD-GATE>
 Do NOT invoke implementation skills, write production code, scaffold projects,
-modify target behavior, or take any implementation action until the written
-spec has been reviewed and approved by the user.
+modify target behavior, or take any implementation action from this skill.
+This skill may only create and self-approve the written spec, then invoke
+`writing-plans`.
 </HARD-GATE>
 
 ## Anti-Pattern: "This Is Too Simple To Need A Design"
@@ -25,7 +27,7 @@ spec has been reviewed and approved by the user.
 Every project goes through this process. A todo list, a single-function utility,
 and a config change all still need a design. Simple projects are where
 unexamined assumptions cause wasted work. The spec can be short, but you must
-write it and get approval.
+write it before planning.
 
 ## Checklist
 
@@ -40,8 +42,8 @@ Create a task for each item and complete them in order:
 7. **Write design spec** - save to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` unless the user gave another path.
 8. **Self-review spec** - fix placeholders, contradictions, ambiguous requirements, and scope drift inline.
 9. **Commit design spec** - commit the spec unless repo instructions say to keep it local.
-10. **User reviews written spec** - ask the user to review the file and approve or request changes.
-11. **Transition to implementation planning** - after approval, invoke `writing-plans`.
+10. **Self-approve spec** - mark the spec approved internally.
+11. **Transition to implementation planning** - invoke `writing-plans` immediately.
 
 The terminal state is invoking `writing-plans`. Do not invoke implementation
 skills directly from this skill.
@@ -63,7 +65,7 @@ plan, and implementation cycle.
 
 ### Skip Questions By Default
 
-Do not ask preference, discovery, approach-selection, or section-approval questions. Make a conservative assumption and record it.
+Do not ask preference, discovery, approach-selection, section-approval, or spec-approval questions. Make a conservative assumption and record it.
 
 Ask one blocking question only when proceeding would be unsafe or likely wrong:
 
@@ -146,7 +148,7 @@ improvements as part of the design. Do not propose unrelated refactoring.
 
 ## Review Gate
 
-Commit the design spec before asking for review. Always run `git check-ignore -q docs/superpowers` before committing. When that path is ignored, keep the spec local and do not force-add it.
+Commit the design spec before planning. Always run `git check-ignore -q docs/superpowers` before committing. When that path is ignored, keep the spec local and do not force-add it.
 
 ### Spec Self-Review
 
@@ -157,16 +159,20 @@ After writing the spec document, review it with fresh eyes:
 3. **Scope check:** Confirm the spec is focused enough for a single implementation plan.
 4. **Ambiguity check:** If a requirement could be read two ways, pick one and make it explicit.
 
-Fix issues inline before asking the user to review the spec.
+Fix issues inline before self-approving the spec.
 
-### User Review
+### Self-Approve The Spec
 
-After self-review:
+Do not ask the user to review the spec. Instead, perform the approval check
+internally:
 
-> Spec written to `<path>`. Please review it and let me know if you want changes before I write the implementation plan.
+- The spec answers the silent questions or records assumptions.
+- The recommended approach follows existing project patterns.
+- The scope fits one implementation plan.
+- The testing and verification plan is concrete.
+- No blockers require user input.
 
-Wait for the user's response.
-
-If they request changes, update the spec and self-review again. If they approve,
-invoke `writing-plans`. Do not invoke implementation skills before
+If any item fails, revise the spec and repeat self-review. When all pass, mark
+the spec as self-approved in your working notes or final spec status, then
+invoke `writing-plans` immediately. Do not invoke implementation skills before
 `writing-plans`.
