@@ -1,0 +1,398 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-spec-open"
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+pass() { printf 'PASS  %s\n' "$1"; }
+fail() { printf 'FAIL  %s\n' "$1" >&2; exit 1; }
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+make_fake_tmux() {
+  local fake_tmux="$1"
+  cat > "$fake_tmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+fake_dir="${TMUX_SPEC_FAKE_DIR:?}"
+
+if [ "${1:-}" = "-L" ]; then
+  shift 2
+fi
+
+cmd="${1:?}"
+shift || true
+
+pane_exists() {
+  awk -F $'\t' -v pane="$1" '$1 == pane { found = 1 } END { exit found ? 0 : 1 }' "$fake_dir/panes.tsv"
+}
+
+pane_path() {
+  awk -F $'\t' -v pane="$1" '$1 == pane { print $2; exit }' "$fake_dir/panes.tsv"
+}
+
+get_option() {
+  local pane="$1" option="$2"
+  local path="$fake_dir/options/${pane}.${option}"
+  [ -f "$path" ] || return 0
+  cat "$path"
+}
+
+set_option() {
+  local pane="$1" option="$2" value="$3"
+  mkdir -p "$fake_dir/options"
+  printf '%s\n' "$value" > "$fake_dir/options/${pane}.${option}"
+}
+
+clear_option() {
+  local pane="$1" option="$2"
+  rm -f "$fake_dir/options/${pane}.${option}"
+}
+
+case "$cmd" in
+  display-message)
+    if [ "${1:-}" = "-p" ]; then
+      shift
+      target=""
+      if [ "${1:-}" = "-t" ]; then
+        target="$2"
+        shift 2
+      fi
+      format="${1:-}"
+      case "$format" in
+        '#{pane_id}')
+          pane_exists "$target" || exit 1
+          printf '%s\n' "$target"
+          ;;
+        '#{pane_current_path}')
+          pane_exists "$target" || exit 1
+          pane_path "$target"
+          ;;
+        *)
+          exit 1
+          ;;
+      esac
+    else
+      printf '%s\n' "$*" > "$fake_dir/display-message"
+    fi
+    ;;
+  list-panes)
+    target=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t)
+          target="$2"
+          shift 2
+          ;;
+        -F)
+          shift 2
+          ;;
+        *)
+          shift
+          ;;
+      esac
+    done
+    pane_exists "$target" || exit 1
+    ;;
+  show-options)
+    target=""
+    option=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -pt)
+          target="$2"
+          shift 2
+          ;;
+        -qv|-p)
+          shift
+          ;;
+        -t)
+          target="$2"
+          shift 2
+          ;;
+        *)
+          option="$1"
+          shift
+          ;;
+      esac
+    done
+    get_option "$target" "$option"
+    ;;
+  set-option)
+    unset_flag=0
+    target=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -u)
+          unset_flag=1
+          shift
+          ;;
+        -p|-q)
+          shift
+          ;;
+        -t|-pt)
+          target="$2"
+          shift 2
+          ;;
+        *)
+          option="$1"
+          value="${2:-}"
+          shift 2 || true
+          break
+          ;;
+      esac
+    done
+    if [ "$unset_flag" -eq 1 ]; then
+      clear_option "$target" "$option"
+    else
+      set_option "$target" "$option" "$value"
+    fi
+    ;;
+  split-window)
+    target=""
+    path=""
+    format=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t)
+          target="$2"
+          shift 2
+          ;;
+        -c)
+          path="$2"
+          shift 2
+          ;;
+        -F)
+          format="$2"
+          shift 2
+          ;;
+        -h|-d|-P)
+          shift
+          ;;
+        *)
+          break
+          ;;
+      esac
+    done
+    pane="$(cat "$fake_dir/next_pane")"
+    printf '%s\t%s\n' "$pane" "$path" >> "$fake_dir/panes.tsv"
+    printf '%s\t%s\t%s\n' "$target" "$path" "$*" > "$fake_dir/split-window"
+    [ "$format" = '#{pane_id}' ] && printf '%s\n' "$pane"
+    ;;
+  respawn-pane)
+    target=""
+    path=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t)
+          target="$2"
+          shift 2
+          ;;
+        -c)
+          path="$2"
+          shift 2
+          ;;
+        -k)
+          shift
+          ;;
+        *)
+          break
+          ;;
+      esac
+    done
+    printf '%s\t%s\t%s\n' "$target" "$path" "$*" > "$fake_dir/respawn-pane"
+    ;;
+  select-pane)
+    [ "${1:-}" = "-t" ] || exit 1
+    pane_exists "$2" || exit 1
+    printf '%s\n' "$2" > "$fake_dir/select-pane"
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+EOF
+  chmod +x "$fake_tmux"
+}
+
+seed_fake_tmux() {
+  local fake_dir="$1" repo="$2"
+  mkdir -p "$fake_dir/options"
+  : > "$fake_dir/panes.tsv"
+  printf '%%1\t%s\n' "$repo" > "$fake_dir/panes.tsv"
+  printf '%%9\n' > "$fake_dir/next_pane"
+}
+
+make_repo() {
+  local repo="$1"
+  git -c init.templateDir= init -q "$repo"
+  git -C "$repo" commit -q --allow-empty -m init
+  mkdir -p "$repo/docs/superpowers/specs"
+  printf '# Spec\n' > "$repo/docs/superpowers/specs/2026-05-02-demo-design.md"
+}
+
+read_option() {
+  local fake_dir="$1" pane="$2" option="$3"
+  cat "$fake_dir/options/${pane}.${option}"
+}
+
+assert_file_contains() {
+  local file="$1" needle="$2" name="$3"
+  rg -q -F -- "$needle" "$file" || fail "$name"
+  pass "$name"
+}
+
+assert_file_missing() {
+  local file="$1" name="$2"
+  [ ! -e "$file" ] || fail "$name"
+  pass "$name"
+}
+
+assert_eq() {
+  local expected="$1" actual="$2" name="$3"
+  [ "$expected" = "$actual" ] || fail "$name"
+  pass "$name"
+}
+
+captured_tmux_command() {
+  local file="$1"
+  awk -F '\t' '{ print $3 }' "$file"
+}
+
+run_open() {
+  local fake_dir="$1" fake_tmux="$2" pane="$3"
+  shift 3
+  run_open_with_tmux_bin "$fake_dir" "$pane" "$fake_tmux -L spec-test" "$@"
+}
+
+run_open_with_tmux_bin() {
+  local fake_dir="$1" pane="$2" tmux_bin="$3"
+  shift 3
+  env TMUX=/tmp/tmux TMUX_PANE="$pane" TMUX_SPEC_FAKE_DIR="$fake_dir" \
+    TMUX_SPEC_TMUX_BIN="$tmux_bin" "$SCRIPT" "$@"
+}
+
+repo="$TMPROOT/repo"
+make_repo "$repo"
+spec="$repo/docs/superpowers/specs/2026-05-02-demo-design.md"
+fake_tmux="$TMPROOT/tmux"
+make_fake_tmux "$fake_tmux"
+spaced_tmux_dir="$TMPROOT/bin with space"
+mkdir -p "$spaced_tmux_dir"
+spaced_fake_tmux="$spaced_tmux_dir/tmux"
+make_fake_tmux "$spaced_fake_tmux"
+
+fake_dir="$TMPROOT/first"
+seed_fake_tmux "$fake_dir" "$repo"
+run_open "$fake_dir" "$fake_tmux" %1 --path "$spec"
+assert_file_contains "$fake_dir/split-window" "%1" "first open splits from origin"
+assert_file_contains "$fake_dir/split-window" "TMUX_SPEC_RENDER=1" "first open starts render command"
+assert_eq "%9" "$(read_option "$fake_dir" %1 @spec_pane_id)" "first open stores spec pane on origin"
+assert_eq "%1" "$(read_option "$fake_dir" %9 @spec_origin_pane_id)" "first open stores origin on spec pane"
+assert_eq "$spec" "$(read_option "$fake_dir" %9 @spec_subject)" "first open stores subject on spec pane"
+assert_eq "%9" "$(cat "$fake_dir/select-pane")" "first open focuses spec pane"
+
+fake_dir="$TMPROOT/relative-helper"
+seed_fake_tmux "$fake_dir" "$repo"
+relative_helper_dir="$TMPROOT/helper-link"
+mkdir -p "$relative_helper_dir"
+ln -s "$SCRIPT" "$relative_helper_dir/tmux-spec-open"
+(
+  cd "$relative_helper_dir"
+  env TMUX=/tmp/tmux TMUX_PANE=%1 TMUX_SPEC_FAKE_DIR="$fake_dir" \
+    TMUX_SPEC_TMUX_BIN="$fake_tmux -L spec-test" ./tmux-spec-open --path "$spec"
+)
+assert_file_contains "$fake_dir/split-window" "$relative_helper_dir/tmux-spec-open" "relative invocation renders with absolute helper path"
+
+fake_dir="$TMPROOT/resolved"
+seed_fake_tmux "$fake_dir" "$repo"
+printf '%s\n' "$spec" > "$fake_dir/options/%1.@agent_current_spec_path"
+run_open "$fake_dir" "$fake_tmux" %1
+assert_file_contains "$fake_dir/split-window" "TMUX_SPEC_RENDER=1" "current resolver works with spaced tmux override"
+assert_eq "$spec" "$(read_option "$fake_dir" %9 @spec_subject)" "resolved spec is stored on spec pane"
+
+
+fake_dir="$TMPROOT/spaced-binary"
+seed_fake_tmux "$fake_dir" "$repo"
+run_open_with_tmux_bin "$fake_dir" %1 "$spaced_fake_tmux" --path "$spec"
+assert_file_contains "$fake_dir/split-window" "TMUX_SPEC_RENDER=1" "tmux binary path with space opens explicit spec"
+
+fake_dir="$TMPROOT/spaced-binary-resolved"
+seed_fake_tmux "$fake_dir" "$repo"
+printf '%s\n' "$spec" > "$fake_dir/options/%1.@agent_current_spec_path"
+run_open_with_tmux_bin "$fake_dir" %1 "$spaced_fake_tmux"
+assert_eq "$spec" "$(read_option "$fake_dir" %9 @spec_subject)" "tmux binary path with space resolves current spec"
+
+fake_dir="$TMPROOT/spaced-binary-with-args"
+seed_fake_tmux "$fake_dir" "$repo"
+run_open_with_tmux_bin "$fake_dir" %1 "$spaced_fake_tmux -L spec-test" --path "$spec"
+assert_file_contains "$fake_dir/split-window" "TMUX_SPEC_RENDER=1" "tmux binary path with space and args opens explicit spec"
+
+
+quoted_spec="$repo/docs/superpowers/specs/2026-05-02-it's-quoted-design.md"
+printf '# Quoted\n' > "$quoted_spec"
+fake_dir="$TMPROOT/quoted"
+seed_fake_tmux "$fake_dir" "$repo"
+run_open "$fake_dir" "$fake_tmux" %1 --path "$quoted_spec"
+quoted_render_dir="$TMPROOT/quoted-render-bin"
+mkdir -p "$quoted_render_dir"
+ln -s /bin/bash "$quoted_render_dir/bash"
+cat > "$quoted_render_dir/cat" <<'EOF'
+#!/bin/sh
+/bin/cat "$@"
+EOF
+chmod +x "$quoted_render_dir/cat"
+PATH="$quoted_render_dir" bash -c "$(captured_tmux_command "$fake_dir/split-window")" > "$TMPROOT/quoted-render.out"
+assert_file_contains "$TMPROOT/quoted-render.out" "# Quoted" "render command handles single quote paths"
+
+
+fake_dir="$TMPROOT/reuse"
+seed_fake_tmux "$fake_dir" "$repo"
+printf '%%8\t%s\n' "$repo" >> "$fake_dir/panes.tsv"
+printf '%%8\n' > "$fake_dir/options/%1.@spec_pane_id"
+run_open "$fake_dir" "$fake_tmux" %1 --path "$spec"
+assert_file_missing "$fake_dir/split-window" "reuse does not split"
+assert_file_contains "$fake_dir/respawn-pane" "%8" "reuse respawns saved pane"
+assert_eq "%8" "$(cat "$fake_dir/select-pane")" "reuse focuses saved pane"
+
+fake_dir="$TMPROOT/stale"
+seed_fake_tmux "$fake_dir" "$repo"
+printf '%%404\n' > "$fake_dir/options/%1.@spec_pane_id"
+run_open "$fake_dir" "$fake_tmux" %1 --path "$spec"
+assert_eq "%9" "$(read_option "$fake_dir" %1 @spec_pane_id)" "stale mapping is replaced"
+assert_file_contains "$fake_dir/split-window" "%1" "stale mapping creates fresh split"
+
+fake_dir="$TMPROOT/spec-pane"
+seed_fake_tmux "$fake_dir" "$repo"
+printf '%%8\t%s\n' "$repo" >> "$fake_dir/panes.tsv"
+printf '%%8\n' > "$fake_dir/options/%1.@spec_pane_id"
+printf '%%1\n' > "$fake_dir/options/%8.@spec_origin_pane_id"
+run_open "$fake_dir" "$fake_tmux" %8 --path "$spec"
+assert_file_missing "$fake_dir/split-window" "spec pane invocation does not nest"
+assert_file_contains "$fake_dir/respawn-pane" "%8" "spec pane invocation refreshes same pane"
+
+fake_dir="$TMPROOT/missing"
+seed_fake_tmux "$fake_dir" "$repo"
+if run_open "$fake_dir" "$fake_tmux" %1 --path "$repo/missing.md"; then
+  fail "missing file should fail"
+fi
+assert_file_missing "$fake_dir/split-window" "missing file does not split"
+assert_file_contains "$fake_dir/display-message" "spec file not found" "missing file displays message"
+
+render_dir="$TMPROOT/render-bin"
+mkdir -p "$render_dir"
+cat > "$render_dir/cat" <<'EOF'
+#!/bin/sh
+printf 'fake-cat:%s\n' "$*"
+EOF
+chmod +x "$render_dir/cat"
+PATH="$render_dir" TMUX_SPEC_RENDER=1 /bin/bash "$SCRIPT" --path "$spec" > "$TMPROOT/render.out"
+assert_file_contains "$TMPROOT/render.out" "fake-cat:$spec" "render falls back to cat without bat or less"
+
+printf 'PASS  tmux-spec-open test suite\n'

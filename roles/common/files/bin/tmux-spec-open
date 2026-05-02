@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_path="${BASH_SOURCE[0]}"
+script_name="${script_path##*/}"
+case "$script_path" in
+  */*) script_dir="$(cd "${script_path%/*}" && pwd)" ;;
+  *) script_dir="$(pwd)" ;;
+esac
+script_path="$script_dir/$script_name"
+
+spec_path=""
+tmpdir=""
+
+cleanup() {
+  [ -z "$tmpdir" ] || rm -rf "$tmpdir"
+}
+trap cleanup EXIT
+
+usage() {
+  printf 'tmux-spec-open: usage: tmux-spec-open [--path PATH]\n' >&2
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --path)
+      [ "$#" -ge 2 ] || { usage; exit 1; }
+      spec_path="$2"
+      shift 2
+      ;;
+    *)
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+render_spec() {
+  local path="$1"
+  if command -v bat >/dev/null 2>&1 && command -v less >/dev/null 2>&1; then
+    bat --paging=never --style=numbers --color=always "$path" | less -R
+  elif command -v less >/dev/null 2>&1; then
+    cat "$path" | less -R
+  else
+    cat "$path"
+  fi
+}
+
+if [ "${TMUX_SPEC_RENDER:-}" = "1" ]; then
+  [ -n "$spec_path" ] || { printf 'tmux-spec-open: --path is required in render mode\n' >&2; exit 1; }
+  render_spec "$spec_path"
+  exit 0
+fi
+
+tmux_quote() {
+  local value="$1"
+  printf "'"
+  printf '%s' "$value" | sed "s/'/'\\\\''/g"
+  printf "'"
+}
+
+[ -n "${TMUX:-}" ] || { printf 'tmux-spec-open: tmux is required\n' >&2; exit 1; }
+[ -n "${TMUX_PANE:-}" ] || { printf 'tmux-spec-open: TMUX_PANE is required\n' >&2; exit 1; }
+
+tmux_cmd=()
+tmux_override="${TMUX_SPEC_TMUX_BIN:-}"
+if [ -z "$tmux_override" ]; then
+  tmux_cmd=(tmux)
+elif [ -x "$tmux_override" ] || command -v "$tmux_override" >/dev/null 2>&1; then
+  tmux_cmd=("$tmux_override")
+else
+  tmux_prefix=""
+  tmux_args=""
+  candidate="$tmux_override"
+  while [[ "$candidate" == *" "* ]]; do
+    candidate="${candidate% *}"
+    if [ -x "$candidate" ] || command -v "$candidate" >/dev/null 2>&1; then
+      tmux_prefix="$candidate"
+      tmux_args="${tmux_override#"$candidate"}"
+      tmux_args="${tmux_args# }"
+      break
+    fi
+  done
+
+  if [ -n "$tmux_prefix" ]; then
+    tmux_cmd=("$tmux_prefix")
+    if [ -n "$tmux_args" ]; then
+      IFS=' ' read -r -a extra_tmux_args <<< "$tmux_args"
+      tmux_cmd+=("${extra_tmux_args[@]}")
+    fi
+  else
+    IFS=' ' read -r -a tmux_cmd <<< "$tmux_override"
+  fi
+fi
+
+tmux_spec_tmux() {
+  "${tmux_cmd[@]}" "$@"
+}
+
+resolver_tmux_bin() {
+  if [ "${#tmux_cmd[@]}" -eq 1 ]; then
+    printf '%s\n' "${tmux_cmd[0]}"
+    return 0
+  fi
+
+  if [ -z "$tmpdir" ]; then
+    tmpdir="$(mktemp -d)"
+    {
+      printf '#!/usr/bin/env bash\n'
+      printf 'exec'
+      for part in "${tmux_cmd[@]}"; do
+        printf ' %s' "$(tmux_quote "$part")"
+      done
+      printf ' "$@"\n'
+    } > "$tmpdir/tmux"
+    chmod +x "$tmpdir/tmux"
+  fi
+
+  printf '%s/tmux\n' "$tmpdir"
+}
+
+pane_option() {
+  local pane="$1" option="$2"
+  tmux_spec_tmux show-options -qv -pt "$pane" "$option" 2>/dev/null || true
+}
+
+set_pane_option() {
+  local pane="$1" option="$2" value="$3"
+  tmux_spec_tmux set-option -p -t "$pane" "$option" "$value" >/dev/null
+}
+
+clear_pane_option() {
+  local pane="$1" option="$2"
+  tmux_spec_tmux set-option -p -u -t "$pane" "$option" >/dev/null 2>&1 || true
+}
+
+pane_exists() {
+  local pane="$1"
+  [ -n "$pane" ] || return 1
+  tmux_spec_tmux list-panes -t "$pane" -F '' >/dev/null 2>&1
+}
+
+pane_path() {
+  local pane="$1"
+  tmux_spec_tmux display-message -p -t "$pane" '#{pane_current_path}' 2>/dev/null || pwd
+}
+
+display_error() {
+  local message="$1"
+  tmux_spec_tmux display-message "$message" >/dev/null 2>&1 || true
+  printf 'tmux-spec-open: %s\n' "$message" >&2
+}
+
+current_pane="$TMUX_PANE"
+origin_pane="$(pane_option "$current_pane" @spec_origin_pane_id)"
+if [ -n "$origin_pane" ]; then
+  spec_pane="$current_pane"
+else
+  origin_pane="$current_pane"
+  spec_pane="$(pane_option "$origin_pane" @spec_pane_id)"
+fi
+
+if [ -z "$spec_path" ]; then
+  current_err="$(mktemp)"
+  if ! spec_path="$(TMUX_SPEC_TMUX_BIN="$(resolver_tmux_bin)" "$script_dir/tmux-spec-current" "$origin_pane" 2>"$current_err")"; then
+    message="$(cat "$current_err" 2>/dev/null || true)"
+    rm -f "$current_err"
+    [ -n "$message" ] || message="no current spec"
+    display_error "$message"
+    exit 1
+  fi
+  rm -f "$current_err"
+fi
+
+if [ ! -f "$spec_path" ]; then
+  display_error "spec file not found: $spec_path"
+  exit 1
+fi
+
+origin_path="$(pane_path "$origin_pane")"
+render_command="TMUX_SPEC_RENDER=1 $(tmux_quote "$script_path") --path $(tmux_quote "$spec_path")"
+
+if [ -n "$spec_pane" ] && ! pane_exists "$spec_pane"; then
+  clear_pane_option "$origin_pane" @spec_pane_id
+  spec_pane=""
+fi
+
+if [ -n "$spec_pane" ]; then
+  tmux_spec_tmux respawn-pane -k -t "$spec_pane" -c "$origin_path" "$render_command"
+else
+  spec_pane="$(tmux_spec_tmux split-window -h -d -P -F '#{pane_id}' -t "$origin_pane" -c "$origin_path" "$render_command")"
+fi
+
+set_pane_option "$origin_pane" @spec_pane_id "$spec_pane"
+set_pane_option "$spec_pane" @spec_origin_pane_id "$origin_pane"
+set_pane_option "$spec_pane" @spec_subject "$spec_path"
+
+tmux_spec_tmux select-pane -t "$spec_pane"
