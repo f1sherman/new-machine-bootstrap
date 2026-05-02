@@ -63,6 +63,8 @@ assert_contains "$COMMON_SKILL" "skip clarifying questions" "skill trigger cover
 assert_contains "$COMMON_SKILL" "Do not ask preference, discovery, or approach-selection questions." "skill skips questions by default"
 assert_contains "$COMMON_SKILL" "Make a conservative assumption" "skill records assumptions instead"
 assert_contains "$COMMON_SKILL" "Do NOT invoke implementation skills" "skill preserves implementation gate"
+assert_contains "$COMMON_SKILL" "Commit the design spec" "skill commits the spec before review"
+assert_contains "$COMMON_SKILL" "git check-ignore -q docs/superpowers" "skill respects ignored superpowers docs"
 assert_contains "$COMMON_SKILL" "invoke \`writing-plans\`" "skill transitions to writing-plans after approval"
 assert_contains "$COMMON_SKILL" "Do not invoke \`superpowers:brainstorming\`" "skill avoids conflicting brainstorming instructions"
 assert_contains "$MAIN_YML" "roles/common/files/config/skills/common/" "Ansible still installs common skills"

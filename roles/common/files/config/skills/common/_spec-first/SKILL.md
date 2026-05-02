@@ -29,8 +29,9 @@ Create a task for each item and complete them in order:
 4. **Compare approaches** - include 2-3 approaches, tradeoffs, and a recommended choice.
 5. **Write design spec** - save to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` unless the user gave another path.
 6. **Self-review spec** - fix placeholders, contradictions, ambiguous requirements, and scope drift inline.
-7. **User reviews written spec** - ask the user to review the file and approve or request changes.
-8. **Transition to implementation planning** - after approval, invoke `writing-plans`.
+7. **Commit design spec** - commit the spec unless repo instructions say to keep it local.
+8. **User reviews written spec** - ask the user to review the file and approve or request changes.
+9. **Transition to implementation planning** - after approval, invoke `writing-plans`.
 
 ## Process
 
@@ -71,6 +72,8 @@ Write the spec directly. Include:
 Keep it scaled to the task. A tiny change can have a tiny spec.
 
 ### Review Gate
+
+Commit the design spec before asking for review. If repo instructions say to skip committing ignored Superpowers docs, run `git check-ignore -q docs/superpowers`; when that path is ignored, keep the spec local and do not force-add it.
 
 After writing and self-reviewing:
 
