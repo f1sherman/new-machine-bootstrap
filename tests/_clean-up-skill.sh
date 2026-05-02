@@ -12,6 +12,20 @@ MONITOR_FORGEJO="$REPO_ROOT/roles/common/files/config/skills/common/_monitor-for
 MONITOR_RUN="$REPO_ROOT/roles/common/files/share/skills/_pr-monitor/run.sh"
 MAIN_YML="$REPO_ROOT/roles/common/tasks/main.yml"
 
+RUNTIME_HELPERS=(
+  "_pr-monitor/state.sh"
+  "_pr-workflow-common/agent-worktree-path.sh"
+  "_pr-workflow-common/context.sh"
+  "_pr-workflow-common/detect-platform.sh"
+  "_pr-workflow-common/pr-status-cache.sh"
+  "_pr-github/comments.sh"
+  "_pr-github/reply-comment.sh"
+  "_pr-github/state.sh"
+  "_pr-forgejo/comments.sh"
+  "_pr-forgejo/reply-comment.sh"
+  "_pr-forgejo/state.sh"
+)
+
 pass=0
 fail=0
 
@@ -68,6 +82,10 @@ assert_exists "$MONITOR_RUN" "managed monitor runtime exists"
 assert_executable "$MONITOR_RUN" "managed monitor runtime is executable"
 assert_not_contains "$MONITOR_RUN" "run_merged_cleanup" "monitor runtime does not perform merged cleanup directly"
 assert_not_contains "$MONITOR_RUN" "cleanup-branches" "monitor runtime no longer calls cleanup-branches"
+
+for helper in "${RUNTIME_HELPERS[@]}"; do
+  assert_exists "$REPO_ROOT/roles/common/files/share/skills/$helper" "managed runtime helper exists: $helper"
+done
 
 assert_contains "$MAIN_YML" "git-clean-up" "Ansible installs git-clean-up"
 assert_contains "$MAIN_YML" "roles/common/files/share/skills/" "Ansible installs managed shared skill runtime files"

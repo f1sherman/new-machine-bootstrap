@@ -215,6 +215,7 @@ Implementation should verify at three levels:
    - confirm `git-clean-up` exists under `roles/common/files/bin/`
    - confirm `roles/common/tasks/main.yml` installs the helper
    - confirm managed monitor instructions invoke `_clean-up` for merged cleanup instead of `cleanup-branches`
+   - confirm managed monitor runtime helper files are present for fresh-machine provisioning
 2. Helper behavior
    - add `roles/common/files/bin/git-clean-up.test`
    - cover ancestor-merged linked-worktree cleanup
@@ -228,6 +229,7 @@ Implementation should verify at three levels:
    - confirm the skill is installed to both `~/.claude/skills/_clean-up/` and `~/.codex/skills/_clean-up/`
    - confirm the helper is installed to `~/.local/bin/git-clean-up`
    - confirm merged PR monitor behavior invokes `_clean-up` and that runtime no longer calls `cleanup-branches`
+   - confirm monitor runtime helper files are installed under `~/.local/share/skills/`
 
 ## Risks
 

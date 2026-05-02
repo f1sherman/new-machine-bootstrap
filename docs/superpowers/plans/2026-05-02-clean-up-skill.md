@@ -18,7 +18,8 @@
 - `roles/common/files/config/skills/common/_monitor-pr/SKILL.md` — managed monitor skill documentation for merged-state cleanup.
 - `roles/common/files/config/skills/common/_monitor-github-pr/SKILL.md` — managed GitHub monitor pass skill documentation.
 - `roles/common/files/config/skills/common/_monitor-forgejo-pr/SKILL.md` — managed Forgejo monitor pass skill documentation.
-- `roles/common/files/share/skills/_pr-monitor/run.sh` — managed monitor runtime that returns merged results without calling `cleanup-branches`.
+- `roles/common/files/share/skills/_pr-monitor/` — managed monitor runtime files that return merged results without calling `cleanup-branches`.
+- `roles/common/files/share/skills/_pr-workflow-common/`, `_pr-github/`, `_pr-forgejo/` — managed runtime helpers required by the monitor skills on fresh machines.
 - `roles/common/tasks/main.yml` — installs `git-clean-up` and managed shared monitor runtime files.
 - `docs/superpowers/plans/2026-05-02-clean-up-skill.md` — living implementation record.
 
@@ -569,6 +570,17 @@ Expected: one commit containing managed monitor skill source.
 
 **Files:**
 - Create: `roles/common/files/share/skills/_pr-monitor/run.sh`
+- Create: `roles/common/files/share/skills/_pr-monitor/state.sh`
+- Create: `roles/common/files/share/skills/_pr-workflow-common/agent-worktree-path.sh`
+- Create: `roles/common/files/share/skills/_pr-workflow-common/context.sh`
+- Create: `roles/common/files/share/skills/_pr-workflow-common/detect-platform.sh`
+- Create: `roles/common/files/share/skills/_pr-workflow-common/pr-status-cache.sh`
+- Create: `roles/common/files/share/skills/_pr-github/comments.sh`
+- Create: `roles/common/files/share/skills/_pr-github/reply-comment.sh`
+- Create: `roles/common/files/share/skills/_pr-github/state.sh`
+- Create: `roles/common/files/share/skills/_pr-forgejo/comments.sh`
+- Create: `roles/common/files/share/skills/_pr-forgejo/reply-comment.sh`
+- Create: `roles/common/files/share/skills/_pr-forgejo/state.sh`
 - Modify: `roles/common/tasks/main.yml`
 - Test: `bash tests/_clean-up-skill.sh`
 
@@ -577,6 +589,8 @@ Expected: one commit containing managed monitor skill source.
 Create `roles/common/files/share/skills/_pr-monitor/run.sh` from the currently installed `~/.local/share/skills/_pr-monitor/run.sh`.
 
 Preserve executable mode.
+
+Also import the runtime helper scripts referenced by the managed monitor skills and by `run.sh` so fresh machines do not depend on pre-existing unmanaged files.
 
 - [ ] **Step 6.2: Remove runtime merged cleanup**
 
@@ -625,7 +639,7 @@ Expected: all checks pass.
 Run:
 
 ```bash
-git add roles/common/files/share/skills/_pr-monitor/run.sh roles/common/tasks/main.yml tests/_clean-up-skill.sh docs/superpowers/plans/2026-05-02-clean-up-skill.md
+git add roles/common/files/share/skills roles/common/tasks/main.yml tests/_clean-up-skill.sh docs/superpowers/plans/2026-05-02-clean-up-skill.md
 git commit -m "Delegate merged PR cleanup to _clean-up"
 ```
 
