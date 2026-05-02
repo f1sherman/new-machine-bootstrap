@@ -65,6 +65,12 @@ require_line "common shell fragment keeps canonical duss" \
 require_line "personal shell fragment keeps codex-yolo" \
   "alias codex-yolo='codex --dangerously-bypass-approvals-and-sandbox'" \
   "$PERSONAL_ZSHRC"
+require_line "personal shell fragment keeps cdxy shortcut" \
+  "alias cdxy='codex-yolo'" \
+  "$PERSONAL_ZSHRC"
+require_line "personal shell fragment keeps cldy shortcut" \
+  "alias cldy='claude-yolo'" \
+  "$PERSONAL_ZSHRC"
 if rg -q -F -- '{#' "$PERSONAL_ZSHRC"; then
   fail "personal shell fragment avoids raw Jinja comment opener"
 else
