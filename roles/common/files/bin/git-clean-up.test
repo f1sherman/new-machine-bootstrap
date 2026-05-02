@@ -209,7 +209,16 @@ assert_worktree_present() {
   local worktree="$3"
   local real_path
 
-  real_path="$(normalize_path "$worktree")"
+  if [ ! -d "$worktree" ]; then
+    fail_case "$name" "worktree path does not exist: $worktree"
+    return
+  fi
+
+  if ! real_path="$(normalize_path "$worktree" 2>/dev/null)" || [ -z "$real_path" ]; then
+    fail_case "$name" "could not normalize worktree path: $worktree"
+    return
+  fi
+
   if git -C "$repo" worktree list --porcelain | grep -Fq "worktree $real_path"; then
     pass_case "$name"
   else
@@ -224,6 +233,20 @@ merge_branch_to_main() {
   git -C "$repo" checkout -q main
   git -C "$repo" merge -q --ff-only "$branch"
   git -C "$repo" push -q origin main
+}
+
+advance_origin_main_from_branch() {
+  local repo="$1"
+  local branch="$2"
+  local updater="$TMPROOT/${branch//\//-}-origin-updater"
+
+  git -C "$repo" push -q -u origin "$branch"
+  git clone -q "$(git -C "$repo" config --get remote.origin.url)" "$updater"
+  git -C "$updater" config user.name test
+  git -C "$updater" config user.email test@example.com
+  git -C "$updater" fetch -q origin "$branch:refs/remotes/origin/$branch"
+  git -C "$updater" merge -q --ff-only "origin/$branch"
+  git -C "$updater" push -q origin main
 }
 
 make_plain_branch_commit() {
@@ -274,7 +297,7 @@ make_tmux_stub "$bin_dir"
 repo="$(create_origin_repo manual-ancestor)"
 wt="$(make_linked_branch "$repo" feature/manual-ancestor "$TMPROOT/manual-ancestor-wt")"
 make_commit "$wt" manual-ancestor
-merge_branch_to_main "$repo" feature/manual-ancestor
+advance_origin_main_from_branch "$repo" feature/manual-ancestor
 stdout="$TMPROOT/manual-ancestor.out"
 stderr="$TMPROOT/manual-ancestor.err"
 tmux_log="$TMPROOT/manual-ancestor.tmux"
@@ -284,7 +307,7 @@ rc="$(run_cleanup "$wt" "$stdout" "$stderr")"
 assert_eq "manual ancestor merged returns success" "0" "$rc"
 assert_branch_absent "manual ancestor merged removes branch" "$repo" feature/manual-ancestor
 assert_worktree_absent "manual ancestor merged removes linked worktree" "$repo" "$wt"
-assert_eq "manual ancestor merged updates primary main" "present" "$([ -f "$repo/manual-ancestor.txt" ] && printf present || true)"
+assert_eq "manual ancestor merged fast-forwards stale primary main" "present" "$([ -f "$repo/manual-ancestor.txt" ] && printf present || true)"
 assert_contains "manual ancestor merged clears tmux state" "clear" "$tmux_log"
 
 # --- Manual cleanup: current linked worktree proven merged only by PR metadata ---
@@ -380,6 +403,7 @@ FAKE_GH_EXIT=1
 FAKE_GH_STATE_JSON=""
 rc="$(run_cleanup "$current_wt" "$stdout" "$stderr")"
 unset FAKE_GH_EXIT
+assert_eq "sweep lookup-failed returns success" "0" "$rc"
 assert_branch_present "sweep retains lookup-failed branch" "$repo" feature/sweep-lookup-retained
 
 # --- Sweep: dirty linked worktree for another branch is retained and reported ---
@@ -395,6 +419,7 @@ stdout="$TMPROOT/sweep-dirty-linked.out"
 stderr="$TMPROOT/sweep-dirty-linked.err"
 FAKE_GH_STATE_JSON="[]"
 rc="$(run_cleanup "$current_wt" "$stdout" "$stderr")"
+assert_eq "sweep dirty linked returns success" "0" "$rc"
 assert_branch_present "sweep retains dirty linked branch" "$repo" feature/sweep-dirty-linked
 assert_contains "sweep reports dirty linked branch retention" "Retained feature/sweep-dirty-linked" "$stdout"
 
