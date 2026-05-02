@@ -146,7 +146,7 @@ Expected: one commit containing the failing regression and plan update.
 - Create: `roles/common/files/bin/git-clean-up.test`
 - Test: `bash roles/common/files/bin/git-clean-up.test`
 
-- [ ] **Step 2.1: Create `git-clean-up.test` with isolated repo fixtures**
+- [x] **Step 2.1: Create `git-clean-up.test` with isolated repo fixtures**
 
 Create a Bash test harness using the style from `git-delete-branch.test` and `worktree-lifecycle.test`. It must:
 
@@ -174,7 +174,7 @@ assert_worktree_absent()
 assert_worktree_present()
 ```
 
-- [ ] **Step 2.2: Add red cases for manual cleanup**
+- [x] **Step 2.2: Add red cases for manual cleanup**
 
 Add cases that currently fail because `git-clean-up` is missing:
 
@@ -196,7 +196,7 @@ dirty current worktree stops hard
 dirty primary worktree stops hard
 ```
 
-- [ ] **Step 2.3: Add red cases for branch sweep and monitor mode**
+- [x] **Step 2.3: Add red cases for branch sweep and monitor mode**
 
 Add cases for:
 
@@ -219,7 +219,7 @@ monitor mode deletes remote branch
 monitor mode rejects unmerged branch
 ```
 
-- [ ] **Step 2.4: Run the helper regression and confirm it fails**
+- [x] **Step 2.4: Run the helper regression and confirm it fails**
 
 Run:
 
@@ -229,7 +229,7 @@ bash roles/common/files/bin/git-clean-up.test
 
 Expected: FAIL with `ERROR: .../git-clean-up is not executable (or does not exist)`.
 
-- [ ] **Step 2.5: Commit the red helper regression**
+- [x] **Step 2.5: Commit the red helper regression**
 
 Run:
 
