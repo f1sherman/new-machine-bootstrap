@@ -85,6 +85,30 @@ if [ -n "${FAKE_GH_EXIT:-}" ]; then
   exit "$FAKE_GH_EXIT"
 fi
 
+if [ -n "${FAKE_GH_PAGE_MODE:-}" ]; then
+  page=1
+  case "${2:-}" in
+    *page=*)
+      page="${2##*page=}"
+      page="${page%%&*}"
+      ;;
+  esac
+  page_var="FAKE_GH_PAGE_${page}_JSON"
+  printf '%s\n' "${!page_var:-[]}"
+  exit 0
+fi
+
+case "${2:-}" in
+  *page=*)
+    page="${2##*page=}"
+    page="${page%%&*}"
+    if [ "$page" != "1" ]; then
+      printf '[]\n'
+      exit 0
+    fi
+    ;;
+esac
+
 printf '%s\n' "${FAKE_GH_STATE_JSON:-[]}"
 EOF
   chmod +x "$bin_dir/gh"
@@ -288,6 +312,13 @@ pr_json_for() {
   printf '%s]\n' "$json"
 }
 
+pr_json_for_sha() {
+  local branch="$1"
+  local sha="$2"
+
+  printf '[{"state":"closed","merged_at":"2026-05-02T00:00:00Z","head":{"ref":"%s","sha":"%s"}}]\n' "$branch" "$sha"
+}
+
 bin_dir="$TMPROOT/bin"
 mkdir -p "$bin_dir"
 make_gh_stub "$bin_dir"
@@ -324,6 +355,18 @@ rc="$(run_cleanup "$wt" "$stdout" "$stderr")"
 assert_eq "manual PR-only merged returns success" "0" "$rc"
 assert_branch_absent "manual PR-only merged removes branch" "$repo" feature/manual-pr
 assert_worktree_absent "manual PR-only merged removes linked worktree" "$repo" "$wt"
+
+# --- Manual cleanup: reused branch name with different merged PR SHA is rejected ---
+repo="$(create_origin_repo manual-pr-reused)"
+wt="$(make_linked_branch "$repo" feature/reused "$TMPROOT/manual-pr-reused-wt")"
+make_commit "$wt" manual-pr-reused
+stdout="$TMPROOT/manual-pr-reused.out"
+stderr="$TMPROOT/manual-pr-reused.err"
+FAKE_GH_STATE_JSON="$(pr_json_for_sha feature/reused "$(git -C "$repo" rev-parse main)")"
+rc="$(run_cleanup "$wt" "$stdout" "$stderr")"
+assert_eq "manual reused PR SHA mismatch stops hard" "nonzero" "$([ "$rc" -ne 0 ] && printf nonzero || printf 0)"
+assert_branch_present "manual reused PR SHA mismatch keeps branch" "$repo" feature/reused
+assert_worktree_present "manual reused PR SHA mismatch keeps worktree" "$repo" "$wt"
 
 # --- Manual cleanup: current branch is not proven merged ---
 repo="$(create_origin_repo unmerged-current)"
@@ -392,6 +435,25 @@ FAKE_GH_STATE_JSON="$(pr_json_for "$repo" feature/sweep-pr-plain)"
 rc="$(run_cleanup "$current_wt" "$stdout" "$stderr")"
 assert_eq "sweep PR-merged returns success" "0" "$rc"
 assert_branch_absent "sweep prunes PR-merged plain branch" "$repo" feature/sweep-pr-plain
+
+# --- Sweep: PR metadata on second page is discovered and pruned ---
+repo="$(create_origin_repo sweep-pr-page-two)"
+current_wt="$(make_linked_branch "$repo" feature/sweep-pr-page-two-current "$TMPROOT/sweep-pr-page-two-current-wt")"
+make_commit "$current_wt" sweep-pr-page-two-current
+merge_branch_to_main "$repo" feature/sweep-pr-page-two-current
+make_plain_branch_commit "$repo" feature/sweep-pr-page-two-plain sweep-pr-page-two-plain
+git -C "$repo" push -q -u origin feature/sweep-pr-page-two-plain
+stdout="$TMPROOT/sweep-pr-page-two.out"
+stderr="$TMPROOT/sweep-pr-page-two.err"
+FAKE_GH_PAGE_MODE=1
+FAKE_GH_PAGE_1_JSON='[{"state":"open","head":{"ref":"other","sha":"other"}}]'
+FAKE_GH_PAGE_2_JSON="$(pr_json_for "$repo" feature/sweep-pr-page-two-plain)"
+FAKE_GH_PAGE_3_JSON='[]'
+export FAKE_GH_PAGE_MODE FAKE_GH_PAGE_1_JSON FAKE_GH_PAGE_2_JSON FAKE_GH_PAGE_3_JSON
+rc="$(run_cleanup "$current_wt" "$stdout" "$stderr")"
+unset FAKE_GH_PAGE_MODE FAKE_GH_PAGE_1_JSON FAKE_GH_PAGE_2_JSON FAKE_GH_PAGE_3_JSON
+assert_eq "sweep second-page PR returns success" "0" "$rc"
+assert_branch_absent "sweep prunes second-page PR branch" "$repo" feature/sweep-pr-page-two-plain
 
 # --- Sweep: failed PR lookup retains branch when ancestry does not prove merge ---
 repo="$(create_origin_repo sweep-lookup-failed)"

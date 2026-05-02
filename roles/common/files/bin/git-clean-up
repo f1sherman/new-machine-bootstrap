@@ -156,40 +156,62 @@ def pr_state_github(owner_repo, branch, git_dir:)
   return 'LOOKUP_FAILED' unless command_available?('gh')
 
   local_sha = run_git(['rev-parse', '--verify', "#{branch}^{commit}"], git_dir: git_dir, allow_failure: true).output
-  result = run_command_args(['gh', 'api', "repos/#{owner_repo}/pulls?state=all&per_page=100"], allow_failure: true)
-  return 'LOOKUP_FAILED' unless result.success?
+  branch_match = nil
+  page = 1
 
-  prs = JSON.parse(result.stdout)
-  return 'LOOKUP_FAILED' unless prs.is_a?(Array)
+  loop do
+    result = run_command_args(['gh', 'api', "repos/#{owner_repo}/pulls?state=all&per_page=100&page=#{page}"], allow_failure: true)
+    return 'LOOKUP_FAILED' unless result.success?
 
-  pr = prs.find { |candidate| candidate.dig('head', 'sha') == local_sha }
-  pr ||= prs.find { |candidate| candidate.dig('head', 'ref') == branch && candidate['state'] == 'open' }
-  pr ||= prs.find { |candidate| candidate.dig('head', 'ref') == branch && candidate['state'] == 'closed' }
-  return nil unless pr
-  return 'MERGED' if pr['merged_at']
+    prs = JSON.parse(result.stdout)
+    return 'LOOKUP_FAILED' unless prs.is_a?(Array)
+    break if prs.empty?
 
-  pr['state']&.upcase
+    pr = prs.find { |candidate| candidate.dig('head', 'sha') == local_sha }
+    if pr
+      return 'MERGED' if pr['merged_at']
+
+      return pr['state']&.upcase
+    end
+
+    branch_match ||= prs.find { |candidate| candidate.dig('head', 'ref') == branch && candidate['state'] == 'open' }
+    branch_match ||= prs.find { |candidate| candidate.dig('head', 'ref') == branch && candidate['state'] == 'closed' }
+    page += 1
+  end
+
+  branch_match&.dig('state')&.upcase
 rescue JSON::ParserError, SystemCallError
   'LOOKUP_FAILED'
 end
 
 def pr_state_forgejo(forgejo_url, token, owner, repo, branch, git_dir:)
-  uri = URI("#{forgejo_url}/api/v1/repos/#{owner}/#{repo}/pulls?state=all&limit=50")
-  req = Net::HTTP::Get.new(uri)
-  req['Authorization'] = "token #{token}" if token && !token.empty?
-  response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }
-  return 'LOOKUP_FAILED' unless response.is_a?(Net::HTTPSuccess)
-
   local_sha = run_git(['rev-parse', '--verify', "#{branch}^{commit}"], git_dir: git_dir, allow_failure: true).output
-  prs = JSON.parse(response.body)
-  return 'LOOKUP_FAILED' unless prs.is_a?(Array)
+  branch_match = nil
+  page = 1
 
-  pr = prs.find { |candidate| candidate.dig('head', 'sha') == local_sha }
-  pr ||= prs.find { |candidate| candidate.dig('head', 'ref') == branch }
-  return nil unless pr
-  return 'MERGED' if pr['merged'] || pr['merged_at']
+  loop do
+    uri = URI("#{forgejo_url}/api/v1/repos/#{owner}/#{repo}/pulls?state=all&page=#{page}&limit=50")
+    req = Net::HTTP::Get.new(uri)
+    req['Authorization'] = "token #{token}" if token && !token.empty?
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }
+    return 'LOOKUP_FAILED' unless response.is_a?(Net::HTTPSuccess)
 
-  pr['state']&.upcase
+    prs = JSON.parse(response.body)
+    return 'LOOKUP_FAILED' unless prs.is_a?(Array)
+    break if prs.empty?
+
+    pr = prs.find { |candidate| candidate.dig('head', 'sha') == local_sha }
+    if pr
+      return 'MERGED' if pr['merged'] || pr['merged_at']
+
+      return pr['state']&.upcase
+    end
+
+    branch_match ||= prs.find { |candidate| candidate.dig('head', 'ref') == branch }
+    page += 1
+  end
+
+  branch_match&.dig('state')&.upcase
 rescue JSON::ParserError, StandardError
   'LOOKUP_FAILED'
 end
@@ -262,8 +284,8 @@ def delete_remote_branch(branch, git_dir:)
   result = run_git(['push', 'origin', '--delete', branch], git_dir: git_dir, allow_failure: true)
   return { ok: true } if result.success?
 
-  remote_exists = run_git(['ls-remote', '--exit-code', '--heads', 'origin', "refs/heads/#{branch}"], git_dir: git_dir, allow_failure: true)
-  return { ok: true } unless remote_exists.success?
+  remote_ref = run_git(['ls-remote', '--exit-code', '--heads', 'origin', "refs/heads/#{branch}"], git_dir: git_dir, allow_failure: true)
+  return { ok: true } if remote_ref.status.exitstatus == 2
 
   reason = result.stderr.strip.empty? ? "failed to delete remote branch: #{branch}" : result.stderr.strip
   puts "Remote branch retained: #{branch} (#{reason})"
