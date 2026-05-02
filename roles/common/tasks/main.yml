@@ -898,6 +898,67 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
+- name: Set Codex CLI model defaults in ~/.codex/config.toml
+  shell: |
+    set -euo pipefail
+
+    ruby <<'RUBY'
+    require "fileutils"
+
+    config_file = ENV.fetch("CONFIG_FILE")
+    text = File.exist?(config_file) ? File.read(config_file) : ""
+    lines = text.lines(chomp: true)
+    section_header = /^\[[^\]]+\](?:\s*[#;].*)?$/
+
+    root_lines = []
+    index = 0
+    while index < lines.length && lines[index] !~ section_header
+      root_lines << lines[index]
+      index += 1
+    end
+
+    filtered_root = []
+    root_lines.each do |line|
+      stripped = line.strip
+      next if stripped.match?(/^model\s*=/) && !stripped.start_with?("#", ";")
+      next if stripped.match?(/^model_reasoning_effort\s*=/) && !stripped.start_with?("#", ";")
+
+      filtered_root << line
+    end
+
+    insertion_index = 0
+    while insertion_index < filtered_root.length
+      stripped = filtered_root[insertion_index].strip
+      break unless stripped.empty? || stripped.start_with?("#", ";")
+
+      insertion_index += 1
+    end
+
+    filtered_root.insert(
+      insertion_index,
+      'model = "gpt-5.5"',
+      'model_reasoning_effort = "xhigh"'
+    )
+
+    new_lines = filtered_root + (lines[index..] || [])
+    new_text = new_lines.empty? ? "" : "#{new_lines.join("\n")}\n"
+
+    if new_text != text
+      FileUtils.mkdir_p(File.dirname(config_file))
+      File.write(config_file, new_text)
+      File.chmod(0o600, config_file)
+      puts "changed"
+    else
+      puts "unchanged"
+    end
+    RUBY
+  args:
+    executable: /bin/bash
+  environment:
+    CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
+  register: codex_model_defaults_result
+  changed_when: codex_model_defaults_result.stdout.strip() == 'changed'
+
 # Trust settings for shared workspaces and ~/projects/
 - name: Configure Codex CLI config.toml for shared workspaces
   shell: |
