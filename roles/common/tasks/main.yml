@@ -902,7 +902,8 @@
   shell: |
     set -euo pipefail
 
-    ruby <<'RUBY'
+    IFS=' ' read -r -a ruby_cmd <<<"${RUBY_BIN:?}"
+    "${ruby_cmd[@]}" <<'RUBY'
     require "fileutils"
 
     config_file = ENV.fetch("CONFIG_FILE")
@@ -956,6 +957,7 @@
     executable: /bin/bash
   environment:
     CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
+    RUBY_BIN: '{{ mise_bin }} exec ruby@{{ tool_versions.runtimes.ruby }} -- ruby'
   register: codex_model_defaults_result
   changed_when: codex_model_defaults_result.stdout.strip() == 'changed'
 

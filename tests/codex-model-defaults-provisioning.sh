@@ -125,6 +125,7 @@ enforce_mode_0600() {
 }
 
 assert_task_env "$TASK" 'CONFIG_FILE' '{{ ansible_facts["user_dir"] }}/.codex/config.toml' 'model defaults task wires CONFIG_FILE'
+assert_task_env "$TASK" 'RUBY_BIN' '{{ mise_bin }} exec ruby@{{ tool_versions.runtimes.ruby }} -- ruby' 'model defaults task wires RUBY_BIN'
 assert_task_mode "$CONFIG_MODE_TASK" '0600' 'config mode task uses 0600'
 
 CONFIG_SNIPPET="$(extract_task_shell "$TASK")"
@@ -135,7 +136,7 @@ trap 'rm -rf "$tmpdir"' EXIT
 config_script="$tmpdir/codex-model-defaults-task.sh"
 
 missing_config="$tmpdir/missing.toml"
-run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$missing_config" bash
+run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$missing_config" RUBY_BIN=ruby bash
 assert_eq "$TASK_STATUS" "0" 'model defaults task exits cleanly for missing config'
 assert_contains "$TASK_OUTPUT" 'changed' 'model defaults task reports change for missing config'
 assert_regex_count "$missing_config" '^model = "gpt-5\.5"$' 1 'model defaults task creates one model line'
@@ -144,7 +145,7 @@ assert_mode_0600 "$missing_config" 'model defaults task writes 0600 for missing 
 
 config_file="$tmpdir/config.toml"
 printf 'approval_policy = "never"\n\n[projects."/tmp/example"]\ntrust_level = "trusted"\n' > "$config_file"
-run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_file" bash
+run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_file" RUBY_BIN=ruby bash
 assert_eq "$TASK_STATUS" "0" 'model defaults task exits cleanly with existing root keys'
 assert_contains "$TASK_OUTPUT" 'changed' 'model defaults task reports change with existing root keys'
 assert_regex_count "$config_file" '^model = "gpt-5\.5"$' 1 'model defaults task keeps one model line'
@@ -157,7 +158,7 @@ assert_mode_0600 "$config_file" 'model defaults task writes 0600 with existing r
 
 config_existing="$tmpdir/config-existing.toml"
 printf '# header\n\nmodel = "gpt-5.4"\nmodel_reasoning_effort = "medium"\ncheck_for_update_on_startup = false\n\n[features]\ncodex_hooks = true\n' > "$config_existing"
-run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_existing" bash
+run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_existing" RUBY_BIN=ruby bash
 assert_eq "$TASK_STATUS" "0" 'model defaults task exits cleanly with previous defaults'
 assert_contains "$TASK_OUTPUT" 'changed' 'model defaults task reports change with previous defaults'
 assert_regex_count "$config_existing" '^model = "gpt-5\.5"$' 1 'model defaults task replaces legacy model value'
@@ -168,7 +169,7 @@ assert_file_contains "$config_existing" '[features]' 'model defaults task preser
 config_existing_snapshot="$tmpdir/config-existing.snapshot"
 cp "$config_existing" "$config_existing_snapshot"
 chmod 0644 "$config_existing"
-run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_existing" bash
+run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_existing" RUBY_BIN=ruby bash
 assert_eq "$TASK_STATUS" "0" 'model defaults task exits cleanly on second run'
 assert_contains "$TASK_OUTPUT" 'unchanged' 'model defaults task reports unchanged on second run'
 cmp -s "$config_existing_snapshot" "$config_existing" \
