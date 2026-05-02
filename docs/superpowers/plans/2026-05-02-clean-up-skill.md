@@ -441,7 +441,7 @@ Expected: one commit containing the helper and passing behavior regression.
 - Modify: `roles/common/tasks/main.yml`
 - Test: `bash tests/_clean-up-skill.sh`
 
-- [ ] **Step 4.1: Create the shared skill**
+- [x] **Step 4.1: Create the shared skill**
 
 Create `roles/common/files/config/skills/common/_clean-up/SKILL.md`:
 
@@ -476,7 +476,7 @@ git-clean-up --repo-dir "$REPO_DIR" --branch "$HEAD_BRANCH" --delete-remote --ye
 ```
 ````
 
-- [ ] **Step 4.2: Install `git-clean-up` in common tasks**
+- [x] **Step 4.2: Install `git-clean-up` in common tasks**
 
 In `roles/common/tasks/main.yml`, add `git-clean-up` near the existing git helper installs:
 
@@ -489,7 +489,7 @@ In `roles/common/tasks/main.yml`, add `git-clean-up` near the existing git helpe
     mode: 0755
 ```
 
-- [ ] **Step 4.3: Run source/package regression**
+- [x] **Step 4.3: Run source/package regression**
 
 Run:
 
@@ -498,6 +498,8 @@ bash tests/_clean-up-skill.sh
 ```
 
 Expected: still FAIL because monitor files are not managed yet, but `_clean-up` and `git-clean-up` assertions now pass.
+
+Result: `bash tests/_clean-up-skill.sh` exited `1` with 14 passed and 12 failed. `_clean-up` and `git-clean-up` install assertions pass; remaining failures are monitor source/runtime assertions assigned to Task 5/6.
 
 - [ ] **Step 4.4: Commit the shared skill and helper install task**
 

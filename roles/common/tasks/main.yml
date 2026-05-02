@@ -186,6 +186,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/git-delete-branch'
     mode: 0755
 
+- name: Install git-clean-up script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/git-clean-up'
+    src: '{{ playbook_dir }}/roles/common/files/bin/git-clean-up'
+    mode: 0755
+
 - name: Install spec-metadata script
   copy:
     backup: yes
