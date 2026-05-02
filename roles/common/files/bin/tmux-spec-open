@@ -8,7 +8,6 @@ case "$script_path" in
 esac
 
 spec_path=""
-resolver_tmux_bin="${TMUX_SPEC_TMUX_BIN:-tmux}"
 tmpdir=""
 
 cleanup() {
@@ -51,20 +50,50 @@ if [ "${TMUX_SPEC_RENDER:-}" = "1" ]; then
   exit 0
 fi
 
-[ -n "${TMUX:-}" ] || { printf 'tmux-spec-open: tmux is required\n' >&2; exit 1; }
-[ -n "${TMUX_PANE:-}" ] || { printf 'tmux-spec-open: TMUX_PANE is required\n' >&2; exit 1; }
-
-IFS=' ' read -r -a tmux_cmd <<< "${TMUX_SPEC_TMUX_BIN:-tmux}"
-
-tmux_spec_tmux() {
-  "${tmux_cmd[@]}" "$@"
-}
-
 tmux_quote() {
   local value="$1"
   printf "'"
   printf '%s' "$value" | sed "s/'/'\\\\''/g"
   printf "'"
+}
+
+[ -n "${TMUX:-}" ] || { printf 'tmux-spec-open: tmux is required\n' >&2; exit 1; }
+[ -n "${TMUX_PANE:-}" ] || { printf 'tmux-spec-open: TMUX_PANE is required\n' >&2; exit 1; }
+
+tmux_cmd=()
+tmux_override="${TMUX_SPEC_TMUX_BIN:-}"
+if [ -z "$tmux_override" ]; then
+  tmux_cmd=(tmux)
+elif [ -x "$tmux_override" ] || command -v "$tmux_override" >/dev/null 2>&1; then
+  tmux_cmd=("$tmux_override")
+else
+  IFS=' ' read -r -a tmux_cmd <<< "$tmux_override"
+fi
+
+tmux_spec_tmux() {
+  "${tmux_cmd[@]}" "$@"
+}
+
+resolver_tmux_bin() {
+  if [ "${#tmux_cmd[@]}" -eq 1 ]; then
+    printf '%s\n' "${tmux_cmd[0]}"
+    return 0
+  fi
+
+  if [ -z "$tmpdir" ]; then
+    tmpdir="$(mktemp -d)"
+    {
+      printf '#!/usr/bin/env bash\n'
+      printf 'exec'
+      for part in "${tmux_cmd[@]}"; do
+        printf ' %s' "$(tmux_quote "$part")"
+      done
+      printf ' "$@"\n'
+    } > "$tmpdir/tmux"
+    chmod +x "$tmpdir/tmux"
+  fi
+
+  printf '%s/tmux\n' "$tmpdir"
 }
 
 pane_option() {
@@ -110,17 +139,7 @@ fi
 
 if [ -z "$spec_path" ]; then
   current_err="$(mktemp)"
-  if [[ "${TMUX_SPEC_TMUX_BIN:-}" == *" "* ]]; then
-    tmpdir="$(mktemp -d)"
-    cat > "$tmpdir/tmux" <<EOF
-#!/usr/bin/env bash
-exec ${TMUX_SPEC_TMUX_BIN} "\$@"
-EOF
-    chmod +x "$tmpdir/tmux"
-    resolver_tmux_bin="$tmpdir/tmux"
-  fi
-
-  if ! spec_path="$(TMUX_SPEC_TMUX_BIN="$resolver_tmux_bin" "$script_dir/tmux-spec-current" "$origin_pane" 2>"$current_err")"; then
+  if ! spec_path="$(TMUX_SPEC_TMUX_BIN="$(resolver_tmux_bin)" "$script_dir/tmux-spec-current" "$origin_pane" 2>"$current_err")"; then
     message="$(cat "$current_err" 2>/dev/null || true)"
     rm -f "$current_err"
     [ -n "$message" ] || message="no current spec"
