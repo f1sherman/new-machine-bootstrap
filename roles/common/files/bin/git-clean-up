@@ -404,10 +404,11 @@ def run_cleanup(options)
   end
 
   if explicit_mode && options[:delete_remote]
-    delete_remote_branch(branch, git_dir: common_git_dir)
+    remote_deleted = delete_remote_branch(branch, git_dir: common_git_dir)
+    fail_with(remote_deleted[:reason]) unless remote_deleted[:ok]
   end
 
-  run_command_args(['tmux-agent-worktree', 'clear'], allow_failure: true) unless explicit_mode
+  run_command_args(['tmux-agent-worktree', 'clear'], allow_failure: true)
 
   pruned = 0
   retained = {}

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a shared `_clean-up` skill and tested `git-clean-up` helper that clean merged worktrees/branches, prune other merged local branches, and replace PR monitor merged-cleanup behavior with the same helper.
+**Goal:** Add a shared `_clean-up` skill and tested `git-clean-up` helper that clean merged worktrees/branches, prune other merged local branches, and make the PR monitor invoke `_clean-up` after a PR is merged.
 
-**Architecture:** Put policy in one shared Ruby helper under `roles/common/files/bin/git-clean-up`, keep `_clean-up` as a thin common skill, and update PR monitor merged cleanup to call the helper instead of macOS-only `cleanup-branches`. Use Bash regression tests around the skill packaging, helper behavior, and monitor integration before provisioning.
+**Architecture:** Put policy in one shared Ruby helper under `roles/common/files/bin/git-clean-up`, keep `_clean-up` as a thin common skill, and update PR monitor merged handling so `_monitor-pr` invokes `_clean-up` after the detector returns `merged`. Use Bash regression tests around the skill packaging, helper behavior, and monitor integration before provisioning.
 
 **Tech Stack:** Ruby helper script, Bash regression tests, Git worktrees, Ansible provisioning, Markdown skills
 
@@ -18,7 +18,7 @@
 - `roles/common/files/config/skills/common/_monitor-pr/SKILL.md` — managed monitor skill documentation for merged-state cleanup.
 - `roles/common/files/config/skills/common/_monitor-github-pr/SKILL.md` — managed GitHub monitor pass skill documentation.
 - `roles/common/files/config/skills/common/_monitor-forgejo-pr/SKILL.md` — managed Forgejo monitor pass skill documentation.
-- `roles/common/files/share/skills/_pr-monitor/run.sh` — managed monitor runtime with merged cleanup calling `git-clean-up`.
+- `roles/common/files/share/skills/_pr-monitor/run.sh` — managed monitor runtime that returns merged results without calling `cleanup-branches`.
 - `roles/common/tasks/main.yml` — installs `git-clean-up` and managed shared monitor runtime files.
 - `docs/superpowers/plans/2026-05-02-clean-up-skill.md` — living implementation record.
 
@@ -100,12 +100,12 @@ assert_exists "$MONITOR_PR" "managed _monitor-pr skill exists"
 assert_exists "$MONITOR_GITHUB" "managed _monitor-github-pr skill exists"
 assert_exists "$MONITOR_FORGEJO" "managed _monitor-forgejo-pr skill exists"
 assert_contains "$MONITOR_PR" 'invoke `_clean-up`' "monitor skill invokes cleanup skill on merged"
-assert_contains "$MONITOR_GITHUB" "git-clean-up" "GitHub monitor skill names shared helper"
-assert_contains "$MONITOR_FORGEJO" "git-clean-up" "Forgejo monitor skill names shared helper"
+assert_contains "$MONITOR_GITHUB" 'return `merged` unchanged' "GitHub monitor skill delegates merged cleanup to _monitor-pr"
+assert_contains "$MONITOR_FORGEJO" 'return `merged` unchanged' "Forgejo monitor skill delegates merged cleanup to _monitor-pr"
 
 assert_exists "$MONITOR_RUN" "managed monitor runtime exists"
 assert_executable "$MONITOR_RUN" "managed monitor runtime is executable"
-assert_contains "$MONITOR_RUN" "git-clean-up" "monitor runtime calls git-clean-up"
+assert_not_contains "$MONITOR_RUN" "run_merged_cleanup" "monitor runtime does not perform merged cleanup directly"
 assert_not_contains "$MONITOR_RUN" "cleanup-branches" "monitor runtime no longer calls cleanup-branches"
 
 assert_contains "$MAIN_YML" "git-clean-up" "Ansible installs git-clean-up"
@@ -537,7 +537,7 @@ Keep the existing comments/checks/merge-conflict handling unchanged.
 Create `roles/common/files/config/skills/common/_monitor-github-pr/SKILL.md` and `roles/common/files/config/skills/common/_monitor-forgejo-pr/SKILL.md` from the installed skill text, with the important merged-cleanup bullet changed to:
 
 ```markdown
-- On `merged`, the shared runtime runs `git-clean-up --repo-dir "$REPO_DIR" --branch "$HEAD_BRANCH" --delete-remote --yes`. If cleanup reports retained branches or fails, return that partial or failed cleanup result instead of pretending cleanup succeeded.
+- On `merged`, return `merged` unchanged so `_monitor-pr` can invoke `_clean-up` with the authoritative `REPO_DIR` and `HEAD_BRANCH`.
 ```
 
 Remove the old `cleanup-branches` reference.
@@ -565,7 +565,7 @@ git commit -m "Manage PR monitor skill cleanup docs"
 
 Expected: one commit containing managed monitor skill source.
 
-### Task 6: Add managed monitor runtime cleanup hook
+### Task 6: Add managed monitor runtime merged handoff
 
 **Files:**
 - Create: `roles/common/files/share/skills/_pr-monitor/run.sh`
@@ -578,31 +578,18 @@ Create `roles/common/files/share/skills/_pr-monitor/run.sh` from the currently i
 
 Preserve executable mode.
 
-- [ ] **Step 6.2: Replace `run_merged_cleanup`**
+- [ ] **Step 6.2: Remove runtime merged cleanup**
 
-In `roles/common/files/share/skills/_pr-monitor/run.sh`, replace the cleanup command inside `run_merged_cleanup` with:
+In `roles/common/files/share/skills/_pr-monitor/run.sh`, remove the `run_merged_cleanup` function and replace the `merged)` case with:
 
 ```bash
-if ! cleanup_output="$(git-clean-up --repo-dir "$repo_dir" --branch "$head_branch" --delete-remote --yes 2>&1)"; then
-  emit_result final "$snapshot_json" "$(clear_memory)" cleanup_failed "$cleanup_output"
-  return 0
-fi
-
-if grep -Fq 'Remote branch retained:' <<<"$cleanup_output"; then
-  emit_result final "$snapshot_json" "$(clear_memory)" remote_retained "$cleanup_output"
-  return 0
-fi
-
-if grep -Fq 'Retained ' <<<"$cleanup_output"; then
-  emit_result final "$snapshot_json" "$(clear_memory)" partial_cleanup "$cleanup_output"
-  return 0
-fi
-
-tmux-agent-worktree clear >/dev/null 2>&1 || true
-emit_result final "$snapshot_json" "$(clear_memory)" cleaned "$cleanup_output"
+merged)
+  emit_result final "$snapshot_json" "$(clear_memory)"
+  exit 0
+  ;;
 ```
 
-The runtime should contain no `cleanup-branches` reference after this change.
+The runtime should contain no `cleanup-branches` or `run_merged_cleanup` reference after this change. `_monitor-pr` owns the follow-up `_clean-up` invocation.
 
 - [ ] **Step 6.3: Install managed shared runtime files**
 
@@ -639,7 +626,7 @@ Run:
 
 ```bash
 git add roles/common/files/share/skills/_pr-monitor/run.sh roles/common/tasks/main.yml tests/_clean-up-skill.sh docs/superpowers/plans/2026-05-02-clean-up-skill.md
-git commit -m "Use git-clean-up for merged PR monitor cleanup"
+git commit -m "Delegate merged PR cleanup to _clean-up"
 ```
 
 Expected: one commit containing managed monitor runtime source and install tasks.
@@ -703,11 +690,12 @@ Run:
 cmp -s roles/common/files/config/skills/common/_clean-up/SKILL.md ~/.claude/skills/_clean-up/SKILL.md
 cmp -s roles/common/files/config/skills/common/_clean-up/SKILL.md ~/.codex/skills/_clean-up/SKILL.md
 cmp -s roles/common/files/share/skills/_pr-monitor/run.sh ~/.local/share/skills/_pr-monitor/run.sh
-rg -n -F 'git-clean-up' ~/.local/share/skills/_pr-monitor/run.sh ~/.claude/skills/_monitor-pr/SKILL.md ~/.codex/skills/_monitor-pr/SKILL.md
+rg -n -F 'invoke `_clean-up`' ~/.claude/skills/_monitor-pr/SKILL.md ~/.codex/skills/_monitor-pr/SKILL.md
+rg -n -F 'run_merged_cleanup' ~/.local/share/skills/_pr-monitor/run.sh && exit 1 || true
 rg -n -F 'cleanup-branches' ~/.local/share/skills/_pr-monitor/run.sh && exit 1 || true
 ```
 
-Expected: `cmp` commands exit `0`; `git-clean-up` appears in installed monitor files; `cleanup-branches` does not appear in installed runtime.
+Expected: `cmp` commands exit `0`; `_monitor-pr` invokes `_clean-up`; installed runtime contains neither `run_merged_cleanup` nor `cleanup-branches`.
 
 - [ ] **Step 7.5: Commit final verification record**
 
@@ -741,4 +729,4 @@ Expected: no uncommitted changes.
 
 Invoke `_pull-request` / `create-pull-request` per repo instructions.
 
-Expected: PR opens with summary, verification, and monitor starts. When the PR later reaches `merged`, the updated monitor cleanup path should invoke `_clean-up` behavior through `git-clean-up`.
+Expected: PR opens with summary, verification, and monitor starts. When the PR later reaches `merged`, `_monitor-pr` should invoke `_clean-up`, which runs `git-clean-up`.

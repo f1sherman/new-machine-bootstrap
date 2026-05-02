@@ -84,11 +84,12 @@ When `_monitor-pr` observes a `merged` terminal state, it should invoke `_clean-
 - if cleanup fails, keep enough monitor state to retry or inspect the failure
 - if cleanup reports that a remote branch was retained or a branch was retained for safety, report that partial cleanup result instead of pretending cleanup fully succeeded
 
-The shared monitor runtime should use `git-clean-up` as the concrete cleanup implementation. A runtime script cannot literally invoke an agent skill, so the implementation boundary should be:
+The monitor skill should own cleanup after a merged terminal result:
 
-- `_monitor-pr` documents `_clean-up` as the merged-state action
+- the shared monitor runtime returns the `merged` terminal result without doing branch cleanup
+- `_monitor-pr` invokes `_clean-up` when it handles that merged result
 - `_clean-up` documents `git-clean-up` as the command it runs
-- the monitor runtime calls `git-clean-up` directly for non-interactive merged cleanup
+- `_monitor-pr` clears saved monitor state only after `_clean-up` succeeds
 
 `git-clean-up` should therefore support a monitor-compatible mode:
 
@@ -213,7 +214,7 @@ Implementation should verify at three levels:
    - confirm `_clean-up/SKILL.md` exists under `roles/common/files/config/skills/common/`
    - confirm `git-clean-up` exists under `roles/common/files/bin/`
    - confirm `roles/common/tasks/main.yml` installs the helper
-   - confirm managed monitor instructions invoke `_clean-up` or the shared helper for merged cleanup instead of `cleanup-branches`
+   - confirm managed monitor instructions invoke `_clean-up` for merged cleanup instead of `cleanup-branches`
 2. Helper behavior
    - add `roles/common/files/bin/git-clean-up.test`
    - cover ancestor-merged linked-worktree cleanup
@@ -226,7 +227,7 @@ Implementation should verify at three levels:
    - run `bin/provision`
    - confirm the skill is installed to both `~/.claude/skills/_clean-up/` and `~/.codex/skills/_clean-up/`
    - confirm the helper is installed to `~/.local/bin/git-clean-up`
-   - confirm merged PR monitor behavior uses `git-clean-up` rather than `cleanup-branches`
+   - confirm merged PR monitor behavior invokes `_clean-up` and that runtime no longer calls `cleanup-branches`
 
 ## Risks
 

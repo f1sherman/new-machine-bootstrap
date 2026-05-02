@@ -33,7 +33,7 @@ description: Run one blocking Forgejo PR monitor pass and return actionable or t
   unchanged for five minutes.
 - Comment-helper failures degrade to `retryable_error` using the same five-minute rule.
 - `merged` and `closed` are PR-final outcomes. `timeout_24h` and `cleaned_elsewhere` are monitor-final outcomes.
-- On `merged`, the shared runtime runs `git-clean-up --repo-dir "$REPO_DIR" --branch "$HEAD_BRANCH" --delete-remote --yes`. If cleanup reports retained branches or fails, return that partial or failed cleanup result instead of pretending cleanup succeeded.
-- The shared runtime only calls `tmux-agent-worktree clear` after successful merged cleanup.
+- On `merged`, return `merged` unchanged so `_monitor-pr` can invoke `_clean-up` with the authoritative `REPO_DIR` and `HEAD_BRANCH`.
+- `_clean-up` clears tmux worktree state after successful merged cleanup.
 - `cleaned_elsewhere` means the monitor's `repo_dir` disappeared and the local branch ref is already gone, which usually means another cleanup already removed that worktree.
 - Treat shared `REPO_DIR` and `HEAD_BRANCH` as authoritative. Do not rediscover them from the current shell.
