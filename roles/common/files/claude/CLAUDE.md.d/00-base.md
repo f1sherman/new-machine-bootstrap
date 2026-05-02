@@ -11,6 +11,5 @@ User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min toke
 * Multi-line commands: write script to `/tmp`. Do not ask user to copy/paste over multiple lines.
 * Testing: use Red/Green TDD.
 * Superpowers specs/plans commit step: check `git check-ignore -q docs/superpowers`. If ignored, skip commit — keep local. Never `git add -f` / `--force` on `docs/superpowers/`.
-* Superpowers spec path fallback: when creating/updating design specs through shell/script paths that bypass native edit hooks, publish with `tmux set-option -p -t "$TMUX_PANE" @agent_current_spec_path "$spec_path"`.
 * Temp files: prefer `./tmp` if exists, else `/tmp`
 * Verification: end to end verify; confirm empirically.
