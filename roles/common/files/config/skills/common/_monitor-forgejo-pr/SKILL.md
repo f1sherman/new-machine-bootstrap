@@ -1,6 +1,6 @@
 ---
 name: _monitor-forgejo-pr
-description: Run one blocking Forgejo monitor pass and return actionable or terminal JSON for `_monitor-pr`.
+description: Run one blocking Forgejo PR monitor pass and return actionable or terminal JSON for `_monitor-pr`.
 ---
 
 # Monitor Forgejo Pull Request
