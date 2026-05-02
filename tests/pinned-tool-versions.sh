@@ -104,6 +104,7 @@ run_install_checks() {
   assert_contains "$LINUX_INSTALLS" "Check installed mise version" "linux tasks check the installed mise version"
   assert_contains "$LINUX_INSTALLS" "linux_mise_version.stdout | default('')" "linux mise install compares the installed version against the pin"
   assert_contains "$LINUX_MAIN" "version: \"{{ tool_versions.git_tags.tpm }}\"" "linux tpm clone uses catalog tag"
+  assert_not_contains "$LINUX_MAIN" "tmux kill-server" "linux tpm install does not kill the user's tmux server"
   assert_contains "$COMMON_MAIN" "version: \"{{ tool_versions.git_tags.superpowers }}\"" "common superpowers clone uses catalog tag"
   assert_contains "$COMMON_MAIN" "install node@{{ tool_versions.runtimes.node }}" "common Linux Node install uses pinned version"
   assert_contains "$COMMON_MAIN" "node@{{ tool_versions.runtimes.node }}" "common Linux Node install uses pinned version"
