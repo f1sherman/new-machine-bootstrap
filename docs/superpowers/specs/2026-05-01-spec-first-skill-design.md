@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add managed shared skills for users who want design discipline but do not want the agent to ask clarifying questions. `_spec-first` should turn a rough request into a written design spec by making reasonable assumptions, documenting those assumptions, and stopping at the written-spec approval gate before implementation planning. `_spec-to-plan` should do the same design work, self-approve the spec, and move directly to implementation planning.
+Add managed shared skills for users who want design discipline but do not want the agent to ask clarifying questions. `_spec-first` should turn a rough request into a written design spec by making reasonable assumptions, documenting those assumptions, and stopping at the written-spec approval gate before implementation planning. `_spec-to-plan` should do the same design work, self-approve the spec, and move directly to implementation planning. `_spec-to-pr` should continue through plan self-approval, automatic execution, verification, and pull request creation.
 
 ## Non-Goals
 
@@ -11,18 +11,20 @@ Add managed shared skills for users who want design discipline but do not want t
 - Do not add runtime-specific Claude or Codex variants unless shared wording is insufficient.
 - Do not weaken the Superpowers hard gate against any implementation action before spec approval.
 - Do not let `_spec-to-plan` invoke implementation skills directly; it may only move to `writing-plans`.
+- Do not let `_spec-to-pr` begin implementation before the spec and plan are complete, self-reviewed, and self-approved.
 
 ## Assumptions
 
 - This repository is the source of truth for Brian's managed skills.
 - Shared skills belong under `roles/common/files/config/skills/common/` and are copied into both `~/.claude/skills/` and `~/.codex/skills/`.
-- The managed skills should use the repository's underscore naming convention: `_spec-first` and `_spec-to-plan`.
+- The managed skills should use the repository's underscore naming convention: `_spec-first`, `_spec-to-plan`, and `_spec-to-pr`.
 - A standalone skill is safer than relying on another named skill, because future agents using `_spec-first` may not know any external process it references.
 - A read-only reviewer subagent can improve the silent question and approval pass when the runtime supports subagents, but the main agent must own the final spec.
+- `_spec-to-pr` should skip the execution-choice question by selecting subagent-driven execution automatically when available, with inline execution as the fallback.
 
 ## Approaches
 
-Recommended: create `roles/common/files/config/skills/common/_spec-first/SKILL.md` and `roles/common/files/config/skills/common/_spec-to-plan/SKILL.md`. Both inline the design process: context exploration, scope assessment, a silent question pass, alternatives, internal design approval, design-quality guidance, spec writing, and self-review. `_spec-first` asks the user to review the written spec before planning. `_spec-to-plan` self-approves the spec and invokes `writing-plans` immediately.
+Recommended: create `roles/common/files/config/skills/common/_spec-first/SKILL.md`, `roles/common/files/config/skills/common/_spec-to-plan/SKILL.md`, and `roles/common/files/config/skills/common/_spec-to-pr/SKILL.md`. All three inline the design process: context exploration, scope assessment, a silent question pass, alternatives, internal design approval, design-quality guidance, spec writing, and self-review. `_spec-first` asks the user to review the written spec before planning. `_spec-to-plan` self-approves the spec and invokes `writing-plans` immediately. `_spec-to-pr` self-approves the spec and plan, chooses subagent-driven execution automatically when available, verifies the implementation, and invokes the shared pull-request workflow.
 
 Alternative: modify the upstream Superpowers checkout. That works only on the current machine and gets lost on future provisioning, so it is not source controlled by this repo.
 
@@ -56,6 +58,16 @@ The `_spec-to-plan` shared skill will use the same design workflow, but after se
 - Invoke `writing-plans` immediately.
 - Continue to block implementation action from the skill itself.
 
+The `_spec-to-pr` shared skill will use the same design workflow, but after self-review it will:
+
+- Skip user spec approval.
+- Self-approve the written spec only when assumptions, scope, approach, and verification are coherent.
+- Invoke `writing-plans` immediately.
+- Skip the execution-choice prompt from `writing-plans`.
+- Self-approve the implementation plan only when it covers the spec, uses concrete TDD steps, and defines verification.
+- Choose `subagent-driven-development` automatically when subagents are available, or `executing-plans` when they are not.
+- Run verification, commit completed work, and invoke `_pull-request` only after the branch is clean.
+
 No Ansible task changes are needed because existing common-skill install tasks already copy `roles/common/files/config/skills/common/` to both agent skill directories.
 
 ## Error Handling
@@ -72,13 +84,16 @@ Verify that:
 
 - `roles/common/files/config/skills/common/_spec-first/SKILL.md` exists.
 - `roles/common/files/config/skills/common/_spec-to-plan/SKILL.md` exists.
+- `roles/common/files/config/skills/common/_spec-to-pr/SKILL.md` exists.
 - No runtime-specific `_spec-first` override exists under `roles/common/files/config/skills/claude/` or `roles/common/files/config/skills/codex/`.
 - No runtime-specific `_spec-to-plan` override exists under `roles/common/files/config/skills/claude/` or `roles/common/files/config/skills/codex/`.
+- No runtime-specific `_spec-to-pr` override exists under `roles/common/files/config/skills/claude/` or `roles/common/files/config/skills/codex/`.
 - The skill has canonical frontmatter and skip-question wording.
 - The skill does not reference another named design skill for its core process.
 - The skill preserves the implementation gate, including "or take any implementation action", and the `writing-plans` transition.
 - The skill includes the anti-pattern warning, isolation guidance, existing-codebase guidance, and spec self-review details inline.
 - The skill always checks ignored `docs/superpowers` paths before committing the spec for review.
 - `_spec-to-plan` skips user spec review, self-approves the spec, and invokes `writing-plans` immediately.
+- `_spec-to-pr` skips user spec review, self-approves the spec and plan, skips the execution-choice prompt, chooses subagent execution automatically when available, and invokes `_pull-request` after verification passes.
 - Existing common-skill installation tasks still target both Claude and Codex.
 - The repository's targeted skill regression tests pass.
