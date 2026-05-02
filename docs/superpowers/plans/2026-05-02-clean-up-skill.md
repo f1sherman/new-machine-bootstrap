@@ -522,7 +522,7 @@ Expected: one commit containing the shared skill and helper install task.
 - Create: `roles/common/files/config/skills/common/_monitor-forgejo-pr/SKILL.md`
 - Test: `bash tests/_clean-up-skill.sh`
 
-- [ ] **Step 5.1: Add managed `_monitor-pr` skill**
+- [x] **Step 5.1: Add managed `_monitor-pr` skill**
 
 Create `roles/common/files/config/skills/common/_monitor-pr/SKILL.md` from the installed skill text, with the merged action changed to:
 
@@ -532,7 +532,7 @@ Create `roles/common/files/config/skills/common/_monitor-pr/SKILL.md` from the i
 
 Keep the existing comments/checks/merge-conflict handling unchanged.
 
-- [ ] **Step 5.2: Add managed platform monitor pass skills**
+- [x] **Step 5.2: Add managed platform monitor pass skills**
 
 Create `roles/common/files/config/skills/common/_monitor-github-pr/SKILL.md` and `roles/common/files/config/skills/common/_monitor-forgejo-pr/SKILL.md` from the installed skill text, with the important merged-cleanup bullet changed to:
 
@@ -542,7 +542,7 @@ Create `roles/common/files/config/skills/common/_monitor-github-pr/SKILL.md` and
 
 Remove the old `cleanup-branches` reference.
 
-- [ ] **Step 5.3: Run packaging regression**
+- [x] **Step 5.3: Run packaging regression**
 
 Run:
 
@@ -552,7 +552,9 @@ bash tests/_clean-up-skill.sh
 
 Expected: still FAIL because the managed monitor runtime and install task are not added yet, but monitor skill assertions pass.
 
-- [ ] **Step 5.4: Commit monitor skill source**
+Result: `bash tests/_clean-up-skill.sh` exited `1` with 20 passed and 6 failed. Managed monitor skill assertions pass; remaining failures are managed monitor runtime and shared runtime install assertions assigned to Task 6.
+
+- [x] **Step 5.4: Commit monitor skill source**
 
 Run:
 
