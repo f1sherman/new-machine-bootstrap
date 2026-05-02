@@ -71,6 +71,14 @@ assert_output() {
   pass "$name"
 }
 
+assert_output_in_dir() {
+  local cwd="$1" expected="$2" name="$3"; shift 3
+  local actual
+  actual="$(cd "$cwd" && "$@")" || fail "$name"
+  [ "$actual" = "$expected" ] || fail "$name"
+  pass "$name"
+}
+
 repo="$TMPROOT/repo"
 make_repo "$repo"
 repo="$(git -C "$repo" rev-parse --show-toplevel)"
@@ -79,6 +87,13 @@ bin="$TMPROOT/bin-option"
 install_fake_tmux "$bin" "$repo" "$repo/docs/superpowers/specs/2026-05-02-new-design.md"
 assert_output "$repo/docs/superpowers/specs/2026-05-02-new-design.md" "pane option wins" \
   env TMUX=/tmp/tmux TMUX_PANE=%31 TMUX_SPEC_TMUX_BIN="$bin/tmux" "$SCRIPT"
+
+outside="$TMPROOT/outside"
+mkdir -p "$outside"
+bin="$TMPROOT/bin-relative-option"
+install_fake_tmux "$bin" "$repo" "docs/superpowers/specs/2026-05-02-new-design.md"
+assert_output_in_dir "$outside" "$repo/docs/superpowers/specs/2026-05-02-new-design.md" "relative pane option resolves against pane repo" \
+  env TMUX=/tmp/tmux TMUX_PANE=%35 TMUX_SPEC_TMUX_BIN="$bin/tmux" "$SCRIPT"
 
 bin="$TMPROOT/bin-fallback"
 install_fake_tmux "$bin" "$repo" ""

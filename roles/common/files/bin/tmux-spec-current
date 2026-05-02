@@ -7,23 +7,42 @@ pane="${1:-${TMUX_PANE:-}}"
 [ -n "${TMUX:-}" ] || { printf 'tmux-spec-current: tmux is required\n' >&2; exit 1; }
 [ -n "$pane" ] || { printf 'tmux-spec-current: pane id is required\n' >&2; exit 1; }
 
+pane_path=""
+repo_root=""
+
+read_pane_path() {
+  if [ -z "$pane_path" ]; then
+    pane_path="$("$tmux_bin" display-message -p -t "$pane" '#{pane_current_path}' 2>/dev/null || true)"
+    if [ -z "$pane_path" ]; then
+      printf 'tmux-spec-current: no current spec because pane current path is unavailable\n' >&2
+      exit 1
+    fi
+  fi
+}
+
+read_repo_root() {
+  if [ -z "$repo_root" ]; then
+    read_pane_path
+    repo_root="$(git -C "$pane_path" rev-parse --show-toplevel 2>/dev/null || true)"
+    if [ -z "$repo_root" ]; then
+      printf 'tmux-spec-current: no current spec and pane is not in a git repo\n' >&2
+      exit 1
+    fi
+  fi
+}
+
 option="$("$tmux_bin" show-options -qv -pt "$pane" @agent_current_spec_path 2>/dev/null || true)"
 if [ -n "$option" ]; then
-  printf '%s\n' "$option"
+  if [[ "$option" == /* ]]; then
+    printf '%s\n' "$option"
+  else
+    read_repo_root
+    printf '%s/%s\n' "$repo_root" "${option#./}"
+  fi
   exit 0
 fi
 
-pane_path="$("$tmux_bin" display-message -p -t "$pane" '#{pane_current_path}' 2>/dev/null || true)"
-if [ -z "$pane_path" ]; then
-  printf 'tmux-spec-current: no current spec because pane current path is unavailable\n' >&2
-  exit 1
-fi
-
-repo_root="$(git -C "$pane_path" rev-parse --show-toplevel 2>/dev/null || true)"
-if [ -z "$repo_root" ]; then
-  printf 'tmux-spec-current: no current spec and pane is not in a git repo\n' >&2
-  exit 1
-fi
+read_repo_root
 
 spec_dir="$repo_root/docs/superpowers/specs"
 if [ ! -d "$spec_dir" ]; then
