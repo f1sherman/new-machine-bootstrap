@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/tmux-spec-current"
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+pass() { printf 'PASS  %s\n' "$1"; }
+fail() { printf 'FAIL  %s\n' "$1" >&2; exit 1; }
+
+make_repo() {
+  local repo="$1"
+  git -c init.templateDir= init -q "$repo"
+  git -C "$repo" commit -q --allow-empty -m init
+  mkdir -p "$repo/docs/superpowers/specs"
+  printf '# Old\n' > "$repo/docs/superpowers/specs/2026-05-01-old-design.md"
+  printf '# New\n' > "$repo/docs/superpowers/specs/2026-05-02-new-design.md"
+  touch -t 202605010101 "$repo/docs/superpowers/specs/2026-05-01-old-design.md"
+  touch -t 202605020101 "$repo/docs/superpowers/specs/2026-05-02-new-design.md"
+  git -C "$repo" add .
+  git -C "$repo" commit -q -m specs
+}
+
+install_fake_tmux() {
+  local bin="$1" repo="$2" option="$3"
+  mkdir -p "$bin"
+  cat > "$bin/tmux" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+case "\${1:-}" in
+  show-options)
+    printf '%s\n' "$option"
+    ;;
+  display-message)
+    printf '%s\n' "$repo"
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+EOF
+  chmod +x "$bin/tmux"
+}
+
+assert_output() {
+  local expected="$1" name="$2"; shift 2
+  local actual
+  actual="$("$@")" || fail "$name"
+  [ "$actual" = "$expected" ] || fail "$name"
+  pass "$name"
+}
+
+repo="$TMPROOT/repo"
+make_repo "$repo"
+repo="$(git -C "$repo" rev-parse --show-toplevel)"
+
+bin="$TMPROOT/bin-option"
+install_fake_tmux "$bin" "$repo" "$repo/docs/superpowers/specs/2026-05-02-new-design.md"
+assert_output "$repo/docs/superpowers/specs/2026-05-02-new-design.md" "pane option wins" \
+  env TMUX=/tmp/tmux TMUX_PANE=%31 TMUX_SPEC_TMUX_BIN="$bin/tmux" "$SCRIPT"
+
+bin="$TMPROOT/bin-fallback"
+install_fake_tmux "$bin" "$repo" ""
+assert_output "$repo/docs/superpowers/specs/2026-05-02-new-design.md" "fallback chooses newest spec" \
+  env TMUX=/tmp/tmux TMUX_PANE=%32 TMUX_SPEC_TMUX_BIN="$bin/tmux" "$SCRIPT"
+
+empty_repo="$TMPROOT/empty"
+git -c init.templateDir= init -q "$empty_repo"
+git -C "$empty_repo" commit -q --allow-empty -m init
+bin="$TMPROOT/bin-empty"
+install_fake_tmux "$bin" "$empty_repo" ""
+if env TMUX=/tmp/tmux TMUX_PANE=%33 TMUX_SPEC_TMUX_BIN="$bin/tmux" "$SCRIPT" >/tmp/tmux-spec-current.out 2>/tmp/tmux-spec-current.err; then
+  fail "no spec should fail"
+fi
+rg -q -F "no current spec" /tmp/tmux-spec-current.err || fail "no spec error message"
+pass "no spec reports clear error"
+
+printf 'PASS  tmux-spec-current test suite\n'
