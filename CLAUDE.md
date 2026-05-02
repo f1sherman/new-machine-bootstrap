@@ -8,7 +8,16 @@ This repository bootstraps macOS machines and Linux development hosts using Ansi
 
 ## CRITICAL: Never Modify Files Outside This Repo
 
-When asked to change dotfiles, shell config, scripts, application settings, home directory configurations (for example `~/.zshrc`, `~/.gitconfig`, `~/.config/`), or any other managed configuration: **always edit the source files in this repository** (templates, roles, tasks, and scripts), never the deployed files in `~` or elsewhere on the filesystem. Deployed files will be overwritten on the next provision.
+**When the working directory is this repo, any change you make on this machine must be made *in this repo*, not to deployed files in `~` or elsewhere.** Deployed files are overwritten on the next provision, so direct edits are silently lost.
+
+This applies to anything that could plausibly be provisioned, including but not limited to:
+- Dotfiles and shell config (`~/.zshrc`, `~/.gitconfig`, `~/.config/`)
+- Helper scripts (`~/.local/bin/`)
+- Claude Code config and skills (`~/.claude/`, `~/.claude/skills/`)
+- Codex config and skills (`~/.codex/`, `~/.codex/skills/`)
+- macOS defaults, Homebrew packages, Ansible roles/templates/tasks
+
+If you're not sure whether something is managed by this repo, default to making the change in this repo first. Search the repo for the deployed path (e.g. `grep -r '\.claude/skills' roles/`) before assuming it's not managed. Ask before editing anything in `~` directly.
 
 After making changes, apply them with `bin/provision` when the environment allows.
 

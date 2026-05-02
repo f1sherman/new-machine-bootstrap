@@ -13,6 +13,7 @@
   shell: 'brew --prefix'
   register: brew_prefix_output
   changed_when: false
+  check_mode: false
 - set_fact:
     brew_prefix: "{{ brew_prefix_output.stdout }}"
 
