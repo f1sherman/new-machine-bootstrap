@@ -1295,6 +1295,19 @@
     state: directory
     mode: '0755'
 
+- name: Create ~/.local/share/skills directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.local/share/skills'
+    state: directory
+    mode: '0755'
+
+- name: Install shared skill runtime files
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/share/skills/'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/share/skills/'
+    mode: preserve
+    directory_mode: '0755'
+
 - name: Install common skills to ~/.claude/skills
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/common/'
