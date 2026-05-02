@@ -248,7 +248,7 @@ Expected: one commit containing the failing helper behavior test.
 - Create: `roles/common/files/bin/git-clean-up`
 - Test: `bash roles/common/files/bin/git-clean-up.test`
 
-- [ ] **Step 3.1: Create the Ruby helper skeleton**
+- [x] **Step 3.1: Create the Ruby helper skeleton**
 
 Create `roles/common/files/bin/git-clean-up` with:
 
@@ -279,7 +279,7 @@ Usage text:
 Usage: git-clean-up [--repo-dir PATH] [--branch NAME] [--delete-remote] [--yes]
 ```
 
-- [ ] **Step 3.2: Implement git and path primitives**
+- [x] **Step 3.2: Implement git and path primitives**
 
 Add functions:
 
@@ -299,7 +299,7 @@ def safe_dir_for(common_git_dir, current_path)
 
 Keep these functions side-effect-light. `run_git` should use argument arrays, never shell string interpolation.
 
-- [ ] **Step 3.3: Implement remote and merge-state detection**
+- [x] **Step 3.3: Implement remote and merge-state detection**
 
 Add functions adapted from `roles/macos/files/bin/cleanup-branches`:
 
@@ -340,7 +340,7 @@ not_merged
 lookup_failed
 ```
 
-- [ ] **Step 3.4: Implement branch/worktree deletion**
+- [x] **Step 3.4: Implement branch/worktree deletion**
 
 Add functions:
 
@@ -358,7 +358,7 @@ Rules:
 - never delete `main`
 - never use `git branch -D` until dirty worktree checks pass
 
-- [ ] **Step 3.5: Implement manual current-branch cleanup**
+- [x] **Step 3.5: Implement manual current-branch cleanup**
 
 In no-argument mode:
 
@@ -374,7 +374,7 @@ In no-argument mode:
 - otherwise remove the current branch's linked worktree and local branch from a safe directory
 - call `tmux-agent-worktree clear` after current branch cleanup succeeds
 
-- [ ] **Step 3.6: Implement monitor-compatible mode**
+- [x] **Step 3.6: Implement monitor-compatible mode**
 
 When `--repo-dir` and `--branch` are provided:
 
@@ -386,7 +386,7 @@ When `--repo-dir` and `--branch` are provided:
 - delete remote branch only when `--delete-remote` is set
 - require `--yes` when `--delete-remote` is set
 
-- [ ] **Step 3.7: Implement merged-branch sweep and final maintenance**
+- [x] **Step 3.7: Implement merged-branch sweep and final maintenance**
 
 After current/target branch cleanup:
 
@@ -411,7 +411,7 @@ For retained branches, print:
 Retained <branch>: <reason>
 ```
 
-- [ ] **Step 3.8: Run helper tests and fix failures**
+- [x] **Step 3.8: Run helper tests and fix failures**
 
 Run:
 
@@ -421,7 +421,7 @@ bash roles/common/files/bin/git-clean-up.test
 
 Expected: all cases pass and the script exits `0`.
 
-- [ ] **Step 3.9: Commit the helper**
+- [x] **Step 3.9: Commit the helper**
 
 Run:
 

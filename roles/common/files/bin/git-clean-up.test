@@ -244,7 +244,7 @@ advance_origin_main_from_branch() {
   git clone -q "$(git -C "$repo" config --get remote.origin.url)" "$updater"
   git -C "$updater" config user.name test
   git -C "$updater" config user.email test@example.com
-  git -C "$updater" fetch -q origin "$branch:refs/remotes/origin/$branch"
+  git -C "$updater" fetch -q origin "refs/heads/$branch:refs/remotes/origin/$branch"
   git -C "$updater" merge -q --ff-only "origin/$branch"
   git -C "$updater" push -q origin main
 }
