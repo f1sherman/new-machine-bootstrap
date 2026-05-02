@@ -18,12 +18,11 @@
 - name: Install tmux plugins via tpm
   shell: |
     # Start a temporary detached tmux session to set environment, then install plugins.
-    # kill-server at the end because tmux-session-name hooks rename the session,
-    # causing kill-session -t tpm_install to miss it.
     tmux new-session -d -s tpm_install
+    tpm_session_id="$(tmux display-message -p -t tpm_install '#{session_id}')"
     tmux set-environment -g TMUX_PLUGIN_MANAGER_PATH ~/.tmux/plugins/
     ~/.tmux/plugins/tpm/bin/install_plugins
-    tmux kill-server 2>/dev/null || true
+    tmux kill-session -t "$tpm_session_id" 2>/dev/null || true
   args:
     executable: /bin/bash
     creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
