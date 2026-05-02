@@ -41,7 +41,7 @@ The new shared skill will:
 - Include design guidance for isolated components, existing-codebase fit, and targeted refactoring.
 - Save the spec to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` unless the user specifies another location.
 - Self-review the spec for unfinished markers, contradictions, ambiguity, and scope drift.
-- Commit the design spec before asking for user review, unless `docs/superpowers` is ignored by the repository.
+- Always check whether `docs/superpowers` is ignored before committing the design spec; when it is ignored, keep the spec local.
 - Ask the user to review the written spec before invoking `writing-plans`.
 
 No Ansible task changes are needed because existing common-skill install tasks already copy `roles/common/files/config/skills/common/` to both agent skill directories.
@@ -64,6 +64,6 @@ Verify that:
 - The skill does not reference another named design skill for its core process.
 - The skill preserves the implementation gate, including "or take any implementation action", and the `writing-plans` transition.
 - The skill includes the anti-pattern warning, isolation guidance, existing-codebase guidance, and spec self-review details inline.
-- The skill requires committing the spec before review while respecting ignored `docs/superpowers` paths.
+- The skill always checks ignored `docs/superpowers` paths before committing the spec for review.
 - Existing common-skill installation tasks still target both Claude and Codex.
 - The repository's targeted skill regression test passes.

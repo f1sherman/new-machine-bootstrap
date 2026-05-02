@@ -122,9 +122,7 @@ improvements as part of the design. Do not propose unrelated refactoring.
 
 ## Review Gate
 
-Commit the design spec before asking for review. If repo instructions say to
-skip committing ignored design docs, run `git check-ignore -q docs/superpowers`;
-when that path is ignored, keep the spec local and do not force-add it.
+Commit the design spec before asking for review. Always run `git check-ignore -q docs/superpowers` before committing. When that path is ignored, keep the spec local and do not force-add it.
 
 ### Spec Self-Review
 

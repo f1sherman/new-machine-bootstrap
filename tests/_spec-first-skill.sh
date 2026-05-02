@@ -84,6 +84,7 @@ assert_contains "$COMMON_SKILL" "Design For Isolation And Clarity" "skill preser
 assert_contains "$COMMON_SKILL" "Working In Existing Codebases" "skill preserves existing-codebase guidance inline"
 assert_contains "$COMMON_SKILL" "Placeholder scan" "skill preserves spec self-review details inline"
 assert_contains "$COMMON_SKILL" "Commit the design spec" "skill commits the spec before review"
+assert_contains "$COMMON_SKILL" "Always run \`git check-ignore -q docs/superpowers\` before committing." "skill always checks ignored superpowers docs"
 assert_contains "$COMMON_SKILL" "git check-ignore -q docs/superpowers" "skill respects ignored superpowers docs"
 assert_contains "$COMMON_SKILL" "invoke \`writing-plans\`" "skill transitions to writing-plans after approval"
 assert_contains "$MAIN_YML" "roles/common/files/config/skills/common/" "Ansible still installs common skills"
