@@ -359,6 +359,9 @@
     - { name: review-file, mode: '0755' }
     - { name: tmux-review-open, mode: '0755' }
     - { name: tmux-review-toggle, mode: '0755' }
+    - { name: tmux-spec-current, mode: '0755' }
+    - { name: tmux-spec-open, mode: '0755' }
+    - { name: agent-current-spec-hook, mode: '0755' }
 
 - name: Install tmux-window-name script
   copy:
@@ -725,6 +728,58 @@
     SETTINGS_FILE: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
   register: claude_main_edit_hook_result
   changed_when: claude_main_edit_hook_result.stdout.strip() == 'changed'
+
+- name: Register PostToolUse Edit|MultiEdit|Write hook for publishing current spec path
+  shell: |
+    set -euo pipefail
+
+    settings_file="${SETTINGS_FILE:?}"
+    hook_cmd='$HOME/.local/bin/agent-current-spec-hook'
+
+    if [ ! -f "$settings_file" ]; then
+      echo '{}' > "$settings_file"
+    fi
+
+    if jq -e --arg cmd "$hook_cmd" '
+      .hooks.PostToolUse // []
+      | any(.matcher == "Edit|MultiEdit|Write" and any(.hooks[]?; .type == "command" and .command == $cmd))
+    ' "$settings_file" >/dev/null 2>&1; then
+      echo "unchanged"
+      exit 0
+    fi
+
+    managed_entry="$(
+      jq -n --arg cmd "$hook_cmd" '{
+        matcher: "Edit|MultiEdit|Write",
+        hooks: [
+          {
+            type: "command",
+            command: $cmd
+          }
+        ]
+      }'
+    )"
+    tmp_file="$(mktemp)"
+
+    if [ -f "$settings_file" ] && [ -s "$settings_file" ]; then
+      jq --argjson entry "$managed_entry" '
+        .hooks //= {} |
+        .hooks.PostToolUse = ((.hooks.PostToolUse // []) + [$entry])
+      ' "$settings_file" > "$tmp_file"
+    else
+      jq -n --argjson entry "$managed_entry" '
+        {hooks: {PostToolUse: [$entry]}}
+      ' > "$tmp_file"
+    fi
+
+    mv "$tmp_file" "$settings_file"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  environment:
+    SETTINGS_FILE: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
+  register: claude_current_spec_hook_result
+  changed_when: claude_current_spec_hook_result.stdout.strip() == 'changed'
 
 - name: Register PreToolUse Bash hook for blocking force-add of superpowers docs
   shell: |
@@ -1270,6 +1325,56 @@
     HOOKS_FILE: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
   register: codex_main_edit_hooks_json_result
   changed_when: codex_main_edit_hooks_json_result.stdout.strip() == 'changed'
+
+- name: Merge managed Codex current spec hook into ~/.codex/hooks.json
+  shell: |
+    set -euo pipefail
+
+    hooks_file="${HOOKS_FILE:?}"
+    managed_command='~/.local/bin/agent-current-spec-hook'
+
+    if [ -f "$hooks_file" ] && jq -e --arg cmd "$managed_command" '
+      .hooks.PostToolUse // []
+      | any(.matcher == "Edit|Write" and any(.hooks[]?; .type == "command" and .command == $cmd))
+    ' "$hooks_file" >/dev/null 2>&1; then
+      echo "unchanged"
+      exit 0
+    fi
+
+    managed_entry="$(
+      jq -n --arg cmd "$managed_command" '{
+        matcher: "Edit|Write",
+        hooks: [
+          {
+            type: "command",
+            command: $cmd
+          }
+        ]
+      }'
+    )"
+    tmp_file="$(mktemp)"
+
+    if [ -f "$hooks_file" ] && [ -s "$hooks_file" ]; then
+      jq --argjson entry "$managed_entry" '
+        .hooks //= {} |
+        .hooks.PostToolUse = ((.hooks.PostToolUse // []) + [$entry])
+      ' "$hooks_file" > "$tmp_file"
+    else
+      jq -n --argjson entry "$managed_entry" '
+        {hooks: {PostToolUse: [$entry]}}
+      ' > "$tmp_file"
+    fi
+
+    mv "$tmp_file" "$hooks_file"
+    chmod 600 "$hooks_file"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  environment:
+    HOOKS_FILE: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
+  register: codex_current_spec_hooks_json_result
+  changed_when: codex_current_spec_hooks_json_result.stdout.strip() == 'changed'
+
 - name: Enforce 0600 on ~/.codex/hooks.json
   file:
     path: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
