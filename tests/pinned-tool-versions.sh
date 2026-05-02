@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 PLAYBOOK="$REPO_ROOT/playbook.yml"
 CATALOG="$REPO_ROOT/vars/tool_versions.yml"
+MISE_TOML="$REPO_ROOT/mise.toml"
 LINUX_INSTALLS="$REPO_ROOT/roles/linux/tasks/install_packages.yml"
 LINUX_MAIN="$REPO_ROOT/roles/linux/tasks/main.yml"
 COMMON_MAIN="$REPO_ROOT/roles/common/tasks/main.yml"
@@ -67,6 +68,20 @@ assert_yaml_matches() {
   fi
 }
 
+assert_toml_value_equals_yaml() {
+  local toml_path="$1" toml_query="$2" yaml_path="$3" yaml_query="$4" name="$5"
+  local toml_value yaml_value
+
+  toml_value="$(yq -p=toml -oy -r "$toml_query" "$toml_path" 2>/dev/null || true)"
+  yaml_value="$(yq -r "$yaml_query" "$yaml_path" 2>/dev/null || true)"
+
+  if [[ -n "$toml_value" && "$toml_value" != "null" && "$toml_value" == "$yaml_value" ]]; then
+    pass_case "$name"
+  else
+    fail_case "$name" "expected $toml_query in $toml_path to equal $yaml_query in $yaml_path; got '$toml_value' vs '$yaml_value'"
+  fi
+}
+
 run_catalog_checks() {
   assert_contains "$PLAYBOOK" "vars_files:" "playbook loads shared vars files"
   assert_contains "$PLAYBOOK" "- vars/tool_versions.yml" "playbook loads vars/tool_versions.yml"
@@ -84,6 +99,9 @@ run_catalog_checks() {
   assert_yaml_matches "$CATALOG" '.tool_versions.github_releases.zoxide' '^v[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins zoxide"
   assert_yaml_matches "$CATALOG" '.tool_versions.runtimes.mise' '^v[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins mise"
   assert_yaml_matches "$CATALOG" '.tool_versions.runtimes.node' '^[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins Node.js"
+  assert_toml_value_equals_yaml "$MISE_TOML" '.tools.node' "$CATALOG" '.tool_versions.runtimes.node' "repo mise config uses catalog-pinned Node.js"
+  assert_not_contains "$MISE_TOML" '= "lts"' "repo mise config does not use lts aliases"
+  assert_not_contains "$MISE_TOML" '= "latest"' "repo mise config does not use latest aliases"
   assert_not_contains "$CATALOG" "neovim_glibc_legacy: v0.10.4" "catalog no longer preserves legacy neovim compatibility pin"
 }
 
