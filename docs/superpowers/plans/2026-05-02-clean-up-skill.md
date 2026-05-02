@@ -32,7 +32,7 @@
 - Create: `tests/_clean-up-skill.sh`
 - Test: `bash tests/_clean-up-skill.sh`
 
-- [ ] **Step 1.1: Create the failing regression script**
+- [x] **Step 1.1: Create the failing regression script**
 
 Create `tests/_clean-up-skill.sh` with assertions for the source layout:
 
@@ -119,7 +119,7 @@ printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
 ```
 
-- [ ] **Step 1.2: Run the regression and confirm it fails**
+- [x] **Step 1.2: Run the regression and confirm it fails**
 
 Run:
 
@@ -129,7 +129,7 @@ bash tests/_clean-up-skill.sh
 
 Expected: FAIL because `_clean-up`, `git-clean-up`, managed monitor source files, and install tasks do not exist yet.
 
-- [ ] **Step 1.3: Commit the red packaging regression**
+- [x] **Step 1.3: Commit the red packaging regression**
 
 Run:
 
