@@ -673,7 +673,7 @@ Expected: both pass.
 
 Verified:
 - `bash tests/_clean-up-skill.sh`: `37 passed, 0 failed`
-- `bash roles/common/files/bin/git-clean-up.test`: `39 passed, 0 failed`
+- `bash roles/common/files/bin/git-clean-up.test`: `43 passed, 0 failed` after adding the post-review remote-delete retry-state regression
 
 - [x] **Step 7.2: Run related existing regressions**
 

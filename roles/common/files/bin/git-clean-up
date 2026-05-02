@@ -393,6 +393,11 @@ def run_cleanup(options)
 
   update_primary_main(primary_path, main_branch)
 
+  if explicit_mode && options[:delete_remote]
+    remote_deleted = delete_remote_branch(branch, git_dir: common_git_dir)
+    fail_with(remote_deleted[:reason]) unless remote_deleted[:ok]
+  end
+
   used_worktree_done = false
   if !explicit_mode && state[:proof] == 'ancestor' && target_worktrees.map { |path| File.expand_path(path) }.include?(repo_dir) && repo_dir != primary_path
     used_worktree_done = maybe_run_worktree_done(repo_dir, safe_dir)
@@ -401,11 +406,6 @@ def run_cleanup(options)
   unless used_worktree_done
     deleted = delete_branch_with_worktrees(branch, git_dir: common_git_dir, safe_dir: safe_dir, hard_stop: true)
     fail_with(deleted[:reason]) unless deleted[:ok]
-  end
-
-  if explicit_mode && options[:delete_remote]
-    remote_deleted = delete_remote_branch(branch, git_dir: common_git_dir)
-    fail_with(remote_deleted[:reason]) unless remote_deleted[:ok]
   end
 
   run_command_args(['tmux-agent-worktree', 'clear'], allow_failure: true)
