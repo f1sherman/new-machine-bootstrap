@@ -299,6 +299,11 @@ printf '%s\n' "$spec" > "$fake_dir/options/%1.@agent_current_spec_path"
 run_open_with_tmux_bin "$fake_dir" %1 "$spaced_fake_tmux"
 assert_eq "$spec" "$(read_option "$fake_dir" %9 @spec_subject)" "tmux binary path with space resolves current spec"
 
+fake_dir="$TMPROOT/spaced-binary-with-args"
+seed_fake_tmux "$fake_dir" "$repo"
+run_open_with_tmux_bin "$fake_dir" %1 "$spaced_fake_tmux -L spec-test" --path "$spec"
+assert_file_contains "$fake_dir/split-window" "TMUX_SPEC_RENDER=1" "tmux binary path with space and args opens explicit spec"
+
 
 quoted_spec="$repo/docs/superpowers/specs/2026-05-02-it's-quoted-design.md"
 printf '# Quoted\n' > "$quoted_spec"

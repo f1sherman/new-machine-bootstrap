@@ -67,7 +67,28 @@ if [ -z "$tmux_override" ]; then
 elif [ -x "$tmux_override" ] || command -v "$tmux_override" >/dev/null 2>&1; then
   tmux_cmd=("$tmux_override")
 else
-  IFS=' ' read -r -a tmux_cmd <<< "$tmux_override"
+  tmux_prefix=""
+  tmux_args=""
+  candidate="$tmux_override"
+  while [[ "$candidate" == *" "* ]]; do
+    candidate="${candidate% *}"
+    if [ -x "$candidate" ] || command -v "$candidate" >/dev/null 2>&1; then
+      tmux_prefix="$candidate"
+      tmux_args="${tmux_override#"$candidate"}"
+      tmux_args="${tmux_args# }"
+      break
+    fi
+  done
+
+  if [ -n "$tmux_prefix" ]; then
+    tmux_cmd=("$tmux_prefix")
+    if [ -n "$tmux_args" ]; then
+      IFS=' ' read -r -a extra_tmux_args <<< "$tmux_args"
+      tmux_cmd+=("${extra_tmux_args[@]}")
+    fi
+  else
+    IFS=' ' read -r -a tmux_cmd <<< "$tmux_override"
+  fi
 fi
 
 tmux_spec_tmux() {
