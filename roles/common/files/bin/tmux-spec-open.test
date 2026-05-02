@@ -242,6 +242,11 @@ assert_eq() {
   pass "$name"
 }
 
+captured_tmux_command() {
+  local file="$1"
+  awk -F '\t' '{ print $3 }' "$file"
+}
+
 run_open() {
   local fake_dir="$1" fake_tmux="$2" pane="$3"
   shift 3
@@ -271,6 +276,23 @@ printf '%s\n' "$spec" > "$fake_dir/options/%1.@agent_current_spec_path"
 run_open "$fake_dir" "$fake_tmux" %1
 assert_file_contains "$fake_dir/split-window" "TMUX_SPEC_RENDER=1" "current resolver works with spaced tmux override"
 assert_eq "$spec" "$(read_option "$fake_dir" %9 @spec_subject)" "resolved spec is stored on spec pane"
+
+
+quoted_spec="$repo/docs/superpowers/specs/2026-05-02-it's-quoted-design.md"
+printf '# Quoted\n' > "$quoted_spec"
+fake_dir="$TMPROOT/quoted"
+seed_fake_tmux "$fake_dir" "$repo"
+run_open "$fake_dir" "$fake_tmux" %1 --path "$quoted_spec"
+quoted_render_dir="$TMPROOT/quoted-render-bin"
+mkdir -p "$quoted_render_dir"
+ln -s /bin/bash "$quoted_render_dir/bash"
+cat > "$quoted_render_dir/cat" <<'EOF'
+#!/bin/sh
+/bin/cat "$@"
+EOF
+chmod +x "$quoted_render_dir/cat"
+PATH="$quoted_render_dir" bash -c "$(captured_tmux_command "$fake_dir/split-window")" > "$TMPROOT/quoted-render.out"
+assert_file_contains "$TMPROOT/quoted-render.out" "# Quoted" "render command handles single quote paths"
 
 
 fake_dir="$TMPROOT/reuse"

@@ -62,7 +62,9 @@ tmux_spec_tmux() {
 
 tmux_quote() {
   local value="$1"
-  printf "'%s'" "${value//\'/\'\\\'\'}"
+  printf "'"
+  printf '%s' "$value" | sed "s/'/'\\\\''/g"
+  printf "'"
 }
 
 pane_option() {
