@@ -240,6 +240,8 @@ done <<'EOF'
 .codex/skills/p-resume-handoff|cleanup removes Codex p-resume-handoff
 .claude/skills/p-validate-plan|cleanup removes Claude p-validate-plan
 .codex/skills/p-validate-plan|cleanup removes Codex p-validate-plan
+.claude/skills/_spec-to-plan|cleanup removes Claude _spec-to-plan
+.codex/skills/_spec-to-plan|cleanup removes Codex _spec-to-plan
 .claude/skills/catchup|cleanup removes Claude catchup
 .codex/skills/catchup|cleanup removes Codex catchup
 .claude/skills/creating-handoffs|cleanup removes Claude create-handoff

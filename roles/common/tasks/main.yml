@@ -1511,6 +1511,8 @@
     - .local/bin/_find-agent-sessions
     - .claude/skills/_find-agent-sessions
     - .codex/skills/_find-agent-sessions
+    - .claude/skills/_spec-to-plan
+    - .codex/skills/_spec-to-plan
     - .claude/skills/committing-changes
     - .claude/skills/p-approve-spec
     - .claude/skills/p-catchup
