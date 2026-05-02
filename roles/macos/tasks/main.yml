@@ -175,6 +175,7 @@
   ansible.builtin.command: brew info --json=v2 tmux
   register: upstream_tmux_info
   changed_when: false
+  check_mode: no
 
 - name: Fail if upstream Homebrew tmux has moved past 3.6a
   ansible.builtin.fail:
