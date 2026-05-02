@@ -12,9 +12,9 @@ fi
 TMPROOT="$(mktemp -d)"
 trap 'rm -rf "$TMPROOT"' EXIT
 
-GIT_AUTHOR_NAME=test
+GIT_AUTHOR_NAME="test"
 GIT_AUTHOR_EMAIL=test@example.com
-GIT_COMMITTER_NAME=test
+GIT_COMMITTER_NAME="test"
 GIT_COMMITTER_EMAIL=test@example.com
 export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
 
@@ -376,6 +376,7 @@ stdout="$TMPROOT/sweep-ancestor.out"
 stderr="$TMPROOT/sweep-ancestor.err"
 FAKE_GH_STATE_JSON="[]"
 rc="$(run_cleanup "$current_wt" "$stdout" "$stderr")"
+assert_eq "sweep ancestry-merged returns success" "0" "$rc"
 assert_branch_absent "sweep prunes ancestry-merged plain branch" "$repo" feature/sweep-ancestor-plain
 
 # --- Sweep: PR-merged plain local branch is pruned ---
@@ -389,6 +390,7 @@ stdout="$TMPROOT/sweep-pr.out"
 stderr="$TMPROOT/sweep-pr.err"
 FAKE_GH_STATE_JSON="$(pr_json_for "$repo" feature/sweep-pr-plain)"
 rc="$(run_cleanup "$current_wt" "$stdout" "$stderr")"
+assert_eq "sweep PR-merged returns success" "0" "$rc"
 assert_branch_absent "sweep prunes PR-merged plain branch" "$repo" feature/sweep-pr-plain
 
 # --- Sweep: failed PR lookup retains branch when ancestry does not prove merge ---
