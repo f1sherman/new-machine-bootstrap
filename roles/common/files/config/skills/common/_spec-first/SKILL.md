@@ -15,8 +15,8 @@ replaced by explicit assumptions and one written-spec review gate.
 
 <HARD-GATE>
 Do NOT invoke implementation skills, write production code, scaffold projects,
-or modify target behavior until the written spec has been reviewed and approved
-by the user.
+modify target behavior, or take any implementation action until the written
+spec has been reviewed and approved by the user.
 </HARD-GATE>
 
 ## Checklist

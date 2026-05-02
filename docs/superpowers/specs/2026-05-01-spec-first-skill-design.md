@@ -9,7 +9,7 @@ Add a managed shared skill for users who want Superpowers design discipline but 
 - Do not modify upstream Superpowers in `~/.codex/superpowers`.
 - Do not change the pinned `obra/superpowers` version.
 - Do not add runtime-specific Claude or Codex variants unless shared wording is insufficient.
-- Do not weaken the Superpowers hard gate against implementation before spec approval.
+- Do not weaken the Superpowers hard gate against any implementation action before spec approval.
 
 ## Assumptions
 
@@ -31,7 +31,7 @@ Alternative: add Claude-specific and Codex-specific variants. That adds duplicat
 The new shared skill will:
 
 - Trigger when the user asks to skip questions, make assumptions, or just deliver a Superpowers-style spec.
-- Preserve the no-implementation hard gate.
+- Preserve the no-implementation hard gate, including the upstream "or take any implementation action" coverage.
 - Require local context exploration before writing.
 - Require scope assessment and decomposition for oversized requests.
 - Skip non-blocking clarifying questions.
@@ -59,7 +59,7 @@ Verify that:
 - `roles/common/files/config/skills/common/_spec-first/SKILL.md` exists.
 - No runtime-specific `_spec-first` override exists under `roles/common/files/config/skills/claude/` or `roles/common/files/config/skills/codex/`.
 - The skill has canonical frontmatter and skip-question wording.
-- The skill preserves the implementation gate and `writing-plans` transition.
+- The skill preserves the implementation gate, including "or take any implementation action", and the `writing-plans` transition.
 - The skill requires committing the spec before review while respecting ignored `docs/superpowers` paths.
 - Existing common-skill installation tasks still target both Claude and Codex.
 - The repository's targeted skill regression test passes.
