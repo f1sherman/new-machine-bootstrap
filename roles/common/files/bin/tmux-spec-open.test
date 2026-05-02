@@ -298,6 +298,18 @@ assert_eq "%1" "$(read_option "$fake_dir" %9 @spec_origin_pane_id)" "first open 
 assert_eq "$spec" "$(read_option "$fake_dir" %9 @spec_subject)" "first open stores subject on spec pane"
 assert_eq "%9" "$(cat "$fake_dir/select-pane")" "first open focuses spec pane"
 
+fake_dir="$TMPROOT/relative-helper"
+seed_fake_tmux "$fake_dir" "$repo"
+relative_helper_dir="$TMPROOT/helper-link"
+mkdir -p "$relative_helper_dir"
+ln -s "$SCRIPT" "$relative_helper_dir/tmux-spec-open"
+(
+  cd "$relative_helper_dir"
+  env TMUX=/tmp/tmux TMUX_PANE=%1 TMUX_SPEC_FAKE_DIR="$fake_dir" \
+    TMUX_SPEC_TMUX_BIN="$fake_tmux -L spec-test" ./tmux-spec-open --path "$spec"
+)
+assert_file_contains "$fake_dir/split-window" "$relative_helper_dir/tmux-spec-open" "relative invocation renders with absolute helper path"
+
 fake_dir="$TMPROOT/resolved"
 seed_fake_tmux "$fake_dir" "$repo"
 printf '%s\n' "$spec" > "$fake_dir/options/%1.@agent_current_spec_path"

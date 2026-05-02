@@ -27,7 +27,7 @@ normalize_candidate() {
       [[ "$repo_path" =~ $spec_pattern ]] && printf '%s\n' "$path"
     fi
   elif [[ "$path" =~ $spec_pattern ]]; then
-    printf '%s\n' "$path"
+    printf '%s/%s\n' "$repo_root" "$path"
   fi
 }
 

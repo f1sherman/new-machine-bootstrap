@@ -73,7 +73,7 @@ jq -n --arg cwd "$repo" --arg command "*** Begin Patch
   cwd: $cwd,
   tool_input: {command: $command}
 }' | PATH="$bin:$PATH" TMUX=/tmp/tmux TMUX_PANE=%22 TMUX_TEST_LOG="$log" "$SCRIPT"
-assert_log_contains "$log" "set-option -p -t %22 @agent_current_spec_path $spec_rel" "Codex apply_patch payload stores relative spec path"
+assert_log_contains "$log" "set-option -p -t %22 @agent_current_spec_path $spec_abs" "Codex apply_patch payload stores absolute spec path"
 
 : > "$log"
 jq -n --arg cwd "$repo" '{cwd: $cwd, tool_input: {file_path: "src/app.rb"}}' \
