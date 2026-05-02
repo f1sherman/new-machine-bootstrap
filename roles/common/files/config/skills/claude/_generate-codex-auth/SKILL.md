@@ -15,27 +15,43 @@ ChatGPT-mode `~/.codex/auth.json` contains a `refresh_token` that **rotates on e
 
 ## The fix
 
-Strip `refresh_token` before deploying. Hosts run on the `access_token` only, which is a JWT with a fixed `exp` (~10 days from `last_refresh`). No rotation, no cross-host invalidation. When it expires, re-auth on the primary machine and redeploy.
+Replace `refresh_token` with a placeholder string before deploying. The Codex auth loader requires the `refresh_token` field to exist (verified — deleting it errors out with `missing field refresh_token` on every command), but the value can be bogus. Hosts then run on the static `access_token`, which is a JWT with a fixed `exp` (~10 days from `last_refresh`). No machine can mutate the bundle, so they all stay in sync until the access_token expires. Then re-auth on the primary and redeploy.
+
+Refresh attempts will fail on the headless hosts (codex prints something like "Your access token could not be refreshed"), but the static access_token works for normal calls until `exp`.
 
 ## Procedure
 
-1. **Refresh on primary first** so the access_token is brand new (gives ~10 days of runway):
-   ```bash
-   codex login status   # or any command that triggers refresh
-   ```
-2. **Verify auth_mode is chatgpt** and read the expiry. The JWT payload is base64url-encoded, so substitute `-`/`_` to `+`/`/` before `@base64d`:
+1. **Check current expiry on the primary**. Decode and print `exp`. If it's not far enough in the future for your purposes, run `codex login` (the full browser OAuth flow) on the primary to mint a fresh ~10-day token. `codex login status` does **not** trigger a refresh — it only reads the active mode.
    ```bash
    jq -r '.auth_mode' ~/.codex/auth.json   # expect "chatgpt"
-   jq -r '.tokens.access_token | split(".") | .[1] | gsub("-";"+") | gsub("_";"/") | @base64d | fromjson | .exp | todate' ~/.codex/auth.json
+   jq -r '
+     .tokens.access_token
+     | split(".") | .[1]
+     | gsub("-";"+") | gsub("_";"/")
+     | @base64d | fromjson | .exp | todate
+   ' ~/.codex/auth.json
    ```
-3. **Generate portable auth.json** (drops `refresh_token`, keeps everything else). Use `mktemp` so the file is created with mode `0600` from the start — never write the bearer token to a predictable, possibly-symlinked path:
+   If runway is too short, run `codex login` and re-check. (The JWT payload is base64url, so the `gsub` calls translate `-`/`_` to `+`/`/` before `@base64d`, which only handles standard base64.)
+
+2. **Generate portable auth.json**. Replace `refresh_token` with an empty string (do **not** delete the field). Use `mktemp -t` so the file is created with mode `0600` from the start — never write the bearer token to a predictable, possibly-symlinked path:
    ```bash
    out=$(mktemp -t codex-auth-portable.XXXXXX)
-   jq 'del(.tokens.refresh_token)' ~/.codex/auth.json > "$out"
+   jq '.tokens.refresh_token = ""' ~/.codex/auth.json > "$out"
    echo "$out"
    ```
-4. **Deploy** to each headless host at `~/.codex/auth.json` with `0600` perms. Use `scp`, `ansible-playbook --extra-vars`, etc. — whatever the user's provisioning flow is. Delete `$out` after deployment (`shred -u "$out"` if available, else `rm "$out"`).
-5. **Tell the user the expiry timestamp** so they know when to redeploy.
+
+3. **Deploy** to each headless host at `~/.codex/auth.json` with `0600` perms. Single-quote remote paths so `~` expands on the target host, not locally:
+   ```bash
+   scp "$out" host:'~/.codex/auth.json' && ssh host 'chmod 600 ~/.codex/auth.json'
+   rm "$out"   # or `shred -u "$out"` if available
+   ```
+
+4. **Tell the user the expiry timestamp** so they know when to redeploy.
+
+5. **Sanity-check on a remote host** (optional but recommended after the first deploy):
+   ```bash
+   ssh host 'codex login status'   # expect: "Logged in using ChatGPT"
+   ```
 
 ## Critical guidance — do NOT hard-code
 
@@ -54,7 +70,7 @@ If the user asks to "save this for next time" or "add it to the repo", refuse an
 
 - **`auth_mode` is "ApiKey"**: no refresh problem exists. Just copy `auth.json` as-is, or set `OPENAI_API_KEY` env var on the host.
 - **`OPENAI_API_KEY` is set alongside tokens**: the API key takes precedence. Consider whether the user actually needs the ChatGPT tokens at all on that host.
-- **User wants to *automate* redeployment**: still don't commit creds. Suggest a local script that reads from `~/.codex/auth.json`, strips refresh_token, and pushes via `scp` — run on demand, not from CI.
+- **User wants to *automate* redeployment**: still don't commit creds. Suggest a local script that reads from `~/.codex/auth.json`, neutralizes refresh_token, and pushes via `scp` — run on demand, not from CI.
 
 ## Quick reference
 
@@ -62,5 +78,6 @@ If the user asks to "save this for next time" or "add it to the repo", refuse an
 |------|---------|
 | Check auth mode | `jq -r .auth_mode ~/.codex/auth.json` |
 | Check access_token expiry | `jq -r '.tokens.access_token \| split(".") \| .[1] \| gsub("-";"+") \| gsub("_";"/") \| @base64d \| fromjson \| .exp \| todate' ~/.codex/auth.json` |
-| Generate portable file | `out=$(mktemp -t codex-auth-portable.XXXXXX) && jq 'del(.tokens.refresh_token)' ~/.codex/auth.json > "$out" && echo "$out"` |
+| Force fresh ~10-day token | `codex login` (browser OAuth) — `codex login status` does not refresh |
+| Generate portable file | `out=$(mktemp -t codex-auth-portable.XXXXXX) && jq '.tokens.refresh_token = ""' ~/.codex/auth.json > "$out" && echo "$out"` |
 | Deploy | `scp "$out" host:'~/.codex/auth.json' && ssh host 'chmod 600 ~/.codex/auth.json' && rm "$out"` |
