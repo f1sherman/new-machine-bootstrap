@@ -45,6 +45,7 @@ assert_log_empty() {
 
 repo="$TMPROOT/repo"
 make_repo "$repo"
+repo="$(git -C "$repo" rev-parse --show-toplevel)"
 bin="$TMPROOT/bin"
 log="$TMPROOT/tmux.log"
 install_fake_tmux "$bin" "$log"
@@ -78,6 +79,19 @@ assert_log_contains "$log" "set-option -p -t %22 @agent_current_spec_path $spec_
 jq -n --arg cwd "$repo" '{cwd: $cwd, tool_input: {file_path: "src/app.rb"}}' \
   | PATH="$bin:$PATH" TMUX=/tmp/tmux TMUX_PANE=%23 TMUX_TEST_LOG="$log" "$SCRIPT"
 assert_log_empty "$log" "non-spec edit is ignored"
+
+: > "$log"
+jq -n --arg cwd "$repo" --arg path "$repo/src/app.rb" '{cwd: $cwd, tool_input: {file_path: $path}}' \
+  | PATH="$bin:$PATH" TMUX=/tmp/tmux TMUX_PANE=%25 TMUX_TEST_LOG="$log" "$SCRIPT"
+assert_log_empty "$log" "absolute non-spec edit under repo is ignored"
+
+: > "$log"
+outside_spec="$TMPROOT/outside/docs/superpowers/specs/2026-05-02-outside-design.md"
+mkdir -p "$(dirname "$outside_spec")"
+printf '# Outside\n' > "$outside_spec"
+jq -n --arg cwd "$repo" --arg path "$outside_spec" '{cwd: $cwd, tool_input: {file_path: $path}}' \
+  | PATH="$bin:$PATH" TMUX=/tmp/tmux TMUX_PANE=%26 TMUX_TEST_LOG="$log" "$SCRIPT"
+assert_log_empty "$log" "absolute matching spec path outside repo is ignored"
 
 : > "$log"
 jq -n --arg cwd "$repo" --arg command "*** Begin Patch

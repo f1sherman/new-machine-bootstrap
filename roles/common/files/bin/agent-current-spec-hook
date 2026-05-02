@@ -15,14 +15,17 @@ cwd="$(printf '%s' "$payload" | jq -r '.cwd // empty' 2>/dev/null || true)"
 repo_root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || true)"
 [ -n "$repo_root" ] || exit 0
 
-spec_pattern='(^|/)docs/superpowers/specs/[^/]+-design[.]md$'
+spec_pattern='^docs/superpowers/specs/[^/]+-design[.]md$'
 
 normalize_candidate() {
   local path="$1"
   path="${path#./}"
 
-  if [[ "$path" == "$repo_root"/* ]]; then
-    printf '%s\n' "$path"
+  if [[ "$path" == /* ]]; then
+    if [[ "$path" == "$repo_root"/* ]]; then
+      local repo_path="${path#$repo_root/}"
+      [[ "$repo_path" =~ $spec_pattern ]] && printf '%s\n' "$path"
+    fi
   elif [[ "$path" =~ $spec_pattern ]]; then
     printf '%s\n' "$path"
   fi
