@@ -54,20 +54,38 @@ assert_contains() {
   fi
 }
 
+assert_not_contains() {
+  local path="$1" needle="$2" name="$3"
+  if [ ! -f "$path" ]; then
+    fail_case "$name" "missing file: $path"
+    return
+  fi
+
+  if rg -n -F "$needle" "$path" > /dev/null; then
+    fail_case "$name" "unexpected needle '$needle' in $path"
+  else
+    pass_case "$name"
+  fi
+}
+
 assert_exists "$COMMON_SKILL" "shared _spec-first skill exists"
 assert_missing "$CLAUDE_SKILL_DIR" "no Claude-specific _spec-first override"
 assert_missing "$CODEX_SKILL_DIR" "no Codex-specific _spec-first override"
 
 assert_contains "$COMMON_SKILL" "name: _spec-first" "skill uses canonical name"
 assert_contains "$COMMON_SKILL" "skip clarifying questions" "skill trigger covers skipped questions"
-assert_contains "$COMMON_SKILL" "Do not ask preference, discovery, or approach-selection questions." "skill skips questions by default"
+assert_not_contains "$COMMON_SKILL" "brainstorming" "skill is self-contained and does not reference brainstorming"
+assert_contains "$COMMON_SKILL" "Anti-Pattern: \"This Is Too Simple To Need A Design\"" "skill preserves anti-pattern warning inline"
+assert_contains "$COMMON_SKILL" "Do not ask preference, discovery, approach-selection, or section-approval questions." "skill skips questions by default"
 assert_contains "$COMMON_SKILL" "Make a conservative assumption" "skill records assumptions instead"
 assert_contains "$COMMON_SKILL" "Do NOT invoke implementation skills" "skill preserves implementation gate"
 assert_contains "$COMMON_SKILL" "or take any implementation action" "skill blocks all implementation actions"
+assert_contains "$COMMON_SKILL" "Design For Isolation And Clarity" "skill preserves isolation guidance inline"
+assert_contains "$COMMON_SKILL" "Working In Existing Codebases" "skill preserves existing-codebase guidance inline"
+assert_contains "$COMMON_SKILL" "Placeholder scan" "skill preserves spec self-review details inline"
 assert_contains "$COMMON_SKILL" "Commit the design spec" "skill commits the spec before review"
 assert_contains "$COMMON_SKILL" "git check-ignore -q docs/superpowers" "skill respects ignored superpowers docs"
 assert_contains "$COMMON_SKILL" "invoke \`writing-plans\`" "skill transitions to writing-plans after approval"
-assert_contains "$COMMON_SKILL" "Do not invoke \`superpowers:brainstorming\`" "skill avoids conflicting brainstorming instructions"
 assert_contains "$MAIN_YML" "roles/common/files/config/skills/common/" "Ansible still installs common skills"
 assert_contains "$MAIN_YML" ".claude/skills/" "Ansible installs skills into Claude"
 assert_contains "$MAIN_YML" ".codex/skills/" "Ansible installs skills into Codex"
