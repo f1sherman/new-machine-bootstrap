@@ -43,6 +43,26 @@ EOF
   chmod +x "$bin/tmux"
 }
 
+install_fake_tmux_no_pane_path() {
+  local bin="$1"
+  mkdir -p "$bin"
+  cat > "$bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-}" in
+  show-options)
+    ;;
+  display-message)
+    exit 1
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+EOF
+  chmod +x "$bin/tmux"
+}
+
 assert_output() {
   local expected="$1" name="$2"; shift 2
   local actual
@@ -75,5 +95,13 @@ if env TMUX=/tmp/tmux TMUX_PANE=%33 TMUX_SPEC_TMUX_BIN="$bin/tmux" "$SCRIPT" >/t
 fi
 rg -q -F "no current spec" /tmp/tmux-spec-current.err || fail "no spec error message"
 pass "no spec reports clear error"
+
+bin="$TMPROOT/bin-no-pane-path"
+install_fake_tmux_no_pane_path "$bin"
+if (cd "$repo" && env TMUX=/tmp/tmux TMUX_PANE=%34 TMUX_SPEC_TMUX_BIN="$bin/tmux" "$SCRIPT" >/tmp/tmux-spec-current-no-pane.out 2>/tmp/tmux-spec-current-no-pane.err); then
+  fail "missing pane path should not fall back to caller cwd"
+fi
+rg -q -F "no current spec" /tmp/tmux-spec-current-no-pane.err || fail "missing pane path error message"
+pass "missing pane path reports clear error"
 
 printf 'PASS  tmux-spec-current test suite\n'

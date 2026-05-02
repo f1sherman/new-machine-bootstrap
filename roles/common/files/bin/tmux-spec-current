@@ -14,7 +14,10 @@ if [ -n "$option" ]; then
 fi
 
 pane_path="$("$tmux_bin" display-message -p -t "$pane" '#{pane_current_path}' 2>/dev/null || true)"
-[ -n "$pane_path" ] || pane_path="$PWD"
+if [ -z "$pane_path" ]; then
+  printf 'tmux-spec-current: no current spec because pane current path is unavailable\n' >&2
+  exit 1
+fi
 
 repo_root="$(git -C "$pane_path" rev-parse --show-toplevel 2>/dev/null || true)"
 if [ -z "$repo_root" ]; then
