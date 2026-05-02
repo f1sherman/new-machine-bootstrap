@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/agent-current-spec-hook"
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+pass() { printf 'PASS  %s\n' "$1"; }
+fail() { printf 'FAIL  %s\n' "$1" >&2; exit 1; }
+
+make_repo() {
+  local repo="$1"
+  git -c init.templateDir= init -q "$repo"
+  git -C "$repo" commit -q --allow-empty -m init
+  mkdir -p "$repo/docs/superpowers/specs" "$repo/src"
+  printf '# Spec\n' > "$repo/docs/superpowers/specs/2026-05-02-demo-design.md"
+  git -C "$repo" add .
+  git -C "$repo" commit -q -m seed
+}
+
+install_fake_tmux() {
+  local bin="$1" log="$2"
+  mkdir -p "$bin"
+  cat > "$bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$TMUX_TEST_LOG"
+EOF
+  chmod +x "$bin/tmux"
+  : > "$log"
+}
+
+assert_log_contains() {
+  local log="$1" needle="$2" name="$3"
+  rg -q -F -- "$needle" "$log" || fail "$name"
+  pass "$name"
+}
+
+assert_log_empty() {
+  local log="$1" name="$2"
+  [ ! -s "$log" ] || fail "$name"
+  pass "$name"
+}
+
+repo="$TMPROOT/repo"
+make_repo "$repo"
+bin="$TMPROOT/bin"
+log="$TMPROOT/tmux.log"
+install_fake_tmux "$bin" "$log"
+
+spec_rel='docs/superpowers/specs/2026-05-02-demo-design.md'
+spec_abs="$repo/$spec_rel"
+
+jq -n --arg path "$spec_abs" --arg cwd "$repo" '{
+  hook_event_name: "PostToolUse",
+  tool_name: "Write",
+  cwd: $cwd,
+  tool_input: {file_path: $path}
+}' | PATH="$bin:$PATH" TMUX=/tmp/tmux TMUX_PANE=%21 TMUX_TEST_LOG="$log" "$SCRIPT"
+assert_log_contains "$log" "set-option -p -t %21 @agent_current_spec_path $spec_abs" "Claude Write payload stores absolute spec path"
+
+: > "$log"
+jq -n --arg cwd "$repo" --arg command "*** Begin Patch
+*** Update File: $spec_rel
+@@
+ old
+*** End Patch
+" '{
+  hook_event_name: "PostToolUse",
+  tool_name: "apply_patch",
+  cwd: $cwd,
+  tool_input: {command: $command}
+}' | PATH="$bin:$PATH" TMUX=/tmp/tmux TMUX_PANE=%22 TMUX_TEST_LOG="$log" "$SCRIPT"
+assert_log_contains "$log" "set-option -p -t %22 @agent_current_spec_path $spec_rel" "Codex apply_patch payload stores relative spec path"
+
+: > "$log"
+jq -n --arg cwd "$repo" '{cwd: $cwd, tool_input: {file_path: "src/app.rb"}}' \
+  | PATH="$bin:$PATH" TMUX=/tmp/tmux TMUX_PANE=%23 TMUX_TEST_LOG="$log" "$SCRIPT"
+assert_log_empty "$log" "non-spec edit is ignored"
+
+: > "$log"
+jq -n --arg cwd "$repo" --arg command "*** Begin Patch
+*** Update File: docs/superpowers/specs/2026-05-02-a-design.md
+*** Update File: docs/superpowers/specs/2026-05-02-b-design.md
+*** End Patch
+" '{cwd: $cwd, tool_input: {command: $command}}' \
+  | PATH="$bin:$PATH" TMUX=/tmp/tmux TMUX_PANE=%24 TMUX_TEST_LOG="$log" "$SCRIPT"
+assert_log_empty "$log" "multi-spec edit is ignored"
+
+: > "$log"
+jq -n --arg path "$spec_abs" --arg cwd "$repo" '{cwd: $cwd, tool_input: {file_path: $path}}' \
+  | env -u TMUX -u TMUX_PANE PATH="$bin:$PATH" TMUX_TEST_LOG="$log" "$SCRIPT"
+assert_log_empty "$log" "outside tmux is quiet"
+
+printf 'PASS  agent-current-spec-hook test suite\n'

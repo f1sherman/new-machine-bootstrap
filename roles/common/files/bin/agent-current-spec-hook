@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+command -v jq >/dev/null 2>&1 || exit 0
+command -v tmux >/dev/null 2>&1 || exit 0
+[ -n "${TMUX:-}" ] || exit 0
+[ -n "${TMUX_PANE:-}" ] || exit 0
+
+payload="$(cat)"
+[ -n "$payload" ] || exit 0
+
+cwd="$(printf '%s' "$payload" | jq -r '.cwd // empty' 2>/dev/null || true)"
+[ -n "$cwd" ] || cwd="$PWD"
+
+repo_root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || true)"
+[ -n "$repo_root" ] || exit 0
+
+spec_pattern='(^|/)docs/superpowers/specs/[^/]+-design[.]md$'
+
+normalize_candidate() {
+  local path="$1"
+  path="${path#./}"
+
+  if [[ "$path" == "$repo_root"/* ]]; then
+    printf '%s\n' "$path"
+  elif [[ "$path" =~ $spec_pattern ]]; then
+    printf '%s\n' "$path"
+  fi
+}
+
+collect_candidates() {
+  local file_path command
+  file_path="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)"
+  [ -n "$file_path" ] && normalize_candidate "$file_path"
+
+  command="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null || true)"
+  [ -n "$command" ] || return 0
+
+  printf '%s\n' "$command" |
+    sed -n -E 's/^\*\*\* (Add|Update|Delete) File: //p' |
+    while IFS= read -r path; do
+      normalize_candidate "$path"
+    done
+}
+
+specs="$(collect_candidates | awk 'length && !seen[$0]++')"
+spec_count="$(printf '%s\n' "$specs" | awk 'NF { count++ } END { print count + 0 }')"
+
+[ "$spec_count" -eq 1 ] || exit 0
+
+spec_path="$(printf '%s\n' "$specs" | awk 'NF { print; exit }')"
+tmux set-option -p -t "$TMUX_PANE" @agent_current_spec_path "$spec_path" >/dev/null 2>&1 || true
