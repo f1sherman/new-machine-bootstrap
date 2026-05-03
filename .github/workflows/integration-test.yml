@@ -21,6 +21,9 @@ jobs:
       - name: Verify pinned tool version wiring
         run: bash tests/pinned-tool-versions.sh core
 
+      - name: Verify Codex auth skill guidance
+        run: bash tests/generate-codex-auth-skill.sh
+
       - name: Verify macOS Node GPG isolation regression
         run: bash tests/macos-mise-node-gpg.sh
 
