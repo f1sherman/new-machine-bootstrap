@@ -63,7 +63,17 @@ assert_tmux_file() {
   assert_contains "$file" 'set-option -pqu @pane-last-error'
   assert_not_contains "$file" '~/.local/state/tmux/hooks.log'
   assert_not_contains "$file" 'set-option -gq @hook-last-error ""'
-  assert_contains "$file" 'bind-key -n M-f if-shell -F "$is_ssh" '\''send-keys M-f'\'' '\''run-shell -b "TMUX_PANE=#{pane_id} ~/.local/bin/tmux-spec-open"'\'''
+  assert_contains "$file" 'is_nested_tmux='\''#{m:*tmux*,#{pane_current_command}}'\'''
+  assert_contains "$file" 'is_agent_key_passthrough='\''#{||:#{||:#{m:*ssh*,#{pane_current_command}},#{!=:#{@is_remote_session},}},#{m:*tmux*,#{pane_current_command}}}'\'''
+  assert_contains "$file" 'is_vim_or_nested_tmux='\''#{||:#{m:*vim*,#{pane_current_command}},#{m:*tmux*,#{pane_current_command}}}'\'''
+  assert_contains "$file" 'bind-key -n M-d if-shell -F "$is_agent_key_passthrough" '\''send-keys M-d'\'' '\''run-shell -b "TMUX_PANE=#{pane_id} ~/.local/bin/review-diff"'\'''
+  assert_contains "$file" 'bind-key -n M-f if-shell -F "$is_agent_key_passthrough" '\''send-keys M-f'\'' '\''run-shell -b "TMUX_PANE=#{pane_id} ~/.local/bin/tmux-spec-open"'\'''
+  assert_contains "$file" 'bind-key -n M-r if-shell -F "$is_agent_key_passthrough" '\''send-keys M-r'\'' '\''run-shell -b "TMUX_PANE=#{pane_id} ~/.local/bin/tmux-review-toggle"'\'''
+  assert_contains "$file" 'bind-key -n '\''C-h'\'' if-shell -F "$is_vim_or_nested_tmux" '\''send-keys C-h'\''  '\''select-pane -L'\'''
+  assert_contains "$file" 'bind-key -n '\''C-j'\'' if-shell -F "$is_vim_or_nested_tmux" '\''send-keys C-j'\''  '\''select-pane -D'\'''
+  assert_contains "$file" 'bind-key -n '\''C-k'\'' if-shell -F "$is_vim_or_nested_tmux" '\''send-keys C-k'\''  '\''select-pane -U'\'''
+  assert_contains "$file" 'bind-key -n '\''C-l'\'' if-shell -F "$is_vim_or_nested_tmux" '\''send-keys C-l'\''  '\''select-pane -R'\'''
+  assert_contains "$file" "bind-key -n 'C-\\' if-shell -F \"\$is_vim_or_nested_tmux\" 'send-keys C-\\\\'  'select-pane -l'"
   assert_not_contains "$file" 'tmux-review-open prompt-file'
 
   assert_not_contains "$file" 'tmux-session-name'
