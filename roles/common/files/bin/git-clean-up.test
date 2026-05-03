@@ -1,0 +1,568 @@
+#!/usr/bin/env bash
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/git-clean-up"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+GIT_AUTHOR_NAME="test"
+GIT_AUTHOR_EMAIL=test@example.com
+GIT_COMMITTER_NAME="test"
+GIT_COMMITTER_EMAIL=test@example.com
+export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+
+pass=0
+fail=0
+
+normalize_path() {
+  (cd "$1" && pwd -P)
+}
+
+create_origin_repo() {
+  local name="$1"
+  local origin="$TMPROOT/github.com/test/${name}.git"
+  local repo="$TMPROOT/${name}-repo"
+
+  mkdir -p "$(dirname "$origin")"
+  git init -q --bare "$origin"
+  git init -qb main "$repo"
+  git -C "$repo" remote add origin "$origin"
+  git -C "$repo" config user.name test
+  git -C "$repo" config user.email test@example.com
+  printf '%s\n' init >"$repo/README.md"
+  git -C "$repo" add README.md
+  git -C "$repo" commit -q -m init
+  git -C "$repo" push -q -u origin main
+
+  normalize_path "$repo"
+}
+
+make_commit() {
+  local repo="$1"
+  local name="$2"
+  local file="$repo/$name.txt"
+
+  printf '%s\n' "$name" >"$file"
+  git -C "$repo" add "$name.txt"
+  git -C "$repo" commit -q -m "$name"
+}
+
+make_linked_branch() {
+  local repo="$1"
+  local branch="$2"
+  local path="$3"
+
+  git -C "$repo" worktree add -q -b "$branch" "$path"
+  git -C "$path" config user.name test
+  git -C "$path" config user.email test@example.com
+  normalize_path "$path"
+}
+
+make_gh_stub() {
+  local bin_dir="$1"
+
+  cat >"$bin_dir/gh" <<'EOF'
+#!/usr/bin/env bash
+set -u
+
+if [ -n "${FAKE_GH_LOG:-}" ]; then
+  printf '%s\n' "$*" >>"$FAKE_GH_LOG"
+fi
+
+if [ "${1:-}" != "api" ]; then
+  printf 'unexpected gh invocation: %s\n' "$*" >&2
+  exit 1
+fi
+
+if [ -n "${FAKE_GH_EXIT:-}" ]; then
+  exit "$FAKE_GH_EXIT"
+fi
+
+if [ -n "${FAKE_GH_PAGE_MODE:-}" ]; then
+  page=1
+  case "${2:-}" in
+    *page=*)
+      page="${2##*page=}"
+      page="${page%%&*}"
+      ;;
+  esac
+  page_var="FAKE_GH_PAGE_${page}_JSON"
+  printf '%s\n' "${!page_var:-[]}"
+  exit 0
+fi
+
+case "${2:-}" in
+  *page=*)
+    page="${2##*page=}"
+    page="${page%%&*}"
+    if [ "$page" != "1" ]; then
+      printf '[]\n'
+      exit 0
+    fi
+    ;;
+esac
+
+printf '%s\n' "${FAKE_GH_STATE_JSON:-[]}"
+EOF
+  chmod +x "$bin_dir/gh"
+}
+
+make_tmux_stub() {
+  local bin_dir="$1"
+
+  cat >"$bin_dir/tmux-agent-worktree" <<'EOF'
+#!/usr/bin/env bash
+set -u
+
+if [ -n "${FAKE_TMUX_LOG:-}" ]; then
+  printf '%s\n' "$*" >>"$FAKE_TMUX_LOG"
+fi
+
+exit 0
+EOF
+  chmod +x "$bin_dir/tmux-agent-worktree"
+}
+
+run_cleanup() {
+  local repo_dir="$1"
+  local stdout_file="$2"
+  local stderr_file="$3"
+  shift 3
+  local rc
+
+  if (
+    cd "$repo_dir" &&
+    PATH="${FAKE_CLEANUP_PATH:-$TMPROOT/bin:$PATH}" \
+    FAKE_GH_LOG="${FAKE_GH_LOG:-}" \
+    FAKE_GH_EXIT="${FAKE_GH_EXIT:-}" \
+    FAKE_GH_STATE_JSON="${FAKE_GH_STATE_JSON:-[]}" \
+    FAKE_TMUX_LOG="${FAKE_TMUX_LOG:-}" \
+    "$SCRIPT" "$@"
+  ) >"$stdout_file" 2>"$stderr_file"; then
+    rc=0
+  else
+    rc=$?
+  fi
+
+  printf '%s' "$rc"
+}
+
+pass_case() {
+  pass=$((pass + 1))
+  printf 'PASS  %s\n' "$1"
+}
+
+fail_case() {
+  fail=$((fail + 1))
+  printf 'FAIL  %s\n' "$1"
+  printf '      %s\n' "$2"
+}
+
+assert_eq() {
+  local name="$1"
+  local expected="$2"
+  local actual="$3"
+
+  if [ "$actual" = "$expected" ]; then
+    pass_case "$name"
+  else
+    fail_case "$name" "expected: $expected; actual: $actual"
+  fi
+}
+
+assert_contains() {
+  local name="$1"
+  local needle="$2"
+  local haystack_file="$3"
+
+  if grep -Fq "$needle" "$haystack_file"; then
+    pass_case "$name"
+  else
+    fail_case "$name" "missing '$needle' in $haystack_file"
+  fi
+}
+
+assert_branch_absent() {
+  local name="$1"
+  local repo="$2"
+  local branch="$3"
+
+  if git -C "$repo" show-ref --verify --quiet "refs/heads/$branch"; then
+    fail_case "$name" "branch still present: $branch"
+  else
+    pass_case "$name"
+  fi
+}
+
+assert_branch_present() {
+  local name="$1"
+  local repo="$2"
+  local branch="$3"
+
+  if git -C "$repo" show-ref --verify --quiet "refs/heads/$branch"; then
+    pass_case "$name"
+  else
+    fail_case "$name" "branch missing: $branch"
+  fi
+}
+
+assert_worktree_absent() {
+  local name="$1"
+  local repo="$2"
+  local worktree="$3"
+  local real_path
+
+  real_path="$(normalize_path "$worktree" 2>/dev/null || printf '%s' "$worktree")"
+  if git -C "$repo" worktree list --porcelain | grep -Fq "worktree $real_path"; then
+    fail_case "$name" "worktree still present: $real_path"
+  else
+    pass_case "$name"
+  fi
+}
+
+assert_worktree_present() {
+  local name="$1"
+  local repo="$2"
+  local worktree="$3"
+  local real_path
+
+  if [ ! -d "$worktree" ]; then
+    fail_case "$name" "worktree path does not exist: $worktree"
+    return
+  fi
+
+  if ! real_path="$(normalize_path "$worktree" 2>/dev/null)" || [ -z "$real_path" ]; then
+    fail_case "$name" "could not normalize worktree path: $worktree"
+    return
+  fi
+
+  if git -C "$repo" worktree list --porcelain | grep -Fq "worktree $real_path"; then
+    pass_case "$name"
+  else
+    fail_case "$name" "worktree missing: $real_path"
+  fi
+}
+
+merge_branch_to_main() {
+  local repo="$1"
+  local branch="$2"
+
+  git -C "$repo" checkout -q main
+  git -C "$repo" merge -q --ff-only "$branch"
+  git -C "$repo" push -q origin main
+}
+
+advance_origin_main_from_branch() {
+  local repo="$1"
+  local branch="$2"
+  local updater="$TMPROOT/${branch//\//-}-origin-updater"
+
+  git -C "$repo" push -q -u origin "$branch"
+  git clone -q "$(git -C "$repo" config --get remote.origin.url)" "$updater"
+  git -C "$updater" config user.name test
+  git -C "$updater" config user.email test@example.com
+  git -C "$updater" fetch -q origin "refs/heads/$branch:refs/remotes/origin/$branch"
+  git -C "$updater" merge -q --ff-only "origin/$branch"
+  git -C "$updater" push -q origin main
+}
+
+make_plain_branch_commit() {
+  local repo="$1"
+  local branch="$2"
+  local commit_name="$3"
+
+  git -C "$repo" checkout -q -b "$branch" main
+  make_commit "$repo" "$commit_name"
+  git -C "$repo" checkout -q main
+}
+
+remote_has_branch() {
+  local repo="$1"
+  local branch="$2"
+
+  git -C "$repo" ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null 2>&1
+}
+
+pr_json_for() {
+  local repo="$1"
+  shift
+  local first=1
+  local json="["
+
+  while [ "$#" -gt 0 ]; do
+    local branch="$1"
+    shift
+    local sha
+    sha="$(git -C "$repo" rev-parse "$branch")"
+    if [ "$first" -eq 1 ]; then
+      first=0
+    else
+      json="$json,"
+    fi
+    json="$json{\"state\":\"closed\",\"merged_at\":\"2026-05-02T00:00:00Z\",\"head\":{\"ref\":\"$branch\",\"sha\":\"$sha\"}}"
+  done
+
+  printf '%s]\n' "$json"
+}
+
+pr_json_for_sha() {
+  local branch="$1"
+  local sha="$2"
+
+  printf '[{"state":"closed","merged_at":"2026-05-02T00:00:00Z","head":{"ref":"%s","sha":"%s"}}]\n' "$branch" "$sha"
+}
+
+bin_dir="$TMPROOT/bin"
+mkdir -p "$bin_dir"
+make_gh_stub "$bin_dir"
+make_tmux_stub "$bin_dir"
+
+# --- Manual cleanup: current linked worktree proven merged by ancestry ---
+repo="$(create_origin_repo manual-ancestor)"
+wt="$(make_linked_branch "$repo" feature/manual-ancestor "$TMPROOT/manual-ancestor-wt")"
+make_commit "$wt" manual-ancestor
+advance_origin_main_from_branch "$repo" feature/manual-ancestor
+stdout="$TMPROOT/manual-ancestor.out"
+stderr="$TMPROOT/manual-ancestor.err"
+tmux_log="$TMPROOT/manual-ancestor.tmux"
+FAKE_TMUX_LOG="$tmux_log"
+FAKE_GH_STATE_JSON="[]"
+rc="$(run_cleanup "$wt" "$stdout" "$stderr")"
+assert_eq "manual ancestor merged returns success" "0" "$rc"
+assert_branch_absent "manual ancestor merged removes branch" "$repo" feature/manual-ancestor
+assert_worktree_absent "manual ancestor merged removes linked worktree" "$repo" "$wt"
+assert_eq "manual ancestor merged fast-forwards stale primary main" "present" "$([ -f "$repo/manual-ancestor.txt" ] && printf present || true)"
+assert_contains "manual ancestor merged clears tmux state" "clear" "$tmux_log"
+
+# --- Manual cleanup: current linked worktree proven merged only by PR metadata ---
+repo="$(create_origin_repo manual-pr)"
+wt="$(make_linked_branch "$repo" feature/manual-pr "$TMPROOT/manual-pr-wt")"
+make_commit "$wt" manual-pr
+git -C "$wt" push -q -u origin feature/manual-pr
+stdout="$TMPROOT/manual-pr.out"
+stderr="$TMPROOT/manual-pr.err"
+tmux_log="$TMPROOT/manual-pr.tmux"
+FAKE_TMUX_LOG="$tmux_log"
+FAKE_GH_STATE_JSON="$(pr_json_for "$repo" feature/manual-pr)"
+rc="$(run_cleanup "$wt" "$stdout" "$stderr")"
+assert_eq "manual PR-only merged returns success" "0" "$rc"
+assert_branch_absent "manual PR-only merged removes branch" "$repo" feature/manual-pr
+assert_worktree_absent "manual PR-only merged removes linked worktree" "$repo" "$wt"
+
+# --- Manual cleanup: reused branch name with different merged PR SHA is rejected ---
+repo="$(create_origin_repo manual-pr-reused)"
+wt="$(make_linked_branch "$repo" feature/reused "$TMPROOT/manual-pr-reused-wt")"
+make_commit "$wt" manual-pr-reused
+stdout="$TMPROOT/manual-pr-reused.out"
+stderr="$TMPROOT/manual-pr-reused.err"
+FAKE_GH_STATE_JSON="$(pr_json_for_sha feature/reused "$(git -C "$repo" rev-parse main)")"
+rc="$(run_cleanup "$wt" "$stdout" "$stderr")"
+assert_eq "manual reused PR SHA mismatch stops hard" "nonzero" "$([ "$rc" -ne 0 ] && printf nonzero || printf 0)"
+assert_branch_present "manual reused PR SHA mismatch keeps branch" "$repo" feature/reused
+assert_worktree_present "manual reused PR SHA mismatch keeps worktree" "$repo" "$wt"
+
+# --- Manual cleanup: current branch is not proven merged ---
+repo="$(create_origin_repo unmerged-current)"
+wt="$(make_linked_branch "$repo" feature/unmerged-current "$TMPROOT/unmerged-current-wt")"
+make_commit "$wt" unmerged-current
+stdout="$TMPROOT/unmerged-current.out"
+stderr="$TMPROOT/unmerged-current.err"
+FAKE_GH_STATE_JSON="[]"
+rc="$(run_cleanup "$wt" "$stdout" "$stderr")"
+assert_eq "unmerged current branch stops hard" "nonzero" "$([ "$rc" -ne 0 ] && printf nonzero || printf 0)"
+assert_branch_present "unmerged current branch keeps branch" "$repo" feature/unmerged-current
+assert_worktree_present "unmerged current branch keeps worktree" "$repo" "$wt"
+
+# --- Manual cleanup: current linked worktree is dirty ---
+repo="$(create_origin_repo dirty-current)"
+wt="$(make_linked_branch "$repo" feature/dirty-current "$TMPROOT/dirty-current-wt")"
+make_commit "$wt" dirty-current
+merge_branch_to_main "$repo" feature/dirty-current
+printf '%s\n' dirty >>"$wt/dirty-current.txt"
+stdout="$TMPROOT/dirty-current.out"
+stderr="$TMPROOT/dirty-current.err"
+FAKE_GH_STATE_JSON="[]"
+rc="$(run_cleanup "$wt" "$stdout" "$stderr")"
+assert_eq "dirty current worktree stops hard" "nonzero" "$([ "$rc" -ne 0 ] && printf nonzero || printf 0)"
+assert_branch_present "dirty current worktree keeps branch" "$repo" feature/dirty-current
+assert_worktree_present "dirty current worktree keeps worktree" "$repo" "$wt"
+
+# --- Manual cleanup: primary main worktree is dirty ---
+repo="$(create_origin_repo dirty-primary)"
+wt="$(make_linked_branch "$repo" feature/dirty-primary "$TMPROOT/dirty-primary-wt")"
+make_commit "$wt" dirty-primary
+merge_branch_to_main "$repo" feature/dirty-primary
+printf '%s\n' dirty >>"$repo/README.md"
+stdout="$TMPROOT/dirty-primary.out"
+stderr="$TMPROOT/dirty-primary.err"
+FAKE_GH_STATE_JSON="[]"
+rc="$(run_cleanup "$wt" "$stdout" "$stderr")"
+assert_eq "dirty primary worktree stops hard" "nonzero" "$([ "$rc" -ne 0 ] && printf nonzero || printf 0)"
+assert_branch_present "dirty primary worktree keeps branch" "$repo" feature/dirty-primary
+assert_worktree_present "dirty primary worktree keeps worktree" "$repo" "$wt"
+
+# --- Sweep: ancestry-merged plain local branch is pruned ---
+repo="$(create_origin_repo sweep-ancestor)"
+current_wt="$(make_linked_branch "$repo" feature/sweep-current "$TMPROOT/sweep-ancestor-current-wt")"
+make_commit "$current_wt" sweep-current
+merge_branch_to_main "$repo" feature/sweep-current
+make_plain_branch_commit "$repo" feature/sweep-ancestor-plain sweep-ancestor-plain
+merge_branch_to_main "$repo" feature/sweep-ancestor-plain
+stdout="$TMPROOT/sweep-ancestor.out"
+stderr="$TMPROOT/sweep-ancestor.err"
+FAKE_GH_STATE_JSON="[]"
+rc="$(run_cleanup "$current_wt" "$stdout" "$stderr")"
+assert_eq "sweep ancestry-merged returns success" "0" "$rc"
+assert_branch_absent "sweep prunes ancestry-merged plain branch" "$repo" feature/sweep-ancestor-plain
+
+# --- Sweep: PR-merged plain local branch is pruned ---
+repo="$(create_origin_repo sweep-pr)"
+current_wt="$(make_linked_branch "$repo" feature/sweep-pr-current "$TMPROOT/sweep-pr-current-wt")"
+make_commit "$current_wt" sweep-pr-current
+merge_branch_to_main "$repo" feature/sweep-pr-current
+make_plain_branch_commit "$repo" feature/sweep-pr-plain sweep-pr-plain
+git -C "$repo" push -q -u origin feature/sweep-pr-plain
+stdout="$TMPROOT/sweep-pr.out"
+stderr="$TMPROOT/sweep-pr.err"
+FAKE_GH_STATE_JSON="$(pr_json_for "$repo" feature/sweep-pr-plain)"
+rc="$(run_cleanup "$current_wt" "$stdout" "$stderr")"
+assert_eq "sweep PR-merged returns success" "0" "$rc"
+assert_branch_absent "sweep prunes PR-merged plain branch" "$repo" feature/sweep-pr-plain
+
+# --- Sweep: PR metadata on second page is discovered and pruned ---
+repo="$(create_origin_repo sweep-pr-page-two)"
+current_wt="$(make_linked_branch "$repo" feature/sweep-pr-page-two-current "$TMPROOT/sweep-pr-page-two-current-wt")"
+make_commit "$current_wt" sweep-pr-page-two-current
+merge_branch_to_main "$repo" feature/sweep-pr-page-two-current
+make_plain_branch_commit "$repo" feature/sweep-pr-page-two-plain sweep-pr-page-two-plain
+git -C "$repo" push -q -u origin feature/sweep-pr-page-two-plain
+stdout="$TMPROOT/sweep-pr-page-two.out"
+stderr="$TMPROOT/sweep-pr-page-two.err"
+FAKE_GH_PAGE_MODE=1
+FAKE_GH_PAGE_1_JSON='[{"state":"open","head":{"ref":"other","sha":"other"}}]'
+FAKE_GH_PAGE_2_JSON="$(pr_json_for "$repo" feature/sweep-pr-page-two-plain)"
+FAKE_GH_PAGE_3_JSON='[]'
+export FAKE_GH_PAGE_MODE FAKE_GH_PAGE_1_JSON FAKE_GH_PAGE_2_JSON FAKE_GH_PAGE_3_JSON
+rc="$(run_cleanup "$current_wt" "$stdout" "$stderr")"
+unset FAKE_GH_PAGE_MODE FAKE_GH_PAGE_1_JSON FAKE_GH_PAGE_2_JSON FAKE_GH_PAGE_3_JSON
+assert_eq "sweep second-page PR returns success" "0" "$rc"
+assert_branch_absent "sweep prunes second-page PR branch" "$repo" feature/sweep-pr-page-two-plain
+
+# --- Sweep: failed PR lookup retains branch when ancestry does not prove merge ---
+repo="$(create_origin_repo sweep-lookup-failed)"
+current_wt="$(make_linked_branch "$repo" feature/sweep-lookup-current "$TMPROOT/sweep-lookup-current-wt")"
+make_commit "$current_wt" sweep-lookup-current
+merge_branch_to_main "$repo" feature/sweep-lookup-current
+make_plain_branch_commit "$repo" feature/sweep-lookup-retained sweep-lookup-retained
+stdout="$TMPROOT/sweep-lookup.out"
+stderr="$TMPROOT/sweep-lookup.err"
+FAKE_GH_EXIT=1
+FAKE_GH_STATE_JSON=""
+rc="$(run_cleanup "$current_wt" "$stdout" "$stderr")"
+unset FAKE_GH_EXIT
+assert_eq "sweep lookup-failed returns success" "0" "$rc"
+assert_branch_present "sweep retains lookup-failed branch" "$repo" feature/sweep-lookup-retained
+
+# --- Sweep: missing gh retains branch when ancestry does not prove merge ---
+repo="$(create_origin_repo sweep-missing-gh)"
+current_wt="$(make_linked_branch "$repo" feature/sweep-missing-gh-current "$TMPROOT/sweep-missing-gh-current-wt")"
+make_commit "$current_wt" sweep-missing-gh-current
+merge_branch_to_main "$repo" feature/sweep-missing-gh-current
+make_plain_branch_commit "$repo" feature/sweep-missing-gh-retained sweep-missing-gh-retained
+stdout="$TMPROOT/sweep-missing-gh.out"
+stderr="$TMPROOT/sweep-missing-gh.err"
+no_gh_bin="$TMPROOT/no-gh-bin"
+mkdir -p "$no_gh_bin"
+make_tmux_stub "$no_gh_bin"
+FAKE_CLEANUP_PATH="$no_gh_bin:/usr/bin:/bin"
+FAKE_GH_STATE_JSON=""
+rc="$(run_cleanup "$current_wt" "$stdout" "$stderr")"
+unset FAKE_CLEANUP_PATH
+assert_eq "sweep missing gh returns success" "0" "$rc"
+assert_branch_present "sweep retains missing-gh branch" "$repo" feature/sweep-missing-gh-retained
+
+# --- Sweep: dirty linked worktree for another branch is retained and reported ---
+repo="$(create_origin_repo sweep-dirty-linked)"
+current_wt="$(make_linked_branch "$repo" feature/sweep-dirty-current "$TMPROOT/sweep-dirty-current-wt")"
+make_commit "$current_wt" sweep-dirty-current
+merge_branch_to_main "$repo" feature/sweep-dirty-current
+dirty_wt="$(make_linked_branch "$repo" feature/sweep-dirty-linked "$TMPROOT/sweep-dirty-linked-wt")"
+make_commit "$dirty_wt" sweep-dirty-linked
+merge_branch_to_main "$repo" feature/sweep-dirty-linked
+printf '%s\n' dirty >>"$dirty_wt/sweep-dirty-linked.txt"
+stdout="$TMPROOT/sweep-dirty-linked.out"
+stderr="$TMPROOT/sweep-dirty-linked.err"
+FAKE_GH_STATE_JSON="[]"
+rc="$(run_cleanup "$current_wt" "$stdout" "$stderr")"
+assert_eq "sweep dirty linked returns success" "0" "$rc"
+assert_branch_present "sweep retains dirty linked branch" "$repo" feature/sweep-dirty-linked
+assert_contains "sweep reports dirty linked branch retention" "Retained feature/sweep-dirty-linked" "$stdout"
+
+# --- Monitor mode: safe directory cleanup and remote deletion ---
+repo="$(create_origin_repo monitor-merged)"
+target_wt="$(make_linked_branch "$repo" feature/monitor-merged "$TMPROOT/monitor-merged-wt")"
+make_commit "$target_wt" monitor-merged
+git -C "$target_wt" push -q -u origin feature/monitor-merged
+merge_branch_to_main "$repo" feature/monitor-merged
+safe_dir="$TMPROOT/safe-dir"
+mkdir -p "$safe_dir"
+stdout="$TMPROOT/monitor-merged.out"
+stderr="$TMPROOT/monitor-merged.err"
+FAKE_GH_STATE_JSON="[]"
+rc="$(run_cleanup "$safe_dir" "$stdout" "$stderr" --repo-dir "$repo" --branch feature/monitor-merged --delete-remote --yes)"
+assert_eq "monitor mode deletes merged branch" "0" "$rc"
+assert_branch_absent "monitor mode deletes merged branch local ref" "$repo" feature/monitor-merged
+assert_eq "monitor mode deletes remote branch" "absent" "$(remote_has_branch "$repo" feature/monitor-merged && printf present || printf absent)"
+
+# --- Monitor mode: remote deletion failure preserves local retry state ---
+repo="$(create_origin_repo monitor-remote-delete-fails)"
+target_wt="$(make_linked_branch "$repo" feature/monitor-remote-delete-fails "$TMPROOT/monitor-remote-delete-fails-wt")"
+make_commit "$target_wt" monitor-remote-delete-fails
+git -C "$target_wt" push -q -u origin feature/monitor-remote-delete-fails
+merge_branch_to_main "$repo" feature/monitor-remote-delete-fails
+origin_path="$(git -C "$repo" config --get remote.origin.url)"
+mkdir -p "$origin_path/hooks"
+cat >"$origin_path/hooks/update" <<'EOF'
+#!/usr/bin/env bash
+refname="$1"
+newrev="$3"
+if [ "$refname" = "refs/heads/feature/monitor-remote-delete-fails" ] &&
+  [ "$newrev" = "0000000000000000000000000000000000000000" ]; then
+  echo "remote delete blocked" >&2
+  exit 1
+fi
+exit 0
+EOF
+chmod +x "$origin_path/hooks/update"
+safe_dir="$TMPROOT/safe-dir-remote-delete-fails"
+mkdir -p "$safe_dir"
+stdout="$TMPROOT/monitor-remote-delete-fails.out"
+stderr="$TMPROOT/monitor-remote-delete-fails.err"
+FAKE_GH_STATE_JSON="[]"
+rc="$(run_cleanup "$safe_dir" "$stdout" "$stderr" --repo-dir "$repo" --branch feature/monitor-remote-delete-fails --delete-remote --yes)"
+assert_eq "monitor mode remote delete failure returns nonzero" "nonzero" "$([ "$rc" -ne 0 ] && printf nonzero || printf 0)"
+assert_branch_present "monitor mode remote delete failure keeps local ref" "$repo" feature/monitor-remote-delete-fails
+assert_worktree_present "monitor mode remote delete failure keeps worktree" "$repo" "$target_wt"
+assert_eq "monitor mode remote delete failure keeps remote branch" "present" "$(remote_has_branch "$repo" feature/monitor-remote-delete-fails && printf present || printf absent)"
+
+# --- Monitor mode: named branch not proven merged is rejected ---
+repo="$(create_origin_repo monitor-unmerged)"
+target_wt="$(make_linked_branch "$repo" feature/monitor-unmerged "$TMPROOT/monitor-unmerged-wt")"
+make_commit "$target_wt" monitor-unmerged
+stdout="$TMPROOT/monitor-unmerged.out"
+stderr="$TMPROOT/monitor-unmerged.err"
+FAKE_GH_STATE_JSON="[]"
+rc="$(run_cleanup "$TMPROOT" "$stdout" "$stderr" --repo-dir "$repo" --branch feature/monitor-unmerged --yes)"
+assert_eq "monitor mode rejects unmerged branch" "nonzero" "$([ "$rc" -ne 0 ] && printf nonzero || printf 0)"
+assert_branch_present "monitor mode keeps unmerged branch" "$repo" feature/monitor-unmerged
+assert_worktree_present "monitor mode keeps unmerged worktree" "$repo" "$target_wt"
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

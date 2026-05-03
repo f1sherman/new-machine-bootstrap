@@ -1,0 +1,442 @@
+#!/usr/bin/env ruby
+
+require 'json'
+require 'net/http'
+require 'open3'
+require 'optparse'
+require 'tmpdir'
+require 'uri'
+
+USAGE = 'Usage: git-clean-up [--repo-dir PATH] [--branch NAME] [--delete-remote] [--yes]'
+
+Result = Struct.new(:stdout, :stderr, :status) do
+  def success?
+    status.success?
+  end
+
+  def output
+    stdout.strip
+  end
+end
+
+def fail_with(message)
+  warn "Error: #{message}"
+  exit 1
+end
+
+def run_command_args(args, allow_failure: false)
+  stdout, stderr, status = Open3.capture3(*args)
+  result = Result.new(stdout, stderr, status)
+  return result if result.success? || allow_failure
+
+  warn "Command failed: #{args.join(' ')}"
+  warn stderr.strip unless stderr.strip.empty?
+  exit 1
+end
+
+def run_git(args, git_dir: nil, work_tree: nil, repo_dir: nil, allow_failure: false)
+  command = ['git']
+  command.concat(['-C', repo_dir]) if repo_dir
+  command << "--git-dir=#{git_dir}" if git_dir
+  command << "--work-tree=#{work_tree}" if work_tree
+  command.concat(args)
+  run_command_args(command, allow_failure: allow_failure)
+end
+
+def parse_worktree_entries(output)
+  output.split("\n\n").each_with_object([]) do |block, entries|
+    next entries if block.strip.empty?
+
+    entry = {}
+    block.each_line do |line|
+      key, value = line.strip.split(' ', 2)
+      entry[key] = value
+    end
+    entries << entry
+  end
+end
+
+def repo_root_for(path)
+  result = run_git(['rev-parse', '--show-toplevel'], repo_dir: path, allow_failure: true)
+  fail_with("not inside a git repository: #{path}") unless result.success?
+
+  File.expand_path(result.output)
+end
+
+def common_git_dir_for(repo_dir)
+  result = run_git(['rev-parse', '--path-format=absolute', '--git-common-dir'], repo_dir: repo_dir)
+  File.expand_path(result.output)
+end
+
+def worktree_entries_for(git_dir)
+  parse_worktree_entries(run_git(['worktree', 'list', '--porcelain'], git_dir: git_dir).stdout)
+end
+
+def primary_worktree_path(common_git_dir)
+  entry = worktree_entries_for(common_git_dir).first
+  fail_with('could not find primary worktree') unless entry && entry['worktree']
+
+  File.expand_path(entry['worktree'])
+end
+
+def current_branch_for(repo_dir)
+  run_git(['branch', '--show-current'], repo_dir: repo_dir).output
+end
+
+def main_branch_for(repo_dir)
+  return 'main' if run_git(['show-ref', '--verify', '--quiet', 'refs/heads/main'], repo_dir: repo_dir, allow_failure: true).success?
+  return 'master' if run_git(['show-ref', '--verify', '--quiet', 'refs/heads/master'], repo_dir: repo_dir, allow_failure: true).success?
+
+  origin_head = run_git(
+    ['symbolic-ref', '-q', '--short', 'refs/remotes/origin/HEAD'],
+    repo_dir: repo_dir,
+    allow_failure: true
+  )
+  return origin_head.output.delete_prefix('origin/') if origin_head.success? && !origin_head.output.empty?
+
+  'main'
+end
+
+def dirty_worktree?(path)
+  result = run_git(['status', '--porcelain'], repo_dir: path, allow_failure: true)
+  fail_with("could not inspect worktree status: #{path}") unless result.success?
+
+  !result.stdout.strip.empty?
+end
+
+def worktree_paths_for_branch(branch, git_dir:)
+  ref = "refs/heads/#{branch}"
+  worktree_entries_for(git_dir).select { |entry| entry['branch'] == ref }.map { |entry| File.expand_path(entry['worktree']) }
+end
+
+def safe_dir_for(common_git_dir, current_path)
+  primary = primary_worktree_path(common_git_dir)
+  current = File.expand_path(current_path)
+  return primary if Dir.exist?(primary) && primary != current
+
+  candidate = File.dirname(common_git_dir)
+  return candidate if Dir.exist?(candidate) && candidate != current
+
+  Dir.tmpdir
+end
+
+def command_available?(name)
+  ENV.fetch('PATH', '').split(File::PATH_SEPARATOR).any? do |dir|
+    path = File.join(dir, name)
+    File.file?(path) && File.executable?(path)
+  end
+end
+
+def detect_remote_type(url)
+  return :github if url.include?('github.com')
+  return :forgejo if url.include?('forgejo')
+
+  nil
+end
+
+def owner_repo_from_remote(url)
+  cleaned = url.delete_suffix('.git')
+  match = cleaned.match(%r{(?:github\.com|forgejo[^/:]*)[:/]([^/]+/[^/]+)$})
+  return match[1] if match
+
+  parts = cleaned.split(%r{[:/]}).reject(&:empty?)
+  return nil if parts.length < 2
+
+  "#{parts[-2]}/#{parts[-1]}"
+end
+
+def ancestor_merged?(branch, main_branch, git_dir:)
+  targets = ["refs/remotes/origin/#{main_branch}", "refs/heads/#{main_branch}"]
+  targets.any? do |target|
+    run_git(['merge-base', '--is-ancestor', "refs/heads/#{branch}", target], git_dir: git_dir, allow_failure: true).success?
+  end
+end
+
+def pr_state_github(owner_repo, branch, git_dir:)
+  return 'LOOKUP_FAILED' unless command_available?('gh')
+
+  local_sha = run_git(['rev-parse', '--verify', "#{branch}^{commit}"], git_dir: git_dir, allow_failure: true).output
+  branch_match = nil
+  page = 1
+
+  loop do
+    result = run_command_args(['gh', 'api', "repos/#{owner_repo}/pulls?state=all&per_page=100&page=#{page}"], allow_failure: true)
+    return 'LOOKUP_FAILED' unless result.success?
+
+    prs = JSON.parse(result.stdout)
+    return 'LOOKUP_FAILED' unless prs.is_a?(Array)
+    break if prs.empty?
+
+    pr = prs.find { |candidate| candidate.dig('head', 'sha') == local_sha }
+    if pr
+      return 'MERGED' if pr['merged_at']
+
+      return pr['state']&.upcase
+    end
+
+    branch_match ||= prs.find { |candidate| candidate.dig('head', 'ref') == branch && candidate['state'] == 'open' }
+    branch_match ||= prs.find { |candidate| candidate.dig('head', 'ref') == branch && candidate['state'] == 'closed' }
+    page += 1
+  end
+
+  branch_match&.dig('state')&.upcase
+rescue JSON::ParserError, SystemCallError
+  'LOOKUP_FAILED'
+end
+
+def pr_state_forgejo(forgejo_url, token, owner, repo, branch, git_dir:)
+  local_sha = run_git(['rev-parse', '--verify', "#{branch}^{commit}"], git_dir: git_dir, allow_failure: true).output
+  branch_match = nil
+  page = 1
+
+  loop do
+    uri = URI("#{forgejo_url}/api/v1/repos/#{owner}/#{repo}/pulls?state=all&page=#{page}&limit=50")
+    req = Net::HTTP::Get.new(uri)
+    req['Authorization'] = "token #{token}" if token && !token.empty?
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }
+    return 'LOOKUP_FAILED' unless response.is_a?(Net::HTTPSuccess)
+
+    prs = JSON.parse(response.body)
+    return 'LOOKUP_FAILED' unless prs.is_a?(Array)
+    break if prs.empty?
+
+    pr = prs.find { |candidate| candidate.dig('head', 'sha') == local_sha }
+    if pr
+      return 'MERGED' if pr['merged'] || pr['merged_at']
+
+      return pr['state']&.upcase
+    end
+
+    branch_match ||= prs.find { |candidate| candidate.dig('head', 'ref') == branch }
+    page += 1
+  end
+
+  branch_match&.dig('state')&.upcase
+rescue JSON::ParserError, StandardError
+  'LOOKUP_FAILED'
+end
+
+def pr_state_for(remote_type:, owner_repo:, branch:, git_dir:)
+  case remote_type
+  when :github
+    pr_state_github(owner_repo, branch, git_dir: git_dir)
+  when :forgejo
+    owner, repo = owner_repo.split('/', 2)
+    token = ENV['FORGEJO_TOKEN']
+    token_file = File.join(Dir.home, '.config/home-network/forgejo-token')
+    token ||= File.read(token_file).strip if File.exist?(token_file)
+    pr_state_forgejo(ENV.fetch('FORGEJO_URL', 'https://forgejo.brianjohn.com'), token, owner, repo, branch, git_dir: git_dir)
+  end
+end
+
+def merged_state(branch, main_branch, git_dir:, remote_context:)
+  return { merged: true, proof: 'ancestor' } if ancestor_merged?(branch, main_branch, git_dir: git_dir)
+
+  pr_state = pr_state_for(
+    remote_type: remote_context[:remote_type],
+    owner_repo: remote_context[:owner_repo],
+    branch: branch,
+    git_dir: git_dir
+  )
+  return { merged: true, proof: 'pr_merged' } if pr_state == 'MERGED'
+  return { merged: false, proof: 'lookup_failed' } if pr_state == 'LOOKUP_FAILED'
+
+  { merged: false, proof: 'not_merged' }
+end
+
+def cleanup_worktrees_for_branch(branch, git_dir:, safe_dir:, hard_stop:)
+  paths = worktree_paths_for_branch(branch, git_dir: git_dir)
+
+  paths.each do |path|
+    next unless Dir.exist?(path)
+
+    if dirty_worktree?(path)
+      reason = "dirty worktree: #{path}"
+      fail_with(reason) if hard_stop
+      return { ok: false, reason: reason }
+    end
+  end
+
+  Dir.chdir(safe_dir)
+  paths.each do |path|
+    result = run_git(['worktree', 'remove', path], git_dir: git_dir, allow_failure: true)
+    next if result.success?
+
+    force_result = run_git(['worktree', 'remove', '--force', path], git_dir: git_dir, allow_failure: true)
+    next if force_result.success?
+
+    reason = force_result.stderr.strip.empty? ? "failed to remove worktree: #{path}" : force_result.stderr.strip
+    fail_with(reason) if hard_stop
+    return { ok: false, reason: reason }
+  end
+
+  { ok: true }
+end
+
+def delete_local_branch(branch, git_dir:)
+  result = run_git(['branch', '-D', branch], git_dir: git_dir, allow_failure: true)
+  return { ok: true } if result.success?
+
+  { ok: false, reason: result.stderr.strip.empty? ? "failed to delete local branch: #{branch}" : result.stderr.strip }
+end
+
+def delete_remote_branch(branch, git_dir:)
+  result = run_git(['push', 'origin', '--delete', branch], git_dir: git_dir, allow_failure: true)
+  return { ok: true } if result.success?
+
+  remote_ref = run_git(['ls-remote', '--exit-code', '--heads', 'origin', "refs/heads/#{branch}"], git_dir: git_dir, allow_failure: true)
+  return { ok: true } if remote_ref.status.exitstatus == 2
+
+  reason = result.stderr.strip.empty? ? "failed to delete remote branch: #{branch}" : result.stderr.strip
+  puts "Remote branch retained: #{branch} (#{reason})"
+  { ok: false, reason: reason }
+end
+
+def delete_branch_with_worktrees(branch, git_dir:, safe_dir:, hard_stop:)
+  fail_with("refusing to delete #{branch}") if %w[main master].include?(branch)
+
+  cleanup = cleanup_worktrees_for_branch(branch, git_dir: git_dir, safe_dir: safe_dir, hard_stop: hard_stop)
+  return cleanup unless cleanup[:ok]
+
+  deleted = delete_local_branch(branch, git_dir: git_dir)
+  fail_with(deleted[:reason]) if hard_stop && !deleted[:ok]
+  deleted
+end
+
+def remote_context_for(repo_dir)
+  remote_url = run_git(['config', '--get', 'remote.origin.url'], repo_dir: repo_dir, allow_failure: true).output
+  fail_with('No remote.origin.url configured') if remote_url.empty?
+
+  remote_type = detect_remote_type(remote_url)
+  fail_with("remote origin is not GitHub or Forgejo: #{remote_url}") unless remote_type
+
+  owner_repo = owner_repo_from_remote(remote_url)
+  fail_with("could not parse owner/repo from remote: #{remote_url}") unless owner_repo
+
+  { remote_type: remote_type, owner_repo: owner_repo }
+end
+
+def update_primary_main(primary_path, main_branch)
+  fail_with("primary worktree is dirty: #{primary_path}") if dirty_worktree?(primary_path)
+
+  run_git(['checkout', '-q', main_branch], repo_dir: primary_path)
+  run_git(['merge', '--ff-only', '--quiet', "origin/#{main_branch}"], repo_dir: primary_path)
+end
+
+def branch_exists?(branch, git_dir:)
+  run_git(['show-ref', '--verify', '--quiet', "refs/heads/#{branch}"], git_dir: git_dir, allow_failure: true).success?
+end
+
+def local_branches(git_dir:)
+  run_git(['for-each-ref', '--format=%(refname:short)', 'refs/heads'], git_dir: git_dir).stdout.lines.map(&:strip).reject(&:empty?)
+end
+
+def parse_options(argv)
+  options = { delete_remote: false, yes: false }
+  parser = OptionParser.new do |opts|
+    opts.banner = USAGE
+    opts.on('--repo-dir PATH') { |value| options[:repo_dir] = value }
+    opts.on('--branch NAME') { |value| options[:branch] = value }
+    opts.on('--delete-remote') { options[:delete_remote] = true }
+    opts.on('--yes') { options[:yes] = true }
+    opts.on('-h', '--help') do
+      puts USAGE
+      exit 0
+    end
+  end
+  parser.parse!(argv)
+  fail_with('unexpected arguments') unless argv.empty?
+  fail_with('--delete-remote requires --yes') if options[:delete_remote] && !options[:yes]
+  fail_with('--repo-dir and --branch must be provided together') if options[:repo_dir] && !options[:branch]
+  fail_with('--repo-dir and --branch must be provided together') if options[:branch] && !options[:repo_dir]
+
+  options
+rescue OptionParser::ParseError => e
+  warn e.message
+  warn USAGE
+  exit 1
+end
+
+def maybe_run_worktree_done(current_repo, safe_dir)
+  return false unless command_available?('worktree-done')
+
+  Dir.chdir(current_repo)
+  result = run_command_args(['worktree-done', '--print-path'], allow_failure: true)
+  Dir.chdir(safe_dir)
+  return true if result.success?
+
+  fail_with(result.stderr.strip.empty? ? 'worktree-done failed' : result.stderr.strip)
+end
+
+def run_cleanup(options)
+  explicit_mode = options[:repo_dir] && options[:branch]
+  repo_dir = repo_root_for(explicit_mode ? options[:repo_dir] : Dir.pwd)
+  common_git_dir = common_git_dir_for(repo_dir)
+  primary_path = primary_worktree_path(common_git_dir)
+  main_branch = main_branch_for(repo_dir)
+  branch = explicit_mode ? options[:branch] : current_branch_for(repo_dir)
+
+  fail_with('detached HEAD; checkout a branch first') if branch.empty?
+  fail_with("already on #{main_branch}; cleanup requires a non-main branch") if branch == main_branch
+  fail_with("branch not found: #{branch}") unless branch_exists?(branch, git_dir: common_git_dir)
+
+  run_git(['fetch', '--prune', 'origin'], repo_dir: primary_path)
+  remote_context = remote_context_for(primary_path)
+  state = merged_state(branch, main_branch, git_dir: common_git_dir, remote_context: remote_context)
+  fail_with("branch is not proven merged: #{branch} (#{state[:proof]})") unless state[:merged]
+
+  safe_dir = safe_dir_for(common_git_dir, Dir.pwd)
+  target_worktrees = worktree_paths_for_branch(branch, git_dir: common_git_dir)
+  target_worktrees.each do |path|
+    fail_with("dirty worktree: #{path}") if Dir.exist?(path) && dirty_worktree?(path)
+  end
+
+  update_primary_main(primary_path, main_branch)
+
+  if explicit_mode && options[:delete_remote]
+    remote_deleted = delete_remote_branch(branch, git_dir: common_git_dir)
+    fail_with(remote_deleted[:reason]) unless remote_deleted[:ok]
+  end
+
+  used_worktree_done = false
+  if !explicit_mode && state[:proof] == 'ancestor' && target_worktrees.map { |path| File.expand_path(path) }.include?(repo_dir) && repo_dir != primary_path
+    used_worktree_done = maybe_run_worktree_done(repo_dir, safe_dir)
+  end
+
+  unless used_worktree_done
+    deleted = delete_branch_with_worktrees(branch, git_dir: common_git_dir, safe_dir: safe_dir, hard_stop: true)
+    fail_with(deleted[:reason]) unless deleted[:ok]
+  end
+
+  run_command_args(['tmux-agent-worktree', 'clear'], allow_failure: true)
+
+  pruned = 0
+  retained = {}
+  local_branches(git_dir: common_git_dir).each do |candidate|
+    next if candidate == main_branch || candidate == branch
+
+    candidate_state = merged_state(candidate, main_branch, git_dir: common_git_dir, remote_context: remote_context)
+    unless candidate_state[:merged]
+      retained[candidate] = candidate_state[:proof]
+      next
+    end
+
+    result = delete_branch_with_worktrees(candidate, git_dir: common_git_dir, safe_dir: safe_dir, hard_stop: false)
+    if result[:ok]
+      pruned += 1
+    else
+      retained[candidate] = result[:reason]
+    end
+  end
+
+  run_git(['remote', 'prune', 'origin'], git_dir: common_git_dir, allow_failure: true)
+  run_git(['gc'], git_dir: common_git_dir, allow_failure: true)
+
+  puts "Cleaned current branch: #{branch}"
+  puts "Pruned merged branches: #{pruned}"
+  puts "Retained branches: #{retained.size}"
+  retained.each { |retained_branch, reason| puts "Retained #{retained_branch}: #{reason}" }
+end
+
+options = parse_options(ARGV)
+run_cleanup(options)
