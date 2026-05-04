@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# tmux-update-all-pane-labels
+# Update @pane-label for every pane on the current tmux server. Used at
+# config-load to populate labels for already-existing panes, and on demand
+# when a manual refresh is desired.
+set -u
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+updater="$script_dir/tmux-update-pane-label"
+[ -x "$updater" ] || updater="${HOME:-}/.local/bin/tmux-update-pane-label"
+
+tmux list-panes -a -F '#{pane_id}' 2>/dev/null | while IFS= read -r pane_id; do
+  [ -n "$pane_id" ] || continue
+  "$updater" "$pane_id" || true
+done
