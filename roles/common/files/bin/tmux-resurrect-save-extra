@@ -1,73 +1,110 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env ruby
+# frozen_string_literal: true
 
-state_file="${1:-}"
-[ -n "$state_file" ] && [ -f "$state_file" ] || exit 0
+# tmux-resurrect-save-extra
+# Post-save hook fired by tmux-resurrect after a save completes.
+# Two responsibilities:
+#   1. Write a JSON sidecar at <state>.meta.json containing each pane's
+#      `@persist_*` options. Other tooling (this repo + downstream repos)
+#      uses these to round-trip per-pane state across restores. The set of
+#      keys is open — anything matching `@persist_*` is captured.
+#   2. Rotate <state> to <dir>/last.safe (and the sidecar) when the state
+#      file looks substantial enough to be worth saving as the last-known-
+#      good fallback.
+#
+# Replaces the prior bash implementation. Same behavior; far fewer forks
+# (~13 instead of ~30-50 for a 12-pane setup) by doing JSON encoding,
+# tmux option-value parsing, file size / line-count checks, and atomic
+# file ops in-process instead of shelling out to jq/wc/grep/cp.
 
-dir="$(dirname "$state_file")"
-sidecar="$state_file.meta.json"
-tmp_sidecar="$(mktemp "$sidecar.XXXXXX")"
-trap 'rm -f "$tmp_sidecar"' EXIT
+require 'json'
+require 'shellwords'
+require 'time'
 
-saved_at="$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S%z)"
+state_file = ARGV[0].to_s
+exit 0 if state_file.empty? || !File.file?(state_file)
 
-panes_tsv="$(tmux list-panes -a -F '#{session_name}	#{window_index}	#{pane_index}	#{pane_id}')"
+dir = File.dirname(state_file)
+sidecar = "#{state_file}.meta.json"
+tmp_sidecar = "#{sidecar}.tmp.#{Process.pid}"
 
-json_encode() {
-  printf '%s' "$1" | jq -Rs .
-}
+at_exit { File.unlink(tmp_sidecar) if File.exist?(tmp_sidecar) }
 
-{
-  printf '{\n'
-  printf '  "version": 1,\n'
-  printf '  "saved_at": %s,\n' "$(json_encode "$saved_at")"
-  printf '  "panes": {\n'
+saved_at = Time.now.iso8601
 
-  first=1
-  while IFS=$'\t' read -r sess win pane pid; do
-    [ -n "$pid" ] || continue
-    opts="$(tmux show-options -pq -t "$pid" 2>/dev/null | awk '$1 ~ /^@persist_/ { print $1 }' || true)"
-    [ -n "$opts" ] || continue
+# Decode tmux's quoted option-value form. `tmux show-options -pq` emits
+# lines like `@persist_foo "bar"`. Inside the quotes tmux escapes only
+# backslash and double-quote, so we reverse exactly that.
+def unescape_tmux_quoted(quoted)
+  return '' if quoted.nil? || quoted.empty?
+  return quoted unless quoted.start_with?('"') && quoted.end_with?('"') && quoted.length >= 2
 
-    pane_first=1
-    pane_buf=""
-    while IFS= read -r opt; do
-      key="${opt#@persist_}"
-      val="$(tmux show-options -pqv -t "$pid" "$opt" 2>/dev/null || true)"
-      [ -n "$key" ] || continue
-      key_json="$(json_encode "$key")"
-      val_json="$(json_encode "$val")"
-      if [ $pane_first -eq 1 ]; then
-        pane_first=0
-      else
-        pane_buf="$pane_buf,"$'\n'
-      fi
-      pane_buf="$pane_buf      $key_json: $val_json"
-    done <<<"$opts"
-
-    [ -n "$pane_buf" ] || continue
-    if [ $first -eq 1 ]; then
-      first=0
+  inner = quoted[1..-2]
+  out = +''
+  i = 0
+  while i < inner.length
+    c = inner[i]
+    if c == '\\' && i + 1 < inner.length
+      nxt = inner[i + 1]
+      out << (nxt == '\\' || nxt == '"' ? nxt : (c + nxt))
+      i += 2
     else
-      printf ',\n'
-    fi
-    coord_json="$(json_encode "$sess:$win.$pane")"
-    printf '    %s: {\n' "$coord_json"
-    printf '%s\n' "$pane_buf"
-    printf '    }'
-  done <<<"$panes_tsv"
+      out << c
+      i += 1
+    end
+  end
+  out
+end
 
-  printf '\n  }\n'
-  printf '}\n'
-} > "$tmp_sidecar"
+# One tmux call to enumerate panes.
+panes_raw = `tmux list-panes -a -F '\#{session_name}\t\#{window_index}\t\#{pane_index}\t\#{pane_id}' 2>/dev/null`
 
-mv "$tmp_sidecar" "$sidecar"
-trap - EXIT
+panes = {}
+panes_raw.each_line do |line|
+  sess, win, pane, pid = line.chomp.split("\t")
+  next if pid.nil? || pid.empty?
 
-# last.safe rotation
-size="$(wc -c < "$state_file" | tr -d ' ')"
-pane_count="$(grep -c '^pane	' "$state_file" || true)"
-if [ "$size" -ge 1024 ] && [ "$pane_count" -ge 3 ]; then
-  cp "$state_file" "$dir/last.safe.tmp" && mv "$dir/last.safe.tmp" "$dir/last.safe"
-  cp "$sidecar" "$dir/last.safe.meta.json.tmp" && mv "$dir/last.safe.meta.json.tmp" "$dir/last.safe.meta.json"
-fi
+  # One tmux call per pane to dump its options. Parse the quoted output
+  # in-process so we don't need a second tmux invocation per option.
+  opts_raw = `tmux show-options -pq -t #{Shellwords.escape(pid)} 2>/dev/null`
+  next if opts_raw.empty?
+
+  persist = {}
+  opts_raw.each_line do |opt_line|
+    name, _, rest = opt_line.chomp.partition(' ')
+    next unless name.start_with?('@persist_')
+    key = name.sub(/\A@persist_/, '')
+    next if key.empty?
+    persist[key] = unescape_tmux_quoted(rest)
+  end
+
+  next if persist.empty?
+  panes["#{sess}:#{win}.#{pane}"] = persist
+end
+
+doc = { 'version' => 1, 'saved_at' => saved_at, 'panes' => panes }
+File.write(tmp_sidecar, JSON.pretty_generate(doc) + "\n")
+File.rename(tmp_sidecar, sidecar)
+
+# last.safe rotation. Threshold matches the prior bash version: at least
+# 1 KiB on disk and at least 3 `pane\t...` lines. Keeps `last.safe` from
+# being clobbered by a partial / near-empty save.
+size = File.size(state_file)
+pane_count = 0
+File.foreach(state_file) { |l| pane_count += 1 if l.start_with?("pane\t") }
+
+if size >= 1024 && pane_count >= 3
+  state_safe = File.join(dir, 'last.safe')
+  meta_safe = File.join(dir, 'last.safe.meta.json')
+  state_tmp = "#{state_safe}.tmp.#{Process.pid}"
+  meta_tmp = "#{meta_safe}.tmp.#{Process.pid}"
+  begin
+    File.write(state_tmp, File.binread(state_file))
+    File.rename(state_tmp, state_safe)
+    File.write(meta_tmp, File.binread(sidecar))
+    File.rename(meta_tmp, meta_safe)
+  ensure
+    File.unlink(state_tmp) if File.exist?(state_tmp)
+    File.unlink(meta_tmp) if File.exist?(meta_tmp)
+  end
+end
