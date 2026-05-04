@@ -12,10 +12,11 @@
 #      file looks substantial enough to be worth saving as the last-known-
 #      good fallback.
 #
-# Replaces the prior bash implementation. Same behavior; far fewer forks
-# (~13 instead of ~30-50 for a 12-pane setup) by doing JSON encoding,
-# tmux option-value parsing, file size / line-count checks, and atomic
-# file ops in-process instead of shelling out to jq/wc/grep/cp.
+# Minimizes child-process spawns: JSON encoding, tmux option-value
+# parsing, file size / line-count checks, and atomic file ops are all
+# done in-process instead of shelling out to jq / wc / grep / cp. The
+# only forks per invocation are one `tmux list-panes` plus one
+# `tmux show-options` per pane.
 
 require 'json'
 require 'shellwords'
