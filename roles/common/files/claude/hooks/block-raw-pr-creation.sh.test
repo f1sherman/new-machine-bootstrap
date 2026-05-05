@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/block-raw-pr-creation.sh"
+REASON='Use the _pull-request skill to create pull requests; do not call raw PR creation commands directly.'
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+run_block_case() {
+  local name="$1"
+  local command="$2"
+  local output
+
+  output="$(jq -n --arg command "$command" '{tool_input:{command:$command}}' | "$SCRIPT")"
+  if printf '%s' "$output" | jq -e --arg reason "$REASON" '. == {hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}' >/dev/null; then
+    printf 'PASS  %s\n' "$name"
+  else
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  fi
+}
+
+run_allow_case() {
+  local name="$1"
+  local command="$2"
+  local output
+
+  output="$(jq -n --arg command "$command" '{tool_input:{command:$command}}' | "$SCRIPT")"
+  [ -z "$output" ] || {
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
+run_empty_case() {
+  local name="$1"
+  local payload="$2"
+  local output
+
+  output="$(printf '%s' "$payload" | "$SCRIPT")"
+  [ -z "$output" ] || {
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
+run_block_case "blocks gh pr create" 'gh pr create --fill'
+run_block_case "blocks command-prefixed gh pr create" 'command gh pr create --title test'
+run_block_case "blocks gh api pull create" 'gh api -X POST repos/f1sherman/home-network-provisioning/pulls -f title=test'
+run_block_case "blocks Forgejo curl pull create" 'curl -fsSL -X POST https://forgejo.example/api/v1/repos/f1sherman/home-network-provisioning/pulls'
+run_block_case "blocks GitHub curl pull create" 'curl --request POST https://api.github.com/repos/f1sherman/home-network-provisioning/pulls'
+run_block_case "blocks direct Forgejo helper" 'bash ~/.local/share/skills/_pr-forgejo/create.sh --title test --body test'
+run_block_case "blocks direct GitHub helper" 'bash ~/.local/share/skills/_pr-github/create.sh --title test --body test'
+run_allow_case "allows _pull-request skill mention" 'echo invoke _pull-request'
+run_allow_case "allows gh pr list" 'gh pr list --state open'
+run_allow_case "allows curl pull read" 'curl -fsSL https://forgejo.example/api/v1/repos/f1sherman/home-network-provisioning/pulls?state=open'
+run_allow_case "allows workflow-marked helper invocation" 'PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-forgejo/create.sh --title test'
+run_allow_case "allows unrelated commands" 'git status --short'
+run_empty_case "allows missing command" '{}'
+run_empty_case "allows empty command" '{"tool_input":{"command":""}}'
+
+printf 'PASS  raw PR creation blocker test suite\n'
