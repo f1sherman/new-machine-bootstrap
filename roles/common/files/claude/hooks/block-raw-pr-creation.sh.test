@@ -63,6 +63,7 @@ run_block_case "blocks shell-wrapped gh pr create" "bash -lc 'gh pr create --fil
 run_block_case "blocks command-prefixed gh pr create" 'command gh pr create --title test'
 run_block_case "blocks gh api pull create" 'gh api -X POST repos/f1sherman/home-network-provisioning/pulls -f title=test'
 run_block_case "blocks implicit POST gh api pull create" 'gh api repos/f1sherman/home-network-provisioning/pulls -f title=test -f head=branch -f base=main'
+run_block_case "blocks GraphQL createPullRequest" "gh api graphql -f query='mutation { createPullRequest(input:{repositoryId:\"R\",baseRefName:\"main\",headRefName:\"b\",title:\"t\"}) { pullRequest { url } } }'"
 run_block_case "blocks Forgejo curl pull create" 'curl -fsSL -X POST https://forgejo.example/api/v1/repos/f1sherman/home-network-provisioning/pulls'
 run_block_case "blocks GitHub curl pull create" 'curl --request POST https://api.github.com/repos/f1sherman/home-network-provisioning/pulls'
 run_block_case "blocks curl data-raw pull create" "curl --data-raw '{\"title\":\"x\"}' https://api.github.com/repos/f1sherman/home-network-provisioning/pulls"
@@ -72,6 +73,7 @@ run_allow_case "allows _pull-request skill mention" 'echo invoke _pull-request'
 run_allow_case "allows gh pr list" 'gh pr list --state open'
 run_allow_case "allows explicit GET gh api pull query with fields" 'gh api --method GET repos/f1sherman/home-network-provisioning/pulls -f state=open'
 run_allow_case "allows curl pull read" 'curl -fsSL https://forgejo.example/api/v1/repos/f1sherman/home-network-provisioning/pulls?state=open'
+run_allow_case "allows curl GET query with encoded fields" 'curl -G --data-urlencode state=open https://api.github.com/repos/f1sherman/home-network-provisioning/pulls'
 run_allow_case "allows gh api nested PR comment POST" 'gh api --method POST repos/f1sherman/home-network-provisioning/pulls/123/comments/456/replies -f body=ok'
 run_allow_case "allows curl nested PR comment POST" 'curl -X POST https://api.github.com/repos/f1sherman/home-network-provisioning/pulls/123/comments'
 # shellcheck disable=SC2016

@@ -61,9 +61,16 @@ if matches "${command_prefix}gh${gh_global_flags}[[:space:]]+api([[:space:]]|$)"
   exit 0
 fi
 
+if matches "${command_prefix}gh${gh_global_flags}[[:space:]]+api([[:space:]]|$)" \
+  && matches '(^|[[:space:]])graphql([[:space:]]|$)' \
+  && matches 'createPullRequest'; then
+  emit_deny
+  exit 0
+fi
+
 if matches "${command_prefix}curl([[:space:]]|$)" \
   && matches '(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:space:]]+POST|--data(-raw|-binary|-urlencode)?|-d|--json)([=[:space:]]|$)' \
-  && ! matches '(^|[[:space:]])(-X[[:space:]]*GET|-XGET|--request[=[:space:]]+GET)([[:space:]]|$)' \
+  && ! matches '(^|[[:space:]])(-X[[:space:]]*GET|-XGET|--request[=[:space:]]+GET|-G|--get)([[:space:]]|$)' \
   && matches '(^|/)pulls([?[:space:]]|$)'; then
   emit_deny
   exit 0
