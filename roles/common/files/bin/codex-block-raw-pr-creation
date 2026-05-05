@@ -47,13 +47,14 @@ if [[ -z "$command" ]]; then
   exit 0
 fi
 
-if matches "${command_prefix}gh${gh_global_flags}[[:space:]]+pr[[:space:]]+create([[:space:]]|$)"; then
+if matches "${command_prefix}gh${gh_global_flags}[[:space:]]+pr[[:space:]]+(create|new)([[:space:]]|$)"; then
   emit_deny
   exit 0
 fi
 
 if matches "${command_prefix}gh${gh_global_flags}[[:space:]]+api([[:space:]]|$)" \
   && matches '(^|/)pulls([?[:space:]]|$)' \
+  && ! matches '(^|[[:space:]])(-X[[:space:]]*GET|-XGET|--method[=[:space:]]+GET)([[:space:]]|$)' \
   && { matches '(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--method[=[:space:]]+POST)([[:space:]]|$)' \
     || matches '(^|[[:space:]])(-f|-F|--field|--raw-field)([=[:space:]]|$)'; }; then
   emit_deny
@@ -62,6 +63,7 @@ fi
 
 if matches "${command_prefix}curl([[:space:]]|$)" \
   && matches '(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:space:]]+POST|--data(-raw|-binary|-urlencode)?|-d|--json)([=[:space:]]|$)' \
+  && ! matches '(^|[[:space:]])(-X[[:space:]]*GET|-XGET|--request[=[:space:]]+GET)([[:space:]]|$)' \
   && matches '(^|/)pulls([?[:space:]]|$)'; then
   emit_deny
   exit 0
