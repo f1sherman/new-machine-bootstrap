@@ -16,28 +16,39 @@ emit_deny() {
 
 matches() {
   local pattern="$1"
-  printf '%s\n' "$command" | grep -Eq "$pattern"
+  printf '%s\n' "$command" | grep -Eq -- "$pattern"
 }
 
 has_pr_workflow_allow() {
   matches '(^|[;&|()[:space:]])PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1([[:space:]]|$)'
 }
 
-command_prefix='(^|[;&|()])[[:space:]]*((env|command|time)[[:space:]]+|sudo([[:space:]]+-[^[:space:]]+)*[[:space:]]+)*'
+# shellcheck disable=SC2016
+has_pr_workflow_helper_args() {
+  matches '--base[=[:space:]]+"?\$BASE"?([[:space:])"]|$)' \
+    && matches '--head[=[:space:]]+"?\$BRANCH"?([[:space:])"]|$)' \
+    && matches '--title[=[:space:]]+"?\$PR_TITLE"?([[:space:])"]|$)' \
+    && matches '--body[=[:space:]]+"?\$PR_BODY"?([[:space:])"]|$)'
+}
+
+assignment='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+'
+command_prefix="(^|[;&|()])[[:space:]]*((${assignment}[[:space:]]+)|(env[[:space:]]+(${assignment}[[:space:]]+)*)|(command|time)[[:space:]]+|sudo([[:space:]]+-[^[:space:]]+)*[[:space:]]+)*"
+gh_global_flags='([[:space:]]+(-R|--repo)([=[:space:]]+)[^[:space:]]+|[[:space:]]+--repo=[^[:space:]]+)*'
 shell_prefix='((bash|sh|zsh)[[:space:]]+)?'
 
 if [[ -z "$command" ]]; then
   exit 0
 fi
 
-if matches "${command_prefix}gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)"; then
+if matches "${command_prefix}gh${gh_global_flags}[[:space:]]+pr[[:space:]]+create([[:space:]]|$)"; then
   emit_deny
   exit 0
 fi
 
-if matches "${command_prefix}gh[[:space:]]+api([[:space:]]|$)" \
-  && matches '(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--method[=[:space:]]+POST)([[:space:]]|$)' \
-  && matches '(^|/)pulls([/?[:space:]]|$)'; then
+if matches "${command_prefix}gh${gh_global_flags}[[:space:]]+api([[:space:]]|$)" \
+  && matches '(^|/)pulls([/?[:space:]]|$)' \
+  && { matches '(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--method[=[:space:]]+POST)([[:space:]]|$)' \
+    || matches '(^|[[:space:]])(-f|-F|--field|--raw-field)([=[:space:]]|$)'; }; then
   emit_deny
   exit 0
 fi
@@ -50,7 +61,7 @@ if matches "${command_prefix}curl([[:space:]]|$)" \
 fi
 
 if matches "${command_prefix}${shell_prefix}([^[:space:]]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]]|$)"; then
-  if ! has_pr_workflow_allow; then
+  if ! has_pr_workflow_allow && ! has_pr_workflow_helper_args; then
     emit_deny
   fi
   exit 0
