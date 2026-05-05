@@ -32,7 +32,8 @@ has_pr_workflow_helper_args() {
 }
 
 assignment='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+'
-command_prefix="(^|[;&|()])[[:space:]]*((${assignment}[[:space:]]+)|(env[[:space:]]+(${assignment}[[:space:]]+)*)|(command|time)[[:space:]]+|sudo([[:space:]]+-[^[:space:]]+)*[[:space:]]+)*"
+control='(if|then|elif|else|do|while|until|!)[[:space:]]+'
+command_prefix="(^|[;&|()])[[:space:]]*((${control})|(${assignment}[[:space:]]+)|(env[[:space:]]+(${assignment}[[:space:]]+)*)|(command|time)[[:space:]]+|sudo([[:space:]]+-[^[:space:]]+)*[[:space:]]+)*"
 gh_global_flags='([[:space:]]+(-R|--repo)([=[:space:]]+)[^[:space:]]+|[[:space:]]+--repo=[^[:space:]]+)*'
 shell_prefix='((bash|sh|zsh)[[:space:]]+)?'
 
@@ -46,7 +47,7 @@ if matches "${command_prefix}gh${gh_global_flags}[[:space:]]+pr[[:space:]]+creat
 fi
 
 if matches "${command_prefix}gh${gh_global_flags}[[:space:]]+api([[:space:]]|$)" \
-  && matches '(^|/)pulls([/?[:space:]]|$)' \
+  && matches '(^|/)pulls([?[:space:]]|$)' \
   && { matches '(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--method[=[:space:]]+POST)([[:space:]]|$)' \
     || matches '(^|[[:space:]])(-f|-F|--field|--raw-field)([=[:space:]]|$)'; }; then
   emit_deny
@@ -55,7 +56,7 @@ fi
 
 if matches "${command_prefix}curl([[:space:]]|$)" \
   && matches '(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:space:]]+POST|--data|-d|--json)([[:space:]]|$)' \
-  && matches '(^|/)pulls([/?[:space:]]|$)'; then
+  && matches '(^|/)pulls([?[:space:]]|$)'; then
   emit_deny
   exit 0
 fi
