@@ -68,8 +68,16 @@ if [ "$has_server" = "0" ]; then
 
   resurrect="$HOME/.tmux/plugins/tmux-resurrect/scripts/restore.sh"
   if [ -x "$resurrect" ]; then
-    debug_log "running resurrect restore: $resurrect"
-    "$resurrect" >>"$DEBUG_LOG" 2>&1 || debug_log "resurrect restore exited non-zero"
+    # restore.sh derives the tmux socket from $TMUX (`echo $TMUX | cut
+    # -d',' -f1`). We're invoking it from a login shell outside tmux so
+    # $TMUX is unset — without this every internal
+    # `tmux -S "$(tmux_socket)" new-session ...` runs as `tmux -S ""`
+    # and fails with "error creating  (No such file or directory)",
+    # leaving only the __bootstrap__ placeholder.
+    socket_path="$(tmux display-message -p -t __bootstrap__ '#{socket_path}' 2>/dev/null || true)"
+    debug_log "running resurrect restore: $resurrect (socket=$socket_path)"
+    TMUX="${socket_path},$$,0" "$resurrect" >>"$DEBUG_LOG" 2>&1 \
+      || debug_log "resurrect restore exited non-zero"
   else
     debug_log "resurrect restore not found at $resurrect"
   fi
