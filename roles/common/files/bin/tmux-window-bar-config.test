@@ -44,8 +44,9 @@ assert_tmux_file() {
   assert_contains "$file" "set -g window-status-current-format ' #{window_name}#{?window_bell_flag,!,} '"
   assert_contains "$file" "setw -g monitor-activity off"
   assert_contains "$file" "set -g visual-activity off"
-  # Pane-border-format: same label content + per-pane error sigil at the end.
-  assert_contains "$file" "set -g pane-border-format '#{?pane_active,#[bg=black#,fg=colour51],#[bg=black#,fg=colour240]} #(~/.local/bin/tmux-pane-label \"#{pane_tty}\" \"#{pane_current_path}\" \"#{pane_current_command}\" \"#{pane_id}\")#{?#{@pane-last-error}, #[bg=colour196#,fg=white#,bold] ! #[default],} '"
+  # Pane-border-format reads the cached @pane-label set by event hooks; falls
+  # back to the cwd basename until the first hook populates the option.
+  assert_contains "$file" "set -g pane-border-format '#{?pane_active,#[bg=black#,fg=colour51],#[bg=black#,fg=colour240]} #{?#{@pane-label},#{@pane-label},#{b:pane_current_path}}#{?#{@pane-last-error}, #[bg=colour196#,fg=white#,bold] ! #[default],} '"
 
   # Per-pane option name; old global option must be gone.
   assert_contains "$file" '@pane-last-error'
