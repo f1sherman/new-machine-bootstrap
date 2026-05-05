@@ -14,9 +14,15 @@ emit_deny() {
   }'
 }
 
+scan_commands() {
+  printf '%s\n' "$command"
+  printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+-[A-Za-z]*c[[:space:]]+['\"]([^'\"]+)['\"].*/\3/p"
+  printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+--command(=|[[:space:]]+)['\"]([^'\"]+)['\"].*/\4/p"
+}
+
 matches() {
   local pattern="$1"
-  printf '%s\n' "$command" | grep -Eq -- "$pattern"
+  scan_commands | grep -Eq -- "$pattern"
 }
 
 has_pr_workflow_allow() {
@@ -55,7 +61,7 @@ if matches "${command_prefix}gh${gh_global_flags}[[:space:]]+api([[:space:]]|$)"
 fi
 
 if matches "${command_prefix}curl([[:space:]]|$)" \
-  && matches '(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:space:]]+POST|--data|-d|--json)([[:space:]]|$)' \
+  && matches '(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:space:]]+POST|--data(-raw|-binary|-urlencode)?|-d|--json)([=[:space:]]|$)' \
   && matches '(^|/)pulls([?[:space:]]|$)'; then
   emit_deny
   exit 0
