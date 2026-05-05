@@ -59,6 +59,38 @@
     state: present
     update_homebrew: no
 
+# Older mise versions silently leave node installs incomplete (bin/npm
+# missing), and Homebrew's `state: present` never upgrades. Compare against
+# the catalog pin and upgrade if behind.
+- name: Check installed mise version (macOS)
+  shell: 'mise --version | awk ''{print $1}'''
+  register: macos_mise_version
+  changed_when: false
+  failed_when: false
+
+- name: Upgrade mise if older than catalog pin (macOS)
+  homebrew:
+    name: mise
+    state: latest
+    update_homebrew: yes
+  when:
+    - macos_mise_version.rc == 0
+    - macos_mise_version.stdout is version(tool_versions.runtimes.mise | regex_replace('^v', ''), '<')
+
+- name: Re-read mise version after upgrade (macOS)
+  shell: 'mise --version | awk ''{print $1}'''
+  register: macos_mise_version_post
+  changed_when: false
+  failed_when: false
+
+- name: Fail if installed mise is still older than catalog pin (macOS)
+  fail:
+    msg: |
+      Installed mise '{{ macos_mise_version_post.stdout }}' is older than catalog pin
+      '{{ tool_versions.runtimes.mise | regex_replace('^v', '') }}'. Run 'brew update && brew upgrade mise'
+      manually, or bump 'tool_versions.runtimes.mise' in vars/tool_versions.yml to a version Homebrew already ships.
+  when: macos_mise_version_post.stdout is version(tool_versions.runtimes.mise | regex_replace('^v', ''), '<')
+
 - name: Check which packages to remove are actually linked (not keg-only)
   shell: |
     for pkg in curl nodenv nvm rbenv; do
