@@ -39,7 +39,10 @@ has_pr_workflow_helper_args() {
 
 assignment='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+'
 control='(if|then|elif|else|do|while|until|!)[[:space:]]+'
-command_prefix="(^|[;&|()])[[:space:]]*((${control})|(${assignment}[[:space:]]+)|(env[[:space:]]+(${assignment}[[:space:]]+)*)|(command|time)[[:space:]]+|sudo([[:space:]]+-[^[:space:]]+)*[[:space:]]+)*"
+env_wrapper="env([[:space:]]+(-i|--ignore-environment)|[[:space:]]+(-u|--unset)([=[:space:]]+)[^[:space:]]+|[[:space:]]+${assignment})*[[:space:]]+"
+sudo_wrapper='sudo([[:space:]]+(-E|-n|--non-interactive|--preserve-env(=[^[:space:]]+)?)|[[:space:]]+(-u|--user)([=[:space:]]+)[^[:space:]]+)*[[:space:]]+'
+time_wrapper='time([[:space:]]+-[^[:space:]]+)*[[:space:]]+'
+command_prefix="(^|[;&|()])[[:space:]]*((${control})|(${assignment}[[:space:]]+)|(${env_wrapper})|(command[[:space:]]+)|(${time_wrapper})|(${sudo_wrapper}))*"
 gh_global_flags='([[:space:]]+(-R|--repo)([=[:space:]]+)[^[:space:]]+|[[:space:]]+--repo=[^[:space:]]+)*'
 shell_prefix='((bash|sh|zsh)[[:space:]]+)?'
 
@@ -64,6 +67,14 @@ fi
 if matches "${command_prefix}gh${gh_global_flags}[[:space:]]+api([[:space:]]|$)" \
   && matches '(^|[[:space:]])graphql([[:space:]]|$)' \
   && matches 'createPullRequest'; then
+  emit_deny
+  exit 0
+fi
+
+if matches "${command_prefix}curl([[:space:]]|$)" \
+  && matches '(^|/)graphql([?[:space:]]|$)' \
+  && matches 'createPullRequest' \
+  && ! matches '(^|[[:space:]])(-X[[:space:]]*GET|-XGET|--request[=[:space:]]+GET|-G|--get)([[:space:]]|$)'; then
   emit_deny
   exit 0
 fi
