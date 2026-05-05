@@ -139,13 +139,17 @@ fi
 alias duss="du -d 1 -h 2>/dev/null | sort -hr"
 
 if [[ -n "$TMUX" ]]; then
+  # chpwd-only: pane_current_path changes don't fire any tmux event hook,
+  # so we still need a zsh-side trigger when the user `cd`s. Other label
+  # refresh paths (pane focus, pane title, new pane) are covered by the
+  # tmux event hooks defined in tmux.conf — running on precmd too would
+  # spawn two background bash processes per shell prompt.
   _tmux_label_update() {
     command tmux-window-label "$TMUX_PANE" &>/dev/null &!
     command tmux-sync-pane-border-status "$TMUX_PANE" &>/dev/null &!
   }
   autoload -Uz add-zsh-hook
   add-zsh-hook chpwd _tmux_label_update
-  add-zsh-hook precmd _tmux_label_update
 fi
 
 autoload -Uz compinit
