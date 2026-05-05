@@ -69,25 +69,41 @@
     brew_output is failed and
     (brew_output.msg is not search("It seems there is already an App at"))
 
-- name: Check if pinned Node.js version is installed
+- name: Check if pinned Node.js version is listed by mise
   shell: "{{ mise_bin }} ls node | awk '$1 == \"node\" && $2 == \"{{ tool_versions.runtimes.node }}\" { found = 1 } END { exit(found ? 0 : 1) }'"
-  register: macos_node_installed
+  register: macos_node_listed
   changed_when: false
   failed_when: false
+
+# Older mise versions sometimes leave bin/npm out of the install dir even
+# though the version is registered. Stat each binary so we can detect a
+# structurally damaged install and force-reinstall.
+- name: Stat pinned Node.js install binaries (macOS)
+  stat:
+    path: "{{ ansible_facts['user_dir'] }}/.local/share/mise/installs/node/{{ tool_versions.runtimes.node }}/bin/{{ item }}"
+  loop:
+    - node
+    - npm
+    - npx
+  register: macos_node_install_bins
+
+- name: Determine whether pinned Node.js install is healthy (macOS)
+  set_fact:
+    macos_node_install_healthy: "{{ macos_node_listed.rc == 0 and (macos_node_install_bins.results | rejectattr('stat.exists') | list | length == 0) }}"
 
 - name: Create temporary GPG home for macOS Node.js install
   tempfile:
     state: directory
     prefix: macos-node-gpg-
   register: macos_node_gnupg_home
-  when: macos_node_installed.rc != 0
+  when: not macos_node_install_healthy
 
-- name: Install pinned Node.js version if not installed
-  command: "{{ mise_bin }} install node@{{ tool_versions.runtimes.node }}"
+- name: Install pinned Node.js version if missing or damaged
+  command: "{{ mise_bin }} install --force node@{{ tool_versions.runtimes.node }}"
   environment:
     GNUPGHOME: "{{ macos_node_gnupg_home.path }}"
   when:
-    - macos_node_installed.rc != 0
+    - not macos_node_install_healthy
     - macos_node_gnupg_home.path is defined
 
 - name: Remove temporary GPG home for macOS Node.js install
@@ -95,7 +111,7 @@
     path: "{{ macos_node_gnupg_home.path }}"
     state: absent
   when:
-    - macos_node_installed.rc != 0
+    - not macos_node_install_healthy
     - macos_node_gnupg_home.path is defined
 
 - name: Get current global Node.js version from mise config

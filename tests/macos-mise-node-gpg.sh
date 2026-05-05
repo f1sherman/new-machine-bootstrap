@@ -65,15 +65,15 @@ assert_task_block_contains \
   "tempfile:" \
   "macOS Node install creates a temporary GPG home"
 assert_task_block_contains \
-  "Install pinned Node.js version if not installed" \
+  "Install pinned Node.js version if missing or damaged" \
   "environment:" \
   "macOS Node install sets an explicit environment"
 assert_task_block_contains \
-  "Install pinned Node.js version if not installed" \
+  "Install pinned Node.js version if missing or damaged" \
   "GNUPGHOME: \"{{ macos_node_gnupg_home.path }}\"" \
   "macOS Node install isolates GNUPGHOME from the user keyring"
 assert_task_block_contains \
-  "Install pinned Node.js version if not installed" \
+  "Install pinned Node.js version if missing or damaged" \
   "macos_node_gnupg_home.path is defined" \
   "macOS Node install guards the temp GPG home in check mode"
 assert_task_block_contains \
