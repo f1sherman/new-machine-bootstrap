@@ -272,6 +272,8 @@
     - tmux-devpod-name
     - tmux-label-format
     - tmux-pane-label
+    - tmux-update-pane-label
+    - tmux-update-all-pane-labels
     - tmux-window-label
     - tmux-sync-status-visibility
     - tmux-sync-pane-border-status
