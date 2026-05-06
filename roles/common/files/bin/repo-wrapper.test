@@ -92,6 +92,7 @@ cd "$case_root"
 check_wrapper() {
   local wrapper_name="\$1"
   local helper_name="\$2"
+  local expected_sync="\$3"
   local helper_log="$case_root/\${wrapper_name}-helper.log"
   local help_sync_log="$case_root/\${wrapper_name}-help-sync.log"
   local sync_log="$case_root/\${wrapper_name}-sync.log"
@@ -134,10 +135,10 @@ check_json_wrapper() {
   printf 'json-cwd=%s\n' "\$PWD" > "\$json_cwd_file"
 }
 
-check_wrapper repo-start repo-start
-check_wrapper rs repo-start
-check_wrapper repo-end repo-end
-check_wrapper re repo-end
+check_wrapper repo-start repo-start no
+check_wrapper rs repo-start no
+check_wrapper repo-end repo-end yes
+check_wrapper re repo-end yes
 check_json_wrapper repo-start
 check_json_wrapper rs
 EOF
@@ -150,6 +151,7 @@ EOF
     local wrapper_name="$1"
     local helper_name="$2"
     local usage_suffix="$3"
+    local expected_sync="$4"
     local helper_log="$case_root/${wrapper_name}-helper.log"
     local help_sync_log="$case_root/${wrapper_name}-help-sync.log"
     local sync_log="$case_root/${wrapper_name}-sync.log"
@@ -164,13 +166,17 @@ EOF
     [ "$(sed -n '2p' "$helper_log")" = "--branch feature/alpha --path $case_root/requested-path --print-path" ] || fail "$label $wrapper_name did not call $helper_name with --print-path"
     [ "$(sed -n '1p' "$stdout_file")" = "$repo_path" ] || fail "$label $wrapper_name did not print the helper path"
     [ "$(sed -n '2p' "$stdout_file")" = "cwd=$repo_path" ] || fail "$label $wrapper_name did not cd into the helper path"
-    [ "$(cat "$sync_log")" = "sync-current" ] || fail "$label $wrapper_name did not sync tmux state"
+    if [ "$expected_sync" = "yes" ]; then
+      [ "$(cat "$sync_log")" = "sync-current" ] || fail "$label $wrapper_name did not sync tmux state"
+    else
+      [ ! -s "$sync_log" ] || fail "$label $wrapper_name should not sync tmux state"
+    fi
   }
 
-  assert_wrapper repo-start repo-start " <branch> [path]"
-  assert_wrapper rs repo-start " <branch> [path]"
-  assert_wrapper repo-end repo-end " [--print-path]"
-  assert_wrapper re repo-end " [--print-path]"
+  assert_wrapper repo-start repo-start " <branch> [path]" no
+  assert_wrapper rs repo-start " <branch> [path]" no
+  assert_wrapper repo-end repo-end " [--print-path]" yes
+  assert_wrapper re repo-end " [--print-path]" yes
 
   assert_json_wrapper() {
     local wrapper_name="$1"
