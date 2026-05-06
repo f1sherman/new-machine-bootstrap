@@ -3,7 +3,7 @@
 - name: Resolve runtime agent host options
   set_fact:
     agent_host_runtime_install_pr_creation_skills_resolved: "{{ agent_host_runtime_home.install_pr_creation_skills | default(agent_host_install_pr_creation_skills_resolved) | bool }}"
-    agent_host_runtime_raw_pr_creation_block_reason_resolved: "{{ agent_host_runtime_home.raw_pr_creation_block_reason | default(agent_host_raw_pr_creation_block_reason | default((agent_host_runtime_home.install_pr_creation_skills | default(agent_host_install_pr_creation_skills_resolved) | bool) | ternary(agent_host_pull_request_raw_pr_creation_block_reason, agent_host_commit_only_raw_pr_creation_block_reason))) }}"
+    agent_host_runtime_raw_pr_creation_block_reason_resolved: "{{ agent_host_runtime_home.raw_pr_creation_block_reason | default(agent_host_raw_pr_creation_block_reason | default((agent_host_runtime_home.install_pr_creation_skills | default(agent_host_install_pr_creation_skills_resolved) | bool) | ternary(agent_host_pull_request_raw_pr_creation_block_reason | default('Use the _pull-request skill to create pull requests; do not call raw PR creation commands directly.'), agent_host_commit_only_raw_pr_creation_block_reason | default('Commit changes only; do not create pull requests directly.')))) }}"
 
 - name: Create runtime agent host directories
   file:

@@ -158,6 +158,7 @@ run_block_case "blocks GraphQL long field file createPullRequest" "gh api graphq
 run_block_case "blocks curl GraphQL createPullRequest" 'curl -X POST https://api.github.com/graphql -d query=createPullRequest'
 run_block_case "blocks curl GraphQL data file createPullRequest" "curl -X POST https://api.github.com/graphql -d @$graphql_create_payload"
 run_block_case "blocks Forgejo curl pull create" 'curl -fsSL -X POST https://forgejo.brianjohn.com/api/v1/repos/example/project/pulls'
+run_block_case "blocks custom Forgejo curl pull create" 'curl -fsSL -X POST https://forgejo.example.com/api/v1/repos/example/project/pulls'
 scripted_curl_pr="$TMP_DIR/scripted-curl-pr.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'curl -fsSL -X POST https://forgejo.brianjohn.com/api/v1/repos/example/project/pulls' > "$scripted_curl_pr"
 chmod +x "$scripted_curl_pr"
