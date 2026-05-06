@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT="$SCRIPT_DIR/codex-block-main-branch-edits"
-REASON='File edit blocked on main. Move to a non-main branch/worktree per repo instructions, then retry.'
+REASON='File edit blocked on main. Start a non-main branch with repo-start <branch>, then retry.'
 
 if [ ! -x "$SCRIPT" ]; then
   printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2

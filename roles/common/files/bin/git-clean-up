@@ -357,17 +357,6 @@ rescue OptionParser::ParseError => e
   exit 1
 end
 
-def maybe_run_worktree_done(current_repo, safe_dir)
-  return false unless command_available?('worktree-done')
-
-  Dir.chdir(current_repo)
-  result = run_command_args(['worktree-done', '--print-path'], allow_failure: true)
-  Dir.chdir(safe_dir)
-  return true if result.success?
-
-  fail_with(result.stderr.strip.empty? ? 'worktree-done failed' : result.stderr.strip)
-end
-
 def run_cleanup(options)
   explicit_mode = options[:repo_dir] && options[:branch]
   repo_dir = repo_root_for(explicit_mode ? options[:repo_dir] : Dir.pwd)
@@ -398,15 +387,8 @@ def run_cleanup(options)
     fail_with(remote_deleted[:reason]) unless remote_deleted[:ok]
   end
 
-  used_worktree_done = false
-  if !explicit_mode && state[:proof] == 'ancestor' && target_worktrees.map { |path| File.expand_path(path) }.include?(repo_dir) && repo_dir != primary_path
-    used_worktree_done = maybe_run_worktree_done(repo_dir, safe_dir)
-  end
-
-  unless used_worktree_done
-    deleted = delete_branch_with_worktrees(branch, git_dir: common_git_dir, safe_dir: safe_dir, hard_stop: true)
-    fail_with(deleted[:reason]) unless deleted[:ok]
-  end
+  deleted = delete_branch_with_worktrees(branch, git_dir: common_git_dir, safe_dir: safe_dir, hard_stop: true)
+  fail_with(deleted[:reason]) unless deleted[:ok]
 
   run_command_args(['tmux-agent-worktree', 'clear'], allow_failure: true)
 
