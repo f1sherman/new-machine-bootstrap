@@ -69,6 +69,8 @@ assert_contains "$ROLE_TASKS" "codex-block-raw-pr-creation" "role installs Codex
 assert_contains "$ROLE_TASKS" "block-raw-pr-creation.sh" "role installs Claude raw PR blocker"
 assert_contains "$ROLE_TASKS" "PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-github/create.sh" "role allows Claude GitHub PR helper"
 assert_contains "$RUNTIME_TASKS" "PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-github/create.sh" "runtime tasks allow Claude GitHub PR helper"
+assert_contains "$ROLE_TASKS" "Bash(bash ~/.local/share/skills/_commit/commit.sh *)" "role allows Claude commit helper"
+assert_contains "$RUNTIME_TASKS" "Bash(bash ~/.local/share/skills/_commit/commit.sh *)" "runtime tasks allow Claude commit helper"
 assert_contains "$ROLE_TASKS" "codex_hooks" "role enables Codex hooks"
 assert_contains "$ROLE_TASKS" "Create agent host PR workflow directories" "role gates PR workflow directories"
 assert_contains "$ROLE_TASKS" "agent_host_install_user_home_resolved" "role self-defaults user-home install when included by path"
