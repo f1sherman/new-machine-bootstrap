@@ -48,5 +48,7 @@ require_contains roles/common/files/claude/hooks/block-main-branch-edits.sh 'rep
 require_contains roles/common/files/claude/hooks/block-worktree-commands.sh 'Use repo-start instead.' 'Claude raw worktree add hook names repo-start'
 require_contains roles/common/files/claude/hooks/block-worktree-commands.sh 'cleanup-branches --branch <branch>' 'Claude raw worktree remove hook names cleanup script'
 require_not_contains roles/common/files/claude/hooks/block-worktree-commands.sh 'worktree-start' 'Claude raw worktree hook stops naming worktree-start'
+require_contains roles/common/files/share/skills/_pr-workflow-common/agent-worktree-path.sh 'repo-start <branch>' 'PR workflow worktree recovery names repo-start'
+require_not_contains roles/common/files/share/skills/_pr-workflow-common/agent-worktree-path.sh 'worktree-start' 'PR workflow worktree recovery stops naming worktree-start'
 
 printf 'PASS  repo lifecycle provisioning checks\n'
