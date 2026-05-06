@@ -118,7 +118,11 @@ run_block_case "blocks quoted gh api pull create" "gh api 'repos/example/project
 run_block_case "blocks GraphQL createPullRequest" "gh api graphql -f query='mutation { createPullRequest(input:{repositoryId:\"R\",baseRefName:\"main\",headRefName:\"b\",title:\"t\"}) { pullRequest { url } } }'"
 graphql_create_payload="$TMP_DIR/graphql-create-pr.json"
 printf '%s\n' '{"query":"mutation { createPullRequest(input:{repositoryId:\"R\",baseRefName:\"main\",headRefName:\"b\",title:\"t\"}) { pullRequest { url } } }"}' > "$graphql_create_payload"
+graphql_create_query="$TMP_DIR/graphql-create-pr.graphql"
+printf '%s\n' 'mutation { createPullRequest(input:{repositoryId:"R",baseRefName:"main",headRefName:"b",title:"t"}) { pullRequest { url } } }' > "$graphql_create_query"
 run_block_case "blocks GraphQL input createPullRequest" "gh api graphql --method POST --input $graphql_create_payload"
+run_block_case "blocks GraphQL field file createPullRequest" "gh api graphql -F query=@$graphql_create_query"
+run_block_case "blocks GraphQL long field file createPullRequest" "gh api graphql --field query=@$graphql_create_query"
 run_block_case "blocks curl GraphQL createPullRequest" 'curl -X POST https://api.github.com/graphql -d query=createPullRequest'
 run_block_case "blocks Forgejo curl pull create" 'curl -fsSL -X POST https://forgejo.brianjohn.com/api/v1/repos/example/project/pulls'
 scripted_curl_pr="$TMP_DIR/scripted-curl-pr.sh"

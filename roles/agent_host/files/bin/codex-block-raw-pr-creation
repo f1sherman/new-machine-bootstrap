@@ -32,6 +32,15 @@ input_file_candidates() {
     sed -nE "s/.*(^|[[:space:]])--input[=[:space:]]+([^[:space:]'\";|&()]+).*/\2/p"
 }
 
+field_file_candidates() {
+  printf '%s\n' "$command" |
+    sed -nE "s/.*(^|[[:space:]])(-F|--field|-f|--raw-field)[=[:space:]]+[^=[:space:]]+=@\"([^\"]+)\".*/\3/p"
+  printf '%s\n' "$command" |
+    sed -nE "s/.*(^|[[:space:]])(-F|--field|-f|--raw-field)[=[:space:]]+[^=[:space:]]+=@'([^']+)'.*/\3/p"
+  printf '%s\n' "$command" |
+    sed -nE "s/.*(^|[[:space:]])(-F|--field|-f|--raw-field)[=[:space:]]+[^=[:space:]]+=@([^[:space:]'\";|&()]+).*/\3/p"
+}
+
 direct_script_candidates() {
   local expect_command=1
   local skip_next=0
@@ -149,6 +158,9 @@ scan_commands() {
   while IFS= read -r script_path; do
     scan_script_path "$script_path" no
   done < <(input_file_candidates)
+  while IFS= read -r script_path; do
+    scan_script_path "$script_path" no
+  done < <(field_file_candidates)
   while IFS= read -r script_path; do
     scan_script_path "$script_path" yes
   done < <(direct_script_candidates)
