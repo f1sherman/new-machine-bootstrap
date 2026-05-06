@@ -22,6 +22,7 @@ stub_bin="$TMPROOT/bin"
 mkdir -p "$stub_bin"
 cat >"$stub_bin/cleanup-branches" <<'EOF'
 #!/usr/bin/env bash
+printf 'pwd=%s\n' "$PWD" >>"$CLEANUP_LOG"
 printf '%s\n' "$*" >>"$CLEANUP_LOG"
 if [[ -n "${CLEANUP_STDOUT:-}" ]]; then
   printf '%s\n' "$CLEANUP_STDOUT"
@@ -107,6 +108,17 @@ assert_file_contains "$TMPROOT/no-main.err" 'could not find main checkout' 'repo
   printf 'linked worktree should remain on feature/no-main\n' >&2
   exit 1
 }
+
+subdir_repo="$(create_remote_repo subdir)"
+subdir_wt="$TMPROOT/subdir-wt"
+git -C "$subdir_repo" worktree add -q -b feature/subdir "$subdir_wt" main
+printf 'subdir\n' >"$subdir_wt/subdir.txt"
+git -C "$subdir_wt" add subdir.txt
+git -C "$subdir_wt" commit -q -m subdir
+mkdir -p "$subdir_wt/nested/path"
+CLEANUP_LOG="$TMPROOT/subdir.log" CLEANUP_STATUS=0 \
+  bash -c 'cd "$1" && "$2" --print-path' bash "$subdir_wt/nested/path" "$SCRIPT" >"$TMPROOT/subdir.out" 2>"$TMPROOT/subdir.err"
+assert_file_contains "$TMPROOT/subdir.log" "pwd=$subdir_wt" 'repo-end runs cleanup from worktree root'
 
 dirty_repo="$(create_remote_repo dirty)"
 git -C "$dirty_repo" checkout -q -b feature/dirty

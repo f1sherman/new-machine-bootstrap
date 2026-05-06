@@ -121,7 +121,7 @@ main() {
   pane_pid="$(read_pane_option "$pane_id" "@agent_worktree_pid" 2>/dev/null || true)"
   explicit_path="$(read_pane_option "$pane_id" "@agent_worktree_path" 2>/dev/null || true)"
   [ -n "$pane_pid" ] && [ -n "$explicit_path" ] || {
-    echo "Error: no agent worktree path is published for $pane_id; run worktree-start or tmux-agent-worktree set <absolute-path>" >&2
+    echo "Error: no agent worktree path is published for $pane_id; run repo-start <branch> or tmux-agent-worktree set <absolute-path>" >&2
     exit 1
   }
   [ "$pane_pid" = "$current_pid" ] || {
