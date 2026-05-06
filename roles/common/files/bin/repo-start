@@ -1,0 +1,304 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=roles/common/files/bin/repo-lib.sh
+source "$SCRIPT_DIR/repo-lib.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: repo-start <branch> [path]
+       repo-start --branch <branch> [--path <path>] [--from <start-point>] [--print-path] [--json]
+       repo-start --use-worktrees <branch>
+       repo-start --no-worktrees <branch>
+EOF
+}
+
+resolve_mode() {
+  local explicit_mode="$1" repo_root="$2" mode read_status answer
+
+  if [[ -n "$explicit_mode" ]]; then
+    _repo_write_mode "$repo_root" "$explicit_mode"
+    printf '%s\n' "$explicit_mode"
+    return 0
+  fi
+
+  set +e
+  mode="$(_repo_read_mode "$repo_root")"
+  read_status=$?
+  set -e
+  case "$read_status" in
+    0)
+      printf '%s\n' "$mode"
+      return 0
+      ;;
+    1)
+      ;;
+    *)
+      return "$read_status"
+      ;;
+  esac
+
+  if [[ -t 0 ]]; then
+    printf 'Use git worktrees for this repo? [Y/n] ' >&2
+    read -r answer
+    case "$answer" in
+      n|N|no|NO|No)
+        mode="branch"
+        ;;
+      *)
+        mode="worktree"
+        ;;
+    esac
+    _repo_write_mode "$repo_root" "$mode"
+    printf '%s\n' "$mode"
+    return 0
+  fi
+
+  printf 'No .repo.yml found; using branch mode for this run.\n' >&2
+  printf 'branch\n'
+}
+
+main() {
+  local branch path start_point print_path json_output path_explicit repo_root settings_source
+  local default_root existing_branch_path existing_path_branch branch_ref_exists
+  local needs_prune repaired repair_allowed status mode explicit_mode
+  branch=""
+  path=""
+  start_point="HEAD"
+  print_path="false"
+  json_output="false"
+  path_explicit="false"
+  repaired="false"
+  repair_allowed="false"
+  explicit_mode=""
+  status=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -b|--branch)
+        branch="${2:-}"
+        shift 2
+        ;;
+      -p|--path)
+        path="${2:-}"
+        path_explicit="true"
+        shift 2
+        ;;
+      -f|--from)
+        start_point="${2:-}"
+        shift 2
+        ;;
+      --use-worktrees)
+        if [[ -n "$explicit_mode" && "$explicit_mode" != "worktree" ]]; then
+          printf 'Error: conflicting repo mode flags\n' >&2
+          return 1
+        fi
+        explicit_mode="worktree"
+        shift
+        ;;
+      --no-worktrees)
+        if [[ -n "$explicit_mode" && "$explicit_mode" != "branch" ]]; then
+          printf 'Error: conflicting repo mode flags\n' >&2
+          return 1
+        fi
+        explicit_mode="branch"
+        shift
+        ;;
+      --print-path)
+        print_path="true"
+        shift
+        ;;
+      --json)
+        json_output="true"
+        shift
+        ;;
+      -h|--help)
+        usage
+        return 0
+        ;;
+      -* )
+        printf 'Error: unknown option: %s\n' "$1" >&2
+        return 1
+        ;;
+      *)
+        if [[ -z "$branch" ]]; then
+          branch="$1"
+        elif [[ -z "$path" ]]; then
+          path="$1"
+        else
+          printf 'Error: unexpected argument: %s\n' "$1" >&2
+          return 1
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -z "$branch" ]]; then
+    printf 'Error: branch name is required\n' >&2
+    return 1
+  fi
+
+  repo_root="$(_worktree_repo_root)"
+  _worktree_debug "pwd=$PWD"
+  _worktree_debug "git=$(_worktree_cmd git)"
+  _worktree_debug "repo_root=${repo_root:-<empty>}"
+  if [[ -z "$repo_root" ]]; then
+    printf 'Error: not inside a git repository\n' >&2
+    return 1
+  fi
+
+  mode="$(resolve_mode "$explicit_mode" "$repo_root")" || return $?
+
+  if ! "$(_worktree_cmd git)" -C "$repo_root" rev-parse --verify "$start_point" >/dev/null 2>&1; then
+    printf 'Error: invalid start point: %s\n' "$start_point" >&2
+    return 1
+  fi
+
+  if [[ "$mode" == "branch" ]]; then
+    if [[ "$path_explicit" == "true" || -n "$path" ]]; then
+      printf 'Error: branch mode does not accept a path\n' >&2
+      return 1
+    fi
+    if [[ -n "$(_repo_status_excluding_config "$repo_root")" ]]; then
+      printf 'Error: working tree has uncommitted changes\n' >&2
+      return 1
+    fi
+    if "$(_worktree_cmd git)" -C "$repo_root" show-ref --verify --quiet "refs/heads/$branch"; then
+      "$(_worktree_cmd git)" -C "$repo_root" checkout -q "$branch"
+      status="existing"
+    else
+      "$(_worktree_cmd git)" -C "$repo_root" checkout -q -b "$branch" "$start_point"
+      status="created"
+    fi
+    path="$repo_root"
+  else
+    if [[ -z "$path" ]]; then
+      path="$(_worktree_default_path "$repo_root" "$branch")"
+    fi
+    path="$(_worktree_normalize_path "$path")"
+    default_root="$(_worktree_default_root "$repo_root")"
+
+    if [[ "$path" == "$default_root" || "$path" == "$default_root/"* ]]; then
+      _worktree_prepare_default_root "$repo_root"
+    fi
+
+    existing_branch_path="$(_worktree_find_branch_path "$repo_root" "$branch" || true)"
+    existing_path_branch="$(_worktree_find_path_branch "$repo_root" "$path" || true)"
+    needs_prune="false"
+
+    if [[ -n "$existing_branch_path" && ! -e "$existing_branch_path" ]]; then
+      needs_prune="true"
+      if [[ "$existing_branch_path" == "$path" && ( -z "$existing_path_branch" || "$existing_path_branch" == "$branch" ) ]]; then
+        repair_allowed="true"
+      fi
+    fi
+    if [[ -n "$existing_path_branch" && ! -e "$path" ]]; then
+      needs_prune="true"
+      if [[ "$existing_path_branch" == "$branch" && ( -z "$existing_branch_path" || "$existing_branch_path" == "$path" ) ]]; then
+        repair_allowed="true"
+      fi
+    fi
+
+    if [[ "$needs_prune" == "true" ]]; then
+      "$(_worktree_cmd git)" -C "$repo_root" worktree prune >/dev/null 2>&1 || true
+      existing_branch_path="$(_worktree_find_branch_path "$repo_root" "$branch" || true)"
+      existing_path_branch="$(_worktree_find_path_branch "$repo_root" "$path" || true)"
+    fi
+
+    branch_ref_exists="false"
+    if "$(_worktree_cmd git)" -C "$repo_root" show-ref --verify --quiet "refs/heads/$branch"; then
+      branch_ref_exists="true"
+    fi
+
+    if [[ -n "$existing_branch_path" ]]; then
+      if [[ "$path_explicit" == "true" && "$path" != "$existing_branch_path" ]]; then
+        printf 'disagreement with existing linked worktree path\n' >&2
+        printf '%s\n' "$existing_branch_path" >&2
+        return 1
+      fi
+      if [[ ! -e "$existing_branch_path" ]]; then
+        printf 'Error: stale worktree metadata remains for branch %s: %s\n' "$branch" "$existing_branch_path" >&2
+        return 1
+      fi
+      path="$existing_branch_path"
+      status="existing"
+    else
+      if [[ -n "$existing_path_branch" && "$existing_path_branch" != "$branch" ]]; then
+        printf 'Error: path already linked to branch %s: %s\n' "$existing_path_branch" "$path" >&2
+        return 1
+      fi
+      if [[ -e "$path" && -z "$existing_path_branch" ]]; then
+        printf 'Error: path already exists: %s\n' "$path" >&2
+        return 1
+      fi
+      if [[ "$branch_ref_exists" == "true" ]]; then
+        if [[ "$repair_allowed" != "true" ]]; then
+          printf 'Error: branch already exists: %s\n' "$branch" >&2
+          return 1
+        fi
+        if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q "$path" "$branch"; then
+          printf 'Error: failed to repair worktree\n' >&2
+          return 1
+        fi
+        repaired="true"
+        status="repaired"
+      else
+        if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q -b "$branch" "$path" "$start_point"; then
+          printf 'Error: failed to create worktree\n' >&2
+          return 1
+        fi
+        status="created"
+      fi
+    fi
+
+    _worktree_sync_coding_agent_new_files "${repo_root}/.coding-agent" "${path}/.coding-agent"
+
+    if [[ ! -e "${path}/.claude/settings.local.json" ]]; then
+      settings_source="${repo_root}/.claude/settings.local.json"
+      [[ -f "$settings_source" ]] || settings_source="${HOME}/.claude/settings.local.json"
+      if [[ -f "$settings_source" ]]; then
+        if ! _worktree_copy_new_files "$settings_source" "${path}/.claude/settings.local.json"; then
+          _worktree_warn "failed to copy .claude/settings.local.json into $path"
+        fi
+      fi
+    fi
+
+    if command -v mise >/dev/null 2>&1; then
+      if ! mise trust "$path" >/dev/null 2>&1; then
+        _worktree_warn "mise trust failed for $path"
+      fi
+    fi
+
+    if [[ "$repaired" == "true" ]]; then
+      status="repaired"
+    fi
+  fi
+
+  if ! _worktree_publish_tmux_state "$path"; then
+    if [[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]]; then
+      printf 'tmux publish failed\n' >&2
+      printf '%s\n' "$path" >&2
+      return 1
+    fi
+  fi
+
+  if [[ "$json_output" == "true" ]]; then
+    jq -nc \
+      --arg status "$status" \
+      --arg mode "$mode" \
+      --arg branch "$branch" \
+      --arg path "$path" \
+      --argjson repaired "$repaired" \
+      '{status:$status, mode:$mode, branch:$branch, path:$path, repaired:$repaired}'
+    return 0
+  fi
+
+  if [[ "$print_path" == "true" ]]; then
+    :
+  fi
+  printf '%s\n' "$path"
+}
+
+main "$@"
