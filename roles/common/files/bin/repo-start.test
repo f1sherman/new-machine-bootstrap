@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/repo-start"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+GIT_AUTHOR_NAME=test
+GIT_AUTHOR_EMAIL=test@example.com
+GIT_COMMITTER_NAME=test
+GIT_COMMITTER_EMAIL=test@example.com
+export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+
+create_repo() {
+  local name="$1"
+  local repo="$TMPROOT/$name"
+  git init -qb main "$repo"
+  git -C "$repo" commit -q --allow-empty -m init
+  printf '%s\n' "$repo"
+}
+
+assert_file_contains() {
+  local path="$1" needle="$2" name="$3"
+  grep -Fq -- "$needle" "$path" || {
+    printf 'FAIL  %s\nmissing %s in %s\n' "$name" "$needle" "$path" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
+assert_no_file() {
+  local path="$1" name="$2"
+  [ ! -e "$path" ] || {
+    printf 'FAIL  %s\nexpected absent: %s\n' "$name" "$path" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
+worktree_repo="$(create_repo worktree)"
+mkdir -p "$worktree_repo/.coding-agent" "$worktree_repo/.claude"
+printf 'note\n' >"$worktree_repo/.coding-agent/note.txt"
+printf '{"permissions":{}}\n' >"$worktree_repo/.claude/settings.local.json"
+worktree_path="$(cd "$worktree_repo" && "$SCRIPT" --use-worktrees feature/worktree --print-path)"
+[ -f "$worktree_path/.git" ] || {
+  printf 'expected linked worktree at %s\n' "$worktree_path" >&2
+  exit 1
+}
+assert_file_contains "$worktree_repo/.repo.yml" 'use_worktrees: true' 'explicit worktree mode writes config'
+assert_file_contains "$worktree_path/.coding-agent/note.txt" 'note' 'worktree mode copies .coding-agent'
+assert_file_contains "$worktree_path/.claude/settings.local.json" 'permissions' 'worktree mode copies Claude local settings'
+
+branch_repo="$(create_repo branch)"
+branch_path="$(cd "$branch_repo" && "$SCRIPT" --no-worktrees feature/branch --print-path)"
+[ "$branch_path" = "$branch_repo" ] || {
+  printf 'expected repo root path, got %s\n' "$branch_path" >&2
+  exit 1
+}
+[ "$(git -C "$branch_repo" branch --show-current)" = 'feature/branch' ] || {
+  printf 'expected feature/branch checkout\n' >&2
+  exit 1
+}
+assert_file_contains "$branch_repo/.repo.yml" 'use_worktrees: false' 'explicit branch mode writes config'
+
+noninteractive_repo="$(create_repo noninteractive)"
+noninteractive_path="$(cd "$noninteractive_repo" && "$SCRIPT" feature/default --print-path 2>"$TMPROOT/noninteractive.err")"
+[ "$noninteractive_path" = "$noninteractive_repo" ] || {
+  printf 'expected in-memory branch mode path\n' >&2
+  exit 1
+}
+[ "$(git -C "$noninteractive_repo" branch --show-current)" = 'feature/default' ] || {
+  printf 'expected feature/default checkout\n' >&2
+  exit 1
+}
+assert_no_file "$noninteractive_repo/.repo.yml" 'noninteractive default does not write config'
+assert_file_contains "$TMPROOT/noninteractive.err" 'No .repo.yml found; using branch mode for this run.' 'noninteractive default explains in-memory branch mode'
+
+json_repo="$(create_repo json)"
+json="$(cd "$json_repo" && "$SCRIPT" --no-worktrees feature/json --json)"
+printf '%s\n' "$json" | jq -e '.mode == "branch" and .branch == "feature/json" and .path != ""' >/dev/null
+printf 'PASS  repo-start JSON includes mode branch path\n'
+
+dirty_repo="$(create_repo dirty)"
+printf 'dirty\n' >"$dirty_repo/dirty.txt"
+if (cd "$dirty_repo" && "$SCRIPT" --no-worktrees feature/dirty) >"$TMPROOT/dirty.out" 2>"$TMPROOT/dirty.err"; then
+  printf 'expected dirty branch mode to fail\n' >&2
+  exit 1
+fi
+assert_file_contains "$TMPROOT/dirty.err" 'working tree has uncommitted changes' 'branch mode rejects dirty tree'
+
+printf 'PASS  repo-start regression test\n'
