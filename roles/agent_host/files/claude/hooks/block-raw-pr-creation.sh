@@ -509,9 +509,10 @@ matches() {
 assignment="[A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|'[^']*'|[^[:space:]]+)"
 control='(if|then|elif|else|do|while|until|!)[[:space:]]+'
 env_wrapper="env([[:space:]]+--|[[:space:]]+(-i|--ignore-environment)|[[:space:]]+(-u|--unset)([=[:space:]]+)[^[:space:]]+|[[:space:]]+${assignment})*[[:space:]]+"
-sudo_wrapper='sudo([[:space:]]+--|[[:space:]]+(-E|-n|--non-interactive|--preserve-env(=[^[:space:]]+)?)|[[:space:]]+(-u|--user)([=[:space:]]+)[^[:space:]]+)*[[:space:]]+'
+sudo_wrapper='sudo([[:space:]]+--|[[:space:]]+(-E|-H|-n|-S|-b|-k|-K|-P|--non-interactive|--set-home|--preserve-groups|--preserve-env(=[^[:space:]]+)?)|[[:space:]]+(-u|--user|-g|--group|-h|--host|-C|--close-from)([=[:space:]]+)[^[:space:]]+)*[[:space:]]+'
 time_wrapper='time([[:space:]]+-[^[:space:]]+)*[[:space:]]+'
-command_prefix="(^|[;&|()])[[:space:]]*((${control})|(${assignment}[[:space:]]+)|(${env_wrapper})|(command[[:space:]]+(--[[:space:]]+)?)|(${time_wrapper})|(${sudo_wrapper}))*"
+command_wrapper='command([[:space:]]+(--|-p))*[[:space:]]+'
+command_prefix="(^|[;&|()])[[:space:]]*((${control})|(${assignment}[[:space:]]+)|(${env_wrapper})|(${command_wrapper})|(${time_wrapper})|(${sudo_wrapper}))*"
 gh_global_flags='([[:space:]]+(-R|--repo|--hostname)([=[:space:]]+)[^[:space:]]+|[[:space:]]+-R[^[:space:]]+)*'
 gh_pr_flags='([[:space:]]+(-R|--repo)([=[:space:]]+)[^[:space:]]+|[[:space:]]+-R[^[:space:]]+)*'
 shell_prefix='(([^[:space:];&|()]*/)?(bash|sh|zsh)[[:space:]]+)?'

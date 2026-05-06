@@ -39,6 +39,18 @@ assert_contains() {
   if rg -n -F "$needle" "$path" >/dev/null; then pass_case "$name"; else fail_case "$name" "missing needle '$needle'"; fi
 }
 
+assert_task_when_contains() {
+  local path="$1" task_name="$2" needle="$3" name="$4"
+  if [ ! -f "$path" ]; then fail_case "$name" "missing file: $path"; return; fi
+  if TASK_NAME="$task_name" NEEDLE="$needle" yq -e \
+    '.[] | select(.name == strenv(TASK_NAME)) | .when | tostring | contains(strenv(NEEDLE))' \
+    "$path" >/dev/null; then
+    pass_case "$name"
+  else
+    fail_case "$name" "task '$task_name' when does not contain '$needle'"
+  fi
+}
+
 assert_not_contains() {
   local path="$1" needle="$2" name="$3"
   if [ ! -e "$path" ]; then pass_case "$name"; return; fi
@@ -62,6 +74,14 @@ assert_contains "$COMMON_TASKS" "agent_host_install_user_home | default(true) | 
 assert_contains "$COMMON_TASKS" "common_agent_host_skill_excludes" "common builds agent-host skill exclude list"
 assert_contains "$COMMON_TASKS" "agent_host_install_pr_creation_skills | default(true)" "common skill excludes honor PR workflow disable"
 assert_contains "$COMMON_TASKS" "_spec-to-pr" "common excludes PR-dependent skills in commit-only mode"
+assert_task_when_contains "$COMMON_TASKS" "Install Claude-specific skills to ~/.claude/skills" "not (agent_host_enabled | default(false) | bool)" "Claude-specific skills skip agent-host-owned user homes"
+assert_task_when_contains "$COMMON_TASKS" "Install Claude-specific skills to ~/.claude/skills" "not (agent_host_install_user_home | default(true) | bool)" "Claude-specific skills still install when agent host user-home install is disabled"
+assert_task_when_contains "$COMMON_TASKS" "Install shared commit helper to ~/.claude/skills" "not (agent_host_enabled | default(false) | bool)" "Claude commit helper skips agent-host-owned user homes"
+assert_task_when_contains "$COMMON_TASKS" "Install shared commit helper to ~/.claude/skills" "not (agent_host_install_user_home | default(true) | bool)" "Claude commit helper still installs when agent host user-home install is disabled"
+assert_task_when_contains "$COMMON_TASKS" "Install Codex-specific skills to ~/.codex/skills" "not (agent_host_enabled | default(false) | bool)" "Codex-specific skills skip agent-host-owned user homes"
+assert_task_when_contains "$COMMON_TASKS" "Install Codex-specific skills to ~/.codex/skills" "not (agent_host_install_user_home | default(true) | bool)" "Codex-specific skills still install when agent host user-home install is disabled"
+assert_task_when_contains "$COMMON_TASKS" "Install shared commit helper to ~/.codex/skills" "not (agent_host_enabled | default(false) | bool)" "Codex commit helper skips agent-host-owned user homes"
+assert_task_when_contains "$COMMON_TASKS" "Install shared commit helper to ~/.codex/skills" "not (agent_host_install_user_home | default(true) | bool)" "Codex commit helper still installs when agent host user-home install is disabled"
 
 assert_contains "$ROLE_TASKS" "Install agent host hook dependencies" "role installs hook dependencies"
 assert_contains "$ROLE_TASKS" "pipx install uv" "role installs uvx proof runner on Debian"

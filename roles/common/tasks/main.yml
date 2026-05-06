@@ -1544,12 +1544,14 @@
     dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/'
     mode: preserve
     directory_mode: '0755'
+  when: not (agent_host_enabled | default(false) | bool) or not (agent_host_install_user_home | default(true) | bool)
 
 - name: Install shared commit helper to ~/.claude/skills
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/common/_commit/commit.sh'
     dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/_commit/commit.sh'
     mode: '0755'
+  when: not (agent_host_enabled | default(false) | bool) or not (agent_host_install_user_home | default(true) | bool)
 
 - name: Install common skills to ~/.codex/skills
   copy:
@@ -1576,12 +1578,14 @@
     dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/'
     mode: preserve
     directory_mode: '0755'
+  when: not (agent_host_enabled | default(false) | bool) or not (agent_host_install_user_home | default(true) | bool)
 
 - name: Install shared commit helper to ~/.codex/skills
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/common/_commit/commit.sh'
     dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/_commit/commit.sh'
     mode: '0755'
+  when: not (agent_host_enabled | default(false) | bool) or not (agent_host_install_user_home | default(true) | bool)
 
 - name: Remove legacy custom skill and agent installs
   file:
