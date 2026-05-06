@@ -537,7 +537,9 @@ workflow_helper_pattern="${command_prefix}${shell_prefix}${workflow_helper_path}
 workflow_allowed_helper_pattern="${command_prefix}PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}${workflow_helper_path}([[:space:]]|$)"
 workflow_allowed_helper_only_pattern="^[[:space:]]*PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}${workflow_helper_path}([[:space:]][^;&|()]*)*$"
 workflow_allowed_helper_invocation_pattern="PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}${workflow_helper_path}([[:space:]][^;&|()]*)*"
+workflow_marker_pattern="(^|[;&|()[:space:]])PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1([;&|()[:space:]]|$)"
 home_override_command_pattern="${command_start_prefix}((${assignment}[[:space:]]+)*${home_assignment}[[:space:]]+|${env_home_wrapper})"
+home_mutation_command_pattern="${command_start_prefix}(export[[:space:]]+(${assignment}[[:space:]]+)*${home_assignment}|(${assignment}[[:space:]]+)*${home_assignment})[[:space:]]*([;&|()]|$)"
 curl_post_or_data_flag='(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:space:]]+POST|--json([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?[^[:space:]]+|-d([=[:space:]]|$)|-d[^[:space:]]+)'
 gh_field_or_input_flag='(^|[[:space:]])((-f|-F|--field|--raw-field|--input)([=[:space:]]|$)|-[fF][^[:space:]]+)'
 pulls_endpoint="(^|/)pulls([?[:space:]'\"]|$)"
@@ -546,6 +548,12 @@ curl_pulls_endpoint="(https?://)?(api[.]github[.]com/repos/[^[:space:]'\"?]+/[^[
 shell_substitution_pattern='(`|\$\()'
 
 if [[ -z "$command" ]]; then
+  exit 0
+fi
+
+if command_matches "${workflow_marker_pattern}" \
+  && ! command_matches "${workflow_allowed_helper_invocation_pattern}"; then
+  emit_deny
   exit 0
 fi
 
@@ -561,6 +569,12 @@ if command_matches "${workflow_allowed_helper_pattern}" && command_matches '`'; 
 fi
 
 if command_matches "${home_override_command_pattern}" \
+  && command_matches "${workflow_allowed_helper_invocation_pattern}"; then
+  emit_deny
+  exit 0
+fi
+
+if command_matches "${home_mutation_command_pattern}" \
   && command_matches "${workflow_allowed_helper_invocation_pattern}"; then
   emit_deny
   exit 0

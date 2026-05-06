@@ -243,6 +243,7 @@ run_block_case "blocks workflow helper command substitution" 'PR_WORKFLOW_ALLOW_
 run_block_case_with_hook_env "blocks workflow helper backtick substitution with hook allowance" 'PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-github/create.sh --title `gh pr create --fill` --body x'
 run_block_case_with_hook_env "blocks wrapped workflow helper backtick substitution" 'pr_output="$(PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-github/create.sh --title `gh pr create --fill` --body x)"'
 run_block_case_with_hook_env "blocks wrapped workflow helper command substitution" 'pr_output="$(PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-github/create.sh --title "$(gh pr create --fill)" --body x)"'
+run_block_case_with_hook_env "blocks dynamic workflow helper path" 'PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash "$(echo /tmp/fake/_pr-github/create.sh)" --title test'
 fake_helper_dir="$TMP_DIR/fake-helper"
 mkdir -p "$fake_helper_dir/_pr-github"
 printf '%s\n' '#!/usr/bin/env bash' 'gh pr create --fill' > "$fake_helper_dir/_pr-github/create.sh"
@@ -254,6 +255,7 @@ printf '%s\n' '#!/usr/bin/env bash' 'gh pr create --fill' > "$fake_home/.local/s
 chmod +x "$fake_home/.local/share/skills/_pr-github/create.sh"
 run_block_case_with_hook_env "blocks workflow helper with command-level HOME override" "HOME=$fake_home PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-github/create.sh --title test"
 run_block_case_with_hook_env "blocks nested workflow helper with command-level HOME override" "HOME=$fake_home bash -c 'PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-github/create.sh --title test'"
+run_block_case_with_hook_env "blocks workflow helper after exported HOME override" "export HOME=$fake_home; PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-github/create.sh --title test"
 helper_wrapper="$TMP_DIR/helper-wrapper.sh"
 printf '%s\n' '#!/usr/bin/env bash' '# PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1' 'bash ~/.local/share/skills/_pr-github/create.sh --title test' > "$helper_wrapper"
 chmod +x "$helper_wrapper"
