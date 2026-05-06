@@ -91,7 +91,9 @@
       Installed mise '{{ macos_mise_version_post.stdout }}' is older than catalog pin
       '{{ tool_versions.runtimes.mise | regex_replace('^v', '') }}'. Run 'brew update && brew upgrade mise'
       manually, or bump 'tool_versions.runtimes.mise' in vars/tool_versions.yml to a version Homebrew already ships.
-  when: macos_mise_version_post.stdout is version(tool_versions.runtimes.mise | regex_replace('^v', ''), '<')
+  when:
+    - not ansible_check_mode
+    - macos_mise_version_post.stdout is version(tool_versions.runtimes.mise | regex_replace('^v', ''), '<')
 
 - name: Check which packages to remove are actually linked (not keg-only)
   shell: |

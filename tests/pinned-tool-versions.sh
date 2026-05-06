@@ -154,6 +154,7 @@ run_install_checks() {
   assert_contains "$MACOS_INSTALLS" "tool_versions.runtimes.mise | regex_replace('^v', '')" "macOS install_packages compares mise against the catalog pin"
   assert_yaml_equals "$MACOS_INSTALLS" '.[] | select(.name == "Re-read mise version after upgrade (macOS)") | .check_mode' "false" "macOS mise post-upgrade version check runs in check mode"
   assert_contains "$MACOS_INSTALLS" "Fail if installed mise is still older than catalog pin (macOS)" "macOS install_packages fails loudly if mise stays older than pin"
+  assert_yaml_equals "$MACOS_INSTALLS" '.[] | select(.name == "Fail if installed mise is still older than catalog pin (macOS)") | (.when | tostring | contains("not ansible_check_mode"))' "true" "macOS mise hard fail is skipped during check mode"
   assert_not_contains "$LINUX_INSTALLS" "version: master" "linux install tasks no longer use master"
   assert_not_contains "$LINUX_MAIN" "version: master" "linux main tasks no longer use master"
   assert_not_contains "$COMMON_MAIN" "version: main" "common tasks no longer use main for superpowers"
