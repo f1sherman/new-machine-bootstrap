@@ -295,6 +295,21 @@ curl_data_file_candidates() {
   done
 }
 
+substitution_file_candidates() {
+  printf '%s\n' "${sanitized_command:-$command}" |
+    sed -nE "s/.*\\$\\([[:space:]]*cat[[:space:]]+\"([^\"]+)\"[[:space:]]*\\).*/\1/p"
+  printf '%s\n' "${sanitized_command:-$command}" |
+    sed -nE "s/.*\\$\\([[:space:]]*cat[[:space:]]+'([^']+)'[[:space:]]*\\).*/\1/p"
+  printf '%s\n' "${sanitized_command:-$command}" |
+    sed -nE "s/.*\\$\\([[:space:]]*cat[[:space:]]+([^[:space:]'\";)]+)[[:space:]]*\\).*/\1/p"
+  printf '%s\n' "${sanitized_command:-$command}" |
+    sed -nE "s/.*<\\([[:space:]]*cat[[:space:]]+\"([^\"]+)\"[[:space:]]*\\).*/\1/p"
+  printf '%s\n' "${sanitized_command:-$command}" |
+    sed -nE "s/.*<\\([[:space:]]*cat[[:space:]]+'([^']+)'[[:space:]]*\\).*/\1/p"
+  printf '%s\n' "${sanitized_command:-$command}" |
+    sed -nE "s/.*<\\([[:space:]]*cat[[:space:]]+([^[:space:]'\";)]+)[[:space:]]*\\).*/\1/p"
+}
+
 direct_script_candidates() {
   local expect_command=1
   local skip_next=0
@@ -443,6 +458,9 @@ scan_commands() {
     scan_script_path "$script_path" no
   done < <(curl_data_file_candidates)
   while IFS= read -r script_path; do
+    scan_script_path "$script_path" no
+  done < <(substitution_file_candidates)
+  while IFS= read -r script_path; do
     scan_script_path "$script_path" yes
   done < <(direct_script_candidates)
 }
@@ -483,6 +501,11 @@ curl_pulls_endpoint="(https?://)?(api[.]github[.]com/repos/[^[:space:]'\"?]+/[^[
 shell_substitution_pattern='(`|\$\()'
 
 if [[ -z "$command" ]]; then
+  exit 0
+fi
+
+if command_matches "${workflow_allowed_helper_pattern}" && command_matches '`'; then
+  emit_deny
   exit 0
 fi
 
