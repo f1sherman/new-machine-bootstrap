@@ -6,7 +6,7 @@
     agent_host_install_user_home_resolved: "{{ agent_host_install_user_home | default(true) | bool }}"
     agent_host_user_home_resolved: "{{ agent_host_user_home | default(ansible_facts['user_dir'] | default(ansible_facts['env']['HOME'])) }}"
     agent_host_install_pr_creation_skills_resolved: "{{ agent_host_install_pr_creation_skills | default(true) | bool }}"
-    agent_host_raw_pr_creation_block_reason_resolved: "{{ agent_host_raw_pr_creation_block_reason | default('Use the _pull-request skill to create pull requests; do not call raw PR creation commands directly.') }}"
+    agent_host_raw_pr_creation_block_reason_resolved: "{{ agent_host_raw_pr_creation_block_reason | default((agent_host_install_pr_creation_skills | default(true) | bool) | ternary(agent_host_pull_request_raw_pr_creation_block_reason, agent_host_commit_only_raw_pr_creation_block_reason)) }}"
     agent_host_runtime_homes_resolved: "{{ agent_host_runtime_homes | default([]) }}"
 
 - name: Install agent host hook dependencies (Debian)
