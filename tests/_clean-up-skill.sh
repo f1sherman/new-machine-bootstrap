@@ -65,6 +65,8 @@ assert_missing "$REPO_ROOT/roles/common/files/config/skills/codex/_clean-up" "no
 assert_contains "$COMMON_SKILL" "name: _clean-up" "skill uses canonical name"
 assert_contains "$COMMON_SKILL" "git-clean-up" "skill invokes helper"
 assert_contains "$COMMON_SKILL" "Report the branch cleanup summary" "skill requires summary reporting"
+assert_contains "$COMMON_SKILL" 'repo-end' "skill invokes repo-end"
+assert_contains "$COMMON_SKILL" 'main_path="$(repo-end --print-path)"' "skill captures repo-end main path"
 
 assert_exists "$HELPER" "git-clean-up source exists"
 assert_executable "$HELPER" "git-clean-up is executable"
