@@ -366,13 +366,11 @@ scan_script_path() {
     return
   fi
 
-  if scan_script_file "$script_path" "$require_executable"; then
-    return
-  fi
-
   if [[ -n "${command_cwd:-}" && "$command_cwd" != "$PWD" ]]; then
     scan_script_file "$command_cwd/$script_path" "$require_executable" || true
   fi
+
+  scan_script_file "$script_path" "$require_executable" || true
 }
 
 scan_commands() {

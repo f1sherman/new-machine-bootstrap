@@ -27,6 +27,22 @@ run_block_case() {
   fi
 }
 
+run_block_case_from_dir() {
+  local name="$1"
+  local cwd="$2"
+  local command="$3"
+  local output
+
+  output="$(cd "$cwd" && jq -n --arg command "$command" '{tool_input:{command:$command}}' | "$SCRIPT")"
+  if printf '%s' "$output" | jq -e --arg reason "$REASON" '. == {hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}' >/dev/null; then
+    printf 'PASS  %s\n' "$name"
+  else
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  fi
+}
+
 run_custom_reason_block_case() {
   local name="$1"
   local command="$2"
@@ -113,6 +129,12 @@ cd_script_repo="$TMP_DIR/cd-script-repo"
 mkdir -p "$cd_script_repo/scripts"
 printf '%s\n' '#!/usr/bin/env bash' 'gh pr create --fill' > "$cd_script_repo/scripts/create-pr.sh"
 run_block_case "blocks cd-relative script gh pr create" "cd $cd_script_repo && bash scripts/create-pr.sh"
+cd_current_repo="$TMP_DIR/cd-current-repo"
+cd_target_repo="$TMP_DIR/cd-target-repo"
+mkdir -p "$cd_current_repo/scripts" "$cd_target_repo/scripts"
+printf '%s\n' '#!/usr/bin/env bash' 'echo ok' > "$cd_current_repo/scripts/create-pr.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'gh pr create --fill' > "$cd_target_repo/scripts/create-pr.sh"
+run_block_case_from_dir "blocks cd-relative script when original cwd has same path" "$cd_current_repo" "cd $cd_target_repo && bash scripts/create-pr.sh"
 run_block_case "blocks sourced script gh pr create" "source $scripted_gh_pr"
 run_block_case "blocks dot-sourced script gh pr create" ". $scripted_gh_pr"
 run_block_case "blocks direct executable gh pr create" "$scripted_gh_pr"
