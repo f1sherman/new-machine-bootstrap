@@ -57,6 +57,21 @@ run_allow_case() {
   printf 'PASS  %s\n' "$name"
 }
 
+run_allow_case_with_home() {
+  local name="$1"
+  local home="$2"
+  local command="$3"
+  local output
+
+  output="$(jq -n --arg command "$command" '{tool_input:{command:$command}}' | HOME="$home" "$SCRIPT")"
+  [ -z "$output" ] || {
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
 run_empty_case() {
   local name="$1"
   local payload="$2"
@@ -87,6 +102,7 @@ scripted_gh_pr="$TMP_DIR/scripted-gh-pr.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'gh pr create --fill' > "$scripted_gh_pr"
 chmod +x "$scripted_gh_pr"
 run_block_case "blocks script-file gh pr create" "bash $scripted_gh_pr"
+run_block_case "blocks quoted script-file gh pr create" "bash \"$scripted_gh_pr\""
 run_block_case "blocks command-prefixed gh pr create" 'command gh pr create --title test'
 run_block_case "blocks sudo user-wrapped gh pr create" 'sudo -u brian gh pr create --fill'
 run_block_case "blocks time option-wrapped gh pr create" 'time -p gh pr create --fill'
@@ -102,6 +118,7 @@ scripted_curl_pr="$TMP_DIR/scripted-curl-pr.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'curl -fsSL -X POST https://forgejo.brianjohn.com/api/v1/repos/example/project/pulls' > "$scripted_curl_pr"
 chmod +x "$scripted_curl_pr"
 run_block_case "blocks script-file curl pull create" "sh $scripted_curl_pr"
+run_block_case "blocks quoted script-file curl pull create" "sh '$scripted_curl_pr'"
 run_block_case "blocks path-qualified curl pull create" '/usr/bin/curl -X POST https://api.github.com/repos/example/project/pulls'
 run_block_case "blocks GitHub curl pull create" 'curl --request POST https://api.github.com/repos/example/project/pulls'
 run_block_case "blocks quoted curl pull create" "curl -X POST 'https://api.github.com/repos/example/project/pulls'"
@@ -124,6 +141,11 @@ run_allow_case "allows local GraphQL createPullRequest test" 'curl -X POST http:
 # shellcheck disable=SC2016
 run_block_case "blocks helper handoff without workflow marker" 'pr_output="$(bash ~/.local/share/skills/_pr-forgejo/create.sh --base "$BASE" --head "$BRANCH" --title "$PR_TITLE" --body "$PR_BODY")"'
 run_allow_case "allows workflow-marked helper invocation" 'PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-forgejo/create.sh --title test'
+helper_home="$TMP_DIR/helper-home"
+mkdir -p "$helper_home/.local/share/skills/_pr-github"
+printf '%s\n' '#!/usr/bin/env bash' 'gh pr create --repo example/project --base main --head branch --title test --body test' > "$helper_home/.local/share/skills/_pr-github/create.sh"
+chmod +x "$helper_home/.local/share/skills/_pr-github/create.sh"
+run_allow_case_with_home "allows workflow-marked GitHub helper with internal gh create" "$helper_home" 'PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-github/create.sh --title test'
 run_allow_case "allows unrelated commands" 'git status --short'
 run_empty_case "allows missing command" '{}'
 run_empty_case "allows empty command" '{"tool_input":{"command":""}}'

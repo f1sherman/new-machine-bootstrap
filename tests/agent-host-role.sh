@@ -79,6 +79,7 @@ assert_contains "$ROLE_TASKS" ".local/share/skills/_pr-forgejo/comments.sh" "rol
 assert_contains "$RUNTIME_TASKS" "agent_host_runtime_home.home" "runtime tasks target configured home"
 assert_contains "$RUNTIME_TASKS" "agent_host_runtime_home.owner" "runtime tasks set configured owner"
 assert_contains "$RUNTIME_TASKS" "install_pr_creation_skills" "runtime tasks support commit-only mode"
+assert_contains "$RUNTIME_TASKS" "default(agent_host_install_pr_creation_skills_resolved)" "runtime homes inherit role-level PR skill default"
 assert_contains "$RUNTIME_TASKS" "PR_WORKFLOW_RAW_PR_BLOCK_REASON" "runtime tasks support custom blocker reason"
 assert_contains "$RUNTIME_TASKS" "pipx install uv" "runtime tasks install uvx proof runner when PR skills are enabled"
 assert_contains "$RUNTIME_TASKS" 'endswith(" " + $cmd_suffix)' "runtime tasks replace stale managed hook commands"

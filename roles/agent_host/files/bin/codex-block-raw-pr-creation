@@ -14,6 +14,15 @@ emit_deny() {
   }'
 }
 
+script_file_candidates() {
+  printf '%s\n' "$command" |
+    sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+\"([^\"]+)\".*/\4/p"
+  printf '%s\n' "$command" |
+    sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+'([^']+)'.*/\4/p"
+  printf '%s\n' "$command" |
+    sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+([^[:space:]'\";|&()]+).*/\4/p"
+}
+
 scan_commands() {
   local script_path
 
@@ -21,16 +30,19 @@ scan_commands() {
   printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+-[A-Za-z]*c[[:space:]]+['\"]([^'\"]+)['\"].*/\3/p"
   printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+--command(=|[[:space:]]+)['\"]([^'\"]+)['\"].*/\4/p"
   while IFS= read -r script_path; do
-    case "$script_path" in
-      "~/"*) script_path="${HOME}${script_path#\~}" ;;
-    esac
+    if [[ "${script_path:0:2}" == "~/" ]]; then
+      script_path="${HOME}/${script_path:2}"
+    fi
     if [[ -f "$script_path" && -r "$script_path" ]]; then
       sed -n '1,2000p' "$script_path"
     fi
-  done < <(
-    printf '%s\n' "$command" |
-      sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+([^[:space:]'\";|&()]+).*/\4/p"
-  )
+  done < <(script_file_candidates)
+}
+
+command_matches() {
+  local pattern="$1"
+
+  printf '%s\n' "$command" | grep -Eq -- "$pattern"
 }
 
 matches() {
@@ -43,6 +55,10 @@ matches() {
 
 has_pr_workflow_allow() {
   matches '(^|[;&|()[:space:]])PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1([[:space:]]|$)'
+}
+
+has_pr_workflow_allow_in_command() {
+  command_matches '(^|[;&|()[:space:]])PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1([[:space:]]|$)'
 }
 
 # shellcheck disable=SC2016
@@ -64,12 +80,20 @@ gh_pr_flags='([[:space:]]+(-R|--repo)([=[:space:]]+)[^[:space:]]+|[[:space:]]+-R
 shell_prefix='((bash|sh|zsh)[[:space:]]+)?'
 gh_command='([^[:space:]]*/)?gh'
 curl_command='([^[:space:]]*/)?curl'
+workflow_helper_pattern="${command_prefix}${shell_prefix}([^[:space:]'\";|&()]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]]|$)"
 curl_post_or_data_flag='(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:space:]]+POST|--json([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?[^[:space:]]+|-d([=[:space:]]|$)|-d[^[:space:]]+)'
 pulls_endpoint="(^|/)pulls([?[:space:]'\"]|$)"
 curl_graphql_endpoint="(https?://)?api[.]github[.]com/graphql([?[:space:]'\"]|$)"
 curl_pulls_endpoint="(https?://)?(api[.]github[.]com/repos/[^[:space:]'\"?]+/[^[:space:]'\"?]+/pulls|forgejo[.]brianjohn[.]com/api/v1/repos/[^[:space:]'\"?]+/[^[:space:]'\"?]+/pulls)([?[:space:]'\"]|$)"
 
 if [[ -z "$command" ]]; then
+  exit 0
+fi
+
+if command_matches "${workflow_helper_pattern}"; then
+  if ! has_pr_workflow_allow_in_command; then
+    emit_deny
+  fi
   exit 0
 fi
 
@@ -110,7 +134,7 @@ if matches "${command_prefix}${curl_command}([[:space:]]|$)" \
   exit 0
 fi
 
-if matches "${command_prefix}${shell_prefix}([^[:space:]]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]]|$)"; then
+if matches "${workflow_helper_pattern}"; then
   if ! has_pr_workflow_allow; then
     emit_deny
   fi

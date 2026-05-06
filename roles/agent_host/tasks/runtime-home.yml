@@ -49,7 +49,7 @@
   become_user: "{{ agent_host_runtime_home.owner }}"
   when:
     - ansible_facts['os_family'] == 'Debian'
-    - agent_host_runtime_home.install_pr_creation_skills | default(true) | bool
+    - agent_host_runtime_home.install_pr_creation_skills | default(agent_host_install_pr_creation_skills_resolved) | bool
 
 - name: Register runtime PreToolUse Bash hook for blocking raw pull request creation
   shell: |
@@ -242,7 +242,7 @@
     group: "{{ agent_host_runtime_home.group }}"
     mode: preserve
   become: yes
-  when: agent_host_runtime_home.install_pr_creation_skills | default(true) | bool
+  when: agent_host_runtime_home.install_pr_creation_skills | default(agent_host_install_pr_creation_skills_resolved) | bool
   loop:
     - _pr-workflow-common
     - _review
@@ -268,7 +268,7 @@
     group: "{{ agent_host_runtime_home.group }}"
     mode: preserve
   become: yes
-  when: agent_host_runtime_home.install_pr_creation_skills | default(true) | bool
+  when: agent_host_runtime_home.install_pr_creation_skills | default(agent_host_install_pr_creation_skills_resolved) | bool
   loop:
     - _pull-request
     - _review
@@ -296,7 +296,7 @@
     group: "{{ agent_host_runtime_home.group }}"
     mode: preserve
   become: yes
-  when: agent_host_runtime_home.install_pr_creation_skills | default(true) | bool
+  when: agent_host_runtime_home.install_pr_creation_skills | default(agent_host_install_pr_creation_skills_resolved) | bool
   loop:
     - _pull-request
     - _review
@@ -310,7 +310,7 @@
     path: "{{ agent_host_runtime_home.home }}/{{ item }}"
     state: absent
   become: yes
-  when: not (agent_host_runtime_home.install_pr_creation_skills | default(true) | bool)
+  when: not (agent_host_runtime_home.install_pr_creation_skills | default(agent_host_install_pr_creation_skills_resolved) | bool)
   loop:
     - .local/share/skills/_pr-workflow-common
     - .local/share/skills/_review
