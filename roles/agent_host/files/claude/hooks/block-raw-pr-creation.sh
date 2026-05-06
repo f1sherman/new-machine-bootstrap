@@ -17,6 +17,50 @@ emit_deny() {
 resolve_path_token() {
   local path="$1"
   local base="${2:-$PWD}"
+
+  path="$(expand_path_token "$path")"
+  if [[ "$path" == /* ]]; then
+    printf '%s\n' "$path"
+  else
+    printf '%s/%s\n' "$base" "$path"
+  fi
+}
+
+command_assignment_value() {
+  local wanted="$1"
+  local raw
+  local token
+  local value=""
+  local -a tokens=()
+
+  read -r -a tokens <<< "${sanitized_command:-$command}"
+  for raw in "${tokens[@]}"; do
+    token="$raw"
+    while [[ "$token" == [\;\&\|\(\)]* ]]; do
+      token="${token:1}"
+    done
+    while [[ "$token" == *[\;\&\|\(\)] ]]; do
+      token="${token:0:${#token}-1}"
+    done
+    token="${token#\"}"
+    token="${token%\"}"
+    token="${token#\'}"
+    token="${token%\'}"
+
+    if [[ "$token" == "$wanted="* ]]; then
+      value="${token#*=}"
+      value="${value#\"}"
+      value="${value%\"}"
+      value="${value#\'}"
+      value="${value%\'}"
+    fi
+  done
+
+  printf '%s\n' "$value"
+}
+
+expand_path_token() {
+  local path="$1"
   local rest
   local tilde_prefix
   local value
@@ -26,6 +70,9 @@ resolve_path_token() {
     var="${BASH_REMATCH[1]}"
     rest="${BASH_REMATCH[2]}"
     value="${!var:-}"
+    if [[ -z "$value" ]]; then
+      value="$(command_assignment_value "$var")"
+    fi
     if [[ -n "$value" ]]; then
       path="${value}${rest}"
     fi
@@ -33,6 +80,9 @@ resolve_path_token() {
     var="${BASH_REMATCH[1]}"
     rest="${BASH_REMATCH[2]}"
     value="${!var:-}"
+    if [[ -z "$value" ]]; then
+      value="$(command_assignment_value "$var")"
+    fi
     if [[ -n "$value" ]]; then
       path="${value}${rest}"
     fi
@@ -45,11 +95,7 @@ resolve_path_token() {
     path="${HOME}/${path:2}"
   fi
 
-  if [[ "$path" == /* ]]; then
-    printf '%s\n' "$path"
-  else
-    printf '%s/%s\n' "$base" "$path"
-  fi
+  printf '%s\n' "$path"
 }
 
 effective_command_cwds() {
@@ -357,6 +403,7 @@ scan_script_path() {
   local cwd
   local tilde_prefix
 
+  script_path="$(expand_path_token "$script_path")"
   tilde_prefix="$(printf '%s/' '~')"
   if [[ "${script_path:0:2}" == "$tilde_prefix" ]]; then
     script_path="${HOME}/${script_path:2}"
@@ -443,6 +490,10 @@ sanitized_command="$(printf '%s\n' "$command" | sed -E "s@${workflow_allowed_hel
 command_cwds="$(effective_command_cwds)"
 
 if command_matches "${workflow_allowed_helper_only_pattern}"; then
+  if [[ "${PR_WORKFLOW_ALLOW_RAW_PR_HELPERS:-}" != "1" ]]; then
+    emit_deny
+    exit 0
+  fi
   if command_matches "${shell_substitution_pattern}"; then
     emit_deny
     exit 0

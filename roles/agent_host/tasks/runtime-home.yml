@@ -115,7 +115,7 @@
   environment:
     SETTINGS_FILE: '{{ agent_host_runtime_home.home }}/.claude/settings.json'
     HOOK_COMMAND: >-
-      PR_WORKFLOW_RAW_PR_BLOCK_REASON={{ agent_host_runtime_raw_pr_creation_block_reason_resolved | quote }} ~/.claude/hooks/block-raw-pr-creation.sh
+      PR_WORKFLOW_ALLOW_RAW_PR_HELPERS={{ (agent_host_runtime_install_pr_creation_skills_resolved | bool) | ternary('1', '0') }} PR_WORKFLOW_RAW_PR_BLOCK_REASON={{ agent_host_runtime_raw_pr_creation_block_reason_resolved | quote }} ~/.claude/hooks/block-raw-pr-creation.sh
   register: runtime_block_raw_pr_creation_hook_result
   changed_when: runtime_block_raw_pr_creation_hook_result.stdout.strip() == 'changed'
   become: yes
@@ -246,7 +246,7 @@
   environment:
     HOOKS_FILE: '{{ agent_host_runtime_home.home }}/.codex/hooks.json'
     HOOK_COMMAND: >-
-      PR_WORKFLOW_RAW_PR_BLOCK_REASON={{ agent_host_runtime_raw_pr_creation_block_reason_resolved | quote }} ~/.local/bin/codex-block-raw-pr-creation
+      PR_WORKFLOW_ALLOW_RAW_PR_HELPERS={{ (agent_host_runtime_install_pr_creation_skills_resolved | bool) | ternary('1', '0') }} PR_WORKFLOW_RAW_PR_BLOCK_REASON={{ agent_host_runtime_raw_pr_creation_block_reason_resolved | quote }} ~/.local/bin/codex-block-raw-pr-creation
   register: runtime_codex_raw_pr_creation_hooks_json_result
   changed_when: runtime_codex_raw_pr_creation_hooks_json_result.stdout.strip() == 'changed'
   become: yes
