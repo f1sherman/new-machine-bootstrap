@@ -14,6 +14,10 @@ emit_deny() {
   }'
 }
 
+ere_escape() {
+  sed 's/[][\/.^$*+?{}()|]/\\&/g'
+}
+
 resolve_path_token() {
   local path="$1"
   local base="${2:-$PWD}"
@@ -444,6 +448,7 @@ scan_commands() {
   printf '%s\n' "${sanitized_command:-$command}"
   printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+['\"]([^'\"]+)['\"].*/\4/p"
   printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+-[A-Za-z]*c[[:space:]]+['\"]([^'\"]+)['\"].*/\3/p"
+  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+(-o|--option)[[:space:]]+[^[:space:]]+|[[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+['\"]([^'\"]+)['\"].*/\5/p"
   printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+--command(=|[[:space:]]+)['\"]([^'\"]+)['\"].*/\4/p"
   while IFS= read -r script_path; do
     scan_script_path "$script_path" no
@@ -490,10 +495,13 @@ gh_pr_flags='([[:space:]]+(-R|--repo)([=[:space:]]+)[^[:space:]]+|[[:space:]]+-R
 shell_prefix='((bash|sh|zsh)[[:space:]]+)?'
 gh_command='([^[:space:]]*/)?gh'
 curl_command='([^[:space:]]*/)?curl'
-workflow_helper_pattern="${command_prefix}${shell_prefix}([^[:space:]'\";|&()]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]]|$)"
-workflow_allowed_helper_pattern="${command_prefix}PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}([^[:space:]'\";|&()]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]]|$)"
-workflow_allowed_helper_only_pattern="^[[:space:]]*PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}([^[:space:]'\";|&()]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]][^;&|()]*)*$"
-workflow_allowed_helper_invocation_pattern="PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}([^[:space:]'\";|&()]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]][^;&|()]*)*"
+home_path_pattern="$(printf '%s' "$HOME" | ere_escape)"
+workflow_helper_root="(~|\\\$HOME|\\\$\\{HOME\\}|${home_path_pattern})/[.]local/share/skills/"
+workflow_helper_path="${workflow_helper_root}(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh"
+workflow_helper_pattern="${command_prefix}${shell_prefix}${workflow_helper_path}([[:space:]]|$)"
+workflow_allowed_helper_pattern="${command_prefix}PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}${workflow_helper_path}([[:space:]]|$)"
+workflow_allowed_helper_only_pattern="^[[:space:]]*PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}${workflow_helper_path}([[:space:]][^;&|()]*)*$"
+workflow_allowed_helper_invocation_pattern="PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}${workflow_helper_path}([[:space:]][^;&|()]*)*"
 curl_post_or_data_flag='(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:space:]]+POST|--json([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?[^[:space:]]+|-d([=[:space:]]|$)|-d[^[:space:]]+)'
 pulls_endpoint="(^|/)pulls([?[:space:]'\"]|$)"
 curl_graphql_endpoint="(https?://)?api[.]github[.]com/graphql([?[:space:]'\"]|$)"
