@@ -24,6 +24,7 @@ assert_contains "roles/common/tasks/main.yml" "tmux-review-open"
 assert_contains "roles/common/tasks/main.yml" "tmux-review-toggle"
 assert_contains "roles/common/tasks/main.yml" "review-diff"
 assert_contains "roles/common/tasks/main.yml" "review-file"
+assert_contains "roles/common/tasks/main.yml" "hnp"
 
 assert_contains "roles/macos/templates/dotfiles/tmux.conf" "is_agent_key_passthrough="
 assert_contains "roles/macos/templates/dotfiles/tmux.conf" "m:*tmux*,#{pane_current_command}"

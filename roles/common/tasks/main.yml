@@ -242,6 +242,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/cdxr'
     mode: 0755
 
+- name: Install hnp script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/hnp'
+    src: '{{ playbook_dir }}/roles/common/files/bin/hnp'
+    mode: 0755
+
 - name: Install _recover-agent-sessions helper
   copy:
     backup: yes
