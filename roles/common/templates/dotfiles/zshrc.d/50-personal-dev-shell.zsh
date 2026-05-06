@@ -110,7 +110,6 @@ repo-start() {
   fi
   path="$("$HOME/.local/bin/repo-start" "$@" --print-path)" || return $?
   cd "$path" || return $?
-  _worktree_sync_tmux_state
   printf '%s\n' "$path"
 }
 

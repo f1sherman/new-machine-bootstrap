@@ -50,5 +50,7 @@ require_contains roles/common/files/claude/hooks/block-worktree-commands.sh 'cle
 require_not_contains roles/common/files/claude/hooks/block-worktree-commands.sh 'worktree-start' 'Claude raw worktree hook stops naming worktree-start'
 require_contains roles/common/files/share/skills/_pr-workflow-common/agent-worktree-path.sh 'repo-start <branch>' 'PR workflow worktree recovery names repo-start'
 require_not_contains roles/common/files/share/skills/_pr-workflow-common/agent-worktree-path.sh 'worktree-start' 'PR workflow worktree recovery stops naming worktree-start'
+require_contains roles/common/files/share/skills/_pr-workflow-common/agent-worktree-path.sh 'non-main named branch' 'PR workflow allows branch lifecycle paths'
+require_not_contains roles/common/files/share/skills/_pr-workflow-common/agent-worktree-path.sh 'not a linked git worktree' 'PR workflow stops requiring linked worktrees'
 
 printf 'PASS  repo lifecycle provisioning checks\n'

@@ -74,4 +74,38 @@ grep -Fq 'deleted' "$stdout" || {
   exit 1
 }
 
+local_repo="$TMPROOT/local-repo"
+local_wt="$TMPROOT/local-topic-wt"
+
+git -c init.templateDir= init -qb main "$local_repo"
+git -C "$local_repo" commit -q --allow-empty -m init
+git -C "$local_repo" worktree add -q -b local-topic "$local_wt"
+
+if (
+  cd "$local_wt"
+  /usr/bin/ruby "$SCRIPT" --branch local-topic
+) >"$TMPROOT/local-stdout" 2>"$TMPROOT/local-stderr"; then
+  local_status=0
+else
+  local_status=$?
+fi
+
+[ "$local_status" -eq 0 ] || {
+  printf 'expected cleanup-branches --branch to skip remote API checks, got %s\n' "$local_status" >&2
+  cat "$TMPROOT/local-stdout" >&2
+  cat "$TMPROOT/local-stderr" >&2
+  exit 1
+}
+
+if git -C "$local_repo" show-ref --verify --quiet refs/heads/local-topic; then
+  printf 'expected local-topic branch to be deleted without remote config\n' >&2
+  exit 1
+fi
+
+grep -Fq 'deleted' "$TMPROOT/local-stdout" || {
+  printf 'expected local cleanup output to mention deleted branch\n' >&2
+  cat "$TMPROOT/local-stdout" >&2
+  exit 1
+}
+
 printf 'PASS  cleanup-branches removes linked worktree under /usr/bin/ruby\n'

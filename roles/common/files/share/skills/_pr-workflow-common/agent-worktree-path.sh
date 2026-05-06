@@ -93,6 +93,26 @@ on_named_branch() {
   [ -n "$branch" ]
 }
 
+main_branch_for() {
+  local path="$1" origin_head
+  origin_head="$(git -C "$path" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  if [ -n "$origin_head" ]; then
+    printf '%s\n' "${origin_head#origin/}"
+  elif git -C "$path" show-ref --verify --quiet refs/heads/main; then
+    printf '%s\n' main
+  else
+    printf '%s\n' master
+  fi
+}
+
+on_non_main_branch() {
+  local path="$1" branch main_branch
+  branch="$(git -C "$path" branch --show-current 2>/dev/null)"
+  [ -n "$branch" ] || return 1
+  main_branch="$(main_branch_for "$path")"
+  [ "$branch" != "$main_branch" ]
+}
+
 main() {
   local pane_id pane_pid current_pid explicit_path repo_dir tty
 
@@ -134,12 +154,8 @@ main() {
   }
 
   repo_dir="$(normalize_repo_dir "$explicit_path")"
-  is_linked_worktree "$repo_dir" || {
-    echo "Error: published agent worktree path is not a linked git worktree: $repo_dir" >&2
-    exit 1
-  }
-  on_named_branch "$repo_dir" || {
-    echo "Error: published agent worktree path is not on a named branch: $repo_dir" >&2
+  on_non_main_branch "$repo_dir" || {
+    echo "Error: published agent repo path is not on a non-main named branch: $repo_dir" >&2
     exit 1
   }
 

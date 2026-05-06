@@ -310,20 +310,25 @@ if branch_filter
   end
 end
 
-remote_url = run_command('git config --get remote.origin.url', allow_failure: true)
-if remote_url.empty?
-  $stderr.puts 'Error: No remote.origin.url configured'
-  exit 1
-end
+remote_type = nil
+owner_repo = nil
 
-remote_type = detect_remote_type(remote_url)
-unless remote_type
-  $stderr.puts "Error: Remote origin is not GitHub or Forgejo (found: #{remote_url})"
-  exit 1
-end
+unless branch_filter
+  remote_url = run_command('git config --get remote.origin.url', allow_failure: true)
+  if remote_url.empty?
+    $stderr.puts 'Error: No remote.origin.url configured'
+    exit 1
+  end
 
-owner_repo = remote_url[%r{[:/]([^/]+/[^/]+?)(\.git)?$}, 1]
-owner, repo = owner_repo.split('/')
+  remote_type = detect_remote_type(remote_url)
+  unless remote_type
+    $stderr.puts "Error: Remote origin is not GitHub or Forgejo (found: #{remote_url})"
+    exit 1
+  end
+
+  owner_repo = remote_url[%r{[:/]([^/]+/[^/]+?)(\.git)?$}, 1]
+  owner, repo = owner_repo.split('/')
+end
 
 if remote_type == :forgejo
   forgejo_url = ENV['FORGEJO_URL'] || 'https://forgejo.brianjohn.com'
@@ -366,8 +371,10 @@ end
 puts "Found #{branches.size} local branches (including current branch)"
 puts
 
-puts "Repository: #{owner_repo} (#{remote_type})"
-puts
+unless branch_filter
+  puts "Repository: #{owner_repo} (#{remote_type})"
+  puts
+end
 
 deleted_branches = []
 
