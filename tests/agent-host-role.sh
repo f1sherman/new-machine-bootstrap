@@ -138,6 +138,8 @@ assert_contains "$ROLE_SKILLS/_pr-github/create.sh" "cannot reuse existing PR; p
 assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "cannot reuse existing PR; push failed" "Forgejo PR helper fails stale reuse after push failure"
 assert_contains "$ROLE_SKILLS/_pr-github/create.sh" "gh pr edit" "GitHub PR helper refreshes reused PR metadata"
 assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "PATCH" "Forgejo PR helper refreshes reused PR metadata"
+assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "cannot list existing Forgejo PRs" "Forgejo PR helper fails on untrusted list responses"
+assert_not_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" '2>/dev/null || echo "[]"' "Forgejo PR helper does not mask list failures"
 assert_contains "$ROLE_TASKS" "not ansible_check_mode or agent_host_codex_hooks_stat.stat.exists" "current-user Codex hook ownership is check-mode safe"
 assert_contains "$RUNTIME_TASKS" "not ansible_check_mode or runtime_claude_settings_stat.stat.exists" "runtime Claude hook ownership is check-mode safe"
 assert_contains "$RUNTIME_TASKS" "not ansible_check_mode or runtime_codex_hooks_stat.stat.exists" "runtime Codex hook ownership is check-mode safe"

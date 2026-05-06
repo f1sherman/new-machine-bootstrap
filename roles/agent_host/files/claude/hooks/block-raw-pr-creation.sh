@@ -55,14 +55,6 @@ matches() {
   printf '%s\n' "$scanned" | grep -Eq -- "$pattern"
 }
 
-has_pr_workflow_allow() {
-  matches '(^|[;&|()[:space:]])PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1([[:space:]]|$)'
-}
-
-has_pr_workflow_allow_in_command() {
-  command_matches '(^|[;&|()[:space:]])PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1([[:space:]]|$)'
-}
-
 assignment='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+'
 control='(if|then|elif|else|do|while|until|!)[[:space:]]+'
 env_wrapper="env([[:space:]]+(-i|--ignore-environment)|[[:space:]]+(-u|--unset)([=[:space:]]+)[^[:space:]]+|[[:space:]]+${assignment})*[[:space:]]+"
@@ -75,6 +67,7 @@ shell_prefix='((bash|sh|zsh)[[:space:]]+)?'
 gh_command='([^[:space:]]*/)?gh'
 curl_command='([^[:space:]]*/)?curl'
 workflow_helper_pattern="${command_prefix}${shell_prefix}([^[:space:]'\";|&()]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]]|$)"
+workflow_allowed_helper_pattern="${command_prefix}PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}([^[:space:]'\";|&()]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]]|$)"
 curl_post_or_data_flag='(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:space:]]+POST|--json([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?[^[:space:]]+|-d([=[:space:]]|$)|-d[^[:space:]]+)'
 pulls_endpoint="(^|/)pulls([?[:space:]'\"]|$)"
 curl_graphql_endpoint="(https?://)?api[.]github[.]com/graphql([?[:space:]'\"]|$)"
@@ -85,7 +78,7 @@ if [[ -z "$command" ]]; then
 fi
 
 if command_matches "${workflow_helper_pattern}"; then
-  if ! has_pr_workflow_allow_in_command; then
+  if ! command_matches "${workflow_allowed_helper_pattern}"; then
     emit_deny
   fi
   exit 0
@@ -129,7 +122,7 @@ if matches "${command_prefix}${curl_command}([[:space:]]|$)" \
 fi
 
 if matches "${workflow_helper_pattern}"; then
-  if ! has_pr_workflow_allow; then
+  if ! matches "${workflow_allowed_helper_pattern}"; then
     emit_deny
   fi
   exit 0

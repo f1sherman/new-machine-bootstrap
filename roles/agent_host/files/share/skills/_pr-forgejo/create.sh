@@ -120,12 +120,14 @@ fi
 
 page=1
 while :; do
-  page_json="$(
+  if ! page_json="$(
     curl -sf \
       -H "Authorization: token ${token}" \
       "${FORGEJO_URL}/api/v1/repos/${owner}/${repo}/pulls?state=open&page=${page}&limit=50" \
-      2>/dev/null || echo "[]"
-  )"
+  )"; then
+    echo "Error: cannot list existing Forgejo PRs for ${owner}/${repo}" >&2
+    exit 1
+  fi
 
   existing="$(
     echo "$page_json" | jq --arg head "$head" --arg base "$base" \

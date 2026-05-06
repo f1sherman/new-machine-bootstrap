@@ -127,6 +127,11 @@ run_block_case "blocks curl attached short data pull create" "curl -d'{\"title\"
 run_block_case "blocks curl data-ascii pull create" "curl --data-ascii '{\"title\":\"x\"}' https://api.github.com/repos/example/project/pulls"
 run_block_case "blocks direct Forgejo helper" 'bash ~/.local/share/skills/_pr-forgejo/create.sh --title test --body test'
 run_block_case "blocks direct GitHub helper" 'bash ~/.local/share/skills/_pr-github/create.sh --title test --body test'
+run_block_case "blocks helper when allow marker is echoed separately" 'echo PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1; bash ~/.local/share/skills/_pr-github/create.sh --title test'
+helper_wrapper="$TMP_DIR/helper-wrapper.sh"
+printf '%s\n' '#!/usr/bin/env bash' '# PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1' 'bash ~/.local/share/skills/_pr-github/create.sh --title test' > "$helper_wrapper"
+chmod +x "$helper_wrapper"
+run_block_case "blocks helper wrapper with marker comment" "bash $helper_wrapper"
 run_custom_reason_block_case "blocks with custom runtime reason" 'gh pr create --fill' 'Commit changes only; the service creates the PR.'
 run_allow_case "allows _pull-request skill mention" 'echo invoke _pull-request'
 run_allow_case "allows gh pr list" 'gh pr list --state open'
