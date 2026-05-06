@@ -122,13 +122,21 @@ git -C "$context_repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin
 git -C "$context_repo" remote set-url origin git@github.com:example/project.git
 git -C "$context_repo" checkout -q -b feature
 printf 'feature\n' > "$context_repo/file.txt"
-git -C "$context_repo" commit -qam feature
+printf '<div>feature</div>\n' > "$context_repo/view.html"
+git -C "$context_repo" add file.txt view.html
+git -C "$context_repo" commit -q -m feature
 git -C "$context_repo" branch -D main >/dev/null
 if context_json="$(bash "$ROLE_SKILLS/_pr-workflow-common/context.sh" "$context_repo" 2>&1)" \
-  && jq -e '.base == "main" and .base_ref == "origin/main" and (.changed_files | index("file.txt"))' <<<"$context_json" >/dev/null; then
+  && jq -e '.base == "main" and .base_ref == "origin/main" and (.changed_files | index("file.txt")) and (.changed_files | index("view.html"))' <<<"$context_json" >/dev/null; then
     pass_case "context resolves remote default branch without local base"
 else
   fail_case "context resolves remote default branch without local base" "$context_json"
+fi
+if visual_result="$(bash "$ROLE_SKILLS/_pr-workflow-common/classify-visual.sh" "$context_repo" 2>&1)" \
+  && [ "$visual_result" = "visual" ]; then
+    pass_case "visual classifier uses resolved remote base ref"
+else
+  fail_case "visual classifier uses resolved remote base ref" "$visual_result"
 fi
 rm -rf "$context_tmp"
 assert_contains "$ROLE_TASKS" ".claude/skills/_monitor-pr" "role removes common Claude monitor skill"
