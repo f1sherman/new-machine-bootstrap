@@ -130,6 +130,11 @@ assert_not_contains "$ROLE_SKILLS/_pr-forgejo/SKILL.md" "_monitor-pr" "_pr-forge
 assert_not_contains "$ROLE_SKILLS/_pr-github/SKILL.md" "_monitor-pr" "_pr-github does not invoke foreground monitor"
 assert_contains "$ROLE_SKILLS/_pull-request/SKILL.md" "remote PR head SHA matches local" "_pull-request requires remote head check"
 assert_contains "$ROLE_SKILLS/_pull-request/SKILL.md" "remote PR statuses for the pushed head" "_pull-request requires status check"
+assert_contains "$ROLE_SKILLS/_pr-github/create.sh" "cannot reuse existing PR; push failed" "GitHub PR helper fails stale reuse after push failure"
+assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "cannot reuse existing PR; push failed" "Forgejo PR helper fails stale reuse after push failure"
+assert_contains "$ROLE_TASKS" "not ansible_check_mode or agent_host_codex_hooks_stat.stat.exists" "current-user Codex hook ownership is check-mode safe"
+assert_contains "$RUNTIME_TASKS" "not ansible_check_mode or runtime_claude_settings_stat.stat.exists" "runtime Claude hook ownership is check-mode safe"
+assert_contains "$RUNTIME_TASKS" "not ansible_check_mode or runtime_codex_hooks_stat.stat.exists" "runtime Codex hook ownership is check-mode safe"
 
 if [ -x "$ROLE_DIR/files/bin/codex-block-raw-pr-creation.test" ]; then
   bash "$ROLE_DIR/files/bin/codex-block-raw-pr-creation.test"

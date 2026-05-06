@@ -89,6 +89,10 @@ existing_prs="$(gh pr list --repo "$repo" --head "$head" --base "$base" --state 
 existing_number="$(jq -r '.[0].number // empty' <<<"$existing_prs")"
 existing_url="$(jq -r '.[0].url // empty' <<<"$existing_prs")"
 if [[ -n "$existing_number" && -n "$existing_url" ]]; then
+  if [[ "$push_failed" == "true" ]]; then
+    echo "Error: cannot reuse existing PR; push failed and remote branch may be stale" >&2
+    exit 1
+  fi
   write_pr_cache "$existing_number" "$existing_url"
   echo "Reusing PR #${existing_number}: ${existing_url}"
   exit 0

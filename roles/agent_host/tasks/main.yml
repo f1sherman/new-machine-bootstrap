@@ -238,11 +238,19 @@
   changed_when: codex_raw_pr_creation_hooks_json_result.stdout.strip() == 'changed'
   when: agent_host_install_user_home_resolved | bool
 
+- name: Inspect ~/.codex/hooks.json
+  stat:
+    path: '{{ agent_host_user_home_resolved }}/.codex/hooks.json'
+  register: agent_host_codex_hooks_stat
+  when: agent_host_install_user_home_resolved | bool
+
 - name: Enforce 0600 on ~/.codex/hooks.json
   file:
     path: '{{ agent_host_user_home_resolved }}/.codex/hooks.json'
     mode: '0600'
-  when: agent_host_install_user_home_resolved | bool
+  when:
+    - agent_host_install_user_home_resolved | bool
+    - not ansible_check_mode or agent_host_codex_hooks_stat.stat.exists
 
 - name: Install shared PR workflow common helpers
   copy:

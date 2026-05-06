@@ -135,10 +135,11 @@ while :; do
   if [[ "$existing_count" -gt 0 ]]; then
     existing_url="$(echo "$existing" | jq -r '.[0].html_url')"
     existing_number="$(echo "$existing" | jq -r '.[0].number // empty')"
-    write_pr_cache "$existing_number" "$existing_url"
     if [[ "$push_failed" == "true" ]]; then
-      echo "Warning: push failed; reusing existing PR; remote may be stale" >&2
+      echo "Error: cannot reuse existing PR; push failed and remote branch may be stale" >&2
+      exit 1
     fi
+    write_pr_cache "$existing_number" "$existing_url"
     echo "Reusing PR #${existing_number}: ${existing_url}"
     exit 0
   fi

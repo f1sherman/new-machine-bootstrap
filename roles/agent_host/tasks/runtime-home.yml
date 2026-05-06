@@ -115,6 +115,12 @@
   changed_when: runtime_block_raw_pr_creation_hook_result.stdout.strip() == 'changed'
   become: yes
 
+- name: Inspect runtime Claude settings file
+  stat:
+    path: "{{ agent_host_runtime_home.home }}/.claude/settings.json"
+  register: runtime_claude_settings_stat
+  become: yes
+
 - name: Enforce runtime Claude settings ownership
   file:
     path: "{{ agent_host_runtime_home.home }}/.claude/settings.json"
@@ -122,6 +128,7 @@
     group: "{{ agent_host_runtime_home.group }}"
     mode: '0600'
   become: yes
+  when: not ansible_check_mode or runtime_claude_settings_stat.stat.exists
 
 - name: Enable runtime Codex hooks feature
   ini_file:
@@ -201,6 +208,12 @@
   changed_when: runtime_codex_raw_pr_creation_hooks_json_result.stdout.strip() == 'changed'
   become: yes
 
+- name: Inspect runtime Codex hooks file
+  stat:
+    path: "{{ agent_host_runtime_home.home }}/.codex/hooks.json"
+  register: runtime_codex_hooks_stat
+  become: yes
+
 - name: Enforce runtime Codex hook ownership
   file:
     path: "{{ agent_host_runtime_home.home }}/.codex/hooks.json"
@@ -208,6 +221,7 @@
     group: "{{ agent_host_runtime_home.group }}"
     mode: '0600'
   become: yes
+  when: not ansible_check_mode or runtime_codex_hooks_stat.stat.exists
 
 - name: Install runtime shared commit helper directory
   copy:
