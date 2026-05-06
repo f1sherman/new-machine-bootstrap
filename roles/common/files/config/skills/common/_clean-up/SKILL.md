@@ -7,11 +7,20 @@ description: >
 
 # Clean Up Merged Work
 
-Run the shared cleanup helper from the repository that should be cleaned:
+Run the lifecycle close helper first, then the shared cleanup sweep, from
+the repository that should be cleaned:
 
 ```bash
+main_path="$(repo-end --print-path)"
+cd "$main_path"
 git-clean-up
 ```
+
+`repo-end` integrates the feature branch into main and tears down the
+worktree. It is safe to invoke when the branch was already merged upstream
+(direct or squash) — it will skip the integration phase and proceed to
+cleanup. After it returns, `cd` to the printed main path before running
+`git-clean-up` so the wider cleanup runs from a valid cwd.
 
 Stop and report the error if the helper exits nonzero. Do not delete branches manually after a helper failure.
 
