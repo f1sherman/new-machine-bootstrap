@@ -80,6 +80,34 @@ CLEANUP_LOG="$TMPROOT/cleanup-stdout.log" CLEANUP_STATUS=0 CLEANUP_STDOUT='clean
 }
 assert_file_contains "$TMPROOT/cleanup-stdout.err" 'cleanup progress' 'repo-end print-path sends cleanup stdout to stderr'
 
+config_repo="$(create_remote_repo config-dirty)"
+git -C "$config_repo" checkout -q -b feature/config-dirty
+printf 'config dirty\n' >"$config_repo/config.txt"
+git -C "$config_repo" add config.txt
+git -C "$config_repo" commit -q -m config-dirty
+printf 'use_worktrees: false\n' >"$config_repo/.repo.yml"
+CLEANUP_LOG="$TMPROOT/config-dirty.log" CLEANUP_STATUS=0 \
+  bash -c 'cd "$1" && "$2" --print-path' bash "$config_repo" "$SCRIPT" >"$TMPROOT/config-dirty.out" 2>"$TMPROOT/config-dirty.err"
+assert_file_contains "$TMPROOT/config-dirty.log" '--branch feature/config-dirty' 'repo-end ignores untracked repo config'
+
+no_main_repo="$(create_remote_repo no-main-checkout)"
+git -C "$no_main_repo" checkout -q -b parking
+no_main_wt="$TMPROOT/no-main-wt"
+git -C "$no_main_repo" worktree add -q -b feature/no-main "$no_main_wt" main
+printf 'no main checkout\n' >"$no_main_wt/no-main.txt"
+git -C "$no_main_wt" add no-main.txt
+git -C "$no_main_wt" commit -q -m no-main
+if CLEANUP_LOG="$TMPROOT/no-main.log" CLEANUP_STATUS=0 \
+  bash -c 'cd "$1" && "$2" --print-path' bash "$no_main_wt" "$SCRIPT" >"$TMPROOT/no-main.out" 2>"$TMPROOT/no-main.err"; then
+  printf 'expected linked worktree without main checkout to fail\n' >&2
+  exit 1
+fi
+assert_file_contains "$TMPROOT/no-main.err" 'could not find main checkout' 'repo-end rejects linked worktree without main checkout'
+[ "$(git -C "$no_main_wt" branch --show-current)" = 'feature/no-main' ] || {
+  printf 'linked worktree should remain on feature/no-main\n' >&2
+  exit 1
+}
+
 dirty_repo="$(create_remote_repo dirty)"
 git -C "$dirty_repo" checkout -q -b feature/dirty
 printf 'dirty\n' >"$dirty_repo/dirty.txt"

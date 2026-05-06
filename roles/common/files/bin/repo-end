@@ -54,7 +54,7 @@ if [[ "$current_branch" == "$main_branch" ]]; then
   exit 1
 fi
 
-if [[ -n "$($(_worktree_cmd git) -C "$repo_root" status --porcelain)" ]]; then
+if [[ -n "$(_repo_status_excluding_config "$repo_root")" ]]; then
   printf 'Error: worktree has uncommitted changes\n' >&2
   exit 1
 fi
@@ -67,10 +67,15 @@ fi
 
 main_path="$(_worktree_main_path "$main_branch" || true)"
 if [[ -z "$main_path" ]]; then
-  main_path="$repo_root"
+  if [[ -d "$repo_root/.git" ]]; then
+    main_path="$repo_root"
+  else
+    printf 'Error: could not find main checkout for branch %s\n' "$main_branch" >&2
+    exit 1
+  fi
 fi
 
-if [[ -n "$($(_worktree_cmd git) -C "$main_path" status --porcelain)" ]]; then
+if [[ -n "$(_repo_status_excluding_config "$main_path")" ]]; then
   printf 'Error: main checkout has uncommitted changes\n' >&2
   exit 1
 fi
