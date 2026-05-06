@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/repo-end"
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
+GIT_AUTHOR_NAME=test
+GIT_AUTHOR_EMAIL=test@example.com
+GIT_COMMITTER_NAME=test
+GIT_COMMITTER_EMAIL=test@example.com
+export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+
+stub_bin="$TMPROOT/bin"
+mkdir -p "$stub_bin"
+cat >"$stub_bin/cleanup-branches" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$CLEANUP_LOG"
+exit "${CLEANUP_STATUS:-0}"
+EOF
+chmod +x "$stub_bin/cleanup-branches"
+export PATH="$stub_bin:$PATH"
+
+create_remote_repo() {
+  local name="$1"
+  local origin="$TMPROOT/$name-origin.git"
+  local repo="$TMPROOT/$name-repo"
+  git init -q --bare "$origin"
+  git init -qb main "$repo"
+  git -C "$repo" remote add origin "$origin"
+  git -C "$repo" commit -q --allow-empty -m init
+  git -C "$repo" push -q -u origin main
+  printf '%s\n' "$repo"
+}
+
+assert_file_contains() {
+  local path="$1" needle="$2" name="$3"
+  grep -Fq -- "$needle" "$path" || {
+    printf 'FAIL  %s\nmissing %s in %s\n' "$name" "$needle" "$path" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
+branch_repo="$(create_remote_repo branch)"
+git -C "$branch_repo" checkout -q -b feature/branch
+printf 'branch\n' >"$branch_repo/branch.txt"
+git -C "$branch_repo" add branch.txt
+git -C "$branch_repo" commit -q -m branch
+CLEANUP_LOG="$TMPROOT/branch-cleanup.log" CLEANUP_STATUS=0 \
+  bash -c 'cd "$1" && "$2" --print-path' bash "$branch_repo" "$SCRIPT" >"$TMPROOT/branch.out"
+assert_file_contains "$TMPROOT/branch-cleanup.log" '--branch feature/branch' 'repo-end delegates cleanup by branch'
+git --git-dir="$TMPROOT/branch-origin.git" show-ref --verify --quiet refs/heads/main || {
+  printf 'expected pushed main in bare origin\n' >&2
+  exit 1
+}
+assert_file_contains "$TMPROOT/branch.out" "$branch_repo" 'repo-end prints final main path'
+printf 'PASS  repo-end branch mode merges pushes and delegates cleanup\n'
+
+dirty_repo="$(create_remote_repo dirty)"
+git -C "$dirty_repo" checkout -q -b feature/dirty
+printf 'dirty\n' >"$dirty_repo/dirty.txt"
+if (cd "$dirty_repo" && "$SCRIPT") >"$TMPROOT/dirty.out" 2>"$TMPROOT/dirty.err"; then
+  printf 'expected dirty repo-end to fail\n' >&2
+  exit 1
+fi
+assert_file_contains "$TMPROOT/dirty.err" 'worktree has uncommitted changes' 'repo-end rejects dirty current worktree'
+
+main_repo="$(create_remote_repo main-reject)"
+if (cd "$main_repo" && "$SCRIPT") >"$TMPROOT/main.out" 2>"$TMPROOT/main.err"; then
+  printf 'expected main repo-end to fail\n' >&2
+  exit 1
+fi
+assert_file_contains "$TMPROOT/main.err" 'already on main' 'repo-end rejects main branch'
+
+cleanup_fail_repo="$(create_remote_repo cleanup-fail)"
+git -C "$cleanup_fail_repo" checkout -q -b feature/cleanup-fail
+printf 'cleanup fail\n' >"$cleanup_fail_repo/fail.txt"
+git -C "$cleanup_fail_repo" add fail.txt
+git -C "$cleanup_fail_repo" commit -q -m cleanup-fail
+if CLEANUP_LOG="$TMPROOT/cleanup-fail.log" CLEANUP_STATUS=7 \
+  bash -c 'cd "$1" && "$2" --print-path' bash "$cleanup_fail_repo" "$SCRIPT" >"$TMPROOT/cleanup-fail.out" 2>"$TMPROOT/cleanup-fail.err"; then
+  printf 'expected cleanup failure to fail repo-end\n' >&2
+  exit 1
+fi
+assert_file_contains "$TMPROOT/cleanup-fail.log" '--branch feature/cleanup-fail' 'repo-end calls cleanup before surfacing failure'
+
+printf 'PASS  repo-end regression test\n'
