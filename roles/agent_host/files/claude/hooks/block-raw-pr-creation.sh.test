@@ -148,6 +148,7 @@ run_block_case "blocks pr-level repo-scoped gh pr create" 'gh pr --repo example/
 run_block_case "blocks pr-level attached repo-scoped gh pr create" 'gh pr -Rexample/project create --fill'
 run_block_case "blocks conditional gh pr create" 'if gh pr create --fill; then echo ok; fi'
 run_block_case "blocks shell-wrapped gh pr create" "bash -lc 'gh pr create --fill'"
+run_block_case "blocks ANSI-C quoted shell-wrapped gh pr create" "bash -c \$'gh pr create --fill'"
 run_block_case "blocks escaped unquoted shell-wrapped gh pr create" 'bash -c gh\ pr\ create\ --fill'
 run_block_case "blocks path-qualified shell-wrapped gh pr create" "/bin/bash -lc 'gh pr create --fill'"
 run_block_case "blocks separated login shell gh pr create" "bash -l -c 'gh pr create --fill'"
@@ -185,6 +186,7 @@ run_block_case "blocks quoted direct executable gh pr create" "\"$scripted_gh_pr
 run_block_case "blocks command-prefixed gh pr create" 'command gh pr create --title test'
 run_block_case "blocks command path-search gh pr create" 'command -p gh pr create --title test'
 run_block_case "blocks command end-options gh pr create" 'command -- gh pr create --title test'
+run_block_case "blocks exec-prefixed gh pr create" 'exec gh pr create --title test'
 run_block_case "blocks sudo user-wrapped gh pr create" 'sudo -u brian gh pr create --fill'
 run_block_case "blocks sudo set-home gh pr create" 'sudo -H gh pr create --fill'
 run_block_case "blocks sudo end-options gh pr create" 'sudo -- gh pr create --fill'

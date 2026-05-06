@@ -472,13 +472,13 @@ scan_commands() {
   local script_path
 
   printf '%s\n' "${sanitized_command:-$command}"
-  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+['\"]([^'\"]+)['\"].*/\5/p"
+  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+[$]?['\"]([^'\"]+)['\"].*/\5/p"
   printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+([^'\";&|()]+).*/\5/p" | unescape_shell_word_text
-  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)[[:space:]]+-[A-Za-z]*c[[:space:]]+['\"]([^'\"]+)['\"].*/\4/p"
+  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)[[:space:]]+-[A-Za-z]*c[[:space:]]+[$]?['\"]([^'\"]+)['\"].*/\4/p"
   printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)[[:space:]]+-[A-Za-z]*c[[:space:]]+([^'\";&|()]+).*/\4/p" | unescape_shell_word_text
-  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)([[:space:]]+(-o|--option)[[:space:]]+[^[:space:]]+|[[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+['\"]([^'\"]+)['\"].*/\6/p"
+  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)([[:space:]]+(-o|--option)[[:space:]]+[^[:space:]]+|[[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+[$]?['\"]([^'\"]+)['\"].*/\6/p"
   printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)([[:space:]]+(-o|--option)[[:space:]]+[^[:space:]]+|[[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+([^'\";&|()]+).*/\6/p" | unescape_shell_word_text
-  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)[[:space:]]+--command(=|[[:space:]]+)['\"]([^'\"]+)['\"].*/\5/p"
+  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)[[:space:]]+--command(=|[[:space:]]+)[$]?['\"]([^'\"]+)['\"].*/\5/p"
   while IFS= read -r script_path; do
     scan_script_path "$script_path" no
   done < <(script_file_candidates)
@@ -532,8 +532,9 @@ env_home_wrapper="env([[:space:]]+--|[[:space:]]+(-i|--ignore-environment)|[[:sp
 sudo_wrapper='sudo([[:space:]]+--|[[:space:]]+(-E|-H|-n|-S|-b|-k|-K|-P|--non-interactive|--set-home|--preserve-groups|--preserve-env(=[^[:space:]]+)?)|[[:space:]]+(-u|--user|-g|--group|-h|--host|-C|--close-from)([=[:space:]]+)[^[:space:]]+)*[[:space:]]+'
 time_wrapper='time([[:space:]]+-[^[:space:]]+)*[[:space:]]+'
 command_wrapper='command([[:space:]]+(--|-p))*[[:space:]]+'
-command_start_prefix="(^|[;&|()])[[:space:]]*((${control})|(${command_wrapper})|(${time_wrapper})|(${sudo_wrapper}))*"
-command_prefix="(^|[;&|()])[[:space:]]*((${control})|(${assignment}[[:space:]]+)|(${env_wrapper})|(${command_wrapper})|(${time_wrapper})|(${sudo_wrapper}))*"
+exec_wrapper='exec[[:space:]]+'
+command_start_prefix="(^|[;&|()])[[:space:]]*((${control})|(${command_wrapper})|(${exec_wrapper})|(${time_wrapper})|(${sudo_wrapper}))*"
+command_prefix="(^|[;&|()])[[:space:]]*((${control})|(${assignment}[[:space:]]+)|(${env_wrapper})|(${command_wrapper})|(${exec_wrapper})|(${time_wrapper})|(${sudo_wrapper}))*"
 gh_global_flags='([[:space:]]+(-R|--repo|--hostname)([=[:space:]]+)[^[:space:]]+|[[:space:]]+-R[^[:space:]]+)*'
 gh_pr_flags='([[:space:]]+(-R|--repo)([=[:space:]]+)[^[:space:]]+|[[:space:]]+-R[^[:space:]]+)*'
 shell_prefix='(([^[:space:];&|()]*/)?(bash|sh|zsh)[[:space:]]+)?'
