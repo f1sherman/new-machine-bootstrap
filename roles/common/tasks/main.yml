@@ -1494,13 +1494,24 @@
     directory_mode: '0755'
   when: not (agent_host_enabled | default(false) | bool)
 
+- name: Find non-monitor common skills for agent hosts
+  find:
+    paths: '{{ playbook_dir }}/roles/common/files/config/skills/common'
+    file_type: directory
+    excludes:
+      - _monitor-pr
+      - _monitor-forgejo-pr
+      - _monitor-github-pr
+  register: common_agent_host_skill_dirs
+  when: agent_host_enabled | default(false) | bool
+
 - name: Install non-monitor common skills to ~/.claude/skills for agent hosts
   copy:
-    src: '{{ item }}/'
-    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/{{ item | basename }}/'
+    src: '{{ item.path }}/'
+    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/{{ item.path | basename }}/'
     mode: preserve
     directory_mode: '0755'
-  loop: "{{ query('fileglob', playbook_dir ~ '/roles/common/files/config/skills/common/*') | reject('search', '/_monitor-(pr|forgejo-pr|github-pr)$') | list }}"
+  loop: "{{ common_agent_host_skill_dirs.files | default([]) | sort(attribute='path') }}"
   when: agent_host_enabled | default(false) | bool
 
 - name: Install Claude-specific skills to ~/.claude/skills
@@ -1526,11 +1537,11 @@
 
 - name: Install non-monitor common skills to ~/.codex/skills for agent hosts
   copy:
-    src: '{{ item }}/'
-    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/{{ item | basename }}/'
+    src: '{{ item.path }}/'
+    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/{{ item.path | basename }}/'
     mode: preserve
     directory_mode: '0755'
-  loop: "{{ query('fileglob', playbook_dir ~ '/roles/common/files/config/skills/common/*') | reject('search', '/_monitor-(pr|forgejo-pr|github-pr)$') | list }}"
+  loop: "{{ common_agent_host_skill_dirs.files | default([]) | sort(attribute='path') }}"
   when: agent_host_enabled | default(false) | bool
 
 - name: Install Codex-specific skills to ~/.codex/skills
