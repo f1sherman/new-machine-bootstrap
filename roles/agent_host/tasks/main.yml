@@ -6,12 +6,14 @@
     agent_host_install_user_home_resolved: "{{ agent_host_install_user_home | default(true) | bool }}"
     agent_host_user_home_resolved: "{{ agent_host_user_home | default(ansible_facts['user_dir'] | default(ansible_facts['env']['HOME'])) }}"
     agent_host_install_pr_creation_skills_resolved: "{{ agent_host_install_pr_creation_skills | default(true) | bool }}"
+    agent_host_raw_pr_creation_block_reason_resolved: "{{ agent_host_raw_pr_creation_block_reason | default('Use the _pull-request skill to create pull requests; do not call raw PR creation commands directly.') }}"
     agent_host_runtime_homes_resolved: "{{ agent_host_runtime_homes | default([]) }}"
 
 - name: Install agent host hook dependencies (Debian)
   package:
     name:
       - jq
+      - pipx
     state: present
   become: yes
   when: ansible_facts['os_family'] == 'Debian'
@@ -20,10 +22,11 @@
   homebrew:
     name:
       - jq
+      - uv
     state: present
   when: ansible_facts['os_family'] == 'Darwin'
 
-- name: Create agent host directories
+- name: Create agent host base directories
   file:
     path: "{{ agent_host_user_home_resolved }}/{{ item.path }}"
     state: directory
@@ -34,25 +37,50 @@
     - { path: .claude/hooks, mode: '0755' }
     - { path: .codex, mode: '0700' }
     - { path: .local/bin, mode: '0755' }
+    - { path: .local/share/skills, mode: '0755' }
     - { path: .local/share/skills/_commit, mode: '0755' }
+    - { path: .claude/skills, mode: '0755' }
+    - { path: .claude/skills/_commit, mode: '0755' }
+    - { path: .codex/skills, mode: '0755' }
+    - { path: .codex/skills/_commit, mode: '0755' }
+
+- name: Create agent host PR workflow directories
+  file:
+    path: "{{ agent_host_user_home_resolved }}/{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+  when:
+    - agent_host_install_user_home_resolved | bool
+    - agent_host_install_pr_creation_skills_resolved | bool
+  loop:
     - { path: .local/share/skills/_pr-workflow-common, mode: '0755' }
     - { path: .local/share/skills/_review, mode: '0755' }
     - { path: .local/share/skills/_pr-forgejo, mode: '0755' }
     - { path: .local/share/skills/_pr-github, mode: '0755' }
-    - { path: .claude/skills/_commit, mode: '0755' }
     - { path: .claude/skills/_pull-request, mode: '0755' }
     - { path: .claude/skills/_review, mode: '0755' }
     - { path: .claude/skills/_pr-forgejo, mode: '0755' }
     - { path: .claude/skills/_pr-github, mode: '0755' }
     - { path: .claude/skills/_forgejo-demo, mode: '0755' }
     - { path: .claude/skills/_github-demo, mode: '0755' }
-    - { path: .codex/skills/_commit, mode: '0755' }
     - { path: .codex/skills/_pull-request, mode: '0755' }
     - { path: .codex/skills/_review, mode: '0755' }
     - { path: .codex/skills/_pr-forgejo, mode: '0755' }
     - { path: .codex/skills/_pr-github, mode: '0755' }
     - { path: .codex/skills/_forgejo-demo, mode: '0755' }
     - { path: .codex/skills/_github-demo, mode: '0755' }
+
+- name: Install agent host proof runner (Debian)
+  command: pipx install uv
+  args:
+    creates: "{{ agent_host_user_home_resolved }}/.local/bin/uvx"
+  environment:
+    PIPX_BIN_DIR: "{{ agent_host_user_home_resolved }}/.local/bin"
+    PIPX_HOME: "{{ agent_host_user_home_resolved }}/.local/share/pipx"
+  when:
+    - ansible_facts['os_family'] == 'Debian'
+    - agent_host_install_user_home_resolved | bool
+    - agent_host_install_pr_creation_skills_resolved | bool
 
 - name: Install agent host local commands
   copy:
@@ -75,18 +103,11 @@
     set -euo pipefail
 
     settings_file="${SETTINGS_FILE:?}"
-    hook_cmd='~/.claude/hooks/block-raw-pr-creation.sh'
+    hook_cmd="${HOOK_COMMAND:?}"
+    hook_cmd_suffix='~/.claude/hooks/block-raw-pr-creation.sh'
 
     if [ ! -s "$settings_file" ]; then
       echo '{}' > "$settings_file"
-    fi
-
-    if jq -e --arg cmd "$hook_cmd" '
-      .hooks.PreToolUse // []
-      | any(.matcher == "Bash" and any(.hooks[]?; .type == "command" and .command == $cmd))
-    ' "$settings_file" >/dev/null 2>&1; then
-      echo "unchanged"
-      exit 0
     fi
 
     managed_entry="$(
@@ -102,10 +123,31 @@
     )"
     tmp_file="$(mktemp)"
 
-    jq --argjson entry "$managed_entry" '
+    jq --argjson entry "$managed_entry" --arg cmd_suffix "$hook_cmd_suffix" '
       .hooks //= {} |
-      .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry])
+      .hooks.PreToolUse = (
+        (.hooks.PreToolUse // [])
+        | map(
+            if .matcher == "Bash" then
+              .hooks = ((.hooks // []) | map(select(
+                (.type == "command"
+                 and (.command == $cmd_suffix or (.command | endswith(" " + $cmd_suffix))))
+                | not
+              )))
+            else
+              .
+            end
+          )
+        | map(select(.matcher != "Bash" or ((.hooks // []) | length > 0)))
+        | . + [$entry]
+      )
     ' "$settings_file" > "$tmp_file"
+
+    if cmp -s "$settings_file" "$tmp_file"; then
+      rm "$tmp_file"
+      echo "unchanged"
+      exit 0
+    fi
 
     mv "$tmp_file" "$settings_file"
     chmod 600 "$settings_file"
@@ -114,6 +156,8 @@
     executable: /bin/bash
   environment:
     SETTINGS_FILE: '{{ agent_host_user_home_resolved }}/.claude/settings.json'
+    HOOK_COMMAND: >-
+      PR_WORKFLOW_RAW_PR_BLOCK_REASON={{ agent_host_raw_pr_creation_block_reason_resolved | quote }} ~/.claude/hooks/block-raw-pr-creation.sh
   register: block_raw_pr_creation_hook_result
   changed_when: block_raw_pr_creation_hook_result.stdout.strip() == 'changed'
   when: agent_host_install_user_home_resolved | bool
@@ -133,15 +177,8 @@
     set -euo pipefail
 
     hooks_file="${HOOKS_FILE:?}"
-    managed_command='~/.local/bin/codex-block-raw-pr-creation'
-
-    if [ -f "$hooks_file" ] && jq -e --arg cmd "$managed_command" '
-      .hooks.PreToolUse // []
-      | any(.matcher == "Bash" and any(.hooks[]?; .type == "command" and .command == $cmd))
-    ' "$hooks_file" >/dev/null 2>&1; then
-      echo "unchanged"
-      exit 0
-    fi
+    managed_command="${HOOK_COMMAND:?}"
+    managed_command_suffix='~/.local/bin/codex-block-raw-pr-creation'
 
     managed_entry="$(
       jq -n --arg cmd "$managed_command" '{
@@ -157,14 +194,35 @@
     tmp_file="$(mktemp)"
 
     if [ -f "$hooks_file" ] && [ -s "$hooks_file" ]; then
-      jq --argjson entry "$managed_entry" '
+      jq --argjson entry "$managed_entry" --arg cmd_suffix "$managed_command_suffix" '
         .hooks //= {} |
-        .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry])
+        .hooks.PreToolUse = (
+          (.hooks.PreToolUse // [])
+          | map(
+              if .matcher == "Bash" then
+                .hooks = ((.hooks // []) | map(select(
+                  (.type == "command"
+                   and (.command == $cmd_suffix or (.command | endswith(" " + $cmd_suffix))))
+                  | not
+                )))
+              else
+                .
+              end
+            )
+          | map(select(.matcher != "Bash" or ((.hooks // []) | length > 0)))
+          | . + [$entry]
+        )
       ' "$hooks_file" > "$tmp_file"
     else
       jq -n --argjson entry "$managed_entry" '
         {hooks: {PreToolUse: [$entry]}}
       ' > "$tmp_file"
+    fi
+
+    if [ -f "$hooks_file" ] && cmp -s "$hooks_file" "$tmp_file"; then
+      rm "$tmp_file"
+      echo "unchanged"
+      exit 0
     fi
 
     mv "$tmp_file" "$hooks_file"
@@ -174,6 +232,8 @@
     executable: /bin/bash
   environment:
     HOOKS_FILE: '{{ agent_host_user_home_resolved }}/.codex/hooks.json'
+    HOOK_COMMAND: >-
+      PR_WORKFLOW_RAW_PR_BLOCK_REASON={{ agent_host_raw_pr_creation_block_reason_resolved | quote }} ~/.local/bin/codex-block-raw-pr-creation
   register: codex_raw_pr_creation_hooks_json_result
   changed_when: codex_raw_pr_creation_hooks_json_result.stdout.strip() == 'changed'
   when: agent_host_install_user_home_resolved | bool
@@ -333,6 +393,11 @@
     - .local/share/skills/p-pr-monitor
     - .local/share/skills/p-pr-forgejo
     - .local/share/skills/p-pr-github
+    - .local/share/skills/_pr-monitor
+    - .local/share/skills/_pr-forgejo/comments.sh
+    - .local/share/skills/_pr-forgejo/reply-comment.sh
+    - .local/share/skills/_pr-github/comments.sh
+    - .local/share/skills/_pr-github/reply-comment.sh
     - .claude/skills/create-pull-request
     - .claude/skills/pr-forgejo
     - .claude/skills/pr-github
@@ -343,6 +408,9 @@
     - .claude/skills/p-pr-github
     - .claude/skills/p-forgejo-demo
     - .claude/skills/p-github-demo
+    - .claude/skills/_monitor-pr
+    - .claude/skills/_monitor-forgejo-pr
+    - .claude/skills/_monitor-github-pr
     - .codex/skills/create-pull-request
     - .codex/skills/pr-forgejo
     - .codex/skills/pr-github
@@ -353,6 +421,9 @@
     - .codex/skills/p-pr-github
     - .codex/skills/p-forgejo-demo
     - .codex/skills/p-github-demo
+    - .codex/skills/_monitor-pr
+    - .codex/skills/_monitor-forgejo-pr
+    - .codex/skills/_monitor-github-pr
     - .local/share/skills/_pr-workflow-common/run-review.sh
     - .claude/skills/forgejo-pr
     - .codex/skills/forgejo-pr

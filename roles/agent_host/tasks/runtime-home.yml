@@ -37,6 +37,20 @@
     mode: '0755'
   become: yes
 
+- name: Install runtime agent host proof runner (Debian)
+  command: pipx install uv
+  args:
+    creates: "{{ agent_host_runtime_home.home }}/.local/bin/uvx"
+  environment:
+    HOME: "{{ agent_host_runtime_home.home }}"
+    PIPX_BIN_DIR: "{{ agent_host_runtime_home.home }}/.local/bin"
+    PIPX_HOME: "{{ agent_host_runtime_home.home }}/.local/share/pipx"
+  become: yes
+  become_user: "{{ agent_host_runtime_home.owner }}"
+  when:
+    - ansible_facts['os_family'] == 'Debian'
+    - agent_host_runtime_home.install_pr_creation_skills | default(true) | bool
+
 - name: Register runtime PreToolUse Bash hook for blocking raw pull request creation
   shell: |
     set -euo pipefail
@@ -96,9 +110,7 @@
   environment:
     SETTINGS_FILE: '{{ agent_host_runtime_home.home }}/.claude/settings.json'
     HOOK_COMMAND: >-
-      {{ ("PR_WORKFLOW_RAW_PR_BLOCK_REASON=" ~ (agent_host_runtime_home.raw_pr_creation_block_reason | quote) ~ " ~/.claude/hooks/block-raw-pr-creation.sh")
-         if (agent_host_runtime_home.raw_pr_creation_block_reason is defined)
-         else "~/.claude/hooks/block-raw-pr-creation.sh" }}
+      PR_WORKFLOW_RAW_PR_BLOCK_REASON={{ (agent_host_runtime_home.raw_pr_creation_block_reason | default(agent_host_raw_pr_creation_block_reason_resolved)) | quote }} ~/.claude/hooks/block-raw-pr-creation.sh
   register: runtime_block_raw_pr_creation_hook_result
   changed_when: runtime_block_raw_pr_creation_hook_result.stdout.strip() == 'changed'
   become: yes
@@ -184,9 +196,7 @@
   environment:
     HOOKS_FILE: '{{ agent_host_runtime_home.home }}/.codex/hooks.json'
     HOOK_COMMAND: >-
-      {{ ("PR_WORKFLOW_RAW_PR_BLOCK_REASON=" ~ (agent_host_runtime_home.raw_pr_creation_block_reason | quote) ~ " ~/.local/bin/codex-block-raw-pr-creation")
-         if (agent_host_runtime_home.raw_pr_creation_block_reason is defined)
-         else "~/.local/bin/codex-block-raw-pr-creation" }}
+      PR_WORKFLOW_RAW_PR_BLOCK_REASON={{ (agent_host_runtime_home.raw_pr_creation_block_reason | default(agent_host_raw_pr_creation_block_reason_resolved)) | quote }} ~/.local/bin/codex-block-raw-pr-creation
   register: runtime_codex_raw_pr_creation_hooks_json_result
   changed_when: runtime_codex_raw_pr_creation_hooks_json_result.stdout.strip() == 'changed'
   become: yes
@@ -317,8 +327,14 @@
     - .local/share/skills/pr-forgejo
     - .local/share/skills/pr-github
     - .local/share/skills/p-pr-workflow-common
+    - .local/share/skills/p-pr-monitor
     - .local/share/skills/p-pr-forgejo
     - .local/share/skills/p-pr-github
+    - .local/share/skills/_pr-monitor
+    - .local/share/skills/_pr-forgejo/comments.sh
+    - .local/share/skills/_pr-forgejo/reply-comment.sh
+    - .local/share/skills/_pr-github/comments.sh
+    - .local/share/skills/_pr-github/reply-comment.sh
     - .claude/skills/create-pull-request
     - .claude/skills/pr-forgejo
     - .claude/skills/pr-github
@@ -329,6 +345,9 @@
     - .claude/skills/p-pr-github
     - .claude/skills/p-forgejo-demo
     - .claude/skills/p-github-demo
+    - .claude/skills/_monitor-pr
+    - .claude/skills/_monitor-forgejo-pr
+    - .claude/skills/_monitor-github-pr
     - .codex/skills/create-pull-request
     - .codex/skills/pr-forgejo
     - .codex/skills/pr-github
@@ -339,6 +358,9 @@
     - .codex/skills/p-pr-github
     - .codex/skills/p-forgejo-demo
     - .codex/skills/p-github-demo
+    - .codex/skills/_monitor-pr
+    - .codex/skills/_monitor-forgejo-pr
+    - .codex/skills/_monitor-github-pr
     - .local/share/skills/_pr-workflow-common/run-review.sh
     - .claude/skills/forgejo-pr
     - .codex/skills/forgejo-pr
