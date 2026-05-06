@@ -15,14 +15,30 @@ emit_deny() {
 }
 
 scan_commands() {
+  local script_path
+
   printf '%s\n' "$command"
   printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+-[A-Za-z]*c[[:space:]]+['\"]([^'\"]+)['\"].*/\3/p"
   printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+--command(=|[[:space:]]+)['\"]([^'\"]+)['\"].*/\4/p"
+  while IFS= read -r script_path; do
+    case "$script_path" in
+      "~/"*) script_path="${HOME}${script_path#\~}" ;;
+    esac
+    if [[ -f "$script_path" && -r "$script_path" ]]; then
+      sed -n '1,2000p' "$script_path"
+    fi
+  done < <(
+    printf '%s\n' "$command" |
+      sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+([^[:space:]'\";|&()]+).*/\4/p"
+  )
 }
 
 matches() {
   local pattern="$1"
-  scan_commands | grep -Eq -- "$pattern"
+  local scanned
+
+  scanned="$(scan_commands)"
+  printf '%s\n' "$scanned" | grep -Eq -- "$pattern"
 }
 
 has_pr_workflow_allow() {

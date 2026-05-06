@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT="$SCRIPT_DIR/codex-block-raw-pr-creation"
 REASON='Use the _pull-request skill to create pull requests; do not call raw PR creation commands directly.'
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
 
 if [ ! -x "$SCRIPT" ]; then
   printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
@@ -81,6 +83,10 @@ run_block_case "blocks pr-level repo-scoped gh pr create" 'gh pr --repo example/
 run_block_case "blocks pr-level attached repo-scoped gh pr create" 'gh pr -Rexample/project create --fill'
 run_block_case "blocks conditional gh pr create" 'if gh pr create --fill; then echo ok; fi'
 run_block_case "blocks shell-wrapped gh pr create" "bash -lc 'gh pr create --fill'"
+scripted_gh_pr="$TMP_DIR/scripted-gh-pr.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'gh pr create --fill' > "$scripted_gh_pr"
+chmod +x "$scripted_gh_pr"
+run_block_case "blocks script-file gh pr create" "bash $scripted_gh_pr"
 run_block_case "blocks command-prefixed gh pr create" 'command gh pr create --title test'
 run_block_case "blocks sudo user-wrapped gh pr create" 'sudo -u brian gh pr create --fill'
 run_block_case "blocks time option-wrapped gh pr create" 'time -p gh pr create --fill'
@@ -92,6 +98,10 @@ run_block_case "blocks quoted gh api pull create" "gh api 'repos/example/project
 run_block_case "blocks GraphQL createPullRequest" "gh api graphql -f query='mutation { createPullRequest(input:{repositoryId:\"R\",baseRefName:\"main\",headRefName:\"b\",title:\"t\"}) { pullRequest { url } } }'"
 run_block_case "blocks curl GraphQL createPullRequest" 'curl -X POST https://api.github.com/graphql -d query=createPullRequest'
 run_block_case "blocks Forgejo curl pull create" 'curl -fsSL -X POST https://forgejo.brianjohn.com/api/v1/repos/example/project/pulls'
+scripted_curl_pr="$TMP_DIR/scripted-curl-pr.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'curl -fsSL -X POST https://forgejo.brianjohn.com/api/v1/repos/example/project/pulls' > "$scripted_curl_pr"
+chmod +x "$scripted_curl_pr"
+run_block_case "blocks script-file curl pull create" "sh $scripted_curl_pr"
 run_block_case "blocks path-qualified curl pull create" '/usr/bin/curl -X POST https://api.github.com/repos/example/project/pulls'
 run_block_case "blocks GitHub curl pull create" 'curl --request POST https://api.github.com/repos/example/project/pulls'
 run_block_case "blocks quoted curl pull create" "curl -X POST 'https://api.github.com/repos/example/project/pulls'"
