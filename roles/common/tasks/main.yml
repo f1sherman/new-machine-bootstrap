@@ -766,6 +766,37 @@
   register: claude_main_edit_hook_result
   changed_when: claude_main_edit_hook_result.stdout.strip() == 'changed'
 
+- name: Register PostToolUse Skill hook for initiation-skill main-branch reminder
+  shell: |
+    set -euo pipefail
+
+    settings_file="${SETTINGS_FILE:?}"
+    hook_cmd='~/.claude/hooks/block-initiation-skill-on-main.sh'
+
+    if [ ! -f "$settings_file" ]; then
+      echo '{}' > "$settings_file"
+    fi
+
+    if jq -e --arg cmd "$hook_cmd" '
+      .hooks.PostToolUse // []
+      | any(.matcher == "Skill" and any(.hooks[]?; .type == "command" and .command == $cmd))
+    ' "$settings_file" > /dev/null 2>&1; then
+      echo "already registered"
+      exit 0
+    fi
+
+    HOOK_ENTRY='{"matcher":"Skill","hooks":[{"type":"command","command":"'"$hook_cmd"'"}]}'
+    jq --argjson entry "$HOOK_ENTRY" \
+      '.hooks //= {} | .hooks.PostToolUse = ((.hooks.PostToolUse // []) + [$entry])' \
+      "$settings_file" > "${settings_file}.tmp" \
+      && mv "${settings_file}.tmp" "$settings_file"
+  args:
+    executable: /bin/bash
+  environment:
+    SETTINGS_FILE: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
+  register: block_initiation_skill_hook_result
+  changed_when: "'already registered' not in block_initiation_skill_hook_result.stdout"
+
 - name: Register PostToolUse Edit|MultiEdit|Write hook for publishing current spec path
   shell: |
     set -euo pipefail
