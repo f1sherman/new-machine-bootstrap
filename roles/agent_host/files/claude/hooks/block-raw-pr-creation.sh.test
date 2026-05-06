@@ -77,6 +77,8 @@ run_block_case "blocks env assignment gh pr create" 'env GH_TOKEN=x gh pr create
 run_block_case "blocks env option-wrapped gh pr create" "env -i PATH=\$PATH GH_TOKEN=x gh pr create --fill"
 run_block_case "blocks repo-scoped gh pr create" 'gh -R example/project pr create --fill'
 run_block_case "blocks attached repo-scoped gh pr create" 'gh -Rexample/project pr create --fill'
+run_block_case "blocks pr-level repo-scoped gh pr create" 'gh pr --repo example/project create --fill'
+run_block_case "blocks pr-level attached repo-scoped gh pr create" 'gh pr -Rexample/project create --fill'
 run_block_case "blocks conditional gh pr create" 'if gh pr create --fill; then echo ok; fi'
 run_block_case "blocks shell-wrapped gh pr create" "bash -lc 'gh pr create --fill'"
 run_block_case "blocks command-prefixed gh pr create" 'command gh pr create --title test'

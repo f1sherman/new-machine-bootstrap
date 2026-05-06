@@ -44,6 +44,7 @@ sudo_wrapper='sudo([[:space:]]+(-E|-n|--non-interactive|--preserve-env(=[^[:spac
 time_wrapper='time([[:space:]]+-[^[:space:]]+)*[[:space:]]+'
 command_prefix="(^|[;&|()])[[:space:]]*((${control})|(${assignment}[[:space:]]+)|(${env_wrapper})|(command[[:space:]]+)|(${time_wrapper})|(${sudo_wrapper}))*"
 gh_global_flags='([[:space:]]+(-R|--repo|--hostname)([=[:space:]]+)[^[:space:]]+|[[:space:]]+-R[^[:space:]]+)*'
+gh_pr_flags='([[:space:]]+(-R|--repo)([=[:space:]]+)[^[:space:]]+|[[:space:]]+-R[^[:space:]]+)*'
 shell_prefix='((bash|sh|zsh)[[:space:]]+)?'
 gh_command='([^[:space:]]*/)?gh'
 curl_command='([^[:space:]]*/)?curl'
@@ -56,7 +57,7 @@ if [[ -z "$command" ]]; then
   exit 0
 fi
 
-if matches "${command_prefix}${gh_command}${gh_global_flags}[[:space:]]+pr[[:space:]]+(create|new)([[:space:]]|$)"; then
+if matches "${command_prefix}${gh_command}${gh_global_flags}[[:space:]]+pr${gh_pr_flags}[[:space:]]+(create|new)([[:space:]]|$)"; then
   emit_deny
   exit 0
 fi
