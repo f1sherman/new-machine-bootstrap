@@ -55,6 +55,9 @@ assert_contains "$PLAYBOOK" "role: agent_host" "playbook exposes agent_host role
 assert_contains "$PLAYBOOK" "agent_host_enabled | default(false) | bool" "playbook keeps agent_host opt-in"
 assert_contains "$COMMON_TASKS" "not (agent_host_enabled | default(false) | bool)" "common skill installs skip agent hosts"
 assert_contains "$COMMON_TASKS" "Install non-monitor common skills" "common keeps non-monitor skills on agent hosts"
+assert_contains "$COMMON_TASKS" "common_agent_host_skill_excludes" "common builds agent-host skill exclude list"
+assert_contains "$COMMON_TASKS" "agent_host_install_pr_creation_skills | default(true)" "common skill excludes honor PR workflow disable"
+assert_contains "$COMMON_TASKS" "_spec-to-pr" "common excludes PR-dependent skills in commit-only mode"
 
 assert_contains "$ROLE_TASKS" "Install agent host hook dependencies" "role installs hook dependencies"
 assert_contains "$ROLE_TASKS" "pipx install uv" "role installs uvx proof runner on Debian"

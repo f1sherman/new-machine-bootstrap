@@ -1494,14 +1494,32 @@
     directory_mode: '0755'
   when: not (agent_host_enabled | default(false) | bool)
 
+- name: Resolve common skill excludes for agent hosts
+  set_fact:
+    common_agent_host_skill_excludes: >-
+      {{
+        [
+          '_monitor-pr',
+          '_monitor-forgejo-pr',
+          '_monitor-github-pr'
+        ]
+        + (
+          [
+            '_approve-spec',
+            '_fix',
+            '_spec-to-pr'
+          ]
+          if not (agent_host_install_pr_creation_skills | default(true) | bool)
+          else []
+        )
+      }}
+  when: agent_host_enabled | default(false) | bool
+
 - name: Find non-monitor common skills for agent hosts
   find:
     paths: '{{ playbook_dir }}/roles/common/files/config/skills/common'
     file_type: directory
-    excludes:
-      - _monitor-pr
-      - _monitor-forgejo-pr
-      - _monitor-github-pr
+    excludes: "{{ common_agent_host_skill_excludes }}"
   register: common_agent_host_skill_dirs
   when: agent_host_enabled | default(false) | bool
 
