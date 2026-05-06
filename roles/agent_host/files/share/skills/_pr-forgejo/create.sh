@@ -130,8 +130,17 @@ while :; do
   fi
 
   existing="$(
-    echo "$page_json" | jq --arg head "$head" --arg base "$base" \
-      '[.[] | select(.head.ref == $head and .base.ref == $base)]'
+    echo "$page_json" | jq --arg head "$head" --arg base "$base" --arg repo_path "$repo_path" '
+      def head_repo_full_name:
+        .head.repo.full_name
+        // (
+          ((.head.repo.owner.username // .head.repo.owner.login // "") as $owner
+          | (.head.repo.name // "") as $repo
+          | if $owner == "" or $repo == "" then "" else "\($owner)/\($repo)" end)
+        );
+
+      [.[] | select(.head.ref == $head and .base.ref == $base and head_repo_full_name == $repo_path)]
+    '
   )"
   existing_count="$(echo "$existing" | jq 'length')"
   if [[ "$existing_count" -gt 0 ]]; then
