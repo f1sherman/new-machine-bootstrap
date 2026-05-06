@@ -21,6 +21,12 @@ script_file_candidates() {
     sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+'([^']+)'.*/\4/p"
   printf '%s\n' "$command" |
     sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+([^[:space:]'\";|&()]+).*/\4/p"
+  printf '%s\n' "$command" |
+    sed -nE "s/.*(^|[;&|()[:space:]])(source|[.])[[:space:]]+\"([^\"]+)\".*/\3/p"
+  printf '%s\n' "$command" |
+    sed -nE "s/.*(^|[;&|()[:space:]])(source|[.])[[:space:]]+'([^']+)'.*/\3/p"
+  printf '%s\n' "$command" |
+    sed -nE "s/.*(^|[;&|()[:space:]])(source|[.])[[:space:]]+([^[:space:]'\";|&()]+).*/\3/p"
 }
 
 input_file_candidates() {
@@ -193,6 +199,7 @@ gh_command='([^[:space:]]*/)?gh'
 curl_command='([^[:space:]]*/)?curl'
 workflow_helper_pattern="${command_prefix}${shell_prefix}([^[:space:]'\";|&()]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]]|$)"
 workflow_allowed_helper_pattern="${command_prefix}PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}([^[:space:]'\";|&()]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]]|$)"
+workflow_allowed_helper_only_pattern="^[[:space:]]*PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}([^[:space:]'\";|&()]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]][^;&|()]*)*$"
 curl_post_or_data_flag='(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:space:]]+POST|--json([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?[^[:space:]]+|-d([=[:space:]]|$)|-d[^[:space:]]+)'
 pulls_endpoint="(^|/)pulls([?[:space:]'\"]|$)"
 curl_graphql_endpoint="(https?://)?api[.]github[.]com/graphql([?[:space:]'\"]|$)"
@@ -202,10 +209,7 @@ if [[ -z "$command" ]]; then
   exit 0
 fi
 
-if command_matches "${workflow_helper_pattern}"; then
-  if ! command_matches "${workflow_allowed_helper_pattern}"; then
-    emit_deny
-  fi
+if command_matches "${workflow_allowed_helper_only_pattern}"; then
   exit 0
 fi
 
