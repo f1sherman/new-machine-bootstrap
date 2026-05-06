@@ -59,9 +59,9 @@ while :; do
     retryable_error "forgejo pulls request failed"
     exit 0
   fi
-  if ! pr_json="$(echo "$page_json" | jq --arg sha "$local_head_sha" '
-    ([.[] | select(.head.sha == $sha and ((.state // "open") == "open"))] | first) //
-    ([.[] | select(.head.sha == $sha)] | first)
+  if ! pr_json="$(echo "$page_json" | jq --arg sha "$local_head_sha" --arg repo_path "$repo_path" '
+    ([.[] | select(.head.repo.full_name == $repo_path and .head.sha == $sha and ((.state // "open") == "open"))] | first) //
+    ([.[] | select(.head.repo.full_name == $repo_path and .head.sha == $sha)] | first)
   ' 2>/dev/null)"; then
     retryable_error "forgejo pulls response parse failed"
     exit 0
@@ -71,14 +71,14 @@ while :; do
   fi
 
   if [[ "$ref_match_json" == "null" ]]; then
-    if ! ref_match_json="$(echo "$page_json" | jq --arg head "$head" '[.[] | select(.head.ref == $head and ((.state // "open") == "open"))][0]' 2>/dev/null)"; then
+    if ! ref_match_json="$(echo "$page_json" | jq --arg head "$head" --arg repo_path "$repo_path" '[.[] | select(.head.repo.full_name == $repo_path and .head.ref == $head and ((.state // "open") == "open"))][0]' 2>/dev/null)"; then
       retryable_error "forgejo pulls response parse failed"
       exit 0
     fi
   fi
 
   if [[ "$closed_ref_match_json" == "null" ]]; then
-    if ! closed_ref_match_json="$(echo "$page_json" | jq --arg head "$head" '[.[] | select(.head.ref == $head and ((.state // "open") == "closed"))][0]' 2>/dev/null)"; then
+    if ! closed_ref_match_json="$(echo "$page_json" | jq --arg head "$head" --arg repo_path "$repo_path" '[.[] | select(.head.repo.full_name == $repo_path and .head.ref == $head and ((.state // "open") == "closed"))][0]' 2>/dev/null)"; then
       retryable_error "forgejo pulls response parse failed"
       exit 0
     fi

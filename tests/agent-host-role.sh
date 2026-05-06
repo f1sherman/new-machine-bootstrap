@@ -168,6 +168,8 @@ assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "cannot list existing Forge
 assert_not_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" '2>/dev/null || echo "[]"' "Forgejo PR helper does not mask list failures"
 assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "arg repo_path" "Forgejo PR helper filters reused PRs by head repo"
 assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" ".head.repo.full_name" "Forgejo PR helper checks head repo identity"
+assert_contains "$ROLE_SKILLS/_pr-github/state.sh" ".head.repo.full_name == \$repo" "GitHub state helper filters candidate PRs by head repo"
+assert_contains "$ROLE_SKILLS/_pr-forgejo/state.sh" ".head.repo.full_name == \$repo_path" "Forgejo state helper filters candidate PRs by head repo"
 assert_contains "$ROLE_SKILLS/_pr-github/state.sh" "statusCheckRollup" "GitHub state helper uses supported PR status rollup"
 assert_not_contains "$ROLE_SKILLS/_pr-github/state.sh" "gh pr checks" "GitHub state helper avoids unsupported gh checks JSON flag"
 assert_contains "$ROLE_TASKS" "not ansible_check_mode or agent_host_codex_hooks_stat.stat.exists" "current-user Codex hook ownership is check-mode safe"

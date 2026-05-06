@@ -48,11 +48,11 @@ while :; do
   fi
 
   if ! sha_open_json="$(
-    echo "$page_json" | jq -c --arg sha "$local_head_sha" '
+    echo "$page_json" | jq -c --arg sha "$local_head_sha" --arg repo "$repo" '
       if type != "array" then
         null
       else
-        ([.[] | select(.head.sha == $sha and .state == "open")] | first)
+        ([.[] | select(.head.repo.full_name == $repo and .head.sha == $sha and .state == "open")] | first)
       end
     ' 2>/dev/null
   )"; then
@@ -66,11 +66,11 @@ while :; do
 
   if [[ "$pr_json" == "null" ]]; then
     if ! pr_json="$(
-      echo "$page_json" | jq -c --arg sha "$local_head_sha" '
+      echo "$page_json" | jq -c --arg sha "$local_head_sha" --arg repo "$repo" '
         if type != "array" then
           null
         else
-          ([.[] | select(.head.sha == $sha)] | first)
+          ([.[] | select(.head.repo.full_name == $repo and .head.sha == $sha)] | first)
         end
       ' 2>/dev/null
     )"; then
@@ -81,11 +81,11 @@ while :; do
 
   if [[ "$branch_open_json" == "null" ]]; then
     if ! branch_open_json="$(
-      echo "$page_json" | jq -c --arg head "$head" '
+      echo "$page_json" | jq -c --arg head "$head" --arg repo "$repo" '
         if type != "array" then
           null
         else
-          ([.[] | select(.head.ref == $head and .state == "open")] | first)
+          ([.[] | select(.head.repo.full_name == $repo and .head.ref == $head and .state == "open")] | first)
         end
       ' 2>/dev/null
     )"; then
@@ -96,11 +96,11 @@ while :; do
 
   if [[ "$branch_closed_json" == "null" ]]; then
     if ! branch_closed_json="$(
-      echo "$page_json" | jq -c --arg head "$head" '
+      echo "$page_json" | jq -c --arg head "$head" --arg repo "$repo" '
         if type != "array" then
           null
         else
-          ([.[] | select(.head.ref == $head and .state == "closed")] | first)
+          ([.[] | select(.head.repo.full_name == $repo and .head.ref == $head and .state == "closed")] | first)
         end
       ' 2>/dev/null
     )"; then
