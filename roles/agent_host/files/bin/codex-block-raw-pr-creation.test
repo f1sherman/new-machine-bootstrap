@@ -132,6 +132,8 @@ run_empty_case() {
 }
 
 run_block_case "blocks gh pr create" 'gh pr create --fill'
+run_block_case "blocks quoted gh pr create" '"gh" pr create --fill'
+run_block_case "blocks line-continued gh pr create" $'gh \\\n  pr create --fill'
 run_block_case "blocks path-qualified gh pr create" '/usr/bin/gh pr create --fill'
 run_block_case "blocks gh pr new alias" 'gh pr new --fill'
 run_block_case "blocks assignment-prefixed gh pr create" 'GH_TOKEN=x gh pr create --fill'
@@ -180,6 +182,8 @@ run_block_case "blocks time option-wrapped gh pr create" 'time -p gh pr create -
 run_block_case "blocks gh api pull create" 'gh api -X POST repos/example/project/pulls -f title=test'
 run_block_case "blocks host-scoped gh api pull create" 'gh --hostname forgejo.brianjohn.com api repos/example/project/pulls -f title=test -f head=branch -f base=main'
 run_block_case "blocks implicit POST gh api pull create" 'gh api repos/example/project/pulls -f title=test -f head=branch -f base=main'
+run_block_case "blocks attached-field gh api pull create" 'gh api repos/example/project/pulls -Ftitle=test -Fhead=branch -Fbase=main'
+run_block_case "blocks line-continued gh api pull create" $'gh \\\n  api repos/example/project/pulls -Ftitle=test -Fhead=branch -Fbase=main'
 run_block_case "blocks gh api input pull create" 'gh api repos/example/project/pulls --input payload.json'
 run_block_case "blocks quoted gh api pull create" "gh api 'repos/example/project/pulls' -f title=test -f head=branch -f base=main"
 run_block_case "blocks GraphQL createPullRequest" "gh api graphql -f query='mutation { createPullRequest(input:{repositoryId:\"R\",baseRefName:\"main\",headRefName:\"b\",title:\"t\"}) { pullRequest { url } } }'"
@@ -189,6 +193,7 @@ graphql_create_query="$TMP_DIR/graphql-create-pr.graphql"
 printf '%s\n' 'mutation { createPullRequest(input:{repositoryId:"R",baseRefName:"main",headRefName:"b",title:"t"}) { pullRequest { url } } }' > "$graphql_create_query"
 run_block_case "blocks GraphQL input createPullRequest" "gh api graphql --method POST --input $graphql_create_payload"
 run_block_case "blocks GraphQL field file createPullRequest" "gh api graphql -F query=@$graphql_create_query"
+run_block_case "blocks GraphQL attached field file createPullRequest" "gh api graphql -Fquery=@$graphql_create_query"
 run_block_case "blocks GraphQL long field file createPullRequest" "gh api graphql --field query=@$graphql_create_query"
 run_block_case "blocks GraphQL field command substitution createPullRequest" "gh api graphql -f query=\"\$(cat $graphql_create_query)\""
 run_block_case "blocks curl GraphQL createPullRequest" 'curl -X POST https://api.github.com/graphql -d query=createPullRequest'

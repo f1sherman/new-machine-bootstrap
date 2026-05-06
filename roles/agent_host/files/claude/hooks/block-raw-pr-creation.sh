@@ -18,6 +18,22 @@ ere_escape() {
   sed 's/[][\/.^$*+?{}()|]/\\&/g'
 }
 
+normalize_shell_command_text() {
+  local text
+
+  if [[ "$#" -gt 0 ]]; then
+    text="$1"
+  else
+    text="$(cat)"
+  fi
+
+  text="${text//$'\\\n'/ }"
+  printf '%s\n' "$text" |
+    sed -E \
+      -e "s/(^|[;&|()[:space:]])'([^'[:space:];&|()]+)'([[:space:];&|()]|$)/\1\2\3/g" \
+      -e 's/(^|[;&|()[:space:]])"([^"[:space:];&|()]+)"([[:space:];&|()]|$)/\1\2\3/g'
+}
+
 resolve_path_token() {
   local path="$1"
   local base="${2:-$PWD}"
@@ -238,9 +254,15 @@ field_file_candidates() {
   printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[[:space:]])(-F|--field|-f|--raw-field)[=[:space:]]+[^=[:space:]]+=@\"([^\"]+)\".*/\3/p"
   printf '%s\n' "${sanitized_command:-$command}" |
+    sed -nE "s/.*(^|[[:space:]])-[Ff][^=[:space:]]+=@\"([^\"]+)\".*/\2/p"
+  printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[[:space:]])(-F|--field|-f|--raw-field)[=[:space:]]+[^=[:space:]]+=@'([^']+)'.*/\3/p"
   printf '%s\n' "${sanitized_command:-$command}" |
+    sed -nE "s/.*(^|[[:space:]])-[Ff][^=[:space:]]+=@'([^']+)'.*/\2/p"
+  printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[[:space:]])(-F|--field|-f|--raw-field)[=[:space:]]+[^=[:space:]]+=@([^[:space:]'\";|&()]+).*/\3/p"
+  printf '%s\n' "${sanitized_command:-$command}" |
+    sed -nE "s/.*(^|[[:space:]])-[Ff][^=[:space:]]+=@([^[:space:]'\";|&()]+).*/\2/p"
 }
 
 curl_data_file_candidates() {
@@ -409,7 +431,7 @@ scan_script_file() {
     if ! LC_ALL=C grep -Iq . "$script_path"; then
       return 1
     fi
-    sed -n '1,2000p' "$script_path"
+    sed -n '1,2000p' "$script_path" | normalize_shell_command_text
     return 0
   fi
 
@@ -503,6 +525,7 @@ workflow_allowed_helper_pattern="${command_prefix}PR_WORKFLOW_ALLOW_RAW_PR_CREAT
 workflow_allowed_helper_only_pattern="^[[:space:]]*PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}${workflow_helper_path}([[:space:]][^;&|()]*)*$"
 workflow_allowed_helper_invocation_pattern="PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}${workflow_helper_path}([[:space:]][^;&|()]*)*"
 curl_post_or_data_flag='(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:space:]]+POST|--json([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?[^[:space:]]+|-d([=[:space:]]|$)|-d[^[:space:]]+)'
+gh_field_or_input_flag='(^|[[:space:]])((-f|-F|--field|--raw-field|--input)([=[:space:]]|$)|-[fF][^[:space:]]+)'
 pulls_endpoint="(^|/)pulls([?[:space:]'\"]|$)"
 curl_graphql_endpoint="(https?://)?api[.]github[.]com/graphql([?[:space:]'\"]|$)"
 curl_pulls_endpoint="(https?://)?(api[.]github[.]com/repos/[^[:space:]'\"?]+/[^[:space:]'\"?]+/pulls|[^/[:space:]'\"?]+/api/v1/repos/[^[:space:]'\"?]+/[^[:space:]'\"?]+/pulls)([?[:space:]'\"]|$)"
@@ -518,6 +541,7 @@ if command_matches "${workflow_allowed_helper_pattern}" && command_matches '`'; 
 fi
 
 sanitized_command="$(printf '%s\n' "$command" | sed -E "s@${workflow_allowed_helper_invocation_pattern}@@g")"
+sanitized_command="$(normalize_shell_command_text "$sanitized_command")"
 command_cwds="$(effective_command_cwds)"
 
 if command_matches "${workflow_allowed_helper_only_pattern}"; then
@@ -541,7 +565,7 @@ if matches "${command_prefix}${gh_command}${gh_global_flags}[[:space:]]+api([[:s
   && matches "${pulls_endpoint}" \
   && ! matches '(^|[[:space:]])(-X[[:space:]]*GET|-XGET|--method[=[:space:]]+GET)([[:space:]]|$)' \
   && { matches '(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--method[=[:space:]]+POST)([[:space:]]|$)' \
-    || matches '(^|[[:space:]])(-f|-F|--field|--raw-field|--input)([=[:space:]]|$)'; }; then
+    || matches "${gh_field_or_input_flag}"; }; then
   emit_deny
   exit 0
 fi
