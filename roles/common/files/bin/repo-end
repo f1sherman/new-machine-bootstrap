@@ -79,6 +79,10 @@ fi
 "$(_worktree_cmd git)" -C "$main_path" merge --quiet "$current_branch"
 "$(_worktree_cmd git)" -C "$main_path" push --quiet
 
-cleanup-branches --branch "$current_branch"
+if [[ "$print_path" == "true" ]]; then
+  cleanup-branches --branch "$current_branch" >&2
+else
+  cleanup-branches --branch "$current_branch"
+fi
 
 printf '%s\n' "$main_path"

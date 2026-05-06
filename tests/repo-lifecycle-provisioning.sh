@@ -22,6 +22,7 @@ require_not_contains() {
 }
 
 require_contains roles/common/templates/dotfiles/gitignore '.repo.yml' 'global gitignore ignores .repo.yml'
+require_contains roles/common/templates/dotfiles/gitignore '.worktrees/' 'global gitignore ignores default worktree root'
 require_contains roles/common/tasks/main.yml 'repo-lib.sh' 'installs repo-lib'
 require_contains roles/common/tasks/main.yml 'repo-start' 'installs repo-start'
 require_contains roles/common/tasks/main.yml 'repo-end' 'installs repo-end'
