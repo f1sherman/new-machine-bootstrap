@@ -30,15 +30,19 @@ def inside_tmux?
   !ENV["TMUX"].to_s.empty?
 end
 
+def remote_invocation?
+  ENV["HNP_REMOTE"] == "1" || !ENV["SSH_CONNECTION"].to_s.empty?
+end
+
 host = current_host
-if host != short_host(DEV_HOST) && dev_ssh_available?
-  exec("ssh", "-t", DEV_HOST, ["hnp", *ARGV].shelljoin)
+if !remote_invocation? && host != short_host(DEV_HOST) && dev_ssh_available?
+  exec("ssh", "-t", DEV_HOST, "HNP_REMOTE=1 #{["hnp", *ARGV].shelljoin}")
 end
 
 repo_path = File.join(ENV.fetch("HOME"), "projects", "home-network-provisioning")
-codex_command = ["codex", "--dangerously-bypass-approvals-and-sandbox", *ARGV]
+codex_command = ["env", "-u", "OPENAI_API_KEY", "codex", "--dangerously-bypass-approvals-and-sandbox", *ARGV]
 
-if host == short_host(DEV_HOST) && !inside_tmux?
+if (remote_invocation? || host == short_host(DEV_HOST)) && !inside_tmux?
   exec("tmux", "new-session", "-A", "-s", TMUX_SESSION, "-c", repo_path, codex_command.shelljoin)
 end
 
