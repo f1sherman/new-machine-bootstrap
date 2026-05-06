@@ -14,6 +14,99 @@ emit_deny() {
   }'
 }
 
+resolve_path_token() {
+  local path="$1"
+  local base="${2:-$PWD}"
+  local rest
+  local tilde_prefix
+  local value
+  local var
+
+  if [[ "$path" =~ ^\$\{([A-Za-z_][A-Za-z0-9_]*)\}(.*)$ ]]; then
+    var="${BASH_REMATCH[1]}"
+    rest="${BASH_REMATCH[2]}"
+    value="${!var:-}"
+    if [[ -n "$value" ]]; then
+      path="${value}${rest}"
+    fi
+  elif [[ "$path" =~ ^\$([A-Za-z_][A-Za-z0-9_]*)(.*)$ ]]; then
+    var="${BASH_REMATCH[1]}"
+    rest="${BASH_REMATCH[2]}"
+    value="${!var:-}"
+    if [[ -n "$value" ]]; then
+      path="${value}${rest}"
+    fi
+  fi
+
+  tilde_prefix="$(printf '%s/' '~')"
+  if [[ "$path" == "~" ]]; then
+    path="$HOME"
+  elif [[ "${path:0:2}" == "$tilde_prefix" ]]; then
+    path="${HOME}/${path:2}"
+  fi
+
+  if [[ "$path" == /* ]]; then
+    printf '%s\n' "$path"
+  else
+    printf '%s/%s\n' "$base" "$path"
+  fi
+}
+
+effective_command_cwd() {
+  local cwd="$PWD"
+  local expect_cd=0
+  local raw
+  local token
+  local trailing_separator
+  local -a tokens=()
+
+  read -r -a tokens <<< "${sanitized_command:-$command}"
+  for raw in "${tokens[@]}"; do
+    token="$raw"
+    trailing_separator=0
+
+    while [[ "$token" == [\;\&\|\(\)]* ]]; do
+      token="${token:1}"
+      expect_cd=0
+    done
+    while [[ "$token" == *[\;\&\|\(\)] ]]; do
+      token="${token:0:${#token}-1}"
+      trailing_separator=1
+    done
+    token="${token#\"}"
+    token="${token%\"}"
+    token="${token#\'}"
+    token="${token%\'}"
+
+    if [[ -z "$token" ]]; then
+      continue
+    fi
+
+    if [[ "$expect_cd" -eq 1 ]]; then
+      case "$token" in
+        -L|-P|--)
+          continue
+          ;;
+        -*)
+          expect_cd=0
+          ;;
+        *)
+          cwd="$(resolve_path_token "$token" "$cwd")"
+          expect_cd=0
+          ;;
+      esac
+    elif [[ "$token" == "cd" ]]; then
+      expect_cd=1
+    fi
+
+    if [[ "$trailing_separator" -eq 1 ]]; then
+      expect_cd=0
+    fi
+  done
+
+  printf '%s\n' "$cwd"
+}
+
 script_file_candidates() {
   printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+\"([^\"]+)\".*/\4/p"
@@ -240,6 +333,24 @@ direct_script_candidates() {
   done
 }
 
+scan_script_file() {
+  local script_path="$1"
+  local require_executable="$2"
+
+  if [[ -f "$script_path" && -r "$script_path" ]]; then
+    if [[ "$require_executable" == "yes" && ! -x "$script_path" ]]; then
+      return 1
+    fi
+    if ! LC_ALL=C grep -Iq . "$script_path"; then
+      return 1
+    fi
+    sed -n '1,2000p' "$script_path"
+    return 0
+  fi
+
+  return 1
+}
+
 scan_script_path() {
   local script_path="$1"
   local require_executable="$2"
@@ -249,14 +360,18 @@ scan_script_path() {
   if [[ "${script_path:0:2}" == "$tilde_prefix" ]]; then
     script_path="${HOME}/${script_path:2}"
   fi
-  if [[ -f "$script_path" && -r "$script_path" ]]; then
-    if [[ "$require_executable" == "yes" && ! -x "$script_path" ]]; then
-      return
-    fi
-    if ! LC_ALL=C grep -Iq . "$script_path"; then
-      return
-    fi
-    sed -n '1,2000p' "$script_path"
+
+  if [[ "$script_path" == /* ]]; then
+    scan_script_file "$script_path" "$require_executable" || true
+    return
+  fi
+
+  if scan_script_file "$script_path" "$require_executable"; then
+    return
+  fi
+
+  if [[ -n "${command_cwd:-}" && "$command_cwd" != "$PWD" ]]; then
+    scan_script_file "$command_cwd/$script_path" "$require_executable" || true
   fi
 }
 
@@ -323,6 +438,7 @@ if [[ -z "$command" ]]; then
 fi
 
 sanitized_command="$(printf '%s\n' "$command" | sed -E "s@${workflow_allowed_helper_invocation_pattern}@@g")"
+command_cwd="$(effective_command_cwd)"
 
 if command_matches "${workflow_allowed_helper_only_pattern}"; then
   exit 0

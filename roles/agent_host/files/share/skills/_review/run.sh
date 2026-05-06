@@ -18,20 +18,7 @@ repo_dir="$(jq -r '.repo_dir' <<<"$context_json")"
 branch="$(jq -r '.branch' <<<"$context_json")"
 base="$(jq -r '.base' <<<"$context_json")"
 safe_branch="${branch//\//-}"
-
-artifact_dir="$repo_dir/tmp"
-if [[ "$repo_dir" == /private/* ]]; then
-  private_alias="${repo_dir#/private}"
-  if [[ -d "$private_alias/tmp" ]]; then
-    artifact_dir="$private_alias/tmp"
-  fi
-fi
-
-if [[ -d "$artifact_dir" ]]; then
-  artifact_path="$artifact_dir/review-${safe_branch}.txt"
-else
-  artifact_path="/tmp/review-${safe_branch}.txt"
-fi
+artifact_path="$(mktemp "/tmp/review-${safe_branch}.XXXXXX.txt")"
 
 review_exit_status=0
 (

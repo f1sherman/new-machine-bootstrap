@@ -8,6 +8,7 @@ ROLE_DEFAULTS="$ROLE_DIR/defaults/main.yml"
 ROLE_TASKS="$ROLE_DIR/tasks/main.yml"
 RUNTIME_TASKS="$ROLE_DIR/tasks/runtime-home.yml"
 ROLE_SKILLS="$ROLE_DIR/files/share/skills"
+REVIEW_HELPER="$ROLE_SKILLS/_review/run.sh"
 PLAYBOOK="$REPO_ROOT/playbook.yml"
 COMMON_TASKS="$REPO_ROOT/roles/common/tasks/main.yml"
 
@@ -116,6 +117,9 @@ for helper in \
   _pr-github/state.sh; do
   assert_exists "$ROLE_SKILLS/$helper" "agent_host helper exists: $helper"
 done
+
+assert_contains "$REVIEW_HELPER" 'mktemp "/tmp/review-${safe_branch}.XXXXXX.txt"' "review helper writes artifacts outside worktree"
+assert_not_contains "$REVIEW_HELPER" 'artifact_dir="$repo_dir/tmp"' "review helper avoids repo tmp artifacts"
 
 for monitor_path in \
   "$ROLE_SKILLS/_monitor-pr" \
