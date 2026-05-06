@@ -23,22 +23,122 @@ script_file_candidates() {
     sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+([^[:space:]'\";|&()]+).*/\4/p"
 }
 
-scan_commands() {
-  local script_path
+direct_script_candidates() {
+  local expect_command=1
+  local skip_next=0
+  local raw
+  local token
+  local trailing_separator
+
+  read -r -a tokens <<< "$command"
+  for raw in "${tokens[@]}"; do
+    token="$raw"
+    trailing_separator=0
+
+    while [[ "$token" == [\;\&\|\(\)]* ]]; do
+      token="${token:1}"
+      expect_command=1
+    done
+    while [[ "$token" == *[\;\&\|\(\)] ]]; do
+      token="${token:0:${#token}-1}"
+      trailing_separator=1
+    done
+    token="${token#\"}"
+    token="${token%\"}"
+    token="${token#\'}"
+    token="${token%\'}"
+
+    if [[ -z "$token" ]]; then
+      if [[ "$trailing_separator" -eq 1 ]]; then
+        expect_command=1
+      fi
+      continue
+    fi
+
+    if [[ "$expect_command" -ne 1 ]]; then
+      if [[ "$trailing_separator" -eq 1 ]]; then
+        expect_command=1
+      fi
+      continue
+    fi
+
+    if [[ "$skip_next" -eq 1 ]]; then
+      skip_next=0
+      continue
+    fi
+
+    case "$token" in
+      if|then|elif|else|do|while|until|!)
+        expect_command=1
+        continue
+        ;;
+      env|command|sudo|time)
+        expect_command=1
+        continue
+        ;;
+      bash|sh|zsh)
+        expect_command=0
+        ;;
+      *=*)
+        expect_command=1
+        continue
+        ;;
+      -u|--unset|--user|-o)
+        skip_next=1
+        expect_command=1
+        continue
+        ;;
+      -*)
+        expect_command=1
+        continue
+        ;;
+      */*)
+        printf '%s\n' "$token"
+        expect_command=0
+        ;;
+      *)
+        expect_command=0
+        ;;
+    esac
+
+    if [[ "$trailing_separator" -eq 1 ]]; then
+      expect_command=1
+    fi
+  done
+}
+
+scan_script_path() {
+  local script_path="$1"
+  local require_executable="$2"
   local tilde_prefix
 
   tilde_prefix="$(printf '%s/' '~')"
+  if [[ "${script_path:0:2}" == "$tilde_prefix" ]]; then
+    script_path="${HOME}/${script_path:2}"
+  fi
+  if [[ -f "$script_path" && -r "$script_path" ]]; then
+    if [[ "$require_executable" == "yes" && ! -x "$script_path" ]]; then
+      return
+    fi
+    if ! LC_ALL=C grep -Iq . "$script_path"; then
+      return
+    fi
+    sed -n '1,2000p' "$script_path"
+  fi
+}
+
+scan_commands() {
+  local script_path
+
   printf '%s\n' "$command"
   printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+-[A-Za-z]*c[[:space:]]+['\"]([^'\"]+)['\"].*/\3/p"
   printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+--command(=|[[:space:]]+)['\"]([^'\"]+)['\"].*/\4/p"
   while IFS= read -r script_path; do
-    if [[ "${script_path:0:2}" == "$tilde_prefix" ]]; then
-      script_path="${HOME}/${script_path:2}"
-    fi
-    if [[ -f "$script_path" && -r "$script_path" ]]; then
-      sed -n '1,2000p' "$script_path"
-    fi
+    scan_script_path "$script_path" no
   done < <(script_file_candidates)
+  while IFS= read -r script_path; do
+    scan_script_path "$script_path" yes
+  done < <(direct_script_candidates)
 }
 
 command_matches() {

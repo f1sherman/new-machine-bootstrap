@@ -317,12 +317,18 @@
     - .local/share/skills/_pr-forgejo
     - .local/share/skills/_pr-github
     - .claude/skills/_pull-request
+    - .claude/skills/_approve-spec
+    - .claude/skills/_fix
+    - .claude/skills/_spec-to-pr
     - .claude/skills/_review
     - .claude/skills/_pr-forgejo
     - .claude/skills/_pr-github
     - .claude/skills/_forgejo-demo
     - .claude/skills/_github-demo
     - .codex/skills/_pull-request
+    - .codex/skills/_approve-spec
+    - .codex/skills/_fix
+    - .codex/skills/_spec-to-pr
     - .codex/skills/_review
     - .codex/skills/_pr-forgejo
     - .codex/skills/_pr-github

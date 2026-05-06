@@ -87,6 +87,10 @@ assert_contains "$RUNTIME_TASKS" "PR_WORKFLOW_RAW_PR_BLOCK_REASON" "runtime task
 assert_contains "$RUNTIME_TASKS" "pipx install uv" "runtime tasks install uvx proof runner when PR skills are enabled"
 assert_contains "$RUNTIME_TASKS" 'endswith(" " + $cmd_suffix)' "runtime tasks replace stale managed hook commands"
 assert_contains "$RUNTIME_TASKS" "Remove runtime PR creation skills when disabled" "runtime tasks remove disabled PR skills"
+assert_contains "$ROLE_TASKS" ".claude/skills/_fix" "current user removes PR-dependent Claude skills in commit-only mode"
+assert_contains "$ROLE_TASKS" ".codex/skills/_spec-to-pr" "current user removes PR-dependent Codex skills in commit-only mode"
+assert_contains "$RUNTIME_TASKS" ".claude/skills/_fix" "runtime homes remove PR-dependent Claude skills in commit-only mode"
+assert_contains "$RUNTIME_TASKS" ".codex/skills/_spec-to-pr" "runtime homes remove PR-dependent Codex skills in commit-only mode"
 
 for skill in _commit _pull-request _review _pr-forgejo _pr-github _forgejo-demo _github-demo; do
   assert_exists "$ROLE_SKILLS/$skill/SKILL.md" "agent_host skill exists: $skill"
