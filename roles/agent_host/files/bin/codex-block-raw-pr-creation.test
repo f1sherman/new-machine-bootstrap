@@ -103,8 +103,12 @@ run_block_case "blocks separated shell option gh pr create" "bash -e -c 'gh pr c
 scripted_gh_pr="$TMP_DIR/scripted-gh-pr.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'gh pr create --fill' > "$scripted_gh_pr"
 chmod +x "$scripted_gh_pr"
+noop_script="$TMP_DIR/noop.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo ok' > "$noop_script"
+chmod +x "$noop_script"
 run_block_case "blocks script-file gh pr create" "bash $scripted_gh_pr"
 run_block_case "blocks quoted script-file gh pr create" "bash \"$scripted_gh_pr\""
+run_block_case "blocks first script in compound command" "bash $scripted_gh_pr; bash $noop_script"
 run_block_case "blocks sourced script gh pr create" "source $scripted_gh_pr"
 run_block_case "blocks dot-sourced script gh pr create" ". $scripted_gh_pr"
 run_block_case "blocks direct executable gh pr create" "$scripted_gh_pr"
@@ -171,6 +175,7 @@ mkdir -p "$helper_home/.local/share/skills/_pr-github"
 printf '%s\n' '#!/usr/bin/env bash' 'gh pr create --repo example/project --base main --head branch --title test --body test' > "$helper_home/.local/share/skills/_pr-github/create.sh"
 chmod +x "$helper_home/.local/share/skills/_pr-github/create.sh"
 run_allow_case_with_home "allows workflow-marked GitHub helper with internal gh create" "$helper_home" 'PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-github/create.sh --title test'
+run_allow_case_with_home "allows wrapped workflow-marked GitHub helper with internal gh create" "$helper_home" 'cd "$REPO_DIR"; pr_output="$(PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-github/create.sh --title test)"'
 run_allow_case "allows unrelated commands" 'git status --short'
 run_empty_case "allows missing command" '{}'
 run_empty_case "allows empty command" '{"tool_input":{"command":""}}'

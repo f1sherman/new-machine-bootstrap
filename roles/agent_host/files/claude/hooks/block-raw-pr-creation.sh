@@ -15,35 +15,88 @@ emit_deny() {
 }
 
 script_file_candidates() {
-  printf '%s\n' "$command" |
+  printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+\"([^\"]+)\".*/\4/p"
-  printf '%s\n' "$command" |
+  printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+'([^']+)'.*/\4/p"
-  printf '%s\n' "$command" |
+  printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+([^[:space:]'\";|&()]+).*/\4/p"
-  printf '%s\n' "$command" |
+  printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[;&|()[:space:]])(source|[.])[[:space:]]+\"([^\"]+)\".*/\3/p"
-  printf '%s\n' "$command" |
+  printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[;&|()[:space:]])(source|[.])[[:space:]]+'([^']+)'.*/\3/p"
-  printf '%s\n' "$command" |
+  printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[;&|()[:space:]])(source|[.])[[:space:]]+([^[:space:]'\";|&()]+).*/\3/p"
+
+  local expect_script=0
+  local raw
+  local token
+  local trailing_separator
+  local -a tokens=()
+
+  read -r -a tokens <<< "${sanitized_command:-$command}"
+  for raw in "${tokens[@]}"; do
+    token="$raw"
+    trailing_separator=0
+
+    while [[ "$token" == [\;\&\|\(\)]* ]]; do
+      token="${token:1}"
+      expect_script=0
+    done
+    while [[ "$token" == *[\;\&\|\(\)] ]]; do
+      token="${token:0:${#token}-1}"
+      trailing_separator=1
+    done
+    token="${token#\"}"
+    token="${token%\"}"
+    token="${token#\'}"
+    token="${token%\'}"
+
+    if [[ -z "$token" ]]; then
+      continue
+    fi
+
+    if [[ "$expect_script" -eq 1 ]]; then
+      case "$token" in
+        --command*|-?*c*)
+          expect_script=0
+          ;;
+        -*)
+          ;;
+        *)
+          printf '%s\n' "$token"
+          expect_script=0
+          ;;
+      esac
+    else
+      case "$token" in
+        bash|sh|zsh|source|.)
+          expect_script=1
+          ;;
+      esac
+    fi
+
+    if [[ "$trailing_separator" -eq 1 ]]; then
+      expect_script=0
+    fi
+  done
 }
 
 input_file_candidates() {
-  printf '%s\n' "$command" |
+  printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[[:space:]])--input=\"([^\"]+)\".*/\2/p"
-  printf '%s\n' "$command" |
+  printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[[:space:]])--input='([^']+)'.*/\2/p"
-  printf '%s\n' "$command" |
+  printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[[:space:]])--input[=[:space:]]+([^[:space:]'\";|&()]+).*/\2/p"
 }
 
 field_file_candidates() {
-  printf '%s\n' "$command" |
+  printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[[:space:]])(-F|--field|-f|--raw-field)[=[:space:]]+[^=[:space:]]+=@\"([^\"]+)\".*/\3/p"
-  printf '%s\n' "$command" |
+  printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[[:space:]])(-F|--field|-f|--raw-field)[=[:space:]]+[^=[:space:]]+=@'([^']+)'.*/\3/p"
-  printf '%s\n' "$command" |
+  printf '%s\n' "${sanitized_command:-$command}" |
     sed -nE "s/.*(^|[[:space:]])(-F|--field|-f|--raw-field)[=[:space:]]+[^=[:space:]]+=@([^[:space:]'\";|&()]+).*/\3/p"
 }
 
@@ -54,7 +107,7 @@ direct_script_candidates() {
   local token
   local trailing_separator
 
-  read -r -a tokens <<< "$command"
+  read -r -a tokens <<< "${sanitized_command:-$command}"
   for raw in "${tokens[@]}"; do
     token="$raw"
     trailing_separator=0
@@ -154,10 +207,10 @@ scan_script_path() {
 scan_commands() {
   local script_path
 
-  printf '%s\n' "$command"
-  printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+['\"]([^'\"]+)['\"].*/\4/p"
-  printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+-[A-Za-z]*c[[:space:]]+['\"]([^'\"]+)['\"].*/\3/p"
-  printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+--command(=|[[:space:]]+)['\"]([^'\"]+)['\"].*/\4/p"
+  printf '%s\n' "${sanitized_command:-$command}"
+  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+['\"]([^'\"]+)['\"].*/\4/p"
+  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+-[A-Za-z]*c[[:space:]]+['\"]([^'\"]+)['\"].*/\3/p"
+  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+--command(=|[[:space:]]+)['\"]([^'\"]+)['\"].*/\4/p"
   while IFS= read -r script_path; do
     scan_script_path "$script_path" no
   done < <(script_file_candidates)
@@ -200,6 +253,7 @@ curl_command='([^[:space:]]*/)?curl'
 workflow_helper_pattern="${command_prefix}${shell_prefix}([^[:space:]'\";|&()]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]]|$)"
 workflow_allowed_helper_pattern="${command_prefix}PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}([^[:space:]'\";|&()]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]]|$)"
 workflow_allowed_helper_only_pattern="^[[:space:]]*PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}([^[:space:]'\";|&()]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]][^;&|()]*)*$"
+workflow_allowed_helper_invocation_pattern="PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}([^[:space:]'\";|&()]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]][^;&|()]*)*"
 curl_post_or_data_flag='(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:space:]]+POST|--json([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?[^[:space:]]+|-d([=[:space:]]|$)|-d[^[:space:]]+)'
 pulls_endpoint="(^|/)pulls([?[:space:]'\"]|$)"
 curl_graphql_endpoint="(https?://)?api[.]github[.]com/graphql([?[:space:]'\"]|$)"
@@ -208,6 +262,8 @@ curl_pulls_endpoint="(https?://)?(api[.]github[.]com/repos/[^[:space:]'\"?]+/[^[
 if [[ -z "$command" ]]; then
   exit 0
 fi
+
+sanitized_command="$(printf '%s\n' "$command" | sed -E "s@${workflow_allowed_helper_invocation_pattern}@@g")"
 
 if command_matches "${workflow_allowed_helper_only_pattern}"; then
   exit 0
