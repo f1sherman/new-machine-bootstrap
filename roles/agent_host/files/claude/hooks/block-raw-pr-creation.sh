@@ -507,11 +507,14 @@ matches() {
 }
 
 assignment="[A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|'[^']*'|[^[:space:]]+)"
+home_assignment="HOME=(\"[^\"]*\"|'[^']*'|[^[:space:]]+)"
 control='(if|then|elif|else|do|while|until|!)[[:space:]]+'
 env_wrapper="env([[:space:]]+--|[[:space:]]+(-i|--ignore-environment)|[[:space:]]+(-u|--unset)([=[:space:]]+)[^[:space:]]+|[[:space:]]+${assignment})*[[:space:]]+"
+env_home_wrapper="env([[:space:]]+--|[[:space:]]+(-i|--ignore-environment)|[[:space:]]+(-u|--unset)([=[:space:]]+)[^[:space:]]+|[[:space:]]+${assignment})*[[:space:]]+${home_assignment}([[:space:]]+--|[[:space:]]+(-i|--ignore-environment)|[[:space:]]+(-u|--unset)([=[:space:]]+)[^[:space:]]+|[[:space:]]+${assignment})*[[:space:]]+"
 sudo_wrapper='sudo([[:space:]]+--|[[:space:]]+(-E|-H|-n|-S|-b|-k|-K|-P|--non-interactive|--set-home|--preserve-groups|--preserve-env(=[^[:space:]]+)?)|[[:space:]]+(-u|--user|-g|--group|-h|--host|-C|--close-from)([=[:space:]]+)[^[:space:]]+)*[[:space:]]+'
 time_wrapper='time([[:space:]]+-[^[:space:]]+)*[[:space:]]+'
 command_wrapper='command([[:space:]]+(--|-p))*[[:space:]]+'
+command_start_prefix="(^|[;&|()])[[:space:]]*((${control})|(${command_wrapper})|(${time_wrapper})|(${sudo_wrapper}))*"
 command_prefix="(^|[;&|()])[[:space:]]*((${control})|(${assignment}[[:space:]]+)|(${env_wrapper})|(${command_wrapper})|(${time_wrapper})|(${sudo_wrapper}))*"
 gh_global_flags='([[:space:]]+(-R|--repo|--hostname)([=[:space:]]+)[^[:space:]]+|[[:space:]]+-R[^[:space:]]+)*'
 gh_pr_flags='([[:space:]]+(-R|--repo)([=[:space:]]+)[^[:space:]]+|[[:space:]]+-R[^[:space:]]+)*'
@@ -525,6 +528,7 @@ workflow_helper_pattern="${command_prefix}${shell_prefix}${workflow_helper_path}
 workflow_allowed_helper_pattern="${command_prefix}PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}${workflow_helper_path}([[:space:]]|$)"
 workflow_allowed_helper_only_pattern="^[[:space:]]*PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}${workflow_helper_path}([[:space:]][^;&|()]*)*$"
 workflow_allowed_helper_invocation_pattern="PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1[[:space:]]+${shell_prefix}${workflow_helper_path}([[:space:]][^;&|()]*)*"
+home_override_command_pattern="${command_start_prefix}((${assignment}[[:space:]]+)*${home_assignment}[[:space:]]+|${env_home_wrapper})"
 curl_post_or_data_flag='(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:space:]]+POST|--json([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?[^[:space:]]+|-d([=[:space:]]|$)|-d[^[:space:]]+)'
 gh_field_or_input_flag='(^|[[:space:]])((-f|-F|--field|--raw-field|--input)([=[:space:]]|$)|-[fF][^[:space:]]+)'
 pulls_endpoint="(^|/)pulls([?[:space:]'\"]|$)"
@@ -543,6 +547,12 @@ if command_matches "${workflow_allowed_helper_invocation_pattern}" \
 fi
 
 if command_matches "${workflow_allowed_helper_pattern}" && command_matches '`'; then
+  emit_deny
+  exit 0
+fi
+
+if command_matches "${home_override_command_pattern}" \
+  && command_matches "${workflow_allowed_helper_invocation_pattern}"; then
   emit_deny
   exit 0
 fi
