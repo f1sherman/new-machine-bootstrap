@@ -10,7 +10,7 @@ forgejo_url_from_origin() {
       host="$(printf '%s\n' "$remote_url" | sed -E 's#^[a-z]+://([^/@]+@)?([^/:]+)(:[0-9]+)?/.*#\2\3#')"
       ;;
     ssh://*)
-      host="$(printf '%s\n' "$remote_url" | sed -E 's#^ssh://([^/@]+@)?([^/:]+)(:[0-9]+)?/.*#\2\3#')"
+      host="$(printf '%s\n' "$remote_url" | sed -E 's#^ssh://([^/@]+@)?([^/:]+)(:[0-9]+)?/.*#\2#')"
       ;;
     *@*:*)
       host="$(printf '%s\n' "$remote_url" | sed -E 's#^[^@]+@([^:]+):.*#\1#')"

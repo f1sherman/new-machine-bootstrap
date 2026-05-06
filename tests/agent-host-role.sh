@@ -230,6 +230,8 @@ assert_contains "$ROLE_SKILLS/_github-demo/SKILL.md" "uvx rodney" "GitHub demo u
 assert_not_contains "$ROLE_SKILLS/_github-demo/SKILL.md" "gsd-browser" "GitHub demo avoids unprovisioned gsd-browser"
 assert_contains "$ROLE_SKILLS/_pull-request/SKILL.md" "remote PR head SHA matches local" "_pull-request requires remote head check"
 assert_contains "$ROLE_SKILLS/_pull-request/SKILL.md" "remote PR statuses for the pushed head" "_pull-request requires status check"
+assert_contains "$ROLE_SKILLS/_pull-request/SKILL.md" 'BASE_REF="$(echo "$CONTEXT_JSON" | jq -r '"'"'.base_ref'"'"')"' "_pull-request extracts resolved base ref"
+assert_contains "$ROLE_SKILLS/_pull-request/SKILL.md" "resolved \`REPO_DIR\` and \`BASE_REF\`" "_pull-request reviews against resolved base ref"
 assert_contains "$ROLE_SKILLS/_pr-github/create.sh" "cannot reuse existing PR; push failed" "GitHub PR helper fails stale reuse after push failure"
 assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "cannot reuse existing PR; push failed" "Forgejo PR helper fails stale reuse after push failure"
 assert_contains "$ROLE_SKILLS/_pr-github/create.sh" "gh pr edit" "GitHub PR helper refreshes reused PR metadata"
@@ -241,6 +243,30 @@ assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "forgejo_url_from_origin" "
 assert_contains "$ROLE_SKILLS/_pr-forgejo/state.sh" "forgejo_url_from_origin" "Forgejo state helper derives URL from origin"
 assert_contains "$ROLE_SKILLS/_pr-forgejo/post-demo.sh" "forgejo_url_from_origin" "Forgejo demo helper derives URL from origin"
 assert_contains "$ROLE_SKILLS/_pr-forgejo/upload-attachment.sh" "forgejo_url_from_origin" "Forgejo upload helper derives URL from origin"
+assert_forgejo_helper_strips_ssh_port() {
+  local helper="$1" name="$2"
+  local tmp repo output
+
+  tmp="$(mktemp -d)"
+  repo="$tmp/repo"
+  git -c init.templateDir= init -q "$repo"
+  git -C "$repo" remote add origin ssh://git@forgejo.example:2222/owner/repo.git
+  sed -n '/^forgejo_url_from_origin()/,/^}/p' "$helper" > "$tmp/url-function.sh"
+  printf '\nforgejo_url_from_origin\n' >> "$tmp/url-function.sh"
+
+  output="$(cd "$repo" && bash "$tmp/url-function.sh" 2>&1)" || true
+  rm -rf "$tmp"
+
+  if [ "$output" = "https://forgejo.example" ]; then
+    pass_case "$name"
+  else
+    fail_case "$name" "unexpected URL: $output"
+  fi
+}
+assert_forgejo_helper_strips_ssh_port "$ROLE_SKILLS/_pr-forgejo/create.sh" "Forgejo create helper strips SSH port"
+assert_forgejo_helper_strips_ssh_port "$ROLE_SKILLS/_pr-forgejo/state.sh" "Forgejo state helper strips SSH port"
+assert_forgejo_helper_strips_ssh_port "$ROLE_SKILLS/_pr-forgejo/post-demo.sh" "Forgejo demo helper strips SSH port"
+assert_forgejo_helper_strips_ssh_port "$ROLE_SKILLS/_pr-forgejo/upload-attachment.sh" "Forgejo upload helper strips SSH port"
 assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "arg repo_path" "Forgejo PR helper filters reused PRs by head repo"
 assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" ".head.repo.full_name" "Forgejo PR helper checks head repo identity"
 assert_contains "$ROLE_SKILLS/_pr-github/state.sh" ".head.repo.full_name == \$repo" "GitHub state helper filters candidate PRs by head repo"
