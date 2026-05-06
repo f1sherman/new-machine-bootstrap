@@ -83,6 +83,19 @@ assert_toml_value_equals_yaml() {
   fi
 }
 
+assert_yaml_equals() {
+  local path="$1" query="$2" expected="$3" name="$4"
+  local value
+
+  value="$(yq -r "$query" "$path" 2>/dev/null || true)"
+
+  if [[ "$value" == "$expected" ]]; then
+    pass_case "$name"
+  else
+    fail_case "$name" "expected $query in $path to be '$expected', got '${value:-<empty>}'"
+  fi
+}
+
 run_catalog_checks() {
   assert_contains "$PLAYBOOK" "vars_files:" "playbook loads shared vars files"
   assert_contains "$PLAYBOOK" "- vars/tool_versions.yml" "playbook loads vars/tool_versions.yml"
@@ -136,8 +149,10 @@ run_install_checks() {
   assert_contains "$MACOS_MAIN" "macos_node_install_healthy" "macOS Node install gates on a structural-integrity fact"
   assert_contains "$MACOS_MAIN" "mise_bin }} install --force node" "macOS Node install force-reinstalls when the install is damaged"
   assert_contains "$MACOS_INSTALLS" "Check installed mise version (macOS)" "macOS install_packages reads the installed mise version"
+  assert_yaml_equals "$MACOS_INSTALLS" '.[] | select(.name == "Check installed mise version (macOS)") | .check_mode' "false" "macOS mise pre-upgrade version check runs in check mode"
   assert_contains "$MACOS_INSTALLS" "Upgrade mise if older than catalog pin (macOS)" "macOS install_packages upgrades mise when older than the catalog pin"
   assert_contains "$MACOS_INSTALLS" "tool_versions.runtimes.mise | regex_replace('^v', '')" "macOS install_packages compares mise against the catalog pin"
+  assert_yaml_equals "$MACOS_INSTALLS" '.[] | select(.name == "Re-read mise version after upgrade (macOS)") | .check_mode' "false" "macOS mise post-upgrade version check runs in check mode"
   assert_contains "$MACOS_INSTALLS" "Fail if installed mise is still older than catalog pin (macOS)" "macOS install_packages fails loudly if mise stays older than pin"
   assert_not_contains "$LINUX_INSTALLS" "version: master" "linux install tasks no longer use master"
   assert_not_contains "$LINUX_MAIN" "version: master" "linux main tasks no longer use master"
