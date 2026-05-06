@@ -23,6 +23,15 @@ script_file_candidates() {
     sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+([^[:space:]'\";|&()]+).*/\4/p"
 }
 
+input_file_candidates() {
+  printf '%s\n' "$command" |
+    sed -nE "s/.*(^|[[:space:]])--input=\"([^\"]+)\".*/\2/p"
+  printf '%s\n' "$command" |
+    sed -nE "s/.*(^|[[:space:]])--input='([^']+)'.*/\2/p"
+  printf '%s\n' "$command" |
+    sed -nE "s/.*(^|[[:space:]])--input[=[:space:]]+([^[:space:]'\";|&()]+).*/\2/p"
+}
+
 direct_script_candidates() {
   local expect_command=1
   local skip_next=0
@@ -131,11 +140,15 @@ scan_commands() {
   local script_path
 
   printf '%s\n' "$command"
+  printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+['\"]([^'\"]+)['\"].*/\4/p"
   printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+-[A-Za-z]*c[[:space:]]+['\"]([^'\"]+)['\"].*/\3/p"
   printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+--command(=|[[:space:]]+)['\"]([^'\"]+)['\"].*/\4/p"
   while IFS= read -r script_path; do
     scan_script_path "$script_path" no
   done < <(script_file_candidates)
+  while IFS= read -r script_path; do
+    scan_script_path "$script_path" no
+  done < <(input_file_candidates)
   while IFS= read -r script_path; do
     scan_script_path "$script_path" yes
   done < <(direct_script_candidates)

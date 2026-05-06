@@ -85,7 +85,8 @@ if ! git push -u origin "$head"; then
 fi
 
 repo="$(gh repo view --json nameWithOwner --jq '.nameWithOwner')"
-existing_prs="$(gh pr list --repo "$repo" --head "$head" --base "$base" --state open --json number,url)"
+existing_prs="$(gh pr list --repo "$repo" --head "$head" --base "$base" --state open --json number,url,headRepository)"
+existing_prs="$(jq --arg repo "$repo" '[.[] | select(.headRepository.nameWithOwner == $repo)]' <<<"$existing_prs")"
 existing_number="$(jq -r '.[0].number // empty' <<<"$existing_prs")"
 existing_url="$(jq -r '.[0].url // empty' <<<"$existing_prs")"
 if [[ -n "$existing_number" && -n "$existing_url" ]]; then

@@ -98,6 +98,8 @@ run_block_case "blocks pr-level repo-scoped gh pr create" 'gh pr --repo example/
 run_block_case "blocks pr-level attached repo-scoped gh pr create" 'gh pr -Rexample/project create --fill'
 run_block_case "blocks conditional gh pr create" 'if gh pr create --fill; then echo ok; fi'
 run_block_case "blocks shell-wrapped gh pr create" "bash -lc 'gh pr create --fill'"
+run_block_case "blocks separated login shell gh pr create" "bash -l -c 'gh pr create --fill'"
+run_block_case "blocks separated shell option gh pr create" "bash -e -c 'gh pr create --fill'"
 scripted_gh_pr="$TMP_DIR/scripted-gh-pr.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'gh pr create --fill' > "$scripted_gh_pr"
 chmod +x "$scripted_gh_pr"
@@ -114,6 +116,9 @@ run_block_case "blocks implicit POST gh api pull create" 'gh api repos/example/p
 run_block_case "blocks gh api input pull create" 'gh api repos/example/project/pulls --input payload.json'
 run_block_case "blocks quoted gh api pull create" "gh api 'repos/example/project/pulls' -f title=test -f head=branch -f base=main"
 run_block_case "blocks GraphQL createPullRequest" "gh api graphql -f query='mutation { createPullRequest(input:{repositoryId:\"R\",baseRefName:\"main\",headRefName:\"b\",title:\"t\"}) { pullRequest { url } } }'"
+graphql_create_payload="$TMP_DIR/graphql-create-pr.json"
+printf '%s\n' '{"query":"mutation { createPullRequest(input:{repositoryId:\"R\",baseRefName:\"main\",headRefName:\"b\",title:\"t\"}) { pullRequest { url } } }"}' > "$graphql_create_payload"
+run_block_case "blocks GraphQL input createPullRequest" "gh api graphql --method POST --input $graphql_create_payload"
 run_block_case "blocks curl GraphQL createPullRequest" 'curl -X POST https://api.github.com/graphql -d query=createPullRequest'
 run_block_case "blocks Forgejo curl pull create" 'curl -fsSL -X POST https://forgejo.brianjohn.com/api/v1/repos/example/project/pulls'
 scripted_curl_pr="$TMP_DIR/scripted-curl-pr.sh"
@@ -146,6 +151,9 @@ run_allow_case "allows gh api nested PR comment POST" 'gh api --method POST repo
 run_allow_case "allows curl nested PR comment POST" 'curl -X POST https://api.github.com/repos/example/project/pulls/123/comments'
 run_allow_case "allows local app pulls POST" 'curl -X POST http://localhost:3000/pulls -d name=x'
 run_allow_case "allows local GraphQL createPullRequest test" 'curl -X POST http://localhost:3000/graphql -d query=createPullRequest'
+graphql_query_payload="$TMP_DIR/graphql-query.json"
+printf '%s\n' '{"query":"query { viewer { login } }"}' > "$graphql_query_payload"
+run_allow_case "allows GraphQL input without createPullRequest" "gh api graphql --method POST --input $graphql_query_payload"
 run_allow_case "allows reading executable script contents" "cat $scripted_gh_pr"
 # shellcheck disable=SC2016
 run_block_case "blocks helper handoff without workflow marker" 'pr_output="$(bash ~/.local/share/skills/_pr-forgejo/create.sh --base "$BASE" --head "$BRANCH" --title "$PR_TITLE" --body "$PR_BODY")"'

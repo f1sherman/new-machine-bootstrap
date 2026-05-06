@@ -1484,7 +1484,7 @@
     dest: '{{ ansible_facts["user_dir"] }}/.local/share/skills/'
     mode: preserve
     directory_mode: '0755'
-  when: not (agent_host_enabled | default(false) | bool)
+  when: not (agent_host_enabled | default(false) | bool) or not (agent_host_install_user_home | default(true) | bool)
 
 - name: Install common skills to ~/.claude/skills
   copy:
@@ -1492,7 +1492,7 @@
     dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/'
     mode: preserve
     directory_mode: '0755'
-  when: not (agent_host_enabled | default(false) | bool)
+  when: not (agent_host_enabled | default(false) | bool) or not (agent_host_install_user_home | default(true) | bool)
 
 - name: Resolve common skill excludes for agent hosts
   set_fact:
@@ -1513,7 +1513,9 @@
           else []
         )
       }}
-  when: agent_host_enabled | default(false) | bool
+  when:
+    - agent_host_enabled | default(false) | bool
+    - agent_host_install_user_home | default(true) | bool
 
 - name: Find non-monitor common skills for agent hosts
   find:
@@ -1521,7 +1523,9 @@
     file_type: directory
     excludes: "{{ common_agent_host_skill_excludes }}"
   register: common_agent_host_skill_dirs
-  when: agent_host_enabled | default(false) | bool
+  when:
+    - agent_host_enabled | default(false) | bool
+    - agent_host_install_user_home | default(true) | bool
 
 - name: Install non-monitor common skills to ~/.claude/skills for agent hosts
   copy:
@@ -1530,7 +1534,9 @@
     mode: preserve
     directory_mode: '0755'
   loop: "{{ common_agent_host_skill_dirs.files | default([]) | sort(attribute='path') }}"
-  when: agent_host_enabled | default(false) | bool
+  when:
+    - agent_host_enabled | default(false) | bool
+    - agent_host_install_user_home | default(true) | bool
 
 - name: Install Claude-specific skills to ~/.claude/skills
   copy:
@@ -1551,7 +1557,7 @@
     dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/'
     mode: preserve
     directory_mode: '0755'
-  when: not (agent_host_enabled | default(false) | bool)
+  when: not (agent_host_enabled | default(false) | bool) or not (agent_host_install_user_home | default(true) | bool)
 
 - name: Install non-monitor common skills to ~/.codex/skills for agent hosts
   copy:
@@ -1560,7 +1566,9 @@
     mode: preserve
     directory_mode: '0755'
   loop: "{{ common_agent_host_skill_dirs.files | default([]) | sort(attribute='path') }}"
-  when: agent_host_enabled | default(false) | bool
+  when:
+    - agent_host_enabled | default(false) | bool
+    - agent_host_install_user_home | default(true) | bool
 
 - name: Install Codex-specific skills to ~/.codex/skills
   copy:
