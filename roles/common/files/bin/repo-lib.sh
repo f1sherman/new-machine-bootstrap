@@ -258,7 +258,10 @@ _repo_config_path() {
 _repo_read_mode() {
   local repo_root="$1" value
   [[ -f "$(_repo_config_path "$repo_root")" ]] || return 1
-  value="$($(_worktree_cmd yq) -r '.use_worktrees // ""' "$(_repo_config_path "$repo_root")")"
+  if ! value="$("$(_worktree_cmd yq)" -r '.use_worktrees // ""' "$(_repo_config_path "$repo_root")")"; then
+    printf 'Error: failed to read .repo.yml\n' >&2
+    return 2
+  fi
   case "$value" in
     true)
       printf 'worktree\n'

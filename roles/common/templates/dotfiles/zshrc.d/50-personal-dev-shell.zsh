@@ -92,9 +92,19 @@ _worktree_has_help_flag() {
   return 1
 }
 
+_repo_start_passthrough_flag() {
+  local arg
+  for arg in "$@"; do
+    if [[ "$arg" == "-h" || "$arg" == "--help" || "$arg" == "--json" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 repo-start() {
   local path
-  if _worktree_has_help_flag "$@"; then
+  if _repo_start_passthrough_flag "$@"; then
     "$HOME/.local/bin/repo-start" "$@"
     return $?
   fi

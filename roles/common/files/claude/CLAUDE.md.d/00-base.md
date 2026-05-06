@@ -4,7 +4,7 @@ User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min toke
 * Bias toward action. Only ask user when you can't do it yourself.
 * Spec approval and plan execution: the written spec is the only approval gate; once approved, proceed without another implementation approval prompt and always choose subagent execution automatically.
 * Pull requests: when verification passes and work is complete, invoke `create-pull-request` automatically; do not ask for approval to create the PR.
-* Worktrees: create using `worktree-start`. Created other way: run `tmux-agent-worktree set <absolute-path>`. When done: `tmux-agent-worktree clear`.
+* Branch/worktree lifecycle: start with `repo-start <branch>`. Created other way: run `tmux-agent-worktree set <absolute-path>`. When done: run `repo-end`; cleanup only: `cleanup-branches --branch <branch>`.
 * Comments: use sparingly. Explain why, not what.
 * Scripts/snippets: write scripts in ruby; snippets in bash unless otherwise instructed.
 * JSON/YAML parsing: use `jq` or `yq`, never use python or ruby.
