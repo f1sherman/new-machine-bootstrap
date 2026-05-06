@@ -81,7 +81,7 @@ Dir.mktmpdir do |tmp|
 
   FileUtils.rm_f(log)
   stdout, stderr, status = run_hnp(base_env.merge("HNP_HOSTNAME" => "dev"), "resume", "abc123")
-  expected = "tmux #{quote_args(["new-session", "-A", "-s", "hnp", "-c", repo, "codex --dangerously-bypass-approvals-and-sandbox resume abc123"])}"
+  expected = "tmux #{quote_args(["new-session", "-A", "-s", "hnp", "-c", repo, "env -u OPENAI_API_KEY codex --dangerously-bypass-approvals-and-sandbox resume abc123"])}"
   actual = File.readlines(log, chomp: true).last
   failures += 1 unless status.success? && stdout.empty? && stderr.empty?
   failures += 1 unless assert_equal("dev host outside tmux launches hnp Codex inside tmux", expected, actual)
@@ -94,8 +94,15 @@ Dir.mktmpdir do |tmp|
   failures += 1 unless assert_equal("dev host inside tmux runs Codex directly", expected, actual)
 
   FileUtils.rm_f(log)
+  stdout, stderr, status = run_hnp(base_env.merge("HNP_HOSTNAME" => "claw02", "SSH_CONNECTION" => "192.0.2.1 1 192.0.2.2 2"), "resume", "abc123")
+  expected = "tmux #{quote_args(["new-session", "-A", "-s", "hnp", "-c", repo, "env -u OPENAI_API_KEY codex --dangerously-bypass-approvals-and-sandbox resume abc123"])}"
+  actual = File.readlines(log, chomp: true).last
+  failures += 1 unless status.success? && stdout.empty? && stderr.empty?
+  failures += 1 unless assert_equal("remote ssh invocation with dev alias uses local tmux", expected, actual)
+
+  FileUtils.rm_f(log)
   stdout, stderr, status = run_hnp(base_env.merge("HNP_HOSTNAME" => "mac"), "resume", "abc123")
-  expected = "ssh #{quote_args(["-t", "dev", "hnp resume abc123"])}"
+  expected = "ssh #{quote_args(["-t", "dev", "HNP_REMOTE=1 hnp resume abc123"])}"
   actual = File.readlines(log, chomp: true).last
   failures += 1 unless status.success? && stdout.empty? && stderr.empty?
   failures += 1 unless assert_equal("non-dev host routes to dev hnp command", expected, actual)
