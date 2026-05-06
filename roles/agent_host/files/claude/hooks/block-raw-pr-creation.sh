@@ -535,6 +535,12 @@ if [[ -z "$command" ]]; then
   exit 0
 fi
 
+if command_matches "${workflow_allowed_helper_invocation_pattern}" \
+  && [[ "${PR_WORKFLOW_ALLOW_RAW_PR_HELPERS:-}" != "1" ]]; then
+  emit_deny
+  exit 0
+fi
+
 if command_matches "${workflow_allowed_helper_pattern}" && command_matches '`'; then
   emit_deny
   exit 0
