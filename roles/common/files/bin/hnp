@@ -1,0 +1,46 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "shellwords"
+require "socket"
+
+DEV_HOST = ENV.fetch("HNP_DEV_HOST", "dev")
+TMUX_SESSION = ENV.fetch("HNP_TMUX_SESSION", "hnp")
+SSH_CHECK_OPTIONS = [
+  "-o", "BatchMode=yes",
+  "-o", "ConnectTimeout=2",
+  "-o", "ConnectionAttempts=1"
+].freeze
+
+def short_host(host)
+  host.split(".").first
+end
+
+def current_host
+  host = ENV["HNP_HOSTNAME"].to_s
+  host = Socket.gethostname if host.empty?
+  short_host(host)
+end
+
+def dev_ssh_available?
+  system("ssh", *SSH_CHECK_OPTIONS, DEV_HOST, "true", out: File::NULL, err: File::NULL)
+end
+
+def inside_tmux?
+  !ENV["TMUX"].to_s.empty?
+end
+
+host = current_host
+if host != short_host(DEV_HOST) && dev_ssh_available?
+  exec("ssh", "-t", DEV_HOST, ["hnp", *ARGV].shelljoin)
+end
+
+repo_path = File.join(ENV.fetch("HOME"), "projects", "home-network-provisioning")
+codex_command = ["codex", "--dangerously-bypass-approvals-and-sandbox", *ARGV]
+
+if host == short_host(DEV_HOST) && !inside_tmux?
+  exec("tmux", "new-session", "-A", "-s", TMUX_SESSION, "-c", repo_path, codex_command.shelljoin)
+end
+
+Dir.chdir(repo_path)
+exec(*codex_command)
