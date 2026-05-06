@@ -148,6 +148,7 @@ run_block_case "blocks pr-level repo-scoped gh pr create" 'gh pr --repo example/
 run_block_case "blocks pr-level attached repo-scoped gh pr create" 'gh pr -Rexample/project create --fill'
 run_block_case "blocks conditional gh pr create" 'if gh pr create --fill; then echo ok; fi'
 run_block_case "blocks shell-wrapped gh pr create" "bash -lc 'gh pr create --fill'"
+run_block_case "blocks escaped unquoted shell-wrapped gh pr create" 'bash -c gh\ pr\ create\ --fill'
 run_block_case "blocks path-qualified shell-wrapped gh pr create" "/bin/bash -lc 'gh pr create --fill'"
 run_block_case "blocks separated login shell gh pr create" "bash -l -c 'gh pr create --fill'"
 run_block_case "blocks separated shell option gh pr create" "bash -e -c 'gh pr create --fill'"
@@ -224,6 +225,7 @@ run_block_case "blocks curl data-raw pull create" "curl --data-raw '{\"title\":\
 run_block_case "blocks curl attached short data pull create" "curl -d'{\"title\":\"x\"}' https://api.github.com/repos/example/project/pulls"
 run_block_case "blocks curl data-ascii pull create" "curl --data-ascii '{\"title\":\"x\"}' https://api.github.com/repos/example/project/pulls"
 run_block_case "blocks eval-wrapped gh pr create" 'eval "gh pr create --fill"'
+run_block_case "blocks unquoted eval-wrapped gh pr create" 'eval gh pr create --fill'
 scripted_eval_pr="$TMP_DIR/scripted-eval-pr.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'eval "gh pr create --fill"' > "$scripted_eval_pr"
 chmod +x "$scripted_eval_pr"

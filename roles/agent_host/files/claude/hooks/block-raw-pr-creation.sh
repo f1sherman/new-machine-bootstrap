@@ -34,6 +34,10 @@ normalize_shell_command_text() {
       -e 's/(^|[;&|()[:space:]])"([^"[:space:];&|()]+)"([[:space:];&|()]|$)/\1\2\3/g'
 }
 
+unescape_shell_word_text() {
+  sed -E 's/\\([[:space:];&|()])/\1/g'
+}
+
 resolve_path_token() {
   local path="$1"
   local base="${2:-$PWD}"
@@ -469,8 +473,11 @@ scan_commands() {
 
   printf '%s\n' "${sanitized_command:-$command}"
   printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+['\"]([^'\"]+)['\"].*/\5/p"
+  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)([[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+([^'\";&|()]+).*/\5/p" | unescape_shell_word_text
   printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)[[:space:]]+-[A-Za-z]*c[[:space:]]+['\"]([^'\"]+)['\"].*/\4/p"
+  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)[[:space:]]+-[A-Za-z]*c[[:space:]]+([^'\";&|()]+).*/\4/p" | unescape_shell_word_text
   printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)([[:space:]]+(-o|--option)[[:space:]]+[^[:space:]]+|[[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+['\"]([^'\"]+)['\"].*/\6/p"
+  printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)([[:space:]]+(-o|--option)[[:space:]]+[^[:space:]]+|[[:space:]]+-[^[:space:]]+)*[[:space:]]+-c[[:space:]]+([^'\";&|()]+).*/\6/p" | unescape_shell_word_text
   printf '%s\n' "${sanitized_command:-$command}" | sed -nE "s/.*(^|[;&|()[:space:]])([^[:space:];&|()]*\/)?(bash|sh|zsh)[[:space:]]+--command(=|[[:space:]]+)['\"]([^'\"]+)['\"].*/\5/p"
   while IFS= read -r script_path; do
     scan_script_path "$script_path" no
@@ -512,7 +519,9 @@ matches() {
 eval_payload_candidates() {
   sed -nE \
     -e 's/.*(^|[;&|()[:space:]])eval[[:space:]]+"([^"]+)".*/\2/p' \
-    -e "s/.*(^|[;&|()[:space:]])eval[[:space:]]+'([^']+)'.*/\2/p"
+    -e "s/.*(^|[;&|()[:space:]])eval[[:space:]]+'([^']+)'.*/\2/p" \
+    -e 's/.*(^|[;&|()[:space:]])eval[[:space:]]+([^;&|()]+).*/\2/p' |
+    unescape_shell_word_text
 }
 
 assignment="[A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|'[^']*'|[^[:space:]]+)"
