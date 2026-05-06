@@ -88,7 +88,7 @@ run_block_case "blocks implicit POST gh api pull create" 'gh api repos/example/p
 run_block_case "blocks quoted gh api pull create" "gh api 'repos/example/project/pulls' -f title=test -f head=branch -f base=main"
 run_block_case "blocks GraphQL createPullRequest" "gh api graphql -f query='mutation { createPullRequest(input:{repositoryId:\"R\",baseRefName:\"main\",headRefName:\"b\",title:\"t\"}) { pullRequest { url } } }'"
 run_block_case "blocks curl GraphQL createPullRequest" 'curl -X POST https://api.github.com/graphql -d query=createPullRequest'
-run_block_case "blocks Forgejo curl pull create" 'curl -fsSL -X POST https://forgejo.example/api/v1/repos/example/project/pulls'
+run_block_case "blocks Forgejo curl pull create" 'curl -fsSL -X POST https://forgejo.brianjohn.com/api/v1/repos/example/project/pulls'
 run_block_case "blocks path-qualified curl pull create" '/usr/bin/curl -X POST https://api.github.com/repos/example/project/pulls'
 run_block_case "blocks GitHub curl pull create" 'curl --request POST https://api.github.com/repos/example/project/pulls'
 run_block_case "blocks quoted curl pull create" "curl -X POST 'https://api.github.com/repos/example/project/pulls'"
@@ -106,6 +106,8 @@ run_allow_case "allows curl pull read" 'curl -fsSL https://forgejo.example/api/v
 run_allow_case "allows curl GET query with encoded fields" 'curl -G --data-urlencode state=open https://api.github.com/repos/example/project/pulls'
 run_allow_case "allows gh api nested PR comment POST" 'gh api --method POST repos/example/project/pulls/123/comments/456/replies -f body=ok'
 run_allow_case "allows curl nested PR comment POST" 'curl -X POST https://api.github.com/repos/example/project/pulls/123/comments'
+run_allow_case "allows local app pulls POST" 'curl -X POST http://localhost:3000/pulls -d name=x'
+run_allow_case "allows local GraphQL createPullRequest test" 'curl -X POST http://localhost:3000/graphql -d query=createPullRequest'
 # shellcheck disable=SC2016
 run_allow_case "allows current workflow helper handoff" 'pr_output="$(bash ~/.local/share/skills/_pr-forgejo/create.sh --base "$BASE" --head "$BRANCH" --title "$PR_TITLE" --body "$PR_BODY")"'
 run_allow_case "allows workflow-marked helper invocation" 'PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-forgejo/create.sh --title test'

@@ -49,6 +49,8 @@ gh_command='([^[:space:]]*/)?gh'
 curl_command='([^[:space:]]*/)?curl'
 curl_post_or_data_flag='(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:space:]]+POST|--json([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?([=[:space:]]|$)|--data(-raw|-binary|-urlencode|-ascii)?[^[:space:]]+|-d([=[:space:]]|$)|-d[^[:space:]]+)'
 pulls_endpoint="(^|/)pulls([?[:space:]'\"]|$)"
+curl_graphql_endpoint="(https?://)?api[.]github[.]com/graphql([?[:space:]'\"]|$)"
+curl_pulls_endpoint="(https?://)?(api[.]github[.]com/repos/[^[:space:]'\"?]+/[^[:space:]'\"?]+/pulls|forgejo[.]brianjohn[.]com/api/v1/repos/[^[:space:]'\"?]+/[^[:space:]'\"?]+/pulls)([?[:space:]'\"]|$)"
 
 if [[ -z "$command" ]]; then
   exit 0
@@ -76,7 +78,7 @@ if matches "${command_prefix}${gh_command}${gh_global_flags}[[:space:]]+api([[:s
 fi
 
 if matches "${command_prefix}${curl_command}([[:space:]]|$)" \
-  && matches '(^|/)graphql([?[:space:]]|$)' \
+  && matches "${curl_graphql_endpoint}" \
   && matches 'createPullRequest' \
   && ! matches '(^|[[:space:]])(-X[[:space:]]*GET|-XGET|--request[=[:space:]]+GET|-G|--get)([[:space:]]|$)'; then
   emit_deny
@@ -86,7 +88,7 @@ fi
 if matches "${command_prefix}${curl_command}([[:space:]]|$)" \
   && matches "${curl_post_or_data_flag}" \
   && ! matches '(^|[[:space:]])(-X[[:space:]]*GET|-XGET|--request[=[:space:]]+GET|-G|--get)([[:space:]]|$)' \
-  && matches "${pulls_endpoint}"; then
+  && matches "${curl_pulls_endpoint}"; then
   emit_deny
   exit 0
 fi
