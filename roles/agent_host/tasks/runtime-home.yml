@@ -120,6 +120,44 @@
   changed_when: runtime_block_raw_pr_creation_hook_result.stdout.strip() == 'changed'
   become: yes
 
+- name: Allow runtime Claude PR workflow helpers
+  shell: |
+    set -euo pipefail
+
+    settings_file="${SETTINGS_FILE:?}"
+    entries='[
+      "Bash(PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-forgejo/create.sh *)",
+      "Bash(PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-github/create.sh *)"
+    ]'
+
+    if [ ! -s "$settings_file" ]; then
+      echo '{}' > "$settings_file"
+    fi
+
+    tmp_file="$(mktemp)"
+    jq --argjson entries "$entries" '
+      .permissions //= {} |
+      .permissions.allow = (((.permissions.allow // []) + $entries) | unique)
+    ' "$settings_file" > "$tmp_file"
+
+    if cmp -s "$settings_file" "$tmp_file"; then
+      rm "$tmp_file"
+      echo "unchanged"
+      exit 0
+    fi
+
+    mv "$tmp_file" "$settings_file"
+    chmod 600 "$settings_file"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  environment:
+    SETTINGS_FILE: '{{ agent_host_runtime_home.home }}/.claude/settings.json'
+  register: runtime_claude_pr_workflow_permissions_result
+  changed_when: runtime_claude_pr_workflow_permissions_result.stdout.strip() == 'changed'
+  become: yes
+  when: agent_host_runtime_install_pr_creation_skills_resolved | bool
+
 - name: Inspect runtime Claude settings file
   stat:
     path: "{{ agent_host_runtime_home.home }}/.claude/settings.json"
