@@ -18,7 +18,7 @@ repo_dir="$(jq -r '.repo_dir' <<<"$context_json")"
 branch="$(jq -r '.branch' <<<"$context_json")"
 base="$(jq -r '.base' <<<"$context_json")"
 safe_branch="${branch//\//-}"
-artifact_path="$(mktemp "/tmp/review-${safe_branch}.XXXXXX.txt")"
+artifact_path="$(mktemp "/tmp/review-${safe_branch}.XXXXXX")"
 
 review_exit_status=0
 (

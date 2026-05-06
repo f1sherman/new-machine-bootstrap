@@ -127,7 +127,8 @@ for helper in \
   assert_exists "$ROLE_SKILLS/$helper" "agent_host helper exists: $helper"
 done
 
-assert_contains "$REVIEW_HELPER" 'mktemp "/tmp/review-${safe_branch}.XXXXXX.txt"' "review helper writes artifacts outside worktree"
+assert_contains "$REVIEW_HELPER" 'mktemp "/tmp/review-${safe_branch}.XXXXXX"' "review helper writes artifacts outside worktree"
+assert_not_contains "$REVIEW_HELPER" 'XXXXXX.txt' "review helper uses BSD-compatible mktemp template"
 assert_not_contains "$REVIEW_HELPER" 'artifact_dir="$repo_dir/tmp"' "review helper avoids repo tmp artifacts"
 
 for monitor_path in \
