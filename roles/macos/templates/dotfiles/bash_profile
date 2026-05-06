@@ -179,53 +179,41 @@ _worktree_cmd() {
   printf '%s\n' "$cmd"
 }
 
-_worktree_sync_tmux_state() {
+worktree_sync_tmux_state() {
   if command -v tmux-agent-worktree >/dev/null 2>&1; then
     tmux-agent-worktree sync-current >/dev/null 2>&1 || true
   fi
 }
 
-_worktree_has_help_flag() {
-  local arg
-  for arg in "$@"; do
-    if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
-      return 0
-    fi
-  done
-  return 1
-}
-
-_repo_start_passthrough_flag() {
-  local arg
-  for arg in "$@"; do
-    if [[ "$arg" == "-h" || "$arg" == "--help" || "$arg" == "--json" ]]; then
-      return 0
-    fi
-  done
-  return 1
-}
-
 repo-start() {
-  local path
-  if _repo_start_passthrough_flag "$@"; then
-    "$HOME/.local/bin/repo-start" "$@"
-    return $?
-  fi
-  path="$("$HOME/.local/bin/repo-start" "$@" --print-path)" || return $?
-  cd "$path" || return $?
-  printf '%s\n' "$path"
+  local target arg
+  for arg in "$@"; do
+    case "$arg" in
+      -h|--help|--json)
+        "$HOME/.local/bin/repo-start" "$@"
+        return $?
+        ;;
+    esac
+  done
+  target="$("$HOME/.local/bin/repo-start" "$@" --print-path)" || return $?
+  cd "$target" || return $?
+  printf '%s\n' "$target"
 }
 
 repo-end() {
-  local path
-  if _worktree_has_help_flag "$@"; then
-    "$HOME/.local/bin/repo-end" "$@"
-    return $?
-  fi
-  path="$("$HOME/.local/bin/repo-end" "$@" --print-path)" || return $?
-  cd "$path" || return $?
-  _worktree_sync_tmux_state
-  printf '%s\n' "$path"
+  local target arg
+  for arg in "$@"; do
+    case "$arg" in
+      -h|--help)
+        "$HOME/.local/bin/repo-end" "$@"
+        return $?
+        ;;
+    esac
+  done
+  target="$("$HOME/.local/bin/repo-end" "$@" --print-path)" || return $?
+  cd "$target" || return $?
+  worktree_sync_tmux_state
+  printf '%s\n' "$target"
 }
 
 rs() {
@@ -254,7 +242,7 @@ EOF
       git checkout "$value"
       ;;
     cd)
-      cd "$value" && _worktree_sync_tmux_state
+      cd "$value" && worktree_sync_tmux_state
       ;;
     *)
       echo "Error: unknown git-switch-branch action: $action" >&2
