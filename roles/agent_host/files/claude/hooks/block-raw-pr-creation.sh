@@ -503,7 +503,16 @@ matches() {
   local scanned
 
   scanned="$(scan_commands)"
-  printf '%s\n' "$scanned" | grep -Eq -- "$pattern"
+  {
+    printf '%s\n' "$scanned"
+    printf '%s\n' "$scanned" | eval_payload_candidates
+  } | grep -Eq -- "$pattern"
+}
+
+eval_payload_candidates() {
+  sed -nE \
+    -e 's/.*(^|[;&|()[:space:]])eval[[:space:]]+"([^"]+)".*/\2/p' \
+    -e "s/.*(^|[;&|()[:space:]])eval[[:space:]]+'([^']+)'.*/\2/p"
 }
 
 assignment="[A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|'[^']*'|[^[:space:]]+)"

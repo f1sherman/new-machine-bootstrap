@@ -29,9 +29,35 @@ write_pr_cache() {
 #
 # Environment:
 #   FORGEJO_TOKEN  - API token (default: read from ~/.config/home-network/forgejo-token)
-#   FORGEJO_URL    - Base URL (default: https://forgejo.brianjohn.com)
+#   FORGEJO_URL    - Base URL (default: origin host, fallback: https://forgejo.brianjohn.com)
 
-FORGEJO_URL="${FORGEJO_URL:-https://forgejo.brianjohn.com}"
+forgejo_url_from_origin() {
+  local remote_url host
+
+  remote_url="$(git remote get-url origin 2>/dev/null || true)"
+  case "$remote_url" in
+    http://*|https://*)
+      host="$(printf '%s\n' "$remote_url" | sed -E 's#^[a-z]+://([^/@]+@)?([^/:]+)(:[0-9]+)?/.*#\2\3#')"
+      ;;
+    ssh://*)
+      host="$(printf '%s\n' "$remote_url" | sed -E 's#^ssh://([^/@]+@)?([^/:]+)(:[0-9]+)?/.*#\2\3#')"
+      ;;
+    *@*:*)
+      host="$(printf '%s\n' "$remote_url" | sed -E 's#^[^@]+@([^:]+):.*#\1#')"
+      ;;
+    *)
+      host=""
+      ;;
+  esac
+
+  if [[ -n "$host" && "$host" != "$remote_url" ]]; then
+    printf 'https://%s\n' "$host"
+  else
+    printf 'https://forgejo.brianjohn.com\n'
+  fi
+}
+
+FORGEJO_URL="${FORGEJO_URL:-$(forgejo_url_from_origin)}"
 TOKEN_FILE="${HOME}/.config/home-network/forgejo-token"
 
 resolve_base() {

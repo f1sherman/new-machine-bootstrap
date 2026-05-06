@@ -223,6 +223,11 @@ run_block_case "blocks quoted curl pull create" "curl -X POST 'https://api.githu
 run_block_case "blocks curl data-raw pull create" "curl --data-raw '{\"title\":\"x\"}' https://api.github.com/repos/example/project/pulls"
 run_block_case "blocks curl attached short data pull create" "curl -d'{\"title\":\"x\"}' https://api.github.com/repos/example/project/pulls"
 run_block_case "blocks curl data-ascii pull create" "curl --data-ascii '{\"title\":\"x\"}' https://api.github.com/repos/example/project/pulls"
+run_block_case "blocks eval-wrapped gh pr create" 'eval "gh pr create --fill"'
+scripted_eval_pr="$TMP_DIR/scripted-eval-pr.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'eval "gh pr create --fill"' > "$scripted_eval_pr"
+chmod +x "$scripted_eval_pr"
+run_block_case "blocks script-file eval gh pr create" "bash $scripted_eval_pr"
 run_block_case "blocks direct Forgejo helper" 'bash ~/.local/share/skills/_pr-forgejo/create.sh --title test --body test'
 run_block_case "blocks path-qualified shell Forgejo helper" '/bin/bash ~/.local/share/skills/_pr-forgejo/create.sh --title test --body test'
 run_block_case "blocks direct GitHub helper" 'bash ~/.local/share/skills/_pr-github/create.sh --title test --body test'

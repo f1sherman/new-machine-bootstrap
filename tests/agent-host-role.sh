@@ -225,6 +225,10 @@ assert_contains "$ROLE_SKILLS/_pr-github/create.sh" "headRepository.nameWithOwne
 assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "PATCH" "Forgejo PR helper refreshes reused PR metadata"
 assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "cannot list existing Forgejo PRs" "Forgejo PR helper fails on untrusted list responses"
 assert_not_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" '2>/dev/null || echo "[]"' "Forgejo PR helper does not mask list failures"
+assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "forgejo_url_from_origin" "Forgejo create helper derives URL from origin"
+assert_contains "$ROLE_SKILLS/_pr-forgejo/state.sh" "forgejo_url_from_origin" "Forgejo state helper derives URL from origin"
+assert_contains "$ROLE_SKILLS/_pr-forgejo/post-demo.sh" "forgejo_url_from_origin" "Forgejo demo helper derives URL from origin"
+assert_contains "$ROLE_SKILLS/_pr-forgejo/upload-attachment.sh" "forgejo_url_from_origin" "Forgejo upload helper derives URL from origin"
 assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "arg repo_path" "Forgejo PR helper filters reused PRs by head repo"
 assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" ".head.repo.full_name" "Forgejo PR helper checks head repo identity"
 assert_contains "$ROLE_SKILLS/_pr-github/state.sh" ".head.repo.full_name == \$repo" "GitHub state helper filters candidate PRs by head repo"
@@ -256,19 +260,19 @@ run_forgejo_state_owner_name_fallback_case() {
 set -euo pipefail
 url="\${*: -1}"
 case "\$url" in
-  *pulls*page=1*)
+  https://forgejo.example/api/v1/repos/owner/repo/pulls*page=1*)
     cat <<JSON
 [{"number":12,"state":"open","merged":false,"mergeable":true,"html_url":"https://forgejo.example/owner/repo/pulls/12","head":{"ref":"feature","sha":"$sha","repo":{"owner":{"username":"owner"},"name":"repo"}},"base":{"ref":"main"}}]
 JSON
     ;;
-  *pulls*) printf '[]\n' ;;
-  *status*) printf '{"state":"success"}\n' ;;
+  https://forgejo.example/api/v1/repos/owner/repo/pulls*) printf '[]\n' ;;
+  https://forgejo.example/api/v1/repos/owner/repo/commits/*/status) printf '{"state":"success"}\n' ;;
   *) exit 1 ;;
 esac
 EOF
   chmod +x "$tmp/bin/curl"
 
-  output="$(cd "$repo" && PATH="$tmp/bin:$PATH" FORGEJO_TOKEN=t FORGEJO_URL=https://forgejo.example bash "$ROLE_SKILLS/_pr-forgejo/state.sh" --head-branch feature)"
+  output="$(cd "$repo" && PATH="$tmp/bin:$PATH" FORGEJO_TOKEN=t bash "$ROLE_SKILLS/_pr-forgejo/state.sh" --head-branch feature)"
   rm -rf "$tmp"
 
   if printf '%s\n' "$output" | jq -e --arg sha "$sha" '.monitor_state == "pending" and .pr_number == 12 and .head_sha == $sha' >/dev/null; then
