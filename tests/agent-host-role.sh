@@ -228,12 +228,57 @@ assert_not_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" '2>/dev/null || echo "[
 assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "arg repo_path" "Forgejo PR helper filters reused PRs by head repo"
 assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" ".head.repo.full_name" "Forgejo PR helper checks head repo identity"
 assert_contains "$ROLE_SKILLS/_pr-github/state.sh" ".head.repo.full_name == \$repo" "GitHub state helper filters candidate PRs by head repo"
-assert_contains "$ROLE_SKILLS/_pr-forgejo/state.sh" ".head.repo.full_name == \$repo_path" "Forgejo state helper filters candidate PRs by head repo"
+assert_contains "$ROLE_SKILLS/_pr-forgejo/state.sh" "head_repo_full_name == \$repo_path" "Forgejo state helper filters candidate PRs by head repo"
 assert_contains "$ROLE_SKILLS/_pr-github/state.sh" "statusCheckRollup" "GitHub state helper uses supported PR status rollup"
 assert_not_contains "$ROLE_SKILLS/_pr-github/state.sh" "gh pr checks" "GitHub state helper avoids unsupported gh checks JSON flag"
 assert_contains "$ROLE_TASKS" "not ansible_check_mode or agent_host_codex_hooks_stat.stat.exists" "current-user Codex hook ownership is check-mode safe"
 assert_contains "$RUNTIME_TASKS" "not ansible_check_mode or runtime_claude_settings_stat.stat.exists" "runtime Claude hook ownership is check-mode safe"
 assert_contains "$RUNTIME_TASKS" "not ansible_check_mode or runtime_codex_hooks_stat.stat.exists" "runtime Codex hook ownership is check-mode safe"
+
+run_forgejo_state_owner_name_fallback_case() {
+  local tmp repo sha output
+
+  tmp="$(mktemp -d)"
+  repo="$tmp/repo"
+  git -c init.templateDir= init -q "$repo"
+  git -C "$repo" config user.email test@example.invalid
+  git -C "$repo" config user.name Test
+  printf 'x\n' > "$repo/f"
+  git -C "$repo" add f
+  git -C "$repo" commit -q -m init
+  git -C "$repo" branch -M feature
+  git -C "$repo" remote add origin git@forgejo.example:owner/repo.git
+  sha="$(git -C "$repo" rev-parse HEAD)"
+
+  mkdir -p "$tmp/bin"
+  cat > "$tmp/bin/curl" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+url="\${*: -1}"
+case "\$url" in
+  *pulls*page=1*)
+    cat <<JSON
+[{"number":12,"state":"open","merged":false,"mergeable":true,"html_url":"https://forgejo.example/owner/repo/pulls/12","head":{"ref":"feature","sha":"$sha","repo":{"owner":{"username":"owner"},"name":"repo"}},"base":{"ref":"main"}}]
+JSON
+    ;;
+  *pulls*) printf '[]\n' ;;
+  *status*) printf '{"state":"success"}\n' ;;
+  *) exit 1 ;;
+esac
+EOF
+  chmod +x "$tmp/bin/curl"
+
+  output="$(cd "$repo" && PATH="$tmp/bin:$PATH" FORGEJO_TOKEN=t FORGEJO_URL=https://forgejo.example bash "$ROLE_SKILLS/_pr-forgejo/state.sh" --head-branch feature)"
+  rm -rf "$tmp"
+
+  if printf '%s\n' "$output" | jq -e --arg sha "$sha" '.monitor_state == "pending" and .pr_number == 12 and .head_sha == $sha' >/dev/null; then
+    pass_case "Forgejo state helper matches owner/name repo fallback"
+  else
+    fail_case "Forgejo state helper matches owner/name repo fallback" "unexpected output: $output"
+  fi
+}
+
+run_forgejo_state_owner_name_fallback_case
 
 if [ -x "$ROLE_DIR/files/bin/codex-block-raw-pr-creation.test" ]; then
   bash "$ROLE_DIR/files/bin/codex-block-raw-pr-creation.test"
