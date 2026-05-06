@@ -143,6 +143,17 @@
     - { name: tmux-pipe-pane-rotate, mode: '0755' }
     - { name: tmux-restore-handler-claude_session_id, mode: '0755' }
 
+- name: Remove legacy public worktree helpers
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.local/bin/{{ item }}'
+    state: absent
+  loop:
+    - worktree-lib.sh
+    - worktree-start
+    - worktree-delete
+    - worktree-merge
+    - worktree-done
+
 - name: Install pick-files script
   copy:
     backup: yes
