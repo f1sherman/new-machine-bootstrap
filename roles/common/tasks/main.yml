@@ -1499,6 +1499,7 @@
     common_agent_host_skill_excludes: >-
       {{
         [
+          '_commit',
           '_monitor-pr',
           '_monitor-forgejo-pr',
           '_monitor-github-pr'

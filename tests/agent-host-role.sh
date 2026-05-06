@@ -72,6 +72,7 @@ assert_contains "$COMMON_TASKS" "or not (agent_host_install_user_home | default(
 assert_contains "$COMMON_TASKS" "Install non-monitor common skills" "common keeps non-monitor skills on agent hosts"
 assert_contains "$COMMON_TASKS" "agent_host_install_user_home | default(true) | bool" "agent-host common overrides require user-home install"
 assert_contains "$COMMON_TASKS" "common_agent_host_skill_excludes" "common builds agent-host skill exclude list"
+assert_contains "$COMMON_TASKS" "'_commit'" "common excludes legacy commit helper for agent hosts"
 assert_contains "$COMMON_TASKS" "agent_host_install_pr_creation_skills | default(true)" "common skill excludes honor PR workflow disable"
 assert_contains "$COMMON_TASKS" "_spec-to-pr" "common excludes PR-dependent skills in commit-only mode"
 assert_task_when_contains "$COMMON_TASKS" "Install Claude-specific skills to ~/.claude/skills" "not (agent_host_enabled | default(false) | bool)" "Claude-specific skills skip agent-host-owned user homes"
@@ -103,6 +104,33 @@ assert_contains "$ROLE_TASKS" "agent_host_runtime_homes_resolved" "role loops ov
 assert_contains "$ROLE_TASKS" "runtime-home.yml" "role includes runtime home tasks"
 assert_contains "$ROLE_TASKS" "agent_host_role_root" "role supports external include root"
 assert_contains "$ROLE_SKILLS/_pr-workflow-common/context.sh" "gh-merge-base" "context honors GitHub branch merge-base config"
+assert_contains "$ROLE_SKILLS/_pr-workflow-common/context.sh" "base_ref" "context exposes a local base ref"
+
+context_tmp="$(mktemp -d)"
+context_origin="$context_tmp/origin.git"
+context_repo="$context_tmp/repo"
+git init -q --bare "$context_origin"
+git clone -q "$context_origin" "$context_repo"
+git -C "$context_repo" config user.email test@example.invalid
+git -C "$context_repo" config user.name Test
+printf 'base\n' > "$context_repo/file.txt"
+git -C "$context_repo" add file.txt
+git -C "$context_repo" commit -q -m base
+git -C "$context_repo" branch -M main
+git -C "$context_repo" push -q -u origin main
+git -C "$context_repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+git -C "$context_repo" remote set-url origin git@github.com:example/project.git
+git -C "$context_repo" checkout -q -b feature
+printf 'feature\n' > "$context_repo/file.txt"
+git -C "$context_repo" commit -qam feature
+git -C "$context_repo" branch -D main >/dev/null
+if context_json="$(bash "$ROLE_SKILLS/_pr-workflow-common/context.sh" "$context_repo" 2>&1)" \
+  && jq -e '.base == "main" and .base_ref == "origin/main" and (.changed_files | index("file.txt"))' <<<"$context_json" >/dev/null; then
+    pass_case "context resolves remote default branch without local base"
+else
+  fail_case "context resolves remote default branch without local base" "$context_json"
+fi
+rm -rf "$context_tmp"
 assert_contains "$ROLE_TASKS" ".claude/skills/_monitor-pr" "role removes common Claude monitor skill"
 assert_contains "$ROLE_TASKS" ".codex/skills/_monitor-pr" "role removes common Codex monitor skill"
 assert_contains "$ROLE_TASKS" ".local/share/skills/_pr-monitor" "role removes common monitor helper"
