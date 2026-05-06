@@ -54,8 +54,8 @@ require_contains roles/common/files/share/skills/_pr-workflow-common/agent-workt
 require_not_contains roles/common/files/share/skills/_pr-workflow-common/agent-worktree-path.sh 'not a linked git worktree' 'PR workflow stops requiring linked worktrees'
 require_contains roles/common/tasks/main.yml 'block-initiation-skill-on-main.sh' \
   'main.yml registers initiation-skill PostToolUse hook'
-require_contains roles/common/tasks/main.yml 'PostToolUse' \
-  'main.yml mentions PostToolUse event'
+require_contains roles/common/tasks/main.yml 'Register PostToolUse Skill hook for initiation-skill' \
+  'main.yml registers initiation-skill PostToolUse task by canonical name'
 require_contains roles/common/files/claude/hooks/block-initiation-skill-on-main.sh 'repo-start' \
   'initiation-skill hook names repo-start'
 
