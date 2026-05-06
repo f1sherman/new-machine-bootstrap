@@ -1494,20 +1494,27 @@
     directory_mode: '0755'
   when: not (agent_host_enabled | default(false) | bool)
 
+- name: Install non-monitor common skills to ~/.claude/skills for agent hosts
+  copy:
+    src: '{{ item }}/'
+    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/{{ item | basename }}/'
+    mode: preserve
+    directory_mode: '0755'
+  loop: "{{ query('fileglob', playbook_dir ~ '/roles/common/files/config/skills/common/*') | reject('search', '/_monitor-(pr|forgejo-pr|github-pr)$') | list }}"
+  when: agent_host_enabled | default(false) | bool
+
 - name: Install Claude-specific skills to ~/.claude/skills
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/claude/'
     dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/'
     mode: preserve
     directory_mode: '0755'
-  when: not (agent_host_enabled | default(false) | bool)
 
 - name: Install shared commit helper to ~/.claude/skills
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/common/_commit/commit.sh'
     dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/_commit/commit.sh'
     mode: '0755'
-  when: not (agent_host_enabled | default(false) | bool)
 
 - name: Install common skills to ~/.codex/skills
   copy:
@@ -1517,20 +1524,27 @@
     directory_mode: '0755'
   when: not (agent_host_enabled | default(false) | bool)
 
+- name: Install non-monitor common skills to ~/.codex/skills for agent hosts
+  copy:
+    src: '{{ item }}/'
+    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/{{ item | basename }}/'
+    mode: preserve
+    directory_mode: '0755'
+  loop: "{{ query('fileglob', playbook_dir ~ '/roles/common/files/config/skills/common/*') | reject('search', '/_monitor-(pr|forgejo-pr|github-pr)$') | list }}"
+  when: agent_host_enabled | default(false) | bool
+
 - name: Install Codex-specific skills to ~/.codex/skills
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/codex/'
     dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/'
     mode: preserve
     directory_mode: '0755'
-  when: not (agent_host_enabled | default(false) | bool)
 
 - name: Install shared commit helper to ~/.codex/skills
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/common/_commit/commit.sh'
     dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/_commit/commit.sh'
     mode: '0755'
-  when: not (agent_host_enabled | default(false) | bool)
 
 - name: Remove legacy custom skill and agent installs
   file:

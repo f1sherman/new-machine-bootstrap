@@ -54,6 +54,7 @@ assert_contains "$ROLE_DEFAULTS" "agent_host_install_pr_creation_skills: true" "
 assert_contains "$PLAYBOOK" "role: agent_host" "playbook exposes agent_host role"
 assert_contains "$PLAYBOOK" "agent_host_enabled | default(false) | bool" "playbook keeps agent_host opt-in"
 assert_contains "$COMMON_TASKS" "not (agent_host_enabled | default(false) | bool)" "common skill installs skip agent hosts"
+assert_contains "$COMMON_TASKS" "Install non-monitor common skills" "common keeps non-monitor skills on agent hosts"
 
 assert_contains "$ROLE_TASKS" "Install agent host hook dependencies" "role installs hook dependencies"
 assert_contains "$ROLE_TASKS" "pipx install uv" "role installs uvx proof runner on Debian"

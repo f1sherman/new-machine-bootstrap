@@ -87,6 +87,7 @@ run_block_case "blocks time option-wrapped gh pr create" 'time -p gh pr create -
 run_block_case "blocks gh api pull create" 'gh api -X POST repos/example/project/pulls -f title=test'
 run_block_case "blocks host-scoped gh api pull create" 'gh --hostname forgejo.brianjohn.com api repos/example/project/pulls -f title=test -f head=branch -f base=main'
 run_block_case "blocks implicit POST gh api pull create" 'gh api repos/example/project/pulls -f title=test -f head=branch -f base=main'
+run_block_case "blocks gh api input pull create" 'gh api repos/example/project/pulls --input payload.json'
 run_block_case "blocks quoted gh api pull create" "gh api 'repos/example/project/pulls' -f title=test -f head=branch -f base=main"
 run_block_case "blocks GraphQL createPullRequest" "gh api graphql -f query='mutation { createPullRequest(input:{repositoryId:\"R\",baseRefName:\"main\",headRefName:\"b\",title:\"t\"}) { pullRequest { url } } }'"
 run_block_case "blocks curl GraphQL createPullRequest" 'curl -X POST https://api.github.com/graphql -d query=createPullRequest'
@@ -111,7 +112,7 @@ run_allow_case "allows curl nested PR comment POST" 'curl -X POST https://api.gi
 run_allow_case "allows local app pulls POST" 'curl -X POST http://localhost:3000/pulls -d name=x'
 run_allow_case "allows local GraphQL createPullRequest test" 'curl -X POST http://localhost:3000/graphql -d query=createPullRequest'
 # shellcheck disable=SC2016
-run_allow_case "allows current workflow helper handoff" 'pr_output="$(bash ~/.local/share/skills/_pr-forgejo/create.sh --base "$BASE" --head "$BRANCH" --title "$PR_TITLE" --body "$PR_BODY")"'
+run_block_case "blocks helper handoff without workflow marker" 'pr_output="$(bash ~/.local/share/skills/_pr-forgejo/create.sh --base "$BASE" --head "$BRANCH" --title "$PR_TITLE" --body "$PR_BODY")"'
 run_allow_case "allows workflow-marked helper invocation" 'PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-forgejo/create.sh --title test'
 run_allow_case "allows unrelated commands" 'git status --short'
 run_empty_case "allows missing command" '{}'

@@ -66,7 +66,7 @@ if matches "${command_prefix}${gh_command}${gh_global_flags}[[:space:]]+api([[:s
   && matches "${pulls_endpoint}" \
   && ! matches '(^|[[:space:]])(-X[[:space:]]*GET|-XGET|--method[=[:space:]]+GET)([[:space:]]|$)' \
   && { matches '(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--method[=[:space:]]+POST)([[:space:]]|$)' \
-    || matches '(^|[[:space:]])(-f|-F|--field|--raw-field)([=[:space:]]|$)'; }; then
+    || matches '(^|[[:space:]])(-f|-F|--field|--raw-field|--input)([=[:space:]]|$)'; }; then
   emit_deny
   exit 0
 fi
@@ -95,7 +95,7 @@ if matches "${command_prefix}${curl_command}([[:space:]]|$)" \
 fi
 
 if matches "${command_prefix}${shell_prefix}([^[:space:]]*/)?(create-pull-request|forgejo-pr|pr-forgejo|pr-github|_pr-forgejo|_pr-github)/(create|create-draft-pr)\.sh([[:space:]]|$)"; then
-  if ! has_pr_workflow_allow && ! has_pr_workflow_helper_args; then
+  if ! has_pr_workflow_allow; then
     emit_deny
   fi
   exit 0
