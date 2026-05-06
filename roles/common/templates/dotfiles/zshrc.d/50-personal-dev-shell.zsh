@@ -92,80 +92,36 @@ _worktree_has_help_flag() {
   return 1
 }
 
-worktree-create() {
+repo-start() {
   local path
   if _worktree_has_help_flag "$@"; then
-    "$HOME/.local/bin/worktree-start" "$@"
+    "$HOME/.local/bin/repo-start" "$@"
     return $?
   fi
-  path="$("$HOME/.local/bin/worktree-start" "$@" --print-path)" || return $?
+  path="$("$HOME/.local/bin/repo-start" "$@" --print-path)" || return $?
   cd "$path" || return $?
   _worktree_sync_tmux_state
   printf '%s\n' "$path"
 }
 
-worktree-cd() {
+repo-end() {
   local path
   if _worktree_has_help_flag "$@"; then
-    "$HOME/.local/bin/worktree-start" "$@"
+    "$HOME/.local/bin/repo-end" "$@"
     return $?
   fi
-  path="$("$HOME/.local/bin/worktree-start" "$@" --print-path)" || return $?
+  path="$("$HOME/.local/bin/repo-end" "$@" --print-path)" || return $?
   cd "$path" || return $?
   _worktree_sync_tmux_state
   printf '%s\n' "$path"
 }
 
-worktree-merge() {
-  local path
-  if _worktree_has_help_flag "$@"; then
-    "$HOME/.local/bin/worktree-merge" "$@"
-    return $?
-  fi
-  path="$("$HOME/.local/bin/worktree-merge" "$@" --print-path)" || return $?
-  cd "$path" || return $?
-  _worktree_sync_tmux_state
-  printf '%s\n' "$path"
+rs() {
+  repo-start "$@"
 }
 
-worktree-delete() {
-  local path
-  if _worktree_has_help_flag "$@"; then
-    "$HOME/.local/bin/worktree-delete" "$@"
-    return $?
-  fi
-  path="$("$HOME/.local/bin/worktree-delete" "$@" --print-path)" || return $?
-  cd "$path" || return $?
-  _worktree_sync_tmux_state
-  printf '%s\n' "$path"
-}
-
-worktree-done() {
-  local path
-  if _worktree_has_help_flag "$@"; then
-    "$HOME/.local/bin/worktree-done" "$@"
-    return $?
-  fi
-  path="$("$HOME/.local/bin/worktree-done" "$@" --print-path)" || return $?
-  cd "$path" || return $?
-  _worktree_sync_tmux_state
-  printf '%s\n' "$path"
-}
-
-wts() {
-  local path
-  if _worktree_has_help_flag "$@"; then
-    "$HOME/.local/bin/worktree-start" "$@"
-    return $?
-  fi
-  path="$("$HOME/.local/bin/worktree-start" "$@" --print-path)" || return $?
-  cd "$path" || return $?
-  _worktree_sync_tmux_state
-  printf '%s\n' "$path"
-}
-
-wtd() {
-  worktree-done "$@"
+re() {
+  repo-end "$@"
 }
 
 2markdown() {

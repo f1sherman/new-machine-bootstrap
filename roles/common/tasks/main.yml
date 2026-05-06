@@ -127,11 +127,10 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/{{ item.name }}'
     mode: '{{ item.mode }}'
   loop:
-    - { name: worktree-lib.sh, mode: '0644' }
-    - { name: worktree-start, mode: '0755' }
-    - { name: worktree-delete, mode: '0755' }
-    - { name: worktree-merge, mode: '0755' }
-    - { name: worktree-done, mode: '0755' }
+    - { name: repo-lib.sh, mode: '0644' }
+    - { name: repo-start, mode: '0755' }
+    - { name: repo-end, mode: '0755' }
+    - { name: cleanup-branches, mode: '0755' }
     - { name: codex-block-worktree-commands, mode: '0755' }
     - { name: codex-block-git-push-main, mode: '0755' }
     - { name: codex-block-main-branch-edits, mode: '0755' }

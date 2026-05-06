@@ -145,7 +145,7 @@ Dir.mktmpdir do |tmproot|
     {"timestamp":"#{iso_offset.call(-7000)}","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"PR #77 opened."}]}}
     {"timestamp":"#{iso_offset.call(-6900)}","type":"function_call","payload":{"name":"shell","arguments":"{\\"command\\":\\"gh pr merge 77 --squash\\"}"}}
     {"timestamp":"#{iso_offset.call(-6800)}","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"PR #77 merged."}]}}
-    {"timestamp":"#{iso_offset.call(-6700)}","type":"function_call","payload":{"name":"shell","arguments":"{\\"command\\":\\"worktree-done\\"}"}}
+    {"timestamp":"#{iso_offset.call(-6700)}","type":"function_call","payload":{"name":"shell","arguments":"{\\"command\\":\\"repo-end\\"}"}}
     {"timestamp":"#{iso_offset.call(-6600)}","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Cleanup complete."}]}}
   JSONL
   touch_offset.call(codex_done, -7200)
@@ -296,7 +296,7 @@ Dir.mktmpdir do |tmproot|
             git_commit: "deadbeef",
             user_messages: ["finish the PR workflow"],
             assistant_messages: ["PR #77 opened.", "PR #77 merged.", "Cleanup complete."],
-            shell_commands: ["gh pr create --fill", "gh pr merge 77 --squash", "worktree-done"],
+            shell_commands: ["gh pr create --fill", "gh pr merge 77 --squash", "repo-end"],
             file_operations: []
           )}
           JSON

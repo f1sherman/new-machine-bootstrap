@@ -25,12 +25,10 @@ extract_wrappers() {
   local template="$1" dest="$2"
   : > "$dest"
   extract_function "$template" _worktree_has_help_flag "$dest"
-  extract_function "$template" worktree-create "$dest"
-  extract_function "$template" worktree-cd "$dest"
-  extract_function "$template" wts "$dest"
-  extract_function "$template" worktree-merge "$dest"
-  extract_function "$template" worktree-delete "$dest"
-  extract_function "$template" worktree-done "$dest"
+  extract_function "$template" repo-start "$dest"
+  extract_function "$template" repo-end "$dest"
+  extract_function "$template" rs "$dest"
+  extract_function "$template" re "$dest"
 }
 
 assert_function_absent() {
@@ -52,8 +50,8 @@ for arg in "\$@"; do
     exit 0
   fi
 done
-/bin/mkdir -p "\$WORKTREE_PATH"
-printf '%s\n' "\$WORKTREE_PATH"
+/bin/mkdir -p "\$REPO_PATH"
+printf '%s\n' "\$REPO_PATH"
 EOF
   chmod +x "$path"
 }
@@ -63,23 +61,27 @@ run_case() {
   local case_root="$TMPROOT/$label"
   local home_dir="$case_root/home"
   local helper_dir="$home_dir/.local/bin"
-  local worktree_path="$case_root/created-worktree"
+  local repo_path="$case_root/selected-repo"
   local wrapper_file="$case_root/wrapper.snippet"
   local run_file="$case_root/run.${label}"
 
   mkdir -p "$helper_dir" "$case_root"
-  assert_function_absent "$template" worktree-start "$label"
+  assert_function_absent "$template" worktree-create "$label"
+  assert_function_absent "$template" worktree-cd "$label"
+  assert_function_absent "$template" worktree-merge "$label"
+  assert_function_absent "$template" worktree-delete "$label"
+  assert_function_absent "$template" worktree-done "$label"
+  assert_function_absent "$template" wts "$label"
+  assert_function_absent "$template" wtd "$label"
   extract_wrappers "$template" "$wrapper_file"
-  write_simple_helper "$helper_dir/worktree-start" "Usage: worktree-start <branch> [path]"
-  write_simple_helper "$helper_dir/worktree-merge" "Usage: worktree-merge [--print-path]"
-  write_simple_helper "$helper_dir/worktree-delete" "Usage: worktree-delete [--print-path]"
-  write_simple_helper "$helper_dir/worktree-done" "Usage: worktree-done [--print-path]"
+  write_simple_helper "$helper_dir/repo-start" "Usage: repo-start <branch> [path]"
+  write_simple_helper "$helper_dir/repo-end" "Usage: repo-end [--print-path]"
 
   cat > "$run_file" <<EOF
 set -eu
-WORKTREE_PATH="$worktree_path"
+REPO_PATH="$repo_path"
 HOME="$home_dir"
-export WORKTREE_PATH
+export REPO_PATH
 cd "$case_root"
 . "$wrapper_file"
 check_wrapper() {
@@ -110,12 +112,10 @@ check_wrapper() {
   printf 'cwd=%s\n' "\$PWD" >> "\$stdout_file"
 }
 
-check_wrapper worktree-create worktree-start
-check_wrapper worktree-cd worktree-start
-check_wrapper wts worktree-start
-check_wrapper worktree-merge worktree-merge
-check_wrapper worktree-delete worktree-delete
-check_wrapper worktree-done worktree-done
+check_wrapper repo-start repo-start
+check_wrapper rs repo-start
+check_wrapper repo-end repo-end
+check_wrapper re repo-end
 EOF
 
   if ! HOME="$home_dir" "$shell_bin" -f "$run_file"; then
@@ -125,6 +125,7 @@ EOF
   assert_wrapper() {
     local wrapper_name="$1"
     local helper_name="$2"
+    local usage_suffix="$3"
     local helper_log="$case_root/${wrapper_name}-helper.log"
     local help_sync_log="$case_root/${wrapper_name}-help-sync.log"
     local sync_log="$case_root/${wrapper_name}-sync.log"
@@ -132,22 +133,20 @@ EOF
     local help_cwd_file="$case_root/${wrapper_name}-help-cwd.txt"
     local stdout_file="$case_root/${wrapper_name}-stdout.txt"
 
-    [ "$(sed -n '1p' "$help_stdout_file")" = "Usage: $helper_name${3}" ] || fail "$label $wrapper_name help output mismatch"
+    [ "$(sed -n '1p' "$help_stdout_file")" = "Usage: $helper_name${usage_suffix}" ] || fail "$label $wrapper_name help output mismatch"
     [ "$(cat "$help_cwd_file")" = "help-cwd=$case_root" ] || fail "$label $wrapper_name help path changed cwd"
     [ ! -s "$help_sync_log" ] || fail "$label $wrapper_name help path should not sync tmux state"
     [ "$(sed -n '1p' "$helper_log")" = "feature/alpha --help" ] || fail "$label $wrapper_name did not forward help args to $helper_name"
     [ "$(sed -n '2p' "$helper_log")" = "--branch feature/alpha --path $case_root/requested-path --print-path" ] || fail "$label $wrapper_name did not call $helper_name with --print-path"
-    [ "$(sed -n '1p' "$stdout_file")" = "$worktree_path" ] || fail "$label $wrapper_name did not print the helper path"
-    [ "$(sed -n '2p' "$stdout_file")" = "cwd=$worktree_path" ] || fail "$label $wrapper_name did not cd into the helper path"
+    [ "$(sed -n '1p' "$stdout_file")" = "$repo_path" ] || fail "$label $wrapper_name did not print the helper path"
+    [ "$(sed -n '2p' "$stdout_file")" = "cwd=$repo_path" ] || fail "$label $wrapper_name did not cd into the helper path"
     [ "$(cat "$sync_log")" = "sync-current" ] || fail "$label $wrapper_name did not sync tmux state"
   }
 
-  assert_wrapper worktree-create worktree-start " <branch> [path]"
-  assert_wrapper worktree-cd worktree-start " <branch> [path]"
-  assert_wrapper wts worktree-start " <branch> [path]"
-  assert_wrapper worktree-merge worktree-merge " [--print-path]"
-  assert_wrapper worktree-delete worktree-delete " [--print-path]"
-  assert_wrapper worktree-done worktree-done " [--print-path]"
+  assert_wrapper repo-start repo-start " <branch> [path]"
+  assert_wrapper rs repo-start " <branch> [path]"
+  assert_wrapper repo-end repo-end " [--print-path]"
+  assert_wrapper re repo-end " [--print-path]"
 }
 
 zsh_bin="$(command -v zsh)"
@@ -159,4 +158,4 @@ bash_bin="$(command -v bash)"
 run_case "$zsh_bin" "$ROOT/roles/common/templates/dotfiles/zshrc.d/50-personal-dev-shell.zsh" "zsh"
 run_case "$bash_bin" "$ROOT/roles/macos/templates/dotfiles/bash_profile" "bash"
 
-printf 'PASS  worktree wrapper smoke test\n'
+printf 'PASS  repo wrapper smoke test\n'
