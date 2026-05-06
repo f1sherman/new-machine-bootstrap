@@ -433,6 +433,7 @@ curl_post_or_data_flag='(^|[[:space:]])(-X[[:space:]]*POST|-XPOST|--request[=[:s
 pulls_endpoint="(^|/)pulls([?[:space:]'\"]|$)"
 curl_graphql_endpoint="(https?://)?api[.]github[.]com/graphql([?[:space:]'\"]|$)"
 curl_pulls_endpoint="(https?://)?(api[.]github[.]com/repos/[^[:space:]'\"?]+/[^[:space:]'\"?]+/pulls|[^/[:space:]'\"?]+/api/v1/repos/[^[:space:]'\"?]+/[^[:space:]'\"?]+/pulls)([?[:space:]'\"]|$)"
+shell_substitution_pattern='(`|\$\()'
 
 if [[ -z "$command" ]]; then
   exit 0
@@ -442,6 +443,10 @@ sanitized_command="$(printf '%s\n' "$command" | sed -E "s@${workflow_allowed_hel
 command_cwds="$(effective_command_cwds)"
 
 if command_matches "${workflow_allowed_helper_only_pattern}"; then
+  if command_matches "${shell_substitution_pattern}"; then
+    emit_deny
+    exit 0
+  fi
   exit 0
 fi
 
