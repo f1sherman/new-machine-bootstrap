@@ -253,6 +253,12 @@ main() {
       fi
     fi
 
+    if [[ -f "$(_repo_config_path "$repo_root")" ]]; then
+      if ! _worktree_copy_new_files "$(_repo_config_path "$repo_root")" "$(_repo_config_path "$path")"; then
+        _worktree_warn "failed to copy .repo.yml into $path"
+      fi
+    fi
+
     _worktree_sync_coding_agent_new_files "${repo_root}/.coding-agent" "${path}/.coding-agent"
 
     if [[ ! -e "${path}/.claude/settings.local.json" ]]; then

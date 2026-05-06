@@ -54,8 +54,13 @@ worktree_path="$(cd "$worktree_repo" && "$SCRIPT" --use-worktrees feature/worktr
   exit 1
 }
 assert_file_contains "$worktree_repo/.repo.yml" 'use_worktrees: true' 'explicit worktree mode writes config'
+assert_file_contains "$worktree_path/.repo.yml" 'use_worktrees: true' 'worktree mode copies repo config'
 assert_file_contains "$worktree_path/.coding-agent/note.txt" 'note' 'worktree mode copies .coding-agent'
 assert_file_contains "$worktree_path/.claude/settings.local.json" 'permissions' 'worktree mode copies Claude local settings'
+nested_path="$(cd "$worktree_path" && "$SCRIPT" feature/nested --print-path)"
+[ "$nested_path" != "$worktree_path" ] || { printf 'expected nested worktree path, got repo root\n' >&2; exit 1; }
+[ -d "$nested_path/.git" ] || [ -f "$nested_path/.git" ] || { printf 'expected nested linked worktree\n' >&2; exit 1; }
+printf 'PASS  copied repo config keeps linked worktree mode\n'
 
 branch_repo="$(create_repo branch)"
 branch_path="$(cd "$branch_repo" && "$SCRIPT" --no-worktrees feature/branch --print-path)"
@@ -81,6 +86,15 @@ noninteractive_path="$(cd "$noninteractive_repo" && "$SCRIPT" feature/default --
 }
 assert_no_file "$noninteractive_repo/.repo.yml" 'noninteractive default does not write config'
 assert_file_contains "$TMPROOT/noninteractive.err" 'No .repo.yml found; using branch mode for this run.' 'noninteractive default explains in-memory branch mode'
+
+invalid_repo="$(create_repo invalid)"
+printf 'use_worktrees: [\n' >"$invalid_repo/.repo.yml"
+if (cd "$invalid_repo" && "$SCRIPT" feature/invalid --print-path) >"$TMPROOT/invalid.out" 2>"$TMPROOT/invalid.err"; then
+  printf 'expected invalid .repo.yml to fail\n' >&2
+  exit 1
+fi
+[ "$(git -C "$invalid_repo" branch --show-current)" = 'main' ] || { printf 'invalid config should not switch branches\n' >&2; exit 1; }
+assert_file_contains "$TMPROOT/invalid.err" 'Error: failed to read .repo.yml' 'invalid repo config fails closed'
 
 json_repo="$(create_repo json)"
 json="$(cd "$json_repo" && "$SCRIPT" --no-worktrees feature/json --json)"

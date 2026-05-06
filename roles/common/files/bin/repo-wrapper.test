@@ -25,6 +25,7 @@ extract_wrappers() {
   local template="$1" dest="$2"
   : > "$dest"
   extract_function "$template" _worktree_has_help_flag "$dest"
+  extract_function "$template" _repo_start_passthrough_flag "$dest"
   extract_function "$template" repo-start "$dest"
   extract_function "$template" repo-end "$dest"
   extract_function "$template" rs "$dest"
@@ -45,6 +46,10 @@ write_simple_helper() {
 set -euo pipefail
 printf '%s\n' "\$*" >> "\$HELPER_LOG"
 for arg in "\$@"; do
+  if [[ "\$arg" == "--json" ]]; then
+    printf '{"status":"ok"}\n'
+    exit 0
+  fi
   if [[ "\$arg" == "--help" || "\$arg" == "-h" ]]; then
     printf '%s\n' "$usage"
     exit 0
@@ -112,10 +117,29 @@ check_wrapper() {
   printf 'cwd=%s\n' "\$PWD" >> "\$stdout_file"
 }
 
+check_json_wrapper() {
+  local wrapper_name="\$1"
+  local json_helper_log="$case_root/\${wrapper_name}-json-helper.log"
+  local json_sync_log="$case_root/\${wrapper_name}-json-sync.log"
+  local json_stdout_file="$case_root/\${wrapper_name}-json-stdout.txt"
+  local json_cwd_file="$case_root/\${wrapper_name}-json-cwd.txt"
+
+  cd "$case_root"
+  HELPER_LOG="\$json_helper_log"
+  export HELPER_LOG
+  _worktree_sync_tmux_state() {
+    printf '%s\n' "sync-current" >> "\$json_sync_log"
+  }
+  "\$wrapper_name" feature/json --json > "\$json_stdout_file"
+  printf 'json-cwd=%s\n' "\$PWD" > "\$json_cwd_file"
+}
+
 check_wrapper repo-start repo-start
 check_wrapper rs repo-start
 check_wrapper repo-end repo-end
 check_wrapper re repo-end
+check_json_wrapper repo-start
+check_json_wrapper rs
 EOF
 
   if ! HOME="$home_dir" "$shell_bin" -f "$run_file"; then
@@ -147,6 +171,22 @@ EOF
   assert_wrapper rs repo-start " <branch> [path]"
   assert_wrapper repo-end repo-end " [--print-path]"
   assert_wrapper re repo-end " [--print-path]"
+
+  assert_json_wrapper() {
+    local wrapper_name="$1"
+    local json_helper_log="$case_root/${wrapper_name}-json-helper.log"
+    local json_sync_log="$case_root/${wrapper_name}-json-sync.log"
+    local json_stdout_file="$case_root/${wrapper_name}-json-stdout.txt"
+    local json_cwd_file="$case_root/${wrapper_name}-json-cwd.txt"
+
+    [ "$(cat "$json_stdout_file")" = '{"status":"ok"}' ] || fail "$label $wrapper_name JSON output mismatch"
+    [ "$(cat "$json_cwd_file")" = "json-cwd=$case_root" ] || fail "$label $wrapper_name JSON path changed cwd"
+    [ ! -s "$json_sync_log" ] || fail "$label $wrapper_name JSON path should not sync tmux state"
+    [ "$(cat "$json_helper_log")" = "feature/json --json" ] || fail "$label $wrapper_name did not forward JSON args"
+  }
+
+  assert_json_wrapper repo-start
+  assert_json_wrapper rs
 }
 
 zsh_bin="$(command -v zsh)"

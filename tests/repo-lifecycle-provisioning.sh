@@ -38,5 +38,11 @@ require_contains roles/common/files/bin/codex-block-main-branch-edits 'repo-star
 require_contains roles/common/files/bin/codex-block-worktree-commands 'Use repo-start instead.' 'raw worktree add hook names repo-start'
 require_contains roles/common/files/bin/codex-block-worktree-commands 'cleanup-branches --branch <branch>' 'raw worktree remove hook names cleanup script'
 require_not_contains roles/common/files/bin/codex-block-worktree-commands 'worktree-start' 'raw worktree hook stops naming worktree-start'
+require_contains roles/common/files/claude/CLAUDE.md.d/00-base.md 'repo-start' 'Claude base instructions name repo-start'
+require_not_contains roles/common/files/claude/CLAUDE.md.d/00-base.md 'worktree-start' 'Claude base instructions stop naming worktree-start'
+require_contains roles/common/files/claude/hooks/block-main-branch-edits.sh 'repo-start <branch>' 'Claude main edit hook names repo-start'
+require_contains roles/common/files/claude/hooks/block-worktree-commands.sh 'Use repo-start instead.' 'Claude raw worktree add hook names repo-start'
+require_contains roles/common/files/claude/hooks/block-worktree-commands.sh 'cleanup-branches --branch <branch>' 'Claude raw worktree remove hook names cleanup script'
+require_not_contains roles/common/files/claude/hooks/block-worktree-commands.sh 'worktree-start' 'Claude raw worktree hook stops naming worktree-start'
 
 printf 'PASS  repo lifecycle provisioning checks\n'

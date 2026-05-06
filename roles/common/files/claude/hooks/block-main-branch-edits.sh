@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-reason='File edit blocked on main. Move to a non-main branch/worktree per repo instructions, then retry.'
+reason='File edit blocked on main. Start a non-main branch with repo-start <branch>, then retry.'
 file_path="$(jq -r '.tool_input.file_path // empty' 2>/dev/null || true)"
 
 emit_deny() {
