@@ -111,6 +111,9 @@ assert_contains "$RUNTIME_TASKS" ".local/share/skills/pr-monitor" "runtime tasks
 
 assert_contains "$RUNTIME_TASKS" "agent_host_runtime_home.home" "runtime tasks target configured home"
 assert_contains "$RUNTIME_TASKS" "agent_host_runtime_home.owner" "runtime tasks set configured owner"
+assert_contains "$RUNTIME_TASKS" "agent_host_runtime_group_resolved" "runtime tasks default group separately from owner"
+assert_contains "$RUNTIME_TASKS" "agent_host_runtime_home.group | default(agent_host_runtime_home.owner)" "runtime tasks default missing group to owner"
+assert_not_contains "$RUNTIME_TASKS" 'group: "{{ agent_host_runtime_home.group }}"' "runtime tasks avoid mandatory group task args"
 assert_contains "$RUNTIME_TASKS" "install_pr_creation_skills" "runtime tasks support commit-only mode"
 assert_contains "$RUNTIME_TASKS" "default(agent_host_install_pr_creation_skills_resolved)" "runtime homes inherit role-level PR skill default"
 assert_contains "$RUNTIME_TASKS" "agent_host_runtime_raw_pr_creation_block_reason_resolved" "runtime tasks resolve blocker reason per runtime"

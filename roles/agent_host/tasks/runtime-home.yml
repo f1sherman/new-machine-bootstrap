@@ -2,6 +2,7 @@
 
 - name: Resolve runtime agent host options
   set_fact:
+    agent_host_runtime_group_resolved: "{{ agent_host_runtime_home.group | default(agent_host_runtime_home.owner) }}"
     agent_host_runtime_install_pr_creation_skills_resolved: "{{ agent_host_runtime_home.install_pr_creation_skills | default(agent_host_install_pr_creation_skills_resolved) | bool }}"
     agent_host_runtime_raw_pr_creation_block_reason_resolved: "{{ agent_host_runtime_home.raw_pr_creation_block_reason | default(agent_host_raw_pr_creation_block_reason | default((agent_host_runtime_home.install_pr_creation_skills | default(agent_host_install_pr_creation_skills_resolved) | bool) | ternary(agent_host_pull_request_raw_pr_creation_block_reason | default('Use the _pull-request skill to create pull requests; do not call raw PR creation commands directly.'), agent_host_commit_only_raw_pr_creation_block_reason | default('Commit changes only; do not create pull requests directly.')))) }}"
 
@@ -10,7 +11,7 @@
     path: "{{ agent_host_runtime_home.home }}/{{ item.path }}"
     state: directory
     owner: "{{ agent_host_runtime_home.owner }}"
-    group: "{{ agent_host_runtime_home.group }}"
+    group: "{{ agent_host_runtime_group_resolved }}"
     mode: "{{ item.mode }}"
   become: yes
   loop:
@@ -27,7 +28,7 @@
     src: "{{ agent_host_role_root_resolved }}/files/bin/{{ item }}"
     dest: "{{ agent_host_runtime_home.home }}/.local/bin/{{ item }}"
     owner: "{{ agent_host_runtime_home.owner }}"
-    group: "{{ agent_host_runtime_home.group }}"
+    group: "{{ agent_host_runtime_group_resolved }}"
     mode: '0755'
   become: yes
   loop:
@@ -38,7 +39,7 @@
     src: "{{ agent_host_role_root_resolved }}/files/claude/hooks/block-raw-pr-creation.sh"
     dest: "{{ agent_host_runtime_home.home }}/.claude/hooks/block-raw-pr-creation.sh"
     owner: "{{ agent_host_runtime_home.owner }}"
-    group: "{{ agent_host_runtime_home.group }}"
+    group: "{{ agent_host_runtime_group_resolved }}"
     mode: '0755'
   become: yes
 
@@ -204,7 +205,7 @@
   file:
     path: "{{ agent_host_runtime_home.home }}/.claude/settings.json"
     owner: "{{ agent_host_runtime_home.owner }}"
-    group: "{{ agent_host_runtime_home.group }}"
+    group: "{{ agent_host_runtime_group_resolved }}"
     mode: '0600'
   become: yes
   when: not ansible_check_mode or runtime_claude_settings_stat.stat.exists
@@ -216,7 +217,7 @@
     option: codex_hooks
     value: 'true'
     owner: "{{ agent_host_runtime_home.owner }}"
-    group: "{{ agent_host_runtime_home.group }}"
+    group: "{{ agent_host_runtime_group_resolved }}"
     mode: '0600'
     create: yes
   become: yes
@@ -297,7 +298,7 @@
   file:
     path: "{{ agent_host_runtime_home.home }}/.codex/hooks.json"
     owner: "{{ agent_host_runtime_home.owner }}"
-    group: "{{ agent_host_runtime_home.group }}"
+    group: "{{ agent_host_runtime_group_resolved }}"
     mode: '0600'
   become: yes
   when: not ansible_check_mode or runtime_codex_hooks_stat.stat.exists
@@ -307,7 +308,7 @@
     src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
     dest: "{{ agent_host_runtime_home.home }}/.local/share/skills/{{ item }}/"
     owner: "{{ agent_host_runtime_home.owner }}"
-    group: "{{ agent_host_runtime_home.group }}"
+    group: "{{ agent_host_runtime_group_resolved }}"
     mode: preserve
   become: yes
   loop:
@@ -318,7 +319,7 @@
     src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
     dest: "{{ agent_host_runtime_home.home }}/.local/share/skills/{{ item }}/"
     owner: "{{ agent_host_runtime_home.owner }}"
-    group: "{{ agent_host_runtime_home.group }}"
+    group: "{{ agent_host_runtime_group_resolved }}"
     mode: preserve
   become: yes
   when: agent_host_runtime_home.install_pr_creation_skills | default(agent_host_install_pr_creation_skills_resolved) | bool
@@ -333,7 +334,7 @@
     src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
     dest: "{{ agent_host_runtime_home.home }}/.claude/skills/{{ item }}/"
     owner: "{{ agent_host_runtime_home.owner }}"
-    group: "{{ agent_host_runtime_home.group }}"
+    group: "{{ agent_host_runtime_group_resolved }}"
     mode: preserve
   become: yes
   loop:
@@ -344,7 +345,7 @@
     src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
     dest: "{{ agent_host_runtime_home.home }}/.claude/skills/{{ item }}/"
     owner: "{{ agent_host_runtime_home.owner }}"
-    group: "{{ agent_host_runtime_home.group }}"
+    group: "{{ agent_host_runtime_group_resolved }}"
     mode: preserve
   become: yes
   when: agent_host_runtime_home.install_pr_creation_skills | default(agent_host_install_pr_creation_skills_resolved) | bool
@@ -361,7 +362,7 @@
     src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
     dest: "{{ agent_host_runtime_home.home }}/.codex/skills/{{ item }}/"
     owner: "{{ agent_host_runtime_home.owner }}"
-    group: "{{ agent_host_runtime_home.group }}"
+    group: "{{ agent_host_runtime_group_resolved }}"
     mode: preserve
   become: yes
   loop:
@@ -372,7 +373,7 @@
     src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
     dest: "{{ agent_host_runtime_home.home }}/.codex/skills/{{ item }}/"
     owner: "{{ agent_host_runtime_home.owner }}"
-    group: "{{ agent_host_runtime_home.group }}"
+    group: "{{ agent_host_runtime_group_resolved }}"
     mode: preserve
   become: yes
   when: agent_host_runtime_home.install_pr_creation_skills | default(agent_host_install_pr_creation_skills_resolved) | bool
