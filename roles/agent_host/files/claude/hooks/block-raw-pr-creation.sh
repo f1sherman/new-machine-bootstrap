@@ -25,12 +25,14 @@ script_file_candidates() {
 
 scan_commands() {
   local script_path
+  local tilde_prefix
 
+  tilde_prefix="$(printf '%s/' '~')"
   printf '%s\n' "$command"
   printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+-[A-Za-z]*c[[:space:]]+['\"]([^'\"]+)['\"].*/\3/p"
   printf '%s\n' "$command" | sed -nE "s/.*(^|[;&|()[:space:]])(bash|sh|zsh)[[:space:]]+--command(=|[[:space:]]+)['\"]([^'\"]+)['\"].*/\4/p"
   while IFS= read -r script_path; do
-    if [[ "${script_path:0:2}" == "~/" ]]; then
+    if [[ "${script_path:0:2}" == "$tilde_prefix" ]]; then
       script_path="${HOME}/${script_path:2}"
     fi
     if [[ -f "$script_path" && -r "$script_path" ]]; then
@@ -59,14 +61,6 @@ has_pr_workflow_allow() {
 
 has_pr_workflow_allow_in_command() {
   command_matches '(^|[;&|()[:space:]])PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1([[:space:]]|$)'
-}
-
-# shellcheck disable=SC2016
-has_pr_workflow_helper_args() {
-  matches '--base[=[:space:]]+"?\$BASE"?([[:space:])"]|$)' \
-    && matches '--head[=[:space:]]+"?\$BRANCH"?([[:space:])"]|$)' \
-    && matches '--title[=[:space:]]+"?\$PR_TITLE"?([[:space:])"]|$)' \
-    && matches '--body[=[:space:]]+"?\$PR_BODY"?([[:space:])"]|$)'
 }
 
 assignment='[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+'
