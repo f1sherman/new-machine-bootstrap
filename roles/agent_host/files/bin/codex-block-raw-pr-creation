@@ -52,7 +52,7 @@ resolve_path_token() {
   fi
 }
 
-effective_command_cwd() {
+effective_command_cwds() {
   local cwd="$PWD"
   local expect_cd=0
   local raw
@@ -92,6 +92,7 @@ effective_command_cwd() {
           ;;
         *)
           cwd="$(resolve_path_token "$token" "$cwd")"
+          printf '%s\n' "$cwd"
           expect_cd=0
           ;;
       esac
@@ -104,7 +105,6 @@ effective_command_cwd() {
     fi
   done
 
-  printf '%s\n' "$cwd"
 }
 
 script_file_candidates() {
@@ -354,6 +354,7 @@ scan_script_file() {
 scan_script_path() {
   local script_path="$1"
   local require_executable="$2"
+  local cwd
   local tilde_prefix
 
   tilde_prefix="$(printf '%s/' '~')"
@@ -366,9 +367,11 @@ scan_script_path() {
     return
   fi
 
-  if [[ -n "${command_cwd:-}" && "$command_cwd" != "$PWD" ]]; then
-    scan_script_file "$command_cwd/$script_path" "$require_executable" || true
-  fi
+  while IFS= read -r cwd; do
+    if [[ -n "$cwd" && "$cwd" != "$PWD" ]]; then
+      scan_script_file "$cwd/$script_path" "$require_executable" || true
+    fi
+  done <<< "${command_cwds:-}"
 
   scan_script_file "$script_path" "$require_executable" || true
 }
@@ -436,7 +439,7 @@ if [[ -z "$command" ]]; then
 fi
 
 sanitized_command="$(printf '%s\n' "$command" | sed -E "s@${workflow_allowed_helper_invocation_pattern}@@g")"
-command_cwd="$(effective_command_cwd)"
+command_cwds="$(effective_command_cwds)"
 
 if command_matches "${workflow_allowed_helper_only_pattern}"; then
   exit 0

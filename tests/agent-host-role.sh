@@ -83,6 +83,7 @@ assert_contains "$ROLE_TASKS" ".claude/skills/_monitor-pr" "role removes common 
 assert_contains "$ROLE_TASKS" ".codex/skills/_monitor-pr" "role removes common Codex monitor skill"
 assert_contains "$ROLE_TASKS" ".local/share/skills/_pr-monitor" "role removes common monitor helper"
 assert_contains "$ROLE_TASKS" ".local/share/skills/_pr-forgejo/comments.sh" "role removes monitor-only Forgejo comment helper"
+assert_contains "$RUNTIME_TASKS" ".local/share/skills/pr-monitor" "runtime tasks remove legacy pr-monitor helper"
 
 assert_contains "$RUNTIME_TASKS" "agent_host_runtime_home.home" "runtime tasks target configured home"
 assert_contains "$RUNTIME_TASKS" "agent_host_runtime_home.owner" "runtime tasks set configured owner"

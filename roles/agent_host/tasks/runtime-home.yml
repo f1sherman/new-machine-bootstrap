@@ -349,6 +349,7 @@
     - .agents/skills/forgejo-pr
     - .local/share/skills/forgejo-pr
     - .local/share/skills/pr-workflow-common
+    - .local/share/skills/pr-monitor
     - .local/share/skills/pr-forgejo
     - .local/share/skills/pr-github
     - .local/share/skills/p-pr-workflow-common
