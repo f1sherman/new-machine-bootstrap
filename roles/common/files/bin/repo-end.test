@@ -148,4 +148,60 @@ if CLEANUP_LOG="$TMPROOT/cleanup-fail.log" CLEANUP_STATUS=7 \
 fi
 assert_file_contains "$TMPROOT/cleanup-fail.log" '--branch feature/cleanup-fail' 'repo-end calls cleanup before surfacing failure'
 
+# Already-merged direct-ancestor: feature commits are present in origin/main,
+# repo-end should skip rebase/merge/push and run cleanup-branches.
+ancestor_repo="$(create_remote_repo already-ancestor)"
+git -C "$ancestor_repo" checkout -q -b feature/already-ancestor
+printf 'ancestor work\n' >"$ancestor_repo/work.txt"
+git -C "$ancestor_repo" add work.txt
+git -C "$ancestor_repo" commit -q -m work
+# Push the feature branch's commits to origin/main directly to simulate a
+# fast-forward merge that already happened upstream.
+ancestor_origin="$TMPROOT/already-ancestor-origin.git"
+ancestor_tip="$(git -C "$ancestor_repo" rev-parse HEAD)"
+git -C "$ancestor_repo" push -q origin "+HEAD:refs/heads/main"
+CLEANUP_LOG="$TMPROOT/already-ancestor-cleanup.log" CLEANUP_STATUS=0 \
+  bash -c 'cd "$1" && "$2" --print-path' bash "$ancestor_repo" "$SCRIPT" >"$TMPROOT/already-ancestor.out" 2>"$TMPROOT/already-ancestor.err"
+assert_file_contains "$TMPROOT/already-ancestor-cleanup.log" \
+  '--branch feature/already-ancestor' \
+  'repo-end runs cleanup when feature is direct ancestor of origin/main'
+post_origin_tip="$(git --git-dir="$ancestor_origin" rev-parse refs/heads/main)"
+[ "$post_origin_tip" = "$ancestor_tip" ] || {
+  printf 'FAIL  repo-end did not push when already ancestor\n' >&2
+  printf '      expected %s, origin now %s\n' "$ancestor_tip" "$post_origin_tip" >&2
+  exit 1
+}
+printf 'PASS  repo-end skips push when feature is direct ancestor\n'
+
+# Squash-merged: feature's tree is in origin/main as a single squash commit
+# whose individual commit hashes do not appear on main. repo-end should
+# detect via patch-id that the work is already upstream and skip
+# rebase/merge/push.
+squash_repo="$(create_remote_repo squash-merged)"
+git -C "$squash_repo" checkout -q -b feature/squash-merged
+printf 'squash work\n' >"$squash_repo/squash.txt"
+git -C "$squash_repo" add squash.txt
+git -C "$squash_repo" commit -q -m 'squash work part 1'
+printf 'more squash work\n' >>"$squash_repo/squash.txt"
+git -C "$squash_repo" add squash.txt
+git -C "$squash_repo" commit -q -m 'squash work part 2'
+# Build a squash commit on origin/main containing the same tree changes.
+squash_tree="$(git -C "$squash_repo" rev-parse HEAD^{tree})"
+squash_parent="$(git -C "$squash_repo" rev-parse 'HEAD~2')"
+squash_origin="$TMPROOT/squash-merged-origin.git"
+squash_commit="$(git -C "$squash_repo" commit-tree "$squash_tree" -p "$squash_parent" -m 'squash merge of feature/squash-merged')"
+git -C "$squash_repo" push -q origin "+${squash_commit}:refs/heads/main"
+CLEANUP_LOG="$TMPROOT/squash-cleanup.log" CLEANUP_STATUS=0 \
+  bash -c 'cd "$1" && "$2" --print-path' bash "$squash_repo" "$SCRIPT" >"$TMPROOT/squash.out" 2>"$TMPROOT/squash.err"
+assert_file_contains "$TMPROOT/squash-cleanup.log" \
+  '--branch feature/squash-merged' \
+  'repo-end runs cleanup when feature is squash-merged into origin/main'
+post_squash_tip="$(git --git-dir="$squash_origin" rev-parse refs/heads/main)"
+[ "$post_squash_tip" = "$squash_commit" ] || {
+  printf 'FAIL  repo-end pushed beyond squash commit\n' >&2
+  printf '      expected %s, origin now %s\n' "$squash_commit" "$post_squash_tip" >&2
+  exit 1
+}
+printf 'PASS  repo-end skips push when feature is squash-merged\n'
+
 printf 'PASS  repo-end regression test\n'
