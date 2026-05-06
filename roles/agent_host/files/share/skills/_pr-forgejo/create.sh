@@ -139,6 +139,12 @@ while :; do
       echo "Error: cannot reuse existing PR; push failed and remote branch may be stale" >&2
       exit 1
     fi
+    jq -n --arg title "$title" --arg body "$body" '{title: $title, body: $body}' | \
+      curl -sf -X PATCH \
+        -H "Authorization: token ${token}" \
+        -H "Content-Type: application/json" \
+        -d @- \
+        "${FORGEJO_URL}/api/v1/repos/${owner}/${repo}/pulls/${existing_number}" >/dev/null
     write_pr_cache "$existing_number" "$existing_url"
     echo "Reusing PR #${existing_number}: ${existing_url}"
     exit 0

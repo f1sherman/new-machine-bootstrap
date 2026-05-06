@@ -9,6 +9,7 @@ ROLE_TASKS="$ROLE_DIR/tasks/main.yml"
 RUNTIME_TASKS="$ROLE_DIR/tasks/runtime-home.yml"
 ROLE_SKILLS="$ROLE_DIR/files/share/skills"
 PLAYBOOK="$REPO_ROOT/playbook.yml"
+COMMON_TASKS="$REPO_ROOT/roles/common/tasks/main.yml"
 
 pass=0
 fail=0
@@ -52,6 +53,7 @@ assert_contains "$ROLE_DEFAULTS" "agent_host_install_user_home: true" "role can 
 assert_contains "$ROLE_DEFAULTS" "agent_host_install_pr_creation_skills: true" "role can disable PR creation skills"
 assert_contains "$PLAYBOOK" "role: agent_host" "playbook exposes agent_host role"
 assert_contains "$PLAYBOOK" "agent_host_enabled | default(false) | bool" "playbook keeps agent_host opt-in"
+assert_contains "$COMMON_TASKS" "not (agent_host_enabled | default(false) | bool)" "common skill installs skip agent hosts"
 
 assert_contains "$ROLE_TASKS" "Install agent host hook dependencies" "role installs hook dependencies"
 assert_contains "$ROLE_TASKS" "pipx install uv" "role installs uvx proof runner on Debian"
@@ -132,6 +134,8 @@ assert_contains "$ROLE_SKILLS/_pull-request/SKILL.md" "remote PR head SHA matche
 assert_contains "$ROLE_SKILLS/_pull-request/SKILL.md" "remote PR statuses for the pushed head" "_pull-request requires status check"
 assert_contains "$ROLE_SKILLS/_pr-github/create.sh" "cannot reuse existing PR; push failed" "GitHub PR helper fails stale reuse after push failure"
 assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "cannot reuse existing PR; push failed" "Forgejo PR helper fails stale reuse after push failure"
+assert_contains "$ROLE_SKILLS/_pr-github/create.sh" "gh pr edit" "GitHub PR helper refreshes reused PR metadata"
+assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "PATCH" "Forgejo PR helper refreshes reused PR metadata"
 assert_contains "$ROLE_TASKS" "not ansible_check_mode or agent_host_codex_hooks_stat.stat.exists" "current-user Codex hook ownership is check-mode safe"
 assert_contains "$RUNTIME_TASKS" "not ansible_check_mode or runtime_claude_settings_stat.stat.exists" "runtime Claude hook ownership is check-mode safe"
 assert_contains "$RUNTIME_TASKS" "not ansible_check_mode or runtime_codex_hooks_stat.stat.exists" "runtime Codex hook ownership is check-mode safe"

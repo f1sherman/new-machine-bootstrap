@@ -93,6 +93,7 @@ if [[ -n "$existing_number" && -n "$existing_url" ]]; then
     echo "Error: cannot reuse existing PR; push failed and remote branch may be stale" >&2
     exit 1
   fi
+  gh pr edit "$existing_number" --repo "$repo" --title "$title" --body "$body"
   write_pr_cache "$existing_number" "$existing_url"
   echo "Reusing PR #${existing_number}: ${existing_url}"
   exit 0
