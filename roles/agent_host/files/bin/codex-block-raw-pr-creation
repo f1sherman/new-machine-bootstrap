@@ -100,6 +100,62 @@ field_file_candidates() {
     sed -nE "s/.*(^|[[:space:]])(-F|--field|-f|--raw-field)[=[:space:]]+[^=[:space:]]+=@([^[:space:]'\";|&()]+).*/\3/p"
 }
 
+curl_data_file_candidates() {
+  local expect_data_file=0
+  local raw
+  local token
+  local trailing_separator
+  local -a tokens=()
+
+  printf '%s\n' "${sanitized_command:-$command}" |
+    sed -nE "s/.*(^|[[:space:]])(-d|--json|--data(-raw|-binary|-urlencode|-ascii)?)[=[:space:]]+@\"([^\"]+)\".*/\4/p"
+  printf '%s\n' "${sanitized_command:-$command}" |
+    sed -nE "s/.*(^|[[:space:]])(-d|--json|--data(-raw|-binary|-urlencode|-ascii)?)[=[:space:]]+@'([^']+)'.*/\4/p"
+
+  read -r -a tokens <<< "${sanitized_command:-$command}"
+  for raw in "${tokens[@]}"; do
+    token="$raw"
+    trailing_separator=0
+
+    while [[ "$token" == [\;\&\|\(\)]* ]]; do
+      token="${token:1}"
+      expect_data_file=0
+    done
+    while [[ "$token" == *[\;\&\|\(\)] ]]; do
+      token="${token:0:${#token}-1}"
+      trailing_separator=1
+    done
+    token="${token#\"}"
+    token="${token%\"}"
+    token="${token#\'}"
+    token="${token%\'}"
+
+    if [[ -z "$token" ]]; then
+      continue
+    fi
+
+    if [[ "$expect_data_file" -eq 1 ]]; then
+      if [[ "$token" == @* ]]; then
+        printf '%s\n' "${token#@}"
+      fi
+      expect_data_file=0
+    else
+      case "$token" in
+        -d@*|--json=@*|--data=@*|--data-raw=@*|--data-binary=@*|--data-urlencode=@*|--data-ascii=@*)
+          printf '%s\n' "${token#*@}"
+          ;;
+        -d|--json|--data|--data-raw|--data-binary|--data-urlencode|--data-ascii)
+          expect_data_file=1
+          ;;
+      esac
+    fi
+
+    if [[ "$trailing_separator" -eq 1 ]]; then
+      expect_data_file=0
+    fi
+  done
+}
+
 direct_script_candidates() {
   local expect_command=1
   local skip_next=0
@@ -220,6 +276,9 @@ scan_commands() {
   while IFS= read -r script_path; do
     scan_script_path "$script_path" no
   done < <(field_file_candidates)
+  while IFS= read -r script_path; do
+    scan_script_path "$script_path" no
+  done < <(curl_data_file_candidates)
   while IFS= read -r script_path; do
     scan_script_path "$script_path" yes
   done < <(direct_script_candidates)
