@@ -64,11 +64,13 @@ assert_contains "$ROLE_TASKS" "agent_host_runtime_homes_resolved" "role self-def
 assert_contains "$ROLE_TASKS" "agent_host_runtime_homes_resolved" "role loops over resolved runtime homes"
 assert_contains "$ROLE_TASKS" "runtime-home.yml" "role includes runtime home tasks"
 assert_contains "$ROLE_TASKS" "agent_host_role_root" "role supports external include root"
+assert_contains "$ROLE_SKILLS/_pr-workflow-common/context.sh" "gh-merge-base" "context honors GitHub branch merge-base config"
 
 assert_contains "$RUNTIME_TASKS" "agent_host_runtime_home.home" "runtime tasks target configured home"
 assert_contains "$RUNTIME_TASKS" "agent_host_runtime_home.owner" "runtime tasks set configured owner"
 assert_contains "$RUNTIME_TASKS" "install_pr_creation_skills" "runtime tasks support commit-only mode"
 assert_contains "$RUNTIME_TASKS" "PR_WORKFLOW_RAW_PR_BLOCK_REASON" "runtime tasks support custom blocker reason"
+assert_contains "$RUNTIME_TASKS" 'endswith(" " + $cmd_suffix)' "runtime tasks replace stale managed hook commands"
 assert_contains "$RUNTIME_TASKS" "Remove runtime PR creation skills when disabled" "runtime tasks remove disabled PR skills"
 
 for skill in _commit _pull-request _review _pr-forgejo _pr-github _forgejo-demo _github-demo; do

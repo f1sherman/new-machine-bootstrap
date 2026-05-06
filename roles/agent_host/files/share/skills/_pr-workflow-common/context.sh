@@ -19,10 +19,17 @@ worktree_is_clean() {
 resolve_base() {
   local repo_dir="$1"
   local explicit_base="${2:-}"
+  local head_branch="${3:-}"
   local candidate
 
   if [[ -n "$explicit_base" ]]; then
     printf '%s\n' "$explicit_base"
+    return 0
+  fi
+
+  candidate="$(git -C "$repo_dir" config --get "branch.${head_branch}.gh-merge-base" 2>/dev/null || true)"
+  if [[ -n "$candidate" ]]; then
+    printf '%s\n' "$candidate"
     return 0
   fi
 
@@ -48,19 +55,19 @@ if [[ -z "$repo_dir" ]]; then
 fi
 
 repo_dir="$(normalize_repo_dir "$repo_dir")"
+branch="$(git -C "$repo_dir" rev-parse --abbrev-ref HEAD)"
 
 if ! worktree_is_clean "$repo_dir"; then
   echo "Error: working tree has uncommitted changes" >&2
   exit 1
 fi
 
-base="$(resolve_base "$repo_dir" "${2:-}")"
+base="$(resolve_base "$repo_dir" "${2:-}" "$branch")"
 if ! git -C "$repo_dir" rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
   echo "Error: base ref is invalid: $base" >&2
   exit 1
 fi
 
-branch="$(git -C "$repo_dir" rev-parse --abbrev-ref HEAD)"
 platform="$(bash "$script_dir/detect-platform.sh" "$repo_dir")"
 commits_json="$(
   git -C "$repo_dir" log "$base..HEAD" --pretty=format:'%H%x09%s' |

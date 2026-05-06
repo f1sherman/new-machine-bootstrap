@@ -43,17 +43,10 @@
 
     settings_file="${SETTINGS_FILE:?}"
     hook_cmd="${HOOK_COMMAND:?}"
+    hook_cmd_suffix='~/.claude/hooks/block-raw-pr-creation.sh'
 
     if [ ! -s "$settings_file" ]; then
       echo '{}' > "$settings_file"
-    fi
-
-    if jq -e --arg cmd "$hook_cmd" '
-      .hooks.PreToolUse // []
-      | any(.matcher == "Bash" and any(.hooks[]?; .type == "command" and .command == $cmd))
-    ' "$settings_file" >/dev/null 2>&1; then
-      echo "unchanged"
-      exit 0
     fi
 
     managed_entry="$(
@@ -69,10 +62,31 @@
     )"
     tmp_file="$(mktemp)"
 
-    jq --argjson entry "$managed_entry" '
+    jq --argjson entry "$managed_entry" --arg cmd_suffix "$hook_cmd_suffix" '
       .hooks //= {} |
-      .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry])
+      .hooks.PreToolUse = (
+        (.hooks.PreToolUse // [])
+        | map(
+            if .matcher == "Bash" then
+              .hooks = ((.hooks // []) | map(select(
+                (.type == "command"
+                 and (.command == $cmd_suffix or (.command | endswith(" " + $cmd_suffix))))
+                | not
+              )))
+            else
+              .
+            end
+          )
+        | map(select(.matcher != "Bash" or ((.hooks // []) | length > 0)))
+        | . + [$entry]
+      )
     ' "$settings_file" > "$tmp_file"
+
+    if cmp -s "$settings_file" "$tmp_file"; then
+      rm "$tmp_file"
+      echo "unchanged"
+      exit 0
+    fi
 
     mv "$tmp_file" "$settings_file"
     chmod 600 "$settings_file"
@@ -115,14 +129,7 @@
 
     hooks_file="${HOOKS_FILE:?}"
     managed_command="${HOOK_COMMAND:?}"
-
-    if [ -f "$hooks_file" ] && jq -e --arg cmd "$managed_command" '
-      .hooks.PreToolUse // []
-      | any(.matcher == "Bash" and any(.hooks[]?; .type == "command" and .command == $cmd))
-    ' "$hooks_file" >/dev/null 2>&1; then
-      echo "unchanged"
-      exit 0
-    fi
+    managed_command_suffix='~/.local/bin/codex-block-raw-pr-creation'
 
     managed_entry="$(
       jq -n --arg cmd "$managed_command" '{
@@ -138,14 +145,35 @@
     tmp_file="$(mktemp)"
 
     if [ -f "$hooks_file" ] && [ -s "$hooks_file" ]; then
-      jq --argjson entry "$managed_entry" '
+      jq --argjson entry "$managed_entry" --arg cmd_suffix "$managed_command_suffix" '
         .hooks //= {} |
-        .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry])
+        .hooks.PreToolUse = (
+          (.hooks.PreToolUse // [])
+          | map(
+              if .matcher == "Bash" then
+                .hooks = ((.hooks // []) | map(select(
+                  (.type == "command"
+                   and (.command == $cmd_suffix or (.command | endswith(" " + $cmd_suffix))))
+                  | not
+                )))
+              else
+                .
+              end
+            )
+          | map(select(.matcher != "Bash" or ((.hooks // []) | length > 0)))
+          | . + [$entry]
+        )
       ' "$hooks_file" > "$tmp_file"
     else
       jq -n --argjson entry "$managed_entry" '
         {hooks: {PreToolUse: [$entry]}}
       ' > "$tmp_file"
+    fi
+
+    if [ -f "$hooks_file" ] && cmp -s "$hooks_file" "$tmp_file"; then
+      rm "$tmp_file"
+      echo "unchanged"
+      exit 0
     fi
 
     mv "$tmp_file" "$hooks_file"
