@@ -66,4 +66,23 @@ run_allow_case "allows other commands" 'git status --short'
 run_empty_case "allows missing command" '{}'
 run_empty_case "allows empty command" '{"tool_input":{"command":""}}'
 
+DENY_REASON='Do not create branches directly. Use repo-start <branch> instead.'
+
+run_block_case "blocks git checkout -b" 'git checkout -b foo' "$DENY_REASON"
+run_block_case "blocks git switch -c" 'git switch -c foo' "$DENY_REASON"
+run_block_case "blocks git switch --create" 'git switch --create foo' "$DENY_REASON"
+run_block_case "blocks git branch <name>" 'git branch foo' "$DENY_REASON"
+run_block_case "blocks git -C path checkout -b" 'git -C repo checkout -b foo' "$DENY_REASON"
+run_block_case "blocks command git checkout -b" 'command git checkout -b foo' "$DENY_REASON"
+run_block_case "blocks chained git checkout -b" 'cd repo && git checkout -b foo' "$DENY_REASON"
+run_allow_case "allows git branch (no args)" 'git branch'
+run_allow_case "allows git branch --show-current" 'git branch --show-current'
+run_allow_case "allows git branch --list" 'git branch --list'
+run_allow_case "allows git branch -d foo" 'git branch -d foo'
+run_allow_case "allows git branch -D foo" 'git branch -D foo'
+run_allow_case "allows git branch -v" 'git branch -v'
+run_allow_case "allows git branch --merged" 'git branch --merged'
+run_allow_case "allows git checkout main" 'git checkout main'
+run_allow_case "allows git switch main" 'git switch main'
+
 printf 'PASS  blocker helper test suite\n'
