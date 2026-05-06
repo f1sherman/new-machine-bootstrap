@@ -1,0 +1,316 @@
+---
+
+- name: Create runtime agent host directories
+  file:
+    path: "{{ agent_host_runtime_home.home }}/{{ item.path }}"
+    state: directory
+    owner: "{{ agent_host_runtime_home.owner }}"
+    group: "{{ agent_host_runtime_home.group }}"
+    mode: "{{ item.mode }}"
+  become: yes
+  loop:
+    - { path: .claude, mode: '0700' }
+    - { path: .claude/hooks, mode: '0755' }
+    - { path: .claude/skills, mode: '0755' }
+    - { path: .codex, mode: '0700' }
+    - { path: .codex/skills, mode: '0755' }
+    - { path: .local/bin, mode: '0755' }
+    - { path: .local/share/skills, mode: '0755' }
+
+- name: Install runtime agent host local commands
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/bin/{{ item }}"
+    dest: "{{ agent_host_runtime_home.home }}/.local/bin/{{ item }}"
+    owner: "{{ agent_host_runtime_home.owner }}"
+    group: "{{ agent_host_runtime_home.group }}"
+    mode: '0755'
+  become: yes
+  loop:
+    - codex-block-raw-pr-creation
+
+- name: Install runtime Claude raw PR creation blocker hook
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/claude/hooks/block-raw-pr-creation.sh"
+    dest: "{{ agent_host_runtime_home.home }}/.claude/hooks/block-raw-pr-creation.sh"
+    owner: "{{ agent_host_runtime_home.owner }}"
+    group: "{{ agent_host_runtime_home.group }}"
+    mode: '0755'
+  become: yes
+
+- name: Register runtime PreToolUse Bash hook for blocking raw pull request creation
+  shell: |
+    set -euo pipefail
+
+    settings_file="${SETTINGS_FILE:?}"
+    hook_cmd="${HOOK_COMMAND:?}"
+
+    if [ ! -s "$settings_file" ]; then
+      echo '{}' > "$settings_file"
+    fi
+
+    if jq -e --arg cmd "$hook_cmd" '
+      .hooks.PreToolUse // []
+      | any(.matcher == "Bash" and any(.hooks[]?; .type == "command" and .command == $cmd))
+    ' "$settings_file" >/dev/null 2>&1; then
+      echo "unchanged"
+      exit 0
+    fi
+
+    managed_entry="$(
+      jq -n --arg cmd "$hook_cmd" '{
+        matcher: "Bash",
+        hooks: [
+          {
+            type: "command",
+            command: $cmd
+          }
+        ]
+      }'
+    )"
+    tmp_file="$(mktemp)"
+
+    jq --argjson entry "$managed_entry" '
+      .hooks //= {} |
+      .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry])
+    ' "$settings_file" > "$tmp_file"
+
+    mv "$tmp_file" "$settings_file"
+    chmod 600 "$settings_file"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  environment:
+    SETTINGS_FILE: '{{ agent_host_runtime_home.home }}/.claude/settings.json'
+    HOOK_COMMAND: >-
+      {{ ("PR_WORKFLOW_RAW_PR_BLOCK_REASON=" ~ (agent_host_runtime_home.raw_pr_creation_block_reason | quote) ~ " ~/.claude/hooks/block-raw-pr-creation.sh")
+         if (agent_host_runtime_home.raw_pr_creation_block_reason is defined)
+         else "~/.claude/hooks/block-raw-pr-creation.sh" }}
+  register: runtime_block_raw_pr_creation_hook_result
+  changed_when: runtime_block_raw_pr_creation_hook_result.stdout.strip() == 'changed'
+  become: yes
+
+- name: Enforce runtime Claude settings ownership
+  file:
+    path: "{{ agent_host_runtime_home.home }}/.claude/settings.json"
+    owner: "{{ agent_host_runtime_home.owner }}"
+    group: "{{ agent_host_runtime_home.group }}"
+    mode: '0600'
+  become: yes
+
+- name: Enable runtime Codex hooks feature
+  ini_file:
+    path: '{{ agent_host_runtime_home.home }}/.codex/config.toml'
+    section: features
+    option: codex_hooks
+    value: 'true'
+    owner: "{{ agent_host_runtime_home.owner }}"
+    group: "{{ agent_host_runtime_home.group }}"
+    mode: '0600'
+    create: yes
+  become: yes
+
+- name: Merge managed runtime Codex raw PR creation hook into hooks.json
+  shell: |
+    set -euo pipefail
+
+    hooks_file="${HOOKS_FILE:?}"
+    managed_command="${HOOK_COMMAND:?}"
+
+    if [ -f "$hooks_file" ] && jq -e --arg cmd "$managed_command" '
+      .hooks.PreToolUse // []
+      | any(.matcher == "Bash" and any(.hooks[]?; .type == "command" and .command == $cmd))
+    ' "$hooks_file" >/dev/null 2>&1; then
+      echo "unchanged"
+      exit 0
+    fi
+
+    managed_entry="$(
+      jq -n --arg cmd "$managed_command" '{
+        matcher: "Bash",
+        hooks: [
+          {
+            type: "command",
+            command: $cmd
+          }
+        ]
+      }'
+    )"
+    tmp_file="$(mktemp)"
+
+    if [ -f "$hooks_file" ] && [ -s "$hooks_file" ]; then
+      jq --argjson entry "$managed_entry" '
+        .hooks //= {} |
+        .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry])
+      ' "$hooks_file" > "$tmp_file"
+    else
+      jq -n --argjson entry "$managed_entry" '
+        {hooks: {PreToolUse: [$entry]}}
+      ' > "$tmp_file"
+    fi
+
+    mv "$tmp_file" "$hooks_file"
+    chmod 600 "$hooks_file"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  environment:
+    HOOKS_FILE: '{{ agent_host_runtime_home.home }}/.codex/hooks.json'
+    HOOK_COMMAND: >-
+      {{ ("PR_WORKFLOW_RAW_PR_BLOCK_REASON=" ~ (agent_host_runtime_home.raw_pr_creation_block_reason | quote) ~ " ~/.local/bin/codex-block-raw-pr-creation")
+         if (agent_host_runtime_home.raw_pr_creation_block_reason is defined)
+         else "~/.local/bin/codex-block-raw-pr-creation" }}
+  register: runtime_codex_raw_pr_creation_hooks_json_result
+  changed_when: runtime_codex_raw_pr_creation_hooks_json_result.stdout.strip() == 'changed'
+  become: yes
+
+- name: Enforce runtime Codex hook ownership
+  file:
+    path: "{{ agent_host_runtime_home.home }}/.codex/hooks.json"
+    owner: "{{ agent_host_runtime_home.owner }}"
+    group: "{{ agent_host_runtime_home.group }}"
+    mode: '0600'
+  become: yes
+
+- name: Install runtime shared commit helper directory
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
+    dest: "{{ agent_host_runtime_home.home }}/.local/share/skills/{{ item }}/"
+    owner: "{{ agent_host_runtime_home.owner }}"
+    group: "{{ agent_host_runtime_home.group }}"
+    mode: preserve
+  become: yes
+  loop:
+    - _commit
+
+- name: Install runtime local PR workflow helper directories
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
+    dest: "{{ agent_host_runtime_home.home }}/.local/share/skills/{{ item }}/"
+    owner: "{{ agent_host_runtime_home.owner }}"
+    group: "{{ agent_host_runtime_home.group }}"
+    mode: preserve
+  become: yes
+  when: agent_host_runtime_home.install_pr_creation_skills | default(true) | bool
+  loop:
+    - _pr-workflow-common
+    - _review
+    - _pr-forgejo
+    - _pr-github
+
+- name: Install runtime Claude commit skill directory
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
+    dest: "{{ agent_host_runtime_home.home }}/.claude/skills/{{ item }}/"
+    owner: "{{ agent_host_runtime_home.owner }}"
+    group: "{{ agent_host_runtime_home.group }}"
+    mode: preserve
+  become: yes
+  loop:
+    - _commit
+
+- name: Install runtime Claude PR workflow skill directories
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
+    dest: "{{ agent_host_runtime_home.home }}/.claude/skills/{{ item }}/"
+    owner: "{{ agent_host_runtime_home.owner }}"
+    group: "{{ agent_host_runtime_home.group }}"
+    mode: preserve
+  become: yes
+  when: agent_host_runtime_home.install_pr_creation_skills | default(true) | bool
+  loop:
+    - _pull-request
+    - _review
+    - _pr-forgejo
+    - _pr-github
+    - _forgejo-demo
+    - _github-demo
+
+- name: Install runtime Codex commit skill directory
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
+    dest: "{{ agent_host_runtime_home.home }}/.codex/skills/{{ item }}/"
+    owner: "{{ agent_host_runtime_home.owner }}"
+    group: "{{ agent_host_runtime_home.group }}"
+    mode: preserve
+  become: yes
+  loop:
+    - _commit
+
+- name: Install runtime Codex PR workflow skill directories
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
+    dest: "{{ agent_host_runtime_home.home }}/.codex/skills/{{ item }}/"
+    owner: "{{ agent_host_runtime_home.owner }}"
+    group: "{{ agent_host_runtime_home.group }}"
+    mode: preserve
+  become: yes
+  when: agent_host_runtime_home.install_pr_creation_skills | default(true) | bool
+  loop:
+    - _pull-request
+    - _review
+    - _pr-forgejo
+    - _pr-github
+    - _forgejo-demo
+    - _github-demo
+
+- name: Remove runtime PR creation skills when disabled
+  file:
+    path: "{{ agent_host_runtime_home.home }}/{{ item }}"
+    state: absent
+  become: yes
+  when: not (agent_host_runtime_home.install_pr_creation_skills | default(true) | bool)
+  loop:
+    - .local/share/skills/_pr-workflow-common
+    - .local/share/skills/_review
+    - .local/share/skills/_pr-forgejo
+    - .local/share/skills/_pr-github
+    - .claude/skills/_pull-request
+    - .claude/skills/_review
+    - .claude/skills/_pr-forgejo
+    - .claude/skills/_pr-github
+    - .claude/skills/_forgejo-demo
+    - .claude/skills/_github-demo
+    - .codex/skills/_pull-request
+    - .codex/skills/_review
+    - .codex/skills/_pr-forgejo
+    - .codex/skills/_pr-github
+    - .codex/skills/_forgejo-demo
+    - .codex/skills/_github-demo
+
+- name: Remove legacy runtime PR workflow installs
+  file:
+    path: "{{ agent_host_runtime_home.home }}/{{ item }}"
+    state: absent
+  become: yes
+  loop:
+    - .agents/skills/forgejo-pr
+    - .local/share/skills/forgejo-pr
+    - .local/share/skills/pr-workflow-common
+    - .local/share/skills/pr-forgejo
+    - .local/share/skills/pr-github
+    - .local/share/skills/p-pr-workflow-common
+    - .local/share/skills/p-pr-forgejo
+    - .local/share/skills/p-pr-github
+    - .claude/skills/create-pull-request
+    - .claude/skills/pr-forgejo
+    - .claude/skills/pr-github
+    - .claude/skills/create-forgejo-demo
+    - .claude/skills/create-github-demo
+    - .claude/skills/p-pull-request
+    - .claude/skills/p-pr-forgejo
+    - .claude/skills/p-pr-github
+    - .claude/skills/p-forgejo-demo
+    - .claude/skills/p-github-demo
+    - .codex/skills/create-pull-request
+    - .codex/skills/pr-forgejo
+    - .codex/skills/pr-github
+    - .codex/skills/create-forgejo-demo
+    - .codex/skills/create-github-demo
+    - .codex/skills/p-pull-request
+    - .codex/skills/p-pr-forgejo
+    - .codex/skills/p-pr-github
+    - .codex/skills/p-forgejo-demo
+    - .codex/skills/p-github-demo
+    - .local/share/skills/_pr-workflow-common/run-review.sh
+    - .claude/skills/forgejo-pr
+    - .codex/skills/forgejo-pr

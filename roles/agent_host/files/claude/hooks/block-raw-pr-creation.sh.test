@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$SCRIPT_DIR/block-raw-pr-creation.sh"
+REASON='Use the _pull-request skill to create pull requests; do not call raw PR creation commands directly.'
+
+if [ ! -x "$SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$SCRIPT" >&2
+  exit 2
+fi
+
+run_block_case() {
+  local name="$1"
+  local command="$2"
+  local output
+
+  output="$(jq -n --arg command "$command" '{tool_input:{command:$command}}' | "$SCRIPT")"
+  if printf '%s' "$output" | jq -e --arg reason "$REASON" '. == {hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}' >/dev/null; then
+    printf 'PASS  %s\n' "$name"
+  else
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  fi
+}
+
+run_custom_reason_block_case() {
+  local name="$1"
+  local command="$2"
+  local reason="$3"
+  local output
+
+  output="$(jq -n --arg command "$command" '{tool_input:{command:$command}}' | PR_WORKFLOW_RAW_PR_BLOCK_REASON="$reason" "$SCRIPT")"
+  if printf '%s' "$output" | jq -e --arg reason "$reason" '. == {hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}' >/dev/null; then
+    printf 'PASS  %s\n' "$name"
+  else
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  fi
+}
+
+run_allow_case() {
+  local name="$1"
+  local command="$2"
+  local output
+
+  output="$(jq -n --arg command "$command" '{tool_input:{command:$command}}' | "$SCRIPT")"
+  [ -z "$output" ] || {
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
+run_empty_case() {
+  local name="$1"
+  local payload="$2"
+  local output
+
+  output="$(printf '%s' "$payload" | "$SCRIPT")"
+  [ -z "$output" ] || {
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
+run_block_case "blocks gh pr create" 'gh pr create --fill'
+run_block_case "blocks path-qualified gh pr create" '/usr/bin/gh pr create --fill'
+run_block_case "blocks gh pr new alias" 'gh pr new --fill'
+run_block_case "blocks assignment-prefixed gh pr create" 'GH_TOKEN=x gh pr create --fill'
+run_block_case "blocks env assignment gh pr create" 'env GH_TOKEN=x gh pr create --fill'
+run_block_case "blocks env option-wrapped gh pr create" "env -i PATH=\$PATH GH_TOKEN=x gh pr create --fill"
+run_block_case "blocks repo-scoped gh pr create" 'gh -R example/project pr create --fill'
+run_block_case "blocks attached repo-scoped gh pr create" 'gh -Rexample/project pr create --fill'
+run_block_case "blocks conditional gh pr create" 'if gh pr create --fill; then echo ok; fi'
+run_block_case "blocks shell-wrapped gh pr create" "bash -lc 'gh pr create --fill'"
+run_block_case "blocks command-prefixed gh pr create" 'command gh pr create --title test'
+run_block_case "blocks sudo user-wrapped gh pr create" 'sudo -u brian gh pr create --fill'
+run_block_case "blocks time option-wrapped gh pr create" 'time -p gh pr create --fill'
+run_block_case "blocks gh api pull create" 'gh api -X POST repos/example/project/pulls -f title=test'
+run_block_case "blocks host-scoped gh api pull create" 'gh --hostname forgejo.brianjohn.com api repos/example/project/pulls -f title=test -f head=branch -f base=main'
+run_block_case "blocks implicit POST gh api pull create" 'gh api repos/example/project/pulls -f title=test -f head=branch -f base=main'
+run_block_case "blocks quoted gh api pull create" "gh api 'repos/example/project/pulls' -f title=test -f head=branch -f base=main"
+run_block_case "blocks GraphQL createPullRequest" "gh api graphql -f query='mutation { createPullRequest(input:{repositoryId:\"R\",baseRefName:\"main\",headRefName:\"b\",title:\"t\"}) { pullRequest { url } } }'"
+run_block_case "blocks curl GraphQL createPullRequest" 'curl -X POST https://api.github.com/graphql -d query=createPullRequest'
+run_block_case "blocks Forgejo curl pull create" 'curl -fsSL -X POST https://forgejo.example/api/v1/repos/example/project/pulls'
+run_block_case "blocks path-qualified curl pull create" '/usr/bin/curl -X POST https://api.github.com/repos/example/project/pulls'
+run_block_case "blocks GitHub curl pull create" 'curl --request POST https://api.github.com/repos/example/project/pulls'
+run_block_case "blocks quoted curl pull create" "curl -X POST 'https://api.github.com/repos/example/project/pulls'"
+run_block_case "blocks curl data-raw pull create" "curl --data-raw '{\"title\":\"x\"}' https://api.github.com/repos/example/project/pulls"
+run_block_case "blocks curl attached short data pull create" "curl -d'{\"title\":\"x\"}' https://api.github.com/repos/example/project/pulls"
+run_block_case "blocks curl data-ascii pull create" "curl --data-ascii '{\"title\":\"x\"}' https://api.github.com/repos/example/project/pulls"
+run_block_case "blocks direct Forgejo helper" 'bash ~/.local/share/skills/_pr-forgejo/create.sh --title test --body test'
+run_block_case "blocks direct GitHub helper" 'bash ~/.local/share/skills/_pr-github/create.sh --title test --body test'
+run_custom_reason_block_case "blocks with custom runtime reason" 'gh pr create --fill' 'Commit changes only; the service creates the PR.'
+run_allow_case "allows _pull-request skill mention" 'echo invoke _pull-request'
+run_allow_case "allows gh pr list" 'gh pr list --state open'
+run_allow_case "allows explicit GET gh api pull query with fields" 'gh api --method GET repos/example/project/pulls -f state=open'
+run_allow_case "allows host-scoped GET gh api pull query" 'gh --hostname forgejo.brianjohn.com api --method GET repos/example/project/pulls -f state=open'
+run_allow_case "allows curl pull read" 'curl -fsSL https://forgejo.example/api/v1/repos/example/project/pulls?state=open'
+run_allow_case "allows curl GET query with encoded fields" 'curl -G --data-urlencode state=open https://api.github.com/repos/example/project/pulls'
+run_allow_case "allows gh api nested PR comment POST" 'gh api --method POST repos/example/project/pulls/123/comments/456/replies -f body=ok'
+run_allow_case "allows curl nested PR comment POST" 'curl -X POST https://api.github.com/repos/example/project/pulls/123/comments'
+# shellcheck disable=SC2016
+run_allow_case "allows current workflow helper handoff" 'pr_output="$(bash ~/.local/share/skills/_pr-forgejo/create.sh --base "$BASE" --head "$BRANCH" --title "$PR_TITLE" --body "$PR_BODY")"'
+run_allow_case "allows workflow-marked helper invocation" 'PR_WORKFLOW_ALLOW_RAW_PR_CREATE=1 bash ~/.local/share/skills/_pr-forgejo/create.sh --title test'
+run_allow_case "allows unrelated commands" 'git status --short'
+run_empty_case "allows missing command" '{}'
+run_empty_case "allows empty command" '{"tool_input":{"command":""}}'
+
+printf 'PASS  raw PR creation blocker test suite\n'

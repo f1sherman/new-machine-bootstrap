@@ -7,6 +7,7 @@
 #    - linux: Shared Linux/Debian configuration (tmux, shell, FZF)
 #    - macos: macOS-specific configuration
 #    - dev_host: Linux dev host-specific configuration
+#    - agent_host: Opt-in coding agent machine baseline
 #
 # This architecture ensures dependencies are explicit and tools are available
 # before tasks that need them, avoiding timing issues.
@@ -104,3 +105,5 @@
       when: ansible_facts["os_family"] == "Darwin"
     - role: dev_host
       when: ansible_facts["os_family"] == "Debian" and lookup('env', 'CODESPACES') != 'true'
+    - role: agent_host
+      when: agent_host_enabled | default(false) | bool

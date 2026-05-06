@@ -1,0 +1,372 @@
+---
+
+- name: Resolve agent host role root
+  set_fact:
+    agent_host_role_root_resolved: "{{ agent_host_role_root | default(role_path) }}"
+    agent_host_install_user_home_resolved: "{{ agent_host_install_user_home | default(true) | bool }}"
+    agent_host_user_home_resolved: "{{ agent_host_user_home | default(ansible_facts['user_dir'] | default(ansible_facts['env']['HOME'])) }}"
+    agent_host_install_pr_creation_skills_resolved: "{{ agent_host_install_pr_creation_skills | default(true) | bool }}"
+    agent_host_runtime_homes_resolved: "{{ agent_host_runtime_homes | default([]) }}"
+
+- name: Install agent host hook dependencies (Debian)
+  package:
+    name:
+      - jq
+    state: present
+  become: yes
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Install agent host hook dependencies (macOS)
+  homebrew:
+    name:
+      - jq
+    state: present
+  when: ansible_facts['os_family'] == 'Darwin'
+
+- name: Create agent host directories
+  file:
+    path: "{{ agent_host_user_home_resolved }}/{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+  when: agent_host_install_user_home_resolved | bool
+  loop:
+    - { path: .claude, mode: '0700' }
+    - { path: .claude/hooks, mode: '0755' }
+    - { path: .codex, mode: '0700' }
+    - { path: .local/bin, mode: '0755' }
+    - { path: .local/share/skills/_commit, mode: '0755' }
+    - { path: .local/share/skills/_pr-workflow-common, mode: '0755' }
+    - { path: .local/share/skills/_review, mode: '0755' }
+    - { path: .local/share/skills/_pr-forgejo, mode: '0755' }
+    - { path: .local/share/skills/_pr-github, mode: '0755' }
+    - { path: .claude/skills/_commit, mode: '0755' }
+    - { path: .claude/skills/_pull-request, mode: '0755' }
+    - { path: .claude/skills/_review, mode: '0755' }
+    - { path: .claude/skills/_pr-forgejo, mode: '0755' }
+    - { path: .claude/skills/_pr-github, mode: '0755' }
+    - { path: .claude/skills/_forgejo-demo, mode: '0755' }
+    - { path: .claude/skills/_github-demo, mode: '0755' }
+    - { path: .codex/skills/_commit, mode: '0755' }
+    - { path: .codex/skills/_pull-request, mode: '0755' }
+    - { path: .codex/skills/_review, mode: '0755' }
+    - { path: .codex/skills/_pr-forgejo, mode: '0755' }
+    - { path: .codex/skills/_pr-github, mode: '0755' }
+    - { path: .codex/skills/_forgejo-demo, mode: '0755' }
+    - { path: .codex/skills/_github-demo, mode: '0755' }
+
+- name: Install agent host local commands
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/bin/{{ item }}"
+    dest: "{{ agent_host_user_home_resolved }}/.local/bin/{{ item }}"
+    mode: '0755'
+  when: agent_host_install_user_home_resolved | bool
+  loop:
+    - codex-block-raw-pr-creation
+
+- name: Install Claude raw PR creation blocker hook
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/claude/hooks/block-raw-pr-creation.sh"
+    dest: "{{ agent_host_user_home_resolved }}/.claude/hooks/block-raw-pr-creation.sh"
+    mode: '0755'
+  when: agent_host_install_user_home_resolved | bool
+
+- name: Register PreToolUse Bash hook for blocking raw pull request creation
+  shell: |
+    set -euo pipefail
+
+    settings_file="${SETTINGS_FILE:?}"
+    hook_cmd='~/.claude/hooks/block-raw-pr-creation.sh'
+
+    if [ ! -s "$settings_file" ]; then
+      echo '{}' > "$settings_file"
+    fi
+
+    if jq -e --arg cmd "$hook_cmd" '
+      .hooks.PreToolUse // []
+      | any(.matcher == "Bash" and any(.hooks[]?; .type == "command" and .command == $cmd))
+    ' "$settings_file" >/dev/null 2>&1; then
+      echo "unchanged"
+      exit 0
+    fi
+
+    managed_entry="$(
+      jq -n --arg cmd "$hook_cmd" '{
+        matcher: "Bash",
+        hooks: [
+          {
+            type: "command",
+            command: $cmd
+          }
+        ]
+      }'
+    )"
+    tmp_file="$(mktemp)"
+
+    jq --argjson entry "$managed_entry" '
+      .hooks //= {} |
+      .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry])
+    ' "$settings_file" > "$tmp_file"
+
+    mv "$tmp_file" "$settings_file"
+    chmod 600 "$settings_file"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  environment:
+    SETTINGS_FILE: '{{ agent_host_user_home_resolved }}/.claude/settings.json'
+  register: block_raw_pr_creation_hook_result
+  changed_when: block_raw_pr_creation_hook_result.stdout.strip() == 'changed'
+  when: agent_host_install_user_home_resolved | bool
+
+- name: Enable Codex hooks feature
+  ini_file:
+    path: '{{ agent_host_user_home_resolved }}/.codex/config.toml'
+    section: features
+    option: codex_hooks
+    value: 'true'
+    mode: '0600'
+    create: yes
+  when: agent_host_install_user_home_resolved | bool
+
+- name: Merge managed Codex raw PR creation hook into ~/.codex/hooks.json
+  shell: |
+    set -euo pipefail
+
+    hooks_file="${HOOKS_FILE:?}"
+    managed_command='~/.local/bin/codex-block-raw-pr-creation'
+
+    if [ -f "$hooks_file" ] && jq -e --arg cmd "$managed_command" '
+      .hooks.PreToolUse // []
+      | any(.matcher == "Bash" and any(.hooks[]?; .type == "command" and .command == $cmd))
+    ' "$hooks_file" >/dev/null 2>&1; then
+      echo "unchanged"
+      exit 0
+    fi
+
+    managed_entry="$(
+      jq -n --arg cmd "$managed_command" '{
+        matcher: "Bash",
+        hooks: [
+          {
+            type: "command",
+            command: $cmd
+          }
+        ]
+      }'
+    )"
+    tmp_file="$(mktemp)"
+
+    if [ -f "$hooks_file" ] && [ -s "$hooks_file" ]; then
+      jq --argjson entry "$managed_entry" '
+        .hooks //= {} |
+        .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [$entry])
+      ' "$hooks_file" > "$tmp_file"
+    else
+      jq -n --argjson entry "$managed_entry" '
+        {hooks: {PreToolUse: [$entry]}}
+      ' > "$tmp_file"
+    fi
+
+    mv "$tmp_file" "$hooks_file"
+    chmod 600 "$hooks_file"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  environment:
+    HOOKS_FILE: '{{ agent_host_user_home_resolved }}/.codex/hooks.json'
+  register: codex_raw_pr_creation_hooks_json_result
+  changed_when: codex_raw_pr_creation_hooks_json_result.stdout.strip() == 'changed'
+  when: agent_host_install_user_home_resolved | bool
+
+- name: Enforce 0600 on ~/.codex/hooks.json
+  file:
+    path: '{{ agent_host_user_home_resolved }}/.codex/hooks.json'
+    mode: '0600'
+  when: agent_host_install_user_home_resolved | bool
+
+- name: Install shared PR workflow common helpers
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/_pr-workflow-common/{{ item }}"
+    dest: "{{ agent_host_user_home_resolved }}/.local/share/skills/_pr-workflow-common/{{ item }}"
+    mode: preserve
+  loop:
+    - detect-platform.sh
+    - agent-worktree-path.sh
+    - context.sh
+    - classify-visual.sh
+    - build-pr-body.sh
+    - pr-status-cache.sh
+  when:
+    - agent_host_install_user_home_resolved | bool
+    - agent_host_install_pr_creation_skills_resolved | bool
+
+- name: Install shared review helper
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/_review/{{ item }}"
+    dest: "{{ agent_host_user_home_resolved }}/.local/share/skills/_review/{{ item }}"
+    mode: preserve
+  loop:
+    - run.sh
+  when:
+    - agent_host_install_user_home_resolved | bool
+    - agent_host_install_pr_creation_skills_resolved | bool
+
+- name: Install shared commit helper
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/_commit/{{ item }}"
+    dest: "{{ agent_host_user_home_resolved }}/.local/share/skills/_commit/{{ item }}"
+    mode: preserve
+  loop:
+    - commit.sh
+  when: agent_host_install_user_home_resolved | bool
+
+- name: Install shared Forgejo PR workflow helpers
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/_pr-forgejo/{{ item }}"
+    dest: "{{ agent_host_user_home_resolved }}/.local/share/skills/_pr-forgejo/{{ item }}"
+    mode: preserve
+  loop:
+    - create.sh
+    - post-demo.sh
+    - upload-attachment.sh
+    - state.sh
+  when:
+    - agent_host_install_user_home_resolved | bool
+    - agent_host_install_pr_creation_skills_resolved | bool
+
+- name: Install shared GitHub PR workflow helpers
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/_pr-github/{{ item }}"
+    dest: "{{ agent_host_user_home_resolved }}/.local/share/skills/_pr-github/{{ item }}"
+    mode: preserve
+  loop:
+    - create.sh
+    - post-demo.sh
+    - state.sh
+  when:
+    - agent_host_install_user_home_resolved | bool
+    - agent_host_install_pr_creation_skills_resolved | bool
+
+- name: Install Claude PR workflow skill entry points
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/SKILL.md"
+    dest: "{{ agent_host_user_home_resolved }}/.claude/skills/{{ item }}/SKILL.md"
+    mode: preserve
+  loop:
+    - _pull-request
+    - _review
+    - _pr-forgejo
+    - _pr-github
+    - _forgejo-demo
+    - _github-demo
+  when:
+    - agent_host_install_user_home_resolved | bool
+    - agent_host_install_pr_creation_skills_resolved | bool
+
+- name: Install Claude commit skill entry point
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/_commit/SKILL.md"
+    dest: "{{ agent_host_user_home_resolved }}/.claude/skills/_commit/SKILL.md"
+    mode: preserve
+  when: agent_host_install_user_home_resolved | bool
+
+- name: Install Codex PR workflow skill entry points
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/SKILL.md"
+    dest: "{{ agent_host_user_home_resolved }}/.codex/skills/{{ item }}/SKILL.md"
+    mode: preserve
+  loop:
+    - _pull-request
+    - _review
+    - _pr-forgejo
+    - _pr-github
+    - _forgejo-demo
+    - _github-demo
+  when:
+    - agent_host_install_user_home_resolved | bool
+    - agent_host_install_pr_creation_skills_resolved | bool
+
+- name: Install Codex commit skill entry point
+  copy:
+    src: "{{ agent_host_role_root_resolved }}/files/share/skills/_commit/SKILL.md"
+    dest: "{{ agent_host_user_home_resolved }}/.codex/skills/_commit/SKILL.md"
+    mode: preserve
+  when: agent_host_install_user_home_resolved | bool
+
+- name: Remove PR creation skills when disabled
+  file:
+    path: "{{ agent_host_user_home_resolved }}/{{ item }}"
+    state: absent
+  when:
+    - agent_host_install_user_home_resolved | bool
+    - not (agent_host_install_pr_creation_skills_resolved | bool)
+  loop:
+    - .local/share/skills/_pr-workflow-common
+    - .local/share/skills/_review
+    - .local/share/skills/_pr-forgejo
+    - .local/share/skills/_pr-github
+    - .claude/skills/_pull-request
+    - .claude/skills/_review
+    - .claude/skills/_pr-forgejo
+    - .claude/skills/_pr-github
+    - .claude/skills/_forgejo-demo
+    - .claude/skills/_github-demo
+    - .codex/skills/_pull-request
+    - .codex/skills/_review
+    - .codex/skills/_pr-forgejo
+    - .codex/skills/_pr-github
+    - .codex/skills/_forgejo-demo
+    - .codex/skills/_github-demo
+
+- name: Remove legacy PR workflow installs from agent hosts
+  file:
+    path: "{{ agent_host_user_home_resolved }}/{{ item }}"
+    state: absent
+  loop:
+    - .agents/skills/forgejo-pr
+    - .local/share/skills/forgejo-pr
+    - .local/share/skills/pr-workflow-common
+    - .local/share/skills/pr-monitor
+    - .local/share/skills/pr-forgejo
+    - .local/share/skills/pr-github
+    - .local/share/skills/p-pr-workflow-common
+    - .local/share/skills/p-pr-monitor
+    - .local/share/skills/p-pr-forgejo
+    - .local/share/skills/p-pr-github
+    - .claude/skills/create-pull-request
+    - .claude/skills/pr-forgejo
+    - .claude/skills/pr-github
+    - .claude/skills/create-forgejo-demo
+    - .claude/skills/create-github-demo
+    - .claude/skills/p-pull-request
+    - .claude/skills/p-pr-forgejo
+    - .claude/skills/p-pr-github
+    - .claude/skills/p-forgejo-demo
+    - .claude/skills/p-github-demo
+    - .codex/skills/create-pull-request
+    - .codex/skills/pr-forgejo
+    - .codex/skills/pr-github
+    - .codex/skills/create-forgejo-demo
+    - .codex/skills/create-github-demo
+    - .codex/skills/p-pull-request
+    - .codex/skills/p-pr-forgejo
+    - .codex/skills/p-pr-github
+    - .codex/skills/p-forgejo-demo
+    - .codex/skills/p-github-demo
+    - .local/share/skills/_pr-workflow-common/run-review.sh
+    - .claude/skills/forgejo-pr
+    - .codex/skills/forgejo-pr
+  when: agent_host_install_user_home_resolved | bool
+
+- name: Apply agent host baseline to runtime homes
+  include_tasks:
+    file: "{{ agent_host_role_root_resolved }}/tasks/runtime-home.yml"
+    apply:
+      tags:
+        - agenthost_role
+  loop: "{{ agent_host_runtime_homes_resolved }}"
+  loop_control:
+    loop_var: agent_host_runtime_home
+    label: "{{ agent_host_runtime_home.home }}"
+  tags:
+    - agenthost_role

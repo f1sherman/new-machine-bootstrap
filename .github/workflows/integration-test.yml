@@ -24,6 +24,9 @@ jobs:
       - name: Verify Codex auth skill guidance
         run: bash tests/generate-codex-auth-skill.sh
 
+      - name: Verify agent host role
+        run: bash tests/agent-host-role.sh
+
       - name: Verify macOS Node GPG isolation regression
         run: bash tests/macos-mise-node-gpg.sh
 
