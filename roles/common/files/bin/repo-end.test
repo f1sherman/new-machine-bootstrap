@@ -244,6 +244,14 @@ squash_parent="$(git -C "$squash_repo" rev-parse 'HEAD~2')"
 squash_origin="$TMPROOT/squash-merged-origin.git"
 squash_commit="$(git -C "$squash_repo" commit-tree "$squash_tree" -p "$squash_parent" -m 'squash merge of feature/squash-merged')"
 git -C "$squash_repo" push -q origin "+${squash_commit}:refs/heads/main"
+git -C "$squash_repo" branch -f main "$squash_commit"
+git -C "$squash_repo" checkout -q main
+printf 'post squash edit\n' >>"$squash_repo/squash.txt"
+git -C "$squash_repo" add squash.txt
+git -C "$squash_repo" commit -q -m 'post squash edit'
+post_squash_commit="$(git -C "$squash_repo" rev-parse HEAD)"
+git -C "$squash_repo" push -q origin main
+git -C "$squash_repo" checkout -q feature/squash-merged
 CLEANUP_LOG="$TMPROOT/squash-cleanup.log" CLEANUP_STATUS=0 \
   bash -c 'cd "$1" && "$2" --print-path' bash "$squash_repo" "$SCRIPT" >"$TMPROOT/squash.out" 2>"$TMPROOT/squash.err"
 assert_file_contains "$TMPROOT/squash-cleanup.log" \
@@ -253,16 +261,16 @@ assert_file_contains "$TMPROOT/squash-cleanup.log" \
   printf 'FAIL  repo-end did not switch to main when feature is squash-merged\n' >&2
   exit 1
 }
-[ "$(git -C "$squash_repo" rev-parse main)" = "$squash_commit" ] || {
+[ "$(git -C "$squash_repo" rev-parse main)" = "$post_squash_commit" ] || {
   printf 'FAIL  repo-end did not update local main when feature is squash-merged\n' >&2
   exit 1
 }
 post_squash_tip="$(git --git-dir="$squash_origin" rev-parse refs/heads/main)"
-[ "$post_squash_tip" = "$squash_commit" ] || {
+[ "$post_squash_tip" = "$post_squash_commit" ] || {
   printf 'FAIL  repo-end pushed beyond squash commit\n' >&2
-  printf '      expected %s, origin now %s\n' "$squash_commit" "$post_squash_tip" >&2
+  printf '      expected %s, origin now %s\n' "$post_squash_commit" "$post_squash_tip" >&2
   exit 1
 }
-printf 'PASS  repo-end skips push when feature is squash-merged\n'
+printf 'PASS  repo-end skips push when squash-merged file changed later\n'
 
 printf 'PASS  repo-end regression test\n'

@@ -129,6 +129,8 @@ run_allow_case "allows git branch -v" 'git branch -v'
 run_allow_case "allows git branch --merged" 'git branch --merged'
 run_allow_case "allows git checkout main" 'git checkout main'
 run_allow_case "allows git switch main" 'git switch main'
+run_allow_case "allows checkout followed by diff -b" 'git checkout main && git diff -b'
+run_allow_case "allows switch followed by diff -b" 'git switch main; git diff -b'
 
 implicit_repo="$(setup_remote_only_branch_repo implicit)"
 run_block_case_in_dir "blocks implicit git checkout remote branch" "$implicit_repo" 'git checkout foo' "$DENY_REASON"
