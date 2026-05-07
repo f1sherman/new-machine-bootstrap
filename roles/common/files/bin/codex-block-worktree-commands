@@ -162,6 +162,11 @@ matches_implicit_remote_branch_command() {
           ;;
         *)
           target="$token"
+          case "$target" in
+            HEAD|FETCH_HEAD|ORIG_HEAD|MERGE_HEAD|CHERRY_PICK_HEAD|REVERT_HEAD)
+              break
+              ;;
+          esac
           if "$git_cmd" -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1 \
             && ! "$git_cmd" -C "$repo_dir" show-ref --verify --quiet "refs/heads/$target" \
             && "$git_cmd" -C "$repo_dir" for-each-ref --format='%(refname)' "refs/remotes/*/$target" | grep -q .; then
