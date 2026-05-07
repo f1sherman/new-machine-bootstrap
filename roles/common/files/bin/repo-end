@@ -81,6 +81,24 @@ already_merged() {
     [[ -n "$main_tree" && "$merge_tree" == "$main_tree" ]]
     return $?
   fi
+  squash_patch_previously_applied "$git_cmd"
+}
+
+squash_patch_previously_applied() {
+  local git_cmd base branch_patch commit patch
+  git_cmd="$1"
+
+  base="$("$git_cmd" -C "$repo_root" merge-base "origin/${main_branch}" HEAD 2>/dev/null || true)"
+  [[ -n "$base" ]] || return 1
+
+  branch_patch="$("$git_cmd" -C "$repo_root" diff "$base" HEAD | "$git_cmd" -C "$repo_root" patch-id --stable | awk 'NR == 1 {print $1}')"
+  [[ -n "$branch_patch" ]] || return 1
+
+  while IFS= read -r commit; do
+    patch="$("$git_cmd" -C "$repo_root" show --pretty=format: "$commit" | "$git_cmd" -C "$repo_root" patch-id --stable | awk 'NR == 1 {print $1}')"
+    [[ -n "$patch" && "$patch" == "$branch_patch" ]] && return 0
+  done < <("$git_cmd" -C "$repo_root" rev-list "${base}..origin/${main_branch}")
+
   return 1
 }
 
