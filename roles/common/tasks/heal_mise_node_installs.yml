@@ -1,0 +1,67 @@
+---
+# Auto-heal mise-managed Node.js installs.
+#
+# Some Node tarballs ship a bin/npx that is a symlink to
+# lib/node_modules/npm/bin/npx-cli.js — but the target file is missing,
+# leaving a dangling symlink. The previous heal logic used Ansible's stat
+# module with default follow:false, so a broken symlink reported
+# stat.exists:true and the version looked healthy.
+#
+# Strategy: enumerate every mise-installed node version, exec --version on
+# node/npm/npx, and force-reinstall any version where any of those exec'd
+# binaries returns non-zero.
+
+- name: Enumerate installed mise node versions
+  shell: "{{ mise_bin }} ls --installed node | awk '$1 == \"node\" { print $2 }'"
+  register: mise_node_installed_versions
+  changed_when: false
+
+- name: Resolve installed mise node paths
+  command: "{{ mise_bin }} where node@{{ item }}"
+  loop: "{{ mise_node_installed_versions.stdout_lines }}"
+  register: mise_node_installed_paths
+  changed_when: false
+
+- name: Health-check each installed mise node version
+  shell: "{{ item.0.stdout }}/bin/{{ item.1 }} --version"
+  loop: "{{ mise_node_installed_paths.results | product(['node', 'npm', 'npx']) | list }}"
+  register: mise_node_healthcheck
+  changed_when: false
+  failed_when: false
+
+- name: Compute set of broken mise node versions
+  set_fact:
+    mise_node_broken_versions: >-
+      {{
+        mise_node_healthcheck.results
+        | selectattr('rc', 'ne', 0)
+        | map(attribute='item')
+        | map('first')
+        | map(attribute='item')
+        | unique
+        | list
+      }}
+
+- name: Reinstall broken mise node versions
+  block:
+    - name: Create temporary GPG home for mise node reinstall (macOS)
+      tempfile:
+        state: directory
+        prefix: mise-node-heal-gpg-
+      register: mise_node_heal_gpg_home
+      when: ansible_facts['os_family'] == 'Darwin'
+
+    - name: Force-reinstall broken mise node versions
+      command: "{{ mise_bin }} install --force node@{{ item }}"
+      loop: "{{ mise_node_broken_versions }}"
+      environment: "{{ {'GNUPGHOME': mise_node_heal_gpg_home.path} if (ansible_facts['os_family'] == 'Darwin' and mise_node_heal_gpg_home is defined and mise_node_heal_gpg_home.path is defined) else {} }}"
+  always:
+    - name: Remove temporary GPG home for mise node reinstall (macOS)
+      file:
+        path: "{{ mise_node_heal_gpg_home.path }}"
+        state: absent
+      when:
+        - ansible_facts['os_family'] == 'Darwin'
+        - mise_node_heal_gpg_home is defined
+        - mise_node_heal_gpg_home.path is defined
+  when: mise_node_broken_versions | length > 0

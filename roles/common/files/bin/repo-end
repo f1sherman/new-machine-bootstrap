@@ -59,10 +59,66 @@ if [[ -n "$(_repo_status_excluding_config "$repo_root")" ]]; then
   exit 1
 fi
 
-"$(_worktree_cmd git)" -C "$repo_root" fetch -q origin || true
-if ! "$(_worktree_cmd git)" -C "$repo_root" rebase --quiet "origin/${main_branch}"; then
-  printf 'Error: rebase has conflicts; resolve them in %s and run repo-end again\n' "$repo_root" >&2
+if ! "$(_worktree_cmd git)" -C "$repo_root" fetch -q origin; then
+  printf 'Error: failed to fetch origin; refusing to clean up with stale remote refs\n' >&2
   exit 1
+fi
+
+already_merged() {
+  local git_cmd
+  git_cmd="$(_worktree_cmd git)"
+  # Direct ancestor: every commit on HEAD is already in origin/<main>.
+  if "$git_cmd" -C "$repo_root" merge-base --is-ancestor HEAD "origin/${main_branch}" 2>/dev/null; then
+    return 0
+  fi
+  # Squash/current-state equivalence: if a synthetic merge of HEAD into the
+  # current origin/<main> tree is identical to origin/<main>, the feature's net
+  # effect is already present. Reverted historical patches fail this check.
+  local merge_tree main_tree
+  if merge_tree="$("$git_cmd" -C "$repo_root" merge-tree --write-tree "origin/${main_branch}" HEAD 2>/dev/null)"; then
+    [[ -n "$merge_tree" ]] || return 1
+    main_tree="$("$git_cmd" -C "$repo_root" rev-parse "origin/${main_branch}^{tree}" 2>/dev/null || true)"
+    [[ -n "$main_tree" && "$merge_tree" == "$main_tree" ]]
+    return $?
+  fi
+  squash_patch_previously_applied "$git_cmd"
+}
+
+squash_patch_previously_applied() {
+  local git_cmd base branch_patch reverse_patch commit patch matched
+  git_cmd="$1"
+
+  base="$("$git_cmd" -C "$repo_root" merge-base "origin/${main_branch}" HEAD 2>/dev/null || true)"
+  [[ -n "$base" ]] || return 1
+
+  branch_patch="$("$git_cmd" -C "$repo_root" diff "$base" HEAD | "$git_cmd" -C "$repo_root" patch-id --stable | awk 'NR == 1 {print $1}')"
+  [[ -n "$branch_patch" ]] || return 1
+  reverse_patch="$("$git_cmd" -C "$repo_root" diff HEAD "$base" | "$git_cmd" -C "$repo_root" patch-id --stable | awk 'NR == 1 {print $1}')"
+  [[ -n "$reverse_patch" ]] || return 1
+
+  matched=false
+  while IFS= read -r commit; do
+    patch="$("$git_cmd" -C "$repo_root" show --pretty=format: "$commit" | "$git_cmd" -C "$repo_root" patch-id --stable | awk 'NR == 1 {print $1}')"
+    [[ -n "$patch" ]] || continue
+    if [[ "$matched" == "true" && "$patch" == "$reverse_patch" ]]; then
+      return 1
+    fi
+    if [[ "$patch" == "$branch_patch" ]]; then
+      matched=true
+    fi
+  done < <("$git_cmd" -C "$repo_root" rev-list --reverse "${base}..origin/${main_branch}")
+
+  [[ "$matched" == "true" ]]
+}
+
+if already_merged; then
+  skip_integration=true
+else
+  skip_integration=false
+  if ! "$(_worktree_cmd git)" -C "$repo_root" rebase --quiet --reapply-cherry-picks "origin/${main_branch}"; then
+    printf 'Error: rebase has conflicts; resolve them in %s and run repo-end again\n' "$repo_root" >&2
+    exit 1
+  fi
 fi
 
 main_path="$(_worktree_main_path "$main_branch" || true)"
@@ -80,9 +136,16 @@ if [[ -n "$(_repo_status_excluding_config "$main_path")" ]]; then
   exit 1
 fi
 
-"$(_worktree_cmd git)" -C "$main_path" checkout -q "$main_branch"
-"$(_worktree_cmd git)" -C "$main_path" merge --quiet "$current_branch"
-"$(_worktree_cmd git)" -C "$main_path" push --quiet
+if [[ "$skip_integration" == "true" ]]; then
+  "$(_worktree_cmd git)" -C "$main_path" checkout -q "$main_branch"
+  "$(_worktree_cmd git)" -C "$main_path" merge --ff-only --quiet "origin/${main_branch}"
+fi
+
+if [[ "$skip_integration" != "true" ]]; then
+  "$(_worktree_cmd git)" -C "$main_path" checkout -q "$main_branch"
+  "$(_worktree_cmd git)" -C "$main_path" merge --quiet "$current_branch"
+  "$(_worktree_cmd git)" -C "$main_path" push --quiet
+fi
 
 cleanup_after_merge() {
   if [[ "$repo_root" != "$main_path" ]]; then
@@ -93,6 +156,10 @@ cleanup_after_merge() {
   fi
 
   "$(_worktree_cmd git)" -C "$main_path" branch -D "$current_branch" >/dev/null
+
+  if "$(_worktree_cmd git)" -C "$main_path" ls-remote --exit-code --heads origin "refs/heads/${current_branch}" >/dev/null 2>&1; then
+    "$(_worktree_cmd git)" -C "$main_path" push --quiet origin --delete "$current_branch" || true
+  fi
 }
 
 if [[ "$print_path" == "true" ]]; then

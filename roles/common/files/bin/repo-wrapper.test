@@ -103,7 +103,7 @@ check_wrapper() {
   cd "$case_root"
   HELPER_LOG="\$helper_log"
   export HELPER_LOG
-  _worktree_sync_tmux_state() {
+  worktree_sync_tmux_state() {
     printf '%s\n' "sync-current" >> "\$help_sync_log"
   }
   "\$wrapper_name" feature/alpha --help > "\$help_stdout_file"
@@ -111,7 +111,7 @@ check_wrapper() {
 
   HELPER_LOG="\$helper_log"
   export HELPER_LOG
-  _worktree_sync_tmux_state() {
+  worktree_sync_tmux_state() {
     printf '%s\n' "sync-current" >> "\$sync_log"
   }
   "\$wrapper_name" --branch feature/alpha --path "$case_root/requested-path" > "\$stdout_file"
@@ -128,7 +128,7 @@ check_json_wrapper() {
   cd "$case_root"
   HELPER_LOG="\$json_helper_log"
   export HELPER_LOG
-  _worktree_sync_tmux_state() {
+  worktree_sync_tmux_state() {
     printf '%s\n' "sync-current" >> "\$json_sync_log"
   }
   "\$wrapper_name" feature/json --json > "\$json_stdout_file"
