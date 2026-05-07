@@ -173,6 +173,15 @@ run_block_case_in_dir "blocks separator-attached implicit git switch remote bran
 run_block_case_in_dir "blocks optioned implicit git checkout remote branch" "$implicit_repo" 'git checkout --recurse-submodules foo' "$DENY_REASON"
 run_block_case_in_dir "blocks optioned implicit git switch remote branch" "$implicit_repo" 'git switch --discard-changes foo' "$DENY_REASON"
 run_allow_case "allows echo mention of implicit checkout" 'echo git checkout foo'
+run_allow_case_in_dir() {
+  local name="$1"
+  local dir="$2"
+  local command="$3"
+
+  (cd "$dir" && run_allow_case "$name" "$command")
+}
+run_allow_case_in_dir "allows checkout HEAD path restore" "$implicit_repo" 'git checkout HEAD -- README.md'
+run_allow_case_in_dir "allows quiet checkout HEAD path restore" "$implicit_repo" 'git checkout -q HEAD -- README.md'
 run_block_case "blocks cd then implicit git checkout remote branch" "cd $implicit_repo && git checkout foo" "$DENY_REASON"
 home_dir="$TMPROOT/home"
 mkdir -p "$home_dir"
