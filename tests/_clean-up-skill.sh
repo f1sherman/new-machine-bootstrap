@@ -3,13 +3,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-COMMON_SKILL="$REPO_ROOT/roles/common/files/config/skills/common/_clean-up/SKILL.md"
-HELPER="$REPO_ROOT/roles/common/files/bin/git-clean-up"
-HELPER_TEST="$REPO_ROOT/roles/common/files/bin/git-clean-up.test"
 MAIN_YML="$REPO_ROOT/roles/common/tasks/main.yml"
 PROVIDER="for""gejo"
 
-REMOVED_PR_MONITOR_PATHS=(
+REMOVED_CLEANUP_PATHS=(
+  "roles/common/files/config/skills/common/_clean-up"
   "roles/common/files/config/skills/common/_monitor-pr"
   "roles/common/files/config/skills/common/_monitor-github-pr"
   "roles/common/files/config/skills/common/_monitor-${PROVIDER}-pr"
@@ -17,6 +15,12 @@ REMOVED_PR_MONITOR_PATHS=(
   "roles/common/files/share/skills/_pr-workflow-common"
   "roles/common/files/share/skills/_pr-github"
   "roles/common/files/share/skills/_pr-${PROVIDER}"
+  "roles/common/files/bin/cleanup-branches"
+  "roles/common/files/bin/cleanup-branches.test"
+  "roles/common/files/bin/git-clean-up"
+  "roles/common/files/bin/git-clean-up.test"
+  "roles/common/files/bin/tmux-label-format"
+  "roles/common/files/bin/tmux-label-format.test"
 )
 
 pass=0
@@ -24,16 +28,6 @@ fail=0
 
 pass_case() { pass=$((pass + 1)); printf 'PASS  %s\n' "$1"; }
 fail_case() { fail=$((fail + 1)); printf 'FAIL  %s\n      %s\n' "$1" "$2"; }
-
-assert_exists() {
-  local path="$1" name="$2"
-  if [ -e "$path" ]; then pass_case "$name"; else fail_case "$name" "missing path: $path"; fi
-}
-
-assert_executable() {
-  local path="$1" name="$2"
-  if [ -x "$path" ]; then pass_case "$name"; else fail_case "$name" "not executable: $path"; fi
-}
 
 assert_missing() {
   local path="$1" name="$2"
@@ -62,27 +56,20 @@ assert_no_git_grep() {
   fi
 }
 
-assert_exists "$COMMON_SKILL" "shared _clean-up skill exists"
 assert_missing "$REPO_ROOT/roles/common/files/config/skills/claude/_clean-up" "no Claude-specific _clean-up override"
 assert_missing "$REPO_ROOT/roles/common/files/config/skills/codex/_clean-up" "no Codex-specific _clean-up override"
-assert_contains "$COMMON_SKILL" "name: _clean-up" "skill uses canonical name"
-assert_contains "$COMMON_SKILL" "git-clean-up" "skill invokes helper"
-assert_contains "$COMMON_SKILL" "Report the branch cleanup summary" "skill requires summary reporting"
-assert_not_contains "$COMMON_SKILL" "pull-request monitoring" "cleanup skill is not tied to PR monitoring"
-assert_not_contains "$COMMON_SKILL" "REPO_DIR" "cleanup skill does not consume monitor environment"
 
-assert_exists "$HELPER" "git-clean-up source exists"
-assert_executable "$HELPER" "git-clean-up is executable"
-assert_exists "$HELPER_TEST" "git-clean-up test exists"
-assert_executable "$HELPER_TEST" "git-clean-up test is executable"
-
-for path in "${REMOVED_PR_MONITOR_PATHS[@]}"; do
+for path in "${REMOVED_CLEANUP_PATHS[@]}"; do
   assert_missing "$REPO_ROOT/$path" "NMB does not ship $path"
 done
 
 assert_no_git_grep "$PROVIDER" "NMB role files contain no provider references" roles/common/files roles/common/tasks
 
-assert_contains "$MAIN_YML" "git-clean-up" "Ansible installs git-clean-up"
+assert_contains "$MAIN_YML" "Remove HNP-owned helper scripts from common installs" "Ansible removes stale HNP-owned helper scripts"
+assert_contains "$MAIN_YML" "Remove HNP-owned skill installs from common installs" "Ansible removes stale HNP-owned skills"
+assert_not_contains "$MAIN_YML" "src: '{{ playbook_dir }}/roles/common/files/bin/cleanup-branches'" "Ansible does not install cleanup-branches source"
+assert_not_contains "$MAIN_YML" "src: '{{ playbook_dir }}/roles/common/files/bin/git-clean-up'" "Ansible does not install git-clean-up source"
+assert_not_contains "$MAIN_YML" "src: '{{ playbook_dir }}/roles/common/files/bin/tmux-label-format'" "Ansible does not install tmux-label-format source"
 assert_not_contains "$MAIN_YML" "roles/common/files/share/skills/" "Ansible no longer installs shared PR monitor runtime files"
 assert_not_contains "$MAIN_YML" ".local/share/skills/" "Ansible no longer creates shared PR monitor runtime destination"
 assert_contains "$MAIN_YML" "roles/common/files/config/skills/common/" "Ansible still installs common skills"

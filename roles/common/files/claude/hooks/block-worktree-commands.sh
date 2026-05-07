@@ -33,7 +33,7 @@ if matches_worktree_command add; then
 fi
 
 if matches_worktree_command remove; then
-  emit_deny "Do not run git worktree remove directly. Use repo-end to finish work, or cleanup-branches --branch <branch> for cleanup only."
+  emit_deny "Do not run git worktree remove directly. Use repo-end to finish work."
   exit 0
 fi
 

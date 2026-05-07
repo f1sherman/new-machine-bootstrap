@@ -84,14 +84,21 @@ fi
 "$(_worktree_cmd git)" -C "$main_path" merge --quiet "$current_branch"
 "$(_worktree_cmd git)" -C "$main_path" push --quiet
 
-run_cleanup() {
-  (cd "$repo_root" && cleanup-branches --branch "$current_branch")
+cleanup_after_merge() {
+  if [[ "$repo_root" != "$main_path" ]]; then
+    cd "$main_path"
+    "$(_worktree_cmd git)" -C "$main_path" worktree remove "$repo_root"
+  else
+    "$(_worktree_cmd git)" -C "$main_path" checkout -q "$main_branch"
+  fi
+
+  "$(_worktree_cmd git)" -C "$main_path" branch -D "$current_branch" >/dev/null
 }
 
 if [[ "$print_path" == "true" ]]; then
-  run_cleanup >&2
+  cleanup_after_merge >&2
 else
-  run_cleanup
+  cleanup_after_merge
 fi
 
 printf '%s\n' "$main_path"

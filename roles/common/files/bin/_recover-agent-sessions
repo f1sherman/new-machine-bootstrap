@@ -439,7 +439,6 @@ end
 def cleanup_signal?(line)
   [
     "repo-end",
-    "cleanup-branches",
     "worktree-done",
     "worktree-delete",
     "git worktree remove",

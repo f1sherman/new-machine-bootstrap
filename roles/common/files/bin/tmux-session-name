@@ -12,10 +12,8 @@
 
 pane_id="${1:-${TMUX_PANE:-$(tmux display-message -p '#{pane_id}')}}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-label_formatter="${TMUX_LABEL_FORMAT_BIN:-$script_dir/tmux-label-format}"
 devpod_name_helper="${TMUX_DEVPOD_NAME_BIN:-$script_dir/tmux-devpod-name}"
 
-[ -x "$label_formatter" ] || label_formatter="${HOME:-}/.local/bin/tmux-label-format"
 [ -x "$devpod_name_helper" ] || devpod_name_helper="${HOME:-}/.local/bin/tmux-devpod-name"
 
 # Deduplicate concurrent runs for the same pane. Agents like Claude and Codex
@@ -96,6 +94,62 @@ _head_branch() {
   return 1
 }
 
+dir_basename() {
+  local raw="${1%/}"
+  raw="${raw##*/}"
+  [ -n "$raw" ] || raw="/"
+  printf '%s\n' "$raw"
+}
+
+repo_root_for_path() {
+  local path="$1" common_dir top_level
+
+  top_level="$(git -C "$path" rev-parse --path-format=absolute --show-toplevel 2>/dev/null)" || return 1
+  common_dir="$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+  common_dir="${common_dir%/}"
+
+  case "$common_dir" in
+    */.git)
+      printf '%s\n' "${common_dir%/*}"
+      ;;
+    *)
+      printf '%s\n' "$top_level"
+      ;;
+  esac
+}
+
+repo_basename() {
+  local root
+  root="$(repo_root_for_path "$1")" || return 1
+  dir_basename "$root"
+}
+
+dirty_marker() {
+  [ -n "$(git --no-optional-locks -C "$1" status --porcelain 2>/dev/null)" ]
+}
+
+format_local_label() {
+  local path="$1" repo branch
+
+  repo="$(repo_basename "$path" 2>/dev/null || true)"
+  branch="$(_head_branch "$path" 2>/dev/null || true)"
+
+  if [ -n "$branch" ] && [ -n "$repo" ]; then
+    if dirty_marker "$path"; then
+      printf '(*%s) %s\n' "$branch" "$repo"
+    else
+      printf '(%s) %s\n' "$branch" "$repo"
+    fi
+    return 0
+  fi
+
+  if [ -n "$repo" ]; then
+    printf '%s\n' "$repo"
+  else
+    dir_basename "$path"
+  fi
+}
+
 pane_procs=$(ps -o args= -t "$pane_tty" 2>/dev/null)
 if grep -qE "$ssh_pattern" <<< "$pane_procs"; then
   is_codespace=$(grep -qE 'gh (codespace|cs) ssh' <<< "$pane_procs" && echo 1)
@@ -146,7 +200,7 @@ else
     fi
   fi
 
-  name="$("$label_formatter" local "$pane_current_path" 2>/dev/null || true)"
+  name="$(format_local_label "$pane_current_path" 2>/dev/null || true)"
   [ -n "$name" ] || exit 0
 
   # Append running program if it's not the shell
