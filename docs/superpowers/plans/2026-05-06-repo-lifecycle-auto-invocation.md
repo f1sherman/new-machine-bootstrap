@@ -4,7 +4,7 @@
 
 **Goal:** Make `repo-start` and `repo-end` actually fire — nudge agents toward `repo-start` from initiation skills, hard-block alternative branch creation, and route `_clean-up` through `repo-end` first.
 
-**Architecture:** Three independent components: (A) PostToolUse soft-reminder hook on `Skill` invocations, (B) extended PreToolUse hook on `Bash` to deny `git checkout -b` / `switch -c` / `branch <new>`, (C) `repo-end` gains an "already-merged" idempotency branch and `_clean-up` skill calls it before `git-clean-up`. Test approach mirrors existing patterns: `*.sh.test` files for hooks, real-temp-repo helpers for `repo-end.test`, naming-check additions to `tests/repo-lifecycle-provisioning.sh`.
+**Architecture:** Three independent components: (A) PostToolUse soft-reminder hook on Claude `Skill` invocations, (B) extended Claude and Codex PreToolUse hooks on `Bash` to deny `git checkout -b` / `switch -c` / `branch <new>`, (C) `repo-end` gains an "already-merged" idempotency branch and `_clean-up` skill calls it before `git-clean-up`. Test approach mirrors existing patterns: `*.sh.test` files for hooks, real-temp-repo helpers for `repo-end.test`, naming-check additions to `tests/repo-lifecycle-provisioning.sh`.
 
 **Tech Stack:** Bash 5+, jq, real `git` for hook tests, Ansible for hook registration in `~/.claude/settings.json`. No Ruby/Python.
 
@@ -21,13 +21,15 @@
 **Modified:**
 - `roles/common/files/claude/hooks/block-worktree-commands.sh` — add branch-creation regex matchers.
 - `roles/common/files/claude/hooks/block-worktree-commands.sh.test` — new cases for the branch-creation matchers.
+- `roles/common/files/bin/codex-block-worktree-commands` — add branch-creation regex matchers.
+- `roles/common/files/bin/codex-block-worktree-commands.test` — new cases for the branch-creation matchers.
 - `roles/common/files/bin/repo-end` — add already-merged short-circuit before rebase/merge/push.
 - `roles/common/files/bin/repo-end.test` — new cases for the already-merged paths.
 - `roles/common/files/config/skills/common/_clean-up/SKILL.md` — call `repo-end` before `git-clean-up` for the in-worktree path.
 - `roles/common/tasks/main.yml` — register the new PostToolUse hook in `~/.claude/settings.json`.
 - `tests/repo-lifecycle-provisioning.sh` — add naming/wiring checks for the new pieces.
 
-**Out of scope (deferred to follow-up):** Codex-side mirrors (`codex-block-worktree-commands` etc.). The Claude-side wins do not depend on Codex parity.
+**Codex note:** Codex gets the Bash branch-creation fence in `codex-block-worktree-commands`. The Claude `Skill` reminder has no Codex mirror because current Codex hooks do not expose skill-loading as a hookable tool event.
 
 ---
 
@@ -324,13 +326,15 @@ Invoke the `_commit` skill with arguments:
 
 ---
 
-## Task 3: Extend `block-worktree-commands.sh` to block branch creation
+## Task 3: Extend worktree hooks to block branch creation
 
 Add denials for `git checkout -b`, `git switch -c`, `git switch --create`, and `git branch <new>`.
 
 **Files:**
 - Modify: `roles/common/files/claude/hooks/block-worktree-commands.sh`
 - Modify: `roles/common/files/claude/hooks/block-worktree-commands.sh.test`
+- Modify: `roles/common/files/bin/codex-block-worktree-commands`
+- Modify: `roles/common/files/bin/codex-block-worktree-commands.test`
 
 - [ ] **Step 3.1: Write the failing test cases**
 
@@ -434,10 +438,29 @@ bash roles/common/files/claude/hooks/block-worktree-commands.sh.test
 
 Expected: all PASS lines (existing + new) + final `PASS  blocker helper test suite`.
 
-- [ ] **Step 3.5: Commit**
+- [ ] **Step 3.5: Mirror the matcher in the Codex hook**
+
+Add the same branch-creation test cases and matcher logic to:
+
+```bash
+roles/common/files/bin/codex-block-worktree-commands.test
+roles/common/files/bin/codex-block-worktree-commands
+```
+
+Run the red/green cycle:
+
+```bash
+bash roles/common/files/bin/codex-block-worktree-commands.test
+```
+
+Expected after implementation: the Codex hook blocks direct branch creation
+with `Do not create branches directly. Use repo-start <branch> instead.`
+and still allows read-only branch commands.
+
+- [ ] **Step 3.6: Commit**
 
 Invoke the `_commit` skill with arguments:
-> Commit `roles/common/files/claude/hooks/block-worktree-commands.sh` and its `.test`. Message focus: also block direct branch creation and redirect to repo-start.
+> Commit the Claude and Codex worktree hooks plus tests. Message focus: also block direct branch creation and redirect to repo-start.
 
 ---
 
@@ -727,6 +750,15 @@ echo '{"tool_input":{"command":"git branch --show-current"}}' \
 
 Expected: empty output (allowed).
 
+Also verify the Codex mirror:
+
+```bash
+echo '{"tool_input":{"command":"git checkout -b throwaway"}}' \
+  | ~/.local/bin/codex-block-worktree-commands
+```
+
+Expected: JSON with `permissionDecision: "deny"` and `permissionDecisionReason` mentioning `repo-start`.
+
 - [ ] **Step 6.5: Verify `repo-end` idempotency on a real already-merged branch**
 
 (Optional smoke test. Skip if no convenient already-merged branch is available — the unit tests cover the same logic.)
@@ -753,6 +785,7 @@ Expected: prints the main path, runs cleanup, no errors. This intentionally bypa
 ```bash
 bash roles/common/files/claude/hooks/block-initiation-skill-on-main.sh.test
 bash roles/common/files/claude/hooks/block-worktree-commands.sh.test
+bash roles/common/files/bin/codex-block-worktree-commands.test
 bash roles/common/files/claude/hooks/block-main-branch-edits.sh.test
 bash roles/common/files/bin/repo-end.test
 bash tests/repo-lifecycle-provisioning.sh
@@ -773,7 +806,7 @@ Invoke the `_pull-request` skill via the Skill tool. The PR description should s
 - Component A (PostToolUse reminder hook): Tasks 1, 2, 6.3.
 - Component B (branch creation block): Tasks 3, 6.4.
 - Component C (`_clean-up` → `repo-end`, with `repo-end` idempotency): Tasks 4, 5, 6.5.
-- Spec's "Files Affected" list: all touched (deferring Codex parity per spec).
+- Spec's "Files Affected" list: all touched; Codex Bash hook parity included.
 - Spec's "Open Questions" — `repo-end` idempotency picked option 1 (bake into `repo-end`), reflected in Task 4. Plan introduces a new wrinkle the spec didn't anticipate: the in-worktree `_clean-up` path needs `cd "$main_path"` after `repo-end` to keep `git-clean-up`'s cwd valid. Captured in Task 5.
 
 **Type/name consistency:**

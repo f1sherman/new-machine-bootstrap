@@ -154,6 +154,9 @@ with `--repo-dir` and `--branch`) the same way.
 - `roles/common/files/claude/hooks/block-worktree-commands.sh` (extended)
 - `roles/common/files/claude/hooks/block-worktree-commands.sh.test`
   (extended)
+- `roles/common/files/bin/codex-block-worktree-commands` (extended)
+- `roles/common/files/bin/codex-block-worktree-commands.test`
+  (extended)
 - `roles/common/files/bin/repo-end` (idempotency check for already-merged
   branches)
 - `roles/common/files/bin/repo-end.test` (new cases)
@@ -162,9 +165,11 @@ with `--repo-dir` and `--branch`) the same way.
 - `roles/common/tasks/main.yml` (register the new PostToolUse hook in
   `~/.claude/settings.json`)
 
-The Codex-side mirrors (`codex-block-worktree-commands` etc.) get the same
-treatment as the Claude-side hooks for consistency. If scope creep is a
-concern, Codex-side updates can be deferred to a follow-up.
+The Codex Bash hook mirror (`codex-block-worktree-commands`) gets the same
+branch-creation fence as the Claude Bash hook. There is no Codex mirror for
+the Claude `Skill` PostToolUse reminder because current Codex hooks only
+report supported tool calls such as Bash, apply_patch, and MCP calls, not
+skill-loading events.
 
 ## Testing
 
@@ -196,6 +201,9 @@ Each new/extended hook gets its existing-style `.sh.test` neighbor with
 - Allows `git branch --show-current`, `git branch --list`,
   `git branch -d foo`, `git branch -D foo`, `git branch -v`.
 - Allows `repo-start` and `kickoff`.
+
+`codex-block-worktree-commands.test` gets the same branch-creation block/allow
+coverage for the Codex-managed Bash hook.
 
 `repo-end.test`:
 

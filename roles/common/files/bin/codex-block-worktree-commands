@@ -14,6 +14,19 @@ matches_worktree_command() {
   printf '%s\n' "$command" | grep -Eq "$pattern"
 }
 
+GIT_PREAMBLE='(^|[;&|()])[[:space:]]*((([[:alnum:]_]+)=[^[:space:]]+[[:space:]]+|command[[:space:]]+|env[[:space:]]+)*)git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]]+)*)*[[:space:]]+'
+
+matches_branch_create_command() {
+  local checkout_b="${GIT_PREAMBLE}checkout([[:space:]]+[^[:space:]]+)*[[:space:]]+-[bB]([[:space:]]|$)"
+  local switch_c="${GIT_PREAMBLE}switch([[:space:]]+[^[:space:]]+)*[[:space:]]+(-c|--create|-C)([[:space:]]|$)"
+  local branch_create="${GIT_PREAMBLE}branch[[:space:]]+[^-[:space:]][^[:space:]]*([[:space:]]|$)"
+
+  printf '%s\n' "$command" | grep -Eq "$checkout_b" && return 0
+  printf '%s\n' "$command" | grep -Eq "$switch_c" && return 0
+  printf '%s\n' "$command" | grep -Eq "$branch_create" && return 0
+  return 1
+}
+
 emit_deny() {
   local reason="$1"
 
@@ -33,6 +46,11 @@ fi
 
 if matches_worktree_command remove; then
   emit_deny "Do not run git worktree remove directly. Use repo-end to finish work, or cleanup-branches --branch <branch> for cleanup only."
+  exit 0
+fi
+
+if matches_branch_create_command; then
+  emit_deny "Do not create branches directly. Use repo-start <branch> instead."
   exit 0
 fi
 
