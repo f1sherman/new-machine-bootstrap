@@ -69,7 +69,9 @@ run_empty_case "allows empty command" '{"tool_input":{"command":""}}'
 DENY_REASON='Do not create branches directly. Use repo-start <branch> instead.'
 
 run_block_case "blocks git checkout -b" 'git checkout -b foo' "$DENY_REASON"
+run_block_case "blocks git checkout -bfoo" 'git checkout -bfoo' "$DENY_REASON"
 run_block_case "blocks git switch -c" 'git switch -c foo' "$DENY_REASON"
+run_block_case "blocks git switch -cfoo" 'git switch -cfoo' "$DENY_REASON"
 run_block_case "blocks git switch --create" 'git switch --create foo' "$DENY_REASON"
 run_block_case "blocks git switch --track" 'git switch --track origin/foo' "$DENY_REASON"
 run_block_case "blocks git branch <name>" 'git branch foo' "$DENY_REASON"

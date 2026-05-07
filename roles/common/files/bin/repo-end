@@ -114,7 +114,7 @@ if [[ -n "$(_repo_status_excluding_config "$main_path")" ]]; then
   exit 1
 fi
 
-if [[ "$skip_integration" == "true" && "$main_path" == "$repo_root" ]]; then
+if [[ "$skip_integration" == "true" ]]; then
   "$(_worktree_cmd git)" -C "$main_path" checkout -q "$main_branch"
   "$(_worktree_cmd git)" -C "$main_path" merge --ff-only --quiet "origin/${main_branch}"
 fi
