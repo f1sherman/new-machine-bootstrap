@@ -135,5 +135,7 @@ run_allow_case "allows switch followed by diff -b" 'git switch main; git diff -b
 implicit_repo="$(setup_remote_only_branch_repo implicit)"
 run_block_case_in_dir "blocks implicit git checkout remote branch" "$implicit_repo" 'git checkout foo' "$DENY_REASON"
 run_block_case_in_dir "blocks implicit git switch remote branch" "$implicit_repo" 'git switch foo' "$DENY_REASON"
+run_block_case_in_dir "blocks chained implicit git checkout remote branch" "$implicit_repo" 'git checkout main && git checkout foo' "$DENY_REASON"
+run_block_case_in_dir "blocks chained implicit git switch remote branch" "$implicit_repo" 'git switch main; git switch foo' "$DENY_REASON"
 
 printf 'PASS  blocker helper test suite\n'

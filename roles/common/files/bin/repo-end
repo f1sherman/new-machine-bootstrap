@@ -71,25 +71,13 @@ already_merged() {
   # Squash/current-state equivalence: if a synthetic merge of HEAD into the
   # current origin/<main> tree is identical to origin/<main>, the feature's net
   # effect is already present. Reverted historical patches fail this check.
-  local merge_tree main_tree mb feature_pid main_pid sha main_log
+  local merge_tree main_tree
   if merge_tree="$("$git_cmd" -C "$repo_root" merge-tree --write-tree "origin/${main_branch}" HEAD 2>/dev/null)"; then
     [[ -n "$merge_tree" ]] || return 1
     main_tree="$("$git_cmd" -C "$repo_root" rev-parse "origin/${main_branch}^{tree}" 2>/dev/null || true)"
     [[ -n "$main_tree" && "$merge_tree" == "$main_tree" ]]
     return $?
   fi
-
-  mb="$("$git_cmd" -C "$repo_root" merge-base "origin/${main_branch}" HEAD 2>/dev/null || true)"
-  [[ -n "$mb" ]] || return 1
-  feature_pid="$("$git_cmd" -C "$repo_root" diff "${mb}..HEAD" 2>/dev/null | "$git_cmd" patch-id --stable 2>/dev/null | awk '{print $1}')"
-  [[ -n "$feature_pid" ]] || return 1
-  main_log="$("$git_cmd" -C "$repo_root" log --pretty=format:%H "${mb}..origin/${main_branch}" 2>/dev/null || true)"
-  [[ -n "$main_log" ]] || return 1
-  while IFS= read -r sha; do
-    [[ -n "$sha" ]] || continue
-    main_pid="$("$git_cmd" -C "$repo_root" show "$sha" 2>/dev/null | "$git_cmd" patch-id --stable 2>/dev/null | awk '{print $1}')"
-    [[ -n "$main_pid" && "$main_pid" == "$feature_pid" ]] && return 0
-  done <<< "$main_log"
   return 1
 }
 
