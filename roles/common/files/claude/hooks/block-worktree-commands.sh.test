@@ -58,17 +58,18 @@ run_allow_case() {
 
 setup_remote_only_branch_repo() {
   local name="$1"
+  local remote_name="${2:-origin}"
   local origin="$TMPROOT/$name-origin.git"
   local repo="$TMPROOT/$name-repo"
 
   git -c init.templateDir= init -q --bare "$origin"
   git -c init.templateDir= init -qb main "$repo"
-  git -C "$repo" remote add origin "$origin"
+  git -C "$repo" remote add "$remote_name" "$origin"
   git -C "$repo" commit -q --allow-empty -m init
-  git -C "$repo" push -q -u origin main
+  git -C "$repo" push -q -u "$remote_name" main
   git -C "$repo" checkout -q -b foo
   git -C "$repo" commit -q --allow-empty -m foo
-  git -C "$repo" push -q -u origin foo
+  git -C "$repo" push -q -u "$remote_name" foo
   git -C "$repo" checkout -q main
   git -C "$repo" branch -D foo >/dev/null
   printf '%s\n' "$repo"
@@ -141,5 +142,10 @@ run_block_case_in_dir "blocks implicit git switch remote branch" "$implicit_repo
 run_block_case_in_dir "blocks chained implicit git checkout remote branch" "$implicit_repo" 'git checkout main && git checkout foo' "$DENY_REASON"
 run_block_case_in_dir "blocks chained implicit git switch remote branch" "$implicit_repo" 'git switch main; git switch foo' "$DENY_REASON"
 run_block_case_in_dir "blocks multiline implicit git checkout remote branch" "$implicit_repo" $'git status\ngit checkout foo' "$DENY_REASON"
+run_block_case_in_dir "blocks separator-attached implicit git checkout remote branch" "$implicit_repo" 'git checkout foo; git status' "$DENY_REASON"
+run_block_case_in_dir "blocks separator-attached implicit git switch remote branch" "$implicit_repo" 'git switch foo&& git status' "$DENY_REASON"
+run_allow_case "allows echo mention of implicit checkout" 'echo git checkout foo'
+upstream_repo="$(setup_remote_only_branch_repo upstream upstream)"
+run_block_case_in_dir "blocks implicit checkout from non-origin remote" "$upstream_repo" 'git checkout foo' "$DENY_REASON"
 
 printf 'PASS  blocker helper test suite\n'
