@@ -71,8 +71,12 @@ DENY_REASON='Do not create branches directly. Use repo-start <branch> instead.'
 run_block_case "blocks git checkout -b" 'git checkout -b foo' "$DENY_REASON"
 run_block_case "blocks git switch -c" 'git switch -c foo' "$DENY_REASON"
 run_block_case "blocks git switch --create" 'git switch --create foo' "$DENY_REASON"
+run_block_case "blocks git switch --track" 'git switch --track origin/foo' "$DENY_REASON"
 run_block_case "blocks git branch <name>" 'git branch foo' "$DENY_REASON"
+run_block_case "blocks git branch --track" 'git branch --track foo origin/main' "$DENY_REASON"
+run_block_case "blocks git branch -f" 'git branch -f foo HEAD' "$DENY_REASON"
 run_block_case "blocks git -C path checkout -b" 'git -C repo checkout -b foo' "$DENY_REASON"
+run_block_case "blocks git checkout --orphan" 'git checkout --orphan foo' "$DENY_REASON"
 run_block_case "blocks command git checkout -b" 'command git checkout -b foo' "$DENY_REASON"
 run_block_case "blocks chained git checkout -b" 'cd repo && git checkout -b foo' "$DENY_REASON"
 run_allow_case "allows git branch (no args)" 'git branch'

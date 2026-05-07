@@ -17,13 +17,15 @@ matches_worktree_command() {
 GIT_PREAMBLE='(^|[;&|()])[[:space:]]*((([[:alnum:]_]+)=[^[:space:]]+[[:space:]]+|command[[:space:]]+|env[[:space:]]+)*)git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]]+)*)*[[:space:]]+'
 
 matches_branch_create_command() {
-  local checkout_b="${GIT_PREAMBLE}checkout([[:space:]]+[^[:space:]]+)*[[:space:]]+-[bB]([[:space:]]|$)"
-  local switch_c="${GIT_PREAMBLE}switch([[:space:]]+[^[:space:]]+)*[[:space:]]+(-c|--create|-C)([[:space:]]|$)"
+  local checkout_b="${GIT_PREAMBLE}checkout([[:space:]]+[^[:space:]]+)*[[:space:]]+(-[bB]|--orphan)([[:space:]]|$)"
+  local switch_c="${GIT_PREAMBLE}switch([[:space:]]+[^[:space:]]+)*[[:space:]]+(-c|--create|-C|-t|--track)([=[:space:]]|$)"
   local branch_create="${GIT_PREAMBLE}branch[[:space:]]+[^-[:space:]][^[:space:]]*([[:space:]]|$)"
+  local branch_option_create="${GIT_PREAMBLE}branch([[:space:]]+[^[:space:]]+)*[[:space:]]+(-f|--force|-c|--copy|-C|--track|--no-track|--set-upstream|--create-reflog|--recurse-submodules)([=[:space:]]|$)"
 
   printf '%s\n' "$command" | grep -Eq "$checkout_b" && return 0
   printf '%s\n' "$command" | grep -Eq "$switch_c" && return 0
   printf '%s\n' "$command" | grep -Eq "$branch_create" && return 0
+  printf '%s\n' "$command" | grep -Eq "$branch_option_create" && return 0
   return 1
 }
 

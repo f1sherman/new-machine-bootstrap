@@ -75,7 +75,8 @@ git -C "$stdout_repo" add stdout.txt
 git -C "$stdout_repo" commit -q -m cleanup-stdout
 CLEANUP_LOG="$TMPROOT/cleanup-stdout.log" CLEANUP_STATUS=0 CLEANUP_STDOUT='cleanup progress' \
   bash -c 'cd "$1" && "$2" --print-path' bash "$stdout_repo" "$SCRIPT" >"$TMPROOT/cleanup-stdout.out" 2>"$TMPROOT/cleanup-stdout.err"
-[ "$(cat "$TMPROOT/cleanup-stdout.out")" = "$stdout_repo" ] || {
+stdout_repo_root="$(git -C "$stdout_repo" rev-parse --show-toplevel)"
+[ "$(cat "$TMPROOT/cleanup-stdout.out")" = "$stdout_repo_root" ] || {
   printf 'expected --print-path stdout to contain only main path\n' >&2
   exit 1
 }
@@ -118,7 +119,8 @@ git -C "$subdir_wt" commit -q -m subdir
 mkdir -p "$subdir_wt/nested/path"
 CLEANUP_LOG="$TMPROOT/subdir.log" CLEANUP_STATUS=0 \
   bash -c 'cd "$1" && "$2" --print-path' bash "$subdir_wt/nested/path" "$SCRIPT" >"$TMPROOT/subdir.out" 2>"$TMPROOT/subdir.err"
-assert_file_contains "$TMPROOT/subdir.log" "pwd=$subdir_wt" 'repo-end runs cleanup from worktree root'
+subdir_wt_root="$(git -C "$subdir_wt" rev-parse --show-toplevel)"
+assert_file_contains "$TMPROOT/subdir.log" "pwd=$subdir_wt_root" 'repo-end runs cleanup from worktree root'
 
 dirty_repo="$(create_remote_repo dirty)"
 git -C "$dirty_repo" checkout -q -b feature/dirty
@@ -165,6 +167,14 @@ CLEANUP_LOG="$TMPROOT/already-ancestor-cleanup.log" CLEANUP_STATUS=0 \
 assert_file_contains "$TMPROOT/already-ancestor-cleanup.log" \
   '--branch feature/already-ancestor' \
   'repo-end runs cleanup when feature is direct ancestor of origin/main'
+[ "$(git -C "$ancestor_repo" branch --show-current)" = 'main' ] || {
+  printf 'FAIL  repo-end did not switch to main when feature is direct ancestor\n' >&2
+  exit 1
+}
+[ "$(git -C "$ancestor_repo" rev-parse main)" = "$ancestor_tip" ] || {
+  printf 'FAIL  repo-end did not update local main when feature is direct ancestor\n' >&2
+  exit 1
+}
 post_origin_tip="$(git --git-dir="$ancestor_origin" rev-parse refs/heads/main)"
 [ "$post_origin_tip" = "$ancestor_tip" ] || {
   printf 'FAIL  repo-end did not push when already ancestor\n' >&2
@@ -196,6 +206,14 @@ CLEANUP_LOG="$TMPROOT/squash-cleanup.log" CLEANUP_STATUS=0 \
 assert_file_contains "$TMPROOT/squash-cleanup.log" \
   '--branch feature/squash-merged' \
   'repo-end runs cleanup when feature is squash-merged into origin/main'
+[ "$(git -C "$squash_repo" branch --show-current)" = 'main' ] || {
+  printf 'FAIL  repo-end did not switch to main when feature is squash-merged\n' >&2
+  exit 1
+}
+[ "$(git -C "$squash_repo" rev-parse main)" = "$squash_commit" ] || {
+  printf 'FAIL  repo-end did not update local main when feature is squash-merged\n' >&2
+  exit 1
+}
 post_squash_tip="$(git --git-dir="$squash_origin" rev-parse refs/heads/main)"
 [ "$post_squash_tip" = "$squash_commit" ] || {
   printf 'FAIL  repo-end pushed beyond squash commit\n' >&2

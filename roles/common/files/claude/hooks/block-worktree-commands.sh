@@ -19,17 +19,21 @@ matches_worktree_command() {
 GIT_PREAMBLE='(^|[;&|()])[[:space:]]*((([[:alnum:]_]+)=[^[:space:]]+[[:space:]]+|command[[:space:]]+|env[[:space:]]+)*)git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]]+)*)*[[:space:]]+'
 
 matches_branch_create_command() {
-  # `git ... checkout ... -b/-B <name>` — checkout, then any tokens, then `-b` flag.
-  local checkout_b="${GIT_PREAMBLE}checkout([[:space:]]+[^[:space:]]+)*[[:space:]]+-[bB]([[:space:]]|$)"
-  # `git ... switch ... -c/-C/--create <name>` — switch, then any tokens, then create flag.
-  local switch_c="${GIT_PREAMBLE}switch([[:space:]]+[^[:space:]]+)*[[:space:]]+(-c|--create|-C)([[:space:]]|$)"
+  # `git ... checkout ... -b/-B/--orphan <name>` creates a branch.
+  local checkout_b="${GIT_PREAMBLE}checkout([[:space:]]+[^[:space:]]+)*[[:space:]]+(-[bB]|--orphan)([[:space:]]|$)"
+  # `git ... switch ... -c/-C/--create/-t/--track <name>` creates a branch.
+  local switch_c="${GIT_PREAMBLE}switch([[:space:]]+[^[:space:]]+)*[[:space:]]+(-c|--create|-C|-t|--track)([=[:space:]]|$)"
   # `git ... branch <name>` where <name> is a positional (non-flag) argument.
   # Read-only and management forms (-d/-D/-m/-M/-l/--list/--show-current/-v/-a/-r/--merged/--no-merged/--contains) are allowed because they begin with `-`.
   local branch_create="${GIT_PREAMBLE}branch[[:space:]]+[^-[:space:]][^[:space:]]*([[:space:]]|$)"
+  # Option-led branch creation/reset/copy forms such as `branch --track foo`
+  # and `branch -f foo HEAD` also create or rewrite branch refs.
+  local branch_option_create="${GIT_PREAMBLE}branch([[:space:]]+[^[:space:]]+)*[[:space:]]+(-f|--force|-c|--copy|-C|--track|--no-track|--set-upstream|--create-reflog|--recurse-submodules)([=[:space:]]|$)"
 
   printf '%s\n' "$command" | grep -Eq "$checkout_b" && return 0
   printf '%s\n' "$command" | grep -Eq "$switch_c" && return 0
   printf '%s\n' "$command" | grep -Eq "$branch_create" && return 0
+  printf '%s\n' "$command" | grep -Eq "$branch_option_create" && return 0
   return 1
 }
 
