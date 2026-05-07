@@ -43,6 +43,10 @@ require_contains roles/common/files/bin/codex-block-worktree-commands 'Use repo-
 require_contains roles/common/files/bin/codex-block-worktree-commands 'cleanup-branches --branch <branch>' 'raw worktree remove hook names cleanup script'
 require_contains roles/common/files/bin/codex-block-worktree-commands 'Do not create branches directly.' 'Codex raw branch creation hook blocks branch creation'
 require_not_contains roles/common/files/bin/codex-block-worktree-commands 'worktree-start' 'raw worktree hook stops naming worktree-start'
+require_contains roles/common/files/bin/codex-remind-repo-start-on-dev-prompt 'repo-start <branch>' 'Codex prompt reminder names repo-start'
+require_contains roles/common/files/bin/codex-remind-repo-start-on-dev-prompt 'branch or worktree' 'Codex prompt reminder avoids worktree-only wording'
+require_contains roles/common/tasks/main.yml 'codex-remind-repo-start-on-dev-prompt' 'main.yml installs Codex prompt reminder'
+require_contains roles/common/tasks/main.yml 'UserPromptSubmit' 'main.yml registers Codex UserPromptSubmit hook'
 require_contains roles/common/files/claude/CLAUDE.md.d/00-base.md 'repo-start' 'Claude base instructions name repo-start'
 require_not_contains roles/common/files/claude/CLAUDE.md.d/00-base.md 'worktree-start' 'Claude base instructions stop naming worktree-start'
 require_contains roles/common/files/claude/hooks/block-main-branch-edits.sh 'repo-start <branch>' 'Claude main edit hook names repo-start'
@@ -59,5 +63,7 @@ require_contains roles/common/tasks/main.yml 'Register PostToolUse Skill hook fo
   'main.yml registers initiation-skill PostToolUse task by canonical name'
 require_contains roles/common/files/claude/hooks/block-initiation-skill-on-main.sh 'repo-start' \
   'initiation-skill hook names repo-start'
+require_contains roles/common/files/claude/hooks/block-initiation-skill-on-main.sh 'branch or worktree' \
+  'initiation-skill hook avoids worktree-only wording'
 
 printf 'PASS  repo lifecycle provisioning checks\n'

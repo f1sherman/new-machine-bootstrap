@@ -47,10 +47,10 @@ shows zero invocations of either script since they were installed.
 
 Three components, each independently testable.
 
-### Component A: PostToolUse skill reminder
+### Component A: initiation reminders
 
-A new hook `block-initiation-skill-on-main.sh` (name kept for symmetry with
-the existing `block-*` family even though it does not block) fires on
+A new Claude hook `block-initiation-skill-on-main.sh` (name kept for symmetry
+with the existing `block-*` family even though it does not block) fires on
 `PostToolUse` for the `Skill` tool.
 
 Behavior:
@@ -73,6 +73,14 @@ action.
 
 The hook only inspects branch state; it never inspects the prompt, message
 content, or anything outside the hook input JSON.
+
+Codex cannot mirror the Claude `Skill` event directly. Instead, a
+`UserPromptSubmit` hook (`codex-remind-repo-start-on-dev-prompt`) inspects
+the submitted prompt, self-filters for development verbs such as add/fix/
+implement/address, and emits the same non-blocking reminder when the repo is
+on `main`. The reminder deliberately says `repo-start` chooses the feature
+context "branch or worktree" because `repo-start` may use branch mode in the
+main checkout depending on repo config.
 
 ### Component B: Branch creation hook
 
@@ -151,6 +159,9 @@ with `--repo-dir` and `--branch`) the same way.
 - `roles/common/files/claude/hooks/block-initiation-skill-on-main.sh` (new)
 - `roles/common/files/claude/hooks/block-initiation-skill-on-main.sh.test`
   (new)
+- `roles/common/files/bin/codex-remind-repo-start-on-dev-prompt` (new)
+- `roles/common/files/bin/codex-remind-repo-start-on-dev-prompt.test`
+  (new)
 - `roles/common/files/claude/hooks/block-worktree-commands.sh` (extended)
 - `roles/common/files/claude/hooks/block-worktree-commands.sh.test`
   (extended)
@@ -162,14 +173,14 @@ with `--repo-dir` and `--branch`) the same way.
 - `roles/common/files/bin/repo-end.test` (new cases)
 - `roles/common/files/config/skills/common/_clean-up/SKILL.md` (call
   `repo-end` before `git-clean-up`)
-- `roles/common/tasks/main.yml` (register the new PostToolUse hook in
-  `~/.claude/settings.json`)
+- `roles/common/tasks/main.yml` (register the new Claude PostToolUse hook in
+  `~/.claude/settings.json` and Codex UserPromptSubmit hook in
+  `~/.codex/hooks.json`)
 
 The Codex Bash hook mirror (`codex-block-worktree-commands`) gets the same
-branch-creation fence as the Claude Bash hook. There is no Codex mirror for
-the Claude `Skill` PostToolUse reminder because current Codex hooks only
-report supported tool calls such as Bash, apply_patch, and MCP calls, not
-skill-loading events.
+branch-creation fence as the Claude Bash hook. The Codex reminder uses
+`UserPromptSubmit` because current Codex hooks do not expose skill-loading as
+a hookable tool event.
 
 ## Testing
 
@@ -188,6 +199,16 @@ Each new/extended hook gets its existing-style `.sh.test` neighbor with
   branch.
 - No output when the cwd is not in a git repo.
 - No output for malformed/empty input JSON.
+- Reminder text says `repo-start` chooses the feature context and does not
+  promise a linked worktree.
+
+`codex-remind-repo-start-on-dev-prompt.test` covers:
+
+- Reminder emitted for development prompts while on `main`.
+- No output for informational questions while on `main`.
+- No output for development prompts on feature branches.
+- No output outside git repositories or for malformed/empty input JSON.
+- Reminder text points to `repo-start <branch>` and names "branch or worktree."
 
 `block-worktree-commands.sh.test` (extended):
 
@@ -249,6 +270,6 @@ End-to-end manual verification on the worktree this spec is written in:
   filename would suggest a new responsibility; the existing file already
   represents "agent must funnel branch lifecycle through helpers."
 
-- **Codex parity:** spec includes mirrored Codex updates. If implementation
-  cost is high, drop to follow-up — none of the Claude-side wins depend
-  on Codex parity.
+- **Codex parity:** spec includes mirrored Codex Bash-guard updates and a
+  Codex `UserPromptSubmit` reminder. The only non-mirrored piece is the
+  Claude-specific `Skill` event, which Codex hooks do not expose.

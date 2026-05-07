@@ -4,7 +4,7 @@
 
 **Goal:** Make `repo-start` and `repo-end` actually fire — nudge agents toward `repo-start` from initiation skills, hard-block alternative branch creation, and route `_clean-up` through `repo-end` first.
 
-**Architecture:** Three independent components: (A) PostToolUse soft-reminder hook on Claude `Skill` invocations, (B) extended Claude and Codex PreToolUse hooks on `Bash` to deny `git checkout -b` / `switch -c` / `branch <new>`, (C) `repo-end` gains an "already-merged" idempotency branch and `_clean-up` skill calls it before `git-clean-up`. Test approach mirrors existing patterns: `*.sh.test` files for hooks, real-temp-repo helpers for `repo-end.test`, naming-check additions to `tests/repo-lifecycle-provisioning.sh`.
+**Architecture:** Three independent components: (A) non-blocking initiation reminders (Claude `Skill` PostToolUse plus Codex `UserPromptSubmit`), (B) extended Claude and Codex PreToolUse hooks on `Bash` to deny `git checkout -b` / `switch -c` / `branch <new>`, (C) `repo-end` gains an "already-merged" idempotency branch and `_clean-up` skill calls it before `git-clean-up`. Test approach mirrors existing patterns: `*.sh.test` files for hooks, real-temp-repo helpers for `repo-end.test`, naming-check additions to `tests/repo-lifecycle-provisioning.sh`.
 
 **Tech Stack:** Bash 5+, jq, real `git` for hook tests, Ansible for hook registration in `~/.claude/settings.json`. No Ruby/Python.
 
@@ -17,6 +17,9 @@
 **Created:**
 - `roles/common/files/claude/hooks/block-initiation-skill-on-main.sh` — PostToolUse hook script.
 - `roles/common/files/claude/hooks/block-initiation-skill-on-main.sh.test` — unit tests for the new hook.
+- `roles/common/files/bin/codex-remind-repo-start-on-dev-prompt` — Codex UserPromptSubmit hook script.
+- `roles/common/files/bin/codex-remind-repo-start-on-dev-prompt.test` — unit tests for the Codex prompt hook.
+- `tests/codex-repo-start-prompt-hook-provisioning.sh` — Codex prompt hook provisioning/idempotency checks.
 
 **Modified:**
 - `roles/common/files/claude/hooks/block-worktree-commands.sh` — add branch-creation regex matchers.
@@ -26,10 +29,10 @@
 - `roles/common/files/bin/repo-end` — add already-merged short-circuit before rebase/merge/push.
 - `roles/common/files/bin/repo-end.test` — new cases for the already-merged paths.
 - `roles/common/files/config/skills/common/_clean-up/SKILL.md` — call `repo-end` before `git-clean-up` for the in-worktree path.
-- `roles/common/tasks/main.yml` — register the new PostToolUse hook in `~/.claude/settings.json`.
+- `roles/common/tasks/main.yml` — register the new PostToolUse hook in `~/.claude/settings.json` and UserPromptSubmit hook in `~/.codex/hooks.json`.
 - `tests/repo-lifecycle-provisioning.sh` — add naming/wiring checks for the new pieces.
 
-**Codex note:** Codex gets the Bash branch-creation fence in `codex-block-worktree-commands`. The Claude `Skill` reminder has no Codex mirror because current Codex hooks do not expose skill-loading as a hookable tool event.
+**Codex note:** Codex gets the Bash branch-creation fence in `codex-block-worktree-commands`. The Claude `Skill` reminder is mirrored at the prompt boundary with `UserPromptSubmit` because current Codex hooks do not expose skill-loading as a hookable tool event.
 
 ---
 
@@ -198,7 +201,7 @@ if [[ "$branch" != "main" ]]; then
   exit 0
 fi
 
-reminder='You invoked '"$skill"' while on main. Before committing any spec, plan, or other artifact, run `repo-start <branch>` to land in a feature worktree. (You may already have planned to do this; ignore this reminder if so.)'
+reminder='You invoked '"$skill"' while on main. Before committing any spec, plan, or other artifact, run `repo-start <branch>` so repo policy chooses the right feature context (branch or worktree). (You may already have planned to do this; ignore this reminder if so.)'
 
 jq -n --arg ctx "$reminder" '{
   "hookSpecificOutput": {
@@ -323,6 +326,58 @@ Expected: `1` (or higher if there were already Skill PostToolUse hooks). Re-run 
 
 Invoke the `_commit` skill with arguments:
 > Commit `roles/common/tasks/main.yml` and `tests/repo-lifecycle-provisioning.sh`. Message focus: register the new PostToolUse skill hook in settings.json via Ansible.
+
+---
+
+## Task 2.5: Add Codex UserPromptSubmit repo-start reminder
+
+Codex does not expose skill-loading as a hookable event, so use the prompt
+boundary for the proactive nudge and keep the existing PreToolUse hooks as the
+hard enforcement layer.
+
+**Files:**
+- Create: `roles/common/files/bin/codex-remind-repo-start-on-dev-prompt`
+- Create: `roles/common/files/bin/codex-remind-repo-start-on-dev-prompt.test`
+- Create: `tests/codex-repo-start-prompt-hook-provisioning.sh`
+- Modify: `roles/common/tasks/main.yml`
+
+- [ ] **Step 2.5.1: Add failing hook behavior test**
+
+`codex-remind-repo-start-on-dev-prompt.test` covers development prompts on
+`main`, informational questions on `main`, development prompts on feature
+branches, non-git directories, and malformed payloads. The reminder must name
+`repo-start <branch>` and say repo policy chooses a feature context "branch or
+worktree."
+
+- [ ] **Step 2.5.2: Implement the hook**
+
+The hook reads `.prompt`, self-filters for development verbs such as
+`add`, `fix`, `implement`, and `address`, checks whether the current repo is
+on `main`, and emits `hookSpecificOutput.hookEventName =
+"UserPromptSubmit"` with non-blocking `additionalContext`.
+
+- [ ] **Step 2.5.3: Add failing provisioning/idempotency test**
+
+`tests/codex-repo-start-prompt-hook-provisioning.sh` verifies:
+
+- `codex-remind-repo-start-on-dev-prompt` is installed by the worktree helper loop.
+- `roles/common/tasks/main.yml` merges a `UserPromptSubmit` hook into
+  `~/.codex/hooks.json`.
+- Existing hook groups are preserved.
+- Re-running the task is idempotent.
+
+- [ ] **Step 2.5.4: Register the hook**
+
+Add `codex-remind-repo-start-on-dev-prompt` to the install loop and add an
+idempotent `Merge managed Codex repo-start prompt hook into
+~/.codex/hooks.json` task before the final hooks mode task.
+
+- [ ] **Step 2.5.5: Verify**
+
+```bash
+bash roles/common/files/bin/codex-remind-repo-start-on-dev-prompt.test
+bash tests/codex-repo-start-prompt-hook-provisioning.sh
+```
 
 ---
 
@@ -784,11 +839,13 @@ Expected: prints the main path, runs cleanup, no errors. This intentionally bypa
 
 ```bash
 bash roles/common/files/claude/hooks/block-initiation-skill-on-main.sh.test
+bash roles/common/files/bin/codex-remind-repo-start-on-dev-prompt.test
 bash roles/common/files/claude/hooks/block-worktree-commands.sh.test
 bash roles/common/files/bin/codex-block-worktree-commands.test
 bash roles/common/files/claude/hooks/block-main-branch-edits.sh.test
 bash roles/common/files/bin/repo-end.test
 bash tests/repo-lifecycle-provisioning.sh
+bash tests/codex-repo-start-prompt-hook-provisioning.sh
 bash tests/_clean-up-skill.sh
 ```
 
@@ -803,10 +860,10 @@ Invoke the `_pull-request` skill via the Skill tool. The PR description should s
 ## Self-Review Notes
 
 **Spec coverage:**
-- Component A (PostToolUse reminder hook): Tasks 1, 2, 6.3.
+- Component A (initiation reminders): Tasks 1, 2, 2.5, 6.3.
 - Component B (branch creation block): Tasks 3, 6.4.
 - Component C (`_clean-up` → `repo-end`, with `repo-end` idempotency): Tasks 4, 5, 6.5.
-- Spec's "Files Affected" list: all touched; Codex Bash hook parity included.
+- Spec's "Files Affected" list: all touched; Codex Bash hook parity and UserPromptSubmit reminder included.
 - Spec's "Open Questions" — `repo-end` idempotency picked option 1 (bake into `repo-end`), reflected in Task 4. Plan introduces a new wrinkle the spec didn't anticipate: the in-worktree `_clean-up` path needs `cd "$main_path"` after `repo-end` to keep `git-clean-up`'s cwd valid. Captured in Task 5.
 
 **Type/name consistency:**
