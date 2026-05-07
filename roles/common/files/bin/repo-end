@@ -68,32 +68,28 @@ already_merged() {
   if "$git_cmd" -C "$repo_root" merge-base --is-ancestor HEAD "origin/${main_branch}" 2>/dev/null; then
     return 0
   fi
-  # Squash equivalence: HEAD's net diff from the merge-base has the same
-  # patch-id as some commit on origin/<main> since the merge-base. Covers
-  # squash-merges (multi-commit feature collapsed into one main commit) as
-  # well as rebase-style merges (per-commit patch-ids preserved upstream).
-  local mb feature_pid main_pid sha main_log
+  # Squash/current-state equivalence: every path changed by HEAD's net diff
+  # from the merge-base has the same current tree entry on origin/<main>.
+  # Historical patch-id alone is unsafe because a matching patch may have been
+  # reverted later.
+  local mb feature_pid path feature_entry main_entry
   mb="$("$git_cmd" -C "$repo_root" merge-base "origin/${main_branch}" HEAD 2>/dev/null || true)"
   [[ -n "$mb" ]] || return 1
   feature_pid="$("$git_cmd" -C "$repo_root" diff "${mb}..HEAD" 2>/dev/null | "$git_cmd" patch-id --stable 2>/dev/null | awk '{print $1}')"
   [[ -n "$feature_pid" ]] || return 1
-  main_log="$("$git_cmd" -C "$repo_root" log --pretty=format:%H "${mb}..origin/${main_branch}" 2>/dev/null || true)"
-  [[ -n "$main_log" ]] || return 1
-  while IFS= read -r sha; do
-    [[ -n "$sha" ]] || continue
-    main_pid="$("$git_cmd" -C "$repo_root" show "$sha" 2>/dev/null | "$git_cmd" patch-id --stable 2>/dev/null | awk '{print $1}')"
-    if [[ -n "$main_pid" && "$main_pid" == "$feature_pid" ]]; then
-      return 0
-    fi
-  done <<< "$main_log"
-  return 1
+  while IFS= read -r -d '' path; do
+    feature_entry="$("$git_cmd" -C "$repo_root" ls-tree "HEAD" -- "$path")"
+    main_entry="$("$git_cmd" -C "$repo_root" ls-tree "origin/${main_branch}" -- "$path")"
+    [[ "$feature_entry" == "$main_entry" ]] || return 1
+  done < <("$git_cmd" -C "$repo_root" diff --name-only -z "${mb}..HEAD" 2>/dev/null)
+  return 0
 }
 
 if already_merged; then
   skip_integration=true
 else
   skip_integration=false
-  if ! "$(_worktree_cmd git)" -C "$repo_root" rebase --quiet "origin/${main_branch}"; then
+  if ! "$(_worktree_cmd git)" -C "$repo_root" rebase --quiet --reapply-cherry-picks "origin/${main_branch}"; then
     printf 'Error: rebase has conflicts; resolve them in %s and run repo-end again\n' "$repo_root" >&2
     exit 1
   fi
