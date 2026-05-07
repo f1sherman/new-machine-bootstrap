@@ -156,6 +156,7 @@ def pr_state_github(owner_repo, branch, git_dir:)
   return 'LOOKUP_FAILED' unless command_available?('gh')
 
   local_sha = run_git(['rev-parse', '--verify', "#{branch}^{commit}"], git_dir: git_dir, allow_failure: true).output
+  local_sha = run_git(['rev-parse', '--verify', "refs/remotes/origin/#{branch}^{commit}"], git_dir: git_dir, allow_failure: true).output if local_sha.empty?
   branch_match = nil
   page = 1
 
@@ -186,6 +187,7 @@ end
 
 def pr_state_forgejo(forgejo_url, token, owner, repo, branch, git_dir:)
   local_sha = run_git(['rev-parse', '--verify', "#{branch}^{commit}"], git_dir: git_dir, allow_failure: true).output
+  local_sha = run_git(['rev-parse', '--verify', "refs/remotes/origin/#{branch}^{commit}"], git_dir: git_dir, allow_failure: true).output if local_sha.empty?
   branch_match = nil
   page = 1
 
@@ -327,6 +329,26 @@ def branch_exists?(branch, git_dir:)
   run_git(['show-ref', '--verify', '--quiet', "refs/heads/#{branch}"], git_dir: git_dir, allow_failure: true).success?
 end
 
+def remote_branch_exists?(branch, git_dir:)
+  run_git(['show-ref', '--verify', '--quiet', "refs/remotes/origin/#{branch}"], git_dir: git_dir, allow_failure: true).success?
+end
+
+def remote_branch_merged?(branch, main_branch, git_dir:, remote_context:)
+  return true unless remote_branch_exists?(branch, git_dir: git_dir)
+  return true if run_git(
+    ['merge-base', '--is-ancestor', "refs/remotes/origin/#{branch}", "refs/remotes/origin/#{main_branch}"],
+    git_dir: git_dir,
+    allow_failure: true
+  ).success?
+
+  pr_state_for(
+    remote_type: remote_context[:remote_type],
+    owner_repo: remote_context[:owner_repo],
+    branch: branch,
+    git_dir: git_dir
+  ) == 'MERGED'
+end
+
 def local_branches(git_dir:)
   run_git(['for-each-ref', '--format=%(refname:short)', 'refs/heads'], git_dir: git_dir).stdout.lines.map(&:strip).reject(&:empty?)
 end
@@ -367,17 +389,24 @@ def run_cleanup(options)
 
   fail_with('detached HEAD; checkout a branch first') if branch.empty?
   fail_with("already on #{main_branch}; cleanup requires a non-main branch") if branch == main_branch
-  fail_with("branch not found: #{branch}") unless branch_exists?(branch, git_dir: common_git_dir)
+  branch_present = branch_exists?(branch, git_dir: common_git_dir)
+  fail_with("branch not found: #{branch}") if !branch_present && !explicit_mode
 
   run_git(['fetch', '--prune', 'origin'], repo_dir: primary_path)
   remote_context = remote_context_for(primary_path)
-  state = merged_state(branch, main_branch, git_dir: common_git_dir, remote_context: remote_context)
-  fail_with("branch is not proven merged: #{branch} (#{state[:proof]})") unless state[:merged]
+  if branch_present
+    state = merged_state(branch, main_branch, git_dir: common_git_dir, remote_context: remote_context)
+    fail_with("branch is not proven merged: #{branch} (#{state[:proof]})") unless state[:merged]
+  elsif !remote_branch_merged?(branch, main_branch, git_dir: common_git_dir, remote_context: remote_context)
+    fail_with("branch is not proven merged: #{branch} (remote)")
+  end
 
   safe_dir = safe_dir_for(common_git_dir, Dir.pwd)
-  target_worktrees = worktree_paths_for_branch(branch, git_dir: common_git_dir)
-  target_worktrees.each do |path|
-    fail_with("dirty worktree: #{path}") if Dir.exist?(path) && dirty_worktree?(path)
+  if branch_present
+    target_worktrees = worktree_paths_for_branch(branch, git_dir: common_git_dir)
+    target_worktrees.each do |path|
+      fail_with("dirty worktree: #{path}") if Dir.exist?(path) && dirty_worktree?(path)
+    end
   end
 
   update_primary_main(primary_path, main_branch)
@@ -387,8 +416,10 @@ def run_cleanup(options)
     fail_with(remote_deleted[:reason]) unless remote_deleted[:ok]
   end
 
-  deleted = delete_branch_with_worktrees(branch, git_dir: common_git_dir, safe_dir: safe_dir, hard_stop: true)
-  fail_with(deleted[:reason]) unless deleted[:ok]
+  if branch_present
+    deleted = delete_branch_with_worktrees(branch, git_dir: common_git_dir, safe_dir: safe_dir, hard_stop: true)
+    fail_with(deleted[:reason]) unless deleted[:ok]
+  end
 
   run_command_args(['tmux-agent-worktree', 'clear'], allow_failure: true)
 
@@ -414,7 +445,8 @@ def run_cleanup(options)
   run_git(['remote', 'prune', 'origin'], git_dir: common_git_dir, allow_failure: true)
   run_git(['gc'], git_dir: common_git_dir, allow_failure: true)
 
-  puts "Cleaned current branch: #{branch}"
+  cleaned_branch = branch_present ? branch : "#{branch} (already absent)"
+  puts "Cleaned current branch: #{cleaned_branch}"
   puts "Pruned merged branches: #{pruned}"
   puts "Retained branches: #{retained.size}"
   retained.each { |retained_branch, reason| puts "Retained #{retained_branch}: #{reason}" }
