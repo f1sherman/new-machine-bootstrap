@@ -52,7 +52,7 @@ detect_agent_pid() {
 read_pane_option() {
   local pane_id="$1" option_name="$2"
   [ -n "$pane_id" ] || return 1
-  tmux show-options -pv -t "$pane_id" "$option_name" 2>/dev/null
+  tmux show-options -qv -p -t "$pane_id" "$option_name" 2>/dev/null
 }
 
 is_git_worktree_path() {

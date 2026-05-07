@@ -35,7 +35,7 @@ read_pane_option() {
   fi
 
   [ -n "$pane_id" ] || return 1
-  tmux show-options -pv -t "$pane_id" "$option_name" 2>/dev/null
+  tmux show-options -qv -p -t "$pane_id" "$option_name" 2>/dev/null
 }
 
 get_process_lines() {
