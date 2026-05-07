@@ -231,22 +231,23 @@ printf 'PASS  repo-end does not treat reverted historical patch as already merge
 # detect via patch-id that the work is already upstream and skip
 # rebase/merge/push.
 squash_repo="$(create_remote_repo squash-merged)"
+printf 'one\ntwo\nthree\nfour\nfive\n' >"$squash_repo/squash.txt"
+git -C "$squash_repo" add squash.txt
+git -C "$squash_repo" commit -q -m squash-base
+git -C "$squash_repo" push -q origin main
 git -C "$squash_repo" checkout -q -b feature/squash-merged
-printf 'squash work\n' >"$squash_repo/squash.txt"
+printf 'ONE\ntwo\nthree\nfour\nfive\n' >"$squash_repo/squash.txt"
 git -C "$squash_repo" add squash.txt
-git -C "$squash_repo" commit -q -m 'squash work part 1'
-printf 'more squash work\n' >>"$squash_repo/squash.txt"
-git -C "$squash_repo" add squash.txt
-git -C "$squash_repo" commit -q -m 'squash work part 2'
+git -C "$squash_repo" commit -q -m 'squash work'
 # Build a squash commit on origin/main containing the same tree changes.
 squash_tree="$(git -C "$squash_repo" rev-parse HEAD^{tree})"
-squash_parent="$(git -C "$squash_repo" rev-parse 'HEAD~2')"
+squash_parent="$(git -C "$squash_repo" rev-parse 'HEAD~1')"
 squash_origin="$TMPROOT/squash-merged-origin.git"
 squash_commit="$(git -C "$squash_repo" commit-tree "$squash_tree" -p "$squash_parent" -m 'squash merge of feature/squash-merged')"
 git -C "$squash_repo" push -q origin "+${squash_commit}:refs/heads/main"
 git -C "$squash_repo" branch -f main "$squash_commit"
 git -C "$squash_repo" checkout -q main
-printf 'post squash edit\n' >>"$squash_repo/squash.txt"
+printf 'ONE\ntwo\nthree\nfour\nFIVE\n' >"$squash_repo/squash.txt"
 git -C "$squash_repo" add squash.txt
 git -C "$squash_repo" commit -q -m 'post squash edit'
 post_squash_commit="$(git -C "$squash_repo" rev-parse HEAD)"

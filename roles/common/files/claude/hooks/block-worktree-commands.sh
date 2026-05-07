@@ -85,13 +85,13 @@ matches_implicit_remote_branch_command() {
       token="${words[$idx]}"
       case "$token" in
         --)
-          return 1
+          break
           ;;
         -q|--quiet|--progress|--no-progress|--guess|--no-guess)
           idx=$((idx + 1))
           ;;
         -*)
-          return 1
+          break
           ;;
         *)
           target="$token"
@@ -100,7 +100,7 @@ matches_implicit_remote_branch_command() {
             && "$git_cmd" -C "$repo_dir" show-ref --verify --quiet "refs/remotes/origin/$target"; then
             return 0
           fi
-          return 1
+          break
           ;;
       esac
     done
