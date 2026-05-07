@@ -17,18 +17,19 @@ matches_worktree_command() {
 # Matches the leading "git ..." preamble: optional env-var prefixes, optional
 # `command ` / `env ` builtin wrapper, optional global git flags like `-C path`.
 GIT_PREAMBLE='(^|[;&|()])[[:space:]]*((([[:alnum:]_]+)=[^[:space:]]+[[:space:]]+|command[[:space:]]+|env[[:space:]]+)*)git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]]+)*)*[[:space:]]+'
+SHELL_TOKEN='[^[:space:];&|()]+'
 
 matches_branch_create_command() {
   # `git ... checkout ... -b/-B/-t/--track/--orphan <name>` creates a branch.
-  local checkout_b="${GIT_PREAMBLE}checkout([[:space:]]+[^[:space:]]+)*[[:space:]]+(-[bBt][^[:space:]]*|--orphan|--track)([=[:space:]]|$)"
+  local checkout_b="${GIT_PREAMBLE}checkout([[:space:]]+${SHELL_TOKEN})*[[:space:]]+(-[bBt][^[:space:];&|()]*|--orphan|--track)([=[:space:]]|$)"
   # `git ... switch ... -c/-C/--create/--force-create/-t/--track/--orphan <name>` creates a branch.
-  local switch_c="${GIT_PREAMBLE}switch([[:space:]]+[^[:space:]]+)*[[:space:]]+(-c[^[:space:]]*|--create|-C[^[:space:]]*|--force-create|-t[^[:space:]]*|--track|--orphan)([=[:space:]]|$)"
+  local switch_c="${GIT_PREAMBLE}switch([[:space:]]+${SHELL_TOKEN})*[[:space:]]+(-c[^[:space:];&|()]*|--create|-C[^[:space:];&|()]*|--force-create|-t[^[:space:];&|()]*|--track|--orphan)([=[:space:]]|$)"
   # `git ... branch <name>` where <name> is a positional (non-flag) argument.
   # Read-only and management forms (-d/-D/-m/-M/-l/--list/--show-current/-v/-a/-r/--merged/--no-merged/--contains) are allowed because they begin with `-`.
-  local branch_create="${GIT_PREAMBLE}branch[[:space:]]+[^-[:space:]][^[:space:]]*([[:space:]]|$)"
+  local branch_create="${GIT_PREAMBLE}branch[[:space:]]+[^-[:space:];&|()][^[:space:];&|()]*([[:space:]]|$)"
   # Option-led branch creation/reset/copy forms such as `branch --track foo`
   # and `branch -f foo HEAD` also create or rewrite branch refs.
-  local branch_option_create="${GIT_PREAMBLE}branch([[:space:]]+[^[:space:]]+)*[[:space:]]+(-f|--force|-c|--copy|-C|--track|--no-track|--set-upstream|--create-reflog|--recurse-submodules)([=[:space:]]|$)"
+  local branch_option_create="${GIT_PREAMBLE}branch([[:space:]]+${SHELL_TOKEN})*[[:space:]]+(-f|--force|-c|--copy|-C|--track|--no-track|--set-upstream|--create-reflog|--recurse-submodules)([=[:space:]]|$)"
 
   printf '%s\n' "$command" | grep -Eq "$checkout_b" && return 0
   printf '%s\n' "$command" | grep -Eq "$switch_c" && return 0

@@ -7,20 +7,17 @@ description: >
 
 # Clean Up Merged Work
 
-Run the lifecycle close helper first, then the shared cleanup sweep, from
-the repository that should be cleaned:
+Run the shared cleanup helper from the repository that should be cleaned:
 
 ```bash
-main_path="$(repo-end --print-path)"
-cd "$main_path"
-git-clean-up
+repo_dir="$(git rev-parse --show-toplevel)"
+branch="$(git branch --show-current)"
+git-clean-up --repo-dir "$repo_dir" --branch "$branch" --delete-remote --yes
 ```
 
-`repo-end` integrates the feature branch into main and tears down the
-worktree. It is safe to invoke when the branch was already merged upstream
-(direct or squash) — it will skip the integration phase and proceed to
-cleanup. After it returns, `cd` to the printed main path before running
-`git-clean-up` so the wider cleanup runs from a valid cwd.
+`git-clean-up` verifies the branch is merged, tears down any worktree for it,
+updates main, deletes the branch, clears tmux worktree state, prunes other
+merged branches, and reports retained branches.
 
 Stop and report the error if the helper exits nonzero. Do not delete branches manually after a helper failure.
 

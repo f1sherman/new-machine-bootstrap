@@ -68,21 +68,29 @@ already_merged() {
   if "$git_cmd" -C "$repo_root" merge-base --is-ancestor HEAD "origin/${main_branch}" 2>/dev/null; then
     return 0
   fi
-  # Squash/current-state equivalence: every path changed by HEAD's net diff
-  # from the merge-base has the same current tree entry on origin/<main>.
-  # Historical patch-id alone is unsafe because a matching patch may have been
-  # reverted later.
-  local mb feature_pid path feature_entry main_entry
+  # Squash/current-state equivalence: if a synthetic merge of HEAD into the
+  # current origin/<main> tree is identical to origin/<main>, the feature's net
+  # effect is already present. Reverted historical patches fail this check.
+  local merge_tree main_tree mb feature_pid main_pid sha main_log
+  if merge_tree="$("$git_cmd" -C "$repo_root" merge-tree --write-tree "origin/${main_branch}" HEAD 2>/dev/null)"; then
+    [[ -n "$merge_tree" ]] || return 1
+    main_tree="$("$git_cmd" -C "$repo_root" rev-parse "origin/${main_branch}^{tree}" 2>/dev/null || true)"
+    [[ -n "$main_tree" && "$merge_tree" == "$main_tree" ]]
+    return $?
+  fi
+
   mb="$("$git_cmd" -C "$repo_root" merge-base "origin/${main_branch}" HEAD 2>/dev/null || true)"
   [[ -n "$mb" ]] || return 1
   feature_pid="$("$git_cmd" -C "$repo_root" diff "${mb}..HEAD" 2>/dev/null | "$git_cmd" patch-id --stable 2>/dev/null | awk '{print $1}')"
   [[ -n "$feature_pid" ]] || return 1
-  while IFS= read -r -d '' path; do
-    feature_entry="$("$git_cmd" -C "$repo_root" ls-tree "HEAD" -- "$path")"
-    main_entry="$("$git_cmd" -C "$repo_root" ls-tree "origin/${main_branch}" -- "$path")"
-    [[ "$feature_entry" == "$main_entry" ]] || return 1
-  done < <("$git_cmd" -C "$repo_root" diff --name-only -z "${mb}..HEAD" 2>/dev/null)
-  return 0
+  main_log="$("$git_cmd" -C "$repo_root" log --pretty=format:%H "${mb}..origin/${main_branch}" 2>/dev/null || true)"
+  [[ -n "$main_log" ]] || return 1
+  while IFS= read -r sha; do
+    [[ -n "$sha" ]] || continue
+    main_pid="$("$git_cmd" -C "$repo_root" show "$sha" 2>/dev/null | "$git_cmd" patch-id --stable 2>/dev/null | awk '{print $1}')"
+    [[ -n "$main_pid" && "$main_pid" == "$feature_pid" ]] && return 0
+  done <<< "$main_log"
+  return 1
 }
 
 if already_merged; then
