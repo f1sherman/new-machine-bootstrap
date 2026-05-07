@@ -183,6 +183,25 @@ post_origin_tip="$(git --git-dir="$ancestor_origin" rev-parse refs/heads/main)"
 }
 printf 'PASS  repo-end skips push when feature is direct ancestor\n'
 
+linked_ancestor_repo="$(create_remote_repo linked-already-ancestor)"
+linked_ancestor_wt="$TMPROOT/linked-already-ancestor-wt"
+git -C "$linked_ancestor_repo" worktree add -q -b feature/linked-already-ancestor "$linked_ancestor_wt" main
+printf 'linked ancestor work\n' >"$linked_ancestor_wt/work.txt"
+git -C "$linked_ancestor_wt" add work.txt
+git -C "$linked_ancestor_wt" commit -q -m linked-ancestor
+linked_ancestor_tip="$(git -C "$linked_ancestor_wt" rev-parse HEAD)"
+git -C "$linked_ancestor_wt" push -q origin "+HEAD:refs/heads/main"
+CLEANUP_LOG="$TMPROOT/linked-already-ancestor-cleanup.log" CLEANUP_STATUS=0 \
+  bash -c 'cd "$1" && "$2" --print-path' bash "$linked_ancestor_wt" "$SCRIPT" >"$TMPROOT/linked-already-ancestor.out" 2>"$TMPROOT/linked-already-ancestor.err"
+assert_file_contains "$TMPROOT/linked-already-ancestor-cleanup.log" \
+  '--branch feature/linked-already-ancestor' \
+  'repo-end runs cleanup from already-merged linked worktree'
+[ "$(git -C "$linked_ancestor_repo" rev-parse main)" = "$linked_ancestor_tip" ] || {
+  printf 'FAIL  repo-end did not update linked main checkout when feature is direct ancestor\n' >&2
+  exit 1
+}
+printf 'PASS  repo-end updates linked main when feature is direct ancestor\n'
+
 # Squash-merged: feature's tree is in origin/main as a single squash commit
 # whose individual commit hashes do not appear on main. repo-end should
 # detect via patch-id that the work is already upstream and skip
