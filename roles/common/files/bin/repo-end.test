@@ -243,6 +243,41 @@ assert_file_contains "$TMPROOT/reverted-historical-patch-cleanup.log" \
   'repo-end cleans up after reintroducing reverted historical patch'
 printf 'PASS  repo-end does not treat reverted historical patch as already merged\n'
 
+reverted_conflict_repo="$(create_remote_repo reverted-conflicting-squash)"
+printf 'one\n' >"$reverted_conflict_repo/conflict.txt"
+git -C "$reverted_conflict_repo" add conflict.txt
+git -C "$reverted_conflict_repo" commit -q -m conflict-base
+git -C "$reverted_conflict_repo" push -q origin main
+reverted_conflict_base="$(git -C "$reverted_conflict_repo" rev-parse HEAD)"
+printf 'ONE\n' >"$reverted_conflict_repo/conflict.txt"
+git -C "$reverted_conflict_repo" add conflict.txt
+git -C "$reverted_conflict_repo" commit -q -m apply-conflict-change
+printf 'one\n' >"$reverted_conflict_repo/conflict.txt"
+git -C "$reverted_conflict_repo" add conflict.txt
+git -C "$reverted_conflict_repo" commit -q -m revert-conflict-change
+printf 'UNO\n' >"$reverted_conflict_repo/conflict.txt"
+git -C "$reverted_conflict_repo" add conflict.txt
+git -C "$reverted_conflict_repo" commit -q -m supersede-reverted-change
+git -C "$reverted_conflict_repo" push -q origin main
+git -C "$reverted_conflict_repo" checkout -q -b feature/reverted-conflict "$reverted_conflict_base"
+printf 'ONE\n' >"$reverted_conflict_repo/conflict.txt"
+git -C "$reverted_conflict_repo" add conflict.txt
+git -C "$reverted_conflict_repo" commit -q -m reapply-conflict-change
+if CLEANUP_LOG="$TMPROOT/reverted-conflicting-squash-cleanup.log" CLEANUP_STATUS=0 \
+  bash -c 'cd "$1" && "$2" --print-path' bash "$reverted_conflict_repo" "$SCRIPT" >"$TMPROOT/reverted-conflicting-squash.out" 2>"$TMPROOT/reverted-conflicting-squash.err"; then
+  printf 'FAIL  repo-end skipped reverted conflicting squash patch\n' >&2
+  exit 1
+fi
+assert_file_contains "$TMPROOT/reverted-conflicting-squash.err" \
+  'rebase has conflicts' \
+  'repo-end rejects reverted conflicting squash patch'
+if [ -f "$TMPROOT/reverted-conflicting-squash-cleanup.log" ]; then
+  printf 'FAIL  repo-end ran cleanup for reverted conflicting squash patch\n' >&2
+  exit 1
+fi
+git -C "$reverted_conflict_repo" rebase --abort >/dev/null 2>&1 || true
+printf 'PASS  repo-end does not treat reverted conflicting squash patch as merged\n'
+
 # Squash-merged: feature's tree is in origin/main as a single squash commit
 # whose individual commit hashes do not appear on main. repo-end should
 # detect via patch-id that the work is already upstream and skip
