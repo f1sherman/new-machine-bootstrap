@@ -4,10 +4,8 @@ set -u
 mode="${1:-publish}"
 pane_id="${TMUX_PANE:-}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-label_formatter="${TMUX_LABEL_FORMAT_BIN:-$script_dir/tmux-label-format}"
 devpod_name_helper="${TMUX_DEVPOD_NAME_BIN:-$script_dir/tmux-devpod-name}"
 
-[ -x "$label_formatter" ] || label_formatter="${HOME:-}/.local/bin/tmux-label-format"
 [ -x "$devpod_name_helper" ] || devpod_name_helper="${HOME:-}/.local/bin/tmux-devpod-name"
 
 pane_info() {
@@ -115,6 +113,81 @@ git_branch_for_path() {
   return 1
 }
 
+dir_basename() {
+  local raw="${1%/}"
+  raw="${raw##*/}"
+  [ -n "$raw" ] || raw="/"
+  printf '%s\n' "$raw"
+}
+
+repo_root_for_path() {
+  local path="$1" common_dir top_level
+
+  top_level="$(git -C "$path" rev-parse --path-format=absolute --show-toplevel 2>/dev/null)" || return 1
+  common_dir="$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+  common_dir="${common_dir%/}"
+
+  case "$common_dir" in
+    */.git)
+      printf '%s\n' "${common_dir%/*}"
+      ;;
+    *)
+      printf '%s\n' "$top_level"
+      ;;
+  esac
+}
+
+repo_basename() {
+  local root
+  root="$(repo_root_for_path "$1")" || return 1
+  dir_basename "$root"
+}
+
+dirty_marker() {
+  [ -n "$(git --no-optional-locks -C "$1" status --porcelain 2>/dev/null)" ]
+}
+
+formatted_local_path_label() {
+  local path="$1" repo branch
+
+  repo="$(repo_basename "$path" 2>/dev/null || true)"
+  branch="$(git_branch_for_path "$path" 2>/dev/null || true)"
+
+  if [ -n "$branch" ] && [ -n "$repo" ]; then
+    if dirty_marker "$path"; then
+      printf '(*%s) %s\n' "$branch" "$repo"
+    else
+      printf '(%s) %s\n' "$branch" "$repo"
+    fi
+    return 0
+  fi
+
+  if [ -n "$repo" ]; then
+    printf '%s\n' "$repo"
+  else
+    dir_basename "$path"
+  fi
+}
+
+formatted_explicit_remote_label() {
+  printf '%s | %s\n' "$(formatted_local_path_label "$1")" "$2"
+}
+
+formatted_remote_path_label() {
+  local path="$1" repo
+
+  repo="$(repo_basename "$path" 2>/dev/null || true)"
+  if [ -n "$repo" ]; then
+    printf '%s\n' "$repo"
+  else
+    dir_basename "$path"
+  fi
+}
+
+formatted_remote_label() {
+  printf '%s | %s\n' "$(formatted_remote_path_label "$1")" "$2"
+}
+
 is_git_worktree_path() {
   local path="$1"
   [ -d "$path" ] || return 1
@@ -164,17 +237,17 @@ main() {
 
   if [ -n "$worktree_path" ] && is_valid_explicit_path "$worktree_path"; then
     if [ -z "$worktree_pid" ]; then
-      title="$("$label_formatter" remote-explicit "$worktree_path" "$host" 2>/dev/null || true)"
+      title="$(formatted_explicit_remote_label "$worktree_path" "$host" 2>/dev/null || true)"
     else
       active_agent_pid="$(detect_agent_pid "$pane_tty")"
       if [ -n "$active_agent_pid" ] && [ "$active_agent_pid" = "$worktree_pid" ]; then
-        title="$("$label_formatter" remote-explicit "$worktree_path" "$host" 2>/dev/null || true)"
+        title="$(formatted_explicit_remote_label "$worktree_path" "$host" 2>/dev/null || true)"
       fi
     fi
   fi
 
   if [ -z "${title:-}" ]; then
-    title="$("$label_formatter" remote "$pane_path" "$host" 2>/dev/null || true)"
+    title="$(formatted_remote_label "$pane_path" "$host" 2>/dev/null || true)"
   fi
 
   case "$mode" in

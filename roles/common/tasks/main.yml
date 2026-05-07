@@ -130,7 +130,6 @@
     - { name: repo-lib.sh, mode: '0644' }
     - { name: repo-start, mode: '0755' }
     - { name: repo-end, mode: '0755' }
-    - { name: cleanup-branches, mode: '0755' }
     - { name: codex-block-worktree-commands, mode: '0755' }
     - { name: codex-remind-repo-start-on-dev-prompt, mode: '0755' }
     - { name: codex-block-git-push-main, mode: '0755' }
@@ -154,6 +153,15 @@
     - worktree-delete
     - worktree-merge
     - worktree-done
+
+- name: Remove HNP-owned helper scripts from common installs
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.local/bin/{{ item }}'
+    state: absent
+  loop:
+    - cleanup-branches
+    - git-clean-up
+    - tmux-label-format
 
 - name: Install pick-files script
   copy:
@@ -195,13 +203,6 @@
     backup: yes
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin/git-delete-branch'
     src: '{{ playbook_dir }}/roles/common/files/bin/git-delete-branch'
-    mode: 0755
-
-- name: Install git-clean-up script
-  copy:
-    backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/git-clean-up'
-    src: '{{ playbook_dir }}/roles/common/files/bin/git-clean-up'
     mode: 0755
 
 - name: Install spec-metadata script
@@ -288,7 +289,6 @@
     mode: 0755
   loop:
     - tmux-devpod-name
-    - tmux-label-format
     - tmux-pane-label
     - tmux-update-pane-label
     - tmux-update-all-pane-labels
@@ -1594,18 +1594,6 @@
     state: directory
     mode: '0755'
 
-- name: Create ~/.local/share/skills directory
-  file:
-    path: '{{ ansible_facts["user_dir"] }}/.local/share/skills'
-    state: directory
-    mode: '0755'
-
-- name: Install shared skill runtime files
-  copy:
-    src: '{{ playbook_dir }}/roles/common/files/share/skills/'
-    dest: '{{ ansible_facts["user_dir"] }}/.local/share/skills/'
-    mode: preserve
-    directory_mode: '0755'
 
 - name: Install common skills to ~/.claude/skills
   copy:
@@ -1646,6 +1634,30 @@
     src: '{{ playbook_dir }}/roles/common/files/config/skills/common/_commit/commit.sh'
     dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/_commit/commit.sh'
     mode: '0755'
+
+- name: Remove HNP-owned skill installs from common installs
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/{{ item }}'
+    state: absent
+  loop:
+    - .claude/skills/_clean-up
+    - .codex/skills/_clean-up
+
+- name: Remove stale PR monitor installs from common installs
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/{{ item }}'
+    state: absent
+  loop:
+    - .claude/skills/_monitor-pr
+    - .claude/skills/_monitor-github-pr
+    - '{{ ".claude/skills/_monitor-" ~ "for" ~ "gejo" ~ "-pr" }}'
+    - .codex/skills/_monitor-pr
+    - .codex/skills/_monitor-github-pr
+    - '{{ ".codex/skills/_monitor-" ~ "for" ~ "gejo" ~ "-pr" }}'
+    - .local/share/skills/_pr-monitor
+    - .local/share/skills/_pr-workflow-common
+    - '{{ ".local/share/skills/_pr-" ~ "for" ~ "gejo" }}'
+    - .local/share/skills/_pr-github
 
 - name: Remove legacy custom skill and agent installs
   file:

@@ -107,10 +107,10 @@ run_empty_case() {
 }
 
 run_block_case "blocks raw worktree add" 'git worktree add -b foo ../foo' 'Do not run git worktree add directly. Use repo-start instead.'
-run_block_case "blocks raw worktree remove" 'git worktree remove ../foo' 'Do not run git worktree remove directly. Use repo-end to finish work, or cleanup-branches --branch <branch> for cleanup only.'
+run_block_case "blocks raw worktree remove" 'git worktree remove ../foo' 'Do not run git worktree remove directly. Use repo-end to finish work.'
 run_block_case "blocks git -C invocation" 'git -C repo worktree add -b foo ../foo' 'Do not run git worktree add directly. Use repo-start instead.'
 run_block_case "blocks assignment-prefixed invocation" 'GIT_DIR=.git git worktree add -b foo ../foo' 'Do not run git worktree add directly. Use repo-start instead.'
-run_block_case "blocks command builtin invocation" 'command git worktree remove ../foo' 'Do not run git worktree remove directly. Use repo-end to finish work, or cleanup-branches --branch <branch> for cleanup only.'
+run_block_case "blocks command builtin invocation" 'command git worktree remove ../foo' 'Do not run git worktree remove directly. Use repo-end to finish work.'
 run_block_case "blocks chained invocation" 'cd repo && git worktree add -b foo ../foo' 'Do not run git worktree add directly. Use repo-start instead.'
 run_allow_case "allows repo-start helper" 'repo-start foo'
 run_allow_case "allows repo-end helper" 'repo-end'

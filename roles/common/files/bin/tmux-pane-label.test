@@ -150,7 +150,7 @@ run_case() {
 
   local output ps_calls
   local rc
-  if output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" TMUX_CALL_LOG="$tmux_log" TMUX_FIXTURE_DIR="$tmp_root" TMUX_PANE_IDS="${pane_id:-}" TMUX_DISPLAY_OUTPUT="$display_fixture" TMUX_PANE_LABEL_HOST_TAG="$host_tag" DEVPOD_WORKSPACE_ID="$devpod_workspace_id" bash "$script" "$tty" "$path" "$pane_current_command" "${pane_id:-}" 2>/dev/null)"; then
+  if output="$(PATH="$fake_bin:$PATH" PS_CALL_LOG="$ps_log" PS_FIXTURE_DIR="$tmp_root" TMUX_CALL_LOG="$tmux_log" TMUX_FIXTURE_DIR="$tmp_root" TMUX_PANE_IDS="${pane_id:-}" TMUX_DISPLAY_OUTPUT="$display_fixture" TMUX_PANE_LABEL_HOST_TAG="$host_tag" DEVPOD_WORKSPACE_ID="$devpod_workspace_id" SSH_CONNECTION="" SSH_CLIENT="" bash "$script" "$tty" "$path" "$pane_current_command" "${pane_id:-}" 2>/dev/null)"; then
     rc=0
   else
     rc=$?

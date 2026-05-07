@@ -6,10 +6,8 @@ pane_current_path="${2:-}"
 pane_current_command="${3:-}"
 pane_id="${4:-}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-label_formatter="${TMUX_LABEL_FORMAT_BIN:-$script_dir/tmux-label-format}"
 devpod_name_helper="${TMUX_DEVPOD_NAME_BIN:-$script_dir/tmux-devpod-name}"
 
-[ -x "$label_formatter" ] || label_formatter="${HOME:-}/.local/bin/tmux-label-format"
 [ -x "$devpod_name_helper" ] || devpod_name_helper="${HOME:-}/.local/bin/tmux-devpod-name"
 
 [ -n "$pane_tty" ] || exit 0
@@ -179,14 +177,81 @@ local_label() {
   host="$(host_tag || true)"
 
   if [ -n "$host" ]; then
-    "$label_formatter" remote-explicit "$path" "$host"
+    printf '%s | %s\n' "$(formatted_local_path_label "$path")" "$host"
   else
-    "$label_formatter" local "$path"
+    formatted_local_path_label "$path"
   fi
 }
 
 remote_label() {
-  "$label_formatter" remote "$1" "$2"
+  printf '%s | %s\n' "$(formatted_remote_path_label "$1")" "$2"
+}
+
+dir_basename() {
+  local raw="${1%/}"
+  raw="${raw##*/}"
+  [ -n "$raw" ] || raw="/"
+  printf '%s\n' "$raw"
+}
+
+repo_root_for_path() {
+  local path="$1" common_dir top_level
+
+  top_level="$(git -C "$path" rev-parse --path-format=absolute --show-toplevel 2>/dev/null)" || return 1
+  common_dir="$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+  common_dir="${common_dir%/}"
+
+  case "$common_dir" in
+    */.git)
+      printf '%s\n' "${common_dir%/*}"
+      ;;
+    *)
+      printf '%s\n' "$top_level"
+      ;;
+  esac
+}
+
+repo_basename() {
+  local root
+  root="$(repo_root_for_path "$1")" || return 1
+  dir_basename "$root"
+}
+
+dirty_marker() {
+  [ -n "$(git --no-optional-locks -C "$1" status --porcelain 2>/dev/null)" ]
+}
+
+formatted_local_path_label() {
+  local path="$1" repo branch
+
+  repo="$(repo_basename "$path" 2>/dev/null || true)"
+  branch="$(git_branch_for_path "$path" 2>/dev/null || true)"
+
+  if [ -n "$branch" ] && [ -n "$repo" ]; then
+    if dirty_marker "$path"; then
+      printf '(*%s) %s\n' "$branch" "$repo"
+    else
+      printf '(%s) %s\n' "$branch" "$repo"
+    fi
+    return 0
+  fi
+
+  if [ -n "$repo" ]; then
+    printf '%s\n' "$repo"
+  else
+    dir_basename "$path"
+  fi
+}
+
+formatted_remote_path_label() {
+  local path="$1" repo
+
+  repo="$(repo_basename "$path" 2>/dev/null || true)"
+  if [ -n "$repo" ]; then
+    printf '%s\n' "$repo"
+  else
+    dir_basename "$path"
+  fi
 }
 
 host_tag() {

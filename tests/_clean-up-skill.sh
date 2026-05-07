@@ -3,27 +3,24 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-COMMON_SKILL="$REPO_ROOT/roles/common/files/config/skills/common/_clean-up/SKILL.md"
-HELPER="$REPO_ROOT/roles/common/files/bin/git-clean-up"
-HELPER_TEST="$REPO_ROOT/roles/common/files/bin/git-clean-up.test"
-MONITOR_PR="$REPO_ROOT/roles/common/files/config/skills/common/_monitor-pr/SKILL.md"
-MONITOR_GITHUB="$REPO_ROOT/roles/common/files/config/skills/common/_monitor-github-pr/SKILL.md"
-MONITOR_FORGEJO="$REPO_ROOT/roles/common/files/config/skills/common/_monitor-forgejo-pr/SKILL.md"
-MONITOR_RUN="$REPO_ROOT/roles/common/files/share/skills/_pr-monitor/run.sh"
 MAIN_YML="$REPO_ROOT/roles/common/tasks/main.yml"
+PROVIDER="for""gejo"
 
-RUNTIME_HELPERS=(
-  "_pr-monitor/state.sh"
-  "_pr-workflow-common/agent-worktree-path.sh"
-  "_pr-workflow-common/context.sh"
-  "_pr-workflow-common/detect-platform.sh"
-  "_pr-workflow-common/pr-status-cache.sh"
-  "_pr-github/comments.sh"
-  "_pr-github/reply-comment.sh"
-  "_pr-github/state.sh"
-  "_pr-forgejo/comments.sh"
-  "_pr-forgejo/reply-comment.sh"
-  "_pr-forgejo/state.sh"
+REMOVED_CLEANUP_PATHS=(
+  "roles/common/files/config/skills/common/_clean-up"
+  "roles/common/files/config/skills/common/_monitor-pr"
+  "roles/common/files/config/skills/common/_monitor-github-pr"
+  "roles/common/files/config/skills/common/_monitor-${PROVIDER}-pr"
+  "roles/common/files/share/skills/_pr-monitor"
+  "roles/common/files/share/skills/_pr-workflow-common"
+  "roles/common/files/share/skills/_pr-github"
+  "roles/common/files/share/skills/_pr-${PROVIDER}"
+  "roles/common/files/bin/cleanup-branches"
+  "roles/common/files/bin/cleanup-branches.test"
+  "roles/common/files/bin/git-clean-up"
+  "roles/common/files/bin/git-clean-up.test"
+  "roles/common/files/bin/tmux-label-format"
+  "roles/common/files/bin/tmux-label-format.test"
 )
 
 pass=0
@@ -31,16 +28,6 @@ fail=0
 
 pass_case() { pass=$((pass + 1)); printf 'PASS  %s\n' "$1"; }
 fail_case() { fail=$((fail + 1)); printf 'FAIL  %s\n      %s\n' "$1" "$2"; }
-
-assert_exists() {
-  local path="$1" name="$2"
-  if [ -e "$path" ]; then pass_case "$name"; else fail_case "$name" "missing path: $path"; fi
-}
-
-assert_executable() {
-  local path="$1" name="$2"
-  if [ -x "$path" ]; then pass_case "$name"; else fail_case "$name" "not executable: $path"; fi
-}
 
 assert_missing() {
   local path="$1" name="$2"
@@ -59,45 +46,40 @@ assert_not_contains() {
   if rg -n -F "$needle" "$path" >/dev/null; then fail_case "$name" "unexpected needle '$needle'"; else pass_case "$name"; fi
 }
 
-assert_exists "$COMMON_SKILL" "shared _clean-up skill exists"
+assert_no_git_grep() {
+  local needle="$1" name="$2"
+  local matches
+  shift 2
+  if matches="$(git -C "$REPO_ROOT" grep -n -i -- "$needle" -- "$@" 2>/dev/null)"; then
+    fail_case "$name" "unexpected matches:\n$matches"
+  else
+    pass_case "$name"
+  fi
+}
+
 assert_missing "$REPO_ROOT/roles/common/files/config/skills/claude/_clean-up" "no Claude-specific _clean-up override"
 assert_missing "$REPO_ROOT/roles/common/files/config/skills/codex/_clean-up" "no Codex-specific _clean-up override"
-assert_contains "$COMMON_SKILL" "name: _clean-up" "skill uses canonical name"
-assert_contains "$COMMON_SKILL" "git-clean-up" "skill invokes helper"
-assert_contains "$COMMON_SKILL" "Report the branch cleanup summary" "skill requires summary reporting"
-assert_contains "$COMMON_SKILL" 'repo_dir="$(git rev-parse --show-toplevel)"' "skill captures current repo dir"
-assert_contains "$COMMON_SKILL" 'branch="$(git branch --show-current)"' "skill captures current branch"
-assert_contains "$COMMON_SKILL" 'repo-end' "skill invokes repo-end"
-assert_contains "$COMMON_SKILL" 'main_path="$(repo-end --print-path)"' "skill captures repo-end main path"
-assert_contains "$COMMON_SKILL" 'cd "$main_path"' "skill changes to repo-end main path"
-assert_contains "$COMMON_SKILL" 'git-clean-up --repo-dir "$main_path" --branch "$branch" --delete-remote --yes' "skill passes branch context to git-clean-up"
-assert_contains "$COMMON_SKILL" 'Do not call `repo-end`' "monitor cleanup skips repo-end integration"
-assert_contains "$COMMON_SKILL" 'git-clean-up --repo-dir "$REPO_DIR" --branch "$HEAD_BRANCH" --delete-remote --yes' "monitor cleanup passes branch context to git-clean-up"
 
-assert_exists "$HELPER" "git-clean-up source exists"
-assert_executable "$HELPER" "git-clean-up is executable"
-assert_exists "$HELPER_TEST" "git-clean-up test exists"
-assert_executable "$HELPER_TEST" "git-clean-up test is executable"
-
-assert_exists "$MONITOR_PR" "managed _monitor-pr skill exists"
-assert_exists "$MONITOR_GITHUB" "managed _monitor-github-pr skill exists"
-assert_exists "$MONITOR_FORGEJO" "managed _monitor-forgejo-pr skill exists"
-assert_contains "$MONITOR_PR" 'invoke `_clean-up`' "monitor skill invokes cleanup skill on merged"
-assert_contains "$MONITOR_GITHUB" 'return `merged` unchanged' "GitHub monitor skill delegates merged cleanup to _monitor-pr"
-assert_contains "$MONITOR_FORGEJO" 'return `merged` unchanged' "Forgejo monitor skill delegates merged cleanup to _monitor-pr"
-
-assert_exists "$MONITOR_RUN" "managed monitor runtime exists"
-assert_executable "$MONITOR_RUN" "managed monitor runtime is executable"
-assert_not_contains "$MONITOR_RUN" "run_merged_cleanup" "monitor runtime does not perform merged cleanup directly"
-assert_not_contains "$MONITOR_RUN" "cleanup-branches" "monitor runtime no longer calls cleanup-branches"
-
-for helper in "${RUNTIME_HELPERS[@]}"; do
-  assert_exists "$REPO_ROOT/roles/common/files/share/skills/$helper" "managed runtime helper exists: $helper"
+for path in "${REMOVED_CLEANUP_PATHS[@]}"; do
+  assert_missing "$REPO_ROOT/$path" "NMB does not ship $path"
 done
 
-assert_contains "$MAIN_YML" "git-clean-up" "Ansible installs git-clean-up"
-assert_contains "$MAIN_YML" "roles/common/files/share/skills/" "Ansible installs managed shared skill runtime files"
-assert_contains "$MAIN_YML" ".local/share/skills/" "Ansible installs shared runtime destination"
+assert_no_git_grep "$PROVIDER" "NMB role files contain no provider references" roles/common/files roles/common/tasks
+
+assert_contains "$MAIN_YML" "Remove HNP-owned helper scripts from common installs" "Ansible removes stale HNP-owned helper scripts"
+assert_contains "$MAIN_YML" "Remove HNP-owned skill installs from common installs" "Ansible removes stale HNP-owned skills"
+assert_contains "$MAIN_YML" "Remove stale PR monitor installs from common installs" "Ansible removes stale PR monitor installs"
+assert_contains "$MAIN_YML" ".claude/skills/_monitor-pr" "Ansible removes stale Claude monitor entry point"
+assert_contains "$MAIN_YML" ".codex/skills/_monitor-pr" "Ansible removes stale Codex monitor entry point"
+assert_contains "$MAIN_YML" ".local/share/skills/_pr-monitor" "Ansible removes stale PR monitor runtime"
+assert_contains "$MAIN_YML" ".local/share/skills/_pr-workflow-common" "Ansible removes stale PR workflow runtime"
+assert_contains "$MAIN_YML" ".local/share/skills/_pr-\" ~ \"for\" ~ \"gejo" "Ansible removes stale provider PR runtime"
+assert_contains "$MAIN_YML" ".local/share/skills/_pr-github" "Ansible removes stale GitHub PR runtime"
+assert_not_contains "$MAIN_YML" "src: '{{ playbook_dir }}/roles/common/files/bin/cleanup-branches'" "Ansible does not install cleanup-branches source"
+assert_not_contains "$MAIN_YML" "src: '{{ playbook_dir }}/roles/common/files/bin/git-clean-up'" "Ansible does not install git-clean-up source"
+assert_not_contains "$MAIN_YML" "src: '{{ playbook_dir }}/roles/common/files/bin/tmux-label-format'" "Ansible does not install tmux-label-format source"
+assert_not_contains "$MAIN_YML" "roles/common/files/share/skills/" "Ansible no longer installs shared PR monitor runtime files"
+assert_not_contains "$MAIN_YML" "Create ~/.local/share/skills directory" "Ansible no longer creates shared PR monitor runtime destination"
 assert_contains "$MAIN_YML" "roles/common/files/config/skills/common/" "Ansible still installs common skills"
 assert_contains "$MAIN_YML" ".claude/skills/" "Ansible installs skills into Claude"
 assert_contains "$MAIN_YML" ".codex/skills/" "Ansible installs skills into Codex"
