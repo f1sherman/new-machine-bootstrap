@@ -41,6 +41,7 @@ require_contains roles/macos/templates/dotfiles/bash_profile 'repo-end()' 'bash 
 require_contains roles/common/files/bin/codex-block-main-branch-edits 'repo-start <branch>' 'main edit hook names repo-start'
 require_contains roles/common/files/bin/codex-block-worktree-commands 'Use repo-start instead.' 'raw worktree add hook names repo-start'
 require_contains roles/common/files/bin/codex-block-worktree-commands 'cleanup-branches --branch <branch>' 'raw worktree remove hook names cleanup script'
+require_contains roles/common/files/bin/codex-block-worktree-commands 'Do not create branches directly.' 'Codex raw branch creation hook blocks branch creation'
 require_not_contains roles/common/files/bin/codex-block-worktree-commands 'worktree-start' 'raw worktree hook stops naming worktree-start'
 require_contains roles/common/files/claude/CLAUDE.md.d/00-base.md 'repo-start' 'Claude base instructions name repo-start'
 require_not_contains roles/common/files/claude/CLAUDE.md.d/00-base.md 'worktree-start' 'Claude base instructions stop naming worktree-start'
