@@ -202,6 +202,30 @@ assert_file_contains "$TMPROOT/linked-already-ancestor-cleanup.log" \
 }
 printf 'PASS  repo-end updates linked main when feature is direct ancestor\n'
 
+reverted_repo="$(create_remote_repo reverted-historical-patch)"
+reverted_origin="$TMPROOT/reverted-historical-patch-origin.git"
+reverted_base="$(git -C "$reverted_repo" rev-parse HEAD)"
+printf 'reintroduced work\n' >"$reverted_repo/reintroduced.txt"
+git -C "$reverted_repo" add reintroduced.txt
+git -C "$reverted_repo" commit -q -m add-reintroduced
+git -C "$reverted_repo" rm -q reintroduced.txt
+git -C "$reverted_repo" commit -q -m revert-reintroduced
+git -C "$reverted_repo" push -q origin main
+git -C "$reverted_repo" checkout -q -b feature/reintroduce "$reverted_base"
+printf 'reintroduced work\n' >"$reverted_repo/reintroduced.txt"
+git -C "$reverted_repo" add reintroduced.txt
+git -C "$reverted_repo" commit -q -m reintroduce
+CLEANUP_LOG="$TMPROOT/reverted-historical-patch-cleanup.log" CLEANUP_STATUS=0 \
+  bash -c 'cd "$1" && "$2" --print-path' bash "$reverted_repo" "$SCRIPT" >"$TMPROOT/reverted-historical-patch.out" 2>"$TMPROOT/reverted-historical-patch.err"
+git --git-dir="$reverted_origin" cat-file -e refs/heads/main:reintroduced.txt || {
+  printf 'FAIL  repo-end skipped integration for reverted historical patch\n' >&2
+  exit 1
+}
+assert_file_contains "$TMPROOT/reverted-historical-patch-cleanup.log" \
+  '--branch feature/reintroduce' \
+  'repo-end cleans up after reintroducing reverted historical patch'
+printf 'PASS  repo-end does not treat reverted historical patch as already merged\n'
+
 # Squash-merged: feature's tree is in origin/main as a single squash commit
 # whose individual commit hashes do not appear on main. repo-end should
 # detect via patch-id that the work is already upstream and skip
