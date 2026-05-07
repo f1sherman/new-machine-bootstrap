@@ -73,7 +73,7 @@
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/heal_mise_node_installs.yml'
 
 - name: Check if pinned Node.js version is listed by mise (macOS)
-  shell: "{{ mise_bin }} ls node | awk '$1 == \"node\" && $2 == \"{{ tool_versions.runtimes.node }}\" { found = 1 } END { exit(found ? 0 : 1) }'"
+  shell: "{{ mise_bin }} ls --installed node | awk '$1 == \"node\" && $2 == \"{{ tool_versions.runtimes.node }}\" { found = 1 } END { exit(found ? 0 : 1) }'"
   register: macos_node_listed
   changed_when: false
   failed_when: false

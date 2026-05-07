@@ -145,6 +145,7 @@ run_block_case_in_dir "blocks multiline implicit git checkout remote branch" "$i
 run_block_case_in_dir "blocks separator-attached implicit git checkout remote branch" "$implicit_repo" 'git checkout foo; git status' "$DENY_REASON"
 run_block_case_in_dir "blocks separator-attached implicit git switch remote branch" "$implicit_repo" 'git switch foo&& git status' "$DENY_REASON"
 run_allow_case "allows echo mention of implicit checkout" 'echo git checkout foo'
+run_block_case "blocks cd then implicit git checkout remote branch" "cd $implicit_repo && git checkout foo" "$DENY_REASON"
 upstream_repo="$(setup_remote_only_branch_repo upstream upstream)"
 run_block_case_in_dir "blocks implicit checkout from non-origin remote" "$upstream_repo" 'git checkout foo' "$DENY_REASON"
 
