@@ -19,10 +19,10 @@ matches_worktree_command() {
 GIT_PREAMBLE='(^|[;&|()])[[:space:]]*((([[:alnum:]_]+)=[^[:space:]]+[[:space:]]+|command[[:space:]]+|env[[:space:]]+)*)git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]]+)*)*[[:space:]]+'
 
 matches_branch_create_command() {
-  # `git ... checkout ... -b/-B/--orphan <name>` creates a branch.
-  local checkout_b="${GIT_PREAMBLE}checkout([[:space:]]+[^[:space:]]+)*[[:space:]]+(-[bB][^[:space:]]*|--orphan)([=[:space:]]|$)"
-  # `git ... switch ... -c/-C/--create/-t/--track <name>` creates a branch.
-  local switch_c="${GIT_PREAMBLE}switch([[:space:]]+[^[:space:]]+)*[[:space:]]+(-c[^[:space:]]*|--create|-C[^[:space:]]*|-t[^[:space:]]*|--track)([=[:space:]]|$)"
+  # `git ... checkout ... -b/-B/-t/--track/--orphan <name>` creates a branch.
+  local checkout_b="${GIT_PREAMBLE}checkout([[:space:]]+[^[:space:]]+)*[[:space:]]+(-[bBt][^[:space:]]*|--orphan|--track)([=[:space:]]|$)"
+  # `git ... switch ... -c/-C/--create/--force-create/-t/--track/--orphan <name>` creates a branch.
+  local switch_c="${GIT_PREAMBLE}switch([[:space:]]+[^[:space:]]+)*[[:space:]]+(-c[^[:space:]]*|--create|-C[^[:space:]]*|--force-create|-t[^[:space:]]*|--track|--orphan)([=[:space:]]|$)"
   # `git ... branch <name>` where <name> is a positional (non-flag) argument.
   # Read-only and management forms (-d/-D/-m/-M/-l/--list/--show-current/-v/-a/-r/--merged/--no-merged/--contains) are allowed because they begin with `-`.
   local branch_create="${GIT_PREAMBLE}branch[[:space:]]+[^-[:space:]][^[:space:]]*([[:space:]]|$)"
