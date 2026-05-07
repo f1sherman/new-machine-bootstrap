@@ -38,7 +38,9 @@ run_reminder_case() {
   output="$(cd "$repo" && printf '%s' "$payload" | "$SCRIPT")"
   if printf '%s' "$output" | jq -e --arg needle "$REMINDER_NEEDLE" \
       '(.hookSpecificOutput.hookEventName == "PostToolUse")
-       and (.hookSpecificOutput.additionalContext | test($needle))' >/dev/null 2>&1; then
+       and (.hookSpecificOutput.additionalContext | test($needle))
+       and (.hookSpecificOutput.additionalContext | contains("branch or worktree"))
+       and (.hookSpecificOutput.additionalContext | contains("feature worktree") | not)' >/dev/null 2>&1; then
     printf 'PASS  %s\n' "$name"
   else
     printf 'FAIL  %s\n' "$name" >&2

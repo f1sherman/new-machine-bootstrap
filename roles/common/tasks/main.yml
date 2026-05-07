@@ -132,6 +132,7 @@
     - { name: repo-end, mode: '0755' }
     - { name: cleanup-branches, mode: '0755' }
     - { name: codex-block-worktree-commands, mode: '0755' }
+    - { name: codex-remind-repo-start-on-dev-prompt, mode: '0755' }
     - { name: codex-block-git-push-main, mode: '0755' }
     - { name: codex-block-main-branch-edits, mode: '0755' }
     - { name: codex-bind-tmux-pane, mode: '0755' }
@@ -1526,6 +1527,54 @@
     HOOKS_FILE: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
   register: codex_current_spec_hooks_json_result
   changed_when: codex_current_spec_hooks_json_result.stdout.strip() == 'changed'
+
+- name: Merge managed Codex repo-start prompt hook into ~/.codex/hooks.json
+  shell: |
+    set -euo pipefail
+
+    hooks_file="${HOOKS_FILE:?}"
+    managed_command='~/.local/bin/codex-remind-repo-start-on-dev-prompt'
+
+    if [ -f "$hooks_file" ] && jq -e --arg cmd "$managed_command" '
+      .hooks.UserPromptSubmit // []
+      | any(any(.hooks[]?; .type == "command" and .command == $cmd))
+    ' "$hooks_file" >/dev/null 2>&1; then
+      echo "unchanged"
+      exit 0
+    fi
+
+    managed_entry="$(
+      jq -n --arg cmd "$managed_command" '{
+        hooks: [
+          {
+            type: "command",
+            command: $cmd
+          }
+        ]
+      }'
+    )"
+    tmp_file="$(mktemp)"
+
+    if [ -f "$hooks_file" ] && [ -s "$hooks_file" ]; then
+      jq --argjson entry "$managed_entry" '
+        .hooks //= {} |
+        .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) + [$entry])
+      ' "$hooks_file" > "$tmp_file"
+    else
+      jq -n --argjson entry "$managed_entry" '
+        {hooks: {UserPromptSubmit: [$entry]}}
+      ' > "$tmp_file"
+    fi
+
+    mv "$tmp_file" "$hooks_file"
+    chmod 600 "$hooks_file"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  environment:
+    HOOKS_FILE: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
+  register: codex_repo_start_prompt_hooks_json_result
+  changed_when: codex_repo_start_prompt_hooks_json_result.stdout.strip() == 'changed'
 
 - name: Enforce 0600 on ~/.codex/hooks.json
   file:
