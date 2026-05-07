@@ -26,6 +26,15 @@ assert_eq() {
   printf 'PASS  %s\n' "$label"
 }
 
+assert_contains() {
+  local haystack="$1" needle="$2" label="$3"
+  if [[ "$haystack" != *"$needle"* ]]; then
+    printf 'FAIL  %s\nexpected to contain: %s\ngot: %s\n' "$label" "$needle" "$haystack" >&2
+    exit 1
+  fi
+  printf 'PASS  %s\n' "$label"
+}
+
 make_repo() {
   local dir="$1"
   git init -qb main "$dir"
@@ -158,3 +167,50 @@ output="$(
 )"
 
 assert_eq "$output" "tmp-dir | workspace-beta" "devpod env host tag prints workspace name"
+
+mock_bin="$TMPROOT/mock-bin"
+mkdir -p "$mock_bin"
+tmux_log="$TMPROOT/tmux.log"
+client_tty="$TMPROOT/quiet.client"
+pane_tty="$TMPROOT/quiet.pane"
+ps_file="$TMPROOT/quiet.ps"
+: > "$client_tty"
+: > "$ps_file"
+
+cat > "$mock_bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -u
+
+printf '%s\n' "$*" >> "$TMUX_REMOTE_TITLE_TMUX_LOG"
+
+case "${1:-}" in
+  display-message)
+    printf '%s\t%s\t%s\n' "$TMUX_REMOTE_TITLE_FAKE_PANE_PATH" "$TMUX_REMOTE_TITLE_FAKE_CLIENT_TTY" "$TMUX_REMOTE_TITLE_FAKE_PANE_TTY"
+    ;;
+  show-options)
+    exit 1
+    ;;
+  *)
+    printf 'unexpected tmux invocation: %s\n' "$*" >&2
+    exit 99
+    ;;
+esac
+EOF
+chmod +x "$mock_bin/tmux"
+
+output="$(
+  PATH="$mock_bin:$PATH" \
+  TMUX=/tmp/fake \
+  TMUX_PANE=%91 \
+  TMUX_REMOTE_TITLE_TMUX_LOG="$tmux_log" \
+  TMUX_REMOTE_TITLE_FAKE_PANE_PATH="$main_repo" \
+  TMUX_REMOTE_TITLE_FAKE_CLIENT_TTY="$client_tty" \
+  TMUX_REMOTE_TITLE_FAKE_PANE_TTY="$pane_tty" \
+  TMUX_REMOTE_TITLE_PS_FILE="$ps_file" \
+  TMUX_REMOTE_TITLE_HOST_TAG=claw02 \
+  "$SCRIPT" print
+)"
+
+assert_eq "$output" "repo | claw02" "missing pane options fall back to pane directory"
+assert_contains "$(cat "$tmux_log")" "show-options -qv -p -t %91 @agent_worktree_path" "missing worktree path probe is quiet"
+assert_contains "$(cat "$tmux_log")" "show-options -qv -p -t %91 @agent_worktree_pid" "missing worktree pid probe is quiet"
