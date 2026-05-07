@@ -2,9 +2,7 @@
 
 require 'json'
 require 'open3'
-require 'net/http'
 require 'tmpdir'
-require 'uri'
 
 def run_command(cmd, allow_failure: false)
   stdout, stderr, status = Open3.capture3(cmd)
@@ -18,7 +16,7 @@ end
 
 def detect_remote_type(url)
   return :github if url.include?('github.com')
-  return :forgejo if url.include?('forgejo')
+
   nil
 end
 
@@ -85,56 +83,6 @@ def pr_state_github(owner_repo, branch)
   pr['state']&.upcase
 rescue JSON::ParserError
   'LOOKUP_FAILED'
-end
-
-def pr_state_forgejo(forgejo_url, token, owner, repo, branch)
-  http = Net::HTTP.new(URI(forgejo_url).host, URI(forgejo_url).port)
-  http.use_ssl = forgejo_url.start_with?('https')
-  local_sha = run_git_command(['rev-parse', '--verify', "#{branch}^{commit}"], allow_failure: true)
-  open_ref_match = nil
-  closed_ref_match = nil
-  partial_lookup_failure = false
-
-  %w[open closed].each do |state|
-    page = 1
-    loop do
-      uri = URI("#{forgejo_url}/api/v1/repos/#{owner}/#{repo}/pulls?state=#{state}&page=#{page}&limit=50")
-      req = Net::HTTP::Get.new(uri)
-      req['Authorization'] = "token #{token}"
-      response = http.request(req)
-      unless response.is_a?(Net::HTTPSuccess)
-        partial_lookup_failure = true
-        break
-      end
-
-      prs = JSON.parse(response.body)
-      pr = prs.find { |p| p.dig('head', 'sha') == local_sha && p['state'] == 'open' }
-      pr ||= prs.find { |p| p.dig('head', 'sha') == local_sha }
-      if pr
-        return 'MERGED' if pr['merged']
-        return state.upcase
-      end
-
-      if state == 'open' && open_ref_match.nil?
-        open_ref_match = prs.find { |p| p.dig('head', 'ref') == branch }
-      end
-      if state == 'closed' && closed_ref_match.nil?
-        closed_ref_match = prs.find { |p| p.dig('head', 'ref') == branch }
-      end
-
-      break if prs.empty?
-      page += 1
-    end
-  rescue StandardError
-    partial_lookup_failure = true
-    next
-  end
-
-  return 'LOOKUP_FAILED' if partial_lookup_failure
-  return 'OPEN' if open_ref_match
-  return 'CLOSED' if closed_ref_match
-
-  nil
 end
 
 def parse_worktree_entries(output)
@@ -322,27 +270,11 @@ unless branch_filter
 
   remote_type = detect_remote_type(remote_url)
   unless remote_type
-    $stderr.puts "Error: Remote origin is not GitHub or Forgejo (found: #{remote_url})"
+    $stderr.puts "Error: Remote origin is not GitHub (found: #{remote_url})"
     exit 1
   end
 
   owner_repo = remote_url[%r{[:/]([^/]+/[^/]+?)(\.git)?$}, 1]
-  owner, repo = owner_repo.split('/')
-end
-
-if remote_type == :forgejo
-  forgejo_url = ENV['FORGEJO_URL'] || 'https://forgejo.brianjohn.com'
-  token_file = File.join(Dir.home, '.config/home-network/forgejo-token')
-
-  forgejo_token = ENV['FORGEJO_TOKEN']
-  if forgejo_token.nil? || forgejo_token.empty?
-    if File.exist?(token_file)
-      forgejo_token = File.read(token_file).strip
-    else
-      $stderr.puts "Error: No Forgejo token found. Set FORGEJO_TOKEN or create #{token_file}"
-      exit 1
-    end
-  end
 end
 
 original_branch = nil
@@ -401,12 +333,7 @@ branches.each do |branch|
   print "Checking #{branch}... "
   $stdout.flush
 
-  pr_state = case remote_type
-  when :github
-    pr_state_github(owner_repo, branch)
-  when :forgejo
-    pr_state_forgejo(forgejo_url, forgejo_token, owner, repo, branch)
-  end
+  pr_state = pr_state_github(owner_repo, branch)
 
   if pr_state == 'LOOKUP_FAILED'
     puts 'PR lookup failed; retaining branch'

@@ -1,11 +1,9 @@
 #!/usr/bin/env ruby
 
 require 'json'
-require 'net/http'
 require 'open3'
 require 'optparse'
 require 'tmpdir'
-require 'uri'
 
 USAGE = 'Usage: git-clean-up [--repo-dir PATH] [--branch NAME] [--delete-remote] [--yes]'
 
@@ -129,14 +127,13 @@ end
 
 def detect_remote_type(url)
   return :github if url.include?('github.com')
-  return :forgejo if url.include?('forgejo')
 
   nil
 end
 
 def owner_repo_from_remote(url)
   cleaned = url.delete_suffix('.git')
-  match = cleaned.match(%r{(?:github\.com|forgejo[^/:]*)[:/]([^/]+/[^/]+)$})
+  match = cleaned.match(%r{github\.com[:/]([^/]+/[^/]+)$})
   return match[1] if match
 
   parts = cleaned.split(%r{[:/]}).reject(&:empty?)
@@ -184,49 +181,8 @@ rescue JSON::ParserError, SystemCallError
   'LOOKUP_FAILED'
 end
 
-def pr_state_forgejo(forgejo_url, token, owner, repo, branch, git_dir:)
-  local_sha = run_git(['rev-parse', '--verify', "#{branch}^{commit}"], git_dir: git_dir, allow_failure: true).output
-  branch_match = nil
-  page = 1
-
-  loop do
-    uri = URI("#{forgejo_url}/api/v1/repos/#{owner}/#{repo}/pulls?state=all&page=#{page}&limit=50")
-    req = Net::HTTP::Get.new(uri)
-    req['Authorization'] = "token #{token}" if token && !token.empty?
-    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }
-    return 'LOOKUP_FAILED' unless response.is_a?(Net::HTTPSuccess)
-
-    prs = JSON.parse(response.body)
-    return 'LOOKUP_FAILED' unless prs.is_a?(Array)
-    break if prs.empty?
-
-    pr = prs.find { |candidate| candidate.dig('head', 'sha') == local_sha }
-    if pr
-      return 'MERGED' if pr['merged'] || pr['merged_at']
-
-      return pr['state']&.upcase
-    end
-
-    branch_match ||= prs.find { |candidate| candidate.dig('head', 'ref') == branch }
-    page += 1
-  end
-
-  branch_match&.dig('state')&.upcase
-rescue JSON::ParserError, StandardError
-  'LOOKUP_FAILED'
-end
-
 def pr_state_for(remote_type:, owner_repo:, branch:, git_dir:)
-  case remote_type
-  when :github
-    pr_state_github(owner_repo, branch, git_dir: git_dir)
-  when :forgejo
-    owner, repo = owner_repo.split('/', 2)
-    token = ENV['FORGEJO_TOKEN']
-    token_file = File.join(Dir.home, '.config/home-network/forgejo-token')
-    token ||= File.read(token_file).strip if File.exist?(token_file)
-    pr_state_forgejo(ENV.fetch('FORGEJO_URL', 'https://forgejo.brianjohn.com'), token, owner, repo, branch, git_dir: git_dir)
-  end
+  pr_state_github(owner_repo, branch, git_dir: git_dir)
 end
 
 def merged_state(branch, main_branch, git_dir:, remote_context:)
@@ -308,7 +264,7 @@ def remote_context_for(repo_dir)
   fail_with('No remote.origin.url configured') if remote_url.empty?
 
   remote_type = detect_remote_type(remote_url)
-  fail_with("remote origin is not GitHub or Forgejo: #{remote_url}") unless remote_type
+  fail_with("remote origin is not GitHub: #{remote_url}") unless remote_type
 
   owner_repo = owner_repo_from_remote(remote_url)
   fail_with("could not parse owner/repo from remote: #{remote_url}") unless owner_repo

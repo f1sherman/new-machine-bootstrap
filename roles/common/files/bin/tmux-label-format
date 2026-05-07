@@ -106,7 +106,7 @@ cached_pr_display_ref() {
       | select((.state // "") == "open")
       | select(((.expires_at_epoch // 0) | tonumber) > $now)
       | (.display_ref // "")
-      | select(test("^(gh|fg)#[0-9]+$"))
+      | select(test("^gh#[0-9]+$"))
     ' "$cache_file" 2>/dev/null
 }
 

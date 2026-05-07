@@ -21,8 +21,3 @@ Report the branch cleanup summary from the helper output, including:
 - the number of extra merged branches pruned
 - retained branches and their reasons
 
-If this skill is invoked from pull-request monitoring after a merged PR, use the monitor's authoritative repo directory and branch:
-
-```bash
-git-clean-up --repo-dir "$REPO_DIR" --branch "$HEAD_BRANCH" --delete-remote --yes
-```

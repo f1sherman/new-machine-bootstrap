@@ -21,6 +21,15 @@ require_not_contains() {
   printf 'PASS  %s\n' "$name"
 }
 
+require_missing() {
+  local path="$1" name="$2"
+  [ ! -e "$ROOT/$path" ] || {
+    printf 'FAIL  %s\n' "$name" >&2
+    exit 1
+  }
+  printf 'PASS  %s\n' "$name"
+}
+
 require_contains roles/common/templates/dotfiles/gitignore '.repo.yml' 'global gitignore ignores .repo.yml'
 require_contains roles/common/templates/dotfiles/gitignore '.worktrees/' 'global gitignore ignores default worktree root'
 require_contains roles/common/tasks/main.yml 'repo-lib.sh' 'installs repo-lib'
@@ -48,9 +57,6 @@ require_contains roles/common/files/claude/hooks/block-main-branch-edits.sh 'rep
 require_contains roles/common/files/claude/hooks/block-worktree-commands.sh 'Use repo-start instead.' 'Claude raw worktree add hook names repo-start'
 require_contains roles/common/files/claude/hooks/block-worktree-commands.sh 'cleanup-branches --branch <branch>' 'Claude raw worktree remove hook names cleanup script'
 require_not_contains roles/common/files/claude/hooks/block-worktree-commands.sh 'worktree-start' 'Claude raw worktree hook stops naming worktree-start'
-require_contains roles/common/files/share/skills/_pr-workflow-common/agent-worktree-path.sh 'repo-start <branch>' 'PR workflow worktree recovery names repo-start'
-require_not_contains roles/common/files/share/skills/_pr-workflow-common/agent-worktree-path.sh 'worktree-start' 'PR workflow worktree recovery stops naming worktree-start'
-require_contains roles/common/files/share/skills/_pr-workflow-common/agent-worktree-path.sh 'non-main named branch' 'PR workflow allows branch lifecycle paths'
-require_not_contains roles/common/files/share/skills/_pr-workflow-common/agent-worktree-path.sh 'not a linked git worktree' 'PR workflow stops requiring linked worktrees'
+require_missing roles/common/files/share/skills/_pr-workflow-common 'NMB does not ship PR workflow runtime helpers'
 
 printf 'PASS  repo lifecycle provisioning checks\n'

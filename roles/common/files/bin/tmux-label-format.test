@@ -124,16 +124,6 @@ assert_eq \
   "(feature/github-pr gh#123) github-repo" \
   "cache key falls back when sha256sum is unavailable"
 
-forgejo_repo="$tmp_root/forgejo-repo"
-forgejo_remote_url="ssh://git@forgejo.example/brian/forgejo-repo.git"
-make_repo "$forgejo_repo"
-git -C "$forgejo_repo" remote add origin "$forgejo_remote_url"
-git -C "$forgejo_repo" checkout -q -b feature/forgejo-pr
-write_pr_cache "$forgejo_remote_url" "feature/forgejo-pr" "open" "$(( $(date +%s) + 3600 ))" "fg#42"
-assert_eq \
-  "$("$script" local "$forgejo_repo")" \
-  "(feature/forgejo-pr fg#42) forgejo-repo" \
-  "matching Forgejo cache appends display ref"
 
 dirty_repo="$tmp_root/dirty-repo"
 dirty_remote_url="https://github.com/example/dirty-repo.git"
