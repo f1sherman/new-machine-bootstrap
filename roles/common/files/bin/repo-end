@@ -85,7 +85,7 @@ already_merged() {
 }
 
 squash_patch_previously_applied() {
-  local git_cmd base branch_patch commit patch
+  local git_cmd base branch_patch reverse_patch commit patch matched
   git_cmd="$1"
 
   base="$("$git_cmd" -C "$repo_root" merge-base "origin/${main_branch}" HEAD 2>/dev/null || true)"
@@ -93,13 +93,22 @@ squash_patch_previously_applied() {
 
   branch_patch="$("$git_cmd" -C "$repo_root" diff "$base" HEAD | "$git_cmd" -C "$repo_root" patch-id --stable | awk 'NR == 1 {print $1}')"
   [[ -n "$branch_patch" ]] || return 1
+  reverse_patch="$("$git_cmd" -C "$repo_root" diff HEAD "$base" | "$git_cmd" -C "$repo_root" patch-id --stable | awk 'NR == 1 {print $1}')"
+  [[ -n "$reverse_patch" ]] || return 1
 
+  matched=false
   while IFS= read -r commit; do
     patch="$("$git_cmd" -C "$repo_root" show --pretty=format: "$commit" | "$git_cmd" -C "$repo_root" patch-id --stable | awk 'NR == 1 {print $1}')"
-    [[ -n "$patch" && "$patch" == "$branch_patch" ]] && return 0
-  done < <("$git_cmd" -C "$repo_root" rev-list "${base}..origin/${main_branch}")
+    [[ -n "$patch" ]] || continue
+    if [[ "$matched" == "true" && "$patch" == "$reverse_patch" ]]; then
+      return 1
+    fi
+    if [[ "$patch" == "$branch_patch" ]]; then
+      matched=true
+    fi
+  done < <("$git_cmd" -C "$repo_root" rev-list --reverse "${base}..origin/${main_branch}")
 
-  return 1
+  [[ "$matched" == "true" ]]
 }
 
 if already_merged; then
