@@ -305,7 +305,7 @@
 
 - name: Install runtime shared commit helper directory
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
+    src: "{{ agent_host_common_role_root_resolved }}/files/config/skills/common/{{ item }}/"
     dest: "{{ agent_host_runtime_home.home }}/.local/share/skills/{{ item }}/"
     owner: "{{ agent_host_runtime_home.owner }}"
     group: "{{ agent_host_runtime_group_resolved }}"
@@ -316,7 +316,7 @@
 
 - name: Install runtime local PR workflow helper directories
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
+    src: "{{ agent_host_common_role_root_resolved }}/files/share/skills/{{ item }}/"
     dest: "{{ agent_host_runtime_home.home }}/.local/share/skills/{{ item }}/"
     owner: "{{ agent_host_runtime_home.owner }}"
     group: "{{ agent_host_runtime_group_resolved }}"
@@ -331,7 +331,7 @@
 
 - name: Install runtime Claude commit skill directory
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
+    src: "{{ agent_host_common_role_root_resolved }}/files/config/skills/claude/{{ item }}/"
     dest: "{{ agent_host_runtime_home.home }}/.claude/skills/{{ item }}/"
     owner: "{{ agent_host_runtime_home.owner }}"
     group: "{{ agent_host_runtime_group_resolved }}"
@@ -342,7 +342,7 @@
 
 - name: Install runtime Claude PR workflow skill directories
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
+    src: "{{ agent_host_common_role_root_resolved }}/files/config/skills/common/{{ item }}/"
     dest: "{{ agent_host_runtime_home.home }}/.claude/skills/{{ item }}/"
     owner: "{{ agent_host_runtime_home.owner }}"
     group: "{{ agent_host_runtime_group_resolved }}"
@@ -359,7 +359,7 @@
 
 - name: Install runtime Codex commit skill directory
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
+    src: "{{ agent_host_common_role_root_resolved }}/files/config/skills/codex/{{ item }}/"
     dest: "{{ agent_host_runtime_home.home }}/.codex/skills/{{ item }}/"
     owner: "{{ agent_host_runtime_home.owner }}"
     group: "{{ agent_host_runtime_group_resolved }}"
@@ -370,7 +370,7 @@
 
 - name: Install runtime Codex PR workflow skill directories
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/"
+    src: "{{ agent_host_common_role_root_resolved }}/files/config/skills/common/{{ item }}/"
     dest: "{{ agent_host_runtime_home.home }}/.codex/skills/{{ item }}/"
     owner: "{{ agent_host_runtime_home.owner }}"
     group: "{{ agent_host_runtime_group_resolved }}"

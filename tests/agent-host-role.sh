@@ -8,7 +8,9 @@ ROLE_DEFAULTS="$ROLE_DIR/defaults/main.yml"
 ROLE_TASKS="$ROLE_DIR/tasks/main.yml"
 RUNTIME_TASKS="$ROLE_DIR/tasks/runtime-home.yml"
 ROLE_SKILLS="$ROLE_DIR/files/share/skills"
-REVIEW_HELPER="$ROLE_SKILLS/_review/run.sh"
+COMMON_RUNTIME_SKILLS="$REPO_ROOT/roles/common/files/share/skills"
+COMMON_SKILLS="$REPO_ROOT/roles/common/files/config/skills/common"
+REVIEW_HELPER="$COMMON_RUNTIME_SKILLS/_review/run.sh"
 PLAYBOOK="$REPO_ROOT/playbook.yml"
 COMMON_TASKS="$REPO_ROOT/roles/common/tasks/main.yml"
 
@@ -115,8 +117,11 @@ assert_contains "$ROLE_TASKS" "agent_host_runtime_homes_resolved" "role self-def
 assert_contains "$ROLE_TASKS" "agent_host_runtime_homes_resolved" "role loops over resolved runtime homes"
 assert_contains "$ROLE_TASKS" "runtime-home.yml" "role includes runtime home tasks"
 assert_contains "$ROLE_TASKS" "agent_host_role_root" "role supports external include root"
-assert_contains "$ROLE_SKILLS/_pr-workflow-common/context.sh" "gh-merge-base" "context honors GitHub branch merge-base config"
-assert_contains "$ROLE_SKILLS/_pr-workflow-common/context.sh" "base_ref" "context exposes a local base ref"
+assert_contains "$ROLE_TASKS" "agent_host_common_role_root_resolved" "role resolves common asset root"
+assert_contains "$RUNTIME_TASKS" "agent_host_common_role_root_resolved" "runtime tasks source common assets"
+assert_missing "$ROLE_SKILLS" "agent_host does not vendor shared skills"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-workflow-common/context.sh" "gh-merge-base" "context honors GitHub branch merge-base config"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-workflow-common/context.sh" "base_ref" "context exposes a local base ref"
 
 context_tmp="$(mktemp -d)"
 context_origin="$context_tmp/origin.git"
@@ -138,13 +143,13 @@ printf '<div>feature</div>\n' > "$context_repo/view.html"
 git -C "$context_repo" add file.txt view.html
 git -C "$context_repo" commit -q -m feature
 git -C "$context_repo" branch -D main >/dev/null
-if context_json="$(bash "$ROLE_SKILLS/_pr-workflow-common/context.sh" "$context_repo" 2>&1)" \
+if context_json="$(bash "$COMMON_RUNTIME_SKILLS/_pr-workflow-common/context.sh" "$context_repo" 2>&1)" \
   && jq -e '.base == "main" and .base_ref == "origin/main" and (.changed_files | index("file.txt")) and (.changed_files | index("view.html"))' <<<"$context_json" >/dev/null; then
     pass_case "context resolves remote default branch without local base"
 else
   fail_case "context resolves remote default branch without local base" "$context_json"
 fi
-if visual_result="$(bash "$ROLE_SKILLS/_pr-workflow-common/classify-visual.sh" "$context_repo" 2>&1)" \
+if visual_result="$(bash "$COMMON_RUNTIME_SKILLS/_pr-workflow-common/classify-visual.sh" "$context_repo" 2>&1)" \
   && [ "$visual_result" = "visual" ]; then
     pass_case "visual classifier uses resolved remote base ref"
 else
@@ -175,12 +180,14 @@ assert_contains "$ROLE_TASKS" ".codex/skills/_spec-to-pr" "current user removes 
 assert_contains "$RUNTIME_TASKS" ".claude/skills/_fix" "runtime homes remove PR-dependent Claude skills in commit-only mode"
 assert_contains "$RUNTIME_TASKS" ".codex/skills/_spec-to-pr" "runtime homes remove PR-dependent Codex skills in commit-only mode"
 
-for skill in _commit _pull-request _review _pr-forgejo _pr-github _forgejo-demo _github-demo; do
-  assert_exists "$ROLE_SKILLS/$skill/SKILL.md" "agent_host skill exists: $skill"
+assert_exists "$REPO_ROOT/roles/common/files/config/skills/claude/_commit/SKILL.md" "Claude commit skill exists"
+assert_exists "$REPO_ROOT/roles/common/files/config/skills/codex/_commit/SKILL.md" "Codex commit skill exists"
+for skill in _pull-request _review _pr-forgejo _pr-github _forgejo-demo _github-demo; do
+  assert_exists "$COMMON_SKILLS/$skill/SKILL.md" "common skill exists: $skill"
 done
 
+assert_exists "$COMMON_SKILLS/_commit/commit.sh" "common helper exists: _commit/commit.sh"
 for helper in \
-  _commit/commit.sh \
   _pr-workflow-common/agent-worktree-path.sh \
   _pr-workflow-common/build-pr-body.sh \
   _pr-workflow-common/classify-visual.sh \
@@ -195,7 +202,7 @@ for helper in \
   _pr-github/create.sh \
   _pr-github/post-demo.sh \
   _pr-github/state.sh; do
-  assert_exists "$ROLE_SKILLS/$helper" "agent_host helper exists: $helper"
+  assert_exists "$COMMON_RUNTIME_SKILLS/$helper" "common runtime helper exists: $helper"
 done
 
 assert_contains "$REVIEW_HELPER" 'mktemp "/tmp/review-${safe_branch}.XXXXXX"' "review helper writes artifacts outside worktree"
@@ -203,15 +210,11 @@ assert_not_contains "$REVIEW_HELPER" 'XXXXXX.txt' "review helper uses BSD-compat
 assert_not_contains "$REVIEW_HELPER" 'artifact_dir="$repo_dir/tmp"' "review helper avoids repo tmp artifacts"
 
 for monitor_path in \
-  "$ROLE_SKILLS/_monitor-pr" \
-  "$ROLE_SKILLS/_monitor-forgejo-pr" \
-  "$ROLE_SKILLS/_monitor-github-pr" \
-  "$ROLE_SKILLS/_pr-monitor" \
-  "$ROLE_SKILLS/_pr-forgejo/comments.sh" \
-  "$ROLE_SKILLS/_pr-forgejo/reply-comment.sh" \
-  "$ROLE_SKILLS/_pr-github/comments.sh" \
-  "$ROLE_SKILLS/_pr-github/reply-comment.sh"; do
-  assert_missing "$monitor_path" "agent_host omits monitor asset: ${monitor_path#$ROLE_SKILLS/}"
+  "$COMMON_RUNTIME_SKILLS/_pr-monitor" \
+  "$COMMON_SKILLS/_monitor-pr" \
+  "$COMMON_SKILLS/_monitor-forgejo-pr" \
+  "$COMMON_SKILLS/_monitor-github-pr"; do
+  assert_exists "$monitor_path" "common keeps monitor asset: ${monitor_path#$REPO_ROOT/}"
 done
 
 assert_exists "$ROLE_DIR/files/bin/codex-block-raw-pr-creation" "Codex raw PR blocker exists"
@@ -223,26 +226,26 @@ assert_executable "$ROLE_DIR/files/claude/hooks/block-raw-pr-creation.sh" "Claud
 assert_exists "$ROLE_DIR/files/claude/hooks/block-raw-pr-creation.sh.test" "Claude raw PR blocker test exists"
 assert_executable "$ROLE_DIR/files/claude/hooks/block-raw-pr-creation.sh.test" "Claude raw PR blocker test is executable"
 
-assert_not_contains "$ROLE_SKILLS/_pull-request/SKILL.md" "_monitor-pr" "_pull-request does not invoke foreground monitor"
-assert_not_contains "$ROLE_SKILLS/_pr-forgejo/SKILL.md" "_monitor-pr" "_pr-forgejo does not invoke foreground monitor"
-assert_not_contains "$ROLE_SKILLS/_pr-github/SKILL.md" "_monitor-pr" "_pr-github does not invoke foreground monitor"
-assert_contains "$ROLE_SKILLS/_github-demo/SKILL.md" "uvx rodney" "GitHub demo uses provisioned Rodney proof tool"
-assert_not_contains "$ROLE_SKILLS/_github-demo/SKILL.md" "gsd-browser" "GitHub demo avoids unprovisioned gsd-browser"
-assert_contains "$ROLE_SKILLS/_pull-request/SKILL.md" "remote PR head SHA matches local" "_pull-request requires remote head check"
-assert_contains "$ROLE_SKILLS/_pull-request/SKILL.md" "remote PR statuses for the pushed head" "_pull-request requires status check"
-assert_contains "$ROLE_SKILLS/_pull-request/SKILL.md" 'BASE_REF="$(echo "$CONTEXT_JSON" | jq -r '"'"'.base_ref'"'"')"' "_pull-request extracts resolved base ref"
-assert_contains "$ROLE_SKILLS/_pull-request/SKILL.md" "resolved \`REPO_DIR\` and \`BASE_REF\`" "_pull-request reviews against resolved base ref"
-assert_contains "$ROLE_SKILLS/_pr-github/create.sh" "cannot reuse existing PR; push failed" "GitHub PR helper fails stale reuse after push failure"
-assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "cannot reuse existing PR; push failed" "Forgejo PR helper fails stale reuse after push failure"
-assert_contains "$ROLE_SKILLS/_pr-github/create.sh" "gh pr edit" "GitHub PR helper refreshes reused PR metadata"
-assert_contains "$ROLE_SKILLS/_pr-github/create.sh" "headRepository.nameWithOwner == \$repo" "GitHub PR helper filters reused PRs by head repo"
-assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "PATCH" "Forgejo PR helper refreshes reused PR metadata"
-assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "cannot list existing Forgejo PRs" "Forgejo PR helper fails on untrusted list responses"
-assert_not_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" '2>/dev/null || echo "[]"' "Forgejo PR helper does not mask list failures"
-assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "forgejo_url_from_origin" "Forgejo create helper derives URL from origin"
-assert_contains "$ROLE_SKILLS/_pr-forgejo/state.sh" "forgejo_url_from_origin" "Forgejo state helper derives URL from origin"
-assert_contains "$ROLE_SKILLS/_pr-forgejo/post-demo.sh" "forgejo_url_from_origin" "Forgejo demo helper derives URL from origin"
-assert_contains "$ROLE_SKILLS/_pr-forgejo/upload-attachment.sh" "forgejo_url_from_origin" "Forgejo upload helper derives URL from origin"
+assert_not_contains "$COMMON_SKILLS/_pull-request/SKILL.md" "_monitor-pr" "_pull-request does not invoke foreground monitor"
+assert_not_contains "$COMMON_SKILLS/_pr-forgejo/SKILL.md" "_monitor-pr" "_pr-forgejo does not invoke foreground monitor"
+assert_not_contains "$COMMON_SKILLS/_pr-github/SKILL.md" "_monitor-pr" "_pr-github does not invoke foreground monitor"
+assert_contains "$COMMON_SKILLS/_github-demo/SKILL.md" "uvx rodney" "GitHub demo uses provisioned Rodney proof tool"
+assert_not_contains "$COMMON_SKILLS/_github-demo/SKILL.md" "gsd-browser" "GitHub demo avoids unprovisioned gsd-browser"
+assert_contains "$COMMON_SKILLS/_pull-request/SKILL.md" "remote PR head SHA matches local" "_pull-request requires remote head check"
+assert_contains "$COMMON_SKILLS/_pull-request/SKILL.md" "remote PR statuses for the pushed head" "_pull-request requires status check"
+assert_contains "$COMMON_SKILLS/_pull-request/SKILL.md" 'BASE_REF="$(echo "$CONTEXT_JSON" | jq -r '"'"'.base_ref'"'"')"' "_pull-request extracts resolved base ref"
+assert_contains "$COMMON_SKILLS/_pull-request/SKILL.md" "resolved \`REPO_DIR\` and \`BASE_REF\`" "_pull-request reviews against resolved base ref"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-github/create.sh" "cannot reuse existing PR; push failed" "GitHub PR helper fails stale reuse after push failure"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-forgejo/create.sh" "cannot reuse existing PR; push failed" "Forgejo PR helper fails stale reuse after push failure"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-github/create.sh" "gh pr edit" "GitHub PR helper refreshes reused PR metadata"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-github/create.sh" "headRepository.nameWithOwner == \$repo" "GitHub PR helper filters reused PRs by head repo"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-forgejo/create.sh" "PATCH" "Forgejo PR helper refreshes reused PR metadata"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-forgejo/create.sh" "cannot list existing Forgejo PRs" "Forgejo PR helper fails on untrusted list responses"
+assert_not_contains "$COMMON_RUNTIME_SKILLS/_pr-forgejo/create.sh" '2>/dev/null || echo "[]"' "Forgejo PR helper does not mask list failures"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-forgejo/create.sh" "forgejo_url_from_origin" "Forgejo create helper derives URL from origin"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-forgejo/state.sh" "forgejo_url_from_origin" "Forgejo state helper derives URL from origin"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-forgejo/post-demo.sh" "forgejo_url_from_origin" "Forgejo demo helper derives URL from origin"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-forgejo/upload-attachment.sh" "forgejo_url_from_origin" "Forgejo upload helper derives URL from origin"
 assert_forgejo_helper_strips_ssh_port() {
   local helper="$1" name="$2"
   local tmp repo output
@@ -263,16 +266,16 @@ assert_forgejo_helper_strips_ssh_port() {
     fail_case "$name" "unexpected URL: $output"
   fi
 }
-assert_forgejo_helper_strips_ssh_port "$ROLE_SKILLS/_pr-forgejo/create.sh" "Forgejo create helper strips SSH port"
-assert_forgejo_helper_strips_ssh_port "$ROLE_SKILLS/_pr-forgejo/state.sh" "Forgejo state helper strips SSH port"
-assert_forgejo_helper_strips_ssh_port "$ROLE_SKILLS/_pr-forgejo/post-demo.sh" "Forgejo demo helper strips SSH port"
-assert_forgejo_helper_strips_ssh_port "$ROLE_SKILLS/_pr-forgejo/upload-attachment.sh" "Forgejo upload helper strips SSH port"
-assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" "arg repo_path" "Forgejo PR helper filters reused PRs by head repo"
-assert_contains "$ROLE_SKILLS/_pr-forgejo/create.sh" ".head.repo.full_name" "Forgejo PR helper checks head repo identity"
-assert_contains "$ROLE_SKILLS/_pr-github/state.sh" ".head.repo.full_name == \$repo" "GitHub state helper filters candidate PRs by head repo"
-assert_contains "$ROLE_SKILLS/_pr-forgejo/state.sh" "head_repo_full_name == \$repo_path" "Forgejo state helper filters candidate PRs by head repo"
-assert_contains "$ROLE_SKILLS/_pr-github/state.sh" "statusCheckRollup" "GitHub state helper uses supported PR status rollup"
-assert_not_contains "$ROLE_SKILLS/_pr-github/state.sh" "gh pr checks" "GitHub state helper avoids unsupported gh checks JSON flag"
+assert_forgejo_helper_strips_ssh_port "$COMMON_RUNTIME_SKILLS/_pr-forgejo/create.sh" "Forgejo create helper strips SSH port"
+assert_forgejo_helper_strips_ssh_port "$COMMON_RUNTIME_SKILLS/_pr-forgejo/state.sh" "Forgejo state helper strips SSH port"
+assert_forgejo_helper_strips_ssh_port "$COMMON_RUNTIME_SKILLS/_pr-forgejo/post-demo.sh" "Forgejo demo helper strips SSH port"
+assert_forgejo_helper_strips_ssh_port "$COMMON_RUNTIME_SKILLS/_pr-forgejo/upload-attachment.sh" "Forgejo upload helper strips SSH port"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-forgejo/create.sh" "arg repo_path" "Forgejo PR helper filters reused PRs by head repo"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-forgejo/create.sh" ".head.repo.full_name" "Forgejo PR helper checks head repo identity"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-github/state.sh" ".head.repo.full_name == \$repo" "GitHub state helper filters candidate PRs by head repo"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-forgejo/state.sh" "head_repo_full_name == \$repo_path" "Forgejo state helper filters candidate PRs by head repo"
+assert_contains "$COMMON_RUNTIME_SKILLS/_pr-github/state.sh" "statusCheckRollup" "GitHub state helper uses supported PR status rollup"
+assert_not_contains "$COMMON_RUNTIME_SKILLS/_pr-github/state.sh" "gh pr checks" "GitHub state helper avoids unsupported gh checks JSON flag"
 assert_contains "$ROLE_TASKS" "not ansible_check_mode or agent_host_codex_hooks_stat.stat.exists" "current-user Codex hook ownership is check-mode safe"
 assert_contains "$RUNTIME_TASKS" "not ansible_check_mode or runtime_claude_settings_stat.stat.exists" "runtime Claude hook ownership is check-mode safe"
 assert_contains "$RUNTIME_TASKS" "not ansible_check_mode or runtime_codex_hooks_stat.stat.exists" "runtime Codex hook ownership is check-mode safe"
@@ -310,7 +313,7 @@ esac
 EOF
   chmod +x "$tmp/bin/curl"
 
-  output="$(cd "$repo" && PATH="$tmp/bin:$PATH" FORGEJO_TOKEN=t bash "$ROLE_SKILLS/_pr-forgejo/state.sh" --head-branch feature)"
+  output="$(cd "$repo" && PATH="$tmp/bin:$PATH" FORGEJO_TOKEN=t bash "$COMMON_RUNTIME_SKILLS/_pr-forgejo/state.sh" --head-branch feature)"
   rm -rf "$tmp"
 
   if printf '%s\n' "$output" | jq -e --arg sha "$sha" '.monitor_state == "pending" and .pr_number == 12 and .head_sha == $sha' >/dev/null; then

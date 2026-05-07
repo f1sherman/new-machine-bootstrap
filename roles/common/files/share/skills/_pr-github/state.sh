@@ -48,11 +48,11 @@ while :; do
   fi
 
   if ! sha_open_json="$(
-    echo "$page_json" | jq -c --arg sha "$local_head_sha" '
+    echo "$page_json" | jq -c --arg sha "$local_head_sha" --arg repo "$repo" '
       if type != "array" then
         null
       else
-        ([.[] | select(.head.sha == $sha and .state == "open")] | first)
+        ([.[] | select(.head.repo.full_name == $repo and .head.sha == $sha and .state == "open")] | first)
       end
     ' 2>/dev/null
   )"; then
@@ -66,11 +66,11 @@ while :; do
 
   if [[ "$pr_json" == "null" ]]; then
     if ! pr_json="$(
-      echo "$page_json" | jq -c --arg sha "$local_head_sha" '
+      echo "$page_json" | jq -c --arg sha "$local_head_sha" --arg repo "$repo" '
         if type != "array" then
           null
         else
-          ([.[] | select(.head.sha == $sha)] | first)
+          ([.[] | select(.head.repo.full_name == $repo and .head.sha == $sha)] | first)
         end
       ' 2>/dev/null
     )"; then
@@ -81,11 +81,11 @@ while :; do
 
   if [[ "$branch_open_json" == "null" ]]; then
     if ! branch_open_json="$(
-      echo "$page_json" | jq -c --arg head "$head" '
+      echo "$page_json" | jq -c --arg head "$head" --arg repo "$repo" '
         if type != "array" then
           null
         else
-          ([.[] | select(.head.ref == $head and .state == "open")] | first)
+          ([.[] | select(.head.repo.full_name == $repo and .head.ref == $head and .state == "open")] | first)
         end
       ' 2>/dev/null
     )"; then
@@ -96,11 +96,11 @@ while :; do
 
   if [[ "$branch_closed_json" == "null" ]]; then
     if ! branch_closed_json="$(
-      echo "$page_json" | jq -c --arg head "$head" '
+      echo "$page_json" | jq -c --arg head "$head" --arg repo "$repo" '
         if type != "array" then
           null
         else
-          ([.[] | select(.head.ref == $head and .state == "closed")] | first)
+          ([.[] | select(.head.repo.full_name == $repo and .head.ref == $head and .state == "closed")] | first)
         end
       ' 2>/dev/null
     )"; then
@@ -168,28 +168,32 @@ else
   if [[ "$mergeable" == "false" || "$mergeable_state_lc" == "dirty" ]]; then
     monitor_state="merge_conflict"
   else
-  checks_json="$(gh pr checks "$pr_number" --repo "$repo" --json bucket 2>/dev/null || true)"
+  checks_json="$(gh pr view "$pr_number" --repo "$repo" --json statusCheckRollup 2>/dev/null || true)"
   if [[ -z "$checks_json" ]]; then
-    retryable_error "gh pr checks failed"
+    retryable_error "gh pr view status checks failed"
     exit 0
   fi
 
   if ! checks_state="$(
     echo "$checks_json" | jq -r '
-      if type != "array" or length == 0 then
+      (.statusCheckRollup // []) as $checks |
+      if ($checks | type) != "array" or ($checks | length) == 0 then
         "unknown"
-      elif any(.[]; (.bucket // "") | ascii_downcase | test("^(fail|cancel)$")) then
+      elif any($checks[]; ((.conclusion // .state // .status // "") | ascii_downcase) as $state |
+        ($state | test("^(failure|failed|cancelled|canceled|timed_out|action_required|error)$"))) then
         "failure"
-      elif any(.[]; (.bucket // "") | ascii_downcase == "pending") then
+      elif any($checks[]; ((.status // .state // "") | ascii_downcase) as $state |
+        ($state | test("^(queued|pending|in_progress|requested|waiting|expected)$"))) then
         "pending"
-      elif all(.[]; ((.bucket // "") | ascii_downcase) as $bucket | ($bucket == "pass" or $bucket == "skipping")) then
+      elif all($checks[]; ((.conclusion // .state // .status // "") | ascii_downcase) as $state |
+        ($state == "success" or $state == "passed" or $state == "skipped" or $state == "neutral" or $state == "completed")) then
         "success"
       else
         "unknown"
       end
     ' 2>/dev/null
   )"; then
-    retryable_error "gh pr checks parse failed"
+    retryable_error "gh pr status rollup parse failed"
     exit 0
   fi
   if [[ "$checks_state" == "failure" ]]; then

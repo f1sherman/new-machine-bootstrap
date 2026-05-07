@@ -3,6 +3,7 @@
 - name: Resolve agent host role root
   set_fact:
     agent_host_role_root_resolved: "{{ agent_host_role_root | default(role_path) }}"
+    agent_host_common_role_root_resolved: "{{ agent_host_common_role_root | default((agent_host_role_root | default(role_path)) | dirname ~ '/common') }}"
     agent_host_install_user_home_resolved: "{{ agent_host_install_user_home | default(true) | bool }}"
     agent_host_user_home_resolved: "{{ agent_host_user_home | default(ansible_facts['user_dir'] | default(ansible_facts['env']['HOME'])) }}"
     agent_host_install_pr_creation_skills_resolved: "{{ agent_host_install_pr_creation_skills | default(true) | bool }}"
@@ -329,7 +330,7 @@
 
 - name: Install shared PR workflow common helpers
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/_pr-workflow-common/{{ item }}"
+    src: "{{ agent_host_common_role_root_resolved }}/files/share/skills/_pr-workflow-common/{{ item }}"
     dest: "{{ agent_host_user_home_resolved }}/.local/share/skills/_pr-workflow-common/{{ item }}"
     mode: preserve
   loop:
@@ -345,7 +346,7 @@
 
 - name: Install shared review helper
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/_review/{{ item }}"
+    src: "{{ agent_host_common_role_root_resolved }}/files/share/skills/_review/{{ item }}"
     dest: "{{ agent_host_user_home_resolved }}/.local/share/skills/_review/{{ item }}"
     mode: preserve
   loop:
@@ -356,7 +357,7 @@
 
 - name: Install shared commit helper
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/_commit/{{ item }}"
+    src: "{{ agent_host_common_role_root_resolved }}/files/config/skills/common/_commit/{{ item }}"
     dest: "{{ agent_host_user_home_resolved }}/.local/share/skills/_commit/{{ item }}"
     mode: preserve
   loop:
@@ -365,7 +366,7 @@
 
 - name: Install shared Forgejo PR workflow helpers
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/_pr-forgejo/{{ item }}"
+    src: "{{ agent_host_common_role_root_resolved }}/files/share/skills/_pr-forgejo/{{ item }}"
     dest: "{{ agent_host_user_home_resolved }}/.local/share/skills/_pr-forgejo/{{ item }}"
     mode: preserve
   loop:
@@ -379,7 +380,7 @@
 
 - name: Install shared GitHub PR workflow helpers
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/_pr-github/{{ item }}"
+    src: "{{ agent_host_common_role_root_resolved }}/files/share/skills/_pr-github/{{ item }}"
     dest: "{{ agent_host_user_home_resolved }}/.local/share/skills/_pr-github/{{ item }}"
     mode: preserve
   loop:
@@ -392,7 +393,7 @@
 
 - name: Install Claude PR workflow skill entry points
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/SKILL.md"
+    src: "{{ agent_host_common_role_root_resolved }}/files/config/skills/common/{{ item }}/SKILL.md"
     dest: "{{ agent_host_user_home_resolved }}/.claude/skills/{{ item }}/SKILL.md"
     mode: preserve
   loop:
@@ -408,14 +409,14 @@
 
 - name: Install Claude commit skill entry point
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/_commit/SKILL.md"
+    src: "{{ agent_host_common_role_root_resolved }}/files/config/skills/claude/_commit/SKILL.md"
     dest: "{{ agent_host_user_home_resolved }}/.claude/skills/_commit/SKILL.md"
     mode: preserve
   when: agent_host_install_user_home_resolved | bool
 
 - name: Install Codex PR workflow skill entry points
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/{{ item }}/SKILL.md"
+    src: "{{ agent_host_common_role_root_resolved }}/files/config/skills/common/{{ item }}/SKILL.md"
     dest: "{{ agent_host_user_home_resolved }}/.codex/skills/{{ item }}/SKILL.md"
     mode: preserve
   loop:
@@ -431,7 +432,7 @@
 
 - name: Install Codex commit skill entry point
   copy:
-    src: "{{ agent_host_role_root_resolved }}/files/share/skills/_commit/SKILL.md"
+    src: "{{ agent_host_common_role_root_resolved }}/files/config/skills/codex/_commit/SKILL.md"
     dest: "{{ agent_host_user_home_resolved }}/.codex/skills/_commit/SKILL.md"
     mode: preserve
   when: agent_host_install_user_home_resolved | bool
