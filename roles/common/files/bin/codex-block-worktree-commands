@@ -60,6 +60,17 @@ expand_home_path() {
   esac
 }
 
+resolve_command_path() {
+  local path base_dir
+  path="$(expand_home_path "$1")"
+  base_dir="$2"
+  if [[ "$path" == /* ]]; then
+    printf '%s\n' "$path"
+  else
+    printf '%s\n' "${base_dir%/}/$path"
+  fi
+}
+
 matches_implicit_remote_branch_command() {
   local -a words
   local segment context_dir repo_dir idx token subcommand target git_cmd word_idx
@@ -79,12 +90,7 @@ matches_implicit_remote_branch_command() {
     done
     if [[ $idx -lt ${#words[@]} && "${words[$idx]}" == "cd" ]]; then
       target="${words[$((idx + 1))]:-${HOME:-.}}"
-      target="$(expand_home_path "$target")"
-      if [[ "$target" == /* ]]; then
-        context_dir="$target"
-      else
-        context_dir="${context_dir%/}/$target"
-      fi
+      context_dir="$(resolve_command_path "$target" "$context_dir")"
       continue
     fi
     if [[ $idx -lt ${#words[@]} && "${words[$idx]}" == "command" ]]; then
@@ -107,11 +113,11 @@ matches_implicit_remote_branch_command() {
       case "$token" in
         -C)
           [[ $((idx + 1)) -lt ${#words[@]} ]] || return 1
-          repo_dir="$(expand_home_path "${words[$((idx + 1))]}")"
+          repo_dir="$(resolve_command_path "${words[$((idx + 1))]}" "$context_dir")"
           idx=$((idx + 2))
           ;;
         -C*)
-          repo_dir="$(expand_home_path "${token#-C}")"
+          repo_dir="$(resolve_command_path "${token#-C}" "$context_dir")"
           idx=$((idx + 1))
           ;;
         -c|--git-dir|--work-tree|--namespace)
@@ -138,7 +144,13 @@ matches_implicit_remote_branch_command() {
         --)
           break
           ;;
-        -q|--quiet|--progress|--no-progress|--guess|--no-guess)
+        -[fqm]*|-f|--force|-m|--merge|-q|--quiet|--progress|--no-progress|--guess|--no-guess|--recurse-submodules|--no-recurse-submodules|--overlay|--no-overlay|--ignore-other-worktrees|--ignore-skip-worktree-bits|--discard-changes)
+          idx=$((idx + 1))
+          ;;
+        --conflict|--pathspec-from-file)
+          idx=$((idx + 2))
+          ;;
+        --conflict=*|--pathspec-from-file=*|--pathspec-file-nul)
           idx=$((idx + 1))
           ;;
         -*)

@@ -522,6 +522,24 @@ assert_eq "monitor mode deletes merged branch" "0" "$rc"
 assert_branch_absent "monitor mode deletes merged branch local ref" "$repo" feature/monitor-merged
 assert_eq "monitor mode deletes remote branch" "absent" "$(remote_has_branch "$repo" feature/monitor-merged && printf present || printf absent)"
 
+# --- Monitor mode: branch already locally absent after repo-end still deletes remote ---
+repo="$(create_origin_repo monitor-already-absent)"
+target_wt="$(make_linked_branch "$repo" feature/monitor-already-absent "$TMPROOT/monitor-already-absent-wt")"
+make_commit "$target_wt" monitor-already-absent
+git -C "$target_wt" push -q -u origin feature/monitor-already-absent
+merge_branch_to_main "$repo" feature/monitor-already-absent
+git -C "$repo" worktree remove "$target_wt"
+git -C "$repo" branch -D feature/monitor-already-absent >/dev/null
+safe_dir="$TMPROOT/safe-dir-already-absent"
+mkdir -p "$safe_dir"
+stdout="$TMPROOT/monitor-already-absent.out"
+stderr="$TMPROOT/monitor-already-absent.err"
+FAKE_GH_STATE_JSON="[]"
+rc="$(run_cleanup "$safe_dir" "$stdout" "$stderr" --repo-dir "$repo" --branch feature/monitor-already-absent --delete-remote --yes)"
+assert_eq "monitor mode handles already absent local branch" "0" "$rc"
+assert_eq "monitor mode already absent deletes remote branch" "absent" "$(remote_has_branch "$repo" feature/monitor-already-absent && printf present || printf absent)"
+assert_contains "monitor mode reports already absent branch" "Cleaned current branch: feature/monitor-already-absent (already absent)" "$stdout"
+
 # --- Monitor mode: remote deletion failure preserves local retry state ---
 repo="$(create_origin_repo monitor-remote-delete-fails)"
 target_wt="$(make_linked_branch "$repo" feature/monitor-remote-delete-fails "$TMPROOT/monitor-remote-delete-fails-wt")"
