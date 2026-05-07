@@ -31,10 +31,11 @@ Report the branch cleanup summary from the helper output, including:
 - the number of extra merged branches pruned
 - retained branches and their reasons
 
-If this skill is invoked from pull-request monitoring after a merged PR, use the monitor's authoritative repo directory and branch:
+If this skill is invoked from pull-request monitoring after a merged PR, use
+the monitor's authoritative repo directory and branch. Do not call `repo-end`
+in this path; the remote PR has already merged, so cleanup must not re-integrate
+local branch state:
 
 ```bash
-main_path="$(cd "$REPO_DIR" && repo-end --print-path)"
-cd "$main_path"
-git-clean-up --repo-dir "$main_path" --branch "$HEAD_BRANCH" --delete-remote --yes
+git-clean-up --repo-dir "$REPO_DIR" --branch "$HEAD_BRANCH" --delete-remote --yes
 ```

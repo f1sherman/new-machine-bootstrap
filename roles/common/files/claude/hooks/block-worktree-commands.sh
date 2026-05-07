@@ -32,9 +32,11 @@ matches_branch_create_command() {
   # Option-led branch creation/reset/copy forms such as `branch --track foo`
   # and `branch -f foo HEAD` also create or rewrite branch refs.
   local branch_option_create="${GIT_PREAMBLE}branch([[:space:]]+${SHELL_TOKEN})*[[:space:]]+(-[^-[:space:];&|()]*[fcC][^[:space:];&|()]*|--force|--copy|--track|--no-track|--set-upstream|--create-reflog|--recurse-submodules)([=[:space:]]|$)"
+  local branch_list_mode="${GIT_PREAMBLE}branch([[:space:]]+${SHELL_TOKEN})*[[:space:]]+(-l|--list|--contains|--no-contains|--merged|--no-merged|--points-at|--show-current)([=[:space:]]|$)"
 
   printf '%s\n' "$command" | grep -Eq "$checkout_b" && return 0
   printf '%s\n' "$command" | grep -Eq "$switch_c" && return 0
+  printf '%s\n' "$command" | grep -Eq "$branch_list_mode" && return 1
   printf '%s\n' "$command" | grep -Eq "$branch_create" && return 0
   printf '%s\n' "$command" | grep -Eq "$branch_option_create" && return 0
   return 1
