@@ -135,6 +135,8 @@ run_block_case "blocks git switch --orphan" 'git switch --orphan foo' "$DENY_REA
 run_block_case "blocks git switch --track" 'git switch --track origin/foo' "$DENY_REASON"
 run_block_case "blocks git branch <name>" 'git branch foo' "$DENY_REASON"
 run_block_case "blocks git branch -- <name>" 'git branch -- foo' "$DENY_REASON"
+run_block_case "blocks git branch -q <name>" 'git branch -q foo' "$DENY_REASON"
+run_block_case "blocks git branch --format <name>" "git branch --format='%(refname:short)' foo" "$DENY_REASON"
 run_block_case "blocks git branch --track" 'git branch --track foo origin/main' "$DENY_REASON"
 run_block_case "blocks git branch -f" 'git branch -f foo HEAD' "$DENY_REASON"
 run_block_case "blocks git branch -qf" 'git branch -qf foo HEAD' "$DENY_REASON"
