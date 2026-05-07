@@ -264,7 +264,7 @@ squash_commit="$(git -C "$squash_repo" commit-tree "$squash_tree" -p "$squash_pa
 git -C "$squash_repo" push -q origin "+${squash_commit}:refs/heads/main"
 git -C "$squash_repo" branch -f main "$squash_commit"
 git -C "$squash_repo" checkout -q main
-printf 'ONE\ntwo\nthree\nfour\nFIVE\n' >"$squash_repo/squash.txt"
+printf 'UNO\ntwo\nthree\nfour\nfive\n' >"$squash_repo/squash.txt"
 git -C "$squash_repo" add squash.txt
 git -C "$squash_repo" commit -q -m 'post squash edit'
 post_squash_commit="$(git -C "$squash_repo" rev-parse HEAD)"

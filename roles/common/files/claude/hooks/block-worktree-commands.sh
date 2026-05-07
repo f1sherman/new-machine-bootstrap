@@ -31,7 +31,7 @@ matches_branch_create_command() {
   local branch_create="${GIT_PREAMBLE}branch(([[:space:]]+${branch_pass_option})|([[:space:]]+${branch_pass_option_with_arg}[[:space:]]+${SHELL_TOKEN}))*([[:space:]]+--)?[[:space:]]+[^-[:space:];&|()][^[:space:];&|()]*([[:space:]]|$)"
   # Option-led branch creation/reset/copy forms such as `branch --track foo`
   # and `branch -f foo HEAD` also create or rewrite branch refs.
-  local branch_option_create="${GIT_PREAMBLE}branch([[:space:]]+${SHELL_TOKEN})*[[:space:]]+(-[^-[:space:];&|()]*[fcC][^[:space:];&|()]*|--force|--copy|--track|--no-track|--set-upstream|--create-reflog|--recurse-submodules)([=[:space:]]|$)"
+  local branch_option_create="${GIT_PREAMBLE}branch([[:space:]]+${SHELL_TOKEN})*[[:space:]]+(-[^-[:space:];&|()]*[fcmCM][^[:space:];&|()]*|--force|--copy|--move|--track|--no-track|--set-upstream|--create-reflog|--recurse-submodules)([=[:space:]]|$)"
   local branch_list_mode="${GIT_PREAMBLE}branch([[:space:]]+${SHELL_TOKEN})*[[:space:]]+(-l|--list|--contains|--no-contains|--merged|--no-merged|--points-at|--show-current)([=[:space:]]|$)"
 
   printf '%s\n' "$command" | grep -Eq "$checkout_b" && return 0
