@@ -147,6 +147,8 @@ run_block_case "blocks git -C path checkout -b" 'git -C repo checkout -b foo' "$
 run_block_case "blocks git checkout --orphan" 'git checkout --orphan foo' "$DENY_REASON"
 run_block_case "blocks command git checkout -b" 'command git checkout -b foo' "$DENY_REASON"
 run_block_case "blocks chained git checkout -b" 'cd repo && git checkout -b foo' "$DENY_REASON"
+run_block_case "blocks if wrapped git checkout -b" 'if git checkout -b foo; then git status; fi' "$DENY_REASON"
+run_block_case "blocks negated git switch -c" '! git switch -c foo' "$DENY_REASON"
 run_allow_case "allows git branch (no args)" 'git branch'
 run_allow_case "allows git branch --show-current" 'git branch --show-current'
 run_allow_case "allows git branch --list" 'git branch --list'

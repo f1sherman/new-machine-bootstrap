@@ -148,7 +148,7 @@ if [[ "$skip_integration" != "true" ]]; then
 fi
 
 run_cleanup() {
-  (cd "$repo_root" && cleanup-branches --branch "$current_branch")
+  (cd "$repo_root" && cleanup-branches --branch "$current_branch" --delete-remote --yes)
 }
 
 if [[ "$print_path" == "true" ]]; then
