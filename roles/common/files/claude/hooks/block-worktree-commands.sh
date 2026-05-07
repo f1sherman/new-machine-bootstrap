@@ -24,9 +24,11 @@ matches_branch_create_command() {
   local checkout_b="${GIT_PREAMBLE}checkout([[:space:]]+${SHELL_TOKEN})*[[:space:]]+(-[^-[:space:];&|()]*[bBt][^[:space:];&|()]*|--orphan|--track)([=[:space:]]|$)"
   # `git ... switch ... -c/-C/--create/--force-create/-t/--track/--orphan <name>` creates a branch.
   local switch_c="${GIT_PREAMBLE}switch([[:space:]]+${SHELL_TOKEN})*[[:space:]]+(-[^-[:space:];&|()]*[cCt][^[:space:];&|()]*|--create|--force-create|--track|--orphan)([=[:space:]]|$)"
-  # `git ... branch <name>` where <name> is a positional (non-flag) argument.
-  # Read-only and management forms (-d/-D/-m/-M/-l/--list/--show-current/-v/-a/-r/--merged/--no-merged/--contains) are allowed because they begin with `-`.
-  local branch_create="${GIT_PREAMBLE}branch([[:space:]]+--)?[[:space:]]+[^-[:space:];&|()][^[:space:];&|()]*([[:space:]]|$)"
+  # `git ... branch <name>` where <name> is a positional (non-flag) argument,
+  # including after display-only options that do not imply list mode.
+  local branch_pass_option='(-[qvV]+|--quiet|--verbose|--no-color|--no-column|--format(=[^[:space:];&|]+)?|--sort(=[^[:space:];&|]+)?|--color(=[^[:space:];&|]+)?|--column(=[^[:space:];&|]+)?)'
+  local branch_pass_option_with_arg='(--format|--sort|--color|--column)'
+  local branch_create="${GIT_PREAMBLE}branch(([[:space:]]+${branch_pass_option})|([[:space:]]+${branch_pass_option_with_arg}[[:space:]]+${SHELL_TOKEN}))*([[:space:]]+--)?[[:space:]]+[^-[:space:];&|()][^[:space:];&|()]*([[:space:]]|$)"
   # Option-led branch creation/reset/copy forms such as `branch --track foo`
   # and `branch -f foo HEAD` also create or rewrite branch refs.
   local branch_option_create="${GIT_PREAMBLE}branch([[:space:]]+${SHELL_TOKEN})*[[:space:]]+(-[^-[:space:];&|()]*[fcC][^[:space:];&|()]*|--force|--copy|--track|--no-track|--set-upstream|--create-reflog|--recurse-submodules)([=[:space:]]|$)"

@@ -13,6 +13,7 @@ Run the lifecycle close helper first, then the shared cleanup sweep, from the re
 repo_dir="$(git rev-parse --show-toplevel)"
 branch="$(git branch --show-current)"
 main_path="$(repo-end --print-path)"
+cd "$main_path"
 git-clean-up --repo-dir "$main_path" --branch "$branch" --delete-remote --yes
 ```
 
@@ -34,5 +35,6 @@ If this skill is invoked from pull-request monitoring after a merged PR, use the
 
 ```bash
 main_path="$(cd "$REPO_DIR" && repo-end --print-path)"
+cd "$main_path"
 git-clean-up --repo-dir "$main_path" --branch "$HEAD_BRANCH" --delete-remote --yes
 ```

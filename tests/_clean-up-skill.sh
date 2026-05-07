@@ -69,6 +69,7 @@ assert_contains "$COMMON_SKILL" 'repo_dir="$(git rev-parse --show-toplevel)"' "s
 assert_contains "$COMMON_SKILL" 'branch="$(git branch --show-current)"' "skill captures current branch"
 assert_contains "$COMMON_SKILL" 'repo-end' "skill invokes repo-end"
 assert_contains "$COMMON_SKILL" 'main_path="$(repo-end --print-path)"' "skill captures repo-end main path"
+assert_contains "$COMMON_SKILL" 'cd "$main_path"' "skill changes to repo-end main path"
 assert_contains "$COMMON_SKILL" 'git-clean-up --repo-dir "$main_path" --branch "$branch" --delete-remote --yes' "skill passes branch context to git-clean-up"
 assert_contains "$COMMON_SKILL" 'main_path="$(cd "$REPO_DIR" && repo-end --print-path)"' "monitor cleanup invokes repo-end from repo dir"
 assert_contains "$COMMON_SKILL" 'git-clean-up --repo-dir "$main_path" --branch "$HEAD_BRANCH" --delete-remote --yes' "monitor cleanup passes branch context to git-clean-up"
