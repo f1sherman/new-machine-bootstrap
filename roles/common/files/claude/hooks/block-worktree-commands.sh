@@ -38,15 +38,33 @@ matches_branch_create_command() {
   return 1
 }
 
+strip_shell_token_quotes() {
+  local token="$1"
+  if [[ ${#token} -ge 2 ]]; then
+    if [[ "${token:0:1}" == '"' && "${token: -1}" == '"' ]]; then
+      printf '%s\n' "${token:1:${#token}-2}"
+      return 0
+    fi
+    if [[ "${token:0:1}" == "'" && "${token: -1}" == "'" ]]; then
+      printf '%s\n' "${token:1:${#token}-2}"
+      return 0
+    fi
+  fi
+  printf '%s\n' "$token"
+}
+
 matches_implicit_remote_branch_command() {
   local -a words
-  local segment context_dir repo_dir idx token subcommand target git_cmd
+  local segment context_dir repo_dir idx token subcommand target git_cmd word_idx
   git_cmd="$(command -v git || printf '%s\n' git)"
   context_dir="."
 
   while IFS= read -r segment; do
     read -r -a words <<< "$segment"
     [[ ${#words[@]} -gt 0 ]] || continue
+    for ((word_idx = 0; word_idx < ${#words[@]}; word_idx++)); do
+      words[$word_idx]="$(strip_shell_token_quotes "${words[$word_idx]}")"
+    done
     idx=0
 
     while [[ $idx -lt ${#words[@]} && "${words[$idx]}" == *=* ]]; do
