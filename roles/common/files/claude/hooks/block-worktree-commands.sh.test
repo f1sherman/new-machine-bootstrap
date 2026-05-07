@@ -42,6 +42,23 @@ run_block_case_in_dir() {
   (cd "$dir" && run_block_case "$name" "$command" "$reason")
 }
 
+run_block_case_with_home() {
+  local name="$1"
+  local home_dir="$2"
+  local command="$3"
+  local reason="$4"
+  local output
+
+  output="$(jq -n --arg command "$command" '{tool_input:{command:$command}}' | HOME="$home_dir" "$SCRIPT")"
+  if printf '%s' "$output" | jq -e --arg reason "$reason" '. == {hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}' >/dev/null; then
+    printf 'PASS  %s\n' "$name"
+  else
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  fi
+}
+
 run_allow_case() {
   local name="$1"
   local command="$2"
@@ -117,6 +134,7 @@ run_block_case "blocks git switch --force-create" 'git switch --force-create foo
 run_block_case "blocks git switch --orphan" 'git switch --orphan foo' "$DENY_REASON"
 run_block_case "blocks git switch --track" 'git switch --track origin/foo' "$DENY_REASON"
 run_block_case "blocks git branch <name>" 'git branch foo' "$DENY_REASON"
+run_block_case "blocks git branch -- <name>" 'git branch -- foo' "$DENY_REASON"
 run_block_case "blocks git branch --track" 'git branch --track foo origin/main' "$DENY_REASON"
 run_block_case "blocks git branch -f" 'git branch -f foo HEAD' "$DENY_REASON"
 run_block_case "blocks git branch -qf" 'git branch -qf foo HEAD' "$DENY_REASON"
@@ -147,6 +165,10 @@ run_block_case_in_dir "blocks separator-attached implicit git checkout remote br
 run_block_case_in_dir "blocks separator-attached implicit git switch remote branch" "$implicit_repo" 'git switch foo&& git status' "$DENY_REASON"
 run_allow_case "allows echo mention of implicit checkout" 'echo git checkout foo'
 run_block_case "blocks cd then implicit git checkout remote branch" "cd $implicit_repo && git checkout foo" "$DENY_REASON"
+home_dir="$TMPROOT/home"
+mkdir -p "$home_dir"
+ln -s "$implicit_repo" "$home_dir/repo"
+run_block_case_with_home "blocks home cd then implicit git checkout remote branch" "$home_dir" 'cd ~/repo && git checkout foo' "$DENY_REASON"
 run_block_case "blocks quoted -C path implicit git checkout remote branch" "git -C \"$implicit_repo\" checkout foo" "$DENY_REASON"
 upstream_repo="$(setup_remote_only_branch_repo upstream upstream)"
 run_block_case_in_dir "blocks implicit checkout from non-origin remote" "$upstream_repo" 'git checkout foo' "$DENY_REASON"
