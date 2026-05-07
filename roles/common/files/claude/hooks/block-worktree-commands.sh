@@ -26,7 +26,7 @@ matches_branch_create_command() {
   local switch_c="${GIT_PREAMBLE}switch([[:space:]]+${SHELL_TOKEN})*[[:space:]]+(-[^-[:space:];&|()]*[cCt][^[:space:];&|()]*|--create|--force-create|--track|--orphan)([=[:space:]]|$)"
   # `git ... branch <name>` where <name> is a positional (non-flag) argument.
   # Read-only and management forms (-d/-D/-m/-M/-l/--list/--show-current/-v/-a/-r/--merged/--no-merged/--contains) are allowed because they begin with `-`.
-  local branch_create="${GIT_PREAMBLE}branch[[:space:]]+[^-[:space:];&|()][^[:space:];&|()]*([[:space:]]|$)"
+  local branch_create="${GIT_PREAMBLE}branch([[:space:]]+--)?[[:space:]]+[^-[:space:];&|()][^[:space:];&|()]*([[:space:]]|$)"
   # Option-led branch creation/reset/copy forms such as `branch --track foo`
   # and `branch -f foo HEAD` also create or rewrite branch refs.
   local branch_option_create="${GIT_PREAMBLE}branch([[:space:]]+${SHELL_TOKEN})*[[:space:]]+(-[^-[:space:];&|()]*[fcC][^[:space:];&|()]*|--force|--copy|--track|--no-track|--set-upstream|--create-reflog|--recurse-submodules)([=[:space:]]|$)"
@@ -53,6 +53,21 @@ strip_shell_token_quotes() {
   printf '%s\n' "$token"
 }
 
+expand_home_path() {
+  local path="$1"
+  case "$path" in
+    "~")
+      printf '%s\n' "${HOME:-.}"
+      ;;
+    "~/"*)
+      printf '%s\n' "${HOME:-.}/${path#"~/"}"
+      ;;
+    *)
+      printf '%s\n' "$path"
+      ;;
+  esac
+}
+
 matches_implicit_remote_branch_command() {
   local -a words
   local segment context_dir repo_dir idx token subcommand target git_cmd word_idx
@@ -72,6 +87,7 @@ matches_implicit_remote_branch_command() {
     done
     if [[ $idx -lt ${#words[@]} && "${words[$idx]}" == "cd" ]]; then
       target="${words[$((idx + 1))]:-${HOME:-.}}"
+      target="$(expand_home_path "$target")"
       if [[ "$target" == /* ]]; then
         context_dir="$target"
       else
@@ -99,11 +115,11 @@ matches_implicit_remote_branch_command() {
       case "$token" in
         -C)
           [[ $((idx + 1)) -lt ${#words[@]} ]] || return 1
-          repo_dir="${words[$((idx + 1))]}"
+          repo_dir="$(expand_home_path "${words[$((idx + 1))]}")"
           idx=$((idx + 2))
           ;;
         -C*)
-          repo_dir="${token#-C}"
+          repo_dir="$(expand_home_path "${token#-C}")"
           idx=$((idx + 1))
           ;;
         -c|--git-dir|--work-tree|--namespace)
