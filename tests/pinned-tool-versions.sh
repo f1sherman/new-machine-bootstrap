@@ -147,7 +147,7 @@ run_install_checks() {
   assert_contains "$MACOS_MAIN" "node@{{ tool_versions.runtimes.node }}" "macOS Node install uses pinned version"
   assert_contains "$MACOS_MAIN" "awk '\$1 == \\\"node\\\" && \$2 == \\\"{{ tool_versions.runtimes.node }}\\\" { found = 1 } END { exit(found ? 0 : 1) }'" "macOS Node detection uses exact version-column matching"
   assert_contains "$MACOS_MAIN" "roles/common/tasks/heal_mise_node_installs.yml" "macOS Node install delegates partial-install heal to the shared task file"
-  assert_contains "$HEAL_TASKS" "{{ mise_bin }} ls node" "Node heal enumerates every installed mise node version"
+  assert_contains "$HEAL_TASKS" "{{ mise_bin }} ls --installed node" "Node heal enumerates every installed mise node version"
   assert_contains "$HEAL_TASKS" "/bin/{{ item.1 }} --version" "Node heal exec-tests each installed binary instead of stat'ing it"
   assert_contains "$HEAL_TASKS" "{{ mise_bin }} install --force node@{{ item }}" "Node heal force-reinstalls broken versions"
   assert_contains "$MACOS_INSTALLS" "Check installed mise version (macOS)" "macOS install_packages reads the installed mise version"
