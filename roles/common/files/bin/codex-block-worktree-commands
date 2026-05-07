@@ -32,8 +32,9 @@ matches_branch_create_command() {
 
 matches_implicit_remote_branch_command() {
   local -a words
-  local repo_dir idx token subcommand target git_cmd
-  read -r -a words <<< "$command"
+  local normalized_command repo_dir idx token subcommand target git_cmd
+  normalized_command="${command//$'\n'/ }"
+  read -r -a words <<< "$normalized_command"
   git_cmd="$(command -v git || printf '%s\n' git)"
 
   for ((idx = 0; idx < ${#words[@]}; idx++)); do

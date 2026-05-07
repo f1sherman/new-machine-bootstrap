@@ -125,6 +125,20 @@ assert_task_block_contains \
   "mise node heal references the heal-scoped temp GPG home"
 assert_task_block_contains \
   "$heal_tasks" \
+  "Enumerate installed mise node versions" \
+  "ls --installed node" \
+  "mise node heal enumerates only installed versions"
+assert_task_block_contains \
+  "$heal_tasks" \
+  "Resolve installed mise node paths" \
+  "where node@" \
+  "mise node heal resolves install paths through mise"
+assert_not_contains \
+  "$heal_tasks" \
+  ".local/share/mise/installs/node" \
+  "mise node heal does not assume the default mise data dir"
+assert_task_block_contains \
+  "$heal_tasks" \
   "Remove temporary GPG home for mise node reinstall (macOS)" \
   "state: absent" \
   "mise node heal removes the temporary GPG home"
