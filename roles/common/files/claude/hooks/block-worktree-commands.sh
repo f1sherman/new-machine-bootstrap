@@ -10,13 +10,13 @@ fi
 
 matches_worktree_command() {
   local action="$1"
-  local pattern='(^|[;&|()])[[:space:]]*((([[:alnum:]_]+)=[^[:space:]]+[[:space:]]+|command[[:space:]]+|env[[:space:]]+)*)git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]]+)*)*[[:space:]]+worktree[[:space:]]+'"$action"'([[:space:]]|$)'
+  local pattern='(^|[;&|()])[[:space:]]*(((if|then|do|elif|while|until)[[:space:]]+|![[:space:]]+)*)((([[:alnum:]_]+)=[^[:space:]]+[[:space:]]+|command[[:space:]]+|env[[:space:]]+)*)git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]]+)*)*[[:space:]]+worktree[[:space:]]+'"$action"'([[:space:]]|$)'
   printf '%s\n' "$command" | grep -Eq "$pattern"
 }
 
 # Matches the leading "git ..." preamble: optional env-var prefixes, optional
 # `command ` / `env ` builtin wrapper, optional global git flags like `-C path`.
-GIT_PREAMBLE='(^|[;&|()])[[:space:]]*((([[:alnum:]_]+)=[^[:space:]]+[[:space:]]+|command[[:space:]]+|env[[:space:]]+)*)git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]]+)*)*[[:space:]]+'
+GIT_PREAMBLE='(^|[;&|()])[[:space:]]*(((if|then|do|elif|while|until)[[:space:]]+|![[:space:]]+)*)((([[:alnum:]_]+)=[^[:space:]]+[[:space:]]+|command[[:space:]]+|env[[:space:]]+)*)git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]]+)*)*[[:space:]]+'
 SHELL_TOKEN='[^[:space:];&|()]+'
 
 matches_branch_create_command() {
