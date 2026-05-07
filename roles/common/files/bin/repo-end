@@ -59,7 +59,10 @@ if [[ -n "$(_repo_status_excluding_config "$repo_root")" ]]; then
   exit 1
 fi
 
-"$(_worktree_cmd git)" -C "$repo_root" fetch -q origin || true
+if ! "$(_worktree_cmd git)" -C "$repo_root" fetch -q origin; then
+  printf 'Error: failed to fetch origin; refusing to clean up with stale remote refs\n' >&2
+  exit 1
+fi
 
 already_merged() {
   local git_cmd
