@@ -48,9 +48,10 @@ assert_not_contains() {
 
 assert_no_git_grep() {
   local needle="$1" name="$2"
+  local matches
   shift 2
-  if git -C "$REPO_ROOT" grep -n -i -- "$needle" -- "$@" >/tmp/nmb-no-provider-grep.out 2>/dev/null; then
-    fail_case "$name" "unexpected matches:\n$(cat /tmp/nmb-no-provider-grep.out)"
+  if matches="$(git -C "$REPO_ROOT" grep -n -i -- "$needle" -- "$@" 2>/dev/null)"; then
+    fail_case "$name" "unexpected matches:\n$matches"
   else
     pass_case "$name"
   fi
