@@ -190,6 +190,26 @@ run_codex_vim_mode_checks() {
     "Codex Vim mode merge preserves other TUI settings" \
     "[tui]\ntheme = \"dark\"\nvim_mode_default = false\nnotifications = true\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
     "[tui]\ntheme = \"dark\"\nvim_mode_default = true\nnotifications = true\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
+
+  assert_codex_vim_mode_merge \
+    "Codex Vim mode merge preserves dotted TUI keys" \
+    "model = \"gpt-5.5\"\ntui.theme = \"dark\"\ntui.vim_mode_default = false\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
+    "model = \"gpt-5.5\"\ntui.theme = \"dark\"\ntui.vim_mode_default = true\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
+
+  assert_codex_vim_mode_merge \
+    "Codex Vim mode merge adds to existing dotted TUI keys" \
+    "model = \"gpt-5.5\"\ntui.theme = \"dark\"\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
+    "model = \"gpt-5.5\"\ntui.theme = \"dark\"\ntui.vim_mode_default = true\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
+
+  assert_codex_vim_mode_merge \
+    "Codex Vim mode merge preserves inline TUI tables" \
+    "model = \"gpt-5.5\"\ntui = { theme = \"dark\", vim_mode_default = false, notifications = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
+    "model = \"gpt-5.5\"\ntui = { theme = \"dark\", vim_mode_default = true, notifications = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
+
+  assert_codex_vim_mode_merge \
+    "Codex Vim mode merge adds to existing inline TUI tables" \
+    "model = \"gpt-5.5\"\ntui = { theme = \"dark\", notifications = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
+    "model = \"gpt-5.5\"\ntui = { theme = \"dark\", notifications = true, vim_mode_default = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
 }
 
 run_catalog_checks() {

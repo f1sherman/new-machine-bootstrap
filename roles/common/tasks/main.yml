@@ -1125,9 +1125,71 @@
       match ? (match[:name] || match[:array_name]) : nil
     end
 
-    output = []
+    commented = lambda do |line|
+      line.strip.start_with?("#", ";")
+    end
+
+    inline_tui_table = lambda do |line|
+      !commented.call(line) && line.match?(/^\s*tui\s*=\s*\{.*\}\s*(?:[#;].*)?$/)
+    end
+
+    dotted_tui_key = lambda do |line|
+      !commented.call(line) && line.match?(/^\s*tui\./)
+    end
+
+    dotted_tui_vim_mode = lambda do |line|
+      !commented.call(line) && line.match?(/^\s*tui\.vim_mode_default\s*=/)
+    end
+
+    root_lines = []
     index = 0
+    while index < lines.length && section_name.call(lines[index]).nil?
+      root_lines << lines[index]
+      index += 1
+    end
+
+    output = []
     found_tui = false
+
+    if root_lines.any? { |line| inline_tui_table.call(line) }
+      found_tui = true
+      output.concat(
+        root_lines.map do |line|
+          next line unless inline_tui_table.call(line)
+
+          if line.match?(/([,{]\s*)vim_mode_default\s*=\s*(?:true|false|"[^"]*"|'[^']*')/)
+            line.sub(/([,{]\s*)vim_mode_default\s*=\s*(?:true|false|"[^"]*"|'[^']*')/, "\\1vim_mode_default = true")
+          else
+            line.sub(/\s*\}(\s*(?:[#;].*)?)$/) do
+              table_end = Regexp.last_match(1)
+              prefix = line.match?(/\{\s*\}/) ? " vim_mode_default = true " : ", vim_mode_default = true "
+              "#{prefix}}#{table_end}"
+            end
+          end
+        end
+      )
+    elsif root_lines.any? { |line| dotted_tui_key.call(line) }
+      found_tui = true
+      vim_mode_seen = false
+      last_tui_index = nil
+
+      root_lines.each do |line|
+        if dotted_tui_vim_mode.call(line)
+          unless vim_mode_seen
+            output << line.sub(/=\s*.*/, "= true")
+            vim_mode_seen = true
+          end
+          next
+        end
+
+        last_tui_index = output.length if dotted_tui_key.call(line)
+        output << line
+      end
+
+      output.insert((last_tui_index || output.length - 1) + 1, "tui.vim_mode_default = true") unless vim_mode_seen
+    else
+      output.concat(root_lines)
+    end
 
     while index < lines.length
       line = lines[index]
@@ -1147,9 +1209,8 @@
         vim_mode_seen = false
         section_lines.each do |section_line|
           stripped = section_line.strip
-          commented = stripped.start_with?("#", ";")
 
-          if !commented && stripped.match?(/^vim_mode_default\s*=/)
+          if !commented.call(section_line) && stripped.match?(/^vim_mode_default\s*=/)
             unless vim_mode_seen
               section_output << "vim_mode_default = true"
               vim_mode_seen = true
