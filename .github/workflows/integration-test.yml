@@ -39,6 +39,9 @@ jobs:
       - name: Verify macOS Node GPG isolation regression
         run: bash tests/macos-mise-node-gpg.sh
 
+      - name: Verify tmux pane-title hook regression
+        run: ruby tests/tmux-pane-title-changed.rb
+
       - name: Verify key tools installed at expected versions
         run: |
           set -euo pipefail
