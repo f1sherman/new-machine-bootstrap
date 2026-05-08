@@ -78,6 +78,17 @@ assert_file_contains() {
   printf 'PASS  %s\n' "$name"
 }
 
+assert_file_equals() {
+  local path="$1" expected="$2" name="$3"
+  local content
+  content="$(cat "$path")"
+  if [[ "$content" != "$expected" ]]; then
+    printf 'FAIL  %s\nexpected:\n%s\ngot:\n%s\n' "$name" "$expected" "$content" >&2
+    return 1
+  fi
+  printf 'PASS  %s\n' "$name"
+}
+
 assert_contains_ordered_lines() {
   local log="$1" first="$2" second="$3" name="$4"
   local first_line second_line
@@ -167,6 +178,33 @@ assert_ordered_output \
   "ordered callbacks are lexicographically sorted" \
   "$expected_first" \
   "$expected_second"
+
+stdout_callback_repo="$(create_repo stdout-callback)"
+add_feature_branch "$stdout_callback_repo" feature/stdout stdout-callback.txt
+tmp_home_stdout="$TMPROOT/stdout-callback-home"
+stdout_callback_dir="$tmp_home_stdout/.local/bin/repo-end.d"
+mkdir -p "$stdout_callback_dir"
+
+cat >"$stdout_callback_dir/10-progress.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'callback progress\n'
+EOF
+chmod +x "$stdout_callback_dir/10-progress.sh"
+
+run_case "callback stdout is redirected in print-path mode" \
+  "$stdout_callback_repo" \
+  "$tmp_home_stdout" \
+  "$TMPROOT/stdout-callback.out" \
+  "$TMPROOT/stdout-callback.err"
+
+assert_file_equals \
+  "$TMPROOT/stdout-callback.out" \
+  "$stdout_callback_repo" \
+  "print-path stdout contains only the final path"
+assert_file_contains \
+  "$TMPROOT/stdout-callback.err" \
+  "callback progress" \
+  "callback progress is still visible on stderr"
 
 fail_repo="$(create_repo callback-fails)"
 add_feature_branch "$fail_repo" feature/fails callback-fails.txt

@@ -187,8 +187,10 @@ else
   cleanup_after_merge
 fi
 
-if ! run_repo_end_callbacks; then
-  exit 1
-fi
+if [[ "$print_path" == "true" ]]; then
+  run_repo_end_callbacks >&2
+else
+  run_repo_end_callbacks
+fi || exit 1
 
 printf '%s\n' "$main_path"
