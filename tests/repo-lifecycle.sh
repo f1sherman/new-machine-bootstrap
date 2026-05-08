@@ -139,7 +139,7 @@ PTY.spawn(script, branch, "--print-path", chdir: repo) do |reader, writer, pid|
 
     begin
       chunk = reader.readpartial(1024)
-    rescue EOFError
+    rescue EOFError, Errno::EIO
       break
     end
 
