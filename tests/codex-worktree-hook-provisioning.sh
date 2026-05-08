@@ -185,7 +185,7 @@ assert_file_contains "$config_file_false" 'other = 1' 'config task preserves oth
 
 config_file_prefix="$tmpdir/config-prefix.toml"
 printf '[features]\nhooks_extra = false\ncodex_hooks_extra = true\nhooks = false\ncodex_hooks = false\n' > "$config_file_prefix"
-run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_file_prefix" bash
+run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_file_prefix" RUBY_BIN=ruby bash
 assert_eq "$TASK_STATUS" "0" 'config task exits cleanly with feature keys sharing hooks prefix'
 assert_contains "$TASK_OUTPUT" 'changed' 'config task updates exact hooks key with feature keys sharing hooks prefix'
 assert_regex_count "$config_file_prefix" '^hooks = true$' 1 'config task replaces exact hooks key only'
