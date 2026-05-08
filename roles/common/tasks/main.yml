@@ -1106,6 +1106,22 @@
   register: codex_model_defaults_result
   changed_when: codex_model_defaults_result.stdout.strip() == 'changed'
 
+- name: Disable unused Superpowers skills from Codex context budget
+  command:
+    argv:
+      - '{{ mise_bin }}'
+      - exec
+      - 'ruby@{{ tool_versions.runtimes.ruby }}'
+      - --
+      - ruby
+      - '{{ playbook_dir }}/roles/common/files/config/codex/configure-superpowers-skills.rb'
+  environment:
+    CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
+    SUPERPOWERS_SKILLS_ROOT: '{{ ansible_facts["user_dir"] }}/.codex/superpowers/skills'
+    KEEP_SUPERPOWERS_SKILLS: 'systematic-debugging,using-git-worktrees'
+  register: codex_superpowers_config_result
+  changed_when: codex_superpowers_config_result.stdout.strip() == 'changed'
+
 # Trust settings for shared workspaces and ~/projects/
 - name: Configure Codex CLI config.toml for shared workspaces
   shell: |
