@@ -136,10 +136,16 @@ case "$1" in
     ;;
   show-options)
     for arg in "$@"; do
-      if [ "$arg" = "@pane-label" ]; then
-        printf 'cached-repo cached-branch | host-a\n'
-        exit 0
-      fi
+      case "$arg" in
+        @pane-label)
+          printf 'cached-repo cached-branch | host-a\n'
+          exit 0
+          ;;
+        @agent_worktree_path)
+          printf '/tmp/agent-worktree\n'
+          exit 0
+          ;;
+      esac
     done
     exit 0
     ;;
@@ -153,6 +159,42 @@ STUB
 chmod +x "$cached_tmux_dir/tmux"
 
 TMUX_WINDOW_LABEL_LOG="$cached_log" PATH="$cached_tmux_dir:$PATH" "$WINDOW_LABEL" "%2"
-assert_file_contains "$cached_log" "rename-window -t @2 cached-repo cached-branch" "window labels prefer cached @pane-label over basename fallback"
+assert_file_contains "$cached_log" "rename-window -t @2 cached-repo cached-branch" "agent panes use cached @pane-label for window name"
+
+stale_tmux_dir="$TMPROOT/fake-tmux-bin-stale"
+stale_log="$TMPROOT/window-label-stale.log"
+mkdir -p "$stale_tmux_dir"
+cat >"$stale_tmux_dir/tmux" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  display-message)
+    printf '@3\t1\told-window\t/dev/null\t/tmp/fresh-dir\tzsh\t\t%%3\n'
+    exit 0
+    ;;
+  show-options)
+    for arg in "$@"; do
+      case "$arg" in
+        @pane-label)
+          printf 'stale-cached-label | host-a\n'
+          exit 0
+          ;;
+        @agent_worktree_path)
+          exit 0
+          ;;
+      esac
+    done
+    exit 0
+    ;;
+  rename-window)
+    printf '%s\n' "$*" >> "$TMUX_WINDOW_LABEL_LOG"
+    exit 0
+    ;;
+esac
+exit 0
+STUB
+chmod +x "$stale_tmux_dir/tmux"
+
+TMUX_PANE_LABEL_HOST_TAG=host-a TMUX_WINDOW_LABEL_LOG="$stale_log" PATH="$stale_tmux_dir:$PATH" "$WINDOW_LABEL" "%3"
+assert_file_contains "$stale_log" "rename-window -t @3 fresh-dir" "non-agent panes ignore @pane-label cache and re-derive from current path"
 
 printf 'tmux label contract checks complete\n'

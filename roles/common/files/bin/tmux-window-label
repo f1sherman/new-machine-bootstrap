@@ -64,7 +64,10 @@ if is_remote_candidate_command "$pane_current_command"; then
 fi
 
 if [ -z "$label" ]; then
-  label="$(tmux show-options -qv -p -t "$pane_id" "@pane-label" 2>/dev/null || true)"
+  agent_path="$(tmux show-options -qv -p -t "$pane_id" "@agent_worktree_path" 2>/dev/null || true)"
+  if [ -n "$agent_path" ]; then
+    label="$(tmux show-options -qv -p -t "$pane_id" "@pane-label" 2>/dev/null || true)"
+  fi
 fi
 
 if [ -z "$label" ]; then
