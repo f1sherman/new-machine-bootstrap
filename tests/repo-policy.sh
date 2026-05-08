@@ -98,6 +98,89 @@ assert_yaml_equals() {
   fi
 }
 
+extract_codex_vim_mode_ruby() {
+  awk '
+    $0 == "- name: Configure Codex CLI Vim mode in ~/.codex/config.toml" {
+      in_task = 1
+      next
+    }
+    in_task && $0 ~ /^- name:/ {
+      exit
+    }
+    in_task && $0 ~ /<<'\''RUBY'\''$/ {
+      capture = 1
+      next
+    }
+    capture && $0 == "    RUBY" {
+      exit
+    }
+    capture {
+      sub(/^    /, "")
+      print
+    }
+  ' "$COMMON_MAIN"
+}
+
+assert_codex_vim_mode_merge() {
+  local name="$1" initial="$2" expected="$3"
+  local tmpdir config script output
+
+  tmpdir="$(mktemp -d)"
+  config="$tmpdir/config.toml"
+  script="$tmpdir/merge.rb"
+
+  extract_codex_vim_mode_ruby >"$script"
+  if [[ -n "$initial" ]]; then
+    printf '%b' "$initial" >"$config"
+  fi
+
+  output="$(CONFIG_FILE="$config" ruby "$script")"
+  if [[ "$output" != "changed" ]]; then
+    fail_case "$name" "expected first run to report changed, got '$output'"
+    rm -rf "$tmpdir"
+    return
+  fi
+
+  if ! diff -u <(printf '%b' "$expected") "$config" >/dev/null; then
+    fail_case "$name" "merged config did not match expected output"
+    rm -rf "$tmpdir"
+    return
+  fi
+
+  output="$(CONFIG_FILE="$config" ruby "$script")"
+  if [[ "$output" != "unchanged" ]]; then
+    fail_case "$name" "expected second run to report unchanged, got '$output'"
+    rm -rf "$tmpdir"
+    return
+  fi
+
+  if ! diff -u <(printf '%b' "$expected") "$config" >/dev/null; then
+    fail_case "$name" "second run changed the merged config"
+    rm -rf "$tmpdir"
+    return
+  fi
+
+  pass_case "$name"
+  rm -rf "$tmpdir"
+}
+
+run_codex_vim_mode_checks() {
+  assert_codex_vim_mode_merge \
+    "Codex Vim mode merge creates the TUI section" \
+    "" \
+    "[tui]\nvim_mode_default = true\n"
+
+  assert_codex_vim_mode_merge \
+    "Codex Vim mode merge flips an existing false value" \
+    "[tui]\nvim_mode_default = false\n" \
+    "[tui]\nvim_mode_default = true\n"
+
+  assert_codex_vim_mode_merge \
+    "Codex Vim mode merge preserves other TUI settings" \
+    "[tui]\ntheme = \"dark\"\nvim_mode_default = false\nnotifications = true\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
+    "[tui]\ntheme = \"dark\"\nvim_mode_default = true\nnotifications = true\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
+}
+
 run_catalog_checks() {
   assert_contains "$PLAYBOOK" "vars_files:" "playbook loads shared vars files"
   assert_contains "$PLAYBOOK" "- vars/tool_versions.yml" "playbook loads vars/tool_versions.yml"
@@ -170,6 +253,7 @@ run_install_checks() {
   assert_not_contains "$MACOS_MAIN" "('node  ' ~ tool_versions.runtimes.node) in installed_node_versions.stdout" "macOS Node detection no longer uses substring matching against stdout"
   assert_not_contains "$LINUX_INSTALLS" "shell: MISE_VERSION={{ tool_versions.runtimes.mise }} curl -fsSL https://mise.run | sh" "linux mise install no longer uses the inline MISE_VERSION shell form"
   assert_not_contains "$LINUX_INSTALLS" "- mise_check.rc != 0" "linux mise install no longer only runs when the binary is missing"
+  run_codex_vim_mode_checks
 }
 
 run_renovate_checks() {
@@ -260,6 +344,7 @@ run_review_workflow_checks() {
 case "${1:-all}" in
   catalog) run_catalog_checks ;;
   installs) run_install_checks ;;
+  codex-vim-mode) run_codex_vim_mode_checks ;;
   renovate) run_renovate_checks ;;
   integration) run_integration_checks ;;
   review) run_review_workflow_checks ;;
@@ -277,7 +362,7 @@ case "${1:-all}" in
     run_review_workflow_checks
     ;;
   *)
-    echo "usage: $0 [catalog|installs|renovate|integration|review|core|all]" >&2
+    echo "usage: $0 [catalog|installs|codex-vim-mode|renovate|integration|review|core|all]" >&2
     exit 1
     ;;
 esac
