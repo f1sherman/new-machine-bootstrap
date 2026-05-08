@@ -1106,6 +1106,103 @@
   register: codex_model_defaults_result
   changed_when: codex_model_defaults_result.stdout.strip() == 'changed'
 
+- name: Configure Codex CLI Vim mode in ~/.codex/config.toml
+  shell: |
+    set -euo pipefail
+
+    IFS=' ' read -r -a ruby_cmd <<<"${RUBY_BIN:?}"
+    "${ruby_cmd[@]}" <<'RUBY'
+    require "fileutils"
+
+    config_file = ENV.fetch("CONFIG_FILE")
+    text = File.exist?(config_file) ? File.read(config_file) : ""
+    lines = text.lines(chomp: true)
+    section_header = /^\[(?:\[(?<array_name>[^\]]+)\]|(?<name>[^\]]+))\](?:\s*[#;].*)?$/
+
+    section_name = lambda do |line|
+      match = line.strip.match(section_header)
+      match ? (match[:name] || match[:array_name]) : nil
+    end
+
+    output = []
+    index = 0
+    found_tui = false
+
+    while index < lines.length
+      line = lines[index]
+
+      if section_name.call(line) == "tui"
+        found_tui = true
+        output << line
+        index += 1
+
+        section_lines = []
+        while index < lines.length && section_name.call(lines[index]).nil?
+          section_lines << lines[index]
+          index += 1
+        end
+
+        section_output = []
+        vim_mode_seen = false
+        section_lines.each do |section_line|
+          stripped = section_line.strip
+          commented = stripped.start_with?("#", ";")
+
+          if !commented && stripped.match?(/^vim_mode_default\s*=/)
+            unless vim_mode_seen
+              section_output << "vim_mode_default = true"
+              vim_mode_seen = true
+            end
+            next
+          end
+
+          section_output << section_line
+        end
+
+        unless vim_mode_seen
+          insertion_index = 0
+          while insertion_index < section_output.length
+            stripped = section_output[insertion_index].strip
+            break unless stripped.empty? || stripped.start_with?("#", ";")
+
+            insertion_index += 1
+          end
+          section_output.insert(insertion_index, "vim_mode_default = true")
+        end
+
+        output.concat(section_output)
+        next
+      end
+
+      output << line
+      index += 1
+    end
+
+    unless found_tui
+      output << "" if !output.empty? && output[-1] != ""
+      output << "[tui]"
+      output << "vim_mode_default = true"
+    end
+
+    new_text = "#{output.join("\n")}\n"
+
+    if new_text != text
+      FileUtils.mkdir_p(File.dirname(config_file))
+      File.write(config_file, new_text)
+      File.chmod(0o600, config_file)
+      puts "changed"
+    else
+      puts "unchanged"
+    end
+    RUBY
+  args:
+    executable: /bin/bash
+  environment:
+    CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
+    RUBY_BIN: '{{ mise_bin }} exec ruby@{{ tool_versions.runtimes.ruby }} -- ruby'
+  register: codex_vim_mode_result
+  changed_when: codex_vim_mode_result.stdout.strip() == 'changed'
+
 # Trust settings for shared workspaces and ~/projects/
 - name: Configure Codex CLI config.toml for shared workspaces
   shell: |
