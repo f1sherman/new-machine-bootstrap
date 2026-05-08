@@ -1194,88 +1194,102 @@
   shell: |
     set -euo pipefail
 
-    python3 -c 'import os, textwrap; exec(textwrap.dedent("""
-    import re
-    from pathlib import Path
+    IFS=' ' read -r -a ruby_cmd <<<"${RUBY_BIN:?}"
+    "${ruby_cmd[@]}" <<'RUBY'
+    require "fileutils"
 
-    config_file = Path(os.environ["CONFIG_FILE"])
-    text = config_file.read_text() if config_file.exists() else ""
-    lines = text.splitlines()
+    config_file = ENV.fetch("CONFIG_FILE")
+    text = File.exist?(config_file) ? File.read(config_file) : ""
+    lines = text.lines(chomp: true)
+    section_header = /^\[(?:\[(?<array_name>[^\]]+)\]|(?<name>[^\]]+))\](?:\s*[#;].*)?$/
 
-    section_header = re.compile(r"^\[(?P<name>[^\]]+)\](?:\s*[#;].*)?$")
-
-    def section_name(line):
-        match = section_header.match(line.strip())
-        return match.group("name") if match else None
+    section_name = lambda do |line|
+      match = line.strip.match(section_header)
+      match ? (match[:name] || match[:array_name]) : nil
+    end
 
     output = []
-    i = 0
-    found_features = False
+    index = 0
+    found_features = false
 
-    while i < len(lines):
-        line = lines[i]
+    while index < lines.length
+      line = lines[index]
 
-        if section_name(line) == "features":
-            found_features = True
-            output.append(line)
-            i += 1
+      if section_name.call(line) == "features"
+        found_features = true
+        output << line
+        index += 1
 
-            section_lines = []
-            while i < len(lines) and section_name(lines[i]) is None:
-                section_lines.append(lines[i])
-                i += 1
+        section_lines = []
+        while index < lines.length && section_name.call(lines[index]).nil?
+          section_lines << lines[index]
+          index += 1
+        end
 
-            section_output = []
-            codex_hooks_seen = False
-            for section_line in section_lines:
-                stripped = section_line.strip()
-                if stripped.startswith("codex_hooks") and not stripped.startswith("#"):
-                    if not codex_hooks_seen:
-                        section_output.append("codex_hooks = true")
-                        codex_hooks_seen = True
-                    continue
-                section_output.append(section_line)
+        section_output = []
+        hooks_seen = false
+        section_lines.each do |section_line|
+          stripped = section_line.strip
+          commented = stripped.start_with?("#", ";")
 
-            if not codex_hooks_seen:
-                insertion_index = 0
-                while (
-                    insertion_index < len(section_output)
-                    and (
-                        section_output[insertion_index].strip() == ""
-                        or section_output[insertion_index].lstrip().startswith("#")
-                    )
-                ):
-                    insertion_index += 1
-                section_output.insert(insertion_index, "codex_hooks = true")
+          if !commented && stripped.match?(/^codex_hooks\s*=/)
+            next
+          end
 
-            output.extend(section_output)
-            continue
+          if !commented && stripped.match?(/^hooks\s*=/)
+            unless hooks_seen
+              section_output << "hooks = true"
+              hooks_seen = true
+            end
+            next
+          end
 
-        output.append(line)
-        i += 1
+          section_output << section_line
+        end
 
-    if not found_features:
-        if output and output[-1] != "":
-            output.append("")
-        output.append("[features]")
-        output.append("codex_hooks = true")
+        unless hooks_seen
+          insertion_index = 0
+          while insertion_index < section_output.length
+            stripped = section_output[insertion_index].strip
+            break unless stripped.empty? || stripped.start_with?("#", ";")
 
-    newline = chr(10)
-    new_text = newline.join(output) + newline
+            insertion_index += 1
+          end
+          section_output.insert(insertion_index, "hooks = true")
+        end
 
-    if new_text != text:
-        config_file.write_text(new_text)
-        os.chmod(config_file, 0o600)
-        print("changed")
-    else:
-        print("unchanged")
-    """))'
+        output.concat(section_output)
+        next
+      end
+
+      output << line
+      index += 1
+    end
+
+    unless found_features
+      output << "" if !output.empty? && output[-1] != ""
+      output << "[features]"
+      output << "hooks = true"
+    end
+
+    new_text = "#{output.join("\n")}\n"
+
+    if new_text != text
+      FileUtils.mkdir_p(File.dirname(config_file))
+      File.write(config_file, new_text)
+      File.chmod(0o600, config_file)
+      puts "changed"
+    else
+      puts "unchanged"
+    end
+    RUBY
   args:
     executable: /bin/bash
   environment:
     CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
-  register: codex_hooks_feature_result
-  changed_when: codex_hooks_feature_result.stdout.strip() == 'changed'
+    RUBY_BIN: '{{ mise_bin }} exec ruby@{{ tool_versions.runtimes.ruby }} -- ruby'
+  register: codex_feature_hooks_result
+  changed_when: codex_feature_hooks_result.stdout.strip() == 'changed'
 
 - name: Enforce 0600 on ~/.codex/config.toml
   file:
