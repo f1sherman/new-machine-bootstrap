@@ -319,4 +319,53 @@ if (cd "$main_repo" && "$REPO_END_SCRIPT") >"$TMPROOT/main.out" 2>"$TMPROOT/main
 fi
 assert_file_contains "$TMPROOT/main.err" "already on main" "repo-end rejects main branch"
 
+create_remote_repo end-prune
+prune_repo="$CREATED_REPO"
+
+git -C "$prune_repo" checkout -q -b feature/prune-ancestor
+commit_file "$prune_repo" prune-ancestor.txt "ancestor" "ancestor change"
+git -C "$prune_repo" checkout -q main
+git -C "$prune_repo" merge --ff-only --quiet feature/prune-ancestor
+git -C "$prune_repo" push -q origin main
+
+git -C "$prune_repo" checkout -q -b feature/prune-squashed main
+printf 'squashed-content\n' >"$prune_repo/prune-squashed.txt"
+git -C "$prune_repo" add prune-squashed.txt
+git -C "$prune_repo" commit -q -m "branch squashed change"
+git -C "$prune_repo" checkout -q main
+printf 'squashed-content\n' >"$prune_repo/prune-squashed.txt"
+git -C "$prune_repo" add prune-squashed.txt
+git -C "$prune_repo" commit -q -m "main squashed equivalent"
+git -C "$prune_repo" push -q origin main
+
+git -C "$prune_repo" checkout -q -b feature/prune-unmerged main
+commit_file "$prune_repo" prune-unmerged.txt "unmerged" "unmerged change"
+
+git -C "$prune_repo" checkout -q -b feature/prune-active main
+commit_file "$prune_repo" prune-active.txt "active" "active change"
+
+prune_home="$TMPROOT/end-prune-home"
+mkdir -p "$prune_home"
+prune_out="$TMPROOT/end-prune.out"
+prune_err="$TMPROOT/end-prune.err"
+(cd "$prune_repo" && HOME="$prune_home" "$REPO_END_SCRIPT" --print-path >"$prune_out" 2>"$prune_err")
+
+if git -C "$prune_repo" show-ref --verify --quiet refs/heads/feature/prune-ancestor; then
+  fail_case "repo-end prunes ancestor-merged branch" "feature/prune-ancestor still exists"
+fi
+pass_case "repo-end prunes ancestor-merged branch"
+
+if git -C "$prune_repo" show-ref --verify --quiet refs/heads/feature/prune-squashed; then
+  fail_case "repo-end prunes squash-merged branch" "feature/prune-squashed still exists"
+fi
+pass_case "repo-end prunes squash-merged branch"
+
+if ! git -C "$prune_repo" show-ref --verify --quiet refs/heads/feature/prune-unmerged; then
+  fail_case "repo-end keeps unmerged branch" "feature/prune-unmerged was deleted"
+fi
+pass_case "repo-end keeps unmerged branch"
+
+assert_file_contains "$prune_err" "Pruned merged local branch: feature/prune-ancestor" "repo-end announces pruned ancestor branch"
+assert_file_contains "$prune_err" "Pruned merged local branch: feature/prune-squashed" "repo-end announces pruned squash-merged branch"
+
 printf 'repo lifecycle behavior checks complete\n'
