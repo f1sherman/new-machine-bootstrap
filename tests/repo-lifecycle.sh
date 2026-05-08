@@ -194,11 +194,14 @@ assert_file_contains "$interactive_no_repo/.repo.yml" "use_worktrees: false" "in
 assert_equals "$(git -C "$interactive_no_repo" branch --show-current)" "feature/interactive-no" "interactive no checks out branch mode"
 
 noninteractive_repo="$(create_repo start-noninteractive)"
-noninteractive_path="$(cd "$noninteractive_repo" && "$REPO_START_SCRIPT" feature/default --print-path 2>"$TMPROOT/noninteractive.err")"
-assert_equals "$noninteractive_path" "$noninteractive_repo" "noninteractive missing config uses repo root"
-assert_equals "$(git -C "$noninteractive_repo" branch --show-current)" "feature/default" "noninteractive missing config checks out branch"
+if (cd "$noninteractive_repo" && "$REPO_START_SCRIPT" feature/default --print-path) >"$TMPROOT/noninteractive.out" 2>"$TMPROOT/noninteractive.err"; then
+  fail_case "noninteractive missing config fails fast" "repo-start unexpectedly succeeded with no .repo.yml and no flag"
+else
+  pass_case "noninteractive missing config fails fast"
+fi
 assert_no_file "$noninteractive_repo/.repo.yml" "noninteractive missing config does not write .repo.yml"
-assert_file_contains "$TMPROOT/noninteractive.err" "No .repo.yml found; using branch mode for this run." "noninteractive missing config explains branch mode"
+assert_file_contains "$TMPROOT/noninteractive.err" "no .repo.yml found and no mode flag given" "noninteractive missing config names the missing policy"
+assert_file_contains "$TMPROOT/noninteractive.err" "Pass --use-worktrees or --no-worktrees" "noninteractive missing config tells caller how to resolve"
 
 invalid_config_repo="$(create_repo start-invalid-config)"
 printf 'use_worktrees: maybe\n' >"$invalid_config_repo/.repo.yml"

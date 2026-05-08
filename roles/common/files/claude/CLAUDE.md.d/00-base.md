@@ -5,6 +5,7 @@ User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min toke
 * Spec approval and plan execution: the written spec is the only approval gate; once approved, proceed without another implementation approval prompt and always choose subagent execution automatically.
 * Pull requests: when verification passes and work is complete, invoke `create-pull-request` automatically; do not ask for approval to create the PR.
 * Branch/worktree lifecycle: start with `repo-start <branch>`. Created other way: run `tmux-agent-worktree set <absolute-path>`. When done: run `repo-end`.
+* `repo-start` errors `no .repo.yml found`: ask user worktree-vs-branch, then retry with `--use-worktrees` or `--no-worktrees` (flag writes `.repo.yml`). Subagent / no user channel: surface the error to the caller, don't guess.
 * Comments: use sparingly. Explain why, not what.
 * Scripts/snippets: write scripts in ruby; snippets in bash unless otherwise instructed.
 * JSON/YAML parsing: use `jq` or `yq`, never use python or ruby.

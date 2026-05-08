@@ -55,8 +55,9 @@ resolve_mode() {
     return 0
   fi
 
-  printf 'No .repo.yml found; using branch mode for this run.\n' >&2
-  printf 'branch\n'
+  printf 'Error: no .repo.yml found and no mode flag given.\n' >&2
+  printf 'Pass --use-worktrees or --no-worktrees, or create .repo.yml with use_worktrees: true|false.\n' >&2
+  return 2
 }
 
 main() {
