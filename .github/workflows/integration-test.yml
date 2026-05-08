@@ -18,8 +18,11 @@ jobs:
       - name: Run provisioning
         run: bin/provision
 
+      - name: Verify CI test inventory
+        run: bash tests/ci-test-inventory.sh
+
       - name: Verify pinned tool version wiring
-        run: bash tests/pinned-tool-versions.sh core
+        run: bash tests/repo-policy.sh all
 
       - name: Verify Codex auth skill guidance
         run: bash tests/generate-codex-auth-skill.sh
