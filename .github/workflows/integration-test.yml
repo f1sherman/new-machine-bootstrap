@@ -30,6 +30,9 @@ jobs:
       - name: Verify macOS Node GPG isolation regression
         run: bash tests/macos-mise-node-gpg.sh
 
+      - name: Verify repo-end callback behavior
+        run: bash tests/repo-end-callbacks.sh
+
       - name: Verify key tools installed at expected versions
         run: |
           set -euo pipefail
