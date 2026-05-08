@@ -192,4 +192,31 @@ TMUX=1 TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
   "$PANE_LINK" --pane "%9" --clear
 assert_no_file "$state_dir/%9.@pane-link" "--pane --clear removes from named pane"
 
+# Case: tmux-agent-worktree clear (the path repo-end calls) also removes @pane-link.
+state_dir="$TMPROOT/state-aw-clear"
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" "GH1" "https://example.com"
+[ -f "$state_dir/%1.@pane-link" ] || \
+  fail_case "tmux-agent-worktree clear removes @pane-link" "set did not write the option"
+
+# tmux-agent-worktree's cmd_clear shells out to tmux-window-label and
+# tmux-remote-title; stub them so the test does not need a real tmux server.
+stub_bin="$TMPROOT/aw-clear-stub-bin"
+mkdir -p "$stub_bin"
+cat >"$stub_bin/tmux-window-label" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+cat >"$stub_bin/tmux-remote-title" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+chmod +x "$stub_bin/tmux-window-label" "$stub_bin/tmux-remote-title"
+
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+PATH="$stub_bin:$PATH" \
+  "$AGENT_WORKTREE" clear
+assert_no_file "$state_dir/%1.@pane-link" \
+  "tmux-agent-worktree clear removes @pane-link"
+
 printf 'tmux pane-link checks complete\n'
