@@ -24,11 +24,23 @@ jobs:
       - name: Verify pinned tool version wiring
         run: bash tests/repo-policy.sh all
 
+      - name: Verify repo lifecycle helpers
+        run: bash tests/repo-lifecycle.sh
+
+      - name: Verify repo-end callback behavior
+        run: bash tests/repo-end-callbacks.sh
+
+      - name: Verify tmux label contract
+        run: bash tests/tmux-label-contract.sh
+
       - name: Verify Codex auth skill guidance
         run: bash tests/generate-codex-auth-skill.sh
 
       - name: Verify macOS Node GPG isolation regression
         run: bash tests/macos-mise-node-gpg.sh
+
+      - name: Verify tmux pane-title hook regression
+        run: ruby tests/tmux-pane-title-changed.rb
 
       - name: Verify key tools installed at expected versions
         run: |

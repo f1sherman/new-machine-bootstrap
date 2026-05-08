@@ -439,8 +439,6 @@ end
 def cleanup_signal?(line)
   [
     "repo-end",
-    "worktree-done",
-    "worktree-delete",
     "git worktree remove",
     "git branch -d",
     "tmux-agent-worktree clear",

@@ -44,6 +44,10 @@ remote_host_suffix() {
   printf '%s\n' "${1##* | }"
 }
 
+strip_host_suffix() {
+  printf '%s\n' "${1%% | *}"
+}
+
 label=""
 if is_remote_candidate_command "$pane_current_command"; then
   label="$(structured_remote_label "$pane_title" 2>/dev/null || true)"
@@ -67,6 +71,8 @@ if [ -z "$label" ]; then
 
   label="$("$label_helper" "$pane_tty" "$pane_current_path" "$pane_current_command" "$pane_id" 2>/dev/null || true)"
 fi
+[ -n "$label" ] || exit 0
+label="$(strip_host_suffix "$label")"
 [ -n "$label" ] || exit 0
 [ "$label" != "$window_name" ] || exit 0
 

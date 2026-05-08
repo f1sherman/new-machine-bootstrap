@@ -155,9 +155,9 @@ formatted_local_path_label() {
 
   if [ -n "$branch" ] && [ -n "$repo" ]; then
     if dirty_marker "$path"; then
-      printf '(*%s) %s\n' "$branch" "$repo"
+      printf '%s *%s\n' "$repo" "$branch"
     else
-      printf '(%s) %s\n' "$branch" "$repo"
+      printf '%s %s\n' "$repo" "$branch"
     fi
     return 0
   fi
@@ -204,7 +204,6 @@ is_linked_worktree() {
 is_valid_explicit_path() {
   local path="$1"
   is_git_worktree_path "$path" || return 1
-  is_linked_worktree "$path" || return 1
   git_branch_for_path "$path" >/dev/null 2>&1
 }
 

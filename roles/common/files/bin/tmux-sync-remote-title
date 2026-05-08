@@ -43,5 +43,7 @@ structured_remote_label() {
 
 pane_title="$(structured_remote_label "$pane_title" 2>/dev/null || true)"
 [ -n "$pane_title" ] || exit 0
+pane_title="${pane_title%% | *}"
+[ -n "$pane_title" ] || exit 0
 [ "$pane_title" = "$window_name" ] || tmux rename-window -t "$window_id" "$pane_title" 2>/dev/null || true
 exit 0

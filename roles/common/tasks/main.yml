@@ -295,6 +295,7 @@
     - tmux-window-label
     - tmux-sync-status-visibility
     - tmux-sync-pane-border-status
+    - tmux-pane-title-changed
     - tmux-hook-run
     - report-pane-error
 

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -u
+
+pane_id=""
+for candidate in "$@"; do
+  if [ -n "$candidate" ]; then
+    pane_id="$candidate"
+    break
+  fi
+done
+
+[ -n "$pane_id" ] || exit 0
+
+title="$(tmux display-message -p -t "$pane_id" '#{pane_title}' 2>/dev/null)" || exit 0
+structured="$(tmux show-options -qv -p -t "$pane_id" @pane-title-structured 2>/dev/null || true)"
+
+case "$title" in
+  *" | "*)
+    tmux set-option -p -q -t "$pane_id" @pane-title-structured 1
+    tmux-sync-remote-title "$pane_id"
+    tmux-sync-pane-border-status "$pane_id"
+    tmux-update-pane-label "$pane_id"
+    ;;
+  *)
+    [ -n "$structured" ] || exit 0
+    tmux set-option -p -q -u -t "$pane_id" @pane-title-structured
+    tmux-sync-pane-border-status "$pane_id"
+    tmux-update-pane-label "$pane_id"
+    ;;
+esac
