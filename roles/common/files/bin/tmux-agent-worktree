@@ -170,9 +170,9 @@ repo_label_for_path() {
       branch="*$branch"
     fi
     if [ -n "$host" ]; then
-      printf '%s %s | %s\n' "$repo" "$branch" "$host"
+      printf '(%s) %s | %s\n' "$branch" "$repo" "$host"
     else
-      printf '%s %s\n' "$repo" "$branch"
+      printf '(%s) %s\n' "$branch" "$repo"
     fi
     return 0
   fi
