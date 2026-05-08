@@ -13,7 +13,7 @@ fi
 
 skill="$(printf '%s' "$input" | jq -r '.tool_input.skill // empty' 2>/dev/null || true)"
 case "$skill" in
-  superpowers:brainstorming|_spec-first|_spec-to-pr) ;;
+  superpowers:brainstorming|superpowers:systematic-debugging|_spec-first|_spec-to-pr|_fix) ;;
   *) exit 0 ;;
 esac
 
@@ -22,7 +22,7 @@ if [[ "$branch" != "main" ]]; then
   exit 0
 fi
 
-reminder='You invoked '"$skill"' while on main. Before committing any spec, plan, or other artifact, run `repo-start <branch>` so repo policy chooses the right feature context (branch or worktree). (You may already have planned to do this; ignore this reminder if so.)'
+reminder='You invoked '"$skill"' while on main. Before editing files or committing any artifact, run `repo-start <branch>` so repo policy chooses the right feature context (branch or worktree). (You may already have planned to do this; ignore this reminder if so.)'
 
 jq -n --arg ctx "$reminder" '{
   "hookSpecificOutput": {

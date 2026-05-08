@@ -20,7 +20,8 @@ fi
 
 lower_prompt="$(printf '%s' "$prompt" | tr '[:upper:]' '[:lower:]')"
 dev_pattern='(^|[^[:alnum:]_])(add|address|build|change|create|debug|delete|fix|implement|modify|refactor|remove|resolve|update|wire|write)([^[:alnum:]_]|$)'
-if ! printf '%s\n' "$lower_prompt" | grep -Eq "$dev_pattern"; then
+skill_pattern='(^|[^[:alnum:]_])(_fix|_spec-first|_spec-to-pr|systematic-debugging|brainstorming)([^[:alnum:]_]|$)'
+if ! printf '%s\n' "$lower_prompt" | grep -Eq "$dev_pattern|$skill_pattern"; then
   exit 0
 fi
 
