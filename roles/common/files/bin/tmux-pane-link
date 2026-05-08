@@ -60,5 +60,6 @@ if printf '%s' "$url" | LC_ALL=C grep -qE '[[:cntrl:]"\\]'; then
   err "URL contains forbidden character"
 fi
 
+label="${label//#/##}"
 value="#[hyperlink=\"$url\"]$label#[hyperlink=]"
 write_pane_option "$pane" "@pane-link" "$value"

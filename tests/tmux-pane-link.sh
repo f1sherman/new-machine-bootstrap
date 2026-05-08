@@ -140,4 +140,13 @@ set -e
 assert_equals "$rc" "2" "URL with double-quote exits 2"
 assert_no_file "$state_dir/%1.@pane-link" "URL with double-quote writes nothing"
 
+# Case: # in LABEL is doubled to ## so tmux's format parser treats it as literal
+state_dir="$TMPROOT/state-hash"
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" "GH#1234" "https://example.com"
+assert_file_contains \
+  "$state_dir/%1.@pane-link" \
+  '#[hyperlink="https://example.com"]GH##1234#[hyperlink=]' \
+  "# in LABEL is doubled in stored value"
+
 printf 'tmux pane-link checks complete\n'
