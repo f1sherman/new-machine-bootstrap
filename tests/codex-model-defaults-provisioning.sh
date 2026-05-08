@@ -157,7 +157,7 @@ assert_line_before_first_table "$config_file" '^model_reasoning_effort = "xhigh"
 assert_mode_0600 "$config_file" 'model defaults task writes 0600 with existing root keys'
 
 config_existing="$tmpdir/config-existing.toml"
-printf '# header\n\nmodel = "gpt-5.4"\nmodel_reasoning_effort = "medium"\ncheck_for_update_on_startup = false\n\n[features]\ncodex_hooks = true\n' > "$config_existing"
+printf '# header\n\nmodel = "gpt-5.4"\nmodel_reasoning_effort = "medium"\ncheck_for_update_on_startup = false\n\n[features]\nhooks = true\n' > "$config_existing"
 run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_existing" RUBY_BIN=ruby bash
 assert_eq "$TASK_STATUS" "0" 'model defaults task exits cleanly with previous defaults'
 assert_contains "$TASK_OUTPUT" 'changed' 'model defaults task reports change with previous defaults'

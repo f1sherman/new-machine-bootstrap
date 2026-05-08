@@ -122,6 +122,7 @@ enforce_mode_0600() {
 assert_task_mode "$CONFIG_MODE_TASK" '0600' 'config mode task uses 0600'
 assert_task_mode "$HOOKS_MODE_TASK" '0600' 'hooks mode task uses 0600'
 assert_task_env "$CONFIG_TASK" 'CONFIG_FILE' '{{ ansible_facts["user_dir"] }}/.codex/config.toml' 'config task wires CONFIG_FILE'
+assert_task_env "$CONFIG_TASK" 'RUBY_BIN' '{{ mise_bin }} exec ruby@{{ tool_versions.runtimes.ruby }} -- ruby' 'config task wires RUBY_BIN'
 assert_task_env "$HOOKS_TASK" 'HOOKS_FILE' '{{ ansible_facts["user_dir"] }}/.codex/hooks.json' 'hooks task wires HOOKS_FILE'
 
 CONFIG_SNIPPET="$(extract_task_shell "$CONFIG_TASK")"
@@ -135,37 +136,56 @@ hooks_script="$tmpdir/codex-hooks-task.sh"
 
 config_file="$tmpdir/config.toml"
 printf '[core]\nfoo = true\n' > "$config_file"
-run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_file" bash
+run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_file" RUBY_BIN=ruby bash
 assert_eq "$TASK_STATUS" "0" 'config task exits cleanly without features section'
 assert_contains "$TASK_OUTPUT" 'changed' 'config task reports change without features section'
 assert_regex_count "$config_file" '^\[features\]([[:space:]]*[#;].*)?$' 1 'config task creates one features table'
-assert_regex_count "$config_file" '^codex_hooks = true$' 1 'config task inserts codex_hooks once'
+assert_regex_count "$config_file" '^hooks = true$' 1 'config task inserts hooks once'
+assert_regex_count "$config_file" '^codex_hooks =' 0 'config task does not write deprecated codex_hooks'
 assert_file_contains "$config_file" '[core]' 'config task preserves existing content'
 assert_file_contains "$config_file" 'foo = true' 'config task preserves existing keys'
 assert_mode_0600 "$config_file" 'config task writes 0600 on creation'
 
 config_file_comment="$tmpdir/config-comment.toml"
 printf '[features] # comment\ncodex_hooks = false\nother = true\n' > "$config_file_comment"
-run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_file_comment" bash
+run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_file_comment" RUBY_BIN=ruby bash
 assert_eq "$TASK_STATUS" "0" 'config task exits cleanly with commented features header'
 assert_contains "$TASK_OUTPUT" 'changed' 'config task updates commented features header'
 assert_regex_count "$config_file_comment" '^\[features\]([[:space:]]*[#;].*)?$' 1 'config task keeps one commented features table'
 assert_file_contains "$config_file_comment" '[features] # comment' 'config task preserves inline comment on features header'
-assert_regex_count "$config_file_comment" '^codex_hooks = true$' 1 'config task normalizes codex_hooks to true'
+assert_regex_count "$config_file_comment" '^hooks = true$' 1 'config task migrates codex_hooks to hooks'
+assert_regex_count "$config_file_comment" '^codex_hooks =' 0 'config task removes deprecated codex_hooks'
 assert_file_contains "$config_file_comment" 'other = true' 'config task preserves section body'
 
+config_file_nested_hooks="$tmpdir/config-nested-hooks.toml"
+cat > "$config_file_nested_hooks" <<'TOML'
+[features]
+codex_hooks = true
+
+[[hooks.PreToolUse]]
+matcher = "Bash"
+hooks = [{ type = "command", command = "echo ok" }]
+TOML
+run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_file_nested_hooks" RUBY_BIN=ruby bash
+assert_eq "$TASK_STATUS" "0" 'config task exits cleanly with nested hook tables'
+assert_contains "$TASK_OUTPUT" 'changed' 'config task updates config with nested hook tables'
+assert_regex_count "$config_file_nested_hooks" '^hooks = true$' 1 'config task inserts feature hooks before nested hook tables'
+assert_regex_count "$config_file_nested_hooks" '^codex_hooks =' 0 'config task removes deprecated codex_hooks before nested hook tables'
+assert_file_contains "$config_file_nested_hooks" '[[hooks.PreToolUse]]' 'config task preserves nested hook table header'
+assert_file_contains "$config_file_nested_hooks" 'hooks = [{ type = "command", command = "echo ok" }]' 'config task preserves nested hook handler list'
+
 config_file_false="$tmpdir/config-false.toml"
-printf '[features]\ncodex_hooks = false\nother = 1\n' > "$config_file_false"
-run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_file_false" bash
+printf '[features]\nhooks = false\nother = 1\n' > "$config_file_false"
+run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_file_false" RUBY_BIN=ruby bash
 assert_eq "$TASK_STATUS" "0" 'config task exits cleanly with false feature value'
 assert_contains "$TASK_OUTPUT" 'changed' 'config task updates false feature value'
 assert_regex_count "$config_file_false" '^\[features\]([[:space:]]*[#;].*)?$' 1 'config task keeps one plain features table'
-assert_regex_count "$config_file_false" '^codex_hooks = true$' 1 'config task replaces false value'
+assert_regex_count "$config_file_false" '^hooks = true$' 1 'config task replaces false value'
 assert_file_contains "$config_file_false" 'other = 1' 'config task preserves other settings'
 config_false_snapshot="$tmpdir/config-false.snapshot"
 cp "$config_file_false" "$config_false_snapshot"
 chmod 0644 "$config_file_false"
-run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_file_false" bash
+run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_file_false" RUBY_BIN=ruby bash
 assert_eq "$TASK_STATUS" "0" 'config task exits cleanly on second run'
 assert_contains "$TASK_OUTPUT" 'unchanged' 'config task reports unchanged on second run'
 cmp -s "$config_false_snapshot" "$config_file_false" \
