@@ -174,4 +174,22 @@ mkdir -p "$state_dir"
     "$PANE_LINK" "GH1" "https://example.com" )
 assert_no_file "$state_dir/%1.@pane-link" "no \$TMUX writes nothing"
 
+# Case: --pane targets the specified pane id (without $TMUX_PANE)
+state_dir="$TMPROOT/state-pane-flag"
+( unset TMUX_PANE; \
+  TMUX=1 TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+    "$PANE_LINK" --pane "%9" "x" "https://example.com" )
+assert_file_contains \
+  "$state_dir/%9.@pane-link" \
+  '#[hyperlink="https://example.com"]x#[hyperlink=]' \
+  "--pane targets the specified pane id"
+
+# Case: --pane combines with --clear
+state_dir="$TMPROOT/state-pane-clear"
+mkdir -p "$state_dir"
+printf 'present' > "$state_dir/%9.@pane-link"
+TMUX=1 TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" --pane "%9" --clear
+assert_no_file "$state_dir/%9.@pane-link" "--pane --clear removes from named pane"
+
 printf 'tmux pane-link checks complete\n'

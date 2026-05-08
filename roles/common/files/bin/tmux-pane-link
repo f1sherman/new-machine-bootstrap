@@ -26,14 +26,16 @@ clear_pane_option() {
 
 clear_mode=0
 positional=()
+pane=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --clear) clear_mode=1; shift ;;
+    --pane)  pane="${2:-}"; shift 2 ;;
     *)       positional+=("$1"); shift ;;
   esac
 done
 
-pane="${TMUX_PANE:-}"
+[ -n "$pane" ] || pane="${TMUX_PANE:-}"
 [ -n "$pane" ] || exit 0
 
 if [ "$clear_mode" -eq 1 ]; then
