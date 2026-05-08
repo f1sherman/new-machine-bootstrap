@@ -105,6 +105,85 @@ on_named_branch() {
   [ -n "$branch" ]
 }
 
+dir_basename() {
+  local raw="${1%/}"
+  raw="${raw##*/}"
+  [ -n "$raw" ] || raw="/"
+  printf '%s\n' "$raw"
+}
+
+repo_root_for_path() {
+  local path="$1" common_dir top_level
+
+  top_level="$(git -C "$path" rev-parse --path-format=absolute --show-toplevel 2>/dev/null)" || return 1
+  common_dir="$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+  common_dir="${common_dir%/}"
+
+  case "$common_dir" in
+    */.git)
+      printf '%s\n' "${common_dir%/*}"
+      ;;
+    *)
+      printf '%s\n' "$top_level"
+      ;;
+  esac
+}
+
+repo_basename() {
+  local root
+  root="$(repo_root_for_path "$1")" || return 1
+  dir_basename "$root"
+}
+
+branch_for_path() {
+  git -C "$1" branch --show-current 2>/dev/null
+}
+
+dirty_marker() {
+  [ -n "$(git --no-optional-locks -C "$1" status --porcelain 2>/dev/null)" ]
+}
+
+host_tag() {
+  if [ -n "${TMUX_PANE_LABEL_HOST_TAG:-}" ]; then
+    printf '%s\n' "$TMUX_PANE_LABEL_HOST_TAG"
+  elif [ -n "${TMUX_AGENT_WORKTREE_HOST_TAG:-}" ]; then
+    printf '%s\n' "$TMUX_AGENT_WORKTREE_HOST_TAG"
+  elif [ -n "${CODESPACES:-}" ] && [ -n "${CODESPACE_NAME:-}" ]; then
+    printf '%s\n' "$CODESPACE_NAME"
+  elif [ -n "${DEVPOD_WORKSPACE_ID:-}" ]; then
+    printf '%s\n' "$DEVPOD_WORKSPACE_ID"
+  else
+    hostname -s 2>/dev/null || hostname 2>/dev/null || true
+  fi
+}
+
+repo_label_for_path() {
+  local path="$1" repo branch host
+
+  repo="$(repo_basename "$path" 2>/dev/null || true)"
+  branch="$(branch_for_path "$path" 2>/dev/null || true)"
+  host="$(host_tag)"
+  [ -n "$repo" ] || repo="$(dir_basename "$path")"
+
+  if [ -n "$branch" ]; then
+    if dirty_marker "$path"; then
+      branch="*$branch"
+    fi
+    if [ -n "$host" ]; then
+      printf '%s %s | %s\n' "$repo" "$branch" "$host"
+    else
+      printf '%s %s\n' "$repo" "$branch"
+    fi
+    return 0
+  fi
+
+  if [ -n "$host" ]; then
+    printf '%s | %s\n' "$repo" "$host"
+  else
+    printf '%s\n' "$repo"
+  fi
+}
+
 cmd_set() {
   local path="${1:-}" pane_id pane_pid tty
   [ -n "${TMUX:-}" ] || return 0
@@ -117,11 +196,17 @@ cmd_set() {
   is_git_worktree_path "$path" || return 0
   pane_id="$TMUX_PANE"
   tty="$(pane_tty)"
-  [ -n "$tty" ] || return 0
-  pane_pid="$(detect_agent_pid "$tty")"
-  [ -n "$pane_pid" ] || return 0
+  pane_pid=""
+  if [ -n "$tty" ]; then
+    pane_pid="$(detect_agent_pid "$tty" || true)"
+  fi
   write_pane_option "$pane_id" "@agent_worktree_path" "$path"
-  write_pane_option "$pane_id" "@agent_worktree_pid" "$pane_pid"
+  if [ -n "$pane_pid" ]; then
+    write_pane_option "$pane_id" "@agent_worktree_pid" "$pane_pid"
+  else
+    clear_pane_option "$pane_id" "@agent_worktree_pid"
+  fi
+  write_pane_option "$pane_id" "@pane-label" "$(repo_label_for_path "$path")"
   refresh_window_label
   publish_title
 }
@@ -131,6 +216,7 @@ cmd_clear() {
   [ -n "${TMUX_PANE:-}" ] || return 0
   clear_pane_option "$TMUX_PANE" "@agent_worktree_path"
   clear_pane_option "$TMUX_PANE" "@agent_worktree_pid"
+  clear_pane_option "$TMUX_PANE" "@pane-label"
   refresh_window_label
   publish_title
 }
@@ -138,7 +224,7 @@ cmd_clear() {
 cmd_sync_current() {
   local tty pane_pid
   [ -n "${PWD:-}" ] || return 0
-  if ! is_git_worktree_path "$PWD" || ! is_linked_worktree "$PWD" || ! on_named_branch "$PWD"; then
+  if ! is_git_worktree_path "$PWD" || ! on_named_branch "$PWD"; then
     cmd_clear
     return 0
   fi
@@ -146,18 +232,18 @@ cmd_sync_current() {
   [ -n "${TMUX:-}" ] || return 0
   [ -n "${TMUX_PANE:-}" ] || return 0
   tty="$(pane_tty)"
-  [ -n "$tty" ] || {
-    cmd_clear
-    return 0
-  }
-  pane_pid="$(detect_agent_pid "$tty")"
-  [ -n "$pane_pid" ] || {
-    cmd_clear
-    return 0
-  }
+  pane_pid=""
+  if [ -n "$tty" ]; then
+    pane_pid="$(detect_agent_pid "$tty" || true)"
+  fi
 
   write_pane_option "$TMUX_PANE" "@agent_worktree_path" "$PWD"
-  write_pane_option "$TMUX_PANE" "@agent_worktree_pid" "$pane_pid"
+  if [ -n "$pane_pid" ]; then
+    write_pane_option "$TMUX_PANE" "@agent_worktree_pid" "$pane_pid"
+  else
+    clear_pane_option "$TMUX_PANE" "@agent_worktree_pid"
+  fi
+  write_pane_option "$TMUX_PANE" "@pane-label" "$(repo_label_for_path "$PWD")"
   refresh_window_label
   publish_title
 }

@@ -20,7 +20,10 @@ After this change:
 - unknown repo mode causes humans to get a prompt and noninteractive callers to
   use branch mode in memory
 - the main-branch edit hook points agents at `repo-start`
-- `repo-end` calls the `cleanup-branches` script for cleanup
+- `repo-end` performs local branch/worktree teardown and runs post-close callbacks
+  (typically `git-clean-up`) for environment-specific cleanup
+- `repo-start` and `repo-end` own repo-aware tmux pane labels for the pane that
+  invoked them
 
 ## Already Built
 
@@ -35,7 +38,6 @@ The repo already has the important worktree pieces:
 - tmux worktree-state publication through `tmux-agent-worktree`
 - main-branch edit blocking through `codex-block-main-branch-edits`
 - raw `git worktree add/remove` blocking through `codex-block-worktree-commands`
-- `cleanup-branches --branch <branch>` for branch/worktree cleanup
 
 The worktree path already handles:
 
@@ -52,12 +54,12 @@ The migration should preserve those behaviors.
 
 - No compatibility backend where `repo-start` shells out to public
   `worktree-start`.
-- No replacement of `cleanup-branches` with an agent skill.
+- No hard dependency on a specific cleanup helper (`cleanup-branches`, `git-clean-up`)
 - No new agent-specific repo config format.
 - No `.repo.yml` write when noninteractive callers use the in-memory branch
   default.
-- No change to the cleanup policy beyond making the cleanup script available
-  wherever `repo-end` is available.
+- No cleanup policy in `repo-end` beyond invoking callback hooks and failing if any
+  callback fails.
 
 ## Public Commands
 
@@ -181,10 +183,31 @@ Behavior:
 - publish tmux state for the repo root
 - print the repo root
 
+### Tmux Label State
+
+When `repo-start` succeeds, it must publish explicit pane-local label state for
+the invoking tmux pane. This applies to both branch mode and worktree mode.
+
+The bottom pane status label should be:
+
+```text
+<repo> <branch> | <hostname>
+```
+
+If the checkout is dirty when the label is written, prefix the branch with `*`:
+
+```text
+<repo> *<branch> | <hostname>
+```
+
+`repo-start` should write the cached pane label directly through the tmux state
+helper. Background tmux hooks are allowed to compute only simple fallback labels;
+they should not infer repo branch state after this migration.
+
 ## `repo-end`
 
 `repo-end` finishes the current non-main branch, pushes main, then delegates
-cleanup.
+cleanup to post-close callbacks.
 
 Behavior:
 
@@ -199,28 +222,88 @@ Behavior:
 9. Checkout main in that path.
 10. Merge the branch into main.
 11. Push main.
-12. Call `cleanup-branches --branch <branch>`.
-13. Print the final main path.
+12. Invoke post-close callbacks with repo context.
+13. Clear explicit tmux repo label state for the invoking pane.
+14. Print the final main path.
 
 In worktree mode, branch and main are separate paths. In branch mode, they are
 the same checkout, so the rebase must happen before checking out main.
 
-`repo-end` must call the cleanup script directly. It must not invoke a cleanup
-skill. If cleanup fails, `repo-end` returns nonzero and surfaces the script
-output.
+`repo-end` must not invoke cleanup helpers directly. The post-close callbacks are the
+extension point for host-specific cleanup.
 
-## Cleanup Script Placement
+### Post-Close Hooks
 
-`cleanup-branches` currently lives under macOS files:
+After local integration and teardown, `repo-end` optionally runs:
 
-- `roles/macos/files/bin/cleanup-branches`
+```text
+~/.local/bin/repo-end.d/* --repo-dir <repo-root> --branch <branch> --main-branch <main> --main-path <path>
+```
 
-Because `repo-end` is common lifecycle infrastructure, move this script to:
+Rules:
 
-- `roles/common/files/bin/cleanup-branches`
+- `repo-end` must run every executable script under `~/.local/bin/repo-end.d` in
+  lexicographic order, passing each one the repo-context args.
+- If any callback exits non-zero, `repo-end` returns non-zero and surfaces output.
+- Missing directory is treated as no-op success.
+- Callbacks own environment-specific cleanup and may run `git-clean-up`, remote
+  deletion, and host-level state cleanup.
 
-Remove the macOS-specific managed copy after the move. Keep the Ruby
-implementation and existing cleanup behavior.
+## Post-Close Cleanup Hook Ownership
+
+`nmb` does not provision a cleanup script. Host-specific repos that install
+`git-clean-up` (for example `home-network-provisioning`) should install and manage
+`~/.local/bin/repo-end.d/*`.
+
+### Required Host Update: `home-network-provisioning`
+
+`home-network-provisioning` should install a post-close callback that executes
+`git-clean-up`:
+
+```text
+~/.local/bin/repo-end.d/git-clean-up --repo-dir <repo-root> --branch <branch> --delete-remote --yes
+```
+
+The callback must be executable and accept the standard repo context arguments passed
+by `repo-end`.
+
+### Tmux Label Cleanup
+
+`repo-end` must clear the explicit repo label state written by `repo-start`.
+After `repo-end`, the bottom pane status should fall back to the simple label:
+
+```text
+<cwd-basename> | <hostname>
+```
+
+This prevents stale branch/worktree labels after the feature branch has been
+merged and removed.
+
+## Tmux Label Ownership
+
+Repo-aware tmux pane labels are only written by repo lifecycle commands:
+
+- `repo-start` writes the explicit repo/branch label.
+- `repo-end` clears that explicit label.
+- `tmux-agent-worktree set` is the low-level writer called by `repo-start`.
+- `tmux-agent-worktree clear` is the low-level clearer called by `repo-end`.
+
+Generic tmux hooks should stay simple:
+
+- `tmux-update-pane-label` may cache a fallback label for new or focused panes.
+- `tmux-pane-label` should produce only `<cwd-basename> | <hostname>` fallback
+  labels unless a remote pane title already provides a structured label.
+- hostnames belong in the bottom pane label and should always be shown there.
+- window labels should not include hostnames; they are too long for the top
+  window list.
+
+## Raw Worktree Cleanup Ownership
+
+`nmb` remains host-agnostic for cleanup internals:
+
+- `cleanup-branches` and `git-clean-up` stay outside the scope of this repo's
+  lifecycle migration.
+- Host tooling wires cleanup by installing `repo-end.d` scripts.
 
 ## Shell Wrappers
 
@@ -264,8 +347,8 @@ New guidance:
 
 - raw `git worktree add` is blocked with a reason to use `repo-start`
 - raw `git worktree remove` is blocked with a reason to use `repo-end` or
-  `cleanup-branches --branch <branch>` depending on whether the branch should
-  be finished or only cleaned up
+  `repo-end.d` callbacks depending on whether the branch should be finished or only
+  cleaned up
 
 ## Provisioning Changes
 
@@ -274,7 +357,6 @@ Install common helpers:
 - `repo-start`
 - `repo-end`
 - `repo-lib.sh`
-- `cleanup-branches`
 
 Update shell templates:
 
@@ -290,6 +372,8 @@ Update Codex hook tests/provisioning expectations:
 - main-branch edit hook reason names `repo-start`
 - wording names `repo-start` without asking agents to choose a mode
 - raw worktree command hook no longer names removed `worktree-*` commands
+- host callback ownership in `hnp` includes `repo-end.d` script install for
+  `git-clean-up`
 
 ## Testing
 
@@ -314,30 +398,31 @@ Add bash regression tests for:
 
 Add bash regression tests for:
 
-- worktree mode rebases, merges, pushes, and calls `cleanup-branches --branch`
-- branch mode rebases, merges, pushes, and calls `cleanup-branches --branch`
+- worktree mode rebases, merges, pushes, and invokes post-close callbacks with expected args
+- branch mode rebases, merges, pushes, and invokes post-close callbacks with expected args
 - dirty current branch rejection
 - dirty main checkout rejection
 - detached HEAD rejection
 - main branch rejection
-- cleanup failure returns nonzero
+- hook missing is treated as no-op success
+- hook failure returns nonzero
 
 Use temporary bare remotes for push verification. Use a stubbed
-`cleanup-branches` for focused delegation checks, plus one integration case
-with the real script.
+`repo-end.d` callback scripts for focused delegation checks.
 
 ### Provisioning and Hook Tests
 
 Add or update tests for:
 
 - `.repo.yml` in managed global gitignore
-- common install entries for `repo-start`, `repo-end`, `repo-lib.sh`, and
-  `cleanup-branches`
+- common install entries for `repo-start`, `repo-end`, `repo-lib.sh`
 - old public `worktree-*` helper install entries removed
 - shell wrappers for `repo-start`, `repo-end`, `rs`, and `re`
 - main-branch edit hook reason text
 - raw worktree command hook reason text
 - hook registration idempotence remains intact
+- host callback installation in hnp (`repo-end.d` + callback script)
+- hnp callback path should execute `git-clean-up` with repo context on cleanup
 
 ## Acceptance Criteria
 
@@ -347,21 +432,22 @@ Add or update tests for:
   out a normal branch, and prints the repo root.
 - `repo-start feature/x` without `.repo.yml` uses branch mode noninteractively,
   does not create `.repo.yml`, and prints the repo root.
-- `repo-end` rebases, merges, pushes, and delegates cleanup to
-  `cleanup-branches --branch <branch>`.
+- `repo-end` rebases, merges, pushes, and invokes post-close callbacks with repo
+  context.
 - `.repo.yml` is globally ignored after provisioning.
 - the main-branch edit hook points at `repo-start`.
 - the raw worktree command hook no longer points at removed `worktree-*`
   commands.
 - public `worktree-*` commands are no longer installed or wrapped.
+- hnp installs a `repo-end.d` callback for `git-clean-up` when it provides lifecycle helpers.
 
 ## Risks
 
 - Removing public `worktree-*` commands breaks existing habits. The point of
   this change is to make the generic repo lifecycle the single interface.
-- `repo-end` spans rebase, merge, push, and cleanup, so tests need real git
+- `repo-end` spans rebase, merge, push, and cleanup callback, so tests need real git
   repos and remotes.
-- Moving `cleanup-branches` into common provisioning may expose Linux-specific
-  assumptions in the script.
+- If a host-provided post-close callback runs `git-clean-up`, host-specific
+  assumptions apply to that helper.
 - Noninteractive callers can start branch-mode work without persisting config,
   so users who want worktrees in that repo must later choose that explicitly.

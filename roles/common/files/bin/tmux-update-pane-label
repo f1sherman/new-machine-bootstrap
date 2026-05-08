@@ -9,6 +9,9 @@ set -u
 pane_id="${1:-}"
 [ -n "$pane_id" ] || exit 0
 
+explicit_path="$(tmux show-options -qv -p -t "$pane_id" "@agent_worktree_path" 2>/dev/null || true)"
+[ -z "$explicit_path" ] || exit 0
+
 # One tmux call to read everything we need. Pipe-delimited so paths with
 # spaces survive the read.
 state="$(tmux display-message -p -t "$pane_id" '#{pane_tty}|#{pane_current_path}|#{pane_current_command}' 2>/dev/null)" || exit 0
