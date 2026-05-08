@@ -124,4 +124,35 @@ chmod +x "$fake_tmux_dir/tmux"
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
 assert_file_contains "$window_log" "rename-window -t @1 project feature/remote" "window labels strip hostname from structured labels"
 
+cached_tmux_dir="$TMPROOT/fake-tmux-bin-cached"
+cached_log="$TMPROOT/window-label-cached.log"
+mkdir -p "$cached_tmux_dir"
+cat >"$cached_tmux_dir/tmux" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  display-message)
+    printf '@2\t1\told-window\t/dev/null\t/tmp/project\tzsh\t\t%%2\n'
+    exit 0
+    ;;
+  show-options)
+    for arg in "$@"; do
+      if [ "$arg" = "@pane-label" ]; then
+        printf 'cached-repo cached-branch | host-a\n'
+        exit 0
+      fi
+    done
+    exit 0
+    ;;
+  rename-window)
+    printf '%s\n' "$*" >> "$TMUX_WINDOW_LABEL_LOG"
+    exit 0
+    ;;
+esac
+exit 0
+STUB
+chmod +x "$cached_tmux_dir/tmux"
+
+TMUX_WINDOW_LABEL_LOG="$cached_log" PATH="$cached_tmux_dir:$PATH" "$WINDOW_LABEL" "%2"
+assert_file_contains "$cached_log" "rename-window -t @2 cached-repo cached-branch" "window labels prefer cached @pane-label over basename fallback"
+
 printf 'tmux label contract checks complete\n'

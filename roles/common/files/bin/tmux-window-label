@@ -64,6 +64,10 @@ if is_remote_candidate_command "$pane_current_command"; then
 fi
 
 if [ -z "$label" ]; then
+  label="$(tmux show-options -qv -p -t "$pane_id" "@pane-label" 2>/dev/null || true)"
+fi
+
+if [ -z "$label" ]; then
   label_helper="${TMUX_PANE_LABEL_BIN:-$HOME/.local/bin/tmux-pane-label}"
   if [ ! -x "$label_helper" ]; then
     label_helper="tmux-pane-label"
