@@ -84,46 +84,50 @@ if [[ -n "$(_repo_status_excluding_config "$repo_root")" ]]; then
   exit 1
 fi
 
-if ! "$(_worktree_cmd git)" -C "$repo_root" fetch -q origin; then
+if ! "$(_worktree_cmd git)" -C "$repo_root" fetch -q --prune origin; then
   printf 'Error: failed to fetch origin; refusing to clean up with stale remote refs\n' >&2
   exit 1
 fi
 
 already_merged() {
+  local work_dir="${1:-$repo_root}"
+  local ref="${2:-HEAD}"
   local git_cmd
   git_cmd="$(_worktree_cmd git)"
-  # Direct ancestor: every commit on HEAD is already in origin/<main>.
-  if "$git_cmd" -C "$repo_root" merge-base --is-ancestor HEAD "origin/${main_branch}" 2>/dev/null; then
+  # Direct ancestor: every commit on the ref is already in origin/<main>.
+  if "$git_cmd" -C "$work_dir" merge-base --is-ancestor "$ref" "origin/${main_branch}" 2>/dev/null; then
     return 0
   fi
-  # Squash/current-state equivalence: if a synthetic merge of HEAD into the
+  # Squash/current-state equivalence: if a synthetic merge of the ref into the
   # current origin/<main> tree is identical to origin/<main>, the feature's net
   # effect is already present. Reverted historical patches fail this check.
   local merge_tree main_tree
-  if merge_tree="$("$git_cmd" -C "$repo_root" merge-tree --write-tree "origin/${main_branch}" HEAD 2>/dev/null)"; then
+  if merge_tree="$("$git_cmd" -C "$work_dir" merge-tree --write-tree "origin/${main_branch}" "$ref" 2>/dev/null)"; then
     [[ -n "$merge_tree" ]] || return 1
-    main_tree="$("$git_cmd" -C "$repo_root" rev-parse "origin/${main_branch}^{tree}" 2>/dev/null || true)"
+    main_tree="$("$git_cmd" -C "$work_dir" rev-parse "origin/${main_branch}^{tree}" 2>/dev/null || true)"
     [[ -n "$main_tree" && "$merge_tree" == "$main_tree" ]]
     return $?
   fi
-  squash_patch_previously_applied "$git_cmd"
+  squash_patch_previously_applied "$git_cmd" "$work_dir" "$ref"
 }
 
 squash_patch_previously_applied() {
-  local git_cmd base branch_patch reverse_patch commit patch matched
-  git_cmd="$1"
+  local git_cmd="$1"
+  local work_dir="${2:-$repo_root}"
+  local ref="${3:-HEAD}"
+  local base branch_patch reverse_patch commit patch matched
 
-  base="$("$git_cmd" -C "$repo_root" merge-base "origin/${main_branch}" HEAD 2>/dev/null || true)"
+  base="$("$git_cmd" -C "$work_dir" merge-base "origin/${main_branch}" "$ref" 2>/dev/null || true)"
   [[ -n "$base" ]] || return 1
 
-  branch_patch="$("$git_cmd" -C "$repo_root" diff "$base" HEAD | "$git_cmd" -C "$repo_root" patch-id --stable | awk 'NR == 1 {print $1}')"
+  branch_patch="$("$git_cmd" -C "$work_dir" diff "$base" "$ref" | "$git_cmd" -C "$work_dir" patch-id --stable | awk 'NR == 1 {print $1}')"
   [[ -n "$branch_patch" ]] || return 1
-  reverse_patch="$("$git_cmd" -C "$repo_root" diff HEAD "$base" | "$git_cmd" -C "$repo_root" patch-id --stable | awk 'NR == 1 {print $1}')"
+  reverse_patch="$("$git_cmd" -C "$work_dir" diff "$ref" "$base" | "$git_cmd" -C "$work_dir" patch-id --stable | awk 'NR == 1 {print $1}')"
   [[ -n "$reverse_patch" ]] || return 1
 
   matched=false
   while IFS= read -r commit; do
-    patch="$("$git_cmd" -C "$repo_root" show --pretty=format: "$commit" | "$git_cmd" -C "$repo_root" patch-id --stable | awk 'NR == 1 {print $1}')"
+    patch="$("$git_cmd" -C "$work_dir" show --pretty=format: "$commit" | "$git_cmd" -C "$work_dir" patch-id --stable | awk 'NR == 1 {print $1}')"
     [[ -n "$patch" ]] || continue
     if [[ "$matched" == "true" && "$patch" == "$reverse_patch" ]]; then
       return 1
@@ -131,9 +135,25 @@ squash_patch_previously_applied() {
     if [[ "$patch" == "$branch_patch" ]]; then
       matched=true
     fi
-  done < <("$git_cmd" -C "$repo_root" rev-list --reverse "${base}..origin/${main_branch}")
+  done < <("$git_cmd" -C "$work_dir" rev-list --reverse "${base}..origin/${main_branch}")
 
   [[ "$matched" == "true" ]]
+}
+
+prune_merged_local_branches() {
+  local git_cmd branch worktreepath
+  git_cmd="$(_worktree_cmd git)"
+
+  while IFS=$'\t' read -r branch worktreepath; do
+    [[ -n "$branch" ]] || continue
+    [[ "$branch" != "$main_branch" ]] || continue
+    [[ -z "$worktreepath" ]] || continue
+    if already_merged "$main_path" "refs/heads/$branch"; then
+      if "$git_cmd" -C "$main_path" branch -D "$branch" >/dev/null 2>&1; then
+        printf 'Pruned merged local branch: %s\n' "$branch" >&2
+      fi
+    fi
+  done < <("$git_cmd" -C "$main_path" for-each-ref --format='%(refname:short)'$'\t''%(worktreepath)' refs/heads/)
 }
 
 if already_merged; then
@@ -189,8 +209,10 @@ cleanup_after_merge() {
 
 if [[ "$print_path" == "true" ]]; then
   cleanup_after_merge >&2
+  prune_merged_local_branches >&2
 else
   cleanup_after_merge
+  prune_merged_local_branches
 fi
 
 clear_repo_tmux_state
