@@ -48,4 +48,22 @@ assert_no_file() {
 
 # Test cases get added below by subsequent tasks.
 
+# Case: set with valid https URL writes OSC 8 hyperlink to @pane-link
+state_dir="$TMPROOT/state-https"
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" "GH1234" "https://example.com/pulls/1234"
+assert_file_contains \
+  "$state_dir/%1.@pane-link" \
+  '#[hyperlink="https://example.com/pulls/1234"]GH1234#[hyperlink=]' \
+  "set with https writes OSC 8 hyperlink"
+
+# Case: set with valid http URL also works
+state_dir="$TMPROOT/state-http"
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" "x" "http://example.com"
+assert_file_contains \
+  "$state_dir/%1.@pane-link" \
+  '#[hyperlink="http://example.com"]x#[hyperlink=]' \
+  "set with http writes OSC 8 hyperlink"
+
 printf 'tmux pane-link checks complete\n'

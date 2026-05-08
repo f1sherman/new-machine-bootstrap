@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Attach a clickable link annotation (OSC 8) to the current tmux pane.
+# Stored as the @pane-link user option, rendered by pane-border-format.
+set -u
+
+write_pane_option() {
+  local pane="$1" name="$2" value="$3"
+  if [ -n "${TMUX_AGENT_WORKTREE_STATE_DIR:-}" ]; then
+    mkdir -p "$TMUX_AGENT_WORKTREE_STATE_DIR"
+    printf '%s' "$value" > "$TMUX_AGENT_WORKTREE_STATE_DIR/$pane.$name"
+  else
+    tmux set-option -pq -t "$pane" "$name" "$value" 2>/dev/null || true
+  fi
+}
+
+[ -n "${TMUX:-}" ] || exit 0
+
+label="${1:-}"
+url="${2:-}"
+pane="${TMUX_PANE:-}"
+[ -n "$pane" ] || exit 0
+
+value="#[hyperlink=\"$url\"]$label#[hyperlink=]"
+write_pane_option "$pane" "@pane-link" "$value"
