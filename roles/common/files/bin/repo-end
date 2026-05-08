@@ -52,6 +52,12 @@ run_repo_end_callbacks() {
   done
 }
 
+clear_repo_tmux_state() {
+  [[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]] || return 0
+  command -v tmux-agent-worktree >/dev/null 2>&1 || return 0
+  tmux-agent-worktree clear >/dev/null 2>&1 || true
+}
+
 repo_root="$(_worktree_repo_root)" || {
   printf 'Error: not inside a git repository\n' >&2
   exit 1
@@ -186,6 +192,8 @@ if [[ "$print_path" == "true" ]]; then
 else
   cleanup_after_merge
 fi
+
+clear_repo_tmux_state
 
 if [[ "$print_path" == "true" ]]; then
   run_repo_end_callbacks >&2

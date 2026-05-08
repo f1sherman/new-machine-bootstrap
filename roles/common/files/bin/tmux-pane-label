@@ -5,253 +5,14 @@ pane_tty="${1:-}"
 pane_current_path="${2:-}"
 pane_current_command="${3:-}"
 pane_id="${4:-}"
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-devpod_name_helper="${TMUX_DEVPOD_NAME_BIN:-$script_dir/tmux-devpod-name}"
 
-[ -x "$devpod_name_helper" ] || devpod_name_helper="${HOME:-}/.local/bin/tmux-devpod-name"
-
-[ -n "$pane_tty" ] || exit 0
 [ -n "$pane_current_path" ] || exit 0
-
-get_process_lines() {
-  local tty="$1"
-  ps -o args= -t "$tty" 2>/dev/null
-}
-
-is_agent_process() {
-  local comm="$1" args="$2"
-  case "$comm" in
-    claude|codex)
-      return 0
-      ;;
-  esac
-  printf '%s\n' "$args" | grep -Eq '(^|[[:space:]])([^[:space:]]*/)?(claude|codex)([[:space:]]|$)'
-}
-
-detect_agent_pid() {
-  local tty="$1" line pid stat comm args fg_pid=""
-
-  while IFS= read -r line || [ -n "$line" ]; do
-    [ -z "$line" ] && continue
-    read -r pid stat comm args <<< "$line"
-    is_agent_process "${comm:-}" "${args:-}" || continue
-    case "$stat" in
-      *+*)
-        fg_pid="$pid"
-        ;;
-    esac
-  done < <(ps -o pid=,stat=,comm=,args= -t "$tty" 2>/dev/null)
-
-  if [ -n "$fg_pid" ]; then
-    printf '%s\n' "$fg_pid"
-  fi
-}
-
-read_pane_option() {
-  local pane_id="$1" option_name="$2"
-  [ -n "$pane_id" ] || return 1
-  tmux show-options -qv -p -t "$pane_id" "$option_name" 2>/dev/null
-}
-
-is_git_worktree_path() {
-  local path="$1"
-  [ -d "$path" ] || return 1
-  [ "$(git -C "$path" rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]
-}
-
-is_linked_worktree() {
-  local path="$1" git_dir common_dir
-  git_dir="$(git -C "$path" rev-parse --path-format=absolute --git-dir 2>/dev/null)" || return 1
-  common_dir="$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
-  [ "$git_dir" != "$common_dir" ]
-}
-
-on_named_branch() {
-  local path="$1" branch
-  branch="$(git -C "$path" branch --show-current 2>/dev/null)"
-  [ -n "$branch" ]
-}
-
-is_valid_explicit_path() {
-  local path="$1"
-  is_git_worktree_path "$path" || return 1
-  is_linked_worktree "$path" || return 1
-  on_named_branch "$path" || return 1
-}
-
-extract_ssh_host() {
-  local args="$1"
-  local parts part skip_next
-  read -r -a parts <<< "$args"
-
-  skip_next=0
-  for part in "${parts[@]}"; do
-    if [ "$skip_next" -eq 1 ]; then
-      skip_next=0
-      continue
-    fi
-
-    case "$part" in
-      -b|-c|-D|-E|-e|-F|-I|-i|-J|-L|-l|-m|-O|-o|-p|-Q|-R|-S|-W|-w)
-        skip_next=1
-        continue
-        ;;
-      -*)
-        continue
-        ;;
-      ssh)
-        continue
-        ;;
-      *)
-        printf '%s\n' "${part##*@}"
-        return 0
-        ;;
-    esac
-  done
-
-  return 1
-}
-
-extract_codespace_name() {
-  local args="$1"
-  local parts part next
-  read -r -a parts <<< "$args"
-
-  for ((i = 0; i < ${#parts[@]}; i++)); do
-    part="${parts[i]}"
-    case "$part" in
-      --codespace=*)
-        printf '%s\n' "${part#--codespace=}"
-        return 0
-        ;;
-      --codespace|-c)
-        next="${parts[i + 1]:-}"
-        [ -n "$next" ] || return 1
-        printf '%s\n' "$next"
-        return 0
-        ;;
-    esac
-  done
-
-  return 1
-}
-
-git_branch_for_path() {
-  local path="$1"
-  local gitdir head content real
-
-  while [ -n "$path" ] && [ "$path" != "/" ]; do
-    if [ -d "$path/.git" ]; then
-      gitdir="$path/.git"
-      break
-    fi
-
-    if [ -f "$path/.git" ]; then
-      IFS= read -r content < "$path/.git" || return 1
-      real="${content#gitdir: }"
-      case "$real" in
-        /*) gitdir="$real" ;;
-        *) gitdir="$path/$real" ;;
-      esac
-      break
-    fi
-
-    path="${path%/*}"
-  done
-
-  [ -n "${gitdir:-}" ] && [ -r "$gitdir/HEAD" ] || return 1
-  IFS= read -r head < "$gitdir/HEAD" || return 1
-  case "$head" in
-    ref:\ refs/heads/*)
-      printf '%s\n' "${head#ref: refs/heads/}"
-      return 0
-      ;;
-  esac
-
-  return 1
-}
-
-local_label() {
-  local path host
-  path="${1:-$pane_current_path}"
-  host="$(host_tag || true)"
-
-  if [ -n "$host" ]; then
-    printf '%s | %s\n' "$(formatted_local_path_label "$path")" "$host"
-  else
-    formatted_local_path_label "$path"
-  fi
-}
-
-remote_label() {
-  printf '%s | %s\n' "$(formatted_remote_path_label "$1")" "$2"
-}
 
 dir_basename() {
   local raw="${1%/}"
   raw="${raw##*/}"
   [ -n "$raw" ] || raw="/"
   printf '%s\n' "$raw"
-}
-
-repo_root_for_path() {
-  local path="$1" common_dir top_level
-
-  top_level="$(git -C "$path" rev-parse --path-format=absolute --show-toplevel 2>/dev/null)" || return 1
-  common_dir="$(git -C "$path" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
-  common_dir="${common_dir%/}"
-
-  case "$common_dir" in
-    */.git)
-      printf '%s\n' "${common_dir%/*}"
-      ;;
-    *)
-      printf '%s\n' "$top_level"
-      ;;
-  esac
-}
-
-repo_basename() {
-  local root
-  root="$(repo_root_for_path "$1")" || return 1
-  dir_basename "$root"
-}
-
-dirty_marker() {
-  [ -n "$(git --no-optional-locks -C "$1" status --porcelain 2>/dev/null)" ]
-}
-
-formatted_local_path_label() {
-  local path="$1" repo branch
-
-  repo="$(repo_basename "$path" 2>/dev/null || true)"
-  branch="$(git_branch_for_path "$path" 2>/dev/null || true)"
-
-  if [ -n "$branch" ] && [ -n "$repo" ]; then
-    if dirty_marker "$path"; then
-      printf '(*%s) %s\n' "$branch" "$repo"
-    else
-      printf '(%s) %s\n' "$branch" "$repo"
-    fi
-    return 0
-  fi
-
-  if [ -n "$repo" ]; then
-    printf '%s\n' "$repo"
-  else
-    dir_basename "$path"
-  fi
-}
-
-formatted_remote_path_label() {
-  local path="$1" repo
-
-  repo="$(repo_basename "$path" 2>/dev/null || true)"
-  if [ -n "$repo" ]; then
-    printf '%s\n' "$repo"
-  else
-    dir_basename "$path"
-  fi
 }
 
 host_tag() {
@@ -261,25 +22,32 @@ host_tag() {
     printf '%s\n' "$CODESPACE_NAME"
   elif [ -n "${DEVPOD_WORKSPACE_ID:-}" ]; then
     printf '%s\n' "$DEVPOD_WORKSPACE_ID"
-  elif [ -n "${SSH_CONNECTION:-}" ]; then
-    hostname -s 2>/dev/null
+  else
+    hostname -s 2>/dev/null || hostname 2>/dev/null || true
   fi
 }
 
-is_structured_remote_label() {
+is_remote_candidate_command() {
+  case "$1" in
+    ssh|gh|ruby) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_structured_label() {
   case "$1" in
     *" | "*) return 0 ;;
     *) return 1 ;;
   esac
 }
 
-structured_remote_label() {
+structured_label() {
   local title="${1:-}" nested_title prefix
 
-  is_structured_remote_label "$title" || return 1
+  is_structured_label "$title" || return 1
   nested_title="${title#*: }"
   prefix="${title%%: *}"
-  if [ "$nested_title" != "$title" ] && is_structured_remote_label "$nested_title" && {
+  if [ "$nested_title" != "$title" ] && is_structured_label "$nested_title" && {
     [[ "$prefix" =~ ^[0-9]+$ ]] || [[ "$nested_title" == \(* ]];
   }; then
     printf '%s\n' "$nested_title"
@@ -292,52 +60,16 @@ remote_host_suffix() {
   printf '%s\n' "${1##* | }"
 }
 
-is_remote_candidate_command() {
-  case "$1" in
-    ssh|gh|ruby) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-is_agent_candidate_command() {
-  case "$1" in
-    claude|codex) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-explicit_agent_label() {
-  local explicit_agent_pid explicit_worktree_pid explicit_worktree_path
-
-  [ -n "$pane_id" ] || return 1
-  explicit_agent_pid="$(detect_agent_pid "$pane_tty" || true)"
-  [ -n "$explicit_agent_pid" ] || return 1
-
-  explicit_worktree_pid="$(read_pane_option "$pane_id" "@agent_worktree_pid" 2>/dev/null || true)"
-  explicit_worktree_path="$(read_pane_option "$pane_id" "@agent_worktree_path" 2>/dev/null || true)"
-  [ -n "$explicit_worktree_path" ] || return 1
-  [ "$explicit_worktree_pid" = "$explicit_agent_pid" ] || return 1
-  is_valid_explicit_path "$explicit_worktree_path" || return 1
-
-  local_label "$explicit_worktree_path"
-}
-
-if [ -z "$pane_id" ] && [ -n "$pane_current_command" ] && \
-  ! is_remote_candidate_command "$pane_current_command"; then
-  local_label
-  exit 0
-fi
-
 if [ -n "$pane_id" ] && is_remote_candidate_command "$pane_current_command"; then
   remote_info="$(tmux display-message -p -t "$pane_id" '#{pane_title}	#{window_name}' 2>/dev/null || true)"
   if [ -n "$remote_info" ]; then
     IFS=$'\t' read -r pane_title window_name <<< "$remote_info"
-    remote_label="$(structured_remote_label "$pane_title" 2>/dev/null || true)"
+    remote_label="$(structured_label "$pane_title" 2>/dev/null || true)"
     if [ -n "$remote_label" ]; then
       printf '%s\n' "$remote_label"
       exit 0
     fi
-    remote_label="$(structured_remote_label "$window_name" 2>/dev/null || true)"
+    remote_label="$(structured_label "$window_name" 2>/dev/null || true)"
     if [ -n "$remote_label" ] && [ "$pane_title" = "$(remote_host_suffix "$remote_label")" ]; then
       printf '%s\n' "$remote_label"
       exit 0
@@ -345,59 +77,10 @@ if [ -n "$pane_id" ] && is_remote_candidate_command "$pane_current_command"; the
   fi
 fi
 
-if explicit_label="$(explicit_agent_label 2>/dev/null || true)"; then
-  if [ -n "$explicit_label" ]; then
-    printf '%s\n' "$explicit_label"
-    exit 0
-  fi
+host="$(host_tag)"
+label="$(dir_basename "$pane_current_path")"
+if [ -n "$host" ]; then
+  printf '%s | %s\n' "$label" "$host"
+else
+  printf '%s\n' "$label"
 fi
-
-if [ -n "$pane_id" ] && [ -n "$pane_current_command" ] && \
-  ! is_remote_candidate_command "$pane_current_command" && \
-  ! is_agent_candidate_command "$pane_current_command"; then
-  local_label
-  exit 0
-fi
-
-pane_procs="$(get_process_lines "$pane_tty" || true)"
-
-label=""
-
-while IFS= read -r line; do
-  case "$line" in
-    *"gh codespace ssh"*|*"gh cs ssh"*)
-      label="$(extract_codespace_name "$line" || true)"
-      if [ -n "$label" ]; then
-        label="$(remote_label "$pane_current_path" "$label")"
-      else
-        label="codespace"
-      fi
-      break
-      ;;
-    *"devpod ssh"*)
-      label="$("$devpod_name_helper" "$line" "$(host_tag || true)" 2>/dev/null || true)"
-      if [ -n "$label" ]; then
-        label="$(remote_label "$pane_current_path" "$label")"
-      else
-        label="devpod"
-      fi
-      break
-      ;;
-    ssh* )
-      label="$(extract_ssh_host "$line" || true)"
-      if [ -n "$label" ]; then
-        label="$(remote_label "$pane_current_path" "$label")"
-      else
-        label="ssh"
-      fi
-      break
-      ;;
-  esac
-done <<< "$pane_procs"
-
-if [ -z "$label" ]; then
-  label="$(local_label)"
-fi
-
-printf '%s\n' "$label"
-exit 0

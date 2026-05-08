@@ -22,6 +22,8 @@ After this change:
 - the main-branch edit hook points agents at `repo-start`
 - `repo-end` performs local branch/worktree teardown and runs post-close callbacks
   (typically `git-clean-up`) for environment-specific cleanup
+- `repo-start` and `repo-end` own repo-aware tmux pane labels for the pane that
+  invoked them
 
 ## Already Built
 
@@ -181,6 +183,27 @@ Behavior:
 - publish tmux state for the repo root
 - print the repo root
 
+### Tmux Label State
+
+When `repo-start` succeeds, it must publish explicit pane-local label state for
+the invoking tmux pane. This applies to both branch mode and worktree mode.
+
+The bottom pane status label should be:
+
+```text
+<repo> <branch> | <hostname>
+```
+
+If the checkout is dirty when the label is written, prefix the branch with `*`:
+
+```text
+<repo> *<branch> | <hostname>
+```
+
+`repo-start` should write the cached pane label directly through the tmux state
+helper. Background tmux hooks are allowed to compute only simple fallback labels;
+they should not infer repo branch state after this migration.
+
 ## `repo-end`
 
 `repo-end` finishes the current non-main branch, pushes main, then delegates
@@ -200,7 +223,8 @@ Behavior:
 10. Merge the branch into main.
 11. Push main.
 12. Invoke post-close callbacks with repo context.
-13. Print the final main path.
+13. Clear explicit tmux repo label state for the invoking pane.
+14. Print the final main path.
 
 In worktree mode, branch and main are separate paths. In branch mode, they are
 the same checkout, so the rebase must happen before checking out main.
@@ -242,6 +266,36 @@ Rules:
 
 The callback must be executable and accept the standard repo context arguments passed
 by `repo-end`.
+
+### Tmux Label Cleanup
+
+`repo-end` must clear the explicit repo label state written by `repo-start`.
+After `repo-end`, the bottom pane status should fall back to the simple label:
+
+```text
+<cwd-basename> | <hostname>
+```
+
+This prevents stale branch/worktree labels after the feature branch has been
+merged and removed.
+
+## Tmux Label Ownership
+
+Repo-aware tmux pane labels are only written by repo lifecycle commands:
+
+- `repo-start` writes the explicit repo/branch label.
+- `repo-end` clears that explicit label.
+- `tmux-agent-worktree set` is the low-level writer called by `repo-start`.
+- `tmux-agent-worktree clear` is the low-level clearer called by `repo-end`.
+
+Generic tmux hooks should stay simple:
+
+- `tmux-update-pane-label` may cache a fallback label for new or focused panes.
+- `tmux-pane-label` should produce only `<cwd-basename> | <hostname>` fallback
+  labels unless a remote pane title already provides a structured label.
+- hostnames belong in the bottom pane label and should always be shown there.
+- window labels should not include hostnames; they are too long for the top
+  window list.
 
 ## Raw Worktree Cleanup Ownership
 
