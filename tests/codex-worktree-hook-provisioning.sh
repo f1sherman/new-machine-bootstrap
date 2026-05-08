@@ -182,6 +182,17 @@ assert_contains "$TASK_OUTPUT" 'changed' 'config task updates false feature valu
 assert_regex_count "$config_file_false" '^\[features\]([[:space:]]*[#;].*)?$' 1 'config task keeps one plain features table'
 assert_regex_count "$config_file_false" '^hooks = true$' 1 'config task replaces false value'
 assert_file_contains "$config_file_false" 'other = 1' 'config task preserves other settings'
+
+config_file_prefix="$tmpdir/config-prefix.toml"
+printf '[features]\nhooks_extra = false\ncodex_hooks_extra = true\nhooks = false\ncodex_hooks = false\n' > "$config_file_prefix"
+run_task_snippet "$CONFIG_SNIPPET" "$config_script" env CONFIG_FILE="$config_file_prefix" bash
+assert_eq "$TASK_STATUS" "0" 'config task exits cleanly with feature keys sharing hooks prefix'
+assert_contains "$TASK_OUTPUT" 'changed' 'config task updates exact hooks key with feature keys sharing hooks prefix'
+assert_regex_count "$config_file_prefix" '^hooks = true$' 1 'config task replaces exact hooks key only'
+assert_regex_count "$config_file_prefix" '^codex_hooks = ' 0 'config task removes exact deprecated key only'
+assert_file_contains "$config_file_prefix" 'hooks_extra = false' 'config task preserves sibling hooks prefix key'
+assert_file_contains "$config_file_prefix" 'codex_hooks_extra = true' 'config task preserves sibling deprecated hooks prefix key'
+
 config_false_snapshot="$tmpdir/config-false.snapshot"
 cp "$config_file_false" "$config_false_snapshot"
 chmod 0644 "$config_file_false"
