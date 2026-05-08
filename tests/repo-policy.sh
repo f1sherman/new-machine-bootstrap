@@ -202,6 +202,11 @@ run_codex_vim_mode_checks() {
     "model = \"gpt-5.5\"\ntui.theme = \"dark\"\ntui.vim_mode_default = true\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
 
   assert_codex_vim_mode_merge \
+    "Codex Vim mode merge recognizes spaced dotted TUI keys" \
+    "model = \"gpt-5.5\"\ntui . session_picker_view = \"recent\"\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
+    "model = \"gpt-5.5\"\ntui . session_picker_view = \"recent\"\ntui.vim_mode_default = true\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
+
+  assert_codex_vim_mode_merge \
     "Codex Vim mode merge preserves inline TUI tables" \
     "model = \"gpt-5.5\"\ntui = { theme = \"dark\", vim_mode_default = false, notifications = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
     "model = \"gpt-5.5\"\ntui = { theme = \"dark\", vim_mode_default = true, notifications = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"

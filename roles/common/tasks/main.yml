@@ -1134,11 +1134,11 @@
     end
 
     dotted_tui_key = lambda do |line|
-      !commented.call(line) && line.match?(/^\s*tui\./)
+      !commented.call(line) && line.match?(/^\s*tui\s*\./)
     end
 
     dotted_tui_vim_mode = lambda do |line|
-      !commented.call(line) && line.match?(/^\s*tui\.vim_mode_default\s*=/)
+      !commented.call(line) && line.match?(/^\s*tui\s*\.\s*vim_mode_default\s*=/)
     end
 
     root_lines = []
