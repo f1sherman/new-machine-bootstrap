@@ -92,7 +92,7 @@ PATH="$stub_bin:$PATH" \
   "$AGENT_WORKTREE" set "$repo_path"
 
 assert_file_contains "$state_dir/%1.@agent_worktree_path" "$repo_path" "repo-start tmux writer stores explicit repo path"
-assert_file_contains "$state_dir/%1.@pane-label" "label-repo feature/label | host-a" "repo-start tmux writer stores repo branch pane label"
+assert_file_contains "$state_dir/%1.@pane-label" "(feature/label) label-repo | host-a" "repo-start tmux writer stores repo branch pane label"
 
 TMUX=1 \
 TMUX_PANE="%1" \
@@ -110,7 +110,7 @@ mkdir -p "$fake_tmux_dir"
 cat >"$fake_tmux_dir/tmux" <<'STUB'
 #!/usr/bin/env bash
 if [ "$1" = "display-message" ]; then
-  printf '@1\t1\told-window\t/dev/null\t/tmp/project\tssh\tproject feature/remote | remote-host\t%%1\n'
+  printf '@1\t1\told-window\t/dev/null\t/tmp/project\tssh\t(feature/remote) project | remote-host\t%%1\n'
   exit 0
 fi
 if [ "$1" = "rename-window" ]; then
@@ -122,7 +122,7 @@ STUB
 chmod +x "$fake_tmux_dir/tmux"
 
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
-assert_file_contains "$window_log" "rename-window -t @1 project feature/remote" "window labels strip hostname from structured labels"
+assert_file_contains "$window_log" "rename-window -t @1 (feature/remote) project" "window labels strip hostname from structured labels"
 
 cached_tmux_dir="$TMPROOT/fake-tmux-bin-cached"
 cached_log="$TMPROOT/window-label-cached.log"
@@ -138,7 +138,7 @@ case "$1" in
     for arg in "$@"; do
       case "$arg" in
         @pane-label)
-          printf 'cached-repo cached-branch | host-a\n'
+          printf '(cached-branch) cached-repo | host-a\n'
           exit 0
           ;;
         @agent_worktree_path)
@@ -159,7 +159,7 @@ STUB
 chmod +x "$cached_tmux_dir/tmux"
 
 TMUX_WINDOW_LABEL_LOG="$cached_log" PATH="$cached_tmux_dir:$PATH" "$WINDOW_LABEL" "%2"
-assert_file_contains "$cached_log" "rename-window -t @2 cached-repo cached-branch" "agent panes use cached @pane-label for window name"
+assert_file_contains "$cached_log" "rename-window -t @2 (cached-branch) cached-repo" "agent panes use cached @pane-label for window name"
 
 stale_tmux_dir="$TMPROOT/fake-tmux-bin-stale"
 stale_log="$TMPROOT/window-label-stale.log"

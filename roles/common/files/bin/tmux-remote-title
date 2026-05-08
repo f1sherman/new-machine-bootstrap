@@ -155,9 +155,9 @@ formatted_local_path_label() {
 
   if [ -n "$branch" ] && [ -n "$repo" ]; then
     if dirty_marker "$path"; then
-      printf '%s *%s\n' "$repo" "$branch"
+      printf '(*%s) %s\n' "$branch" "$repo"
     else
-      printf '%s %s\n' "$repo" "$branch"
+      printf '(%s) %s\n' "$branch" "$repo"
     fi
     return 0
   fi
