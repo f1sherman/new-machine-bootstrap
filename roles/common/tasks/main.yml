@@ -1663,15 +1663,10 @@
     path: '{{ ansible_facts["user_dir"] }}/{{ item }}'
     state: absent
   loop:
-    - .claude/skills/_monitor-pr
     - .claude/skills/_monitor-github-pr
-    - '{{ ".claude/skills/_monitor-" ~ "for" ~ "gejo" ~ "-pr" }}'
-    - .codex/skills/_monitor-pr
     - .codex/skills/_monitor-github-pr
-    - '{{ ".codex/skills/_monitor-" ~ "for" ~ "gejo" ~ "-pr" }}'
     - .local/share/skills/_pr-monitor
     - .local/share/skills/_pr-workflow-common
-    - '{{ ".local/share/skills/_pr-" ~ "for" ~ "gejo" }}'
     - .local/share/skills/_pr-github
 
 - name: Remove legacy custom skill and agent installs
