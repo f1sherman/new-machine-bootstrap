@@ -22,6 +22,11 @@ clear_pane_option() {
   fi
 }
 
+refresh_client() {
+  [ -n "${TMUX_AGENT_WORKTREE_STATE_DIR:-}" ] && return 0
+  tmux refresh-client -S 2>/dev/null || true
+}
+
 [ -n "${TMUX:-}" ] || exit 0
 
 clear_mode=0
@@ -40,6 +45,7 @@ done
 
 if [ "$clear_mode" -eq 1 ]; then
   clear_pane_option "$pane" "@pane-link"
+  refresh_client
   exit 0
 fi
 
@@ -68,3 +74,4 @@ fi
 label="${label//#/##}"
 value="#[hyperlink=\"$url\"]$label#[hyperlink=]"
 write_pane_option "$pane" "@pane-link" "$value"
+refresh_client
