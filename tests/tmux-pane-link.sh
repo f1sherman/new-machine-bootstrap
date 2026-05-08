@@ -149,4 +149,21 @@ assert_file_contains \
   '#[hyperlink="https://example.com"]GH##1234#[hyperlink=]' \
   "# in LABEL is doubled in stored value"
 
+# Case: LABEL longer than 64 chars is truncated to 63 chars + …
+state_dir="$TMPROOT/state-trunc"
+long="$(printf 'a%.0s' {1..100})"
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" "$long" "https://example.com"
+content="$(cat "$state_dir/%1.@pane-link")"
+expected_label="$(printf 'a%.0s' {1..63})…"
+assert_file_contains \
+  "$state_dir/%1.@pane-link" \
+  "]${expected_label}#[" \
+  "long LABEL truncated to 63 chars + ellipsis"
+# Confirm the un-truncated 100-char run did NOT survive.
+if grep -Fq "$(printf 'a%.0s' {1..100})" "$state_dir/%1.@pane-link"; then
+  fail_case "long LABEL truncated to 63 chars + ellipsis" \
+    "found 100-char run in: $content"
+fi
+
 printf 'tmux pane-link checks complete\n'
