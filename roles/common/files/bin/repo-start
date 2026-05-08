@@ -66,7 +66,6 @@ Error: no .repo.yml found and no mode flag given.
     then retry with --use-worktrees or --no-worktrees (writes .repo.yml).
   Non-interactive caller (subagent, automation, no user channel):
     retry with --no-worktrees --ephemeral (branch mode, .repo.yml not written).
-  Or create .repo.yml manually with: use_worktrees: true|false
 ERR
   return 2
 }
