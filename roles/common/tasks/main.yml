@@ -1157,8 +1157,8 @@
         root_lines.map do |line|
           next line unless inline_tui_table.call(line)
 
-          if line.match?(/([,{]\s*)vim_mode_default\s*=\s*(?:true|false|"[^"]*"|'[^']*')/)
-            line.sub(/([,{]\s*)vim_mode_default\s*=\s*(?:true|false|"[^"]*"|'[^']*')/, "\\1vim_mode_default = true")
+          if line.match?(/([,{]\s*)vim_mode_default\s*=\s*(?:true|false|"[^"]*"|\x27[^\x27]*\x27)/)
+            line.sub(/([,{]\s*)vim_mode_default\s*=\s*(?:true|false|"[^"]*"|\x27[^\x27]*\x27)/, "\\1vim_mode_default = true")
           else
             line.sub(/\s*\}(\s*(?:[#;].*)?)$/) do
               table_end = Regexp.last_match(1)
