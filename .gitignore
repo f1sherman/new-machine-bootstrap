@@ -1,5 +1,6 @@
 playbook.retry
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 dummy.*
 ._*
 .DS_Store
