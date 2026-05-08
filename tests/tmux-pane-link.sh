@@ -74,4 +74,70 @@ TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
   "$PANE_LINK" --clear
 assert_no_file "$state_dir/%1.@pane-link" "--clear removes @pane-link"
 
+# Case: javascript: scheme rejected
+state_dir="$TMPROOT/state-bad-js"
+mkdir -p "$state_dir"
+set +e
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" "x" "javascript:alert(1)"
+rc=$?
+set -e
+assert_equals "$rc" "2" "javascript: URL exits 2"
+assert_no_file "$state_dir/%1.@pane-link" "javascript: URL writes nothing"
+
+# Case: file:// scheme rejected
+state_dir="$TMPROOT/state-bad-file"
+mkdir -p "$state_dir"
+set +e
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" "x" "file:///etc/passwd"
+rc=$?
+set -e
+assert_equals "$rc" "2" "file:// URL exits 2"
+assert_no_file "$state_dir/%1.@pane-link" "file:// URL writes nothing"
+
+# Case: scheme-less URL rejected
+state_dir="$TMPROOT/state-bad-bare"
+mkdir -p "$state_dir"
+set +e
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" "x" "example.com"
+rc=$?
+set -e
+assert_equals "$rc" "2" "scheme-less URL exits 2"
+assert_no_file "$state_dir/%1.@pane-link" "scheme-less URL writes nothing"
+
+# Case: control character in URL rejected
+state_dir="$TMPROOT/state-bad-ctrl"
+mkdir -p "$state_dir"
+set +e
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" "x" $'https://example.com/\x1b]8;;evil\x1b\\'
+rc=$?
+set -e
+assert_equals "$rc" "2" "URL with ESC byte exits 2"
+assert_no_file "$state_dir/%1.@pane-link" "URL with ESC byte writes nothing"
+
+# Case: backslash in URL rejected
+state_dir="$TMPROOT/state-bad-bs"
+mkdir -p "$state_dir"
+set +e
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" "x" 'https://example.com/\bad'
+rc=$?
+set -e
+assert_equals "$rc" "2" "URL with backslash exits 2"
+assert_no_file "$state_dir/%1.@pane-link" "URL with backslash writes nothing"
+
+# Case: double-quote in URL rejected
+state_dir="$TMPROOT/state-bad-dq"
+mkdir -p "$state_dir"
+set +e
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" "x" 'https://example.com/"injected'
+rc=$?
+set -e
+assert_equals "$rc" "2" "URL with double-quote exits 2"
+assert_no_file "$state_dir/%1.@pane-link" "URL with double-quote writes nothing"
+
 printf 'tmux pane-link checks complete\n'

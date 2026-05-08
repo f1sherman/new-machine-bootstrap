@@ -43,5 +43,22 @@ fi
 
 label="${positional[0]:-}"
 url="${positional[1]:-}"
+
+err() {
+  printf 'tmux-pane-link: %s\n' "$1" >&2
+  exit 2
+}
+
+# URL must start with http:// or https://
+case "$url" in
+  http://*|https://*|HTTP://*|HTTPS://*) ;;
+  *) err "URL must start with http:// or https://" ;;
+esac
+
+# URL must not contain control characters, backslash, or double-quote.
+if printf '%s' "$url" | LC_ALL=C grep -qE '[[:cntrl:]"\\]'; then
+  err "URL contains forbidden character"
+fi
+
 value="#[hyperlink=\"$url\"]$label#[hyperlink=]"
 write_pane_option "$pane" "@pane-link" "$value"
