@@ -258,7 +258,9 @@ _repo_config_path() {
 _repo_read_mode() {
   local repo_root="$1" value
   [[ -f "$(_repo_config_path "$repo_root")" ]] || return 1
-  if ! value="$("$(_worktree_cmd yq)" -r '.use_worktrees // ""' "$(_repo_config_path "$repo_root")")"; then
+  # tojson distinguishes false from null/missing; .use_worktrees // ""
+  # would coalesce false to "" because mikefarah/yq's // is falsy-coalescing.
+  if ! value="$("$(_worktree_cmd yq)" -r '.use_worktrees | tojson' "$(_repo_config_path "$repo_root")")"; then
     printf 'Error: failed to read .repo.yml\n' >&2
     return 2
   fi
@@ -269,7 +271,7 @@ _repo_read_mode() {
     false)
       printf 'branch\n'
       ;;
-    '')
+    null)
       return 1
       ;;
     *)
