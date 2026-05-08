@@ -166,4 +166,12 @@ if grep -Fq "$(printf 'a%.0s' {1..100})" "$state_dir/%1.@pane-link"; then
     "found 100-char run in: $content"
 fi
 
+# Case: no $TMUX → exit 0, no write, even with otherwise-valid args
+state_dir="$TMPROOT/state-no-tmux"
+mkdir -p "$state_dir"
+( unset TMUX; \
+  TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+    "$PANE_LINK" "GH1" "https://example.com" )
+assert_no_file "$state_dir/%1.@pane-link" "no \$TMUX writes nothing"
+
 printf 'tmux pane-link checks complete\n'
