@@ -217,6 +217,7 @@ cmd_clear() {
   clear_pane_option "$TMUX_PANE" "@agent_worktree_path"
   clear_pane_option "$TMUX_PANE" "@agent_worktree_pid"
   clear_pane_option "$TMUX_PANE" "@pane-label"
+  clear_pane_option "$TMUX_PANE" "@pane-link"
   refresh_window_label
   publish_title
 }

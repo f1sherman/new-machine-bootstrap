@@ -33,6 +33,9 @@ jobs:
       - name: Verify tmux label contract
         run: bash tests/tmux-label-contract.sh
 
+      - name: Verify tmux pane-link contract
+        run: bash tests/tmux-pane-link.sh
+
       - name: Verify Codex auth skill guidance
         run: bash tests/generate-codex-auth-skill.sh
 

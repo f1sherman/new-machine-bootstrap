@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Attach a clickable link annotation (OSC 8) to the current tmux pane.
+# Stored as the @pane-link user option, rendered by pane-border-format.
+set -u
+
+write_pane_option() {
+  local pane="$1" name="$2" value="$3"
+  if [ -n "${TMUX_AGENT_WORKTREE_STATE_DIR:-}" ]; then
+    mkdir -p "$TMUX_AGENT_WORKTREE_STATE_DIR"
+    printf '%s' "$value" > "$TMUX_AGENT_WORKTREE_STATE_DIR/$pane.$name"
+  else
+    tmux set-option -pq -t "$pane" "$name" "$value" 2>/dev/null || true
+  fi
+}
+
+clear_pane_option() {
+  local pane="$1" name="$2"
+  if [ -n "${TMUX_AGENT_WORKTREE_STATE_DIR:-}" ]; then
+    rm -f "$TMUX_AGENT_WORKTREE_STATE_DIR/$pane.$name"
+  else
+    tmux set-option -pqu -t "$pane" "$name" 2>/dev/null || true
+  fi
+}
+
+refresh_client() {
+  [ -n "${TMUX_AGENT_WORKTREE_STATE_DIR:-}" ] && return 0
+  tmux refresh-client -S 2>/dev/null || true
+}
+
+[ -n "${TMUX:-}" ] || exit 0
+
+clear_mode=0
+positional=()
+pane=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --clear) clear_mode=1; shift ;;
+    --pane)  pane="${2:-}"; shift 2 ;;
+    *)       positional+=("$1"); shift ;;
+  esac
+done
+
+[ -n "$pane" ] || pane="${TMUX_PANE:-}"
+[ -n "$pane" ] || exit 0
+
+if [ "$clear_mode" -eq 1 ]; then
+  clear_pane_option "$pane" "@pane-link"
+  refresh_client
+  exit 0
+fi
+
+label="${positional[0]:-}"
+url="${positional[1]:-}"
+
+err() {
+  printf 'tmux-pane-link: %s\n' "$1" >&2
+  exit 2
+}
+
+# URL must start with http:// or https://
+case "$url" in
+  http://*|https://*|HTTP://*|HTTPS://*) ;;
+  *) err "URL must start with http:// or https://" ;;
+esac
+
+# URL must not contain control characters, backslash, or double-quote.
+if printf '%s' "$url" | LC_ALL=C grep -qE '[[:cntrl:]"\\]'; then
+  err "URL contains forbidden character"
+fi
+
+if [ "${#label}" -gt 64 ]; then
+  label="${label:0:63}…"
+fi
+label="${label//#/##}"
+value="#[hyperlink=\"$url\"]$label#[hyperlink=]"
+write_pane_option "$pane" "@pane-link" "$value"
+refresh_client

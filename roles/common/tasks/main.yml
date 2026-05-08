@@ -290,6 +290,7 @@
   loop:
     - tmux-devpod-name
     - tmux-pane-label
+    - tmux-pane-link
     - tmux-update-pane-label
     - tmux-update-all-pane-labels
     - tmux-window-label
