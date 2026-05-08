@@ -1163,7 +1163,7 @@
             line.sub(/\s*\}(\s*(?:[#;].*)?)$/) do
               table_end = Regexp.last_match(1)
               prefix = line.match?(/\{\s*\}/) ? " vim_mode_default = true " : ", vim_mode_default = true "
-              "#{prefix}}#{table_end}"
+              prefix + "}" + table_end
             end
           end
         end
