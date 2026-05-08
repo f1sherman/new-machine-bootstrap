@@ -13,12 +13,35 @@ write_pane_option() {
   fi
 }
 
+clear_pane_option() {
+  local pane="$1" name="$2"
+  if [ -n "${TMUX_AGENT_WORKTREE_STATE_DIR:-}" ]; then
+    rm -f "$TMUX_AGENT_WORKTREE_STATE_DIR/$pane.$name"
+  else
+    tmux set-option -pqu -t "$pane" "$name" 2>/dev/null || true
+  fi
+}
+
 [ -n "${TMUX:-}" ] || exit 0
 
-label="${1:-}"
-url="${2:-}"
+clear_mode=0
+positional=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --clear) clear_mode=1; shift ;;
+    *)       positional+=("$1"); shift ;;
+  esac
+done
+
 pane="${TMUX_PANE:-}"
 [ -n "$pane" ] || exit 0
 
+if [ "$clear_mode" -eq 1 ]; then
+  clear_pane_option "$pane" "@pane-link"
+  exit 0
+fi
+
+label="${positional[0]:-}"
+url="${positional[1]:-}"
 value="#[hyperlink=\"$url\"]$label#[hyperlink=]"
 write_pane_option "$pane" "@pane-link" "$value"

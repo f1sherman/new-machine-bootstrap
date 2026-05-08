@@ -66,4 +66,12 @@ assert_file_contains \
   '#[hyperlink="http://example.com"]x#[hyperlink=]' \
   "set with http writes OSC 8 hyperlink"
 
+# Case: --clear removes the @pane-link option
+state_dir="$TMPROOT/state-clear"
+mkdir -p "$state_dir"
+printf 'preexisting' > "$state_dir/%1.@pane-link"
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" --clear
+assert_no_file "$state_dir/%1.@pane-link" "--clear removes @pane-link"
+
 printf 'tmux pane-link checks complete\n'
