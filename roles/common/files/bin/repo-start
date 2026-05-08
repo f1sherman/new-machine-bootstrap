@@ -9,16 +9,21 @@ usage() {
   cat <<'EOF'
 Usage: repo-start <branch> [path]
        repo-start --branch <branch> [--path <path>] [--from <start-point>] [--print-path] [--json]
-       repo-start --use-worktrees <branch>
-       repo-start --no-worktrees <branch>
+       repo-start --use-worktrees [--ephemeral] <branch>
+       repo-start --no-worktrees [--ephemeral] <branch>
+
+--ephemeral: use the given mode for this run only; do not write .repo.yml.
+             Requires --use-worktrees or --no-worktrees.
 EOF
 }
 
 resolve_mode() {
-  local explicit_mode="$1" repo_root="$2" mode read_status answer
+  local explicit_mode="$1" repo_root="$2" ephemeral="$3" mode read_status answer
 
   if [[ -n "$explicit_mode" ]]; then
-    _repo_write_mode "$repo_root" "$explicit_mode"
+    if [[ "$ephemeral" != "true" ]]; then
+      _repo_write_mode "$repo_root" "$explicit_mode"
+    fi
     printf '%s\n' "$explicit_mode"
     return 0
   fi
@@ -55,15 +60,21 @@ resolve_mode() {
     return 0
   fi
 
-  printf 'Error: no .repo.yml found and no mode flag given.\n' >&2
-  printf 'Pass --use-worktrees or --no-worktrees, or create .repo.yml with use_worktrees: true|false.\n' >&2
+  cat >&2 <<'ERR'
+Error: no .repo.yml found and no mode flag given.
+  Interactive caller (has a user channel): ask the user worktree-vs-branch,
+    then retry with --use-worktrees or --no-worktrees (writes .repo.yml).
+  Non-interactive caller (subagent, automation, no user channel):
+    retry with --no-worktrees --ephemeral (branch mode, .repo.yml not written).
+  Or create .repo.yml manually with: use_worktrees: true|false
+ERR
   return 2
 }
 
 main() {
   local branch path start_point print_path json_output path_explicit repo_root settings_source
   local default_root existing_branch_path existing_path_branch branch_ref_exists
-  local needs_prune repaired repair_allowed status mode explicit_mode
+  local needs_prune repaired repair_allowed status mode explicit_mode ephemeral
   branch=""
   path=""
   start_point="HEAD"
@@ -73,6 +84,7 @@ main() {
   repaired="false"
   repair_allowed="false"
   explicit_mode=""
+  ephemeral="false"
   status=""
 
   while [[ $# -gt 0 ]]; do
@@ -104,6 +116,10 @@ main() {
           return 1
         fi
         explicit_mode="branch"
+        shift
+        ;;
+      --ephemeral)
+        ephemeral="true"
         shift
         ;;
       --print-path)
@@ -141,6 +157,11 @@ main() {
     return 1
   fi
 
+  if [[ "$ephemeral" == "true" && -z "$explicit_mode" ]]; then
+    printf 'Error: --ephemeral requires --use-worktrees or --no-worktrees\n' >&2
+    return 1
+  fi
+
   repo_root="$(_worktree_repo_root)"
   _worktree_debug "pwd=$PWD"
   _worktree_debug "git=$(_worktree_cmd git)"
@@ -150,7 +171,7 @@ main() {
     return 1
   fi
 
-  mode="$(resolve_mode "$explicit_mode" "$repo_root")" || return $?
+  mode="$(resolve_mode "$explicit_mode" "$repo_root" "$ephemeral")" || return $?
 
   if ! "$(_worktree_cmd git)" -C "$repo_root" rev-parse --verify "$start_point" >/dev/null 2>&1; then
     printf 'Error: invalid start point: %s\n' "$start_point" >&2

@@ -201,7 +201,29 @@ else
 fi
 assert_no_file "$noninteractive_repo/.repo.yml" "noninteractive missing config does not write .repo.yml"
 assert_file_contains "$TMPROOT/noninteractive.err" "no .repo.yml found and no mode flag given" "noninteractive missing config names the missing policy"
-assert_file_contains "$TMPROOT/noninteractive.err" "Pass --use-worktrees or --no-worktrees" "noninteractive missing config tells caller how to resolve"
+assert_file_contains "$TMPROOT/noninteractive.err" "Interactive caller" "noninteractive missing config explains interactive path"
+assert_file_contains "$TMPROOT/noninteractive.err" "--no-worktrees --ephemeral" "noninteractive missing config explains ephemeral path"
+
+ephemeral_branch_repo="$(create_repo start-ephemeral-branch)"
+ephemeral_branch_path="$(cd "$ephemeral_branch_repo" && "$REPO_START_SCRIPT" --no-worktrees --ephemeral feature/ephemeral --print-path)"
+assert_equals "$ephemeral_branch_path" "$ephemeral_branch_repo" "ephemeral branch mode prints repo root"
+assert_equals "$(git -C "$ephemeral_branch_repo" rev-parse --abbrev-ref HEAD)" "feature/ephemeral" "ephemeral branch mode checks out branch"
+assert_no_file "$ephemeral_branch_repo/.repo.yml" "ephemeral branch mode does not write .repo.yml"
+
+ephemeral_worktree_repo="$(create_repo start-ephemeral-worktree)"
+ephemeral_worktree_path="$(cd "$ephemeral_worktree_repo" && "$REPO_START_SCRIPT" --use-worktrees --ephemeral feature/ephemeral-wt --print-path)"
+[ -e "$ephemeral_worktree_path/.git" ] || fail_case "ephemeral worktree mode creates linked checkout" "missing .git at $ephemeral_worktree_path"
+pass_case "ephemeral worktree mode creates linked checkout"
+assert_no_file "$ephemeral_worktree_repo/.repo.yml" "ephemeral worktree mode does not write .repo.yml"
+assert_no_file "$ephemeral_worktree_path/.repo.yml" "ephemeral worktree mode does not seed worktree .repo.yml"
+
+ephemeral_alone_repo="$(create_repo start-ephemeral-alone)"
+if (cd "$ephemeral_alone_repo" && "$REPO_START_SCRIPT" --ephemeral feature/lonely) >"$TMPROOT/ephemeral-alone.out" 2>"$TMPROOT/ephemeral-alone.err"; then
+  fail_case "ephemeral without mode flag fails" "repo-start unexpectedly accepted --ephemeral alone"
+else
+  pass_case "ephemeral without mode flag fails"
+fi
+assert_file_contains "$TMPROOT/ephemeral-alone.err" "--ephemeral requires --use-worktrees or --no-worktrees" "ephemeral alone names the missing mode flag"
 
 invalid_config_repo="$(create_repo start-invalid-config)"
 printf 'use_worktrees: maybe\n' >"$invalid_config_repo/.repo.yml"
