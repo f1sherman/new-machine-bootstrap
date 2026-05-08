@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -207,7 +208,8 @@ run_renovate_checks() {
 run_integration_checks() {
   assert_contains "$INTEGRATION_WORKFLOW" "pull_request:" "integration workflow runs on pull requests"
   assert_not_contains "$INTEGRATION_WORKFLOW" "push:" "integration workflow no longer runs on post-merge pushes"
-  assert_contains "$INTEGRATION_WORKFLOW" "bash tests/pinned-tool-versions.sh core" "integration workflow runs pinned-tool-versions regression test"
+  assert_contains "$INTEGRATION_WORKFLOW" "bash tests/ci-test-inventory.sh" "integration workflow verifies the test inventory"
+  assert_contains "$INTEGRATION_WORKFLOW" "bash tests/repo-policy.sh all" "integration workflow runs all repository policy regression checks"
   assert_contains "$INTEGRATION_WORKFLOW" "vars/tool_versions.yml" "integration workflow reads the shared version catalog"
   assert_contains "$INTEGRATION_WORKFLOW" 'local_bin="$HOME/.local/bin"' "integration workflow resolves the user-local binary directory"
   assert_contains "$INTEGRATION_WORKFLOW" 'user_mise="$local_bin/mise"' "integration workflow checks the provisioned mise binary"
