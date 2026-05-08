@@ -33,6 +33,25 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+run_repo_end_callbacks() {
+  local callback_dir="$HOME/.local/bin/repo-end.d"
+  local callback
+
+  [[ -d "$callback_dir" ]] || return 0
+
+  for callback in "$callback_dir"/*; do
+    [[ -f "$callback" && -x "$callback" ]] || continue
+    if ! "$callback" \
+      --repo-dir "$repo_root" \
+      --branch "$current_branch" \
+      --main-branch "$main_branch" \
+      --main-path "$main_path"; then
+      printf 'repo-end callback failed: %s\n' "$callback" >&2
+      return 1
+    fi
+  done
+}
+
 repo_root="$(_worktree_repo_root)" || {
   printf 'Error: not inside a git repository\n' >&2
   exit 1
@@ -166,6 +185,10 @@ if [[ "$print_path" == "true" ]]; then
   cleanup_after_merge >&2
 else
   cleanup_after_merge
+fi
+
+if ! run_repo_end_callbacks; then
+  exit 1
 fi
 
 printf '%s\n' "$main_path"
