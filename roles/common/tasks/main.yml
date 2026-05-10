@@ -549,6 +549,10 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
+- name: Install mise Node.js global tools (Linux)
+  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_mise_node_global_tools.yml'
+  when: ansible_facts["os_family"] == "Debian"
+
 - name: Check if pinned Ruby version is installed
   shell: "{{ mise_bin }} ls ruby | awk '$1 == \"ruby\" && $2 == \"{{ tool_versions.runtimes.ruby }}\" { found = 1 } END { exit(found ? 0 : 1) }'"
   register: ruby_installed
