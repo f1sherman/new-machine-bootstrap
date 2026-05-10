@@ -1,0 +1,15 @@
+---
+- name: Resolve pinned mise Node.js path for global npm tools
+  command: "{{ mise_bin }} where node@{{ tool_versions.runtimes.node }}"
+  register: mise_node_global_tools_node_path
+  changed_when: false
+
+- name: Install or update gsd-browser via mise npm
+  shell: |
+    set -euo pipefail
+    node_bin="{{ mise_node_global_tools_node_path.stdout }}/bin"
+    mise_bin_dir="$(dirname "{{ mise_bin }}")"
+    PATH="$node_bin:$mise_bin_dir:$PATH" "$node_bin/npm" install -g gsd-browser@latest
+  args:
+    executable: /bin/bash
+  changed_when: false

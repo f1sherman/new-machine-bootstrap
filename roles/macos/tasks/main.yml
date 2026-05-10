@@ -110,6 +110,9 @@
   command: "{{ mise_bin }} use --global node@{{ tool_versions.runtimes.node }}"
   when: current_global_node.stdout != tool_versions.runtimes.node
 
+- name: Install mise Node.js global tools (macOS)
+  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_mise_node_global_tools.yml'
+
 - name: Create ghostty config directory
   file:
     dest: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty'
