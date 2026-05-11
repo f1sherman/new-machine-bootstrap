@@ -31,3 +31,10 @@ case "$source" in
 esac
 
 tmux set-option -pt "$TMUX_PANE" @persist_claude_session_id "$session_id" >/dev/null 2>&1 || exit 0
+
+# Part 1: refresh the cached pane label and rename the window. Idempotent — for
+# agent worktree panes this preserves the cached @pane-label (because
+# tmux-update-pane-label short-circuits when @agent_worktree_path is set) and
+# only re-renders the window name. For non-agent panes it recomputes both.
+tmux-update-pane-label "$TMUX_PANE" >/dev/null 2>&1 || true
+tmux-window-label "$TMUX_PANE" >/dev/null 2>&1 || true
