@@ -100,4 +100,30 @@ out_a="$(run_hook "$stubdir_a" '{"session_id":"abc","source":"resume"}')"
 assert_file_contains "$TMPROOT/update-pane-label.log" "%1" "Part 1: tmux-update-pane-label invoked with TMUX_PANE on resume"
 assert_file_contains "$TMPROOT/window-label.log" "%1" "Part 1: tmux-window-label invoked with TMUX_PANE on resume"
 
+
+# ----- Scenario B: resume with @agent_worktree_path UNSET; nudge fires with correct shape. -----
+stubdir_b="$TMPROOT/stub-b"
+make_stubs "$stubdir_b" "" ""
+out_b="$(run_hook "$stubdir_b" '{"session_id":"abc","source":"resume"}')"
+
+event="$(printf '%s' "$out_b" | jq -r '.hookSpecificOutput.hookEventName // empty' 2>/dev/null || true)"
+ctx="$(printf '%s' "$out_b" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null || true)"
+assert_equals "$event" "SessionStart" "Part 2: hookEventName is SessionStart when @agent_worktree_path is unset"
+case "$ctx" in
+  *"tmux-agent-worktree set"*) pass_case "Part 2: additionalContext mentions tmux-agent-worktree set" ;;
+  *) fail_case "Part 2: additionalContext mentions tmux-agent-worktree set" "got: $ctx" ;;
+esac
+case "$ctx" in
+  *"active worktree"*) pass_case "Part 2: additionalContext mentions 'active worktree'" ;;
+  *) fail_case "Part 2: additionalContext mentions 'active worktree'" "got: $ctx" ;;
+esac
+# Part 1 still fires even when the nudge fires.
+assert_file_contains "$TMPROOT/update-pane-label.log" "%1" "Part 1: label refresh still invoked when nudge fires"
+
+# ----- Scenario C: resume with @agent_worktree_path SET; nudge suppressed. -----
+stubdir_c="$TMPROOT/stub-c"
+make_stubs "$stubdir_c" "/some/worktree" ""
+out_c="$(run_hook "$stubdir_c" '{"session_id":"abc","source":"resume"}')"
+assert_empty "$out_c" "Part 2 suppressed when @agent_worktree_path is set"
+
 printf 'tmux-claude-session-start checks complete\n'
