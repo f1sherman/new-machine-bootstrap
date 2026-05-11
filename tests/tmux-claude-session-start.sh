@@ -126,4 +126,13 @@ make_stubs "$stubdir_c" "/some/worktree" ""
 out_c="$(run_hook "$stubdir_c" '{"session_id":"abc","source":"resume"}')"
 assert_empty "$out_c" "Part 2 suppressed when @agent_worktree_path is set"
 
+
+# ----- Scenario D: nested call (startup source + existing session id) bails before Part 1 or Part 2. -----
+stubdir_d="$TMPROOT/stub-d"
+make_stubs "$stubdir_d" "" "outer-session-id"
+out_d="$(run_hook "$stubdir_d" '{"session_id":"new-session-id","source":""}')"
+assert_empty "$out_d" "Nested call: no nudge JSON emitted"
+assert_file_empty "$TMPROOT/update-pane-label.log" "Nested call: tmux-update-pane-label not invoked"
+assert_file_empty "$TMPROOT/window-label.log" "Nested call: tmux-window-label not invoked"
+
 printf 'tmux-claude-session-start checks complete\n'
