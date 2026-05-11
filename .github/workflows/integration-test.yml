@@ -30,6 +30,9 @@ jobs:
       - name: Verify repo-end callback behavior
         run: bash tests/repo-end-callbacks.sh
 
+      - name: Verify repo-start callback behavior
+        run: bash tests/repo-start-callbacks.sh
+
       - name: Verify tmux label contract
         run: bash tests/tmux-label-contract.sh
 

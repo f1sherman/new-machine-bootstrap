@@ -5,6 +5,29 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=roles/common/files/bin/repo-lib.sh
 source "$SCRIPT_DIR/repo-lib.sh"
 
+run_repo_start_callbacks() {
+  local callback_dir="$HOME/.local/bin/repo-start.d"
+  local callback
+  local repo_dir="$1"
+  local branch="$2"
+  local main_branch="$3"
+  local status="$4"
+
+  [[ -d "$callback_dir" ]] || return 0
+
+  for callback in "$callback_dir"/*; do
+    [[ -f "$callback" && -x "$callback" ]] || continue
+    if ! "$callback" \
+      --repo-dir "$repo_dir" \
+      --branch "$branch" \
+      --main-branch "$main_branch" \
+      --status "$status"; then
+      printf 'repo-start callback failed: %s\n' "$callback" >&2
+      return 1
+    fi
+  done
+}
+
 usage() {
   cat <<'EOF'
 Usage: repo-start <branch> [path]
@@ -303,12 +326,21 @@ main() {
     fi
   fi
 
+  local main_branch
+  main_branch="$(_worktree_main_branch)"
+
   if ! _worktree_publish_tmux_state "$path"; then
     if [[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]]; then
       printf 'tmux publish failed\n' >&2
       printf '%s\n' "$path" >&2
       return 1
     fi
+  fi
+
+  if [[ "$json_output" == "true" || "$print_path" == "true" ]]; then
+    run_repo_start_callbacks "$path" "$branch" "$main_branch" "$status" >&2 || return 1
+  else
+    run_repo_start_callbacks "$path" "$branch" "$main_branch" "$status" || return 1
   fi
 
   if [[ "$json_output" == "true" ]]; then
