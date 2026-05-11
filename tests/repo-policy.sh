@@ -19,6 +19,7 @@ TMUX_AGENT_WORKTREE="$REPO_ROOT/roles/common/files/bin/tmux-agent-worktree"
 TMUX_PANE_LABEL="$REPO_ROOT/roles/common/files/bin/tmux-pane-label"
 TMUX_WINDOW_LABEL="$REPO_ROOT/roles/common/files/bin/tmux-window-label"
 TMUX_SYNC_REMOTE_TITLE="$REPO_ROOT/roles/common/files/bin/tmux-sync-remote-title"
+TMUX_SESSION_NAME="$REPO_ROOT/roles/common/files/bin/tmux-session-name"
 LINUX_TMUX_CONF="$REPO_ROOT/roles/linux/files/dotfiles/tmux.conf"
 MACOS_TMUX_CONF="$REPO_ROOT/roles/macos/templates/dotfiles/tmux.conf"
 MACOS_MAIN="$REPO_ROOT/roles/macos/tasks/main.yml"
@@ -206,6 +207,7 @@ run_install_checks() {
   assert_not_contains "$COMMON_ZSH" "worktree-done()" "zsh no longer exposes worktree-done wrapper"
   assert_not_contains "$COMMON_ZSH" "worktree-delete()" "zsh no longer exposes worktree-delete wrapper"
   assert_not_contains "$COMMON_ZSH" "worktree-merge()" "zsh no longer exposes worktree-merge wrapper"
+  assert_not_contains "$COMMON_ZSH" "tmux-session-name" "zsh config does not invoke automatic tmux session naming"
   assert_contains "$MACOS_BASH_PROFILE" "repo-start()" "bash profile exposes repo-start wrapper"
   assert_contains "$MACOS_BASH_PROFILE" "repo-end()" "bash profile exposes repo-end wrapper"
   assert_contains "$MACOS_BASH_PROFILE" "rs()" "bash profile exposes rs wrapper"
@@ -230,6 +232,15 @@ run_install_checks() {
   assert_contains "$TMUX_SYNC_REMOTE_TITLE" 'pane_title="${pane_title%% | *}"' "remote window title strips host suffix"
   assert_contains "$LINUX_TMUX_CONF" "#{b:pane_current_path} | #{host_short}" "Linux tmux fallback pane label includes host"
   assert_contains "$MACOS_TMUX_CONF" "#{b:pane_current_path} | #{host_short}" "macOS tmux fallback pane label includes host"
+  assert_not_contains "$LINUX_TMUX_CONF" "tmux-session-name" "Linux tmux config does not invoke automatic tmux session naming"
+  assert_not_contains "$MACOS_TMUX_CONF" "tmux-session-name" "macOS tmux config does not invoke automatic tmux session naming"
+  assert_not_contains "$COMMON_MAIN" "Install tmux-session-name script" "common provisioning no longer installs automatic tmux session naming"
+  assert_contains "$COMMON_MAIN" "Remove obsolete tmux-session-name helper" "common provisioning removes obsolete tmux session naming helper"
+  if [[ ! -e "$TMUX_SESSION_NAME" ]]; then
+    pass_case "tmux-session-name helper has been removed"
+  else
+    fail_case "tmux-session-name helper has been removed" "unexpected file present at $TMUX_SESSION_NAME"
+  fi
 }
 
 run_renovate_checks() {

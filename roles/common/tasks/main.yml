@@ -268,12 +268,10 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/_recover-agent-sessions'
     mode: 0755
 
-- name: Install tmux-session-name script
-  copy:
-    backup: yes
-    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-session-name'
-    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-session-name'
-    mode: 0755
+- name: Remove obsolete tmux-session-name helper
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-session-name'
+    state: absent
 
 - name: Create local state directory for failure logs
   file:
