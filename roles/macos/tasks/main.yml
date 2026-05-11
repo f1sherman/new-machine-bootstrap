@@ -263,6 +263,18 @@
     executable: /bin/bash
     creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
 
+# Recover any deleted files in the tmux-resurrect plugin. The plugin's
+# entrypoint `resurrect.tmux` sets `@resurrect-save-script-path` via
+# `set_script_path_options`; if the file goes missing, continuum's auto-save
+# reads an empty path and silently skips every save.
+- name: Recover any wiped tmux-resurrect scripts from git
+  command: git checkout -- .
+  args:
+    chdir: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
+  register: resurrect_git_restore
+  changed_when: resurrect_git_restore.stdout != "" or resurrect_git_restore.stderr != ""
+  failed_when: false
+
 # tmux-continuum ships an auto-start-at-login feature for macOS that we
 # don't use. The upstream osx_enable.sh / osx_disable.sh scripts run on
 # every tmux startup (osx_disable.sh unconditionally, even when
