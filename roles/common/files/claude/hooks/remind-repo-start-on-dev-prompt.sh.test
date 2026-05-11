@@ -10,7 +10,13 @@ if [ ! -x "$SCRIPT" ]; then
 fi
 
 TMPROOT="$(mktemp -d)"
+TMUX_PANE_STATE_DIR="$TMPROOT/pane-state"
+mkdir -p "$TMUX_PANE_STATE_DIR"
 trap 'rm -rf "$TMPROOT"' EXIT
+
+# Test isolation: ensure the harness's tmux state never leaks into the
+# cwd-only test cases. Individual bound-pane tests set these explicitly.
+unset TMUX_PANE TMUX_AGENT_WORKTREE_STATE_DIR TMUX
 
 GIT_AUTHOR_NAME=test
 GIT_AUTHOR_EMAIL=test@example.com
@@ -90,6 +96,45 @@ run_silent_empty() {
   fi
 }
 
+# Run the script with TMUX_PANE bound to a worktree via state-dir mode.
+# Simulates the harness state where the agent's shell cwd is the main
+# worktree but the pane is bound to a feature worktree.
+run_silent_bound_case() {
+  local name="$1" prompt="$2" cwd="$3" bound_path="$4"
+  local payload state_dir output
+  state_dir="$TMUX_PANE_STATE_DIR"
+  printf '%s' "$bound_path" > "$state_dir/%test.@agent_worktree_path"
+  payload="$(jq -n --arg prompt "$prompt" '{prompt:$prompt}')"
+  output="$(cd "$cwd" && TMUX_PANE='%test' TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" printf '%s' "$payload" | TMUX_PANE='%test' TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" "$SCRIPT")"
+  if [ -z "$output" ]; then
+    printf 'PASS  %s\n' "$name"
+  else
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  fi
+  rm -f "$state_dir/%test.@agent_worktree_path"
+}
+
+run_reminder_bound_main_case() {
+  local name="$1" prompt="$2" cwd="$3" bound_path="$4"
+  local payload state_dir output
+  state_dir="$TMUX_PANE_STATE_DIR"
+  printf '%s' "$bound_path" > "$state_dir/%test.@agent_worktree_path"
+  payload="$(jq -n --arg prompt "$prompt" '{prompt:$prompt}')"
+  output="$(cd "$cwd" && TMUX_PANE='%test' TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" printf '%s' "$payload" | TMUX_PANE='%test' TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" "$SCRIPT")"
+  if printf '%s' "$output" | jq -e --arg needle "$REMINDER_NEEDLE" \
+      '(.hookSpecificOutput.hookEventName == "UserPromptSubmit")
+       and (.hookSpecificOutput.additionalContext | test($needle))' >/dev/null 2>&1; then
+    printf 'PASS  %s\n' "$name"
+  else
+    printf 'FAIL  %s\n' "$name" >&2
+    printf '      output: %s\n' "$output" >&2
+    exit 1
+  fi
+  rm -f "$state_dir/%test.@agent_worktree_path"
+}
+
 run_reminder_case "reminds for /brainstorming on main" "/superpowers:brainstorming please check the dashboard" "main"
 run_reminder_case "reminds for /systematic-debugging on main" "/superpowers:systematic-debugging why is the test broken" "main"
 run_reminder_case "reminds for _spec-first on main" "use _spec-first to design this" "main"
@@ -106,5 +151,39 @@ run_silent_no_repo "silent when cwd is not a git repo" "fix the failing canary"
 run_silent_empty "silent for empty payload" '{}'
 run_silent_empty "silent for missing prompt field" '{"other":"value"}'
 run_silent_empty "silent for blank prompt" '{"prompt":""}'
+
+# Pane-binding scenarios: cwd is in a main-branch repo, but TMUX pane is
+# bound (via state-dir mode) to a different worktree.
+MAIN_REPO="$TMPROOT/main-cwd"
+FEATURE_REPO="$TMPROOT/feature-bound"
+make_repo "$MAIN_REPO" "main"
+make_repo "$FEATURE_REPO" "feature/foo"
+
+run_silent_bound_case \
+  "silent when pane bound to non-main worktree (cwd in main)" \
+  "fix the failing canary" \
+  "$MAIN_REPO" \
+  "$FEATURE_REPO"
+
+run_silent_bound_case \
+  "silent when pane bound to non-main worktree for slash-command prompt" \
+  "/superpowers:brainstorming please check the dashboard" \
+  "$MAIN_REPO" \
+  "$FEATURE_REPO"
+
+MAIN_BOUND_REPO="$TMPROOT/main-bound"
+make_repo "$MAIN_BOUND_REPO" "main"
+run_reminder_bound_main_case \
+  "reminds when pane bound to a main-branch worktree" \
+  "fix the failing canary" \
+  "$MAIN_REPO" \
+  "$MAIN_BOUND_REPO"
+
+# Stale binding (path no longer exists) falls back to cwd
+run_reminder_bound_main_case \
+  "falls back to cwd when bound path missing" \
+  "fix the failing canary" \
+  "$MAIN_REPO" \
+  "$TMPROOT/does-not-exist"
 
 printf 'PASS  remind-repo-start-on-dev-prompt test suite\n'

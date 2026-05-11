@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # Soft-reminder hook: when the user submits a prompt that looks like
-# development work (or invokes an initiating design skill) while the cwd is
-# on `main`, emit additionalContext nudging toward `repo-start <branch>`.
-# Mirror of ~/.local/bin/codex-remind-repo-start-on-dev-prompt so the
-# reminder also fires for slash-command skill invocations, which bypass the
-# PostToolUse Skill matcher. Never blocks.
+# development work (or invokes an initiating design skill) while the agent's
+# bound worktree is on `main`, emit additionalContext nudging toward
+# `repo-start <branch>`. Mirror of
+# ~/.local/bin/codex-remind-repo-start-on-dev-prompt. Never blocks.
+#
+# "Bound worktree" comes from the tmux pane option @agent_worktree_path,
+# which repo-start sets via tmux-agent-worktree. This avoids false positives
+# when the shell's cwd is the main worktree but the agent is bound to a
+# feature worktree (a common harness state — cwd lags behind binding).
 set -euo pipefail
 
 input="$(cat)"
@@ -14,7 +18,24 @@ if [[ -z "$prompt" ]]; then
   exit 0
 fi
 
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+work_dir=""
+if [[ -n "${TMUX_PANE:-}" ]]; then
+  if [[ -n "${TMUX_AGENT_WORKTREE_STATE_DIR:-}" ]]; then
+    state_file="$TMUX_AGENT_WORKTREE_STATE_DIR/$TMUX_PANE.@agent_worktree_path"
+    if [[ -f "$state_file" ]]; then
+      work_dir="$(cat "$state_file" 2>/dev/null || true)"
+    fi
+  fi
+  if [[ -z "$work_dir" ]] && command -v tmux >/dev/null 2>&1; then
+    work_dir="$(tmux show-options -pqv -t "$TMUX_PANE" @agent_worktree_path 2>/dev/null || true)"
+  fi
+fi
+
+if [[ -z "$work_dir" || ! -d "$work_dir" ]]; then
+  work_dir="$PWD"
+fi
+
+repo_root="$(git -C "$work_dir" rev-parse --show-toplevel 2>/dev/null || true)"
 if [[ -z "$repo_root" ]]; then
   exit 0
 fi
