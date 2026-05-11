@@ -252,11 +252,33 @@ if ! printf '%s\n' "$json" | jq -e '.status == "created" and .mode == "branch" a
 fi
 pass_case "repo-start JSON includes status mode branch path"
 
-create_remote_repo end-branch
+create_remote_repo end-branch-unmerged
 branch_repo="$CREATED_REPO"
-branch_origin="$CREATED_ORIGIN"
 git -C "$branch_repo" checkout -q -b feature/end-branch
 commit_file "$branch_repo" branch.txt "branch" "branch change"
+branch_out="$TMPROOT/end-branch.out"
+branch_err="$TMPROOT/end-branch.err"
+if (cd "$branch_repo" && "$REPO_END_SCRIPT" --print-path >"$branch_out" 2>"$branch_err"); then
+  fail_case "repo-end branch mode rejects unmerged branch" "repo-end unexpectedly succeeded"
+fi
+assert_file_contains "$branch_err" "merge the PR first" "repo-end branch mode explains unmerged branch"
+if ! git -C "$branch_repo" show-ref --verify --quiet refs/heads/feature/end-branch; then
+  fail_case "repo-end branch mode preserves unmerged branch" "feature/end-branch was deleted"
+fi
+pass_case "repo-end branch mode preserves unmerged branch"
+if git -C "$branch_repo" show main:branch.txt >/dev/null 2>&1; then
+  fail_case "repo-end branch mode does not merge unmerged branch" "branch.txt reached main"
+fi
+pass_case "repo-end branch mode does not merge unmerged branch"
+
+create_remote_repo end-branch-merged
+branch_repo="$CREATED_REPO"
+git -C "$branch_repo" checkout -q -b feature/end-branch
+commit_file "$branch_repo" branch.txt "branch" "branch change"
+git -C "$branch_repo" checkout -q main
+git -C "$branch_repo" merge --ff-only --quiet feature/end-branch
+git -C "$branch_repo" push -q origin main
+git -C "$branch_repo" checkout -q feature/end-branch
 branch_home="$TMPROOT/end-branch-home"
 branch_log="$branch_home/.local/state/repo-end.log"
 install_callback "$branch_home" "$branch_log"
@@ -268,7 +290,7 @@ cat >"$clear_stub_bin/tmux-agent-worktree" <<'STUB'
 printf '%s\n' "$*" >> "$REPO_END_TMUX_CLEAR_LOG"
 STUB
 chmod +x "$clear_stub_bin/tmux-agent-worktree"
-branch_out="$TMPROOT/end-branch.out"
+branch_out="$TMPROOT/end-branch-merged.out"
 (cd "$branch_repo" && \
   HOME="$branch_home" \
   PATH="$clear_stub_bin:$PATH" \
@@ -278,8 +300,8 @@ branch_out="$TMPROOT/end-branch.out"
   REPO_END_CALLBACK_LOG="$branch_log" \
   "$REPO_END_SCRIPT" --print-path >"$branch_out")
 assert_file_contains "$branch_out" "$branch_repo" "repo-end branch mode prints main path"
-assert_git_has_file "$branch_repo" main branch.txt "repo-end branch mode merges into main"
-assert_git_has_file "$branch_origin" main branch.txt "repo-end branch mode pushes main"
+assert_git_has_file "$branch_repo" main branch.txt "repo-end branch mode keeps merged main content"
+assert_git_has_file "$branch_repo" origin/main branch.txt "repo-end branch mode relies on origin main"
 if git -C "$branch_repo" show-ref --verify --quiet refs/heads/feature/end-branch; then
   fail_case "repo-end branch mode deletes local branch" "feature/end-branch still exists"
 fi
@@ -287,21 +309,44 @@ pass_case "repo-end branch mode deletes local branch"
 assert_file_contains "$branch_log" "--repo-dir $branch_repo --branch feature/end-branch --main-branch main --main-path $branch_repo" "repo-end branch mode invokes callbacks with context"
 assert_file_contains "$clear_log" "clear" "repo-end clears explicit tmux repo label state"
 
-create_remote_repo end-worktree
+create_remote_repo end-worktree-unmerged
 worktree_main="$CREATED_REPO"
-worktree_origin="$CREATED_ORIGIN"
 worktree_feature="$TMPROOT/end-worktree-feature"
 git -C "$worktree_main" worktree add -q -b feature/end-worktree "$worktree_feature" main
 worktree_feature="$(realpath "$worktree_feature")"
 commit_file "$worktree_feature" worktree.txt "worktree" "worktree change"
+worktree_out="$TMPROOT/end-worktree.out"
+worktree_err="$TMPROOT/end-worktree.err"
+if (cd "$worktree_feature" && "$REPO_END_SCRIPT" --print-path >"$worktree_out" 2>"$worktree_err"); then
+  fail_case "repo-end worktree mode rejects unmerged branch" "repo-end unexpectedly succeeded"
+fi
+assert_file_contains "$worktree_err" "merge the PR first" "repo-end worktree mode explains unmerged branch"
+if [ ! -e "$worktree_feature" ]; then
+  fail_case "repo-end worktree mode preserves unmerged worktree" "worktree was removed at $worktree_feature"
+fi
+pass_case "repo-end worktree mode preserves unmerged worktree"
+if git -C "$worktree_main" show main:worktree.txt >/dev/null 2>&1; then
+  fail_case "repo-end worktree mode does not merge unmerged branch" "worktree.txt reached main"
+fi
+pass_case "repo-end worktree mode does not merge unmerged branch"
+
+create_remote_repo end-worktree-merged
+worktree_main="$CREATED_REPO"
+worktree_origin="$CREATED_ORIGIN"
+worktree_feature="$TMPROOT/end-worktree-merged-feature"
+git -C "$worktree_main" worktree add -q -b feature/end-worktree "$worktree_feature" main
+worktree_feature="$(realpath "$worktree_feature")"
+commit_file "$worktree_feature" worktree.txt "worktree" "worktree change"
+git -C "$worktree_main" merge --ff-only --quiet feature/end-worktree
+git -C "$worktree_main" push -q origin main
 worktree_home="$TMPROOT/end-worktree-home"
 worktree_log="$worktree_home/.local/state/repo-end.log"
 install_callback "$worktree_home" "$worktree_log"
-worktree_out="$TMPROOT/end-worktree.out"
+worktree_out="$TMPROOT/end-worktree-merged.out"
 (cd "$worktree_feature" && HOME="$worktree_home" REPO_END_CALLBACK_LOG="$worktree_log" "$REPO_END_SCRIPT" --print-path >"$worktree_out")
 assert_file_contains "$worktree_out" "$worktree_main" "repo-end worktree mode prints main path"
-assert_git_has_file "$worktree_main" main worktree.txt "repo-end worktree mode merges into main"
-assert_git_has_file "$worktree_origin" main worktree.txt "repo-end worktree mode pushes main"
+assert_git_has_file "$worktree_main" main worktree.txt "repo-end worktree mode keeps merged main content"
+assert_git_has_file "$worktree_origin" main worktree.txt "repo-end worktree mode relies on origin main"
 if [ -e "$worktree_feature" ]; then
   fail_case "repo-end worktree mode removes linked worktree" "worktree remains at $worktree_feature"
 fi
