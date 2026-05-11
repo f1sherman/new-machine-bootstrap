@@ -39,6 +39,12 @@ jobs:
       - name: Verify tmux pane-link contract
         run: bash tests/tmux-pane-link.sh
 
+      - name: Verify Claude SessionStart hook contract
+        run: bash tests/tmux-claude-session-start.sh
+
+      - name: Verify Codex SessionStart hook contract
+        run: bash tests/codex-bind-tmux-pane.sh
+
       - name: Verify Codex auth skill guidance
         run: bash tests/generate-codex-auth-skill.sh
 

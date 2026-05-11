@@ -31,3 +31,26 @@ case "$source" in
 esac
 
 tmux set-option -pt "$TMUX_PANE" @persist_claude_session_id "$session_id" >/dev/null 2>&1 || exit 0
+
+# Part 1: refresh the cached pane label and rename the window. Idempotent — for
+# agent worktree panes this preserves the cached @pane-label (because
+# tmux-update-pane-label short-circuits when @agent_worktree_path is set) and
+# only re-renders the window name. For non-agent panes it recomputes both.
+tmux-update-pane-label "$TMUX_PANE" >/dev/null 2>&1 || true
+tmux-window-label "$TMUX_PANE" >/dev/null 2>&1 || true
+
+# Part 2: when the pane has no @agent_worktree_path, nudge the agent (via an
+# injected system reminder) to republish via `tmux-agent-worktree set`. Cross-
+# pane resumes can't recover the active worktree from tmux state because the
+# agent never chdirs into the worktree — the agent itself is the only authority.
+# Same-pane resumes already have the option set so the nudge is skipped.
+worktree_path="$(tmux show-options -pqv -t "$TMUX_PANE" @agent_worktree_path 2>/dev/null || true)"
+if [ -z "$worktree_path" ]; then
+  reminder='You are resuming a session in a tmux pane that has no active worktree bound to it. If your prior work in this session was in a git worktree (e.g. a linked worktree under `.worktrees/<branch>`), run `tmux-agent-worktree set <absolute-worktree-path>` so this tmux pane and window reflect the active worktree. Resolve the path from your conversation history, plan files, or `.coding-agent/` state. If this session is not using a worktree, ignore this reminder.'
+  jq -n --arg ctx "$reminder" '{
+    "hookSpecificOutput": {
+      "hookEventName": "SessionStart",
+      "additionalContext": $ctx
+    }
+  }' || true
+fi
