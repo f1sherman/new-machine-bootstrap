@@ -156,16 +156,6 @@ prune_merged_local_branches() {
   done < <("$git_cmd" -C "$main_path" for-each-ref --format='%(refname:short)'$'\t''%(worktreepath)' refs/heads/)
 }
 
-if already_merged; then
-  skip_integration=true
-else
-  skip_integration=false
-  if ! "$(_worktree_cmd git)" -C "$repo_root" rebase --quiet --reapply-cherry-picks "origin/${main_branch}"; then
-    printf 'Error: rebase has conflicts; resolve them in %s and run repo-end again\n' "$repo_root" >&2
-    exit 1
-  fi
-fi
-
 main_path="$(_worktree_main_path "$main_branch" || true)"
 if [[ -z "$main_path" ]]; then
   if [[ -d "$repo_root/.git" ]]; then
@@ -181,16 +171,13 @@ if [[ -n "$(_repo_status_excluding_config "$main_path")" ]]; then
   exit 1
 fi
 
-if [[ "$skip_integration" == "true" ]]; then
-  "$(_worktree_cmd git)" -C "$main_path" checkout -q "$main_branch"
-  "$(_worktree_cmd git)" -C "$main_path" merge --ff-only --quiet "origin/${main_branch}"
+if ! already_merged; then
+  printf 'Error: branch %s is not merged into origin/%s; merge the PR first, then run repo-end again\n' "$current_branch" "$main_branch" >&2
+  exit 1
 fi
 
-if [[ "$skip_integration" != "true" ]]; then
-  "$(_worktree_cmd git)" -C "$main_path" checkout -q "$main_branch"
-  "$(_worktree_cmd git)" -C "$main_path" merge --quiet "$current_branch"
-  "$(_worktree_cmd git)" -C "$main_path" push --quiet
-fi
+"$(_worktree_cmd git)" -C "$main_path" checkout -q "$main_branch"
+"$(_worktree_cmd git)" -C "$main_path" merge --ff-only --quiet "origin/${main_branch}"
 
 cleanup_after_merge() {
   if [[ "$repo_root" != "$main_path" ]]; then
