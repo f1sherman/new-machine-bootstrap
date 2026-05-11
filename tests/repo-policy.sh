@@ -220,6 +220,19 @@ run_codex_vim_mode_checks() {
     "model = \"gpt-5.5\"\ntui = { theme = \"dark\", notifications = true, vim_mode_default = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
 }
 
+assert_yaml_query_empty() {
+  local path="$1" query="$2" name="$3"
+  local value
+
+  value="$(yq -r "$query" "$path" 2>/dev/null || true)"
+
+  if [[ -z "$value" || "$value" == "null" ]]; then
+    pass_case "$name"
+  else
+    fail_case "$name" "expected $query in $path to be empty, got '$value'"
+  fi
+}
+
 run_catalog_checks() {
   assert_contains "$PLAYBOOK" "vars_files:" "playbook loads shared vars files"
   assert_contains "$PLAYBOOK" "- vars/tool_versions.yml" "playbook loads vars/tool_versions.yml"
@@ -309,6 +322,18 @@ run_install_checks() {
   assert_not_contains "$COMMON_MAIN" "- { name: worktree-merge" "common install loop does not install public worktree-merge"
   assert_not_contains "$COMMON_MAIN" "- { name: worktree-done" "common install loop does not install public worktree-done"
   assert_contains "$COMMON_MAIN" "Remove legacy public worktree helpers" "common provisioning removes legacy public worktree helpers"
+  assert_yaml_query_empty "$COMMON_MAIN" '.[] | select(.file.state == "absent") | .loop[]? | select(. == "cleanup-branches")' "common provisioning does not remove HNP-owned cleanup-branches"
+  assert_yaml_query_empty "$COMMON_MAIN" '.[] | select(.file.state == "absent") | .loop[]? | select(. == "git-clean-up")' "common provisioning does not remove HNP-owned git-clean-up"
+  assert_yaml_query_empty "$COMMON_MAIN" '.[] | select(.file.state == "absent") | .loop[]? | select(. == "tmux-label-format")' "common provisioning does not remove HNP-owned tmux-label-format"
+  assert_yaml_query_empty "$COMMON_MAIN" '.[] | select(.file.state == "absent") | .loop[]? | select(. == ".claude/skills/_clean-up")' "common provisioning does not remove HNP-owned Claude _clean-up"
+  assert_yaml_query_empty "$COMMON_MAIN" '.[] | select(.file.state == "absent") | .loop[]? | select(. == ".codex/skills/_clean-up")' "common provisioning does not remove HNP-owned Codex _clean-up"
+  assert_yaml_query_empty "$COMMON_MAIN" '.[] | select(.file.state == "absent") | .loop[]? | select(. == ".claude/skills/_monitor-pr")' "common provisioning does not remove HNP-owned Claude _monitor-pr"
+  assert_yaml_query_empty "$COMMON_MAIN" '.[] | select(.file.state == "absent") | .loop[]? | select(. == ".codex/skills/_monitor-pr")' "common provisioning does not remove HNP-owned Codex _monitor-pr"
+  assert_yaml_query_empty "$COMMON_MAIN" '.[] | select(.file.state == "absent") | .loop[]? | select(. == ".claude/skills/_monitor-github-pr")' "common provisioning does not remove HNP-owned Claude _monitor-github-pr"
+  assert_yaml_query_empty "$COMMON_MAIN" '.[] | select(.file.state == "absent") | .loop[]? | select(. == ".codex/skills/_monitor-github-pr")' "common provisioning does not remove HNP-owned Codex _monitor-github-pr"
+  assert_yaml_query_empty "$COMMON_MAIN" '.[] | select(.file.state == "absent") | .loop[]? | select(. == ".local/share/skills/_pr-monitor")' "common provisioning does not remove HNP-owned PR monitor runtime"
+  assert_yaml_query_empty "$COMMON_MAIN" '.[] | select(.file.state == "absent") | .loop[]? | select(. == ".local/share/skills/_pr-workflow-common")' "common provisioning does not remove HNP-owned PR workflow runtime"
+  assert_yaml_query_empty "$COMMON_MAIN" '.[] | select(.file.state == "absent") | .loop[]? | select(. == ".local/share/skills/_pr-github")' "common provisioning does not remove HNP-owned GitHub PR runtime"
   assert_contains "$COMMON_ZSH" "repo-start()" "zsh exposes repo-start wrapper"
   assert_contains "$COMMON_ZSH" "repo-end()" "zsh exposes repo-end wrapper"
   assert_contains "$COMMON_ZSH" "rs()" "zsh exposes rs wrapper"

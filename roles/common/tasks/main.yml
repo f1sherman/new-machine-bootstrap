@@ -154,15 +154,6 @@
     - worktree-merge
     - worktree-done
 
-- name: Remove HNP-owned helper scripts from common installs
-  file:
-    path: '{{ ansible_facts["user_dir"] }}/.local/bin/{{ item }}'
-    state: absent
-  loop:
-    - cleanup-branches
-    - git-clean-up
-    - tmux-label-format
-
 - name: Install pick-files script
   copy:
     backup: yes
@@ -1810,25 +1801,6 @@
     src: '{{ playbook_dir }}/roles/common/files/config/skills/common/_commit/commit.sh'
     dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/_commit/commit.sh'
     mode: '0755'
-
-- name: Remove HNP-owned skill installs from common installs
-  file:
-    path: '{{ ansible_facts["user_dir"] }}/{{ item }}'
-    state: absent
-  loop:
-    - .claude/skills/_clean-up
-    - .codex/skills/_clean-up
-
-- name: Remove stale PR monitor installs from common installs
-  file:
-    path: '{{ ansible_facts["user_dir"] }}/{{ item }}'
-    state: absent
-  loop:
-    - .claude/skills/_monitor-github-pr
-    - .codex/skills/_monitor-github-pr
-    - .local/share/skills/_pr-monitor
-    - .local/share/skills/_pr-workflow-common
-    - .local/share/skills/_pr-github
 
 - name: Remove legacy custom skill and agent installs
   file:
