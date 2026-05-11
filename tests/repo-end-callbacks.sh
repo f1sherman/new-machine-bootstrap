@@ -54,6 +54,24 @@ merge_feature_to_origin_main() {
   git -C "$repo" checkout -q "$branch"
 }
 
+forbid_origin_main_pushes() {
+  local repo="$1"
+  local hooks_dir="$TMPROOT/$(basename "$repo")-hooks"
+
+  mkdir -p "$hooks_dir"
+  cat >"$hooks_dir/pre-push" <<'HOOK'
+#!/usr/bin/env bash
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    printf 'unexpected push to main\n' >&2
+    exit 1
+  fi
+done
+HOOK
+  chmod +x "$hooks_dir/pre-push"
+  git -C "$repo" config core.hooksPath "$hooks_dir"
+}
+
 run_case() {
   local name="$1"
   local repo="$2"
@@ -139,6 +157,7 @@ assert_ordered_output() {
 no_callbacks_repo="$(create_repo no-callbacks)"
 add_feature_branch "$no_callbacks_repo" feature/no-callbacks no-callbacks.txt
 merge_feature_to_origin_main "$no_callbacks_repo" feature/no-callbacks
+forbid_origin_main_pushes "$no_callbacks_repo"
 tmp_home_no_callbacks="$TMPROOT/no-callback-home"
 mkdir -p "$tmp_home_no_callbacks"
 
@@ -153,6 +172,7 @@ assert_file_contains "$TMPROOT/no-callbacks.out" "$no_callbacks_repo" "repo-end 
 ordered_callbacks_repo="$(create_repo ordered-callbacks)"
 add_feature_branch "$ordered_callbacks_repo" feature/ordered ordered-callbacks.txt
 merge_feature_to_origin_main "$ordered_callbacks_repo" feature/ordered
+forbid_origin_main_pushes "$ordered_callbacks_repo"
 tmp_home_ordered="$TMPROOT/ordered-callback-home"
 callback_dir="$tmp_home_ordered/.local/bin/repo-end.d"
 mkdir -p "$callback_dir"
@@ -194,6 +214,7 @@ assert_ordered_output \
 stdout_callback_repo="$(create_repo stdout-callback)"
 add_feature_branch "$stdout_callback_repo" feature/stdout stdout-callback.txt
 merge_feature_to_origin_main "$stdout_callback_repo" feature/stdout
+forbid_origin_main_pushes "$stdout_callback_repo"
 tmp_home_stdout="$TMPROOT/stdout-callback-home"
 stdout_callback_dir="$tmp_home_stdout/.local/bin/repo-end.d"
 mkdir -p "$stdout_callback_dir"
@@ -222,6 +243,7 @@ assert_file_contains \
 fail_repo="$(create_repo callback-fails)"
 add_feature_branch "$fail_repo" feature/fails callback-fails.txt
 merge_feature_to_origin_main "$fail_repo" feature/fails
+forbid_origin_main_pushes "$fail_repo"
 tmp_home_fail="$TMPROOT/fail-callback-home"
 fail_callback_dir="$tmp_home_fail/.local/bin/repo-end.d"
 mkdir -p "$fail_callback_dir"

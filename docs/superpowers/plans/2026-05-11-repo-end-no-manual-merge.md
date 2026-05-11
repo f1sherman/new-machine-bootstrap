@@ -15,7 +15,31 @@
 **Files:**
 - Modify: `tests/repo-lifecycle.sh`
 
-- [ ] **Step 1: Write failing unmerged branch-mode assertions**
+- [ ] **Step 1: Add push guard helper**
+
+After `install_callback`, add:
+
+```bash
+forbid_origin_main_pushes() {
+  local repo="$1"
+  local hooks_dir="$TMPROOT/$(basename "$repo")-hooks"
+
+  mkdir -p "$hooks_dir"
+  cat >"$hooks_dir/pre-push" <<'HOOK'
+#!/usr/bin/env bash
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    printf 'unexpected push to main\n' >&2
+    exit 1
+  fi
+done
+HOOK
+  chmod +x "$hooks_dir/pre-push"
+  git -C "$repo" config core.hooksPath "$hooks_dir"
+}
+```
+
+- [ ] **Step 2: Write failing unmerged branch-mode assertions**
 
 Replace the current `end-branch` success case with a failure case that preserves the branch and avoids changing `main`:
 
@@ -40,7 +64,7 @@ fi
 pass_case "repo-end branch mode does not merge unmerged branch"
 ```
 
-- [ ] **Step 2: Add successful already-merged branch-mode assertions**
+- [ ] **Step 3: Add successful already-merged branch-mode assertions**
 
 Immediately after the failure case, add a success case that simulates the PR merge by fast-forwarding `main` and pushing `origin/main` before running `repo-end` from the feature branch:
 
@@ -53,6 +77,7 @@ git -C "$branch_repo" checkout -q main
 git -C "$branch_repo" merge --ff-only --quiet feature/end-branch
 git -C "$branch_repo" push -q origin main
 git -C "$branch_repo" checkout -q feature/end-branch
+forbid_origin_main_pushes "$branch_repo"
 branch_home="$TMPROOT/end-branch-home"
 branch_log="$branch_home/.local/state/repo-end.log"
 install_callback "$branch_home" "$branch_log"
@@ -84,7 +109,7 @@ assert_file_contains "$branch_log" "--repo-dir $branch_repo --branch feature/end
 assert_file_contains "$clear_log" "clear" "repo-end clears explicit tmux repo label state"
 ```
 
-- [ ] **Step 3: Write failing unmerged worktree-mode assertions**
+- [ ] **Step 4: Write failing unmerged worktree-mode assertions**
 
 Replace the current `end-worktree` success setup with an unmerged failure case:
 
@@ -111,7 +136,7 @@ fi
 pass_case "repo-end worktree mode does not merge unmerged branch"
 ```
 
-- [ ] **Step 4: Add successful already-merged worktree-mode assertions**
+- [ ] **Step 5: Add successful already-merged worktree-mode assertions**
 
 Add a separate already-merged worktree case:
 
@@ -125,6 +150,7 @@ worktree_feature="$(realpath "$worktree_feature")"
 commit_file "$worktree_feature" worktree.txt "worktree" "worktree change"
 git -C "$worktree_main" merge --ff-only --quiet feature/end-worktree
 git -C "$worktree_main" push -q origin main
+forbid_origin_main_pushes "$worktree_main"
 worktree_home="$TMPROOT/end-worktree-home"
 worktree_log="$worktree_home/.local/state/repo-end.log"
 install_callback "$worktree_home" "$worktree_log"
@@ -140,7 +166,19 @@ pass_case "repo-end worktree mode removes linked worktree"
 assert_file_contains "$worktree_log" "--repo-dir $worktree_feature --branch feature/end-worktree --main-branch main --main-path $worktree_main" "repo-end worktree mode invokes callbacks with context"
 ```
 
-- [ ] **Step 5: Run lifecycle test and verify red**
+- [ ] **Step 6: Update merged-branch pruning fixture**
+
+In the `end-prune` case, after creating `feature/prune-active`, simulate the active branch PR merge before invoking `repo-end`:
+
+```bash
+git -C "$prune_repo" checkout -q main
+git -C "$prune_repo" merge --ff-only --quiet feature/prune-active
+git -C "$prune_repo" push -q origin main
+git -C "$prune_repo" checkout -q feature/prune-active
+forbid_origin_main_pushes "$prune_repo"
+```
+
+- [ ] **Step 7: Run lifecycle test and verify red**
 
 Run: `bash tests/repo-lifecycle.sh`
 
@@ -167,20 +205,48 @@ merge_feature_to_origin_main() {
 }
 ```
 
-- [ ] **Step 2: Use the helper before successful callback runs**
+- [ ] **Step 2: Add push guard helper**
+
+After `merge_feature_to_origin_main`, add:
+
+```bash
+forbid_origin_main_pushes() {
+  local repo="$1"
+  local hooks_dir="$TMPROOT/$(basename "$repo")-hooks"
+
+  mkdir -p "$hooks_dir"
+  cat >"$hooks_dir/pre-push" <<'HOOK'
+#!/usr/bin/env bash
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    printf 'unexpected push to main\n' >&2
+    exit 1
+  fi
+done
+HOOK
+  chmod +x "$hooks_dir/pre-push"
+  git -C "$repo" config core.hooksPath "$hooks_dir"
+}
+```
+
+- [ ] **Step 3: Use the helpers before successful callback runs**
 
 After each successful callback fixture creates a feature branch, call the helper:
 
 ```bash
 merge_feature_to_origin_main "$no_callbacks_repo" feature/no-callbacks
+forbid_origin_main_pushes "$no_callbacks_repo"
 merge_feature_to_origin_main "$ordered_callbacks_repo" feature/ordered
+forbid_origin_main_pushes "$ordered_callbacks_repo"
 merge_feature_to_origin_main "$stdout_callback_repo" feature/stdout
+forbid_origin_main_pushes "$stdout_callback_repo"
 merge_feature_to_origin_main "$fail_repo" feature/fails
+forbid_origin_main_pushes "$fail_repo"
 ```
 
 The failing callback case must also be integrated so the failure source remains the callback, not the new unmerged-branch guard.
 
-- [ ] **Step 3: Run callback test and verify it still passes before implementation**
+- [ ] **Step 4: Run callback test and verify it still passes before implementation**
 
 Run: `bash tests/repo-end-callbacks.sh`
 

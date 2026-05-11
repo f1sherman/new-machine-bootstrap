@@ -206,8 +206,10 @@ they should not infer repo branch state after this migration.
 
 ## `repo-end`
 
-`repo-end` finishes the current non-main branch, pushes main, then delegates
-cleanup to post-close callbacks.
+`repo-end` finishes cleanup for the current non-main branch only after the
+branch is already integrated into `origin/main`, then delegates cleanup to
+post-close callbacks. This section is superseded by
+`2026-05-11-repo-end-no-manual-merge-design.md` for integration behavior.
 
 Behavior:
 
@@ -216,18 +218,20 @@ Behavior:
 3. Reject main.
 4. Reject dirty current worktree.
 5. Fetch from origin.
-6. Rebase current branch onto `origin/main`.
-7. Resolve the main checkout path.
-8. Reject dirty main checkout.
+6. Resolve the main checkout path.
+7. Reject dirty main checkout.
+8. Reject branches that are not already integrated into `origin/main`.
 9. Checkout main in that path.
-10. Merge the branch into main.
-11. Push main.
-12. Invoke post-close callbacks with repo context.
-13. Clear explicit tmux repo label state for the invoking pane.
-14. Print the final main path.
+10. Fast-forward local main from `origin/main`.
+11. Remove the linked worktree or switch the branch-mode checkout to main.
+12. Delete the completed local branch and prune other merged local branches.
+13. Invoke post-close callbacks with repo context.
+14. Clear explicit tmux repo label state for the invoking pane.
+15. Print the final main path.
 
 In worktree mode, branch and main are separate paths. In branch mode, they are
-the same checkout, so the rebase must happen before checking out main.
+the same checkout, so `repo-end` must verify integration before deleting the
+current branch.
 
 `repo-end` must not invoke cleanup helpers directly. The post-close callbacks are the
 extension point for host-specific cleanup.

@@ -111,6 +111,24 @@ CALLBACK
   chmod +x "$callback_dir/10-log.sh"
 }
 
+forbid_origin_main_pushes() {
+  local repo="$1"
+  local hooks_dir="$TMPROOT/$(basename "$repo")-hooks"
+
+  mkdir -p "$hooks_dir"
+  cat >"$hooks_dir/pre-push" <<'HOOK'
+#!/usr/bin/env bash
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    printf 'unexpected push to main\n' >&2
+    exit 1
+  fi
+done
+HOOK
+  chmod +x "$hooks_dir/pre-push"
+  git -C "$repo" config core.hooksPath "$hooks_dir"
+}
+
 run_interactive_repo_start() {
   local repo="$1" branch="$2" answer="$3" output="$4"
 
@@ -279,6 +297,7 @@ git -C "$branch_repo" checkout -q main
 git -C "$branch_repo" merge --ff-only --quiet feature/end-branch
 git -C "$branch_repo" push -q origin main
 git -C "$branch_repo" checkout -q feature/end-branch
+forbid_origin_main_pushes "$branch_repo"
 branch_home="$TMPROOT/end-branch-home"
 branch_log="$branch_home/.local/state/repo-end.log"
 install_callback "$branch_home" "$branch_log"
@@ -339,6 +358,7 @@ worktree_feature="$(realpath "$worktree_feature")"
 commit_file "$worktree_feature" worktree.txt "worktree" "worktree change"
 git -C "$worktree_main" merge --ff-only --quiet feature/end-worktree
 git -C "$worktree_main" push -q origin main
+forbid_origin_main_pushes "$worktree_main"
 worktree_home="$TMPROOT/end-worktree-home"
 worktree_log="$worktree_home/.local/state/repo-end.log"
 install_callback "$worktree_home" "$worktree_log"
@@ -413,6 +433,11 @@ commit_file "$prune_repo" prune-unmerged.txt "unmerged" "unmerged change"
 
 git -C "$prune_repo" checkout -q -b feature/prune-active main
 commit_file "$prune_repo" prune-active.txt "active" "active change"
+git -C "$prune_repo" checkout -q main
+git -C "$prune_repo" merge --ff-only --quiet feature/prune-active
+git -C "$prune_repo" push -q origin main
+git -C "$prune_repo" checkout -q feature/prune-active
+forbid_origin_main_pushes "$prune_repo"
 
 prune_home="$TMPROOT/end-prune-home"
 mkdir -p "$prune_home"
