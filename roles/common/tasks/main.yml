@@ -897,7 +897,7 @@
         | map(select((.hooks // []) | length > 0))) + [$entry])
     ' "$settings_file" > "$tmp_file"
 
-    if cmp -s "$settings_file" "$tmp_file"; then
+    if jq -e --slurp '.[0] == .[1]' "$settings_file" "$tmp_file" >/dev/null; then
       rm "$tmp_file"
       echo "unchanged"
     else
@@ -941,7 +941,7 @@
         | map(select((.hooks // []) | length > 0))) + [$entry])
     ' "$settings_file" > "$tmp_file"
 
-    if cmp -s "$settings_file" "$tmp_file"; then
+    if jq -e --slurp '.[0] == .[1]' "$settings_file" "$tmp_file" >/dev/null; then
       rm "$tmp_file"
       echo "unchanged"
     else
@@ -1767,7 +1767,7 @@
         | map(select((.hooks // []) | length > 0))) + [$entry])
     ' "$hooks_file" > "$tmp_file"
 
-    if cmp -s "$hooks_file" "$tmp_file"; then
+    if jq -e --slurp '.[0] == .[1]' "$hooks_file" "$tmp_file" >/dev/null; then
       rm "$tmp_file"
       echo "unchanged"
     else
@@ -1812,7 +1812,7 @@
         | map(select((.hooks // []) | length > 0))) + [$entry])
     ' "$hooks_file" > "$tmp_file"
 
-    if cmp -s "$hooks_file" "$tmp_file"; then
+    if jq -e --slurp '.[0] == .[1]' "$hooks_file" "$tmp_file" >/dev/null; then
       rm "$tmp_file"
       echo "unchanged"
     else

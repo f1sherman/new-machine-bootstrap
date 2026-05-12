@@ -201,5 +201,8 @@ pass_case("prompt submit invokes current-spec hook for both agents")
   unless block.include?("map(.hooks = ((.hooks // []) | map(select(.type != \"command\" or .command != $cmd))))")
     fail_case("#{name} canonicalizes duplicates", "does not preserve sibling hooks while filtering")
   end
+  unless block.include?("jq -e --slurp '.[0] == .[1]'")
+    fail_case("#{name} canonicalizes duplicates", "does not compare normalized JSON before writing")
+  end
   pass_case("#{name} canonicalizes duplicates")
 end
