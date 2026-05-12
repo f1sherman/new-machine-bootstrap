@@ -35,6 +35,7 @@ REVIEW_WORKFLOW="$REPO_ROOT/.github/workflows/renovate-review.yml"
 CODEX_REVIEW_WORKFLOW="$REPO_ROOT/.github/workflows/codex-pr-review.yml"
 WORKFLOWS_DIR="$REPO_ROOT/.github/workflows"
 CODEX_REVIEW_DOC="$REPO_ROOT/docs/codex-github-review.md"
+CLAUDE_BASE_INSTRUCTIONS="$REPO_ROOT/roles/common/files/claude/CLAUDE.md.d/00-base.md"
 
 pass=0
 fail=0
@@ -351,6 +352,9 @@ run_install_checks() {
   assert_not_contains "$MACOS_BASH_PROFILE" "worktree-done()" "bash profile no longer exposes worktree-done wrapper"
   assert_not_contains "$MACOS_BASH_PROFILE" "worktree-delete()" "bash profile no longer exposes worktree-delete wrapper"
   assert_not_contains "$MACOS_BASH_PROFILE" "worktree-merge()" "bash profile no longer exposes worktree-merge wrapper"
+  assert_contains "$CLAUDE_BASE_INSTRUCTIONS" 'After the PR has merged, run `repo-end`.' "Claude base instructions clarify repo-end is post-merge"
+  assert_not_contains "$CLAUDE_BASE_INSTRUCTIONS" 'to clean up the worktree/branch' "Claude base instructions keep repo-end timing concise"
+  assert_not_contains "$CLAUDE_BASE_INSTRUCTIONS" 'Do not run `repo-end` merely because implementation is done or the PR branch has been pushed' "Claude base instructions keep repo-end guidance concise"
   assert_contains "$CODEX_MAIN_EDIT_HOOK" "repo-start <branch>" "main edit hook names repo-start"
   assert_not_contains "$CODEX_MAIN_EDIT_HOOK" "--use-worktrees" "main edit hook does not tell agents to choose worktree mode"
   assert_not_contains "$CODEX_MAIN_EDIT_HOOK" "--no-worktrees" "main edit hook does not tell agents to choose branch mode"
