@@ -50,10 +50,21 @@ if [ ! -d "$spec_dir" ]; then
   exit 1
 fi
 
-latest="$(ls -t "$spec_dir"/*-design.md 2>/dev/null | head -n 1 || true)"
-if [ -z "$latest" ]; then
+spec_count=0
+spec_candidate=""
+for candidate in "$spec_dir"/*-design.md; do
+  [ -e "$candidate" ] || continue
+  spec_count=$((spec_count + 1))
+  spec_candidate="$candidate"
+  if [ "$spec_count" -gt 1 ]; then
+    printf 'tmux-spec-current: ambiguous current spec under %s; set @agent_current_spec_path\n' "$spec_dir" >&2
+    exit 1
+  fi
+done
+
+if [ "$spec_count" -eq 0 ]; then
   printf 'tmux-spec-current: no current spec under %s\n' "$spec_dir" >&2
   exit 1
 fi
 
-printf '%s\n' "$latest"
+printf '%s\n' "$spec_candidate"
