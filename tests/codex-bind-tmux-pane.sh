@@ -86,7 +86,7 @@ run_hook() {
 # ----- Scenario A: resume with @agent_worktree_path set; Part 1 refresh fires. -----
 stubdir_a="$TMPROOT/stub-a"
 make_stubs "$stubdir_a" "/some/worktree"
-out_a="$(run_hook "$stubdir_a" '{"session_id":"abc","cwd":"/tmp/launch","transcript_path":"/tmp/t.jsonl"}')"
+out_a="$(run_hook "$stubdir_a" '{"session_id":"abc","cwd":"/tmp/launch","transcript_path":"/tmp/t.jsonl","source":"resume"}')"
 
 assert_file_contains "$TMPROOT/update-pane-label.log" "%1" "Part 1: tmux-update-pane-label invoked with TMUX_PANE"
 assert_file_contains "$TMPROOT/window-label.log" "%1" "Part 1: tmux-window-label invoked with TMUX_PANE"
@@ -95,7 +95,7 @@ assert_file_contains "$TMPROOT/window-label.log" "%1" "Part 1: tmux-window-label
 # ----- Scenario B: @agent_worktree_path UNSET; nudge fires. -----
 stubdir_b="$TMPROOT/stub-b"
 make_stubs "$stubdir_b" ""
-out_b="$(run_hook "$stubdir_b" '{"session_id":"abc","cwd":"/tmp/launch","transcript_path":"/tmp/t.jsonl"}')"
+out_b="$(run_hook "$stubdir_b" '{"session_id":"abc","cwd":"/tmp/launch","transcript_path":"/tmp/t.jsonl","source":"resume"}')"
 
 event="$(printf '%s' "$out_b" | jq -r '.hookSpecificOutput.hookEventName // empty' 2>/dev/null || true)"
 ctx="$(printf '%s' "$out_b" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null || true)"
@@ -113,7 +113,31 @@ assert_file_contains "$TMPROOT/update-pane-label.log" "%1" "Part 1: label refres
 # ----- Scenario C: @agent_worktree_path SET; nudge suppressed. -----
 stubdir_c="$TMPROOT/stub-c"
 make_stubs "$stubdir_c" "/some/worktree"
-out_c="$(run_hook "$stubdir_c" '{"session_id":"abc","cwd":"/tmp/launch","transcript_path":"/tmp/t.jsonl"}')"
+out_c="$(run_hook "$stubdir_c" '{"session_id":"abc","cwd":"/tmp/launch","transcript_path":"/tmp/t.jsonl","source":"resume"}')"
 assert_empty "$out_c" "Part 2 suppressed when @agent_worktree_path is set"
+
+# ----- Scenario D: startup with @agent_worktree_path UNSET; metadata and labels still run, nudge suppressed. -----
+stubdir_d="$TMPROOT/stub-d"
+make_stubs "$stubdir_d" ""
+out_d="$(run_hook "$stubdir_d" '{"session_id":"abc","cwd":"/tmp/launch","transcript_path":"/tmp/t.jsonl","source":"startup"}')"
+
+assert_empty "$out_d" "Part 2 suppressed on startup when @agent_worktree_path is unset"
+assert_file_contains "$TMPROOT/tmux.log" "set-option -pt %1 @codex_session_id abc" "Part 1: session_id metadata bound on startup"
+assert_file_contains "$TMPROOT/tmux.log" "set-option -pt %1 @codex_session_cwd /tmp/launch" "Part 1: cwd metadata bound on startup"
+assert_file_contains "$TMPROOT/tmux.log" "set-option -pt %1 @codex_session_transcript /tmp/t.jsonl" "Part 1: transcript metadata bound on startup"
+assert_file_contains "$TMPROOT/update-pane-label.log" "%1" "Part 1: label refresh still invoked on startup"
+assert_file_contains "$TMPROOT/window-label.log" "%1" "Part 1: window label still invoked on startup"
+
+# ----- Scenario E: missing source with @agent_worktree_path UNSET; nudge suppressed. -----
+stubdir_e="$TMPROOT/stub-e"
+make_stubs "$stubdir_e" ""
+out_e="$(run_hook "$stubdir_e" '{"session_id":"abc","cwd":"/tmp/launch","transcript_path":"/tmp/t.jsonl"}')"
+assert_empty "$out_e" "Part 2 suppressed when source is missing"
+
+# ----- Scenario F: unknown source with @agent_worktree_path UNSET; nudge suppressed. -----
+stubdir_f="$TMPROOT/stub-f"
+make_stubs "$stubdir_f" ""
+out_f="$(run_hook "$stubdir_f" '{"session_id":"abc","cwd":"/tmp/launch","transcript_path":"/tmp/t.jsonl","source":"manual"}')"
+assert_empty "$out_f" "Part 2 suppressed when source is unknown"
 
 printf 'codex-bind-tmux-pane checks complete\n'

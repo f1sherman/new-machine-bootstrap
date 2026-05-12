@@ -120,18 +120,38 @@ esac
 # Part 1 still fires even when the nudge fires.
 assert_file_contains "$TMPROOT/update-pane-label.log" "%1" "Part 1: label refresh still invoked when nudge fires"
 
-# ----- Scenario C: resume with @agent_worktree_path SET; nudge suppressed. -----
+# ----- Scenario C: startup with @agent_worktree_path UNSET; nudge suppressed. -----
 stubdir_c="$TMPROOT/stub-c"
-make_stubs "$stubdir_c" "/some/worktree" ""
-out_c="$(run_hook "$stubdir_c" '{"session_id":"abc","source":"resume"}')"
-assert_empty "$out_c" "Part 2 suppressed when @agent_worktree_path is set"
+make_stubs "$stubdir_c" "" ""
+out_c="$(run_hook "$stubdir_c" '{"session_id":"abc","source":"startup"}')"
+assert_empty "$out_c" "Startup source: no nudge JSON emitted"
+assert_file_contains "$TMPROOT/update-pane-label.log" "%1" "Startup source: label refresh still invoked"
 
-
-# ----- Scenario D: nested call (startup source + existing session id) bails before Part 1 or Part 2. -----
+# ----- Scenario D: missing source with @agent_worktree_path UNSET; nudge suppressed. -----
 stubdir_d="$TMPROOT/stub-d"
-make_stubs "$stubdir_d" "" "outer-session-id"
-out_d="$(run_hook "$stubdir_d" '{"session_id":"new-session-id","source":""}')"
-assert_empty "$out_d" "Nested call: no nudge JSON emitted"
+make_stubs "$stubdir_d" "" ""
+out_d="$(run_hook "$stubdir_d" '{"session_id":"abc"}')"
+assert_empty "$out_d" "Missing source: no nudge JSON emitted"
+assert_file_contains "$TMPROOT/update-pane-label.log" "%1" "Missing source: label refresh still invoked"
+
+# ----- Scenario E: unknown source with @agent_worktree_path UNSET; nudge suppressed. -----
+stubdir_e="$TMPROOT/stub-e"
+make_stubs "$stubdir_e" "" ""
+out_e="$(run_hook "$stubdir_e" '{"session_id":"abc","source":"manual"}')"
+assert_empty "$out_e" "Unknown source: no nudge JSON emitted"
+assert_file_contains "$TMPROOT/update-pane-label.log" "%1" "Unknown source: label refresh still invoked"
+
+# ----- Scenario F: resume with @agent_worktree_path SET; nudge suppressed. -----
+stubdir_f="$TMPROOT/stub-f"
+make_stubs "$stubdir_f" "/some/worktree" ""
+out_f="$(run_hook "$stubdir_f" '{"session_id":"abc","source":"resume"}')"
+assert_empty "$out_f" "Part 2 suppressed when @agent_worktree_path is set"
+
+# ----- Scenario G: nested call (startup source + existing session id) bails before Part 1 or Part 2. -----
+stubdir_g="$TMPROOT/stub-g"
+make_stubs "$stubdir_g" "" "outer-session-id"
+out_g="$(run_hook "$stubdir_g" '{"session_id":"new-session-id","source":""}')"
+assert_empty "$out_g" "Nested call: no nudge JSON emitted"
 assert_file_empty "$TMPROOT/update-pane-label.log" "Nested call: tmux-update-pane-label not invoked"
 assert_file_empty "$TMPROOT/window-label.log" "Nested call: tmux-window-label not invoked"
 

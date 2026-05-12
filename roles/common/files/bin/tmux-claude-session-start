@@ -44,8 +44,9 @@ tmux-window-label "$TMUX_PANE" >/dev/null 2>&1 || true
 # pane resumes can't recover the active worktree from tmux state because the
 # agent never chdirs into the worktree — the agent itself is the only authority.
 # Same-pane resumes already have the option set so the nudge is skipped.
-worktree_path="$(tmux show-options -pqv -t "$TMUX_PANE" @agent_worktree_path 2>/dev/null || true)"
-if [ -z "$worktree_path" ]; then
+worktree_path=""
+[ "$source" = "resume" ] && worktree_path="$(tmux show-options -pqv -t "$TMUX_PANE" @agent_worktree_path 2>/dev/null || true)"
+if [ "$source" = "resume" ] && [ -z "$worktree_path" ]; then
   reminder='You are resuming a session in a tmux pane that has no active worktree bound to it. If your prior work in this session was in a git worktree (e.g. a linked worktree under `.worktrees/<branch>`), run `tmux-agent-worktree set <absolute-worktree-path>` so this tmux pane and window reflect the active worktree. Resolve the path from your conversation history, plan files, or `.coding-agent/` state. If this session is not using a worktree, ignore this reminder.'
   jq -n --arg ctx "$reminder" '{
     "hookSpecificOutput": {
