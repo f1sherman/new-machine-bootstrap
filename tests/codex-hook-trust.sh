@@ -42,12 +42,16 @@ assert_mode_600() {
 }
 
 write_metadata() {
-  local path="$1" workdir="$2" hooks_file="$3" work_hash="$4" push_hash="$5" user_hash="$6"
+  local path="$1" workdir="$2" hooks_file="$3" work_hash="$4" push_hash="$5" edit_hash="$6" spec_hash="$7" session_hash="$8" prompt_hash="$9" user_hash="${10}"
   jq -n \
     --arg cwd "$workdir" \
     --arg hooks "$hooks_file" \
     --arg workHash "$work_hash" \
     --arg pushHash "$push_hash" \
+    --arg editHash "$edit_hash" \
+    --arg specHash "$spec_hash" \
+    --arg sessionHash "$session_hash" \
+    --arg promptHash "$prompt_hash" \
     --arg userHash "$user_hash" \
     '{
       data: [
@@ -94,8 +98,8 @@ write_metadata() {
               key: ($hooks + ":pre_tool_use:2:0"),
               eventName: "preToolUse",
               handlerType: "command",
-              matcher: "Bash",
-              command: "~/.local/bin/user-hook",
+              matcher: "apply_patch|Edit|Write",
+              command: "~/.local/bin/codex-block-main-branch-edits",
               timeoutSec: 600,
               statusMessage: null,
               sourcePath: $hooks,
@@ -104,7 +108,75 @@ write_metadata() {
               displayOrder: 2,
               enabled: true,
               isManaged: false,
+              currentHash: $editHash,
+              trustStatus: "untrusted"
+            },
+            {
+              key: ($hooks + ":pre_tool_use:3:0"),
+              eventName: "preToolUse",
+              handlerType: "command",
+              matcher: "Bash",
+              command: "~/.local/bin/user-hook",
+              timeoutSec: 600,
+              statusMessage: null,
+              sourcePath: $hooks,
+              source: "user",
+              pluginId: null,
+              displayOrder: 3,
+              enabled: true,
+              isManaged: false,
               currentHash: $userHash,
+              trustStatus: "untrusted"
+            },
+            {
+              key: ($hooks + ":post_tool_use:0:0"),
+              eventName: "postToolUse",
+              handlerType: "command",
+              matcher: "apply_patch|Edit|Write",
+              command: "~/.local/bin/agent-current-spec-hook",
+              timeoutSec: 600,
+              statusMessage: null,
+              sourcePath: $hooks,
+              source: "user",
+              pluginId: null,
+              displayOrder: 0,
+              enabled: true,
+              isManaged: false,
+              currentHash: $specHash,
+              trustStatus: "untrusted"
+            },
+            {
+              key: ($hooks + ":session_start:0:0"),
+              eventName: "sessionStart",
+              handlerType: "command",
+              matcher: "startup|resume",
+              command: "~/.local/bin/codex-bind-tmux-pane",
+              timeoutSec: 5,
+              statusMessage: null,
+              sourcePath: $hooks,
+              source: "user",
+              pluginId: null,
+              displayOrder: 0,
+              enabled: true,
+              isManaged: false,
+              currentHash: $sessionHash,
+              trustStatus: "untrusted"
+            },
+            {
+              key: ($hooks + ":user_prompt_submit:0:0"),
+              eventName: "userPromptSubmit",
+              handlerType: "command",
+              matcher: null,
+              command: "~/.local/bin/codex-remind-repo-start-on-dev-prompt",
+              timeoutSec: 600,
+              statusMessage: null,
+              sourcePath: $hooks,
+              source: "user",
+              pluginId: null,
+              displayOrder: 0,
+              enabled: true,
+              isManaged: false,
+              currentHash: $promptHash,
               trustStatus: "untrusted"
             }
           ]
@@ -133,7 +205,8 @@ cat >"$hooks_file" <<JSON
         "hooks": [
           {
             "type": "command",
-            "command": "~/.local/bin/codex-block-worktree-commands"
+            "command": "~/.local/bin/codex-block-worktree-commands",
+            "timeout": 600
           }
         ]
       },
@@ -142,7 +215,18 @@ cat >"$hooks_file" <<JSON
         "hooks": [
           {
             "type": "command",
-            "command": "~/.local/bin/codex-block-git-push-main"
+            "command": "~/.local/bin/codex-block-git-push-main",
+            "timeout": 600
+          }
+        ]
+      },
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/codex-block-main-branch-edits",
+            "timeout": 600
           }
         ]
       },
@@ -151,7 +235,43 @@ cat >"$hooks_file" <<JSON
         "hooks": [
           {
             "type": "command",
-            "command": "~/.local/bin/user-hook"
+            "command": "~/.local/bin/user-hook",
+            "timeout": 600
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/agent-current-spec-hook",
+            "timeout": 600
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/codex-bind-tmux-pane",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/codex-remind-repo-start-on-dev-prompt",
+            "timeout": 600
           }
         ]
       }
@@ -166,11 +286,27 @@ model = "gpt-5.5"
 [hooks.state."$hooks_file:pre_tool_use:99:0"]
 trusted_hash = "sha256:stale"
 
+[hooks.state."$hooks_file:post_tool_use:99:0"]
+trusted_hash = "sha256:stale"
+
+[hooks.state."$hooks_file:session_start:99:0"]
+trusted_hash = "sha256:stale"
+
+[hooks.state."$hooks_file:user_prompt_submit:99:0"]
+trusted_hash = "sha256:stale"
+
 [hooks.state."/other/hooks.json:pre_tool_use:0:0"]
 trusted_hash = "sha256:keep"
 TOML
 
-write_metadata "$metadata_file" "$tmpdir/work" "$hooks_file" "sha256:work-v1" "sha256:push-v1" "sha256:user-v1"
+write_metadata "$metadata_file" "$tmpdir/work" "$hooks_file" \
+  "sha256:work-v1" \
+  "sha256:push-v1" \
+  "sha256:edit-v1" \
+  "sha256:spec-v1" \
+  "sha256:session-v1" \
+  "sha256:prompt-v1" \
+  "sha256:user-v1"
 
 out="$(
   CODEX_HOME="$codex_home" \
@@ -184,8 +320,19 @@ assert_file_contains "$config_file" "[hooks.state.\"$hooks_file:pre_tool_use:0:0
 assert_file_contains "$config_file" 'trusted_hash = "sha256:work-v1"' "worktree hook hash is trusted"
 assert_file_contains "$config_file" "[hooks.state.\"$hooks_file:pre_tool_use:1:0\"]" "push hook state section is written"
 assert_file_contains "$config_file" 'trusted_hash = "sha256:push-v1"' "push hook hash is trusted"
+assert_file_contains "$config_file" "[hooks.state.\"$hooks_file:pre_tool_use:2:0\"]" "main edit hook state section is written"
+assert_file_contains "$config_file" 'trusted_hash = "sha256:edit-v1"' "main edit hook hash is trusted"
+assert_file_contains "$config_file" "[hooks.state.\"$hooks_file:post_tool_use:0:0\"]" "current spec hook state section is written"
+assert_file_contains "$config_file" 'trusted_hash = "sha256:spec-v1"' "current spec hook hash is trusted"
+assert_file_contains "$config_file" "[hooks.state.\"$hooks_file:session_start:0:0\"]" "session hook state section is written"
+assert_file_contains "$config_file" 'trusted_hash = "sha256:session-v1"' "session hook hash is trusted"
+assert_file_contains "$config_file" "[hooks.state.\"$hooks_file:user_prompt_submit:0:0\"]" "repo-start prompt hook state section is written"
+assert_file_contains "$config_file" 'trusted_hash = "sha256:prompt-v1"' "repo-start prompt hook hash is trusted"
 assert_file_not_contains "$config_file" "sha256:user-v1" "unrelated user hook is not auto-trusted"
 assert_file_not_contains "$config_file" "$hooks_file:pre_tool_use:99:0" "stale state for same hooks file is removed"
+assert_file_not_contains "$config_file" "$hooks_file:post_tool_use:99:0" "stale post hook state for same hooks file is removed"
+assert_file_not_contains "$config_file" "$hooks_file:session_start:99:0" "stale session hook state for same hooks file is removed"
+assert_file_not_contains "$config_file" "$hooks_file:user_prompt_submit:99:0" "stale prompt hook state for same hooks file is removed"
 assert_file_contains "$config_file" "/other/hooks.json:pre_tool_use:0:0" "unrelated hook state is preserved"
 assert_mode_600 "$config_file" "config file mode is 0600"
 
@@ -198,7 +345,14 @@ out="$(
 )"
 assert_equals "$out" "unchanged" "second run reports unchanged"
 
-write_metadata "$metadata_file" "$tmpdir/work" "$hooks_file" "sha256:work-v2" "sha256:push-v1" "sha256:user-v2"
+write_metadata "$metadata_file" "$tmpdir/work" "$hooks_file" \
+  "sha256:work-v2" \
+  "sha256:push-v2" \
+  "sha256:edit-v2" \
+  "sha256:spec-v2" \
+  "sha256:session-v2" \
+  "sha256:prompt-v2" \
+  "sha256:user-v2"
 out="$(
   CODEX_HOME="$codex_home" \
   HOOKS_FILE="$hooks_file" \
@@ -207,8 +361,18 @@ out="$(
     "$helper"
 )"
 assert_equals "$out" "changed" "hash drift reports changed"
-assert_file_contains "$config_file" 'trusted_hash = "sha256:work-v2"' "changed managed hash is refreshed"
+assert_file_contains "$config_file" 'trusted_hash = "sha256:work-v2"' "changed worktree hash is refreshed"
+assert_file_contains "$config_file" 'trusted_hash = "sha256:push-v2"' "changed push hash is refreshed"
+assert_file_contains "$config_file" 'trusted_hash = "sha256:edit-v2"' "changed main edit hash is refreshed"
+assert_file_contains "$config_file" 'trusted_hash = "sha256:spec-v2"' "changed current spec hash is refreshed"
+assert_file_contains "$config_file" 'trusted_hash = "sha256:session-v2"' "changed session hash is refreshed"
+assert_file_contains "$config_file" 'trusted_hash = "sha256:prompt-v2"' "changed prompt hash is refreshed"
 assert_file_not_contains "$config_file" "sha256:work-v1" "old managed hash is removed"
+assert_file_not_contains "$config_file" "sha256:push-v1" "old push hash is removed"
+assert_file_not_contains "$config_file" "sha256:edit-v1" "old main edit hash is removed"
+assert_file_not_contains "$config_file" "sha256:spec-v1" "old current spec hash is removed"
+assert_file_not_contains "$config_file" "sha256:session-v1" "old session hash is removed"
+assert_file_not_contains "$config_file" "sha256:prompt-v1" "old prompt hash is removed"
 assert_file_not_contains "$config_file" "sha256:user-v2" "changed unrelated user hook is still not trusted"
 
 printf 'codex-hook-trust checks complete\n'
