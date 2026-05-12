@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
-# Attach a clickable link annotation (OSC 8) to the current tmux pane.
-# Stored as the @pane-link user option, rendered by pane-border-format.
+# Attach a label + URL annotation to the current tmux pane. The URL is
+# rendered verbatim in pane-border-format so terminals with URL detection
+# (Ghostty, iTerm2, kitty, …) make it cmd-/ctrl-clickable. Stored as the
+# @pane-link user option.
+#
+# Why not OSC 8 (`#[hyperlink="…"]label#[hyperlink=]`): tmux's style parser
+# does not recognize a `hyperlink=` keyword (see tmux/style.c style_parse),
+# so the directive is silently dropped and no OSC 8 ever reaches the
+# terminal. OSC 8 in tmux only works as passthrough from pane-body output.
 set -u
 
 write_pane_option() {
@@ -71,7 +78,10 @@ fi
 if [ "${#label}" -gt 64 ]; then
   label="${label:0:63}…"
 fi
+# Double `#` so tmux's format parser renders them literally; the URL is
+# emitted as-is for terminal URL detection.
 label="${label//#/##}"
-value="#[hyperlink=\"$url\"]$label#[hyperlink=]"
+url_escaped="${url//#/##}"
+value="$label $url_escaped"
 write_pane_option "$pane" "@pane-link" "$value"
 refresh_client

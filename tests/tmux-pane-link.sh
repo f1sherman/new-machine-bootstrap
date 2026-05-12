@@ -48,14 +48,14 @@ assert_no_file() {
 
 # Test cases get added below by subsequent tasks.
 
-# Case: set with valid https URL writes OSC 8 hyperlink to @pane-link
+# Case: set with valid https URL writes "label url" to @pane-link
 state_dir="$TMPROOT/state-https"
 TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
   "$PANE_LINK" "GH1234" "https://example.com/pulls/1234"
 assert_file_contains \
   "$state_dir/%1.@pane-link" \
-  '#[hyperlink="https://example.com/pulls/1234"]GH1234#[hyperlink=]' \
-  "set with https writes OSC 8 hyperlink"
+  'GH1234 https://example.com/pulls/1234' \
+  "set with https writes label + URL"
 
 # Case: set with valid http URL also works
 state_dir="$TMPROOT/state-http"
@@ -63,8 +63,8 @@ TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
   "$PANE_LINK" "x" "http://example.com"
 assert_file_contains \
   "$state_dir/%1.@pane-link" \
-  '#[hyperlink="http://example.com"]x#[hyperlink=]' \
-  "set with http writes OSC 8 hyperlink"
+  'x http://example.com' \
+  "set with http writes label + URL"
 
 # Case: --clear removes the @pane-link option
 state_dir="$TMPROOT/state-clear"
@@ -146,8 +146,17 @@ TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
   "$PANE_LINK" "GH#1234" "https://example.com"
 assert_file_contains \
   "$state_dir/%1.@pane-link" \
-  '#[hyperlink="https://example.com"]GH##1234#[hyperlink=]' \
+  'GH##1234 https://example.com' \
   "# in LABEL is doubled in stored value"
+
+# Case: # in URL is doubled too (URLs with fragments must survive tmux's parser)
+state_dir="$TMPROOT/state-url-hash"
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" "x" "https://example.com/page#frag"
+assert_file_contains \
+  "$state_dir/%1.@pane-link" \
+  'x https://example.com/page##frag' \
+  "# in URL is doubled in stored value"
 
 # Case: LABEL longer than 64 chars is truncated to 63 chars + …
 state_dir="$TMPROOT/state-trunc"
@@ -158,7 +167,7 @@ content="$(cat "$state_dir/%1.@pane-link")"
 expected_label="$(printf 'a%.0s' {1..63})…"
 assert_file_contains \
   "$state_dir/%1.@pane-link" \
-  "]${expected_label}#[" \
+  "${expected_label} https://example.com" \
   "long LABEL truncated to 63 chars + ellipsis"
 # Confirm the un-truncated 100-char run did NOT survive.
 if grep -Fq "$(printf 'a%.0s' {1..100})" "$state_dir/%1.@pane-link"; then
@@ -181,7 +190,7 @@ state_dir="$TMPROOT/state-pane-flag"
     "$PANE_LINK" --pane "%9" "x" "https://example.com" )
 assert_file_contains \
   "$state_dir/%9.@pane-link" \
-  '#[hyperlink="https://example.com"]x#[hyperlink=]' \
+  'x https://example.com' \
   "--pane targets the specified pane id"
 
 # Case: --pane combines with --clear
