@@ -49,6 +49,82 @@ managed_manifest() {
   ]'
 }
 
+normalize_hooks_file() {
+  local manifest="$1" tmp_file
+  tmp_file="$(mktemp)"
+  trap 'rm -f "$tmp_file"' RETURN
+
+  if [[ -f "$HOOKS_FILE" && -s "$HOOKS_FILE" ]]; then
+    jq --argjson manifest "$manifest" '
+      def event_key($event):
+        {
+          preToolUse: "PreToolUse",
+          postToolUse: "PostToolUse",
+          sessionStart: "SessionStart",
+          userPromptSubmit: "UserPromptSubmit"
+        }[$event];
+      def hook_entry($managed):
+        {type: "command", command: $managed.command}
+        + (if $managed.timeoutSec == 600 then {} else {timeout: $managed.timeoutSec} end);
+      def hook_group($managed):
+        {hooks: [hook_entry($managed)]}
+        + (if $managed.matcher == null then {} else {matcher: $managed.matcher} end);
+
+      .hooks //= {}
+      | ([$manifest[] | event_key(.eventName)] | unique) as $events
+      | reduce $events[] as $event (.;
+          [$manifest[] | select(event_key(.eventName) == $event)] as $managed_for_event
+          | ($managed_for_event | map(.command)) as $managed_commands
+          | .hooks[$event] = (
+              ($managed_for_event | map(hook_group(.)))
+              + (
+                (.hooks[$event] // [])
+                | map(
+                    .hooks = [
+                      (.hooks // [])[]
+                      | select(.command as $command | ($managed_commands | index($command) | not))
+                    ]
+                  )
+                | map(select((.hooks // []) | length > 0))
+              )
+            )
+        )
+    ' "$HOOKS_FILE" >"$tmp_file"
+  else
+    jq -n --argjson manifest "$manifest" '
+      def event_key($event):
+        {
+          preToolUse: "PreToolUse",
+          postToolUse: "PostToolUse",
+          sessionStart: "SessionStart",
+          userPromptSubmit: "UserPromptSubmit"
+        }[$event];
+      def hook_entry($managed):
+        {type: "command", command: $managed.command}
+        + (if $managed.timeoutSec == 600 then {} else {timeout: $managed.timeoutSec} end);
+      def hook_group($managed):
+        {hooks: [hook_entry($managed)]}
+        + (if $managed.matcher == null then {} else {matcher: $managed.matcher} end);
+
+      {hooks: {}}
+      | ([$manifest[] | event_key(.eventName)] | unique) as $events
+      | reduce $events[] as $event (.;
+          .hooks[$event] = [$manifest[] | select(event_key(.eventName) == $event) | hook_group(.)]
+        )
+    ' >"$tmp_file"
+  fi
+
+  if [[ -f "$HOOKS_FILE" ]] && cmp -s "$tmp_file" "$HOOKS_FILE"; then
+    chmod 600 "$HOOKS_FILE"
+    printf 'unchanged\n'
+  else
+    mkdir -p "$(dirname "$HOOKS_FILE")"
+    mv "$tmp_file" "$HOOKS_FILE"
+    chmod 600 "$HOOKS_FILE"
+    printf 'changed\n'
+  fi
+}
+
 fetch_metadata() {
   if [[ -n "${CODEX_HOOK_METADATA_FILE:-}" ]]; then
     cat "$CODEX_HOOK_METADATA_FILE"
@@ -301,7 +377,14 @@ RUBY
 
 require_command jq
 
-metadata="$(fetch_metadata)"
 manifest="$(managed_manifest)"
+hooks_result="$(normalize_hooks_file "$manifest")"
+metadata="$(fetch_metadata)"
 plan_json="$(build_trust_plan "$metadata" "$manifest")"
-update_config "$plan_json"
+config_result="$(update_config "$plan_json")"
+
+if [[ "$hooks_result" == "changed" || "$config_result" == "changed" ]]; then
+  printf 'changed\n'
+else
+  printf 'unchanged\n'
+fi

@@ -35,6 +35,12 @@ assert_equals() {
   pass_case "$name"
 }
 
+assert_jq_equals() {
+  local path="$1" query="$2" expected="$3" name="$4" actual
+  actual="$(jq -r "$query" "$path")"
+  assert_equals "$actual" "$expected" "$name"
+}
+
 assert_mode_600() {
   local path="$1" name="$2" mode
   mode="$(stat -c '%a' "$path" 2>/dev/null || stat -f '%Lp' "$path")"
@@ -447,5 +453,105 @@ unless text.scan(/trusted_hash = /).length == 7
 end
 RUBY
 pass_case "hook keys are escaped in TOML table names"
+
+drift_home="$tmpdir/codex-drift"
+mkdir -p "$drift_home"
+drift_hooks_file="$drift_home/hooks.json"
+drift_config_file="$drift_home/config.toml"
+drift_metadata_file="$tmpdir/drift-hooks-metadata.json"
+
+cat >"$drift_hooks_file" <<JSON
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/codex-block-worktree-commands",
+            "timeout": 1
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/user-hook",
+            "timeout": 600
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/codex-block-worktree-commands"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/codex-block-git-push-main",
+            "timeout": 1
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/codex-bind-tmux-pane"
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/bin/codex-bind-tmux-pane",
+            "timeout": 9
+          }
+        ]
+      }
+    ]
+  }
+}
+JSON
+
+write_metadata "$drift_metadata_file" "$tmpdir/work" "$drift_hooks_file" \
+  "sha256:drift-work" \
+  "sha256:drift-push" \
+  "sha256:drift-edit" \
+  "sha256:drift-spec" \
+  "sha256:drift-session" \
+  "sha256:drift-prompt" \
+  "sha256:drift-user"
+
+out="$(
+  CODEX_HOME="$drift_home" \
+  HOOKS_FILE="$drift_hooks_file" \
+  CONFIG_FILE="$drift_config_file" \
+  CODEX_HOOK_METADATA_FILE="$drift_metadata_file" \
+    "$helper"
+)"
+assert_equals "$out" "changed" "managed hook drift run reports changed"
+assert_jq_equals "$drift_hooks_file" '[.hooks.PreToolUse[] | .hooks[] | select(.command == "~/.local/bin/codex-block-worktree-commands")] | length' "1" "duplicate worktree hook is deduped"
+assert_jq_equals "$drift_hooks_file" '[.hooks.PreToolUse[] | .hooks[] | select(.command == "~/.local/bin/codex-block-worktree-commands")][0].timeout // "default"' "default" "worktree hook timeout is normalized"
+assert_jq_equals "$drift_hooks_file" '[.hooks.PreToolUse[] | .hooks[] | select(.command == "~/.local/bin/codex-block-git-push-main")][0].timeout // "default"' "default" "push hook timeout is normalized"
+assert_jq_equals "$drift_hooks_file" '[.hooks.SessionStart[] | .hooks[] | select(.command == "~/.local/bin/codex-bind-tmux-pane")] | length' "1" "duplicate session hook is deduped"
+assert_jq_equals "$drift_hooks_file" '[.hooks.SessionStart[] | .hooks[] | select(.command == "~/.local/bin/codex-bind-tmux-pane")][0].timeout' "5" "session hook timeout is normalized"
+assert_jq_equals "$drift_hooks_file" '[.hooks.PreToolUse[] | .hooks[] | select(.command == "~/.local/bin/user-hook")] | length' "1" "unrelated hook survives normalization"
+assert_file_contains "$drift_config_file" 'trusted_hash = "sha256:drift-session"' "normalized session hook is trusted"
 
 printf 'codex-hook-trust checks complete\n'
