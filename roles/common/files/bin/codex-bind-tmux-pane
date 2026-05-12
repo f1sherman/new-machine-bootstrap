@@ -10,6 +10,7 @@ payload="$(cat)"
 session_id="$(printf '%s' "$payload" | jq -r '.session_id // empty' 2>/dev/null || true)"
 cwd="$(printf '%s' "$payload" | jq -r '.cwd // empty' 2>/dev/null || true)"
 transcript_path="$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
+source="$(printf '%s' "$payload" | jq -r '.source // empty' 2>/dev/null || true)"
 
 [ -n "$session_id" ] || exit 0
 [ -n "$cwd" ] || exit 0
@@ -25,7 +26,7 @@ tmux-window-label "$TMUX_PANE" >/dev/null 2>&1 || true
 # Part 2: when the pane has no @agent_worktree_path, nudge the agent to
 # republish via `tmux-agent-worktree set`. Same rationale as Claude.
 worktree_path="$(tmux show-options -pqv -t "$TMUX_PANE" @agent_worktree_path 2>/dev/null || true)"
-if [ -z "$worktree_path" ]; then
+if [ "$source" = "resume" ] && [ -z "$worktree_path" ]; then
   reminder='You are resuming a session in a tmux pane that has no active worktree bound to it. If your prior work in this session was in a git worktree (e.g. a linked worktree under `.worktrees/<branch>`), run `tmux-agent-worktree set <absolute-worktree-path>` so this tmux pane and window reflect the active worktree. Resolve the path from your conversation history, plan files, or `.coding-agent/` state. If this session is not using a worktree, ignore this reminder.'
   jq -n --arg ctx "$reminder" '{
     "hookSpecificOutput": {
