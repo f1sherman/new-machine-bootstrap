@@ -1802,7 +1802,7 @@
     HOOKS_FILE: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
     CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
     CODEX_HOOK_QUERY_CWD: '{{ playbook_dir }}'
-    PATH: '{{ ansible_facts["user_dir"] }}/.local/bin:{{ ansible_facts["env"]["PATH"] }}'
+    PATH: '{{ ansible_facts["user_dir"] }}/.local/bin:{{ ansible_facts["user_dir"] }}/.local/share/mise/shims:{{ ansible_facts["env"]["PATH"] }}'
   register: codex_trust_managed_hooks_result
   changed_when: codex_trust_managed_hooks_result.stdout == 'changed'
 
