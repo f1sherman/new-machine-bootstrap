@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
-HOOKS_FILE="${HOOKS_FILE:-$CODEX_HOME/hooks.json}"
-CONFIG_FILE="${CONFIG_FILE:-$CODEX_HOME/config.toml}"
-CODEX_BIN="${CODEX_BIN:-codex}"
-QUERY_CWD="${CODEX_HOOK_QUERY_CWD:-$PWD}"
-
 require_command() {
   local name="$1"
   if ! command -v "$name" >/dev/null 2>&1; then
@@ -14,6 +8,35 @@ require_command() {
     exit 1
   fi
 }
+
+canonical_path() {
+  ruby -e '
+    path = File.expand_path(ARGV.fetch(0))
+    if File.exist?(path)
+      puts File.realpath(path)
+    else
+      parent = File.dirname(path)
+      if File.exist?(parent)
+        puts File.join(File.realpath(parent), File.basename(path))
+      else
+        puts path
+      end
+    end
+  ' "$1"
+}
+
+require_command ruby
+
+CODEX_HOME_INPUT="${CODEX_HOME:-$HOME/.codex}"
+CODEX_HOME="$(canonical_path "$CODEX_HOME_INPUT")"
+HOOKS_FILE_INPUT="${HOOKS_FILE:-$CODEX_HOME_INPUT/hooks.json}"
+CONFIG_FILE_INPUT="${CONFIG_FILE:-$CODEX_HOME_INPUT/config.toml}"
+HOOKS_FILE_RAW="$(ruby -e 'puts File.expand_path(ARGV.fetch(0))' "$HOOKS_FILE_INPUT")"
+CONFIG_FILE_RAW="$(ruby -e 'puts File.expand_path(ARGV.fetch(0))' "$CONFIG_FILE_INPUT")"
+HOOKS_FILE="$(canonical_path "$HOOKS_FILE_RAW")"
+CONFIG_FILE="$(canonical_path "$CONFIG_FILE_RAW")"
+CODEX_BIN="${CODEX_BIN:-codex}"
+QUERY_CWD="$(canonical_path "${CODEX_HOOK_QUERY_CWD:-$PWD}")"
 
 managed_manifest() {
   jq -n '[
@@ -31,6 +54,8 @@ fetch_metadata() {
     cat "$CODEX_HOOK_METADATA_FILE"
     return 0
   fi
+
+  require_command "$CODEX_BIN"
 
   CODEX_BIN="$CODEX_BIN" QUERY_CWD="$QUERY_CWD" ruby <<'RUBY'
 require "json"
@@ -87,8 +112,9 @@ RUBY
 
 build_trust_plan() {
   local metadata="$1" manifest="$2"
-  jq -c --arg hooks_file "$HOOKS_FILE" --argjson manifest "$manifest" '
+  jq -c --arg hooks_file "$HOOKS_FILE" --arg raw_hooks_file "$HOOKS_FILE_RAW" --argjson manifest "$manifest" '
     def norm_timeout: (.timeoutSec // 600 | tonumber);
+    def from_hooks_file: (.sourcePath == $hooks_file or .sourcePath == $raw_hooks_file);
     .data[0] as $entry
     | if (($entry.warnings // []) | length) > 0 then
         error("Codex hooks/list returned warnings: " + (($entry.warnings // []) | join("; ")))
@@ -96,12 +122,12 @@ build_trust_plan() {
         error("Codex hooks/list returned errors: " + (($entry.errors // [] | map(.message // tostring)) | join("; ")))
       else
         {
-          current_keys: [($entry.hooks // [])[] | select(.sourcePath == $hooks_file) | .key],
+          current_keys: [($entry.hooks // [])[] | select(from_hooks_file) | .key],
           managed: [
             $manifest[] as $managed
             | [($entry.hooks // [])[] | select(
                 .source == "user"
-                and .sourcePath == $hooks_file
+                and from_hooks_file
                 and .eventName == $managed.eventName
                 and .matcher == $managed.matcher
                 and .command == $managed.command
@@ -131,11 +157,12 @@ update_config() {
   CURRENT_KEYS_FILE="$current_keys_file" \
   CONFIG_FILE="$CONFIG_FILE" \
   HOOKS_FILE="$HOOKS_FILE" \
+  HOOKS_FILE_RAW="$HOOKS_FILE_RAW" \
   ruby <<'RUBY'
 require "fileutils"
 
 config_file = ENV.fetch("CONFIG_FILE")
-hooks_file = ENV.fetch("HOOKS_FILE")
+hooks_files = [ENV.fetch("HOOKS_FILE"), ENV.fetch("HOOKS_FILE_RAW")].uniq
 pairs = File.readlines(ENV.fetch("PAIRS_FILE"), chomp: true).map { |line| line.split("\t", 2) }.to_h
 current_keys = File.readlines(ENV.fetch("CURRENT_KEYS_FILE"), chomp: true).to_h { |key| [key, true] }
 text = File.exist?(config_file) ? File.read(config_file) : ""
@@ -165,7 +192,7 @@ while index < lines.length
   end
 
   next if pairs.key?(key)
-  next if key.start_with?("#{hooks_file}:") && !current_keys.key?(key)
+  next if hooks_files.any? { |hooks_file| key.start_with?("#{hooks_file}:") } && !current_keys.key?(key)
 
   output.concat(section_lines)
 end
@@ -192,8 +219,6 @@ RUBY
 }
 
 require_command jq
-require_command ruby
-require_command "$CODEX_BIN"
 
 metadata="$(fetch_metadata)"
 manifest="$(managed_manifest)"
