@@ -31,16 +31,36 @@ normalize_candidate() {
   fi
 }
 
+extract_spec_paths_from_text() {
+  local text="$1"
+  [ -n "$text" ] || return 0
+
+  printf '%s\n' "$text" |
+    grep -Eo '(/[^[:space:]"'"'"'`<>|;()]+)?docs/superpowers/specs/[^[:space:]"'"'"'`<>|;()]+-design[.]md' ||
+    true
+}
+
 collect_candidates() {
-  local file_path command
+  local file_path command prompt
   file_path="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)"
   [ -n "$file_path" ] && normalize_candidate "$file_path"
 
   command="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null || true)"
-  [ -n "$command" ] || return 0
+  if [ -n "$command" ]; then
+    printf '%s\n' "$command" |
+      sed -n -E 's/^\*\*\* (Add|Update|Delete) File: //p' |
+      while IFS= read -r path; do
+        normalize_candidate "$path"
+      done
 
-  printf '%s\n' "$command" |
-    sed -n -E 's/^\*\*\* (Add|Update|Delete) File: //p' |
+    extract_spec_paths_from_text "$command" |
+      while IFS= read -r path; do
+        normalize_candidate "$path"
+      done
+  fi
+
+  prompt="$(printf '%s' "$payload" | jq -r '.prompt // empty' 2>/dev/null || true)"
+  extract_spec_paths_from_text "$prompt" |
     while IFS= read -r path; do
       normalize_candidate "$path"
     done
