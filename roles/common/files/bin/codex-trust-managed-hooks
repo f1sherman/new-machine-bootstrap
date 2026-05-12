@@ -197,8 +197,8 @@ pairs = plan.fetch("managed").to_h { |item| [item.fetch("key"), item.fetch("curr
 current_keys = plan.fetch("current_keys").to_h { |key| [key, true] }
 text = File.exist?(config_file) ? File.read(config_file) : ""
 lines = text.lines(chomp: true)
-state_section = /^\[hooks\.state\."((?:\\.|[^"\\])*)"\]\s*(?:[#;].*)?$/
-any_section = /^\[\[?[^\]]+\]\]?\s*(?:[#;].*)?$/
+state_section = /^\s*\[hooks\.state\."((?:\\.|[^"\\])*)"\]\s*(?:[#;].*)?$/
+managed_marker = "# nmb-managed-codex-hook = true"
 
 def toml_unescape(value)
   value.gsub(/\\(["\\])/, "\\1")
@@ -206,6 +206,46 @@ end
 
 def toml_escape(value)
   value.gsub(/[\\"]/) { |char| "\\#{char}" }
+end
+
+def toml_section_header?(line)
+  text = line.strip
+  return false unless text.start_with?("[")
+
+  depth = 0
+  in_string = false
+  escaped = false
+  index = 0
+
+  while index < text.length
+    char = text[index]
+
+    if in_string
+      if escaped
+        escaped = false
+      elsif char == "\\"
+        escaped = true
+      elsif char == '"'
+        in_string = false
+      end
+    elsif char == '"'
+      in_string = true
+    elsif char == "["
+      depth += 1
+    elsif char == "]"
+      depth -= 1
+      return false if depth.negative?
+
+      if depth.zero?
+        rest = text[(index + 1)..] || ""
+        return rest.match?(/\A\s*(?:[#;].*)?\z/)
+      end
+    end
+
+    index += 1
+  end
+
+  false
 end
 
 output = []
@@ -224,13 +264,15 @@ while index < lines.length
   key = toml_unescape(match[1])
   section_lines = [line]
   index += 1
-  while index < lines.length && lines[index] !~ any_section
+  while index < lines.length && !toml_section_header?(lines[index])
     section_lines << lines[index]
     index += 1
   end
 
   next if pairs.key?(key)
-  next if hooks_files.any? { |hooks_file| key.start_with?("#{hooks_file}:") } && !current_keys.key?(key)
+  next if section_lines.any? { |section_line| section_line.strip == managed_marker } &&
+    hooks_files.any? { |hooks_file| key.start_with?("#{hooks_file}:") } &&
+    !current_keys.key?(key)
 
   output.concat(section_lines)
 end
@@ -238,6 +280,7 @@ end
 output << "" unless output.empty? || output[-1] == ""
 pairs.each do |key, hash|
   output << %([hooks.state."#{toml_escape(key)}"])
+  output << managed_marker
   output << %(trusted_hash = "#{hash}")
   output << ""
 end
