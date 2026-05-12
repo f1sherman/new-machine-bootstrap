@@ -157,8 +157,22 @@ host_tag() {
   fi
 }
 
+formatted_repo_label_for_path() {
+  local path="$1" label
+  command -v tmux-label-format >/dev/null 2>&1 || return 1
+  label="$(tmux-label-format local "$path" 2>/dev/null)" || return 1
+  [ -n "$label" ] || return 1
+  printf '%s\n' "$label"
+}
+
 repo_label_for_path() {
-  local path="$1" repo branch host
+  local path="$1" formatted repo branch host
+
+  formatted="$(formatted_repo_label_for_path "$path" 2>/dev/null || true)"
+  if [ -n "$formatted" ]; then
+    printf '%s\n' "$formatted"
+    return 0
+  fi
 
   repo="$(repo_basename "$path" 2>/dev/null || true)"
   branch="$(branch_for_path "$path" 2>/dev/null || true)"
