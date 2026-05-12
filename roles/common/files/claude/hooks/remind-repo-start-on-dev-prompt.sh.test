@@ -140,14 +140,13 @@ run_reminder_case "reminds for /systematic-debugging on main" "/superpowers:syst
 run_reminder_case "reminds for _spec-first on main" "use _spec-first to design this" "main"
 run_reminder_case "reminds for _spec-to-pr on main" "run _spec-to-pr on this idea" "main"
 run_reminder_case "reminds for _fix on main" "use _fix on issue 123" "main"
-run_reminder_case "reminds for fix verb on main" "please fix the failing canary" "main"
-run_reminder_case "reminds for implement verb on main" "implement the new dashboard" "main"
-run_reminder_case "reminds for add verb on main" "add a widget to the dashboard" "main"
-run_reminder_case "reminds for refactor verb on main" "refactor the hook script" "main"
-run_silent_case "silent for dev-keyword on feature branch" "fix the failing canary" "feature/foo"
+run_silent_case "silent for /brainstorming on feature branch" "/superpowers:brainstorming please check the dashboard" "feature/foo"
+run_silent_case "silent for plain dev verb on main" "please fix the failing canary" "main"
+run_silent_case "silent for implement verb on main" "implement the new dashboard" "main"
+run_silent_case "silent for refactor verb on main" "refactor the hook script" "main"
 run_silent_case "silent for non-dev prompt on main" "what time is it?" "main"
 run_silent_case "silent for question prompt on main" "how does this hook work?" "main"
-run_silent_no_repo "silent when cwd is not a git repo" "fix the failing canary"
+run_silent_no_repo "silent when cwd is not a git repo" "/superpowers:brainstorming please check the dashboard"
 run_silent_empty "silent for empty payload" '{}'
 run_silent_empty "silent for missing prompt field" '{"other":"value"}'
 run_silent_empty "silent for blank prompt" '{"prompt":""}'
@@ -161,12 +160,6 @@ make_repo "$FEATURE_REPO" "feature/foo"
 
 run_silent_bound_case \
   "silent when pane bound to non-main worktree (cwd in main)" \
-  "fix the failing canary" \
-  "$MAIN_REPO" \
-  "$FEATURE_REPO"
-
-run_silent_bound_case \
-  "silent when pane bound to non-main worktree for slash-command prompt" \
   "/superpowers:brainstorming please check the dashboard" \
   "$MAIN_REPO" \
   "$FEATURE_REPO"
@@ -175,14 +168,14 @@ MAIN_BOUND_REPO="$TMPROOT/main-bound"
 make_repo "$MAIN_BOUND_REPO" "main"
 run_reminder_bound_main_case \
   "reminds when pane bound to a main-branch worktree" \
-  "fix the failing canary" \
+  "/superpowers:brainstorming please check the dashboard" \
   "$MAIN_REPO" \
   "$MAIN_BOUND_REPO"
 
 # Stale binding (path no longer exists) falls back to cwd
 run_reminder_bound_main_case \
   "falls back to cwd when bound path missing" \
-  "fix the failing canary" \
+  "/superpowers:brainstorming please check the dashboard" \
   "$MAIN_REPO" \
   "$TMPROOT/does-not-exist"
 

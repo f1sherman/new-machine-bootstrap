@@ -45,13 +45,12 @@ if [[ "$branch" != "main" ]]; then
 fi
 
 lower_prompt="$(printf '%s' "$prompt" | tr '[:upper:]' '[:lower:]')"
-dev_pattern='(^|[^[:alnum:]_])(add|address|build|change|create|debug|delete|fix|implement|modify|refactor|remove|resolve|update|wire|write)([^[:alnum:]_]|$)'
 skill_pattern='(^|[^[:alnum:]_])(_fix|_spec-first|_spec-to-pr|systematic-debugging|brainstorming)([^[:alnum:]_]|$)'
-if ! printf '%s\n' "$lower_prompt" | grep -Eq "$dev_pattern|$skill_pattern"; then
+if ! printf '%s\n' "$lower_prompt" | grep -Eq "$skill_pattern"; then
   exit 0
 fi
 
-reminder='This looks like development work while the repo is on main. Run `repo-start <branch>` before editing files, specs, or plans so repo policy chooses the right feature context (branch or worktree).'
+reminder='You invoked an initiating design skill while the repo is on main. Run `repo-start <branch>` before editing files, specs, or plans so repo policy chooses the right feature context (branch or worktree). (You may already have planned to do this; ignore this reminder if so.)'
 
 jq -n --arg ctx "$reminder" '{
   "hookSpecificOutput": {
