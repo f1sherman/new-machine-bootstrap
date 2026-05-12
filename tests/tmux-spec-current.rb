@@ -10,6 +10,12 @@ script = ENV.fetch(
   "TMUX_SPEC_CURRENT_UNDER_TEST",
   File.join(repo_root, "roles/common/files/bin/tmux-spec-current")
 )
+GIT_ENV = {
+  "GIT_AUTHOR_NAME" => "nmb test",
+  "GIT_AUTHOR_EMAIL" => "nmb-test@example.invalid",
+  "GIT_COMMITTER_NAME" => "nmb test",
+  "GIT_COMMITTER_EMAIL" => "nmb-test@example.invalid"
+}.freeze
 
 def fail_case(name, detail)
   warn "FAIL  #{name}"
@@ -26,7 +32,7 @@ def run(env, *command)
 end
 
 def git(*args)
-  system("git", *args, out: File::NULL) || raise("git #{args.join(' ')} failed")
+  system(GIT_ENV, "git", *args, out: File::NULL) || raise("git #{args.join(' ')} failed")
 end
 
 def make_repo(path, specs)
