@@ -45,6 +45,9 @@ jobs:
       - name: Verify Codex SessionStart hook contract
         run: bash tests/codex-bind-tmux-pane.sh
 
+      - name: Verify Codex hook trust provisioning
+        run: bash tests/codex-hook-trust.sh
+
       - name: Verify Codex auth skill guidance
         run: bash tests/generate-codex-auth-skill.sh
 
