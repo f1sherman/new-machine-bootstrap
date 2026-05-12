@@ -321,6 +321,7 @@ run_install_checks() {
   assert_contains "$COMMON_MAIN" "- { name: codex-trust-managed-hooks, mode: '0755' }" "common install loop includes Codex hook trust helper"
   assert_contains "$COMMON_MAIN" "Trust managed Codex hooks in ~/.codex/config.toml" "common provisioning trusts managed Codex hooks"
   assert_contains "$COMMON_MAIN" "CODEX_HOOK_QUERY_CWD: '{{ playbook_dir }}'" "common Codex hook trust task queries the repo root"
+  assert_contains "$COMMON_MAIN" '.local/share/mise/shims' "common Codex hook trust task can find mise-managed Ruby"
   assert_contains "$CODEX_TRUST_HOOK" "codex-block-worktree-commands" "Codex hook trust helper knows the worktree command hook"
   assert_contains "$CODEX_TRUST_HOOK" "codex-remind-repo-start-on-dev-prompt" "Codex hook trust helper knows the repo-start prompt hook"
   assert_not_contains "$COMMON_MAIN" "- { name: worktree-lib.sh" "common install loop does not install public worktree-lib"
