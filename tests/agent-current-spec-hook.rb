@@ -134,6 +134,27 @@ Dir.mktmpdir do |tmp|
     spec_a
   )
 
+  assert_sets(
+    "patch target wins over referenced spec text",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    {
+      "cwd" => repo,
+      "tool_input" => {
+        "command" => [
+          "*** Begin Patch",
+          "*** Update File: docs/superpowers/specs/2026-05-12-a-design.md",
+          "@@",
+          "+See docs/superpowers/specs/2026-05-12-b-design.md",
+          "*** End Patch"
+        ].join("\n")
+      }
+    },
+    spec_a
+  )
+
   assert_ignores(
     "multi-spec prompt is ignored",
     hook,
@@ -177,8 +198,8 @@ pass_case("prompt submit invokes current-spec hook for both agents")
 ].each do |name|
   block = task_block(tasks, name)
   fail_case("#{name} canonicalizes duplicates", "short-circuits before cleanup") if block.include?("exit 0")
-  unless block.include?("map(select((any(.hooks[]?; .type == \"command\" and .command == $cmd)) | not))) + [$entry]")
-    fail_case("#{name} canonicalizes duplicates", "missing duplicate filter")
+  unless block.include?("map(.hooks = ((.hooks // []) | map(select(.type != \"command\" or .command != $cmd))))")
+    fail_case("#{name} canonicalizes duplicates", "does not preserve sibling hooks while filtering")
   end
   pass_case("#{name} canonicalizes duplicates")
 end

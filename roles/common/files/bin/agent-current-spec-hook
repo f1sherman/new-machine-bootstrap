@@ -40,8 +40,8 @@ extract_spec_paths_from_text() {
     true
 }
 
-collect_candidates() {
-  local file_path command prompt
+collect_structured_candidates() {
+  local file_path command
   file_path="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)"
   [ -n "$file_path" ] && normalize_candidate "$file_path"
 
@@ -53,11 +53,22 @@ collect_candidates() {
         normalize_candidate "$path"
       done
 
-    extract_spec_paths_from_text "$command" |
-      while IFS= read -r path; do
-        normalize_candidate "$path"
-      done
   fi
+}
+
+collect_candidates() {
+  local command prompt structured_candidates
+  structured_candidates="$(collect_structured_candidates | awk 'length && !seen[$0]++')"
+  if [ -n "$structured_candidates" ]; then
+    printf '%s\n' "$structured_candidates"
+    return 0
+  fi
+
+  command="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null || true)"
+  extract_spec_paths_from_text "$command" |
+    while IFS= read -r path; do
+      normalize_candidate "$path"
+    done
 
   prompt="$(printf '%s' "$payload" | jq -r '.prompt // empty' 2>/dev/null || true)"
   extract_spec_paths_from_text "$prompt" |

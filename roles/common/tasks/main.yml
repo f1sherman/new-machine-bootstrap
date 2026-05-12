@@ -892,7 +892,9 @@
 
     jq --arg cmd "$hook_cmd" --argjson entry "$managed_entry" '
       .hooks //= {} |
-      .hooks.PostToolUse = (((.hooks.PostToolUse // []) | map(select((any(.hooks[]?; .type == "command" and .command == $cmd)) | not))) + [$entry])
+      .hooks.PostToolUse = (((.hooks.PostToolUse // [])
+        | map(.hooks = ((.hooks // []) | map(select(.type != "command" or .command != $cmd))))
+        | map(select((.hooks // []) | length > 0))) + [$entry])
     ' "$settings_file" > "$tmp_file"
 
     if cmp -s "$settings_file" "$tmp_file"; then
@@ -934,7 +936,9 @@
 
     jq --arg cmd "$hook_cmd" --argjson entry "$managed_entry" '
       .hooks //= {} |
-      .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // []) | map(select((any(.hooks[]?; .type == "command" and .command == $cmd)) | not))) + [$entry])
+      .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // [])
+        | map(.hooks = ((.hooks // []) | map(select(.type != "command" or .command != $cmd))))
+        | map(select((.hooks // []) | length > 0))) + [$entry])
     ' "$settings_file" > "$tmp_file"
 
     if cmp -s "$settings_file" "$tmp_file"; then
@@ -1758,7 +1762,9 @@
 
     jq --arg cmd "$managed_command" --argjson entry "$managed_entry" '
       .hooks //= {} |
-      .hooks.PostToolUse = (((.hooks.PostToolUse // []) | map(select((any(.hooks[]?; .type == "command" and .command == $cmd)) | not))) + [$entry])
+      .hooks.PostToolUse = (((.hooks.PostToolUse // [])
+        | map(.hooks = ((.hooks // []) | map(select(.type != "command" or .command != $cmd))))
+        | map(select((.hooks // []) | length > 0))) + [$entry])
     ' "$hooks_file" > "$tmp_file"
 
     if cmp -s "$hooks_file" "$tmp_file"; then
@@ -1801,7 +1807,9 @@
 
     jq --arg cmd "$managed_command" --argjson entry "$managed_entry" '
       .hooks //= {} |
-      .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // []) | map(select((any(.hooks[]?; .type == "command" and .command == $cmd)) | not))) + [$entry])
+      .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // [])
+        | map(.hooks = ((.hooks // []) | map(select(.type != "command" or .command != $cmd))))
+        | map(select((.hooks // []) | length > 0))) + [$entry])
     ' "$hooks_file" > "$tmp_file"
 
     if cmp -s "$hooks_file" "$tmp_file"; then
