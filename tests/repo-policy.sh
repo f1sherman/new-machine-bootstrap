@@ -353,7 +353,7 @@ run_install_checks() {
   assert_not_contains "$MACOS_BASH_PROFILE" "worktree-delete()" "bash profile no longer exposes worktree-delete wrapper"
   assert_not_contains "$MACOS_BASH_PROFILE" "worktree-merge()" "bash profile no longer exposes worktree-merge wrapper"
   assert_contains "$CLAUDE_BASE_INSTRUCTIONS" 'After the PR has merged, run `repo-end` to clean up the worktree/branch.' "Claude base instructions clarify repo-end is post-merge cleanup"
-  assert_contains "$CLAUDE_BASE_INSTRUCTIONS" 'Do not run `repo-end` merely because implementation is done or the PR branch has been pushed' "Claude base instructions warn repo-end is not for pushed PR branches"
+  assert_not_contains "$CLAUDE_BASE_INSTRUCTIONS" 'Do not run `repo-end` merely because implementation is done or the PR branch has been pushed' "Claude base instructions keep repo-end guidance concise"
   assert_contains "$CODEX_MAIN_EDIT_HOOK" "repo-start <branch>" "main edit hook names repo-start"
   assert_not_contains "$CODEX_MAIN_EDIT_HOOK" "--use-worktrees" "main edit hook does not tell agents to choose worktree mode"
   assert_not_contains "$CODEX_MAIN_EDIT_HOOK" "--no-worktrees" "main edit hook does not tell agents to choose branch mode"
