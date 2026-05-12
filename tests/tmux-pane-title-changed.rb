@@ -64,6 +64,11 @@ CONFIGS.each do |config|
   assert("#{config} passes hook pane target first") do
     line.include?('tmux-pane-title-changed #{hook_pane} #{pane_id}')
   end
+  assert("#{config} gates pane-title-changed before spawning a shell") do
+    line.include?("if-shell -F") &&
+      line.include?('#{m:* | *,#{pane_title}}') &&
+      line.include?('#{@pane-title-structured}')
+  end
   assert("#{config} avoids inline set-option in pane-title-changed") do
     !line.include?("set-option")
   end
