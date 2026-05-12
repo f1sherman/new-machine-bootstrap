@@ -80,7 +80,11 @@ cat >"$stub_bin/tmux-remote-title" <<'STUB'
 #!/usr/bin/env bash
 exit 0
 STUB
-chmod +x "$stub_bin/tmux-window-label" "$stub_bin/tmux-remote-title"
+cat >"$stub_bin/tmux-label-format" <<'STUB'
+#!/usr/bin/env bash
+exit 1
+STUB
+chmod +x "$stub_bin/tmux-window-label" "$stub_bin/tmux-remote-title" "$stub_bin/tmux-label-format"
 
 state_dir="$TMPROOT/state"
 TMUX=1 \
@@ -93,6 +97,39 @@ PATH="$stub_bin:$PATH" \
 
 assert_file_contains "$state_dir/%1.@agent_worktree_path" "$repo_path" "repo-start tmux writer stores explicit repo path"
 assert_file_contains "$state_dir/%1.@pane-label" "(feature/label) label-repo | host-a" "repo-start tmux writer stores repo branch pane label"
+
+cat >"$stub_bin/tmux-label-format" <<'STUB'
+#!/usr/bin/env bash
+if [ "$1" = "local" ] && [ "$2" = "$TMUX_LABEL_FORMAT_REPO_PATH" ]; then
+  printf '(feature/label fj#42) label-repo\n'
+fi
+STUB
+chmod +x "$stub_bin/tmux-label-format"
+
+TMUX=1 \
+TMUX_PANE="%8" \
+TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+TMUX_AGENT_WORKTREE_PANE_TTY=/dev/null \
+TMUX_PANE_LABEL_HOST_TAG=host-a \
+TMUX_LABEL_FORMAT_REPO_PATH="$repo_path" \
+PATH="$stub_bin:$PATH" \
+  "$AGENT_WORKTREE" set "$repo_path"
+
+assert_file_contains "$state_dir/%8.@pane-label" "(feature/label fj#42) label-repo" "repo-start tmux writer prefers formatter pane label"
+
+(
+  cd "$repo_path"
+  TMUX=1 \
+  TMUX_PANE="%9" \
+  TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  TMUX_AGENT_WORKTREE_PANE_TTY=/dev/null \
+  TMUX_PANE_LABEL_HOST_TAG=host-a \
+  TMUX_LABEL_FORMAT_REPO_PATH="$repo_path" \
+  PATH="$stub_bin:$PATH" \
+    "$AGENT_WORKTREE" sync-current
+)
+
+assert_file_contains "$state_dir/%9.@pane-label" "(feature/label fj#42) label-repo" "sync-current tmux writer prefers formatter pane label"
 
 TMUX=1 \
 TMUX_PANE="%1" \
