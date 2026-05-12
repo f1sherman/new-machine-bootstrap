@@ -134,18 +134,24 @@ out_d="$(run_hook "$stubdir_d" '{"session_id":"abc"}')"
 assert_empty "$out_d" "Missing source: no nudge JSON emitted"
 assert_file_contains "$TMPROOT/update-pane-label.log" "%1" "Missing source: label refresh still invoked"
 
-# ----- Scenario C: resume with @agent_worktree_path SET; nudge suppressed. -----
+# ----- Scenario E: unknown source with @agent_worktree_path UNSET; nudge suppressed. -----
 stubdir_e="$TMPROOT/stub-e"
-make_stubs "$stubdir_e" "/some/worktree" ""
-out_e="$(run_hook "$stubdir_e" '{"session_id":"abc","source":"resume"}')"
-assert_empty "$out_e" "Part 2 suppressed when @agent_worktree_path is set"
+make_stubs "$stubdir_e" "" ""
+out_e="$(run_hook "$stubdir_e" '{"session_id":"abc","source":"manual"}')"
+assert_empty "$out_e" "Unknown source: no nudge JSON emitted"
+assert_file_contains "$TMPROOT/update-pane-label.log" "%1" "Unknown source: label refresh still invoked"
 
-
-# ----- Scenario D: nested call (startup source + existing session id) bails before Part 1 or Part 2. -----
+# ----- Scenario F: resume with @agent_worktree_path SET; nudge suppressed. -----
 stubdir_f="$TMPROOT/stub-f"
-make_stubs "$stubdir_f" "" "outer-session-id"
-out_f="$(run_hook "$stubdir_f" '{"session_id":"new-session-id","source":""}')"
-assert_empty "$out_f" "Nested call: no nudge JSON emitted"
+make_stubs "$stubdir_f" "/some/worktree" ""
+out_f="$(run_hook "$stubdir_f" '{"session_id":"abc","source":"resume"}')"
+assert_empty "$out_f" "Part 2 suppressed when @agent_worktree_path is set"
+
+# ----- Scenario G: nested call (startup source + existing session id) bails before Part 1 or Part 2. -----
+stubdir_g="$TMPROOT/stub-g"
+make_stubs "$stubdir_g" "" "outer-session-id"
+out_g="$(run_hook "$stubdir_g" '{"session_id":"new-session-id","source":""}')"
+assert_empty "$out_g" "Nested call: no nudge JSON emitted"
 assert_file_empty "$TMPROOT/update-pane-label.log" "Nested call: tmux-update-pane-label not invoked"
 assert_file_empty "$TMPROOT/window-label.log" "Nested call: tmux-window-label not invoked"
 

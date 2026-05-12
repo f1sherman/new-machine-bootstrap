@@ -134,4 +134,10 @@ make_stubs "$stubdir_e" ""
 out_e="$(run_hook "$stubdir_e" '{"session_id":"abc","cwd":"/tmp/launch","transcript_path":"/tmp/t.jsonl"}')"
 assert_empty "$out_e" "Part 2 suppressed when source is missing"
 
+# ----- Scenario F: unknown source with @agent_worktree_path UNSET; nudge suppressed. -----
+stubdir_f="$TMPROOT/stub-f"
+make_stubs "$stubdir_f" ""
+out_f="$(run_hook "$stubdir_f" '{"session_id":"abc","cwd":"/tmp/launch","transcript_path":"/tmp/t.jsonl","source":"manual"}')"
+assert_empty "$out_f" "Part 2 suppressed when source is unknown"
+
 printf 'codex-bind-tmux-pane checks complete\n'
