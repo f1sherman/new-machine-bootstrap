@@ -132,6 +132,7 @@
     - { name: repo-end, mode: '0755' }
     - { name: codex-block-worktree-commands, mode: '0755' }
     - { name: codex-remind-repo-start-on-dev-prompt, mode: '0755' }
+    - { name: codex-trust-managed-hooks, mode: '0755' }
     - { name: codex-block-git-push-main, mode: '0755' }
     - { name: codex-block-main-branch-edits, mode: '0755' }
     - { name: codex-bind-tmux-pane, mode: '0755' }
@@ -1793,6 +1794,17 @@
     HOOKS_FILE: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
   register: codex_repo_start_prompt_hooks_json_result
   changed_when: codex_repo_start_prompt_hooks_json_result.stdout.strip() == 'changed'
+
+- name: Trust managed Codex hooks in ~/.codex/config.toml
+  command: '{{ ansible_facts["user_dir"] }}/.local/bin/codex-trust-managed-hooks'
+  environment:
+    CODEX_HOME: '{{ ansible_facts["user_dir"] }}/.codex'
+    HOOKS_FILE: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
+    CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
+    CODEX_HOOK_QUERY_CWD: '{{ playbook_dir }}'
+    PATH: '{{ ansible_facts["user_dir"] }}/.local/bin:{{ ansible_facts["env"]["PATH"] }}'
+  register: codex_trust_managed_hooks_result
+  changed_when: codex_trust_managed_hooks_result.stdout == 'changed'
 
 - name: Enforce 0600 on ~/.codex/hooks.json
   file:
