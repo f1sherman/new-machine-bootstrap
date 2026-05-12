@@ -814,6 +814,57 @@
   register: block_initiation_skill_hook_result
   changed_when: block_initiation_skill_hook_result.stdout.strip() == 'changed'
 
+- name: Register UserPromptSubmit hook for repo-start main-branch reminder
+  shell: |
+    set -euo pipefail
+
+    settings_file="${SETTINGS_FILE:?}"
+    hook_cmd='~/.claude/hooks/remind-repo-start-on-dev-prompt.sh'
+
+    if [ ! -f "$settings_file" ]; then
+      echo '{}' > "$settings_file"
+    fi
+
+    if jq -e --arg cmd "$hook_cmd" '
+      .hooks.UserPromptSubmit // []
+      | any(any(.hooks[]?; .type == "command" and .command == $cmd))
+    ' "$settings_file" >/dev/null 2>&1; then
+      echo "unchanged"
+      exit 0
+    fi
+
+    managed_entry="$(
+      jq -n --arg cmd "$hook_cmd" '{
+        hooks: [
+          {
+            type: "command",
+            command: $cmd
+          }
+        ]
+      }'
+    )"
+    tmp_file="$(mktemp)"
+
+    if [ -f "$settings_file" ] && [ -s "$settings_file" ]; then
+      jq --argjson entry "$managed_entry" '
+        .hooks //= {} |
+        .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) + [$entry])
+      ' "$settings_file" > "$tmp_file"
+    else
+      jq -n --argjson entry "$managed_entry" '
+        {hooks: {UserPromptSubmit: [$entry]}}
+      ' > "$tmp_file"
+    fi
+
+    mv "$tmp_file" "$settings_file"
+    echo "changed"
+  args:
+    executable: /bin/bash
+  environment:
+    SETTINGS_FILE: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
+  register: remind_repo_start_prompt_hook_result
+  changed_when: remind_repo_start_prompt_hook_result.stdout.strip() == 'changed'
+
 - name: Register PostToolUse Edit|MultiEdit|Write hook for publishing current spec path
   shell: |
     set -euo pipefail

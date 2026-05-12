@@ -2,7 +2,8 @@
 # Soft-reminder hook: when the user submits a prompt that looks like
 # development work (or invokes an initiating design skill) while the agent's
 # bound worktree is on `main`, emit additionalContext nudging toward
-# `repo-start <branch>`. Never blocks.
+# `repo-start <branch>`. Mirror of
+# ~/.local/bin/codex-remind-repo-start-on-dev-prompt. Never blocks.
 #
 # "Bound worktree" comes from the tmux pane option @agent_worktree_path,
 # which repo-start sets via tmux-agent-worktree. This avoids false positives

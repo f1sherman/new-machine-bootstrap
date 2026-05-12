@@ -54,6 +54,9 @@ jobs:
       - name: Verify tmux pane-title hook regression
         run: ruby tests/tmux-pane-title-changed.rb
 
+      - name: Verify remind-repo-start-on-dev-prompt hook
+        run: bash roles/common/files/claude/hooks/remind-repo-start-on-dev-prompt.sh.test
+
       - name: Verify key tools installed at expected versions
         run: |
           set -euo pipefail
