@@ -284,17 +284,24 @@ cat >"$config_file" <<TOML
 model = "gpt-5.5"
 
 [hooks.state."$hooks_file:pre_tool_use:99:0"]
+# nmb-managed-codex-hook = true
 trusted_hash = "sha256:stale"
 [[profiles]]
 name = "preserve-main"
 
+[hooks.state."$hooks_file:pre_tool_use:77:0"]
+trusted_hash = "sha256:keep-same-file-user"
+
 [hooks.state."$hooks_file:post_tool_use:99:0"]
+# nmb-managed-codex-hook = true
 trusted_hash = "sha256:stale"
 
 [hooks.state."$hooks_file:session_start:99:0"]
+# nmb-managed-codex-hook = true
 trusted_hash = "sha256:stale"
 
 [hooks.state."$hooks_file:user_prompt_submit:99:0"]
+# nmb-managed-codex-hook = true
 trusted_hash = "sha256:stale"
 
 [hooks.state."/other/hooks.json:pre_tool_use:0:0"]
@@ -337,6 +344,8 @@ assert_file_not_contains "$config_file" "$hooks_file:session_start:99:0" "stale 
 assert_file_not_contains "$config_file" "$hooks_file:user_prompt_submit:99:0" "stale prompt hook state for same hooks file is removed"
 assert_file_contains "$config_file" '[[profiles]]' "array table after stale state is preserved"
 assert_file_contains "$config_file" 'name = "preserve-main"' "array table content after stale state is preserved"
+assert_file_contains "$config_file" "$hooks_file:pre_tool_use:77:0" "unrelated same-file hook state is preserved"
+assert_file_contains "$config_file" 'trusted_hash = "sha256:keep-same-file-user"' "unrelated same-file hook hash is preserved"
 assert_file_contains "$config_file" "/other/hooks.json:pre_tool_use:0:0" "unrelated hook state is preserved"
 assert_mode_600 "$config_file" "config file mode is 0600"
 
@@ -380,7 +389,7 @@ assert_file_not_contains "$config_file" "sha256:prompt-v1" "old prompt hash is r
 assert_file_not_contains "$config_file" "sha256:user-v2" "changed unrelated user hook is still not trusted"
 
 escape_home="$tmpdir/codex-escape"
-escape_hooks_dir="$escape_home/quote\"and\\slash"
+escape_hooks_dir="$escape_home/quote\"and]slash\\path"
 mkdir -p "$escape_hooks_dir"
 escape_hooks_file="$escape_hooks_dir/hooks.json"
 escape_config_file="$escape_home/config.toml"
@@ -392,7 +401,10 @@ hooks_file = ARGV.fetch(1)
 escaped = hooks_file.gsub(/[\\"]/) { |char| "\\#{char}" }
 File.write(path, <<~TOML)
   [hooks.state."#{escaped}:pre_tool_use:99:0"]
+  # nmb-managed-codex-hook = true
   trusted_hash = "sha256:stale"
+  [hooks.state."#{escaped}:pre_tool_use:77:0"]
+  trusted_hash = "sha256:preserve-bracket"
   [[profiles]]
   name = "keep"
 TOML
@@ -418,6 +430,7 @@ assert_equals "$out" "changed" "escaped hook path run reports changed"
 assert_file_contains "$escape_config_file" '[[profiles]]' "array table after stale state is preserved"
 assert_file_contains "$escape_config_file" 'name = "keep"' "array table content after stale state is preserved"
 assert_file_not_contains "$escape_config_file" "sha256:stale" "stale escaped hook state is removed"
+assert_file_contains "$escape_config_file" "sha256:preserve-bracket" "unrelated bracket-path hook state is preserved"
 ruby - "$escape_config_file" "$escape_hooks_file" <<'RUBY'
 path = ARGV.fetch(0)
 hooks_file = ARGV.fetch(1)
@@ -428,8 +441,8 @@ unless text.include?(expected)
   warn "missing escaped TOML table #{expected.inspect}"
   exit 1
 end
-unless text.scan(/trusted_hash = /).length == 6
-  warn "expected 6 trusted_hash entries"
+unless text.scan(/trusted_hash = /).length == 7
+  warn "expected 7 trusted_hash entries"
   exit 1
 end
 RUBY
