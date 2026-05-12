@@ -82,6 +82,33 @@ rescue Timeout::Error
   exit 1
 end
 
+def stop_process(wait_thread)
+  return unless wait_thread&.alive?
+
+  begin
+    Process.kill("TERM", wait_thread.pid)
+  rescue Errno::ESRCH
+    return
+  end
+
+  begin
+    Timeout.timeout(2) { wait_thread.value }
+    return
+  rescue Timeout::Error
+    begin
+      Process.kill("KILL", wait_thread.pid)
+    rescue Errno::ESRCH
+      return
+    end
+  end
+
+  begin
+    Timeout.timeout(2) { wait_thread.value }
+  rescue Timeout::Error
+    nil
+  end
+end
+
 Open3.popen3(codex_bin, "app-server", "--listen", "stdio://") do |stdin, stdout, _stderr, wait_thread|
   begin
     stdin.puts({
@@ -103,8 +130,12 @@ Open3.popen3(codex_bin, "app-server", "--listen", "stdio://") do |stdin, stdout,
     list_response = read_response_by_id(stdout, 2)
     puts JSON.generate(list_response.fetch("result"))
   ensure
-    stdin.close unless stdin.closed?
-    Process.kill("TERM", wait_thread.pid) if wait_thread.alive?
+    begin
+      stdin.close unless stdin.closed?
+    rescue IOError, Errno::EPIPE
+      nil
+    end
+    stop_process(wait_thread)
   end
 end
 RUBY
@@ -145,30 +176,37 @@ build_trust_plan() {
 }
 
 update_config() {
-  local plan_json="$1" pairs_file current_keys_file
-  pairs_file="$(mktemp)"
-  current_keys_file="$(mktemp)"
-  trap 'rm -f "$pairs_file" "$current_keys_file"' RETURN
+  local plan_json="$1" plan_file
+  plan_file="$(mktemp)"
+  trap 'rm -f "$plan_file"' RETURN
 
-  jq -r '.managed[] | [.key, .currentHash] | @tsv' <<<"$plan_json" >"$pairs_file"
-  jq -r '.current_keys[]' <<<"$plan_json" >"$current_keys_file"
+  printf '%s\n' "$plan_json" >"$plan_file"
 
-  PAIRS_FILE="$pairs_file" \
-  CURRENT_KEYS_FILE="$current_keys_file" \
+  PLAN_FILE="$plan_file" \
   CONFIG_FILE="$CONFIG_FILE" \
   HOOKS_FILE="$HOOKS_FILE" \
   HOOKS_FILE_RAW="$HOOKS_FILE_RAW" \
   ruby <<'RUBY'
 require "fileutils"
+require "json"
 
 config_file = ENV.fetch("CONFIG_FILE")
 hooks_files = [ENV.fetch("HOOKS_FILE"), ENV.fetch("HOOKS_FILE_RAW")].uniq
-pairs = File.readlines(ENV.fetch("PAIRS_FILE"), chomp: true).map { |line| line.split("\t", 2) }.to_h
-current_keys = File.readlines(ENV.fetch("CURRENT_KEYS_FILE"), chomp: true).to_h { |key| [key, true] }
+plan = JSON.parse(File.read(ENV.fetch("PLAN_FILE")))
+pairs = plan.fetch("managed").to_h { |item| [item.fetch("key"), item.fetch("currentHash")] }
+current_keys = plan.fetch("current_keys").to_h { |key| [key, true] }
 text = File.exist?(config_file) ? File.read(config_file) : ""
 lines = text.lines(chomp: true)
-state_section = /^\[hooks\.state\."([^"]+)"\]\s*(?:[#;].*)?$/
-any_section = /^\[[^\]]+\]\s*(?:[#;].*)?$/
+state_section = /^\[hooks\.state\."((?:\\.|[^"\\])*)"\]\s*(?:[#;].*)?$/
+any_section = /^\[\[?[^\]]+\]\]?\s*(?:[#;].*)?$/
+
+def toml_unescape(value)
+  value.gsub(/\\(["\\])/, "\\1")
+end
+
+def toml_escape(value)
+  value.gsub(/[\\"]/) { |char| "\\#{char}" }
+end
 
 output = []
 index = 0
@@ -183,7 +221,7 @@ while index < lines.length
     next
   end
 
-  key = match[1]
+  key = toml_unescape(match[1])
   section_lines = [line]
   index += 1
   while index < lines.length && lines[index] !~ any_section
@@ -199,7 +237,7 @@ end
 
 output << "" unless output.empty? || output[-1] == ""
 pairs.each do |key, hash|
-  output << %([hooks.state."#{key}"])
+  output << %([hooks.state."#{toml_escape(key)}"])
   output << %(trusted_hash = "#{hash}")
   output << ""
 end

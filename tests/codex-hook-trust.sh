@@ -285,6 +285,8 @@ model = "gpt-5.5"
 
 [hooks.state."$hooks_file:pre_tool_use:99:0"]
 trusted_hash = "sha256:stale"
+[[profiles]]
+name = "preserve-main"
 
 [hooks.state."$hooks_file:post_tool_use:99:0"]
 trusted_hash = "sha256:stale"
@@ -333,6 +335,8 @@ assert_file_not_contains "$config_file" "$hooks_file:pre_tool_use:99:0" "stale s
 assert_file_not_contains "$config_file" "$hooks_file:post_tool_use:99:0" "stale post hook state for same hooks file is removed"
 assert_file_not_contains "$config_file" "$hooks_file:session_start:99:0" "stale session hook state for same hooks file is removed"
 assert_file_not_contains "$config_file" "$hooks_file:user_prompt_submit:99:0" "stale prompt hook state for same hooks file is removed"
+assert_file_contains "$config_file" '[[profiles]]' "array table after stale state is preserved"
+assert_file_contains "$config_file" 'name = "preserve-main"' "array table content after stale state is preserved"
 assert_file_contains "$config_file" "/other/hooks.json:pre_tool_use:0:0" "unrelated hook state is preserved"
 assert_mode_600 "$config_file" "config file mode is 0600"
 
@@ -374,5 +378,61 @@ assert_file_not_contains "$config_file" "sha256:spec-v1" "old current spec hash 
 assert_file_not_contains "$config_file" "sha256:session-v1" "old session hash is removed"
 assert_file_not_contains "$config_file" "sha256:prompt-v1" "old prompt hash is removed"
 assert_file_not_contains "$config_file" "sha256:user-v2" "changed unrelated user hook is still not trusted"
+
+escape_home="$tmpdir/codex-escape"
+escape_hooks_dir="$escape_home/quote\"and\\slash"
+mkdir -p "$escape_hooks_dir"
+escape_hooks_file="$escape_hooks_dir/hooks.json"
+escape_config_file="$escape_home/config.toml"
+escape_metadata_file="$tmpdir/escape-hooks-metadata.json"
+
+ruby - "$escape_config_file" "$escape_hooks_file" <<'RUBY'
+path = ARGV.fetch(0)
+hooks_file = ARGV.fetch(1)
+escaped = hooks_file.gsub(/[\\"]/) { |char| "\\#{char}" }
+File.write(path, <<~TOML)
+  [hooks.state."#{escaped}:pre_tool_use:99:0"]
+  trusted_hash = "sha256:stale"
+  [[profiles]]
+  name = "keep"
+TOML
+RUBY
+
+write_metadata "$escape_metadata_file" "$tmpdir/work" "$escape_hooks_file" \
+  "sha256:escape-work" \
+  "sha256:escape-push" \
+  "sha256:escape-edit" \
+  "sha256:escape-spec" \
+  "sha256:escape-session" \
+  "sha256:escape-prompt" \
+  "sha256:escape-user"
+
+out="$(
+  CODEX_HOME="$escape_home" \
+  HOOKS_FILE="$escape_hooks_file" \
+  CONFIG_FILE="$escape_config_file" \
+  CODEX_HOOK_METADATA_FILE="$escape_metadata_file" \
+    "$helper"
+)"
+assert_equals "$out" "changed" "escaped hook path run reports changed"
+assert_file_contains "$escape_config_file" '[[profiles]]' "array table after stale state is preserved"
+assert_file_contains "$escape_config_file" 'name = "keep"' "array table content after stale state is preserved"
+assert_file_not_contains "$escape_config_file" "sha256:stale" "stale escaped hook state is removed"
+ruby - "$escape_config_file" "$escape_hooks_file" <<'RUBY'
+path = ARGV.fetch(0)
+hooks_file = ARGV.fetch(1)
+text = File.read(path)
+escaped = hooks_file.gsub(/[\\"]/) { |char| "\\#{char}" }
+expected = %([hooks.state."#{escaped}:pre_tool_use:0:0"])
+unless text.include?(expected)
+  warn "missing escaped TOML table #{expected.inspect}"
+  exit 1
+end
+unless text.scan(/trusted_hash = /).length == 6
+  warn "expected 6 trusted_hash entries"
+  exit 1
+end
+RUBY
+pass_case "hook keys are escaped in TOML table names"
 
 printf 'codex-hook-trust checks complete\n'
