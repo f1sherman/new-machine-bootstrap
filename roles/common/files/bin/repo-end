@@ -71,24 +71,32 @@ repo_end_callback_timeout_seconds() {
 run_repo_end_callback() {
   local callback="$1"
   local timeout_seconds="$2"
-  local timeout_marker callback_pid watchdog_pid status
+  local timeout_marker callback_pid watchdog_pid status monitor_was_on
 
   timeout_marker="$("$(_worktree_cmd mktemp)" "${TMPDIR:-/tmp}/repo-end-callback-timeout.XXXXXX")" || return 1
 
+  case "$-" in
+    *m*) monitor_was_on="true" ;;
+    *) monitor_was_on="false" ;;
+  esac
+  set -m
   "$callback" \
     --repo-dir "$repo_root" \
     --branch "$current_branch" \
     --main-branch "$main_branch" \
     --main-path "$main_path" &
   callback_pid=$!
+  if [[ "$monitor_was_on" != "true" ]]; then
+    set +m
+  fi
 
   (
     sleep "$timeout_seconds"
     if kill -0 "$callback_pid" 2>/dev/null; then
       printf 'timed out\n' >"$timeout_marker"
-      kill "$callback_pid" 2>/dev/null || true
+      kill -TERM "-$callback_pid" 2>/dev/null || kill "$callback_pid" 2>/dev/null || true
       sleep 1
-      kill -9 "$callback_pid" 2>/dev/null || true
+      kill -KILL "-$callback_pid" 2>/dev/null || kill -9 "$callback_pid" 2>/dev/null || true
     fi
   ) &
   watchdog_pid=$!

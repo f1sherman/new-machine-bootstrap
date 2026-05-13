@@ -149,6 +149,19 @@ assert_file_contains() {
   printf 'PASS  %s\n' "$name"
 }
 
+assert_file_not_contains() {
+  local path="$1" needle="$2" name="$3"
+  local content=""
+  if [[ -f "$path" ]]; then
+    content="$(cat "$path")"
+  fi
+  if [[ "$content" == *"$needle"* ]]; then
+    printf 'FAIL  %s\nunexpected %q in %s\n' "$name" "$needle" "$path" >&2
+    return 1
+  fi
+  printf 'PASS  %s\n' "$name"
+}
+
 assert_file_equals() {
   local path="$1" expected="$2" name="$3"
   local content
@@ -319,13 +332,15 @@ tmp_home_timeout="$TMPROOT/timeout-callback-home"
 timeout_callback_dir="$tmp_home_timeout/.local/bin/repo-end.d"
 mkdir -p "$timeout_callback_dir"
 timeout_log="$tmp_home_timeout/.local/state/repo-end-timeout-callback.log"
-timeout_pid="$tmp_home_timeout/.local/state/repo-end-timeout-callback.pid"
 mkdir -p "$(dirname "$timeout_log")"
 cat >"$timeout_callback_dir/10-hangs.sh" <<'EOF'
 #!/usr/bin/env bash
 printf 'callback-started %s\n' "$*" >> "$HOME/.local/state/repo-end-timeout-callback.log"
-printf '%s\n' "$$" > "$HOME/.local/state/repo-end-timeout-callback.pid"
-exec sleep 10
+(
+  sleep 2
+  printf 'callback-orphaned\n' >> "$HOME/.local/state/repo-end-timeout-callback.log"
+) &
+wait $!
 EOF
 chmod +x "$timeout_callback_dir/10-hangs.sh"
 
@@ -343,9 +358,7 @@ run_case_with_deadline "callback timeout warns and continues" \
   1 \
   3
 
-if [[ -f "$timeout_pid" ]]; then
-  kill "$(cat "$timeout_pid")" 2>/dev/null || true
-fi
+sleep 3
 
 assert_file_equals \
   "$TMPROOT/timeout-callback.out" \
@@ -359,4 +372,8 @@ assert_file_contains \
   "$timeout_log" \
   "callback-after --repo-dir $timeout_repo --branch feature/timeout --main-branch main --main-path $timeout_repo" \
   "callbacks continue after timeout"
+assert_file_not_contains \
+  "$timeout_log" \
+  "callback-orphaned" \
+  "timeout terminates callback descendants"
 printf 'repo-end callback behavior checks complete\n'
