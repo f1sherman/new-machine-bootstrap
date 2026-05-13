@@ -13,4 +13,5 @@ User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min toke
 * Testing: use Red/Green TDD.
 * Superpowers specs/plans commit step: check `git check-ignore -q docs/superpowers`. If ignored, skip commit — keep local. Never `git add -f` / `--force` on `docs/superpowers/`.
 * Temp files: prefer `./tmp` if exists, else `/tmp`
+* Errors: never silently swallow in code/scripts. Log at minimum.
 * Verification: end to end verify; confirm empirically.
