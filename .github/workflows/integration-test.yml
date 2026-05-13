@@ -42,6 +42,9 @@ jobs:
       - name: Verify tmux pane-link contract
         run: bash tests/tmux-pane-link.sh
 
+      - name: Verify current-spec publisher
+        run: ruby tests/agent-current-spec-hook.rb
+
       - name: Verify tmux current-spec resolver
         run: ruby tests/tmux-spec-current.rb
 

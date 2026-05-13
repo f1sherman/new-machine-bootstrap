@@ -47,7 +47,7 @@ def make_repo(path, specs)
   git("-C", path, "commit", "-q", "-m", "specs")
 end
 
-def fake_tmux(path, pane_path:, option: "")
+def fake_tmux(path, pane_path:, option: "", worktree_path: "")
   FileUtils.mkdir_p(path)
   File.write(
     File.join(path, "tmux"),
@@ -56,7 +56,11 @@ def fake_tmux(path, pane_path:, option: "")
       set -euo pipefail
       case "${1:-}" in
         show-options)
-          printf '%s' #{option.dump}
+          requested="${@: -1}"
+          case "$requested" in
+            @agent_current_spec_path) printf '%s' #{option.dump} ;;
+            @agent_worktree_path) printf '%s' #{worktree_path.dump} ;;
+          esac
           ;;
         display-message)
           printf '%s' #{pane_path.dump}
@@ -96,7 +100,7 @@ Dir.mktmpdir do |tmp|
   pass_case("pane option wins")
 
   single_repo = File.join(tmp, "single")
-  make_repo(single_repo, ["2026-05-03-only-design.md"])
+  make_repo(single_repo, ["2026-05-03-only.md"])
   fake_tmux(File.join(tmp, "bin-single"), pane_path: single_repo)
   stdout, stderr, status = run(
     {
@@ -106,11 +110,30 @@ Dir.mktmpdir do |tmp|
     },
     script
   )
-  expected = File.join(single_repo, "docs/superpowers/specs/2026-05-03-only-design.md")
+  expected = File.join(single_repo, "docs/superpowers/specs/2026-05-03-only.md")
   unless status.success? && stdout.strip == expected
     fail_case("single-spec fallback resolves", "expected #{expected.inspect}, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}")
   end
   pass_case("single-spec fallback resolves")
+
+  pane_repo = File.join(tmp, "pane-main")
+  make_repo(pane_repo, ["2026-05-04-main.md"])
+  bound_repo = File.join(tmp, "bound-worktree")
+  make_repo(bound_repo, ["2026-05-04-bound.md"])
+  fake_tmux(File.join(tmp, "bin-bound"), pane_path: pane_repo, worktree_path: bound_repo)
+  stdout, stderr, status = run(
+    {
+      "TMUX" => "/tmp/tmux",
+      "TMUX_PANE" => "%34",
+      "TMUX_SPEC_TMUX_BIN" => File.join(tmp, "bin-bound/tmux")
+    },
+    script
+  )
+  expected = File.join(bound_repo, "docs/superpowers/specs/2026-05-04-bound.md")
+  unless status.success? && stdout.strip == expected
+    fail_case("bound worktree fallback wins over pane cwd", "expected #{expected.inspect}, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}")
+  end
+  pass_case("bound worktree fallback wins over pane cwd")
 
   fake_tmux(File.join(tmp, "bin-multi"), pane_path: multi_repo)
   stdout, stderr, status = run(
