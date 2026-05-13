@@ -21,6 +21,10 @@ normalize_candidate() {
   local path="$1"
   path="${path#./}"
 
+  case "$path" in
+    *'*'*|*'?'*|*'['*|*']'*) return 0 ;;
+  esac
+
   if [[ "$path" == /* ]]; then
     if [[ "$path" == "$repo_root"/* ]]; then
       local repo_path="${path#$repo_root/}"

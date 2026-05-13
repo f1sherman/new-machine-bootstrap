@@ -156,6 +156,20 @@ Dir.mktmpdir do |tmp|
   )
 
   assert_ignores(
+    "glob shell command is ignored",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    {
+      "cwd" => repo,
+      "tool_input" => {
+        "command" => "ls docs/superpowers/specs/*-design.md"
+      }
+    }
+  )
+
+  assert_ignores(
     "multi-spec prompt is ignored",
     hook,
     repo,
