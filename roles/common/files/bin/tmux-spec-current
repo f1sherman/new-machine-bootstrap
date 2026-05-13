@@ -8,6 +8,7 @@ pane="${1:-${TMUX_PANE:-}}"
 [ -n "$pane" ] || { printf 'tmux-spec-current: pane id is required\n' >&2; exit 1; }
 
 pane_path=""
+worktree_path=""
 repo_root=""
 
 read_pane_path() {
@@ -20,8 +21,20 @@ read_pane_path() {
   fi
 }
 
+read_worktree_path() {
+  if [ -z "$worktree_path" ]; then
+    worktree_path="$("$tmux_bin" show-options -qv -pt "$pane" @agent_worktree_path 2>/dev/null || true)"
+  fi
+}
+
 read_repo_root() {
   if [ -z "$repo_root" ]; then
+    read_worktree_path
+    if [ -n "$worktree_path" ]; then
+      repo_root="$(git -C "$worktree_path" rev-parse --show-toplevel 2>/dev/null || true)"
+      [ -n "$repo_root" ] && return
+    fi
+
     read_pane_path
     repo_root="$(git -C "$pane_path" rev-parse --show-toplevel 2>/dev/null || true)"
     if [ -z "$repo_root" ]; then
@@ -52,7 +65,7 @@ fi
 
 spec_count=0
 spec_candidate=""
-for candidate in "$spec_dir"/*-design.md; do
+for candidate in "$spec_dir"/*.md; do
   [ -e "$candidate" ] || continue
   spec_count=$((spec_count + 1))
   spec_candidate="$candidate"

@@ -101,8 +101,10 @@ Dir.mktmpdir do |tmp|
   make_repo(repo)
   spec_a = File.join(repo, "docs/superpowers/specs/2026-05-12-a-design.md")
   spec_b = File.join(repo, "docs/superpowers/specs/2026-05-12-b-design.md")
+  flexible_spec = File.join(repo, "docs/superpowers/specs/2026-05-12-flexible.md")
   File.write(spec_a, "# A\n")
   File.write(spec_b, "# B\n")
+  File.write(flexible_spec, "# Flexible\n")
 
   bound_repo = File.join(tmp, "bound-repo")
   make_repo(bound_repo)
@@ -131,6 +133,16 @@ Dir.mktmpdir do |tmp|
     log_path,
     { "prompt" => "read docs/superpowers/specs/2026-05-12-a-design.md" },
     spec_a
+  )
+
+  assert_sets(
+    "prompt reference publishes non-design spec markdown",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    { "prompt" => "read docs/superpowers/specs/2026-05-12-flexible.md" },
+    flexible_spec
   )
 
   assert_sets(
@@ -197,6 +209,26 @@ Dir.mktmpdir do |tmp|
     spec_a
   )
 
+  assert_sets(
+    "patch target publishes non-design spec markdown",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    {
+      "cwd" => repo,
+      "tool_input" => {
+        "command" => [
+          "*** Begin Patch",
+          "*** Add File: docs/superpowers/specs/2026-05-12-flexible.md",
+          "+# Flexible",
+          "*** End Patch"
+        ].join("\n")
+      }
+    },
+    flexible_spec
+  )
+
   assert_ignores(
     "glob shell command is ignored",
     hook,
@@ -206,7 +238,7 @@ Dir.mktmpdir do |tmp|
     {
       "cwd" => repo,
       "tool_input" => {
-        "command" => "ls docs/superpowers/specs/*-design.md"
+        "command" => "ls docs/superpowers/specs/*.md"
       }
     }
   )

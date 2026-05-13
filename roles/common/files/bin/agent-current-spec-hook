@@ -21,7 +21,7 @@ done
 
 [ -n "$repo_root" ] || exit 0
 
-spec_pattern='^docs/superpowers/specs/[^/]+-design[.]md$'
+spec_pattern='^docs/superpowers/specs/[^/]+[.]md$'
 
 normalize_candidate() {
   local path="$1"
@@ -50,7 +50,7 @@ extract_spec_paths_from_text() {
 
   printf '%s\n' "$text" |
     grep -Eo '[^[:space:]"'"'"'`<>|;()]+' |
-    grep -E 'docs/superpowers/specs/[^/[:space:]"'"'"'`<>|;()]+-design[.]md' ||
+    grep -E 'docs/superpowers/specs/[^/[:space:]"'"'"'`<>|;()]+[.]md' ||
     true
 }
 
