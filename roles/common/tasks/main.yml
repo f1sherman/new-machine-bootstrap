@@ -717,7 +717,7 @@
     settings_file="${SETTINGS_FILE:?}"
     hook_cmd='~/.claude/hooks/block-main-branch-edits.sh'
 
-    if [ ! -f "$settings_file" ]; then
+    if [ ! -s "$settings_file" ]; then
       echo '{}' > "$settings_file"
     fi
 
@@ -769,7 +769,7 @@
     settings_file="${SETTINGS_FILE:?}"
     hook_cmd='~/.claude/hooks/block-initiation-skill-on-main.sh'
 
-    if [ ! -f "$settings_file" ]; then
+    if [ ! -s "$settings_file" ]; then
       echo '{}' > "$settings_file"
     fi
 
@@ -821,7 +821,7 @@
     settings_file="${SETTINGS_FILE:?}"
     hook_cmd='~/.claude/hooks/remind-repo-start-on-dev-prompt.sh'
 
-    if [ ! -f "$settings_file" ]; then
+    if [ ! -s "$settings_file" ]; then
       echo '{}' > "$settings_file"
     fi
 
@@ -873,7 +873,7 @@
     hook_cmd='$HOME/.local/bin/agent-current-spec-hook'
     matcher='Bash|Edit|MultiEdit|Read|Write'
 
-    if [ ! -f "$settings_file" ]; then
+    if [ ! -s "$settings_file" ]; then
       echo '{}' > "$settings_file"
     fi
 
@@ -918,7 +918,7 @@
     settings_file="${SETTINGS_FILE:?}"
     hook_cmd='$HOME/.local/bin/agent-current-spec-hook'
 
-    if [ ! -f "$settings_file" ]; then
+    if [ ! -s "$settings_file" ]; then
       echo '{}' > "$settings_file"
     fi
 
@@ -1756,7 +1756,7 @@
     )"
     tmp_file="$(mktemp)"
 
-    if [ ! -f "$hooks_file" ]; then
+    if [ ! -s "$hooks_file" ]; then
       echo '{}' > "$hooks_file"
     fi
 
@@ -1801,7 +1801,7 @@
     )"
     tmp_file="$(mktemp)"
 
-    if [ ! -f "$hooks_file" ]; then
+    if [ ! -s "$hooks_file" ]; then
       echo '{}' > "$hooks_file"
     fi
 

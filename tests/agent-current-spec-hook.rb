@@ -52,6 +52,10 @@ def write_fake_tmux(bin_dir, log_path)
     <<~BASH
       #!/usr/bin/env bash
       set -euo pipefail
+      if [ "$1" = "show-options" ]; then
+        printf '%s\\n' "${TMUX_AGENT_WORKTREE_PATH:-}"
+        exit 0
+      fi
       printf '%s\\n' "$*" >> #{log_path.dump}
       exit 0
     BASH
@@ -59,22 +63,22 @@ def write_fake_tmux(bin_dir, log_path)
   FileUtils.chmod(0o755, File.join(bin_dir, "tmux"))
 end
 
-def run_hook(hook, repo, bin_dir, payload)
+def run_hook(hook, repo, bin_dir, payload, env = {})
   Open3.capture3(
     {
       "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}",
       "TMUX" => "/tmp/tmux",
       "TMUX_PANE" => "%42"
-    },
+    }.merge(env),
     hook,
     stdin_data: JSON.generate(payload),
     chdir: repo
   )
 end
 
-def assert_sets(name, hook, repo, bin_dir, log_path, payload, expected)
+def assert_sets(name, hook, repo, bin_dir, log_path, payload, expected, env = {})
   FileUtils.rm_f(log_path)
-  stdout, stderr, status = run_hook(hook, repo, bin_dir, payload)
+  stdout, stderr, status = run_hook(hook, repo, bin_dir, payload, env)
   fail_case(name, "hook failed: stdout=#{stdout.inspect} stderr=#{stderr.inspect}") unless status.success?
   log = File.exist?(log_path) ? File.read(log_path) : ""
   unless log.include?("set-option -p -t %42 @agent_current_spec_path #{expected}")
@@ -83,9 +87,9 @@ def assert_sets(name, hook, repo, bin_dir, log_path, payload, expected)
   pass_case(name)
 end
 
-def assert_ignores(name, hook, repo, bin_dir, log_path, payload)
+def assert_ignores(name, hook, repo, bin_dir, log_path, payload, env = {})
   FileUtils.rm_f(log_path)
-  stdout, stderr, status = run_hook(hook, repo, bin_dir, payload)
+  stdout, stderr, status = run_hook(hook, repo, bin_dir, payload, env)
   fail_case(name, "hook failed: stdout=#{stdout.inspect} stderr=#{stderr.inspect}") unless status.success?
   log = File.exist?(log_path) ? File.read(log_path) : ""
   fail_case(name, "expected no tmux call, got #{log.inspect}") unless log.empty?
@@ -99,6 +103,11 @@ Dir.mktmpdir do |tmp|
   spec_b = File.join(repo, "docs/superpowers/specs/2026-05-12-b-design.md")
   File.write(spec_a, "# A\n")
   File.write(spec_b, "# B\n")
+
+  bound_repo = File.join(tmp, "bound-repo")
+  make_repo(bound_repo)
+  bound_spec = File.join(bound_repo, "docs/superpowers/specs/2026-05-12-bound-design.md")
+  File.write(bound_spec, "# Bound\n")
 
   bin_dir = File.join(tmp, "bin")
   log_path = File.join(tmp, "tmux.log")
@@ -122,6 +131,17 @@ Dir.mktmpdir do |tmp|
     log_path,
     { "prompt" => "read docs/superpowers/specs/2026-05-12-a-design.md" },
     spec_a
+  )
+
+  assert_sets(
+    "prompt reference without cwd uses pane worktree",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    { "prompt" => "read docs/superpowers/specs/2026-05-12-bound-design.md" },
+    bound_spec,
+    { "TMUX_AGENT_WORKTREE_PATH" => bound_repo }
   )
 
   assert_sets(
@@ -217,6 +237,9 @@ pass_case("prompt submit invokes current-spec hook for both agents")
   end
   unless block.include?("jq -e --slurp '.[0] == .[1]'")
     fail_case("#{name} canonicalizes duplicates", "does not compare normalized JSON before writing")
+  end
+  unless block.include?("[ ! -s ")
+    fail_case("#{name} canonicalizes duplicates", "does not seed empty config files")
   end
   pass_case("#{name} canonicalizes duplicates")
 end
