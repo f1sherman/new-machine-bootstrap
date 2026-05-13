@@ -156,6 +156,17 @@ Dir.mktmpdir do |tmp|
   )
 
   assert_sets(
+    "stale pane worktree falls back to payload cwd",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    { "cwd" => repo, "prompt" => "read docs/superpowers/specs/2026-05-12-a-design.md" },
+    spec_a,
+    { "TMUX_AGENT_WORKTREE_PATH" => File.join(tmp, "missing-repo") }
+  )
+
+  assert_sets(
     "shell command reference publishes current spec",
     hook,
     repo,
@@ -218,6 +229,15 @@ Dir.mktmpdir do |tmp|
         ].join("\n")
       }
     }
+  )
+
+  assert_ignores(
+    "prefixed relative spec reference is ignored",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    { "cwd" => repo, "prompt" => "read tmp/docs/superpowers/specs/2026-05-12-a-design.md" }
   )
 
   assert_ignores(
