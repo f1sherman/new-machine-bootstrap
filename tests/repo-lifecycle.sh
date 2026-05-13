@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+unset TMUX TMUX_PANE
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 BIN_DIR="$REPO_ROOT/roles/common/files/bin"
@@ -113,7 +115,8 @@ CALLBACK
 
 forbid_origin_main_pushes() {
   local repo="$1"
-  local hooks_dir="$TMPROOT/$(basename "$repo")-hooks"
+  local hooks_dir
+  hooks_dir="$TMPROOT/$(basename "$repo")-hooks"
 
   mkdir -p "$hooks_dir"
   cat >"$hooks_dir/pre-push" <<'HOOK'

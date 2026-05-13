@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+unset TMUX TMUX_PANE
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_START_SCRIPT="$(cd "$SCRIPT_DIR/../roles/common/files/bin" && pwd)/repo-start"
 
