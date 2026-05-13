@@ -385,7 +385,7 @@ cat >"$timeout_callback_dir/10-hangs.sh" <<'EOF'
 printf 'callback-started %s\n' "$*" >> "$HOME/.local/state/repo-end-timeout-callback.log"
 (
   trap '' TERM
-  sleep 2
+  sleep 4
   printf 'callback-orphaned\n' >> "$HOME/.local/state/repo-end-timeout-callback.log"
 ) &
 wait $!
@@ -465,7 +465,7 @@ cat >"$interrupt_callback_dir/10-slow.sh" <<'EOF'
 printf 'callback-started\n' >> "$HOME/.local/state/repo-end-interrupt-callback.log"
 (
   trap '' TERM
-  sleep 2
+  sleep 4
   printf 'callback-orphaned\n' >> "$HOME/.local/state/repo-end-interrupt-callback.log"
 ) &
 wait $!
@@ -489,7 +489,7 @@ done
 
 kill "$interrupt_pid" 2>/dev/null || true
 wait "$interrupt_pid" 2>/dev/null || true
-sleep 3
+sleep 5
 
 assert_file_not_contains \
   "$interrupt_log" \
