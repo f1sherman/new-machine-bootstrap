@@ -106,14 +106,15 @@ run_repo_end_callback() {
   status=$?
   set -e
 
-  kill "$watchdog_pid" 2>/dev/null || true
-  wait "$watchdog_pid" 2>/dev/null || true
-
   if [[ -s "$timeout_marker" ]]; then
+    wait "$watchdog_pid" 2>/dev/null || true
     rm -f "$timeout_marker"
     printf 'repo-end callback timed out after %ss: %s\n' "$timeout_seconds" "$callback" >&2
     return 0
   fi
+
+  kill "$watchdog_pid" 2>/dev/null || true
+  wait "$watchdog_pid" 2>/dev/null || true
 
   rm -f "$timeout_marker"
   return "$status"

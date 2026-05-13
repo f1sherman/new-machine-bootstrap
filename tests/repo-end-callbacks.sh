@@ -337,6 +337,7 @@ cat >"$timeout_callback_dir/10-hangs.sh" <<'EOF'
 #!/usr/bin/env bash
 printf 'callback-started %s\n' "$*" >> "$HOME/.local/state/repo-end-timeout-callback.log"
 (
+  trap '' TERM
   sleep 2
   printf 'callback-orphaned\n' >> "$HOME/.local/state/repo-end-timeout-callback.log"
 ) &
