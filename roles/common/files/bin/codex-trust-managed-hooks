@@ -76,17 +76,40 @@ normalize_hooks_file() {
           [$manifest[] | select(event_key(.eventName) == $event)] as $managed_for_event
           | ($managed_for_event | map(.command)) as $managed_commands
           | .hooks[$event] = (
-              ($managed_for_event | map(hook_group(.)))
-              + (
-                (.hooks[$event] // [])
-                | map(
-                    .hooks = [
-                      (.hooks // [])[]
-                      | select(.command as $command | ($managed_commands | index($command) | not))
+              reduce (.hooks[$event] // [])[] as $group (
+                {groups: [], seen: []};
+                . as $state
+                | ($group.hooks // []) as $hooks
+                | ([
+                    $managed_for_event[]
+                    | .command as $command
+                    | select(
+                        (($hooks | map(.command) | index($command)) != null)
+                        and (($state.seen | index($command)) == null)
+                      )
+                    | .command
+                  ]) as $present_managed
+                | ($group | .hooks = [
+                    $hooks[]
+                    | select(.command as $command | ($managed_commands | index($command)) == null)
+                  ]) as $user_group
+                | .groups += (
+                    (if (($user_group.hooks // []) | length) > 0 then [$user_group] else [] end)
+                    + [
+                      $present_managed[] as $command
+                      | $managed_for_event[]
+                      | select(.command == $command)
+                      | hook_group(.)
                     ]
                   )
-                | map(select((.hooks // []) | length > 0))
+                | .seen += $present_managed
               )
+              | . as $state
+              | .groups + [
+                  $managed_for_event[]
+                  | select(.command as $command | ($state.seen | index($command)) == null)
+                  | hook_group(.)
+                ]
             )
         )
     ' "$HOOKS_FILE" >"$tmp_file"
