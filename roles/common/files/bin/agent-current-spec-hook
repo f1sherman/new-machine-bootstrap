@@ -34,6 +34,14 @@ normalize_candidate() {
     *'*'*|*'?'*|*'['*|*']'*) return 0 ;;
   esac
 
+  if [[ "$path" != /* && "$repo_root" == */.worktrees/* ]]; then
+    local worktree_parent="${repo_root%%/.worktrees/*}"
+    local worktree_relative="${repo_root#$worktree_parent/}"
+    if [[ "$path" == "$worktree_relative"/* ]]; then
+      path="${path#$worktree_relative/}"
+    fi
+  fi
+
   if [[ "$path" == /* ]]; then
     if [[ "$path" == "$repo_root"/* ]]; then
       local repo_path="${path#$repo_root/}"

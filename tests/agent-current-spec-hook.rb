@@ -111,6 +111,9 @@ Dir.mktmpdir do |tmp|
   bound_spec = File.join(bound_repo, "docs/superpowers/specs/2026-05-12-bound-design.md")
   File.write(bound_spec, "# Bound\n")
 
+  nested_worktree = File.join(repo, ".worktrees/current-worktree")
+  make_repo(nested_worktree)
+
   bin_dir = File.join(tmp, "bin")
   log_path = File.join(tmp, "tmux.log")
   write_fake_tmux(bin_dir, log_path)
@@ -248,6 +251,67 @@ Dir.mktmpdir do |tmp|
     },
     File.join(bound_repo, "docs/superpowers/specs/2026-05-12-bound.md"),
     { "TMUX_AGENT_WORKTREE_PATH" => bound_repo }
+  )
+
+  assert_sets(
+    "patch target accepts current worktree-prefixed relative spec",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    {
+      "cwd" => repo,
+      "tool_input" => {
+        "command" => [
+          "*** Begin Patch",
+          "*** Add File: .worktrees/current-worktree/docs/superpowers/specs/2026-05-12-prefixed.md",
+          "+# Prefixed",
+          "*** End Patch"
+        ].join("\n")
+      }
+    },
+    File.join(nested_worktree, "docs/superpowers/specs/2026-05-12-prefixed.md"),
+    { "TMUX_AGENT_WORKTREE_PATH" => nested_worktree }
+  )
+
+  assert_ignores(
+    "other worktree-prefixed relative spec is ignored",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    {
+      "cwd" => repo,
+      "tool_input" => {
+        "command" => [
+          "*** Begin Patch",
+          "*** Add File: .worktrees/other-worktree/docs/superpowers/specs/2026-05-12-prefixed.md",
+          "+# Other",
+          "*** End Patch"
+        ].join("\n")
+      }
+    },
+    { "TMUX_AGENT_WORKTREE_PATH" => nested_worktree }
+  )
+
+  assert_ignores(
+    "worktree-prefixed non-spec markdown is ignored",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    {
+      "cwd" => repo,
+      "tool_input" => {
+        "command" => [
+          "*** Begin Patch",
+          "*** Add File: .worktrees/current-worktree/notes/context.md",
+          "+# Context",
+          "*** End Patch"
+        ].join("\n")
+      }
+    },
+    { "TMUX_AGENT_WORKTREE_PATH" => nested_worktree }
   )
 
   assert_ignores(
