@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+unset TMUX TMUX_PANE
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_END_SCRIPT="$(cd "$SCRIPT_DIR/../roles/common/files/bin" && pwd)/repo-end"
 
@@ -56,7 +58,8 @@ merge_feature_to_origin_main() {
 
 forbid_origin_main_pushes() {
   local repo="$1"
-  local hooks_dir="$TMPROOT/$(basename "$repo")-hooks"
+  local hooks_dir
+  hooks_dir="$TMPROOT/$(basename "$repo")-hooks"
 
   mkdir -p "$hooks_dir"
   cat >"$hooks_dir/pre-push" <<'HOOK'
