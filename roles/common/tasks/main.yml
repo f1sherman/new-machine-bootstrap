@@ -911,34 +911,26 @@
   register: claude_current_spec_hook_result
   changed_when: claude_current_spec_hook_result.stdout.strip() == 'changed'
 
-- name: Register UserPromptSubmit hook for publishing current spec path
+- name: Remove Claude current spec UserPromptSubmit hook
   shell: |
     set -euo pipefail
 
     settings_file="${SETTINGS_FILE:?}"
     hook_cmd='$HOME/.local/bin/agent-current-spec-hook'
 
-    if [ ! -s "$settings_file" ]; then
-      echo '{}' > "$settings_file"
+    if [ ! -f "$settings_file" ]; then
+      echo "unchanged"
+      exit 0
     fi
 
-    managed_entry="$(
-      jq -n --arg cmd "$hook_cmd" '{
-        hooks: [
-          {
-            type: "command",
-            command: $cmd
-          }
-        ]
-      }'
-    )"
     tmp_file="$(mktemp)"
 
-    jq --arg cmd "$hook_cmd" --argjson entry "$managed_entry" '
+    jq --arg cmd "$hook_cmd" '
       .hooks //= {} |
-      .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // [])
+      .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // [])
         | map(.hooks = ((.hooks // []) | map(select(.type != "command" or .command != $cmd))))
-        | map(select((.hooks // []) | length > 0))) + [$entry])
+        | map(select((.hooks // []) | length > 0))) |
+      if (.hooks.UserPromptSubmit | length) == 0 then del(.hooks.UserPromptSubmit) else . end
     ' "$settings_file" > "$tmp_file"
 
     if jq -e --slurp '.[0] == .[1]' "$settings_file" "$tmp_file" >/dev/null; then
@@ -952,8 +944,8 @@
     executable: /bin/bash
   environment:
     SETTINGS_FILE: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
-  register: claude_current_spec_prompt_hook_result
-  changed_when: claude_current_spec_prompt_hook_result.stdout.strip() == 'changed'
+  register: claude_current_spec_prompt_hook_cleanup_result
+  changed_when: claude_current_spec_prompt_hook_cleanup_result.stdout.strip() == 'changed'
 
 - name: Register PreToolUse Bash hook for blocking force-add of superpowers docs
   shell: |
@@ -1782,34 +1774,26 @@
   register: codex_current_spec_hooks_json_result
   changed_when: codex_current_spec_hooks_json_result.stdout.strip() == 'changed'
 
-- name: Merge managed Codex current spec prompt hook into ~/.codex/hooks.json
+- name: Remove Codex current spec UserPromptSubmit hook
   shell: |
     set -euo pipefail
 
     hooks_file="${HOOKS_FILE:?}"
     managed_command='~/.local/bin/agent-current-spec-hook'
 
-    managed_entry="$(
-      jq -n --arg cmd "$managed_command" '{
-        hooks: [
-          {
-            type: "command",
-            command: $cmd
-          }
-        ]
-      }'
-    )"
-    tmp_file="$(mktemp)"
-
-    if [ ! -s "$hooks_file" ]; then
-      echo '{}' > "$hooks_file"
+    if [ ! -f "$hooks_file" ]; then
+      echo "unchanged"
+      exit 0
     fi
 
-    jq --arg cmd "$managed_command" --argjson entry "$managed_entry" '
+    tmp_file="$(mktemp)"
+
+    jq --arg cmd "$managed_command" '
       .hooks //= {} |
-      .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // [])
+      .hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // [])
         | map(.hooks = ((.hooks // []) | map(select(.type != "command" or .command != $cmd))))
-        | map(select((.hooks // []) | length > 0))) + [$entry])
+        | map(select((.hooks // []) | length > 0))) |
+      if (.hooks.UserPromptSubmit | length) == 0 then del(.hooks.UserPromptSubmit) else . end
     ' "$hooks_file" > "$tmp_file"
 
     if jq -e --slurp '.[0] == .[1]' "$hooks_file" "$tmp_file" >/dev/null; then
@@ -1824,8 +1808,8 @@
     executable: /bin/bash
   environment:
     HOOKS_FILE: '{{ ansible_facts["user_dir"] }}/.codex/hooks.json'
-  register: codex_current_spec_prompt_hooks_json_result
-  changed_when: codex_current_spec_prompt_hooks_json_result.stdout.strip() == 'changed'
+  register: codex_current_spec_prompt_hook_cleanup_result
+  changed_when: codex_current_spec_prompt_hook_cleanup_result.stdout.strip() == 'changed'
 
 - name: Merge managed Codex repo-start prompt hook into ~/.codex/hooks.json
   shell: |

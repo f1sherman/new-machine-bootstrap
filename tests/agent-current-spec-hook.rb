@@ -129,45 +129,13 @@ Dir.mktmpdir do |tmp|
   )
 
   assert_sets(
-    "prompt reference publishes current spec",
+    "relative file_path publishes branch-mode spec",
     hook,
     repo,
     bin_dir,
     log_path,
-    { "prompt" => "read docs/superpowers/specs/2026-05-12-a-design.md" },
+    { "cwd" => repo, "tool_input" => { "file_path" => "docs/superpowers/specs/2026-05-12-a-design.md" } },
     spec_a
-  )
-
-  assert_sets(
-    "prompt reference publishes non-design spec markdown",
-    hook,
-    repo,
-    bin_dir,
-    log_path,
-    { "prompt" => "read docs/superpowers/specs/2026-05-12-flexible.md" },
-    flexible_spec
-  )
-
-  assert_sets(
-    "prompt reference without cwd uses pane worktree",
-    hook,
-    repo,
-    bin_dir,
-    log_path,
-    { "prompt" => "read docs/superpowers/specs/2026-05-12-bound-design.md" },
-    bound_spec,
-    { "TMUX_AGENT_WORKTREE_PATH" => bound_repo }
-  )
-
-  assert_sets(
-    "prompt reference prefers pane worktree over payload cwd",
-    hook,
-    repo,
-    bin_dir,
-    log_path,
-    { "cwd" => repo, "prompt" => "read docs/superpowers/specs/2026-05-12-bound-design.md" },
-    bound_spec,
-    { "TMUX_AGENT_WORKTREE_PATH" => bound_repo }
   )
 
   assert_sets(
@@ -176,19 +144,36 @@ Dir.mktmpdir do |tmp|
     repo,
     bin_dir,
     log_path,
-    { "cwd" => repo, "prompt" => "read docs/superpowers/specs/2026-05-12-a-design.md" },
+    { "cwd" => repo, "tool_input" => { "file_path" => "docs/superpowers/specs/2026-05-12-a-design.md" } },
     spec_a,
     { "TMUX_AGENT_WORKTREE_PATH" => File.join(tmp, "missing-repo") }
   )
 
-  assert_sets(
-    "shell command reference publishes current spec",
+  assert_ignores(
+    "prompt reference is ignored",
     hook,
     repo,
     bin_dir,
     log_path,
-    { "cwd" => repo, "tool_input" => { "command" => "sed -n '1,80p' docs/superpowers/specs/2026-05-12-a-design.md" } },
-    spec_a
+    { "cwd" => repo, "prompt" => "read docs/superpowers/specs/2026-05-12-a-design.md" }
+  )
+
+  assert_ignores(
+    "prompt reference to non-design spec markdown is ignored",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    { "cwd" => repo, "prompt" => "read docs/superpowers/specs/2026-05-12-flexible.md" }
+  )
+
+  assert_ignores(
+    "shell command reference is ignored",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    { "cwd" => repo, "tool_input" => { "command" => "sed -n '1,80p' docs/superpowers/specs/2026-05-12-a-design.md" } }
   )
 
   assert_sets(
@@ -354,7 +339,7 @@ Dir.mktmpdir do |tmp|
     repo,
     bin_dir,
     log_path,
-    { "cwd" => repo, "prompt" => "read tmp/docs/superpowers/specs/2026-05-12-a-design.md" }
+    { "cwd" => repo, "tool_input" => { "file_path" => "tmp/docs/superpowers/specs/2026-05-12-a-design.md" } }
   )
 
   assert_ignores(
@@ -378,25 +363,39 @@ end
 
 tasks = File.read(common_tasks)
 unless tasks.include?("matcher='Bash|Edit|MultiEdit|Read|Write'")
-  fail_case("Claude PostToolUse invokes current-spec hook for reads", "missing expanded Claude matcher")
+  fail_case("Claude PostToolUse invokes current-spec hook for structured targets", "missing expanded Claude matcher")
 end
-pass_case("Claude PostToolUse invokes current-spec hook for reads")
+pass_case("Claude PostToolUse invokes current-spec hook for structured targets")
 
 unless tasks.include?("matcher='Bash|apply_patch|Edit|MultiEdit|Read|Write|shell_command'")
-  fail_case("Codex PostToolUse invokes current-spec hook for shell reads", "missing expanded Codex matcher")
+  fail_case("Codex PostToolUse invokes current-spec hook for structured targets", "missing expanded Codex matcher")
 end
-pass_case("Codex PostToolUse invokes current-spec hook for shell reads")
+pass_case("Codex PostToolUse invokes current-spec hook for structured targets")
 
-unless tasks.scan(/UserPromptSubmit.*?agent-current-spec-hook/m).length >= 2
-  fail_case("prompt submit invokes current-spec hook for both agents", "missing Claude/Codex UserPromptSubmit registration")
+if tasks.include?("Register UserPromptSubmit hook for publishing current spec path")
+  fail_case("Claude prompt hook is not registered", "found obsolete current spec prompt registration")
 end
-pass_case("prompt submit invokes current-spec hook for both agents")
+pass_case("Claude prompt hook is not registered")
+
+if tasks.include?("Merge managed Codex current spec prompt hook into ~/.codex/hooks.json")
+  fail_case("Codex prompt hook is not registered", "found obsolete current spec prompt registration")
+end
+pass_case("Codex prompt hook is not registered")
+
+[
+  "Remove Claude current spec UserPromptSubmit hook",
+  "Remove Codex current spec UserPromptSubmit hook"
+].each do |name|
+  block = task_block(tasks, name)
+  unless block.include?("UserPromptSubmit") && block.include?("agent-current-spec-hook")
+    fail_case("#{name} removes stale prompt hook", "cleanup block does not target the current spec prompt hook")
+  end
+  pass_case("#{name} removes stale prompt hook")
+end
 
 [
   "Register PostToolUse Edit|MultiEdit|Write hook for publishing current spec path",
-  "Register UserPromptSubmit hook for publishing current spec path",
-  "Merge managed Codex current spec hook into ~/.codex/hooks.json",
-  "Merge managed Codex current spec prompt hook into ~/.codex/hooks.json"
+  "Merge managed Codex current spec hook into ~/.codex/hooks.json"
 ].each do |name|
   block = task_block(tasks, name)
   fail_case("#{name} canonicalizes duplicates", "short-circuits before cleanup") if block.include?("exit 0")
