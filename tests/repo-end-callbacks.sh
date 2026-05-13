@@ -95,12 +95,115 @@ run_case() {
   printf 'PASS  %s\n' "$name"
 }
 
+run_case_with_deadline() {
+  local name="$1"
+  local repo="$2"
+  local home_dir="$3"
+  local out="$4"
+  local err="$5"
+  local callback_timeout="$6"
+  local deadline="$7"
+  local pid watchdog_pid status
+
+  (
+    cd "$repo" &&
+      HOME="$home_dir" \
+      REPO_END_CALLBACK_TIMEOUT_SECONDS="$callback_timeout" \
+      "$REPO_END_SCRIPT" --print-path >"$out" 2>"$err"
+  ) &
+  pid=$!
+
+  (
+    sleep "$deadline"
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+    fi
+  ) &
+  watchdog_pid=$!
+
+  set +e
+  wait "$pid"
+  status=$?
+  set -e
+
+  kill "$watchdog_pid" 2>/dev/null || true
+  wait "$watchdog_pid" 2>/dev/null || true
+
+  if [[ "$status" -ne 0 ]]; then
+    printf 'FAIL  %s\nrepo-end did not finish successfully before %ss\nstderr: %s\n' \
+      "$name" "$deadline" "$(cat "$err")" >&2
+    return 1
+  fi
+
+  printf 'PASS  %s\n' "$name"
+}
+
+run_capture_with_deadline() {
+  local name="$1"
+  local repo="$2"
+  local home_dir="$3"
+  local out="$4"
+  local err="$5"
+  local callback_timeout="$6"
+  local deadline="$7"
+  local pid watchdog_pid status
+
+  (
+    local captured
+    cd "$repo" &&
+      captured="$(
+        HOME="$home_dir" \
+        REPO_END_CALLBACK_TIMEOUT_SECONDS="$callback_timeout" \
+        "$REPO_END_SCRIPT" --print-path 2>"$err"
+      )" &&
+      printf '%s\n' "$captured" >"$out"
+  ) &
+  pid=$!
+
+  (
+    sleep "$deadline"
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+    fi
+  ) &
+  watchdog_pid=$!
+
+  set +e
+  wait "$pid"
+  status=$?
+  set -e
+
+  kill "$watchdog_pid" 2>/dev/null || true
+  wait "$watchdog_pid" 2>/dev/null || true
+
+  if [[ "$status" -ne 0 ]]; then
+    printf 'FAIL  %s\nrepo-end captured output did not finish successfully before %ss\nstderr: %s\n' \
+      "$name" "$deadline" "$(cat "$err")" >&2
+    return 1
+  fi
+
+  printf 'PASS  %s\n' "$name"
+}
+
 assert_file_contains() {
   local path="$1" needle="$2" name="$3"
   local content
   content="$(cat "$path")"
   if [[ "$content" != *"$needle"* ]]; then
     printf 'FAIL  %s\nmissing %q in %s\n' "$name" "$needle" "$path" >&2
+    return 1
+  fi
+  printf 'PASS  %s\n' "$name"
+}
+
+assert_file_not_contains() {
+  local path="$1" needle="$2" name="$3"
+  local content=""
+  if [[ -f "$path" ]]; then
+    content="$(cat "$path")"
+  fi
+  if [[ "$content" == *"$needle"* ]]; then
+    printf 'FAIL  %s\nunexpected %q in %s\n' "$name" "$needle" "$path" >&2
     return 1
   fi
   printf 'PASS  %s\n' "$name"
@@ -267,4 +370,129 @@ assert_file_contains "$tmp_home_fail/.local/state/repo-end-fail-callback.log" \
   "callback-failed --repo-dir $fail_repo --branch feature/fails --main-branch main --main-path $fail_repo" \
   "failing callback receives expected args"
 assert_file_contains "$TMPROOT/fail-callback.err" "repo-end callback failed" "callback failure is surfaced"
+
+timeout_repo="$(create_repo callback-timeout)"
+add_feature_branch "$timeout_repo" feature/timeout callback-timeout.txt
+merge_feature_to_origin_main "$timeout_repo" feature/timeout
+forbid_origin_main_pushes "$timeout_repo"
+tmp_home_timeout="$TMPROOT/timeout-callback-home"
+timeout_callback_dir="$tmp_home_timeout/.local/bin/repo-end.d"
+mkdir -p "$timeout_callback_dir"
+timeout_log="$tmp_home_timeout/.local/state/repo-end-timeout-callback.log"
+mkdir -p "$(dirname "$timeout_log")"
+cat >"$timeout_callback_dir/10-hangs.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'callback-started %s\n' "$*" >> "$HOME/.local/state/repo-end-timeout-callback.log"
+(
+  trap '' TERM
+  sleep 4
+  printf 'callback-orphaned\n' >> "$HOME/.local/state/repo-end-timeout-callback.log"
+) &
+wait $!
+EOF
+chmod +x "$timeout_callback_dir/10-hangs.sh"
+
+cat >"$timeout_callback_dir/20-after.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'callback-after %s\n' "$*" >> "$HOME/.local/state/repo-end-timeout-callback.log"
+EOF
+chmod +x "$timeout_callback_dir/20-after.sh"
+
+run_case_with_deadline "callback timeout warns and continues" \
+  "$timeout_repo" \
+  "$tmp_home_timeout" \
+  "$TMPROOT/timeout-callback.out" \
+  "$TMPROOT/timeout-callback.err" \
+  1 \
+  3
+
+sleep 3
+
+assert_file_equals \
+  "$TMPROOT/timeout-callback.out" \
+  "$timeout_repo" \
+  "timeout keeps print-path stdout clean"
+assert_file_contains \
+  "$TMPROOT/timeout-callback.err" \
+  "repo-end callback timed out after 1s" \
+  "timeout warning is surfaced"
+assert_file_contains \
+  "$timeout_log" \
+  "callback-after --repo-dir $timeout_repo --branch feature/timeout --main-branch main --main-path $timeout_repo" \
+  "callbacks continue after timeout"
+assert_file_not_contains \
+  "$timeout_log" \
+  "callback-orphaned" \
+  "timeout terminates callback descendants"
+
+capture_repo="$(create_repo callback-capture)"
+add_feature_branch "$capture_repo" feature/capture callback-capture.txt
+merge_feature_to_origin_main "$capture_repo" feature/capture
+forbid_origin_main_pushes "$capture_repo"
+tmp_home_capture="$TMPROOT/capture-callback-home"
+capture_callback_dir="$tmp_home_capture/.local/bin/repo-end.d"
+mkdir -p "$capture_callback_dir"
+cat >"$capture_callback_dir/10-fast.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$capture_callback_dir/10-fast.sh"
+
+run_capture_with_deadline "normal callback reaps watchdog before captured EOF" \
+  "$capture_repo" \
+  "$tmp_home_capture" \
+  "$TMPROOT/capture-callback.out" \
+  "$TMPROOT/capture-callback.err" \
+  5 \
+  2
+
+assert_file_equals \
+  "$TMPROOT/capture-callback.out" \
+  "$capture_repo" \
+  "captured print-path stdout is not delayed by watchdog"
+
+interrupt_repo="$(create_repo callback-interrupt)"
+add_feature_branch "$interrupt_repo" feature/interrupt callback-interrupt.txt
+merge_feature_to_origin_main "$interrupt_repo" feature/interrupt
+forbid_origin_main_pushes "$interrupt_repo"
+tmp_home_interrupt="$TMPROOT/interrupt-callback-home"
+interrupt_callback_dir="$tmp_home_interrupt/.local/bin/repo-end.d"
+mkdir -p "$interrupt_callback_dir"
+interrupt_log="$tmp_home_interrupt/.local/state/repo-end-interrupt-callback.log"
+mkdir -p "$(dirname "$interrupt_log")"
+cat >"$interrupt_callback_dir/10-slow.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'callback-started\n' >> "$HOME/.local/state/repo-end-interrupt-callback.log"
+(
+  trap '' TERM
+  sleep 4
+  printf 'callback-orphaned\n' >> "$HOME/.local/state/repo-end-interrupt-callback.log"
+) &
+wait $!
+EOF
+chmod +x "$interrupt_callback_dir/10-slow.sh"
+
+(
+  cd "$interrupt_repo"
+  export HOME="$tmp_home_interrupt"
+  export REPO_END_CALLBACK_TIMEOUT_SECONDS=10
+  exec "$REPO_END_SCRIPT" --print-path >"$TMPROOT/interrupt-callback.out" 2>"$TMPROOT/interrupt-callback.err"
+) &
+interrupt_pid=$!
+
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  if [[ -f "$interrupt_log" ]] && grep -q 'callback-started' "$interrupt_log"; then
+    break
+  fi
+  sleep 0.1
+done
+
+kill "$interrupt_pid" 2>/dev/null || true
+wait "$interrupt_pid" 2>/dev/null || true
+sleep 5
+
+assert_file_not_contains \
+  "$interrupt_log" \
+  "callback-orphaned" \
+  "repo-end interrupt terminates callback descendants"
 printf 'repo-end callback behavior checks complete\n'
