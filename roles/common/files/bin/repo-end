@@ -68,38 +68,86 @@ repo_end_callback_timeout_seconds() {
   printf '%s\n' "$value"
 }
 
-run_repo_end_callback() {
-  local callback="$1"
-  local timeout_seconds="$2"
-  local timeout_marker callback_pid watchdog_pid status monitor_was_on
+repo_end_active_callback_pid=""
+repo_end_active_watchdog_pid=""
+repo_end_background_pid=""
 
-  timeout_marker="$("$(_worktree_cmd mktemp)" "${TMPDIR:-/tmp}/repo-end-callback-timeout.XXXXXX")" || return 1
+repo_end_signal_process_group() {
+  local signal="$1"
+  local pid="${2:-}"
+
+  [[ -n "$pid" ]] || return 0
+  kill -s "$signal" -- "-$pid" 2>/dev/null || kill -s "$signal" "$pid" 2>/dev/null || true
+}
+
+repo_end_cleanup_active_callback() {
+  local callback_pid="${repo_end_active_callback_pid:-}"
+  local watchdog_pid="${repo_end_active_watchdog_pid:-}"
+
+  if [[ -n "$watchdog_pid" ]]; then
+    repo_end_signal_process_group TERM "$watchdog_pid"
+  fi
+  if [[ -n "$callback_pid" ]]; then
+    repo_end_signal_process_group TERM "$callback_pid"
+    sleep 1
+    repo_end_signal_process_group KILL "$callback_pid"
+  fi
+}
+
+repo_end_abort_active_callback() {
+  local exit_code="$1"
+
+  repo_end_cleanup_active_callback
+  exit "$exit_code"
+}
+
+repo_end_start_background_group() {
+  local monitor_was_on
 
   case "$-" in
     *m*) monitor_was_on="true" ;;
     *) monitor_was_on="false" ;;
   esac
   set -m
-  "$callback" \
-    --repo-dir "$repo_root" \
-    --branch "$current_branch" \
-    --main-branch "$main_branch" \
-    --main-path "$main_path" &
-  callback_pid=$!
+  "$@" &
+  repo_end_background_pid=$!
   if [[ "$monitor_was_on" != "true" ]]; then
     set +m
   fi
+}
 
-  (
-    sleep "$timeout_seconds"
-    if kill -0 "$callback_pid" 2>/dev/null; then
-      printf 'timed out\n' >"$timeout_marker"
-      kill -TERM "-$callback_pid" 2>/dev/null || kill "$callback_pid" 2>/dev/null || true
-      sleep 1
-      kill -KILL "-$callback_pid" 2>/dev/null || kill -9 "$callback_pid" 2>/dev/null || true
-    fi
-  ) &
-  watchdog_pid=$!
+repo_end_timeout_watchdog() {
+  local callback_pid="$1"
+  local timeout_seconds="$2"
+  local timeout_marker="$3"
+
+  sleep "$timeout_seconds"
+  if kill -0 "$callback_pid" 2>/dev/null; then
+    printf 'timed out\n' >"$timeout_marker"
+    repo_end_signal_process_group TERM "$callback_pid"
+    sleep 1
+    repo_end_signal_process_group KILL "$callback_pid"
+  fi
+}
+
+run_repo_end_callback() {
+  local callback="$1"
+  local timeout_seconds="$2"
+  local timeout_marker callback_pid watchdog_pid status
+
+  timeout_marker="$("$(_worktree_cmd mktemp)" "${TMPDIR:-/tmp}/repo-end-callback-timeout.XXXXXX")" || return 1
+
+  repo_end_start_background_group "$callback" \
+    --repo-dir "$repo_root" \
+    --branch "$current_branch" \
+    --main-branch "$main_branch" \
+    --main-path "$main_path"
+  callback_pid="$repo_end_background_pid"
+  repo_end_active_callback_pid="$callback_pid"
+
+  repo_end_start_background_group repo_end_timeout_watchdog "$callback_pid" "$timeout_seconds" "$timeout_marker"
+  watchdog_pid="$repo_end_background_pid"
+  repo_end_active_watchdog_pid="$watchdog_pid"
 
   set +e
   wait "$callback_pid"
@@ -108,17 +156,25 @@ run_repo_end_callback() {
 
   if [[ -s "$timeout_marker" ]]; then
     wait "$watchdog_pid" 2>/dev/null || true
+    repo_end_active_callback_pid=""
+    repo_end_active_watchdog_pid=""
     rm -f "$timeout_marker"
     printf 'repo-end callback timed out after %ss: %s\n' "$timeout_seconds" "$callback" >&2
     return 0
   fi
 
-  kill "$watchdog_pid" 2>/dev/null || true
+  repo_end_signal_process_group TERM "$watchdog_pid"
   wait "$watchdog_pid" 2>/dev/null || true
 
+  repo_end_active_callback_pid=""
+  repo_end_active_watchdog_pid=""
   rm -f "$timeout_marker"
   return "$status"
 }
+
+trap 'repo_end_cleanup_active_callback' EXIT
+trap 'repo_end_abort_active_callback 130' INT
+trap 'repo_end_abort_active_callback 143' TERM
 
 clear_repo_tmux_state() {
   [[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]] || return 0
