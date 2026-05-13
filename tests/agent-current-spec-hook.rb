@@ -201,6 +201,26 @@ Dir.mktmpdir do |tmp|
   )
 
   assert_ignores(
+    "non-spec patch reference is ignored",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    {
+      "cwd" => repo,
+      "tool_input" => {
+        "command" => [
+          "*** Begin Patch",
+          "*** Update File: README.md",
+          "@@",
+          "+See docs/superpowers/specs/2026-05-12-a-design.md",
+          "*** End Patch"
+        ].join("\n")
+      }
+    }
+  )
+
+  assert_ignores(
     "multi-spec prompt is ignored",
     hook,
     repo,

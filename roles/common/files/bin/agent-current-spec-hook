@@ -45,6 +45,13 @@ extract_spec_paths_from_text() {
     true
 }
 
+has_patch_file_header() {
+  local text="$1"
+  [ -n "$text" ] || return 1
+
+  printf '%s\n' "$text" | grep -Eq '^\*\*\* (Add|Update|Delete) File: '
+}
+
 collect_structured_candidates() {
   local file_path command
   file_path="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)"
@@ -70,10 +77,12 @@ collect_candidates() {
   fi
 
   command="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null || true)"
-  extract_spec_paths_from_text "$command" |
-    while IFS= read -r path; do
-      normalize_candidate "$path"
-    done
+  if ! has_patch_file_header "$command"; then
+    extract_spec_paths_from_text "$command" |
+      while IFS= read -r path; do
+        normalize_candidate "$path"
+      done
+  fi
 
   prompt="$(printf '%s' "$payload" | jq -r '.prompt // empty' 2>/dev/null || true)"
   extract_spec_paths_from_text "$prompt" |
