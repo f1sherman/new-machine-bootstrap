@@ -229,6 +229,27 @@ Dir.mktmpdir do |tmp|
     flexible_spec
   )
 
+  assert_sets(
+    "patch target prefers pane worktree over payload cwd",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    {
+      "cwd" => repo,
+      "tool_input" => {
+        "command" => [
+          "*** Begin Patch",
+          "*** Add File: docs/superpowers/specs/2026-05-12-bound.md",
+          "+# Bound",
+          "*** End Patch"
+        ].join("\n")
+      }
+    },
+    File.join(bound_repo, "docs/superpowers/specs/2026-05-12-bound.md"),
+    { "TMUX_AGENT_WORKTREE_PATH" => bound_repo }
+  )
+
   assert_ignores(
     "glob shell command is ignored",
     hook,
