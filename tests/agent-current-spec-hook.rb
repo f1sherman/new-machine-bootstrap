@@ -145,6 +145,17 @@ Dir.mktmpdir do |tmp|
   )
 
   assert_sets(
+    "prompt reference prefers pane worktree over payload cwd",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    { "cwd" => repo, "prompt" => "read docs/superpowers/specs/2026-05-12-bound-design.md" },
+    bound_spec,
+    { "TMUX_AGENT_WORKTREE_PATH" => bound_repo }
+  )
+
+  assert_sets(
     "shell command reference publishes current spec",
     hook,
     repo,
