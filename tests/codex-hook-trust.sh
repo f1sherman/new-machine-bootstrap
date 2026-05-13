@@ -537,6 +537,17 @@ write_metadata "$drift_metadata_file" "$tmpdir/work" "$drift_hooks_file" \
   "sha256:drift-session" \
   "sha256:drift-prompt" \
   "sha256:drift-user"
+jq --arg hooks "$drift_hooks_file" '
+  (.data[0].hooks[] | select(.command == "~/.local/bin/codex-block-git-push-main").key) = ($hooks + ":pre_tool_use:2:0")
+  | (.data[0].hooks[] | select(.command == "~/.local/bin/codex-block-main-branch-edits").key) = ($hooks + ":pre_tool_use:3:0")
+  | (.data[0].hooks[] | select(.command == "~/.local/bin/user-hook").key) = ($hooks + ":pre_tool_use:1:0")
+' "$drift_metadata_file" >"$drift_metadata_file.tmp"
+mv "$drift_metadata_file.tmp" "$drift_metadata_file"
+
+cat >"$drift_config_file" <<TOML
+[hooks.state."$drift_hooks_file:pre_tool_use:1:0"]
+trusted_hash = "sha256:keep-user-position"
+TOML
 
 out="$(
   CODEX_HOME="$drift_home" \
@@ -549,9 +560,14 @@ assert_equals "$out" "changed" "managed hook drift run reports changed"
 assert_jq_equals "$drift_hooks_file" '[.hooks.PreToolUse[] | .hooks[] | select(.command == "~/.local/bin/codex-block-worktree-commands")] | length' "1" "duplicate worktree hook is deduped"
 assert_jq_equals "$drift_hooks_file" '[.hooks.PreToolUse[] | .hooks[] | select(.command == "~/.local/bin/codex-block-worktree-commands")][0].timeout // "default"' "default" "worktree hook timeout is normalized"
 assert_jq_equals "$drift_hooks_file" '[.hooks.PreToolUse[] | .hooks[] | select(.command == "~/.local/bin/codex-block-git-push-main")][0].timeout // "default"' "default" "push hook timeout is normalized"
+assert_jq_equals "$drift_hooks_file" '.hooks.PreToolUse[1].hooks[0].command' "~/.local/bin/user-hook" "unrelated hook position is preserved"
 assert_jq_equals "$drift_hooks_file" '[.hooks.SessionStart[] | .hooks[] | select(.command == "~/.local/bin/codex-bind-tmux-pane")] | length' "1" "duplicate session hook is deduped"
 assert_jq_equals "$drift_hooks_file" '[.hooks.SessionStart[] | .hooks[] | select(.command == "~/.local/bin/codex-bind-tmux-pane")][0].timeout' "5" "session hook timeout is normalized"
 assert_jq_equals "$drift_hooks_file" '[.hooks.PreToolUse[] | .hooks[] | select(.command == "~/.local/bin/user-hook")] | length' "1" "unrelated hook survives normalization"
+assert_file_contains "$drift_config_file" "$drift_hooks_file:pre_tool_use:1:0" "unrelated hook trust key is preserved"
+assert_file_contains "$drift_config_file" 'trusted_hash = "sha256:keep-user-position"' "unrelated hook trust hash is preserved"
+assert_file_contains "$drift_config_file" "$drift_hooks_file:pre_tool_use:2:0" "normalized push hook state section is written"
+assert_file_contains "$drift_config_file" "$drift_hooks_file:pre_tool_use:3:0" "appended edit hook state section is written"
 assert_file_contains "$drift_config_file" 'trusted_hash = "sha256:drift-session"' "normalized session hook is trusted"
 
 printf 'codex-hook-trust checks complete\n'
