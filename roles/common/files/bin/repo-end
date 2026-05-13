@@ -36,20 +36,79 @@ done
 run_repo_end_callbacks() {
   local callback_dir="$HOME/.local/bin/repo-end.d"
   local callback
+  local callback_timeout_seconds
 
   [[ -d "$callback_dir" ]] || return 0
 
+  callback_timeout_seconds="$(repo_end_callback_timeout_seconds)" || return 1
   for callback in "$callback_dir"/*; do
     [[ -f "$callback" && -x "$callback" ]] || continue
-    if ! "$callback" \
-      --repo-dir "$repo_root" \
-      --branch "$current_branch" \
-      --main-branch "$main_branch" \
-      --main-path "$main_path"; then
+    if ! run_repo_end_callback "$callback" "$callback_timeout_seconds"; then
       printf 'repo-end callback failed: %s\n' "$callback" >&2
       return 1
     fi
   done
+}
+
+repo_end_callback_timeout_seconds() {
+  local value="${REPO_END_CALLBACK_TIMEOUT_SECONDS:-30}"
+
+  case "$value" in
+    ""|*[!0-9]*)
+      printf 'Error: REPO_END_CALLBACK_TIMEOUT_SECONDS must be a positive integer\n' >&2
+      return 1
+      ;;
+  esac
+
+  if [[ "$value" -lt 1 ]]; then
+    printf 'Error: REPO_END_CALLBACK_TIMEOUT_SECONDS must be a positive integer\n' >&2
+    return 1
+  fi
+
+  printf '%s\n' "$value"
+}
+
+run_repo_end_callback() {
+  local callback="$1"
+  local timeout_seconds="$2"
+  local timeout_marker callback_pid watchdog_pid status
+
+  timeout_marker="$("$(_worktree_cmd mktemp)" "${TMPDIR:-/tmp}/repo-end-callback-timeout.XXXXXX")" || return 1
+
+  "$callback" \
+    --repo-dir "$repo_root" \
+    --branch "$current_branch" \
+    --main-branch "$main_branch" \
+    --main-path "$main_path" &
+  callback_pid=$!
+
+  (
+    sleep "$timeout_seconds"
+    if kill -0 "$callback_pid" 2>/dev/null; then
+      printf 'timed out\n' >"$timeout_marker"
+      kill "$callback_pid" 2>/dev/null || true
+      sleep 1
+      kill -9 "$callback_pid" 2>/dev/null || true
+    fi
+  ) &
+  watchdog_pid=$!
+
+  set +e
+  wait "$callback_pid"
+  status=$?
+  set -e
+
+  kill "$watchdog_pid" 2>/dev/null || true
+  wait "$watchdog_pid" 2>/dev/null || true
+
+  if [[ -s "$timeout_marker" ]]; then
+    rm -f "$timeout_marker"
+    printf 'repo-end callback timed out after %ss: %s\n' "$timeout_seconds" "$callback" >&2
+    return 0
+  fi
+
+  rm -f "$timeout_marker"
+  return "$status"
 }
 
 clear_repo_tmux_state() {
