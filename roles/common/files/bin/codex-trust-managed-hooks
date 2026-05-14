@@ -242,13 +242,17 @@ RUBY
 
 build_trust_plan() {
   local metadata="$1" manifest="$2"
+
+  while IFS= read -r warning; do
+    [[ -z "$warning" ]] && continue
+    printf 'codex-trust-managed-hooks: warning: %s\n' "$warning" >&2
+  done < <(jq -r '(.data[0].warnings // []) | .[]' <<<"$metadata")
+
   jq -c --arg hooks_file "$HOOKS_FILE" --arg raw_hooks_file "$HOOKS_FILE_RAW" --argjson manifest "$manifest" '
     def norm_timeout: (.timeoutSec // 600 | tonumber);
     def from_hooks_file: (.sourcePath == $hooks_file or .sourcePath == $raw_hooks_file);
     .data[0] as $entry
-    | if (($entry.warnings // []) | length) > 0 then
-        error("Codex hooks/list returned warnings: " + (($entry.warnings // []) | join("; ")))
-      elif (($entry.errors // []) | length) > 0 then
+    | if (($entry.errors // []) | length) > 0 then
         error("Codex hooks/list returned errors: " + (($entry.errors // [] | map(.message // tostring)) | join("; ")))
       else
         {
