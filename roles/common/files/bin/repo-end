@@ -300,8 +300,30 @@ if ! already_merged; then
   exit 1
 fi
 
-"$(_worktree_cmd git)" -C "$main_path" checkout -q "$main_branch"
-"$(_worktree_cmd git)" -C "$main_path" merge --ff-only --quiet "origin/${main_branch}"
+if [[ "$repo_root" == "$main_path" ]]; then
+  # Branch mode: HEAD is currently on the feature branch and main_path is
+  # the same checkout. Fast-forward the local main ref without switching
+  # HEAD, so a later failure (the checkout in cleanup_after_merge, or any
+  # non-FF condition here) leaves the user on the feature branch and lets
+  # them retry from a known-good state.
+  local_main_sha="$("$(_worktree_cmd git)" -C "$main_path" rev-parse --verify --quiet "refs/heads/${main_branch}" 2>/dev/null || true)"
+  origin_main_sha="$("$(_worktree_cmd git)" -C "$main_path" rev-parse --verify "refs/remotes/origin/${main_branch}")"
+  if [[ -z "$local_main_sha" ]]; then
+    "$(_worktree_cmd git)" -C "$main_path" update-ref "refs/heads/${main_branch}" "$origin_main_sha"
+  elif [[ "$local_main_sha" != "$origin_main_sha" ]]; then
+    if ! "$(_worktree_cmd git)" -C "$main_path" merge-base --is-ancestor "$local_main_sha" "$origin_main_sha"; then
+      printf 'Error: local %s is not a fast-forward of origin/%s; resolve manually before re-running repo-end\n' "$main_branch" "$main_branch" >&2
+      exit 1
+    fi
+    "$(_worktree_cmd git)" -C "$main_path" update-ref "refs/heads/${main_branch}" "$origin_main_sha" "$local_main_sha"
+  fi
+else
+  # Worktree mode: main has its own worktree, so a failure here only
+  # affects the main worktree's working tree (not the feature worktree)
+  # and the flow is already retryable.
+  "$(_worktree_cmd git)" -C "$main_path" checkout -q "$main_branch"
+  "$(_worktree_cmd git)" -C "$main_path" merge --ff-only --quiet "origin/${main_branch}"
+fi
 
 cleanup_after_merge() {
   if [[ "$repo_root" != "$main_path" ]]; then

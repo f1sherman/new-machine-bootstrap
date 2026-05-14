@@ -466,4 +466,51 @@ pass_case "repo-end keeps unmerged branch"
 assert_file_contains "$prune_err" "Pruned merged local branch: feature/prune-ancestor" "repo-end announces pruned ancestor branch"
 assert_file_contains "$prune_err" "Pruned merged local branch: feature/prune-squashed" "repo-end announces pruned squash-merged branch"
 
+create_remote_repo end-recovery
+recovery_repo="$CREATED_REPO"
+git -C "$recovery_repo" checkout -q -b feature/recovery
+commit_file "$recovery_repo" recovery.txt "recovery" "recovery feature change"
+git -C "$recovery_repo" push -q -u origin feature/recovery
+git -C "$recovery_repo" checkout -q main
+git -C "$recovery_repo" merge --ff-only --quiet feature/recovery
+git -C "$recovery_repo" push -q origin main
+# Diverge local main from origin/main: push one commit to origin only,
+# then reset local main and add a different local-only commit. Now both
+# sides have unique commits, so `git merge --ff-only origin/main` will
+# fail. This is a stand-in for any mid-flow failure between switching to
+# main and finishing cleanup; the property under test is that HEAD stays
+# on the feature branch when the merge step bails.
+git -C "$recovery_repo" commit -q --allow-empty -m "origin-only main commit"
+git -C "$recovery_repo" push -q origin main
+git -C "$recovery_repo" reset -q --hard HEAD^
+git -C "$recovery_repo" commit -q --allow-empty -m "local-only main commit"
+git -C "$recovery_repo" checkout -q feature/recovery
+forbid_origin_main_pushes "$recovery_repo"
+recovery_home="$TMPROOT/end-recovery-home"
+mkdir -p "$recovery_home"
+
+if (cd "$recovery_repo" && HOME="$recovery_home" "$REPO_END_SCRIPT" --print-path \
+      >"$TMPROOT/recovery-first.out" 2>"$TMPROOT/recovery-first.err"); then
+  fail_case "repo-end first run fails on diverged local main" "repo-end unexpectedly succeeded"
+fi
+pass_case "repo-end first run fails on diverged local main"
+
+assert_equals \
+  "$(git -C "$recovery_repo" branch --show-current)" \
+  "feature/recovery" \
+  "repo-end keeps HEAD on feature branch after mid-flow failure"
+
+# Resolve the divergence (drop the local-only commit) and retry; the user
+# only needed to fix the underlying issue and rerun, not also git-checkout
+# back to the feature branch first.
+git -C "$recovery_repo" update-ref refs/heads/main refs/remotes/origin/main
+
+(cd "$recovery_repo" && HOME="$recovery_home" "$REPO_END_SCRIPT" --print-path \
+  >"$TMPROOT/recovery-retry.out" 2>"$TMPROOT/recovery-retry.err")
+assert_file_contains "$TMPROOT/recovery-retry.out" "$recovery_repo" "repo-end retry prints main path"
+if git -C "$recovery_repo" show-ref --verify --quiet refs/heads/feature/recovery; then
+  fail_case "repo-end retry deletes feature branch" "feature/recovery still exists"
+fi
+pass_case "repo-end retry deletes feature branch"
+
 printf 'repo lifecycle behavior checks complete\n'
