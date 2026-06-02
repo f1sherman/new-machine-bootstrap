@@ -1,19 +1,26 @@
 # frozen_string_literal: true
 
-# Patched tmux 3.6a — vanilla 3.6a release plus upstream commit 2a5715f
+# Patched tmux 3.6b — vanilla 3.6b release plus upstream commit 2a5715f
 # (https://github.com/tmux/tmux/commit/2a5715f), which fixes a NULL pointer
 # dereference in window_copy_pipe_run that crashes tmux during
-# copy-pipe-and-cancel when job_run returns NULL.
+# copy-pipe-and-cancel when job_run returns NULL. As of tmux 3.6b that fix is
+# still only on master — no tagged release contains it — so we keep applying it
+# on top of the latest release.
 #
-# Rollback: when upstream Homebrew tmux ships a release containing the fix,
-# `bin/provision` will fail on the upstream-version-guard task. At that
-# point: `brew uninstall --formula tmux-patched`; remove this formula file;
-# remove the corresponding install + version-guard tasks; `brew install tmux`.
+# Rollback: the upstream-version-guard task in roles/macos/tasks/main.yml trips
+# on ANY upstream version bump; it does NOT prove the fix has shipped. When it
+# trips, re-check whether the new upstream release contains commit 2a5715f
+# (https://github.com/tmux/tmux/commit/2a5715f). If it does, the workaround can
+# be removed: `brew uninstall --formula tmux-patched`; delete this formula file;
+# remove the install + version-guard tasks; `brew install tmux`. If it does NOT,
+# rebase the patch onto the new release instead (update url/sha256/test/desc
+# here, bump the pin in vars/tool_versions.yml, and bump the guard's expected
+# version + task name in roles/macos/tasks/main.yml).
 class TmuxPatched < Formula
-  desc "Terminal multiplexer (3.6a + window_copy_pipe_run NULL-deref fix)"
+  desc "Terminal multiplexer (3.6b + window_copy_pipe_run NULL-deref fix)"
   homepage "https://tmux.github.io/"
-  url "https://github.com/tmux/tmux/releases/download/3.6a/tmux-3.6a.tar.gz"
-  sha256 "b6d8d9c76585db8ef5fa00d4931902fa4b8cbe8166f528f44fc403961a3f3759"
+  url "https://github.com/tmux/tmux/releases/download/3.6b/tmux-3.6b.tar.gz"
+  sha256 "390759d25fdba016887ec982b808927e637070fd7d03a8021f8ef3102b9ae3c7"
   license "ISC"
 
   depends_on "libevent"
@@ -35,6 +42,6 @@ class TmuxPatched < Formula
   end
 
   test do
-    assert_match "tmux 3.6a", shell_output("#{bin}/tmux -V")
+    assert_match "tmux 3.6b", shell_output("#{bin}/tmux -V")
   end
 end
