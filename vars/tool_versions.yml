@@ -8,7 +8,7 @@ tool_versions:
     # renovate: datasource=github-releases depName=dandavison/delta
     delta: 0.19.2
     # renovate: datasource=github-releases depName=tmux/tmux-builds
-    tmux: v3.6a
+    tmux: v3.6b
     # renovate: datasource=github-releases depName=neovim/neovim
     neovim: v0.12.2
     # renovate: datasource=github-releases depName=mikefarah/yq
