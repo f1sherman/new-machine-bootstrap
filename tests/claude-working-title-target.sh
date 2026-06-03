@@ -80,7 +80,7 @@ run_hook() {
   env -i \
     PATH="$stubdir:/usr/bin:/bin" \
     TMUX="fake,1,0" \
-    STUB_SESSION_LABEL="devpod stability" \
+    STUB_SESSION_LABEL="alpha session" \
     STUB_SESSION_ID="\$7" \
     STUB_CORRECT_TTY="$correct_tty" \
     STUB_WRONG_TTY="$wrong_tty" \
@@ -89,14 +89,14 @@ run_hook() {
 
 # claude-working-on: writes the working indicator to the session's own tab.
 run_hook "$ON_HOOK" "$TMPROOT/correct.tty" "$TMPROOT/wrong.tty"
-assert_file_contains "$TMPROOT/correct.tty" "devpod stability" \
+assert_file_contains "$TMPROOT/correct.tty" "alpha session" \
   "working-on writes title to its own session's client tty"
 assert_no_content "$TMPROOT/wrong.tty" \
   "working-on does not write to an unrelated client tty"
 
 # claude-working-off: restores the plain session name on its own tab.
 run_hook "$OFF_HOOK" "$TMPROOT/correct.tty" "$TMPROOT/wrong.tty"
-assert_file_contains "$TMPROOT/correct.tty" "devpod stability" \
+assert_file_contains "$TMPROOT/correct.tty" "alpha session" \
   "working-off writes title to its own session's client tty"
 assert_no_content "$TMPROOT/wrong.tty" \
   "working-off does not write to an unrelated client tty"
