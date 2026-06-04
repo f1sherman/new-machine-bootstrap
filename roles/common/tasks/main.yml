@@ -1120,7 +1120,7 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
-- name: Set Codex CLI model defaults in ~/.codex/config.toml
+- name: Set Codex CLI latest model defaults in ~/.codex/config.toml
   shell: |
     set -euo pipefail
 
@@ -1129,6 +1129,7 @@
     require "fileutils"
 
     config_file = ENV.fetch("CONFIG_FILE")
+    codex_default_model = ENV.fetch("CODEX_DEFAULT_MODEL")
     text = File.exist?(config_file) ? File.read(config_file) : ""
     lines = text.lines(chomp: true)
     section_header = /^\[[^\]]+\](?:\s*[#;].*)?$/
@@ -1159,7 +1160,7 @@
 
     filtered_root.insert(
       insertion_index,
-      'model = "gpt-5.5"',
+      "model = #{codex_default_model.inspect}",
       'model_reasoning_effort = "xhigh"'
     )
 
@@ -1178,6 +1179,7 @@
   args:
     executable: /bin/bash
   environment:
+    CODEX_DEFAULT_MODEL: '{{ ai_models.latest_openai }}'
     CONFIG_FILE: '{{ ansible_facts["user_dir"] }}/.codex/config.toml'
     RUBY_BIN: '{{ mise_bin }} exec ruby@{{ tool_versions.runtimes.ruby }} -- ruby'
   register: codex_model_defaults_result

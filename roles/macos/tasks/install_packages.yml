@@ -155,6 +155,6 @@
   register: llm_default_model
   changed_when: false
 
-- name: Set llm default model to gpt-5-nano
-  command: llm models default gpt-5-nano
-  when: llm_default_model.stdout != 'gpt-5-nano'
+- name: Set llm default model to latest configured OpenAI model
+  command: llm models default {{ ai_models.latest_openai }}
+  when: llm_default_model.stdout != ai_models.latest_openai
