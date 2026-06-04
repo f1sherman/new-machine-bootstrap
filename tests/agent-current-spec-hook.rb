@@ -218,6 +218,28 @@ Dir.mktmpdir do |tmp|
   )
 
   assert_sets(
+    "patch target ignores absolute sibling non-spec path",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    {
+      "cwd" => repo,
+      "tool_input" => {
+        "command" => [
+          "*** Begin Patch",
+          "*** Add File: docs/superpowers/specs/2026-05-12-mixed.md",
+          "+# Mixed",
+          "*** Add File: #{File.join(repo, "docs/superpowers/plans/2026-05-12-mixed.md")}",
+          "+# Plan",
+          "*** End Patch"
+        ].join("\n")
+      }
+    },
+    File.join(repo, "docs/superpowers/specs/2026-05-12-mixed.md")
+  )
+
+  assert_sets(
     "patch target prefers pane worktree over payload cwd",
     hook,
     repo,

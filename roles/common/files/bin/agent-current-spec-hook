@@ -45,11 +45,17 @@ normalize_candidate() {
   if [[ "$path" == /* ]]; then
     if [[ "$path" == "$repo_root"/* ]]; then
       local repo_path="${path#$repo_root/}"
-      [[ "$repo_path" =~ $spec_pattern ]] && printf '%s\n' "$path"
+      if [[ "$repo_path" =~ $spec_pattern ]]; then
+        printf '%s\n' "$path"
+      fi
     fi
-  elif [[ "$path" =~ $spec_pattern ]]; then
+    return 0
+  fi
+
+  if [[ "$path" =~ $spec_pattern ]]; then
     printf '%s/%s\n' "$repo_root" "$path"
   fi
+  return 0
 }
 
 collect_candidates() {
