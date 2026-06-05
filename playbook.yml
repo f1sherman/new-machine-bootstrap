@@ -15,7 +15,6 @@
   connection: local
   vars_files:
     - vars/tool_versions.yml
-    - vars/ai_models.yml
   pre_tasks:
     - name: Verify Low Power Mode is enabled on battery only (macOS)
       shell: |

@@ -150,11 +150,7 @@
   shell: echo "{{ anthropic_api_key_content.content | b64decode | trim }}" | llm keys set anthropic
   when: llm_anthropic_key_check.rc != 0 and anthropic_api_key_stat.stat.exists and anthropic_api_key_stat.stat.size > 0
 
-- name: Get current llm default model
-  command: llm models default
-  register: llm_default_model
-  changed_when: false
-
-- name: Set llm default model to latest configured OpenAI model
-  command: llm models default {{ ai_models.latest_openai }}
-  when: llm_default_model.stdout != ai_models.latest_openai
+- name: Remove llm default model pin
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/Library/Application Support/io.datasette.llm/default_model.txt'
+    state: absent
