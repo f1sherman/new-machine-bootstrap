@@ -171,6 +171,23 @@ PATH="$stub_bin:$BIN_DIR:$PATH" \
   "$AGENT_WORKTREE" set "$repo_path"
 
 assert_file_contains "$cache_state_dir/%10.@pane-link" "fj##42 $pr_url" "repo-start tmux writer publishes cached PR URL"
+assert_file_contains "$cache_state_dir/%10.@pane-link-source" "pr-status-cache" "repo-start tmux writer marks cached PR URL source"
+
+manual_link_state_dir="$TMPROOT/state-manual-link"
+mkdir -p "$manual_link_state_dir"
+printf 'manual https://example.com/manual' > "$manual_link_state_dir/%11.@pane-link"
+
+TMUX=1 \
+TMUX_PANE="%11" \
+TMUX_AGENT_WORKTREE_STATE_DIR="$manual_link_state_dir" \
+TMUX_AGENT_WORKTREE_PANE_TTY=/dev/null \
+TMUX_PANE_LABEL_HOST_TAG=host-a \
+TMUX_LABEL_FORMAT_REPO_PATH="$repo_path" \
+HOME="$TMPROOT/no-pr-cache-home" \
+PATH="$stub_bin:$BIN_DIR:$PATH" \
+  "$AGENT_WORKTREE" set "$repo_path"
+
+assert_file_contains "$manual_link_state_dir/%11.@pane-link" "manual https://example.com/manual" "repo-start tmux writer preserves manual pane link without cached PR"
 
 (
   cd "$repo_path"

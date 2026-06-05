@@ -70,9 +70,19 @@ assert_file_contains \
 state_dir="$TMPROOT/state-clear"
 mkdir -p "$state_dir"
 printf 'preexisting' > "$state_dir/%1.@pane-link"
+printf 'pr-status-cache' > "$state_dir/%1.@pane-link-source"
 TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
   "$PANE_LINK" --clear
 assert_no_file "$state_dir/%1.@pane-link" "--clear removes @pane-link"
+assert_no_file "$state_dir/%1.@pane-link-source" "--clear removes @pane-link-source"
+
+# Case: direct set removes PR-cache provenance from previous automatic links
+state_dir="$TMPROOT/state-direct-set-source"
+mkdir -p "$state_dir"
+printf 'pr-status-cache' > "$state_dir/%1.@pane-link-source"
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" "manual" "https://example.com/manual"
+assert_no_file "$state_dir/%1.@pane-link-source" "direct set removes PR-cache provenance"
 
 # Case: javascript: scheme rejected
 state_dir="$TMPROOT/state-bad-js"

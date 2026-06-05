@@ -76,6 +76,16 @@ clear_pane_option() {
   fi
 }
 
+read_pane_option() {
+  local pane_id="$1" option_name="$2"
+  if [ -n "${TMUX_AGENT_WORKTREE_STATE_DIR:-}" ]; then
+    [ -f "$(state_file "$pane_id" "$option_name")" ] || return 1
+    cat "$(state_file "$pane_id" "$option_name")"
+  else
+    tmux show-options -qv -p -t "$pane_id" "$option_name" 2>/dev/null
+  fi
+}
+
 refresh_window_label() {
   command -v tmux-window-label >/dev/null 2>&1 || return 0
   tmux-window-label "${TMUX_PANE:-}" >/dev/null 2>&1 || true
@@ -227,11 +237,15 @@ cached_pr_pane_link_for_path() {
 publish_cached_pr_pane_link_for_path() {
   local pane_id="$1"
   local path="$2"
-  local link display_ref url
+  local link display_ref url source
 
   link="$(cached_pr_pane_link_for_path "$path" 2>/dev/null || true)"
   if [ -z "$link" ] || ! command -v tmux-pane-link >/dev/null 2>&1; then
-    clear_pane_option "$pane_id" "@pane-link"
+    source="$(read_pane_option "$pane_id" "@pane-link-source" 2>/dev/null || true)"
+    if [ "$source" = "pr-status-cache" ]; then
+      clear_pane_option "$pane_id" "@pane-link"
+      clear_pane_option "$pane_id" "@pane-link-source"
+    fi
     return 0
   fi
 
@@ -239,12 +253,23 @@ publish_cached_pr_pane_link_for_path() {
 $link
 EOF
   if [ -z "$display_ref" ] || [ -z "$url" ]; then
-    clear_pane_option "$pane_id" "@pane-link"
+    source="$(read_pane_option "$pane_id" "@pane-link-source" 2>/dev/null || true)"
+    if [ "$source" = "pr-status-cache" ]; then
+      clear_pane_option "$pane_id" "@pane-link"
+      clear_pane_option "$pane_id" "@pane-link-source"
+    fi
     return 0
   fi
 
-  tmux-pane-link --pane "$pane_id" "$display_ref" "$url" >/dev/null 2>&1 || \
-    clear_pane_option "$pane_id" "@pane-link"
+  if tmux-pane-link --pane "$pane_id" "$display_ref" "$url" >/dev/null 2>&1; then
+    write_pane_option "$pane_id" "@pane-link-source" "pr-status-cache"
+  else
+    source="$(read_pane_option "$pane_id" "@pane-link-source" 2>/dev/null || true)"
+    if [ "$source" = "pr-status-cache" ]; then
+      clear_pane_option "$pane_id" "@pane-link"
+      clear_pane_option "$pane_id" "@pane-link-source"
+    fi
+  fi
 }
 
 repo_label_for_path() {
@@ -315,6 +340,7 @@ cmd_clear() {
   clear_pane_option "$TMUX_PANE" "@agent_worktree_pid"
   clear_pane_option "$TMUX_PANE" "@pane-label"
   clear_pane_option "$TMUX_PANE" "@pane-link"
+  clear_pane_option "$TMUX_PANE" "@pane-link-source"
   refresh_window_label
   publish_title
 }
