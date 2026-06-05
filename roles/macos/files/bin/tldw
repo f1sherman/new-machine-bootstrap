@@ -102,7 +102,7 @@ generate_summary() {
   echo "Generating summary..." >&2
   local tmp_summary
   tmp_summary=$(mktemp)
-  llm -m claude-opus-4.6 -s "Summarize this YouTube video transcript. Provide a concise summary with key points and takeaways. Be thorough but not verbose." \
+  llm -s "Summarize this YouTube video transcript. Provide a concise summary with key points and takeaways. Be thorough but not verbose." \
     < "$transcript_file" > "$tmp_summary" \
     || { rm -f "$tmp_summary"; die "Failed to generate summary"; }
 

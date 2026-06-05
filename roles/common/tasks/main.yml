@@ -1120,7 +1120,7 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
-- name: Set Codex CLI model defaults in ~/.codex/config.toml
+- name: Set Codex CLI reasoning defaults in ~/.codex/config.toml
   shell: |
     set -euo pipefail
 
@@ -1159,7 +1159,6 @@
 
     filtered_root.insert(
       insertion_index,
-      'model = "gpt-5.5"',
       'model_reasoning_effort = "xhigh"'
     )
 

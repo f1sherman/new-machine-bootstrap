@@ -25,6 +25,7 @@ LINUX_TMUX_CONF="$REPO_ROOT/roles/linux/files/dotfiles/tmux.conf"
 MACOS_TMUX_CONF="$REPO_ROOT/roles/macos/templates/dotfiles/tmux.conf"
 MACOS_MAIN="$REPO_ROOT/roles/macos/tasks/main.yml"
 MACOS_INSTALLS="$REPO_ROOT/roles/macos/tasks/install_packages.yml"
+MACOS_TLDW="$REPO_ROOT/roles/macos/files/bin/tldw"
 MACOS_DEFAULT_NPM_PACKAGES="$REPO_ROOT/roles/macos/files/mise/default-npm-packages"
 HEAL_TASKS="$REPO_ROOT/roles/common/tasks/heal_mise_node_installs.yml"
 MISE_NODE_GLOBALS_TASKS="$REPO_ROOT/roles/common/tasks/install_mise_node_global_tools.yml"
@@ -198,28 +199,28 @@ run_codex_vim_mode_checks() {
 
   assert_codex_vim_mode_merge \
     "Codex Vim mode merge preserves dotted TUI keys" \
-    "model = \"gpt-5.5\"\ntui.theme = \"dark\"\ntui.vim_mode_default = false\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
-    "model = \"gpt-5.5\"\ntui.theme = \"dark\"\ntui.vim_mode_default = true\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
+    "approval_policy = \"never\"\ntui.theme = \"dark\"\ntui.vim_mode_default = false\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
+    "approval_policy = \"never\"\ntui.theme = \"dark\"\ntui.vim_mode_default = true\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
 
   assert_codex_vim_mode_merge \
     "Codex Vim mode merge adds to existing dotted TUI keys" \
-    "model = \"gpt-5.5\"\ntui.theme = \"dark\"\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
-    "model = \"gpt-5.5\"\ntui.theme = \"dark\"\ntui.vim_mode_default = true\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
+    "approval_policy = \"never\"\ntui.theme = \"dark\"\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
+    "approval_policy = \"never\"\ntui.theme = \"dark\"\ntui.vim_mode_default = true\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
 
   assert_codex_vim_mode_merge \
     "Codex Vim mode merge recognizes spaced dotted TUI keys" \
-    "model = \"gpt-5.5\"\ntui . session_picker_view = \"recent\"\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
-    "model = \"gpt-5.5\"\ntui . session_picker_view = \"recent\"\ntui.vim_mode_default = true\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
+    "approval_policy = \"never\"\ntui . session_picker_view = \"recent\"\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
+    "approval_policy = \"never\"\ntui . session_picker_view = \"recent\"\ntui.vim_mode_default = true\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
 
   assert_codex_vim_mode_merge \
     "Codex Vim mode merge preserves inline TUI tables" \
-    "model = \"gpt-5.5\"\ntui = { theme = \"dark\", vim_mode_default = false, notifications = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
-    "model = \"gpt-5.5\"\ntui = { theme = \"dark\", vim_mode_default = true, notifications = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
+    "approval_policy = \"never\"\ntui = { theme = \"dark\", vim_mode_default = false, notifications = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
+    "approval_policy = \"never\"\ntui = { theme = \"dark\", vim_mode_default = true, notifications = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
 
   assert_codex_vim_mode_merge \
     "Codex Vim mode merge adds to existing inline TUI tables" \
-    "model = \"gpt-5.5\"\ntui = { theme = \"dark\", notifications = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
-    "model = \"gpt-5.5\"\ntui = { theme = \"dark\", notifications = true, vim_mode_default = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
+    "approval_policy = \"never\"\ntui = { theme = \"dark\", notifications = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
+    "approval_policy = \"never\"\ntui = { theme = \"dark\", notifications = true, vim_mode_default = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
 }
 
 assert_yaml_query_empty() {
@@ -287,6 +288,8 @@ run_install_checks() {
   assert_contains "$MISE_NODE_GLOBALS_TASKS" 'PATH="$node_bin:$mise_bin_dir:$PATH"' "mise node globals task runs npm with pinned Node first on PATH"
   assert_contains "$COMMON_MAIN" "awk '\$1 == \\\"node\\\" && \$2 == \\\"{{ tool_versions.runtimes.node }}\\\" { found = 1 } END { exit(found ? 0 : 1) }'" "common Linux Node detection uses exact version-column matching"
   assert_contains "$COMMON_MAIN" "bash -s -- latest" "common Claude installer makes latest explicit"
+  assert_not_contains "$COMMON_MAIN" "CODEX_DEFAULT_MODEL" "common Codex config does not pin a model"
+  assert_not_contains "$COMMON_MAIN" '"model = #{' "common Codex config does not write a root model override"
   assert_contains "$COMMON_MAIN" "vim_mode_default = true" "common Codex config defaults composer to Vim mode"
   assert_contains "$MACOS_MAIN" "version: \"{{ tool_versions.git_tags.tpm }}\"" "macOS tpm clone uses catalog tag"
   assert_contains "$MACOS_MAIN" "node@{{ tool_versions.runtimes.node }}" "macOS Node install uses pinned version"
@@ -299,6 +302,10 @@ run_install_checks() {
   assert_yaml_equals "$MACOS_INSTALLS" '.[] | select(.name == "Check installed mise version (macOS)") | .check_mode' "false" "macOS mise pre-upgrade version check runs in check mode"
   assert_contains "$MACOS_INSTALLS" "Upgrade mise if older than catalog pin (macOS)" "macOS install_packages upgrades mise when older than the catalog pin"
   assert_contains "$MACOS_INSTALLS" "tool_versions.runtimes.mise | regex_replace('^v', '')" "macOS install_packages compares mise against the catalog pin"
+  assert_contains "$MACOS_INSTALLS" "Remove llm default model pin" "macOS provisioning removes managed llm model pins"
+  assert_not_contains "$MACOS_INSTALLS" "llm models default" "macOS provisioning does not pin the llm model"
+  assert_not_contains "$MACOS_INSTALLS" "gpt-5-nano" "macOS llm default no longer pins the nano model"
+  assert_not_contains "$MACOS_TLDW" "llm -m" "tldw uses the configured llm default instead of pinning a model"
   assert_yaml_equals "$MACOS_INSTALLS" '.[] | select(.name == "Re-read mise version after upgrade (macOS)") | .check_mode' "false" "macOS mise post-upgrade version check runs in check mode"
   assert_contains "$MACOS_INSTALLS" "Fail if installed mise is still older than catalog pin (macOS)" "macOS install_packages fails loudly if mise stays older than pin"
   assert_yaml_equals "$MACOS_INSTALLS" '.[] | select(.name == "Fail if installed mise is still older than catalog pin (macOS)") | (.when | tostring | contains("not ansible_check_mode"))' "true" "macOS mise hard fail is skipped during check mode"

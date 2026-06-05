@@ -287,7 +287,7 @@ cat >"$hooks_file" <<JSON
 JSON
 
 cat >"$config_file" <<TOML
-model = "gpt-5.5"
+approval_policy = "never"
 
 [hooks.state."$hooks_file:pre_tool_use:99:0"]
 # nmb-managed-codex-hook = true
