@@ -55,13 +55,15 @@ The skill will include these sections:
 - **Prefer Existing App Wrappers:** Search the local codebase for Keychain
   wrappers and service/account naming before using direct `security` commands.
 - **Direct Security Commands:** Use explicit login keychain path as the final
-  argument for `security add-generic-password` and
-  `security find-generic-password`.
+  argument for `security add-generic-password` and presence-only
+  `security find-generic-password` checks. Do not use `find-generic-password -w`
+  for agent verification because it prints the secret.
 - **Default Keychain Repair:** If the default keychain points at a directory or
   invalid path, ask before mutating it with `security default-keychain -s`.
 - **Secret Handling:** Never print secrets, avoid shell history exposure, prefer
-  existing authenticated tools or private files, and verify presence rather than
-  value.
+  existing authenticated tools, private files, or silent prompts for populating
+  secret variables, disable xtrace before handling secrets, unset secret
+  variables after use, and verify presence rather than value.
 - **Failure Handling:** Distinguish missing items from Keychain failures. If
   macOS prompts repeat or the user cancels, stop.
 
@@ -82,5 +84,6 @@ Implementation verification should confirm:
 2. The skill includes the critical explicit keychain path rule.
 3. The skill tells agents to ask before repairing the default keychain.
 4. The skill tells agents not to print secrets.
-5. `ansible-playbook playbook.yml --syntax-check` passes.
-
+5. The skill uses presence-only lookup verification instead of
+   `find-generic-password -w`.
+6. `ansible-playbook playbook.yml --syntax-check` passes.

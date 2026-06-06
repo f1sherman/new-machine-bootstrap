@@ -41,8 +41,16 @@ Always pass the explicit keychain path as the final argument:
 
 ```bash
 security add-generic-password -U -s "$service" -a "$account" -w "$secret" "$HOME/Library/Keychains/login.keychain-db"
-security find-generic-password -w -s "$service" -a "$account" "$HOME/Library/Keychains/login.keychain-db"
+security find-generic-password -s "$service" -a "$account" "$HOME/Library/Keychains/login.keychain-db" >/dev/null
 ```
+
+Populate `$secret` from a non-logged source, such as an existing authenticated
+tool, a private file, or a silent prompt. Do not put literal secret values in
+commands, transcripts, or shell history. Disable xtrace before handling secrets
+and unset secret variables after use.
+
+Do not use `find-generic-password -w` for agent verification because it prints
+the secret. Verify item presence only.
 
 ## Default Keychain Repair
 

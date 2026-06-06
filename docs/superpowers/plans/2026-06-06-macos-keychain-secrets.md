@@ -75,8 +75,16 @@ apply_patch <<'PATCH'
 +
 +```bash
 +security add-generic-password -U -s "$service" -a "$account" -w "$secret" "$HOME/Library/Keychains/login.keychain-db"
-+security find-generic-password -w -s "$service" -a "$account" "$HOME/Library/Keychains/login.keychain-db"
++security find-generic-password -s "$service" -a "$account" "$HOME/Library/Keychains/login.keychain-db" >/dev/null
 +```
++
++Populate `$secret` from a non-logged source, such as an existing authenticated
++tool, a private file, or a silent prompt. Do not put literal secret values in
++commands, transcripts, or shell history. Disable xtrace before handling secrets
++and unset secret variables after use.
++
++Do not use `find-generic-password -w` for agent verification because it prints
++the secret. Verify item presence only.
 +
 +## Default Keychain Repair
 +
@@ -110,10 +118,11 @@ Run:
 
 ```bash
 test -f roles/common/files/config/skills/common/macos-keychain-secrets/SKILL.md
-rg -n 'login\.keychain-db|final argument|ask before|Never print secrets|Keychain Not Found' roles/common/files/config/skills/common/macos-keychain-secrets/SKILL.md
+rg -n 'login\.keychain-db|final argument|ask before|Never print secrets|Keychain Not Found|Verify item presence only|non-logged source' roles/common/files/config/skills/common/macos-keychain-secrets/SKILL.md
+! rg -n '^security find-generic-password -w' roles/common/files/config/skills/common/macos-keychain-secrets/SKILL.md
 ```
 
-Expected: `test` exits 0 and `rg` prints matching lines for all listed safety rules.
+Expected: `test` exits 0, the first `rg` prints matching lines for all listed safety rules, and the negated `rg` exits 0 by finding no secret-printing lookup command line.
 
 - [ ] **Step 3: Run playbook syntax verification**
 
@@ -148,7 +157,6 @@ Expected: commit succeeds with one new file.
 
 ## Plan Self-Review
 
-- Spec coverage: Task 1 creates the shared skill, includes diagnose, wrapper preference, explicit keychain path, repair approval, secret handling, failure handling, and syntax verification.
+- Spec coverage: Task 1 creates the shared skill, includes diagnose, wrapper preference, explicit keychain path, presence-only lookup verification, repair approval, secret handling, failure handling, and syntax verification.
 - Placeholder scan: no placeholders remain.
 - Scope check: one docs-only implementation task; no tests or Ansible changes are included.
-
