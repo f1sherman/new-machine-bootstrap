@@ -112,9 +112,9 @@ apply_patch <<'PATCH'
 +
 +## Secret Handling
 +
-+Never print secrets. Prefer reading from existing authenticated tools or
-+private files. Avoid shell history exposure. Verification should prove
-+presence, not value.
++Never print secrets. Prefer existing authenticated tools, private files,
++app-specific wrappers, or prompt-form writes. Avoid shell history exposure.
++Verification should prove presence, not value.
 +
 +## Failure Handling
 +
