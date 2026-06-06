@@ -4,6 +4,7 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 macos_tasks="$repo_root/roles/macos/tasks/main.yml"
+common_tasks="$repo_root/roles/common/tasks/main.yml"
 heal_tasks="$repo_root/roles/common/tasks/heal_mise_node_installs.yml"
 
 pass=0
@@ -69,6 +70,80 @@ assert_not_contains() {
     pass_case "$name"
   fi
 }
+
+assert_task_before() {
+  local file="$1"
+  local first_task="$2"
+  local second_task="$3"
+  local name="$4"
+  local first_line second_line
+
+  first_line="$(rg -n -F -- "- name: $first_task" "$file" | head -n 1 | cut -d: -f1 || true)"
+  second_line="$(rg -n -F -- "- name: $second_task" "$file" | head -n 1 | cut -d: -f1 || true)"
+
+  if [[ -z "$first_line" ]]; then
+    fail_case "$name" "missing first task '$first_task' in $file"
+  elif [[ -z "$second_line" ]]; then
+    fail_case "$name" "missing second task '$second_task' in $file"
+  elif (( first_line < second_line )); then
+    pass_case "$name"
+  else
+    fail_case "$name" "expected '$first_task' before '$second_task'"
+  fi
+}
+
+# Common-role macOS npm tools run before the macOS role, so they must install
+# the pinned Node.js version without touching the user's GPG keyring.
+assert_task_block_contains \
+  "$common_tasks" \
+  "Create mise default-packages file before common npm tools (macOS)" \
+  ".default-npm-packages" \
+  "common macOS npm tools seed mise default npm packages"
+assert_task_block_contains \
+  "$common_tasks" \
+  "Create mise default-packages file before common npm tools (macOS)" \
+  "roles/macos/files/mise/default-npm-packages" \
+  "common macOS npm tools use managed default npm package list"
+assert_task_before \
+  "$common_tasks" \
+  "Create mise default-packages file before common npm tools (macOS)" \
+  "Install pinned Node.js version before common npm tools (macOS)" \
+  "common macOS npm tools seed default npm packages before Node install"
+assert_task_block_contains \
+  "$common_tasks" \
+  "Create temporary GPG home for pinned Node.js before common npm tools (macOS)" \
+  "tempfile:" \
+  "common macOS npm tools create a temporary GPG home"
+assert_task_block_contains \
+  "$common_tasks" \
+  "Install pinned Node.js version before common npm tools (macOS)" \
+  "GNUPGHOME: \"{{ common_macos_node_pin_gpg_home.path }}\"" \
+  "common macOS npm tools isolate Node install GNUPGHOME"
+assert_task_block_contains \
+  "$common_tasks" \
+  "Install pinned Node.js version before common npm tools (macOS)" \
+  "common_macos_node_pin_gpg_home.path is defined" \
+  "common macOS npm tools guard the temp GPG home in check mode"
+assert_task_block_contains \
+  "$common_tasks" \
+  "Remove temporary GPG home for pinned Node.js before common npm tools (macOS)" \
+  "state: absent" \
+  "common macOS npm tools remove temporary GPG home"
+assert_task_block_contains \
+  "$common_tasks" \
+  "Install or update Codex CLI via npm (macOS)" \
+  "exec node@{{ tool_versions.runtimes.node }} -- npm install -g @openai/codex@latest" \
+  "common macOS Codex install runs under pinned mise Node"
+assert_task_block_contains \
+  "$common_tasks" \
+  "Install or update pi-coding-agent via npm (macOS)" \
+  "exec node@{{ tool_versions.runtimes.node }} -- npm install -g @mariozechner/pi-coding-agent@latest" \
+  "common macOS pi install runs under pinned mise Node"
+assert_task_block_contains \
+  "$common_tasks" \
+  "Install pi-subdir-context plugin for pi-coding-agent (macOS)" \
+  "exec node@{{ tool_versions.runtimes.node }} -- pi install npm:pi-subdir-context" \
+  "common macOS pi plugin install runs under pinned mise Node"
 
 # First-install GPG isolation in roles/macos/tasks/main.yml.
 assert_task_block_contains \

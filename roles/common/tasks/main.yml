@@ -1058,11 +1058,51 @@
     path: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
     mode: '0600'
 
+- name: Prepare pinned Node.js before common npm tools (macOS)
+  block:
+    - name: Create mise default-packages file before common npm tools (macOS)
+      copy:
+        backup: yes
+        dest: '{{ ansible_facts["user_dir"] }}/.default-npm-packages'
+        src: '{{ playbook_dir }}/roles/macos/files/mise/default-npm-packages'
+        mode: '0600'
+
+    - name: Heal any broken mise-managed Node.js installs before common npm tools (macOS)
+      include_tasks: '{{ playbook_dir }}/roles/common/tasks/heal_mise_node_installs.yml'
+
+    - name: Check if pinned Node.js version is listed before common npm tools (macOS)
+      shell: "{{ mise_bin }} ls --installed node | awk '$1 == \"node\" && $2 == \"{{ tool_versions.runtimes.node }}\" { found = 1 } END { exit(found ? 0 : 1) }'"
+      register: common_macos_node_listed
+      changed_when: false
+      failed_when: false
+
+    - name: Create temporary GPG home for pinned Node.js before common npm tools (macOS)
+      tempfile:
+        state: directory
+        prefix: common-macos-node-pin-gpg-
+      register: common_macos_node_pin_gpg_home
+      when: common_macos_node_listed.rc != 0
+
+    - name: Install pinned Node.js version before common npm tools (macOS)
+      command: "{{ mise_bin }} install node@{{ tool_versions.runtimes.node }}"
+      environment:
+        GNUPGHOME: "{{ common_macos_node_pin_gpg_home.path }}"
+      when:
+        - common_macos_node_listed.rc != 0
+        - common_macos_node_pin_gpg_home.path is defined
+  always:
+    - name: Remove temporary GPG home for pinned Node.js before common npm tools (macOS)
+      file:
+        path: "{{ common_macos_node_pin_gpg_home.path }}"
+        state: absent
+      when:
+        - common_macos_node_pin_gpg_home is defined
+        - common_macos_node_pin_gpg_home.path is defined
+  when: ansible_facts["os_family"] == "Darwin"
+
 - name: Install or update Codex CLI via npm (macOS)
-  npm:
-    name: '@openai/codex'
-    global: yes
-    state: latest
+  command: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- npm install -g @openai/codex@latest"
+  changed_when: false
   when: ansible_facts["os_family"] == "Darwin"
 
 # Use mise exec to run npm with mise's node (not nvm's).
@@ -1078,10 +1118,8 @@
   changed_when: false
 
 - name: Install or update pi-coding-agent via npm (macOS)
-  npm:
-    name: '@mariozechner/pi-coding-agent'
-    global: yes
-    state: latest
+  command: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- npm install -g @mariozechner/pi-coding-agent@latest"
+  changed_when: false
   when: ansible_facts["os_family"] == "Darwin"
 
 - name: Install or update pi-coding-agent via npm (Linux)
@@ -1092,7 +1130,7 @@
   changed_when: false
 
 - name: Install pi-subdir-context plugin for pi-coding-agent (macOS)
-  command: pi install npm:pi-subdir-context
+  command: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- pi install npm:pi-subdir-context"
   register: pi_plugin_macos
   changed_when: "'already installed' not in pi_plugin_macos.stdout"
   failed_when: pi_plugin_macos.rc != 0
