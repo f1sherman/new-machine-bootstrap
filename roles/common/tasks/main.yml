@@ -1060,6 +1060,13 @@
 
 - name: Prepare pinned Node.js before common npm tools (macOS)
   block:
+    - name: Create mise default-packages file before common npm tools (macOS)
+      copy:
+        backup: yes
+        dest: '{{ ansible_facts["user_dir"] }}/.default-npm-packages'
+        src: '{{ playbook_dir }}/roles/macos/files/mise/default-npm-packages'
+        mode: '0600'
+
     - name: Heal any broken mise-managed Node.js installs before common npm tools (macOS)
       include_tasks: '{{ playbook_dir }}/roles/common/tasks/heal_mise_node_installs.yml'
 
