@@ -54,15 +54,19 @@ The skill will include these sections:
   `~/Library/Keychains/login.keychain-db`, not `~/Library/Keychains`.
 - **Prefer Existing App Wrappers:** Search the local codebase for Keychain
   wrappers and service/account naming before using direct `security` commands.
+  The search should work in repositories that do not have `lib`, `test`, or
+  `bin` directories.
 - **Direct Security Commands:** Use explicit login keychain path as the final
-  argument for `security add-generic-password` and presence-only
-  `security find-generic-password` checks. Do not use `find-generic-password -w`
-  for agent verification because it prints the secret.
+  argument for presence-only `security find-generic-password` checks. For
+  direct writes, pass the explicit keychain path and use bare `-w` as the last
+  option so `security` prompts for the secret instead of receiving it as a
+  process argument. Do not use `find-generic-password -w` for agent verification
+  because it prints the secret.
 - **Default Keychain Repair:** If the default keychain points at a directory or
   invalid path, ask before mutating it with `security default-keychain -s`.
 - **Secret Handling:** Never print secrets, avoid shell history exposure, prefer
-  existing authenticated tools, private files, or silent prompts for populating
-  secret variables, disable xtrace before handling secrets, unset secret
+  existing authenticated tools, private files, app-specific wrappers, or prompt
+  form for writes, disable xtrace before handling secrets, unset secret
   variables after use, and verify presence rather than value.
 - **Failure Handling:** Distinguish missing items from Keychain failures. If
   macOS prompts repeat or the user cancels, stop.
@@ -86,4 +90,5 @@ Implementation verification should confirm:
 4. The skill tells agents not to print secrets.
 5. The skill uses presence-only lookup verification instead of
    `find-generic-password -w`.
-6. `ansible-playbook playbook.yml --syntax-check` passes.
+6. The skill uses prompt-based direct writes instead of `-w "$secret"`.
+7. `ansible-playbook playbook.yml --syntax-check` passes.

@@ -30,24 +30,32 @@ Before direct `security` commands, search for app-specific Keychain wrappers
 and service/account naming:
 
 ```bash
-rg -n "Keychain|add-generic-password|find-generic-password|keychain" lib test bin
+rg -n "Keychain|add-generic-password|find-generic-password|keychain" .
 ```
 
 Use the wrapper if available.
 
 ## Direct Security Commands
 
-Always pass the explicit keychain path as the final argument:
+Always pass the explicit keychain path. For lookup commands, pass it as the
+final argument:
 
 ```bash
-security add-generic-password -U -s "$service" -a "$account" -w "$secret" "$HOME/Library/Keychains/login.keychain-db"
 security find-generic-password -s "$service" -a "$account" "$HOME/Library/Keychains/login.keychain-db" >/dev/null
 ```
 
-Populate `$secret` from a non-logged source, such as an existing authenticated
-tool, a private file, or a silent prompt. Do not put literal secret values in
-commands, transcripts, or shell history. Disable xtrace before handling secrets
-and unset secret variables after use.
+For direct writes, use the prompt form. `security` treats `-p` and `-w password`
+as insecure because they expose the secret as an argument; bare `-w` as the last
+option prompts for the secret:
+
+```bash
+security add-generic-password -U -s "$service" -a "$account" "$HOME/Library/Keychains/login.keychain-db" -w
+```
+
+Do not put literal secret values in commands, transcripts, or shell history.
+Disable xtrace before handling secrets and unset secret variables after use. If
+non-interactive writes are required, prefer an app-specific wrapper or private
+local tooling that avoids exposing the secret in process arguments.
 
 Do not use `find-generic-password -w` for agent verification because it prints
 the secret. Verify item presence only.

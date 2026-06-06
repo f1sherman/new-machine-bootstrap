@@ -64,24 +64,32 @@ apply_patch <<'PATCH'
 +and service/account naming:
 +
 +```bash
-+rg -n "Keychain|add-generic-password|find-generic-password|keychain" lib test bin
++rg -n "Keychain|add-generic-password|find-generic-password|keychain" .
 +```
 +
 +Use the wrapper if available.
 +
 +## Direct Security Commands
 +
-+Always pass the explicit keychain path as the final argument:
++Always pass the explicit keychain path. For lookup commands, pass it as the
++final argument:
 +
 +```bash
-+security add-generic-password -U -s "$service" -a "$account" -w "$secret" "$HOME/Library/Keychains/login.keychain-db"
 +security find-generic-password -s "$service" -a "$account" "$HOME/Library/Keychains/login.keychain-db" >/dev/null
 +```
 +
-+Populate `$secret` from a non-logged source, such as an existing authenticated
-+tool, a private file, or a silent prompt. Do not put literal secret values in
-+commands, transcripts, or shell history. Disable xtrace before handling secrets
-+and unset secret variables after use.
++For direct writes, use the prompt form. `security` treats `-p` and `-w password`
++as insecure because they expose the secret as an argument; bare `-w` as the last
++option prompts for the secret:
++
++```bash
++security add-generic-password -U -s "$service" -a "$account" "$HOME/Library/Keychains/login.keychain-db" -w
++```
++
++Do not put literal secret values in commands, transcripts, or shell history.
++Disable xtrace before handling secrets and unset secret variables after use. If
++non-interactive writes are required, prefer an app-specific wrapper or private
++local tooling that avoids exposing the secret in process arguments.
 +
 +Do not use `find-generic-password -w` for agent verification because it prints
 +the secret. Verify item presence only.
@@ -118,11 +126,12 @@ Run:
 
 ```bash
 test -f roles/common/files/config/skills/common/macos-keychain-secrets/SKILL.md
-rg -n 'login\.keychain-db|final argument|ask before|Never print secrets|Keychain Not Found|Verify item presence only|non-logged source' roles/common/files/config/skills/common/macos-keychain-secrets/SKILL.md
+rg -n 'login\.keychain-db|final argument|ask before|Never print secrets|Keychain Not Found|Verify item presence only|prompt form|process arguments' roles/common/files/config/skills/common/macos-keychain-secrets/SKILL.md
 ! rg -n '^security find-generic-password -w' roles/common/files/config/skills/common/macos-keychain-secrets/SKILL.md
+! rg -n '^security add-generic-password .* -w "\$secret"' roles/common/files/config/skills/common/macos-keychain-secrets/SKILL.md
 ```
 
-Expected: `test` exits 0, the first `rg` prints matching lines for all listed safety rules, and the negated `rg` exits 0 by finding no secret-printing lookup command line.
+Expected: `test` exits 0, the first `rg` prints matching lines for all listed safety rules, and both negated `rg` commands exit 0 by finding no secret-printing lookup command line and no direct write example that exposes `$secret` as a process argument.
 
 - [ ] **Step 3: Run playbook syntax verification**
 
@@ -157,6 +166,6 @@ Expected: commit succeeds with one new file.
 
 ## Plan Self-Review
 
-- Spec coverage: Task 1 creates the shared skill, includes diagnose, wrapper preference, explicit keychain path, presence-only lookup verification, repair approval, secret handling, failure handling, and syntax verification.
+- Spec coverage: Task 1 creates the shared skill, includes diagnose, wrapper preference, explicit keychain path, presence-only lookup verification, prompt-based direct writes, repair approval, secret handling, failure handling, and syntax verification.
 - Placeholder scan: no placeholders remain.
 - Scope check: one docs-only implementation task; no tests or Ansible changes are included.
