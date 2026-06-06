@@ -58,10 +58,13 @@ The skill will include these sections:
   `bin` directories.
 - **Direct Security Commands:** Use explicit login keychain path as the final
   argument for presence-only `security find-generic-password` checks. For
-  direct writes, pass the explicit keychain path and use bare `-w` as the last
-  option so `security` prompts for the secret instead of receiving it as a
-  process argument. Do not use `find-generic-password -w` for agent verification
-  because it prints the secret.
+  direct writes, first verify that the default keychain is the login keychain,
+  then use bare `-w` as the last option so `security` prompts for the secret
+  instead of receiving it as a process argument. Do not combine a keychain path
+  with prompt-form direct writes; `security add-generic-password` expects
+  options before the optional keychain argument. Do not use
+  `find-generic-password -w` for agent verification because it prints the
+  secret.
 - **Default Keychain Repair:** If the default keychain points at a directory or
   invalid path, ask before mutating it with `security default-keychain -s`.
 - **Secret Handling:** Never print secrets, avoid shell history exposure, prefer
@@ -90,5 +93,6 @@ Implementation verification should confirm:
 4. The skill tells agents not to print secrets.
 5. The skill uses presence-only lookup verification instead of
    `find-generic-password -w`.
-6. The skill uses prompt-based direct writes instead of `-w "$secret"`.
+6. The skill uses prompt-based direct writes instead of `-w "$secret"` and
+   does not put the keychain path before prompt-form `-w`.
 7. `ansible-playbook playbook.yml --syntax-check` passes.

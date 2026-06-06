@@ -71,20 +71,26 @@ apply_patch <<'PATCH'
 +
 +## Direct Security Commands
 +
-+Always pass the explicit keychain path. For lookup commands, pass it as the
-+final argument:
++For lookup commands, always pass the explicit keychain path as the final
++argument:
 +
 +```bash
 +security find-generic-password -s "$service" -a "$account" "$HOME/Library/Keychains/login.keychain-db" >/dev/null
 +```
 +
-+For direct writes, use the prompt form. `security` treats `-p` and `-w password`
-+as insecure because they expose the secret as an argument; bare `-w` as the last
-+option prompts for the secret:
++For direct writes, use the prompt form only after verifying the default keychain
++is `~/Library/Keychains/login.keychain-db`. `security` treats `-p` and
++`-w password` as insecure because they expose the secret as an argument; bare
++`-w` as the last option prompts for the secret and writes to the default
++keychain:
 +
 +```bash
-+security add-generic-password -U -s "$service" -a "$account" "$HOME/Library/Keychains/login.keychain-db" -w
++security add-generic-password -U -s "$service" -a "$account" -w
 +```
++
++Do not combine a keychain path with prompt-form direct writes. If the default
++keychain is wrong and the user does not approve repairing it, stop or use an
++app-specific wrapper.
 +
 +Do not put literal secret values in commands, transcripts, or shell history.
 +Disable xtrace before handling secrets and unset secret variables after use. If
@@ -129,9 +135,10 @@ test -f roles/common/files/config/skills/common/macos-keychain-secrets/SKILL.md
 rg -n 'login\.keychain-db|final argument|ask before|Never print secrets|Keychain Not Found|Verify item presence only|prompt form|process arguments' roles/common/files/config/skills/common/macos-keychain-secrets/SKILL.md
 ! rg -n '^security find-generic-password -w' roles/common/files/config/skills/common/macos-keychain-secrets/SKILL.md
 ! rg -n '^security add-generic-password .* -w "\$secret"' roles/common/files/config/skills/common/macos-keychain-secrets/SKILL.md
+! rg -n '^security add-generic-password .*login\.keychain-db.* -w$' roles/common/files/config/skills/common/macos-keychain-secrets/SKILL.md
 ```
 
-Expected: `test` exits 0, the first `rg` prints matching lines for all listed safety rules, and both negated `rg` commands exit 0 by finding no secret-printing lookup command line and no direct write example that exposes `$secret` as a process argument.
+Expected: `test` exits 0, the first `rg` prints matching lines for all listed safety rules, and the negated `rg` commands exit 0 by finding no secret-printing lookup command line, no direct write example that exposes `$secret` as a process argument, and no prompt-form direct write that puts the keychain path before `-w`.
 
 - [ ] **Step 3: Run playbook syntax verification**
 
