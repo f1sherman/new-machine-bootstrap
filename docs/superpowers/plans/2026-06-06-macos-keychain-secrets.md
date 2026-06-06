@@ -88,9 +88,10 @@ apply_patch <<'PATCH'
 +security add-generic-password -U -s "$service" -a "$account" -w
 +```
 +
-+Do not combine a keychain path with prompt-form direct writes. If the default
-+keychain is wrong and the user does not approve repairing it, stop or use an
-+app-specific wrapper.
++Do not combine a keychain path with prompt-form direct writes because
++`security add-generic-password` expects options before the optional keychain
++argument. If the default keychain is wrong and the user does not approve
++repairing it, stop or use an app-specific wrapper.
 +
 +Do not put literal secret values in commands, transcripts, or shell history.
 +Disable xtrace before handling secrets and unset secret variables after use. If
