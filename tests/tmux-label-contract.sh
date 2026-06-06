@@ -57,8 +57,46 @@ create_repo() {
   repo="$TMPROOT/$name"
   git init -qb main "$repo"
   git -C "$repo" commit -q --allow-empty -m init
+  git -C "$repo" remote add origin "https://example.com/org/${name}.git"
   git -C "$repo" checkout -q -b feature/label
   realpath "$repo"
+}
+
+write_pr_status_cache() {
+  local home="$1" repo="$2" platform="$3" pr_number="$4" url="$5"
+  local remote_url branch key cache_dir now expires display_ref
+
+  remote_url="$(git -C "$repo" remote get-url origin)"
+  branch="$(git -C "$repo" branch --show-current)"
+  key="$(printf '%s\n%s\n' "$remote_url" "$branch" | shasum -a 256 | awk '{print $1}')"
+  cache_dir="$home/.local/state/pr-status"
+  now="$(date +%s)"
+  expires="$((now + 3600))"
+
+  case "$platform" in
+    github) display_ref="gh#$pr_number" ;;
+    forgejo) display_ref="fj#$pr_number" ;;
+    *) fail_case "write PR status cache" "unsupported platform: $platform" ;;
+  esac
+
+  mkdir -p "$cache_dir"
+  jq -n \
+    --argjson schema_version 1 \
+    --arg platform "$platform" \
+    --arg repo_root "$repo" \
+    --arg git_common_dir "$repo/.git" \
+    --arg remote_url "$remote_url" \
+    --arg branch "$branch" \
+    --arg head_sha "abc123" \
+    --argjson pr_number "$pr_number" \
+    --arg display_ref "$display_ref" \
+    --arg html_url "$url" \
+    --arg state "open" \
+    --arg source "test" \
+    --argjson updated_at_epoch "$now" \
+    --argjson expires_at_epoch "$expires" \
+    '{schema_version:$schema_version,platform:$platform,repo_root:$repo_root,git_common_dir:$git_common_dir,remote_url:$remote_url,branch:$branch,head_sha:$head_sha,pr_number:$pr_number,display_ref:$display_ref,html_url:$html_url,state:$state,source:$source,updated_at_epoch:$updated_at_epoch,expires_at_epoch:$expires_at_epoch}' \
+    > "$cache_dir/$key.json"
 }
 
 plain_path="$TMPROOT/plain-dir"
@@ -116,6 +154,40 @@ PATH="$stub_bin:$PATH" \
   "$AGENT_WORKTREE" set "$repo_path"
 
 assert_file_contains "$state_dir/%8.@pane-label" "(feature/label fj#42) label-repo" "repo-start tmux writer prefers formatter pane label"
+
+cache_home="$TMPROOT/cache-home"
+cache_state_dir="$TMPROOT/state-cache-link"
+pr_url="https://forgejo.example.com/org/label-repo/pulls/42"
+write_pr_status_cache "$cache_home" "$repo_path" forgejo 42 "$pr_url"
+
+TMUX=1 \
+TMUX_PANE="%10" \
+TMUX_AGENT_WORKTREE_STATE_DIR="$cache_state_dir" \
+TMUX_AGENT_WORKTREE_PANE_TTY=/dev/null \
+TMUX_PANE_LABEL_HOST_TAG=host-a \
+TMUX_LABEL_FORMAT_REPO_PATH="$repo_path" \
+HOME="$cache_home" \
+PATH="$stub_bin:$BIN_DIR:$PATH" \
+  "$AGENT_WORKTREE" set "$repo_path"
+
+assert_file_contains "$cache_state_dir/%10.@pane-link" "fj##42 $pr_url" "repo-start tmux writer publishes cached PR URL"
+assert_file_contains "$cache_state_dir/%10.@pane-link-source" "pr-status-cache" "repo-start tmux writer marks cached PR URL source"
+
+manual_link_state_dir="$TMPROOT/state-manual-link"
+mkdir -p "$manual_link_state_dir"
+printf 'manual https://example.com/manual' > "$manual_link_state_dir/%11.@pane-link"
+
+TMUX=1 \
+TMUX_PANE="%11" \
+TMUX_AGENT_WORKTREE_STATE_DIR="$manual_link_state_dir" \
+TMUX_AGENT_WORKTREE_PANE_TTY=/dev/null \
+TMUX_PANE_LABEL_HOST_TAG=host-a \
+TMUX_LABEL_FORMAT_REPO_PATH="$repo_path" \
+HOME="$TMPROOT/no-pr-cache-home" \
+PATH="$stub_bin:$BIN_DIR:$PATH" \
+  "$AGENT_WORKTREE" set "$repo_path"
+
+assert_file_contains "$manual_link_state_dir/%11.@pane-link" "manual https://example.com/manual" "repo-start tmux writer preserves manual pane link without cached PR"
 
 (
   cd "$repo_path"

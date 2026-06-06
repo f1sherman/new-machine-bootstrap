@@ -52,6 +52,7 @@ done
 
 if [ "$clear_mode" -eq 1 ]; then
   clear_pane_option "$pane" "@pane-link"
+  clear_pane_option "$pane" "@pane-link-source"
   refresh_client
   exit 0
 fi
@@ -84,4 +85,5 @@ label="${label//#/##}"
 url_escaped="${url//#/##}"
 value="$label $url_escaped"
 write_pane_option "$pane" "@pane-link" "$value"
+clear_pane_option "$pane" "@pane-link-source"
 refresh_client
