@@ -80,6 +80,32 @@
         - ac_sleep_check.stdout is defined
         - ac_sleep_check.stdout != "ok"
 
+    - name: Verify system-wide sleep is enabled (macOS)
+      shell: |
+        pmset -g | awk '
+          /^[[:space:]]*SleepDisabled[[:space:]]/ { sleep_disabled = $2 }
+          END {
+            if (sleep_disabled == "" || sleep_disabled == "0") print "ok"
+            else printf "SleepDisabled=%s\n", sleep_disabled
+          }
+        '
+      register: global_sleep_check
+      changed_when: false
+      check_mode: no
+      when: ansible_facts["os_family"] == "Darwin"
+
+    - name: Require system-wide sleep enabled (macOS)
+      fail:
+        msg: |
+          System-wide sleep is disabled ({{ global_sleep_check.stdout }}).
+          Required: normal global sleep behavior so battery sleep still works.
+          Run `bin/setup` to fix, or manually:
+            sudo pmset -a disablesleep 0
+      when:
+        - ansible_facts["os_family"] == "Darwin"
+        - global_sleep_check.stdout is defined
+        - global_sleep_check.stdout != "ok"
+
     - name: Verify launchctl maxfiles soft limit (macOS)
       shell: |
         soft="$(launchctl limit maxfiles 2>/dev/null | awk '/maxfiles/ {print $2}')"
