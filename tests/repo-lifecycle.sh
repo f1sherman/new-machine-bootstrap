@@ -331,6 +331,10 @@ git -C "$stale_repo" checkout -q main
 git -C "$stale_repo" branch -q -D feature/stale
 # Delete the branch on the remote but leave the local remote-tracking ref behind.
 git -C "$stale_origin" update-ref -d refs/heads/feature/stale
+if ! git -C "$stale_repo" show-ref --verify --quiet refs/remotes/origin/feature/stale; then
+  fail_case "stale remote-tracking ref setup" "origin/feature/stale was pruned before repo-start"
+fi
+pass_case "stale remote-tracking ref setup"
 stale_head="$(git -C "$stale_repo" rev-parse HEAD)"
 printf 'use_worktrees: false\n' >"$stale_repo/.repo.yml"
 (cd "$stale_repo" && "$REPO_START_SCRIPT" feature/stale --print-path >/dev/null)
