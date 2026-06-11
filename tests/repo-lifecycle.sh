@@ -318,6 +318,24 @@ printf 'use_worktrees: false\n' >"$remote_from_repo/.repo.yml"
 (cd "$remote_from_repo" && "$REPO_START_SCRIPT" feature/remote-from --from "$remote_from_base" --print-path >/dev/null)
 assert_equals "$(git -C "$remote_from_repo" rev-parse HEAD)" "$remote_from_base" "explicit --from overrides remote branch tracking"
 
+# A stale remote-tracking ref (branch deleted upstream, not yet pruned) must
+# not be treated as authoritative -- repo-start should fall back to HEAD rather
+# than resurrect the deleted branch at its old remote tip.
+create_remote_repo start-stale-remote
+stale_repo="$CREATED_REPO"
+stale_origin="$CREATED_ORIGIN"
+git -C "$stale_repo" checkout -q -b feature/stale
+commit_file "$stale_repo" stale.txt "stale" "stale change"
+git -C "$stale_repo" push -q -u origin feature/stale
+git -C "$stale_repo" checkout -q main
+git -C "$stale_repo" branch -q -D feature/stale
+# Delete the branch on the remote but leave the local remote-tracking ref behind.
+git -C "$stale_origin" update-ref -d refs/heads/feature/stale
+stale_head="$(git -C "$stale_repo" rev-parse HEAD)"
+printf 'use_worktrees: false\n' >"$stale_repo/.repo.yml"
+(cd "$stale_repo" && "$REPO_START_SCRIPT" feature/stale --print-path >/dev/null)
+assert_equals "$(git -C "$stale_repo" rev-parse HEAD)" "$stale_head" "branch mode ignores stale remote-tracking ref and starts from HEAD"
+
 create_remote_repo end-branch-unmerged
 branch_repo="$CREATED_REPO"
 git -C "$branch_repo" checkout -q -b feature/end-branch

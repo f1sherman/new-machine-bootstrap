@@ -317,7 +317,11 @@ _repo_remote_branch_ref() {
   local repo_root="$1" branch="$2" remote="origin" git
   git="$(_worktree_cmd git)"
   "$git" -C "$repo_root" remote get-url "$remote" >/dev/null 2>&1 || return 1
-  "$git" -C "$repo_root" fetch -q "$remote" "$branch" 2>/dev/null || true
+  # Require the targeted fetch to succeed. A bare show-ref would trust a stale
+  # remote-tracking ref for a branch that was deleted upstream (but not yet
+  # pruned), resurrecting it at its old tip; the fetch fails for a vanished
+  # branch, so this falls back to HEAD instead.
+  "$git" -C "$repo_root" fetch -q "$remote" "$branch" 2>/dev/null || return 1
   if "$git" -C "$repo_root" show-ref --verify --quiet "refs/remotes/$remote/$branch"; then
     printf '%s/%s\n' "$remote" "$branch"
     return 0
