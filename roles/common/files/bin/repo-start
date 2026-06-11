@@ -97,9 +97,12 @@ main() {
   local branch path start_point print_path json_output path_explicit repo_root settings_source
   local default_root existing_branch_path existing_path_branch branch_ref_exists
   local needs_prune repaired repair_allowed status mode explicit_mode ephemeral
+  local from_explicit remote_ref
   branch=""
   path=""
   start_point="HEAD"
+  from_explicit="false"
+  remote_ref=""
   print_path="false"
   json_output="false"
   path_explicit="false"
@@ -122,6 +125,7 @@ main() {
         ;;
       -f|--from)
         start_point="${2:-}"
+        from_explicit="true"
         shift 2
         ;;
       --use-worktrees)
@@ -213,7 +217,16 @@ main() {
       "$(_worktree_cmd git)" -C "$repo_root" checkout -q "$branch"
       status="existing"
     else
-      "$(_worktree_cmd git)" -C "$repo_root" checkout -q -b "$branch" "$start_point"
+      remote_ref=""
+      if [[ "$from_explicit" != "true" ]]; then
+        remote_ref="$(_repo_remote_branch_ref "$repo_root" "$branch" || true)"
+      fi
+      if [[ -n "$remote_ref" ]]; then
+        printf 'repo-start: tracking %s\n' "$remote_ref" >&2
+        "$(_worktree_cmd git)" -C "$repo_root" checkout -q -b "$branch" --track "$remote_ref"
+      else
+        "$(_worktree_cmd git)" -C "$repo_root" checkout -q -b "$branch" "$start_point"
+      fi
       status="created"
     fi
     path="$repo_root"
@@ -289,9 +302,21 @@ main() {
         repaired="true"
         status="repaired"
       else
-        if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q -b "$branch" "$path" "$start_point"; then
-          printf 'Error: failed to create worktree\n' >&2
-          return 1
+        remote_ref=""
+        if [[ "$from_explicit" != "true" ]]; then
+          remote_ref="$(_repo_remote_branch_ref "$repo_root" "$branch" || true)"
+        fi
+        if [[ -n "$remote_ref" ]]; then
+          printf 'repo-start: tracking %s\n' "$remote_ref" >&2
+          if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q --track -b "$branch" "$path" "$remote_ref"; then
+            printf 'Error: failed to create worktree\n' >&2
+            return 1
+          fi
+        else
+          if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q -b "$branch" "$path" "$start_point"; then
+            printf 'Error: failed to create worktree\n' >&2
+            return 1
+          fi
         fi
         status="created"
       fi
