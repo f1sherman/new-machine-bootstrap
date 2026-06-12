@@ -45,6 +45,7 @@
   shell: |
     "{{ mise_bin }}" settings set auto_install true
     "{{ mise_bin }}" settings set idiomatic_version_file_enable_tools '["ruby"]'
+    "{{ mise_bin }}" settings set ruby.compile false
   changed_when: false
 
 - name: 'Install Brew casks'

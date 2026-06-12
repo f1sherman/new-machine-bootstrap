@@ -543,6 +543,10 @@
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_mise_node_global_tools.yml'
   when: ansible_facts["os_family"] == "Debian"
 
+- name: Configure mise to use precompiled Ruby binaries
+  command: "{{ mise_bin }} settings set ruby.compile false"
+  changed_when: false
+
 - name: Check if pinned Ruby version is installed
   shell: "{{ mise_bin }} ls ruby | awk '$1 == \"ruby\" && $2 == \"{{ tool_versions.runtimes.ruby }}\" { found = 1 } END { exit(found ? 0 : 1) }'"
   register: ruby_installed

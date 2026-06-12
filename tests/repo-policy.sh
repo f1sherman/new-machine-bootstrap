@@ -103,6 +103,19 @@ assert_toml_value_equals_yaml() {
   fi
 }
 
+assert_toml_equals() {
+  local path="$1" query="$2" expected="$3" name="$4"
+  local value
+
+  value="$(yq -p=toml -r "$query" "$path" 2>/dev/null || true)"
+
+  if [[ "$value" == "$expected" ]]; then
+    pass_case "$name"
+  else
+    fail_case "$name" "expected $query in $path to be '$expected', got '${value:-<empty>}'"
+  fi
+}
+
 assert_yaml_equals() {
   local path="$1" query="$2" expected="$3" name="$4"
   local value
@@ -255,6 +268,7 @@ run_catalog_checks() {
   assert_yaml_matches "$CATALOG" '.tool_versions.runtimes.mise' '^v[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins mise"
   assert_yaml_matches "$CATALOG" '.tool_versions.runtimes.node' '^[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins Node.js"
   assert_toml_value_equals_yaml "$MISE_TOML" '.tools.node' "$CATALOG" '.tool_versions.runtimes.node' "repo mise config uses catalog-pinned Node.js"
+  assert_toml_equals "$MISE_TOML" '.settings.ruby.compile' "false" "repo mise config uses precompiled Ruby binaries"
   assert_not_contains "$MISE_TOML" '= "lts"' "repo mise config does not use lts aliases"
   assert_not_contains "$MISE_TOML" '= "latest"' "repo mise config does not use latest aliases"
   assert_not_contains "$CATALOG" "neovim_glibc_legacy: v0.10.4" "catalog no longer preserves legacy neovim compatibility pin"
@@ -288,6 +302,7 @@ run_install_checks() {
   assert_contains "$MISE_NODE_GLOBALS_TASKS" "install -g gsd-browser@latest" "mise node globals task uses the gsd-browser npm package"
   assert_contains "$MISE_NODE_GLOBALS_TASKS" 'PATH="$node_bin:$mise_bin_dir:$PATH"' "mise node globals task runs npm with pinned Node first on PATH"
   assert_contains "$COMMON_MAIN" "awk '\$1 == \\\"node\\\" && \$2 == \\\"{{ tool_versions.runtimes.node }}\\\" { found = 1 } END { exit(found ? 0 : 1) }'" "common Linux Node detection uses exact version-column matching"
+  assert_contains "$COMMON_MAIN" "settings set ruby.compile false" "common Linux role opts into precompiled Ruby binaries"
   assert_contains "$COMMON_MAIN" "bash -s -- latest" "common Claude installer makes latest explicit"
   assert_not_contains "$COMMON_MAIN" "CODEX_DEFAULT_MODEL" "common Codex config does not pin a model"
   assert_not_contains "$COMMON_MAIN" '"model = #{' "common Codex config does not write a root model override"
@@ -295,6 +310,7 @@ run_install_checks() {
   assert_contains "$MACOS_MAIN" "version: \"{{ tool_versions.git_tags.tpm }}\"" "macOS tpm clone uses catalog tag"
   assert_contains "$MACOS_MAIN" "node@{{ tool_versions.runtimes.node }}" "macOS Node install uses pinned version"
   assert_contains "$MACOS_MAIN" "awk '\$1 == \\\"node\\\" && \$2 == \\\"{{ tool_versions.runtimes.node }}\\\" { found = 1 } END { exit(found ? 0 : 1) }'" "macOS Node detection uses exact version-column matching"
+  assert_contains "$MACOS_MAIN" "settings set ruby.compile false" "macOS role opts into precompiled Ruby binaries"
   assert_contains "$MACOS_MAIN" "roles/common/tasks/heal_mise_node_installs.yml" "macOS Node install delegates partial-install heal to the shared task file"
   assert_contains "$HEAL_TASKS" "{{ mise_bin }} ls --installed node" "Node heal enumerates every installed mise node version"
   assert_contains "$HEAL_TASKS" "/bin/{{ item.1 }} --version" "Node heal exec-tests each installed binary instead of stat'ing it"
