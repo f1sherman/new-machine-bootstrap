@@ -201,6 +201,17 @@ config_path="$(cd "$config_repo" && "$REPO_START_SCRIPT" feature/config --print-
 assert_equals "$config_path" "$config_repo" "existing config controls branch mode"
 assert_equals "$(git -C "$config_repo" branch --show-current)" "feature/config" "existing config branch mode checks out branch"
 
+create_remote_repo start-stale-main
+stale_main_repo="$CREATED_REPO"
+stale_main_origin="$CREATED_ORIGIN"
+commit_file "$stale_main_repo" local-main.txt "local main" "local main"
+git -C "$stale_main_origin" branch renamed main
+git -C "$stale_main_origin" symbolic-ref HEAD refs/heads/renamed
+git -C "$stale_main_origin" branch -D main >/dev/null
+stale_main_path="$(cd "$stale_main_repo" && "$REPO_START_SCRIPT" --no-worktrees --ephemeral feature/stale-main --print-path)"
+assert_equals "$stale_main_path" "$stale_main_repo" "stale origin main fallback prints repo root"
+assert_git_has_file "$stale_main_repo" feature/stale-main local-main.txt "failed main fetch falls back to local main"
+
 interactive_default_repo="$(create_repo start-interactive-default)"
 run_interactive_repo_start "$interactive_default_repo" "feature/interactive-default" $'\n' "$TMPROOT/interactive-default.out"
 assert_file_contains "$interactive_default_repo/.repo.yml" "use_worktrees: true" "interactive default writes worktree config"
