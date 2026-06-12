@@ -340,6 +340,37 @@ printf 'use_worktrees: false\n' >"$stale_repo/.repo.yml"
 (cd "$stale_repo" && "$REPO_START_SCRIPT" feature/stale --print-path >/dev/null)
 assert_equals "$(git -C "$stale_repo" rev-parse HEAD)" "$stale_head" "branch mode ignores stale remote-tracking ref and starts from HEAD"
 
+# A brand-new branch must be cut from the latest main, not from the currently
+# checked-out branch. Advance origin/main past both local main and the feature
+# tip, then start a new branch while sitting on the feature branch: the new
+# branch must descend from the advanced origin/main and must not carry the
+# feature branch's content.
+create_remote_repo start-branch-from-main
+from_main_repo="$CREATED_REPO"
+commit_file "$from_main_repo" main-advance.txt "advance" "advance main"
+git -C "$from_main_repo" push -q origin main
+advanced_main_tip="$(git -C "$from_main_repo" rev-parse main)"
+git -C "$from_main_repo" reset -q --hard HEAD^
+git -C "$from_main_repo" checkout -q -b feature/side
+commit_file "$from_main_repo" side.txt "side" "side change"
+printf 'use_worktrees: false\n' >"$from_main_repo/.repo.yml"
+(cd "$from_main_repo" && "$REPO_START_SCRIPT" feature/fresh --print-path >/dev/null)
+assert_equals "$(git -C "$from_main_repo" rev-parse HEAD)" "$advanced_main_tip" "branch mode cuts new branch from latest origin main, not HEAD"
+assert_no_file "$from_main_repo/side.txt" "branch mode new branch excludes other branch content"
+assert_file_contains "$from_main_repo/main-advance.txt" "advance" "branch mode new branch includes latest main content"
+
+create_remote_repo start-worktree-from-main
+wt_from_main_repo="$CREATED_REPO"
+commit_file "$wt_from_main_repo" main-advance.txt "advance" "advance main"
+git -C "$wt_from_main_repo" push -q origin main
+wt_advanced_main_tip="$(git -C "$wt_from_main_repo" rev-parse main)"
+git -C "$wt_from_main_repo" reset -q --hard HEAD^
+git -C "$wt_from_main_repo" checkout -q -b feature/wt-side
+commit_file "$wt_from_main_repo" wt-side.txt "side" "side change"
+wt_fresh_path="$(cd "$wt_from_main_repo" && "$REPO_START_SCRIPT" --use-worktrees feature/wt-fresh --print-path)"
+assert_equals "$(git -C "$wt_fresh_path" rev-parse HEAD)" "$wt_advanced_main_tip" "worktree mode cuts new branch from latest origin main, not HEAD"
+assert_no_file "$wt_fresh_path/wt-side.txt" "worktree mode new branch excludes other branch content"
+
 create_remote_repo end-branch-unmerged
 branch_repo="$CREATED_REPO"
 git -C "$branch_repo" checkout -q -b feature/end-branch

@@ -225,6 +225,29 @@ _worktree_main_branch() {
   fi
 }
 
+# Print a start point ref for a brand-new branch: the latest tip of the
+# repository's main branch, so new work branches from up-to-date main even when
+# another branch is checked out. Prefers the remote (origin/<main>) and fetches
+# it first so the ref reflects the true tip; falls back to the local main ref
+# when no origin is configured, then prints nothing so the caller uses HEAD.
+_repo_main_start_point() {
+  local repo_root="$1" git main_branch remote="origin"
+  git="$(_worktree_cmd git)"
+  main_branch="$(_worktree_main_branch)"
+  if "$git" -C "$repo_root" remote get-url "$remote" >/dev/null 2>&1; then
+    "$git" -C "$repo_root" fetch -q "$remote" "$main_branch" 2>/dev/null || true
+    if "$git" -C "$repo_root" show-ref --verify --quiet "refs/remotes/$remote/$main_branch"; then
+      printf '%s/%s\n' "$remote" "$main_branch"
+      return 0
+    fi
+  fi
+  if "$git" -C "$repo_root" show-ref --verify --quiet "refs/heads/$main_branch"; then
+    printf '%s\n' "$main_branch"
+    return 0
+  fi
+  return 1
+}
+
 _worktree_main_path() {
   local main_branch="$1" line main_path branch_name
   main_path=""

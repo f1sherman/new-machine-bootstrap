@@ -97,7 +97,7 @@ main() {
   local branch path start_point print_path json_output path_explicit repo_root settings_source
   local default_root existing_branch_path existing_path_branch branch_ref_exists
   local needs_prune repaired repair_allowed status mode explicit_mode ephemeral
-  local from_explicit remote_ref
+  local from_explicit remote_ref main_start new_branch_start
   branch=""
   path=""
   start_point="HEAD"
@@ -225,7 +225,12 @@ main() {
         printf 'repo-start: tracking %s\n' "$remote_ref" >&2
         "$(_worktree_cmd git)" -C "$repo_root" checkout -q -b "$branch" --track "$remote_ref"
       else
-        "$(_worktree_cmd git)" -C "$repo_root" checkout -q -b "$branch" "$start_point"
+        new_branch_start="$start_point"
+        if [[ "$from_explicit" != "true" ]]; then
+          main_start="$(_repo_main_start_point "$repo_root" || true)"
+          [[ -n "$main_start" ]] && new_branch_start="$main_start"
+        fi
+        "$(_worktree_cmd git)" -C "$repo_root" checkout -q -b "$branch" "$new_branch_start"
       fi
       status="created"
     fi
@@ -313,7 +318,12 @@ main() {
             return 1
           fi
         else
-          if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q -b "$branch" "$path" "$start_point"; then
+          new_branch_start="$start_point"
+          if [[ "$from_explicit" != "true" ]]; then
+            main_start="$(_repo_main_start_point "$repo_root" || true)"
+            [[ -n "$main_start" ]] && new_branch_start="$main_start"
+          fi
+          if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q -b "$branch" "$path" "$new_branch_start"; then
             printf 'Error: failed to create worktree\n' >&2
             return 1
           fi
