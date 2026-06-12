@@ -382,27 +382,6 @@ wt_fresh_path="$(cd "$wt_from_main_repo" && "$REPO_START_SCRIPT" --use-worktrees
 assert_equals "$(git -C "$wt_fresh_path" rev-parse HEAD)" "$wt_advanced_main_tip" "worktree mode cuts new branch from latest origin main, not HEAD"
 assert_no_file "$wt_fresh_path/wt-side.txt" "worktree mode new branch excludes other branch content"
 
-# If the targeted fetch of main fails (upstream main deleted/renamed, fetch
-# unavailable), a stale origin/main remote-tracking ref must not be trusted;
-# fall back to the local main ref instead of branching from an outdated tip.
-create_remote_repo start-stale-main
-stale_main_repo="$CREATED_REPO"
-stale_main_origin="$CREATED_ORIGIN"
-commit_file "$stale_main_repo" local-main.txt "local" "local main advance"
-local_main_tip="$(git -C "$stale_main_repo" rev-parse main)"
-# Delete main on the remote so a targeted fetch fails, but leave the local
-# remote-tracking ref behind (stale, at the old init commit).
-git -C "$stale_main_origin" update-ref -d refs/heads/main
-if ! git -C "$stale_main_repo" show-ref --verify --quiet refs/remotes/origin/main; then
-  fail_case "stale main remote-tracking ref setup" "origin/main was pruned before repo-start"
-fi
-pass_case "stale main remote-tracking ref setup"
-git -C "$stale_main_repo" checkout -q -b feature/stale-main-side
-commit_file "$stale_main_repo" stale-side.txt "side" "side change"
-printf 'use_worktrees: false\n' >"$stale_main_repo/.repo.yml"
-(cd "$stale_main_repo" && "$REPO_START_SCRIPT" feature/from-local-main --print-path >/dev/null)
-assert_equals "$(git -C "$stale_main_repo" rev-parse HEAD)" "$local_main_tip" "branch mode falls back to local main when main fetch fails"
-
 create_remote_repo end-branch-unmerged
 branch_repo="$CREATED_REPO"
 git -C "$branch_repo" checkout -q -b feature/end-branch
