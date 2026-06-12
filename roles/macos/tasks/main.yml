@@ -47,6 +47,11 @@
     "{{ mise_bin }}" settings set idiomatic_version_file_enable_tools '["ruby"]'
   changed_when: false
 
+- name: Configure mise to use precompiled Ruby binaries on Apple Silicon
+  command: "{{ mise_bin }} settings set ruby.compile false"
+  changed_when: false
+  when: ansible_facts["architecture"] in ["arm64", "aarch64"]
+
 - name: 'Install Brew casks'
   homebrew_cask:
     name: [
