@@ -273,6 +273,73 @@ if ! printf '%s\n' "$json" | jq -e '.status == "created" and .mode == "branch" a
 fi
 pass_case "repo-start JSON includes status mode branch path"
 
+# A branch that exists only on the remote must be checked out at the remote
+# tip, tracking origin/<branch> -- not freshly branched from the current HEAD.
+seed_remote_only_branch() {
+  local repo="$1" branch="$2"
+  git -C "$repo" checkout -q -b "$branch"
+  commit_file "$repo" "${branch//\//-}.txt" "$branch" "$branch change"
+  git -C "$repo" push -q -u origin "$branch"
+  git -C "$repo" rev-parse "$branch"
+  git -C "$repo" checkout -q main
+  git -C "$repo" branch -q -D "$branch"
+  git -C "$repo" update-ref -d "refs/remotes/origin/$branch"
+}
+
+create_remote_repo start-remote-branch
+remote_branch_repo="$CREATED_REPO"
+remote_branch_tip="$(seed_remote_only_branch "$remote_branch_repo" feature/remote-only)"
+printf 'use_worktrees: false\n' >"$remote_branch_repo/.repo.yml"
+(cd "$remote_branch_repo" && "$REPO_START_SCRIPT" feature/remote-only --print-path >/dev/null)
+assert_equals "$(git -C "$remote_branch_repo" rev-parse HEAD)" "$remote_branch_tip" "branch mode tracks existing remote branch tip"
+assert_file_contains "$remote_branch_repo/feature-remote-only.txt" "feature/remote-only" "branch mode working tree reflects remote branch content"
+assert_equals "$(git -C "$remote_branch_repo" rev-parse --abbrev-ref 'feature/remote-only@{upstream}' 2>/dev/null)" "origin/feature/remote-only" "branch mode sets upstream to origin branch"
+
+create_remote_repo start-remote-worktree
+remote_wt_repo="$CREATED_REPO"
+remote_wt_tip="$(seed_remote_only_branch "$remote_wt_repo" feature/remote-wt)"
+remote_wt_path="$(cd "$remote_wt_repo" && "$REPO_START_SCRIPT" --use-worktrees feature/remote-wt --print-path)"
+assert_equals "$(git -C "$remote_wt_path" rev-parse HEAD)" "$remote_wt_tip" "worktree mode tracks existing remote branch tip"
+
+# With a remote configured but no matching remote branch, fall back to HEAD.
+create_remote_repo start-remote-absent
+remote_absent_repo="$CREATED_REPO"
+remote_absent_head="$(git -C "$remote_absent_repo" rev-parse HEAD)"
+printf 'use_worktrees: false\n' >"$remote_absent_repo/.repo.yml"
+(cd "$remote_absent_repo" && "$REPO_START_SCRIPT" feature/no-remote --print-path >/dev/null)
+assert_equals "$(git -C "$remote_absent_repo" rev-parse HEAD)" "$remote_absent_head" "branch mode without remote branch starts from HEAD"
+
+# An explicit --from start point overrides remote-branch tracking.
+create_remote_repo start-remote-from
+remote_from_repo="$CREATED_REPO"
+remote_from_base="$(git -C "$remote_from_repo" rev-parse HEAD)"
+seed_remote_only_branch "$remote_from_repo" feature/remote-from >/dev/null
+printf 'use_worktrees: false\n' >"$remote_from_repo/.repo.yml"
+(cd "$remote_from_repo" && "$REPO_START_SCRIPT" feature/remote-from --from "$remote_from_base" --print-path >/dev/null)
+assert_equals "$(git -C "$remote_from_repo" rev-parse HEAD)" "$remote_from_base" "explicit --from overrides remote branch tracking"
+
+# A stale remote-tracking ref (branch deleted upstream, not yet pruned) must
+# not be treated as authoritative -- repo-start should fall back to HEAD rather
+# than resurrect the deleted branch at its old remote tip.
+create_remote_repo start-stale-remote
+stale_repo="$CREATED_REPO"
+stale_origin="$CREATED_ORIGIN"
+git -C "$stale_repo" checkout -q -b feature/stale
+commit_file "$stale_repo" stale.txt "stale" "stale change"
+git -C "$stale_repo" push -q -u origin feature/stale
+git -C "$stale_repo" checkout -q main
+git -C "$stale_repo" branch -q -D feature/stale
+# Delete the branch on the remote but leave the local remote-tracking ref behind.
+git -C "$stale_origin" update-ref -d refs/heads/feature/stale
+if ! git -C "$stale_repo" show-ref --verify --quiet refs/remotes/origin/feature/stale; then
+  fail_case "stale remote-tracking ref setup" "origin/feature/stale was pruned before repo-start"
+fi
+pass_case "stale remote-tracking ref setup"
+stale_head="$(git -C "$stale_repo" rev-parse HEAD)"
+printf 'use_worktrees: false\n' >"$stale_repo/.repo.yml"
+(cd "$stale_repo" && "$REPO_START_SCRIPT" feature/stale --print-path >/dev/null)
+assert_equals "$(git -C "$stale_repo" rev-parse HEAD)" "$stale_head" "branch mode ignores stale remote-tracking ref and starts from HEAD"
+
 create_remote_repo end-branch-unmerged
 branch_repo="$CREATED_REPO"
 git -C "$branch_repo" checkout -q -b feature/end-branch

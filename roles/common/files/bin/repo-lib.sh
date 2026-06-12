@@ -308,3 +308,23 @@ _repo_status_excluding_config() {
   local repo_root="$1"
   "$(_worktree_cmd git)" -C "$repo_root" status --porcelain -- . ':(exclude).repo.yml'
 }
+
+# Fetch the named branch from origin and, if it exists there, print the
+# remote-tracking ref (origin/<branch>) so callers can create a local branch
+# that tracks the remote tip instead of branching from the current HEAD.
+# Returns non-zero when origin is unconfigured or has no such branch.
+_repo_remote_branch_ref() {
+  local repo_root="$1" branch="$2" remote="origin" git
+  git="$(_worktree_cmd git)"
+  "$git" -C "$repo_root" remote get-url "$remote" >/dev/null 2>&1 || return 1
+  # Require the targeted fetch to succeed. A bare show-ref would trust a stale
+  # remote-tracking ref for a branch that was deleted upstream (but not yet
+  # pruned), resurrecting it at its old tip; the fetch fails for a vanished
+  # branch, so this falls back to HEAD instead.
+  "$git" -C "$repo_root" fetch -q "$remote" "$branch" 2>/dev/null || return 1
+  if "$git" -C "$repo_root" show-ref --verify --quiet "refs/remotes/$remote/$branch"; then
+    printf '%s/%s\n' "$remote" "$branch"
+    return 0
+  fi
+  return 1
+}
