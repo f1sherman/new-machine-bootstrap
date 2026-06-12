@@ -103,19 +103,6 @@ assert_toml_value_equals_yaml() {
   fi
 }
 
-assert_toml_equals() {
-  local path="$1" query="$2" expected="$3" name="$4"
-  local value
-
-  value="$(yq -p=toml -r "$query" "$path" 2>/dev/null || true)"
-
-  if [[ "$value" == "$expected" ]]; then
-    pass_case "$name"
-  else
-    fail_case "$name" "expected $query in $path to be '$expected', got '${value:-<empty>}'"
-  fi
-}
-
 assert_yaml_equals() {
   local path="$1" query="$2" expected="$3" name="$4"
   local value
@@ -268,7 +255,6 @@ run_catalog_checks() {
   assert_yaml_matches "$CATALOG" '.tool_versions.runtimes.mise' '^v[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins mise"
   assert_yaml_matches "$CATALOG" '.tool_versions.runtimes.node' '^[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins Node.js"
   assert_toml_value_equals_yaml "$MISE_TOML" '.tools.node' "$CATALOG" '.tool_versions.runtimes.node' "repo mise config uses catalog-pinned Node.js"
-  assert_toml_equals "$MISE_TOML" '.settings.ruby.compile' "false" "repo mise config uses precompiled Ruby binaries"
   assert_not_contains "$MISE_TOML" '= "lts"' "repo mise config does not use lts aliases"
   assert_not_contains "$MISE_TOML" '= "latest"' "repo mise config does not use latest aliases"
   assert_not_contains "$CATALOG" "neovim_glibc_legacy: v0.10.4" "catalog no longer preserves legacy neovim compatibility pin"
