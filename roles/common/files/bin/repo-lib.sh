@@ -227,19 +227,21 @@ _worktree_main_branch() {
 
 # Print a start point ref for a brand-new branch: the latest tip of the
 # repository's main branch, so new work branches from up-to-date main even when
-# another branch is checked out. Prefers the remote (origin/<main>) and fetches
-# it first so the ref reflects the true tip; falls back to the local main ref
-# when no origin is configured, then prints nothing so the caller uses HEAD.
+# another branch is checked out. Prefers the remote (origin/<main>), but only
+# after a targeted fetch succeeds -- a bare show-ref would trust a stale
+# remote-tracking ref for a main branch that was deleted/renamed upstream (or
+# when the fetch is unavailable), branching from an outdated tip. Falls back to
+# the local main ref when the fetch fails or no origin is configured, then
+# prints nothing so the caller uses HEAD.
 _repo_main_start_point() {
   local repo_root="$1" git main_branch remote="origin"
   git="$(_worktree_cmd git)"
   main_branch="$(_worktree_main_branch)"
-  if "$git" -C "$repo_root" remote get-url "$remote" >/dev/null 2>&1; then
-    "$git" -C "$repo_root" fetch -q "$remote" "$main_branch" 2>/dev/null || true
-    if "$git" -C "$repo_root" show-ref --verify --quiet "refs/remotes/$remote/$main_branch"; then
-      printf '%s/%s\n' "$remote" "$main_branch"
-      return 0
-    fi
+  if "$git" -C "$repo_root" remote get-url "$remote" >/dev/null 2>&1 \
+    && "$git" -C "$repo_root" fetch -q "$remote" "$main_branch" 2>/dev/null \
+    && "$git" -C "$repo_root" show-ref --verify --quiet "refs/remotes/$remote/$main_branch"; then
+    printf '%s/%s\n' "$remote" "$main_branch"
+    return 0
   fi
   if "$git" -C "$repo_root" show-ref --verify --quiet "refs/heads/$main_branch"; then
     printf '%s\n' "$main_branch"
