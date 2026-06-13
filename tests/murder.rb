@@ -100,6 +100,13 @@ with_child.call do |pid|
 end
 
 with_child.call do |pid|
+  stdout, stderr, status = run_murder.call("--force", pid.to_s)
+  assert.call(status.success?, "--force exits successfully", "stdout:\n#{stdout}\nstderr:\n#{stderr}")
+  assert.call(!stdout.include?("Do you really want to kill this process?"), "--force skips prompt", stdout)
+  assert.call(wait_for_exit.call(pid), "--force terminates the process", "process #{pid} was still running")
+end
+
+with_child.call do |pid|
   stdout, stderr, status = run_murder.call(pid.to_s)
   assert.call(!status.success?, "closed stdin without --yes fails", "stdout:\n#{stdout}\nstderr:\n#{stderr}")
   assert.call(stderr.include?("Confirmation required but stdin is unavailable"), "closed stdin failure explains --yes", stderr)

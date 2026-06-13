@@ -121,7 +121,7 @@ bash tests/repo-policy.sh all
 
 Expected: all commands exit 0.
 
-- [ ] **Step 2: Commit changes**
+- [x] **Step 2: Commit changes**
 
 Commit the spec, plan, tests, workflow, and implementation.
 
