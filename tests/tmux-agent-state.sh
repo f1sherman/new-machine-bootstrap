@@ -73,10 +73,12 @@ assert_file_contains "$state_dir/%1.@window-label" "codex: tmux subject labels" 
 worktree_path="$TMPROOT/worktree-like-path"
 mkdir -p "$worktree_path"
 printf '99999' > "$state_dir/%1.@agent_worktree_pid"
+printf 'old-worktree-label' > "$state_dir/%1.@pane-label"
 : > "$TMPROOT/window.log"
 "$STATE" set-worktree "$worktree_path"
 assert_file_contains "$state_dir/%1.@agent_worktree_path" "$worktree_path" "set-worktree stores worktree path"
 assert_no_file "$state_dir/%1.@agent_worktree_pid" "set-worktree clears stale pid without pid"
+assert_file_not_contains "$state_dir/%1.@pane-label" "old-worktree-label" "set-worktree clears stale pane label"
 assert_file_contains "$TMPROOT/window.log" "%1" "set-worktree refresh invokes tmux-window-label"
 
 "$SUBJECT" clear

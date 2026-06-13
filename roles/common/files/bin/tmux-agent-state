@@ -136,6 +136,7 @@ case "$cmd" in
     [[ "$path" = /* && -d "$path" ]] || exit 0
     set_pane_option "$pane" @agent_worktree_path "$path"
     clear_pane_option "$pane" @agent_worktree_pid
+    clear_pane_option "$pane" @pane-label
     refresh "$pane"
     ;;
   clear-worktree)
