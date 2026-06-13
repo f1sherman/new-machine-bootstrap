@@ -92,53 +92,63 @@ assert_task_before() {
   fi
 }
 
-# Common-role macOS npm tools run before the macOS role, so they must install
+# Common-role macOS Node package tools run before the macOS role, so they must install
 # the pinned Node.js version without touching the user's GPG keyring.
 assert_task_block_contains \
   "$common_tasks" \
-  "Create mise default-packages file before common npm tools (macOS)" \
+  "Create mise default-packages file before common Node package tools (macOS)" \
   ".default-npm-packages" \
-  "common macOS npm tools seed mise default npm packages"
+  "common macOS Node package tools seed mise default npm packages"
 assert_task_block_contains \
   "$common_tasks" \
-  "Create mise default-packages file before common npm tools (macOS)" \
+  "Create mise default-packages file before common Node package tools (macOS)" \
   "roles/macos/files/mise/default-npm-packages" \
-  "common macOS npm tools use managed default npm package list"
+  "common macOS Node package tools use managed default npm package list"
 assert_task_before \
   "$common_tasks" \
-  "Create mise default-packages file before common npm tools (macOS)" \
-  "Install pinned Node.js version before common npm tools (macOS)" \
-  "common macOS npm tools seed default npm packages before Node install"
+  "Create mise default-packages file before common Node package tools (macOS)" \
+  "Install pinned Node.js version before common Node package tools (macOS)" \
+  "common macOS Node package tools seed default npm packages before Node install"
 assert_task_block_contains \
   "$common_tasks" \
-  "Create temporary GPG home for pinned Node.js before common npm tools (macOS)" \
+  "Create temporary GPG home for pinned Node.js before common Node package tools (macOS)" \
   "tempfile:" \
-  "common macOS npm tools create a temporary GPG home"
+  "common macOS Node package tools create a temporary GPG home"
 assert_task_block_contains \
   "$common_tasks" \
-  "Install pinned Node.js version before common npm tools (macOS)" \
+  "Install pinned Node.js version before common Node package tools (macOS)" \
   "GNUPGHOME: \"{{ common_macos_node_pin_gpg_home.path }}\"" \
-  "common macOS npm tools isolate Node install GNUPGHOME"
+  "common macOS Node package tools isolate Node install GNUPGHOME"
 assert_task_block_contains \
   "$common_tasks" \
-  "Install pinned Node.js version before common npm tools (macOS)" \
+  "Install pinned Node.js version before common Node package tools (macOS)" \
   "common_macos_node_pin_gpg_home.path is defined" \
-  "common macOS npm tools guard the temp GPG home in check mode"
+  "common macOS Node package tools guard the temp GPG home in check mode"
 assert_task_block_contains \
   "$common_tasks" \
-  "Remove temporary GPG home for pinned Node.js before common npm tools (macOS)" \
+  "Remove temporary GPG home for pinned Node.js before common Node package tools (macOS)" \
   "state: absent" \
-  "common macOS npm tools remove temporary GPG home"
+  "common macOS Node package tools remove temporary GPG home"
 assert_task_block_contains \
   "$common_tasks" \
-  "Install or update Codex CLI via npm (macOS)" \
-  "exec node@{{ tool_versions.runtimes.node }} -- npm install -g @openai/codex@latest" \
-  "common macOS Codex install runs under pinned mise Node"
+  "Install or update Codex CLI via aube (macOS)" \
+  'aube add -C "$aube_config_dir" -g @openai/codex@latest' \
+  "common macOS Codex install runs through aube under pinned mise Node"
 assert_task_block_contains \
   "$common_tasks" \
-  "Install or update pi-coding-agent via npm (macOS)" \
-  "exec node@{{ tool_versions.runtimes.node }} -- npm install -g @mariozechner/pi-coding-agent@latest" \
-  "common macOS pi install runs under pinned mise Node"
+  "Install or update Codex CLI via aube (macOS)" \
+  "AUBE_PARANOID: \"true\"" \
+  "common macOS Codex install enables aube paranoid mode"
+assert_task_block_contains \
+  "$common_tasks" \
+  "Install or update pi-coding-agent via aube (macOS)" \
+  'aube add -C "$aube_config_dir" -g --allow-build=@google/genai' \
+  "common macOS pi install runs through aube under pinned mise Node"
+assert_task_block_contains \
+  "$common_tasks" \
+  "Install or update pi-coding-agent via aube (macOS)" \
+  "AUBE_PARANOID: \"true\"" \
+  "common macOS pi install enables aube paranoid mode"
 assert_task_block_contains \
   "$common_tasks" \
   "Install pi-subdir-context plugin for pi-coding-agent (macOS)" \
