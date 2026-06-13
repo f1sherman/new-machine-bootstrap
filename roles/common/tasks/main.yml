@@ -283,6 +283,8 @@
     - tmux-pane-link
     - tmux-update-pane-label
     - tmux-update-all-pane-labels
+    - tmux-agent-state
+    - tmux-agent-subject
     - tmux-window-label
     - tmux-sync-status-visibility
     - tmux-sync-pane-border-status

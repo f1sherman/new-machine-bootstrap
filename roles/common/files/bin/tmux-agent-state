@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+pane_id() {
+  printf '%s\n' "${TMUX_PANE:-}"
+}
+
+state_file() {
+  printf '%s/%s.%s\n' "$TMUX_AGENT_STATE_DIR" "$1" "$2"
+}
+
+set_pane_option() {
+  local pane="$1" key="$2" value="$3"
+  if [[ -n "${TMUX_AGENT_STATE_DIR:-}" ]]; then
+    mkdir -p "$TMUX_AGENT_STATE_DIR"
+    printf '%s' "$value" >"$(state_file "$pane" "$key")"
+  else
+    tmux set-option -pt "$pane" "$key" "$value" >/dev/null 2>&1 || true
+  fi
+}
+
+clear_pane_option() {
+  local pane="$1" key="$2"
+  if [[ -n "${TMUX_AGENT_STATE_DIR:-}" ]]; then
+    rm -f "$(state_file "$pane" "$key")"
+  else
+    tmux set-option -pt "$pane" -u "$key" >/dev/null 2>&1 || true
+  fi
+}
+
+get_pane_option() {
+  local pane="$1" key="$2"
+  if [[ -n "${TMUX_AGENT_STATE_DIR:-}" ]]; then
+    [[ -f "$(state_file "$pane" "$key")" ]] || return 1
+    cat "$(state_file "$pane" "$key")"
+  else
+    tmux show-options -qv -p -t "$pane" "$key" 2>/dev/null
+  fi
+}
+
+sanitize_subject() {
+  printf '%s' "$*" \
+    | tr '\r\n\t' '   ' \
+    | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//' \
+    | cut -c 1-80
+}
+
+detect_path_label() {
+  local pane="$1" path label
+  path="$(get_pane_option "$pane" @agent_worktree_path 2>/dev/null || true)"
+  if [[ -n "$path" && -x "${TMUX_AGENT_STATE_LABEL_FORMAT_BIN:-}" ]]; then
+    label="$("${TMUX_AGENT_STATE_LABEL_FORMAT_BIN}" local "$path" 2>/dev/null || true)"
+    [[ -n "$label" ]] && { printf '%s\n' "$label"; return 0; }
+  fi
+  label="$(get_pane_option "$pane" @pane-label 2>/dev/null || true)"
+  [[ -n "$label" ]] && printf '%s\n' "$label"
+}
+
+fallback_cwd_label() {
+  local path label
+  if [[ -n "${TMUX_AGENT_STATE_CURRENT_PATH:-}" ]]; then
+    path="$TMUX_AGENT_STATE_CURRENT_PATH"
+  else
+    path="$(tmux display-message -p -t "$1" '#{pane_current_path}' 2>/dev/null || true)"
+  fi
+  label="${path%/}"
+  label="${label##*/}"
+  [[ -n "$label" ]] || label="/"
+  printf '%s\n' "$label"
+}
+
+render() {
+  local pane="$1" kind subject pane_label window_label
+  kind="$(get_pane_option "$pane" @agent_kind 2>/dev/null || true)"
+  subject="$(get_pane_option "$pane" @agent_subject 2>/dev/null || true)"
+  pane_label="$(detect_path_label "$pane" 2>/dev/null || true)"
+  [[ -n "$pane_label" ]] || pane_label="$(fallback_cwd_label "$pane")"
+
+  if [[ -n "$kind" && -n "$subject" ]]; then
+    window_label="${kind}: ${subject}"
+  elif [[ -n "$kind" ]]; then
+    window_label="${kind} ${pane_label%% | *}"
+  else
+    window_label="$pane_label"
+  fi
+
+  set_pane_option "$pane" @pane-label "$pane_label"
+  set_pane_option "$pane" @window-label "$window_label"
+}
+
+refresh() {
+  local pane="$1"
+  render "$pane"
+  command -v tmux-window-label >/dev/null 2>&1 && tmux-window-label "$pane" >/dev/null 2>&1 || true
+  command -v tmux-remote-title >/dev/null 2>&1 && tmux-remote-title publish >/dev/null 2>&1 || true
+}
+
+require_pane() {
+  [[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]] || exit 0
+  pane_id
+}
+
+cmd="${1:-}"
+shift || true
+pane="$(require_pane)"
+
+case "$cmd" in
+  set-kind)
+    case "${1:-}" in
+      claude|codex) set_pane_option "$pane" @agent_kind "$1" ;;
+      *) exit 0 ;;
+    esac
+    refresh "$pane"
+    ;;
+  set-subject)
+    subject="$(sanitize_subject "$*")"
+    [[ -n "$subject" ]] || exit 0
+    set_pane_option "$pane" @agent_subject "$subject"
+    clear_pane_option "$pane" @agent_subject_stale
+    refresh "$pane"
+    ;;
+  clear-subject)
+    clear_pane_option "$pane" @agent_subject
+    clear_pane_option "$pane" @agent_subject_stale
+    refresh "$pane"
+    ;;
+  mark-subject-stale)
+    if [[ -n "$(get_pane_option "$pane" @agent_subject 2>/dev/null || true)" ]]; then
+      set_pane_option "$pane" @agent_subject_stale "1"
+    fi
+    refresh "$pane"
+    ;;
+  clear-worktree)
+    clear_pane_option "$pane" @agent_worktree_path
+    clear_pane_option "$pane" @agent_worktree_pid
+    clear_pane_option "$pane" @pane-link
+    clear_pane_option "$pane" @pane-link-source
+    refresh "$pane"
+    ;;
+  refresh)
+    refresh "$pane"
+    ;;
+  status)
+    get_pane_option "$pane" @agent_subject 2>/dev/null || true
+    ;;
+  *)
+    exit 0
+    ;;
+esac
