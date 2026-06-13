@@ -20,6 +20,13 @@ assert_file_contains() {
   pass_case "$name"
 }
 
+assert_file_not_contains() {
+  local path="$1" needle="$2" name="$3"
+  [[ -f "$path" ]] || fail_case "$name" "missing file: $path"
+  ! grep -Fq -- "$needle" "$path" || fail_case "$name" "found disallowed bytes in $path"
+  pass_case "$name"
+}
+
 assert_no_file() {
   local path="$1" name="$2"
   [[ ! -e "$path" ]] || fail_case "$name" "expected absent: $path"
@@ -75,5 +82,16 @@ assert_file_contains "$TMPROOT/window.log" "%1" "set-worktree refresh invokes tm
 "$SUBJECT" clear
 assert_no_file "$state_dir/%1.@agent_subject" "subject clear removes subject"
 assert_no_file "$state_dir/%1.@agent_subject_stale" "subject clear removes stale flag"
+
+control_subject="$(printf 'bad \033chars\a\001 subject')"
+"$SUBJECT" set "$control_subject"
+assert_file_contains "$state_dir/%1.@agent_subject" "bad chars subject" "subject set removes control bytes"
+assert_file_contains "$state_dir/%1.@window-label" "codex: bad chars subject" "window label removes subject control bytes"
+assert_file_not_contains "$state_dir/%1.@agent_subject" "$(printf '\033')" "stored subject removes escape byte"
+assert_file_not_contains "$state_dir/%1.@agent_subject" "$(printf '\a')" "stored subject removes bell byte"
+assert_file_not_contains "$state_dir/%1.@agent_subject" "$(printf '\001')" "stored subject removes soh byte"
+assert_file_not_contains "$state_dir/%1.@window-label" "$(printf '\033')" "window label removes escape byte"
+assert_file_not_contains "$state_dir/%1.@window-label" "$(printf '\a')" "window label removes bell byte"
+assert_file_not_contains "$state_dir/%1.@window-label" "$(printf '\001')" "window label removes soh byte"
 
 printf 'tmux-agent-state checks complete\n'

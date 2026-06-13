@@ -41,6 +41,7 @@ get_pane_option() {
 sanitize_subject() {
   printf '%s' "$*" \
     | tr '\r\n\t' '   ' \
+    | tr -d '\000-\010\013\014\016-\037\177' \
     | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//' \
     | cut -c 1-80
 }
