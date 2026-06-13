@@ -550,7 +550,8 @@ run_install_checks() {
 run_renovate_checks() {
   assert_contains "$RENOVATE_CONFIG" "\"extends\": [\"config:recommended\"]" "renovate config extends config:recommended"
   assert_contains "$RENOVATE_CONFIG" "\"minimumReleaseAge\": \"7 days\"" "renovate config uses a seven-day release age"
-  assert_contains "$RENOVATE_CONFIG" "\"PR Upkeeper <pr-upkeeper@brianjohn.com>\"" "renovate config ignores PR Upkeeper repair commits"
+  assert_contains "$RENOVATE_CONFIG" "\"pr-upkeeper@brianjohn.com\"" "renovate config ignores PR Upkeeper repair commit emails"
+  assert_not_contains "$RENOVATE_CONFIG" "\"PR Upkeeper <pr-upkeeper@brianjohn.com>\"" "renovate config ignores PR Upkeeper by email only"
   assert_contains "$RENOVATE_CONFIG" "\"fileMatch\": [\"^vars/tool_versions\\\\.yml$\"]" "renovate regex manager targets vars/tool_versions.yml"
   assert_contains "$RENOVATE_CONFIG" "datasource=(?<datasource>[a-z-]+)" "renovate regex manager reads datasource annotations"
   assert_contains "$RENOVATE_CONFIG" "depName=(?<depName>[^\\\\s]+)" "renovate regex manager reads depName annotations"
