@@ -116,9 +116,11 @@ assert_yaml_equals() {
   fi
 }
 
-extract_codex_vim_mode_ruby() {
+extract_common_task_ruby() {
+  local task_name="$1"
+
   awk '
-    $0 == "- name: Configure Codex CLI Vim mode in ~/.codex/config.toml" {
+    $0 == "- name: " task_name {
       in_task = 1
       next
     }
@@ -136,7 +138,52 @@ extract_codex_vim_mode_ruby() {
       sub(/^    /, "")
       print
     }
-  ' "$COMMON_MAIN"
+  ' task_name="$task_name" "$COMMON_MAIN"
+}
+
+extract_codex_reasoning_defaults_ruby() {
+  extract_common_task_ruby "Set Codex CLI reasoning defaults in ~/.codex/config.toml"
+}
+
+extract_codex_vim_mode_ruby() {
+  extract_common_task_ruby "Configure Codex CLI Vim mode in ~/.codex/config.toml"
+}
+
+assert_codex_reasoning_defaults_merge() {
+  local name="$1" initial="$2" expected="$3"
+  local tmpdir config script output
+
+  tmpdir="$(mktemp -d)"
+  config="$tmpdir/config.toml"
+  script="$tmpdir/merge.rb"
+
+  extract_codex_reasoning_defaults_ruby >"$script"
+  if [[ -n "$initial" ]]; then
+    printf '%b' "$initial" >"$config"
+  fi
+
+  output="$(CONFIG_FILE="$config" ruby "$script")"
+  if [[ "$output" != "changed" ]]; then
+    fail_case "$name" "expected first run to report changed, got '$output'"
+    rm -rf "$tmpdir"
+    return
+  fi
+
+  if ! diff -u <(printf '%b' "$expected") "$config" >/dev/null; then
+    fail_case "$name" "merged config did not match expected output"
+    rm -rf "$tmpdir"
+    return
+  fi
+
+  output="$(CONFIG_FILE="$config" ruby "$script")"
+  if [[ "$output" != "unchanged" ]]; then
+    fail_case "$name" "expected second run to report unchanged, got '$output'"
+    rm -rf "$tmpdir"
+    return
+  fi
+
+  pass_case "$name"
+  rm -rf "$tmpdir"
 }
 
 assert_codex_vim_mode_merge() {
@@ -183,6 +230,16 @@ assert_codex_vim_mode_merge() {
 }
 
 run_codex_vim_mode_checks() {
+  assert_codex_reasoning_defaults_merge \
+    "Codex reasoning defaults use high effort" \
+    "" \
+    "model_reasoning_effort = \"high\"\n"
+
+  assert_codex_reasoning_defaults_merge \
+    "Codex reasoning defaults replace root xhigh with high" \
+    "# managed\nmodel_reasoning_effort = \"xhigh\"\n[tui]\nvim_mode_default = true\n" \
+    "# managed\nmodel_reasoning_effort = \"high\"\n[tui]\nvim_mode_default = true\n"
+
   assert_codex_vim_mode_merge \
     "Codex Vim mode merge creates the TUI section" \
     "" \
@@ -222,6 +279,46 @@ run_codex_vim_mode_checks() {
     "Codex Vim mode merge adds to existing inline TUI tables" \
     "approval_policy = \"never\"\ntui = { theme = \"dark\", notifications = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n" \
     "approval_policy = \"never\"\ntui = { theme = \"dark\", notifications = true, vim_mode_default = true }\n\n[projects.\"/tmp/example\"]\ntrust_level = \"trusted\"\n"
+
+  assert_zsh_codex_wrapper \
+    "Codex wrapper keeps review effort xhigh" \
+    "codex review --uncommitted" \
+    "-c\nmodel_reasoning_effort=\"xhigh\"\nreview\n--uncommitted\n"
+
+  assert_zsh_codex_wrapper \
+    "Codex wrapper leaves normal commands on default effort" \
+    "codex exec hello" \
+    "exec\nhello\n"
+}
+
+assert_zsh_codex_wrapper() {
+  local name="$1" command="$2" expected="$3"
+  local tmpdir stub output
+
+  tmpdir="$(mktemp -d)"
+  mkdir -p "$tmpdir/bin"
+  stub="$tmpdir/bin/codex"
+  cat >"$stub" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >"$CODEX_ARGV_FILE"
+SH
+  chmod +x "$stub"
+
+  if ! CODEX_ARGV_FILE="$tmpdir/argv" PATH="$tmpdir/bin:$PATH" HOME="$tmpdir" /bin/zsh -f -c "source '$COMMON_ZSH'; $command" >/dev/null 2>"$tmpdir/stderr"; then
+    output="$(cat "$tmpdir/stderr")"
+    fail_case "$name" "zsh wrapper invocation failed: $output"
+    rm -rf "$tmpdir"
+    return
+  fi
+
+  if ! diff -u <(printf '%b' "$expected") "$tmpdir/argv" >/dev/null; then
+    fail_case "$name" "wrapper argv did not match expected output"
+    rm -rf "$tmpdir"
+    return
+  fi
+
+  pass_case "$name"
+  rm -rf "$tmpdir"
 }
 
 assert_yaml_query_empty() {
