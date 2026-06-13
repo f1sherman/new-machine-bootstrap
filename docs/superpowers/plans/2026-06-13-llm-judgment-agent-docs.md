@@ -23,7 +23,7 @@
 - Modify: `roles/common/files/claude/CLAUDE.md.d/00-base.md`
 - Verify: `roles/common/tasks/main.yml`
 
-- [ ] **Step 1: Write the failing check**
+- [x] **Step 1: Write the failing check**
 
 Run:
 
@@ -33,7 +33,7 @@ rg -n "Fuzzy judgment: when logic needs semantic or human judgment, use an LLM/m
 
 Expected before implementation: exit code `1`, no matching output.
 
-- [ ] **Step 2: Add the guidance**
+- [x] **Step 2: Add the guidance**
 
 Insert this bullet in `roles/common/files/claude/CLAUDE.md.d/00-base.md` near the existing script, parsing, and error-handling bullets:
 
@@ -41,7 +41,7 @@ Insert this bullet in `roles/common/files/claude/CLAUDE.md.d/00-base.md` near th
 * Fuzzy judgment: when logic needs semantic or human judgment, use an LLM/model call instead of keyword or regex heuristics.
 ```
 
-- [ ] **Step 3: Run the content check**
+- [x] **Step 3: Run the content check**
 
 Run:
 
@@ -51,7 +51,7 @@ rg -n "Fuzzy judgment: when logic needs semantic or human judgment, use an LLM/m
 
 Expected after implementation: exit code `0`, with one matching line in `roles/common/files/claude/CLAUDE.md.d/00-base.md`.
 
-- [ ] **Step 4: Verify Claude and Codex delivery path**
+- [x] **Step 4: Verify Claude and Codex delivery path**
 
 Run:
 
@@ -67,7 +67,7 @@ Expected output includes these three tasks:
 - name: Create ~/.codex/AGENTS.md symlink to ~/.claude/CLAUDE.md
 ```
 
-- [ ] **Step 5: Commit implementation**
+- [x] **Step 5: Commit implementation**
 
 Run:
 
