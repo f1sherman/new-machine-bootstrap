@@ -19,7 +19,7 @@ subject="$(tmux show-options -qv -p -t "$TMUX_PANE" @agent_subject 2>/dev/null |
 stale="$(tmux show-options -qv -p -t "$TMUX_PANE" @agent_subject_stale 2>/dev/null || true)"
 [[ -z "$subject" || "$stale" == "1" ]] || exit 0
 
-reminder='You invoked '"$skill"' in a tmux agent pane without a current subject. Before continuing, run `tmux-agent-subject set "<short subject>"` using a concise noun phrase for this task. If this pane should not keep a subject, run `tmux-agent-subject clear`.'
+reminder='You invoked '"$skill"' in a tmux agent pane without a current subject. Before continuing, run `tmux-agent-subject set "<short subject>"` using a concise noun phrase for this task.'
 
 jq -n --arg ctx "$reminder" '{
   "hookSpecificOutput": {
