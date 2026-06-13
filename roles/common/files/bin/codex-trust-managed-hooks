@@ -45,7 +45,8 @@ managed_manifest() {
     {eventName:"preToolUse", matcher:"apply_patch|Edit|Write", command:"~/.local/bin/codex-block-main-branch-edits", timeoutSec:600},
     {eventName:"postToolUse", matcher:"apply_patch|Edit|Write", command:"~/.local/bin/agent-current-spec-hook", timeoutSec:600},
     {eventName:"sessionStart", matcher:"startup|resume", command:"~/.local/bin/codex-bind-tmux-pane", timeoutSec:5},
-    {eventName:"userPromptSubmit", matcher:null, command:"~/.local/bin/codex-remind-repo-start-on-dev-prompt", timeoutSec:600}
+    {eventName:"userPromptSubmit", matcher:null, command:"~/.local/bin/codex-remind-repo-start-on-dev-prompt", timeoutSec:600},
+    {eventName:"userPromptSubmit", matcher:null, command:"~/.local/bin/codex-remind-agent-subject-on-prompt", timeoutSec:600}
   ]'
 }
 
