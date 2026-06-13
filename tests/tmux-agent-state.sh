@@ -63,6 +63,15 @@ assert_file_contains "$TMPROOT/title.log" "publish" "subject refresh publishes r
 assert_file_contains "$state_dir/%1.@agent_subject_stale" "1" "mark-subject-stale records invisible stale state"
 assert_file_contains "$state_dir/%1.@window-label" "codex: tmux subject labels" "stale subject does not change rendered window label"
 
+worktree_path="$TMPROOT/worktree-like-path"
+mkdir -p "$worktree_path"
+printf '99999' > "$state_dir/%1.@agent_worktree_pid"
+: > "$TMPROOT/window.log"
+"$STATE" set-worktree "$worktree_path"
+assert_file_contains "$state_dir/%1.@agent_worktree_path" "$worktree_path" "set-worktree stores worktree path"
+assert_no_file "$state_dir/%1.@agent_worktree_pid" "set-worktree clears stale pid without pid"
+assert_file_contains "$TMPROOT/window.log" "%1" "set-worktree refresh invokes tmux-window-label"
+
 "$SUBJECT" clear
 assert_no_file "$state_dir/%1.@agent_subject" "subject clear removes subject"
 assert_no_file "$state_dir/%1.@agent_subject_stale" "subject clear removes stale flag"
