@@ -1,15 +1,24 @@
 ---
-- name: Resolve pinned mise Node.js path for global npm tools
+- name: Resolve pinned mise Node.js path for global Node package tools
   command: "{{ mise_bin }} where node@{{ tool_versions.runtimes.node }}"
   register: mise_node_global_tools_node_path
   changed_when: false
 
-- name: Install or update gsd-browser via mise npm
+- name: Install or update gsd-browser via mise aube
   shell: |
     set -euo pipefail
     node_bin="{{ mise_node_global_tools_node_path.stdout }}/bin"
     mise_bin_dir="$(dirname "{{ mise_bin }}")"
-    PATH="$node_bin:$mise_bin_dir:$PATH" "$node_bin/npm" install -g gsd-browser@latest
+    aube_config_dir="$(mktemp -d)"
+    trap 'rm -rf "$aube_config_dir"' EXIT
+    printf '%s\n' 'minimumReleaseAgeExclude=gsd-browser' > "$aube_config_dir/.npmrc"
+    AUBE_PARANOID=true AUBE_GLOBAL_BIN_DIR="$node_bin" PATH="$node_bin:$mise_bin_dir:$PATH" \
+      "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} aube -- \
+        aube add -C "$aube_config_dir" -g --allow-low-downloads gsd-browser@latest
   args:
     executable: /bin/bash
+  register: mise_node_global_tools_aube_install_result
+  until: mise_node_global_tools_aube_install_result.rc == 0
+  retries: 3
+  delay: 10
   changed_when: false

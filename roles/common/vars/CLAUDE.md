@@ -21,7 +21,7 @@ Use the modern syntax with space-asterisk for wildcards:
 - **Script sourcing**: `source` (can execute arbitrary scripts)
 - **Eval/exec commands**: `eval`, `exec`
 - **Arbitrary execution**: `xargs` (can pipe to any command)
-- **Package managers with run**: `npm`, `yarn` (can run arbitrary scripts and install dependencies)
+- **Package managers with run**: `npm`, `yarn`, `aube` (can run arbitrary scripts and install dependencies)
 - **Remote execution**: `ssh` (can run arbitrary remote commands)
 - **Container exec**: `docker exec`, `docker compose exec` (can run arbitrary commands in containers)
 
@@ -32,7 +32,7 @@ When adding new permissions:
 1. **Be specific**: `Bash(docker ps *)` instead of `Bash(docker *)`
 2. **Limit scope**: `Bash(bundle info *)` instead of `Bash(bundle *)`
 3. **Use deny rules**: Block dangerous variants even when allowing the base command
-4. **Specific tool invocations**: `Bash(npx eslint *)` instead of `Bash(npx *)`
+4. **Specific tool invocations**: `Bash(aubx eslint *)` instead of `Bash(aubx *)`
 
 ### Deny Rules
 
@@ -46,4 +46,3 @@ Before adding a new permission:
 2. **Check for escape hatches**: Could this command be used to run arbitrary code?
 3. **Use minimal scope**: Add the most specific permission that meets the need
 4. **Consider deny rules**: If allowing a broad command, deny dangerous subcommands
-

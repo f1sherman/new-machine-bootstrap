@@ -539,6 +539,22 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
+- name: Install aube via mise (Linux)
+  command: "{{ mise_bin }} install aube@{{ tool_versions.runtimes.aube }}"
+  changed_when: false
+  when: ansible_facts["os_family"] == "Debian"
+
+- name: Set global aube version via mise (Linux)
+  command: "{{ mise_bin }} use --global aube@{{ tool_versions.runtimes.aube }}"
+  changed_when: false
+  when: ansible_facts["os_family"] == "Debian"
+
+- name: Resolve pinned mise Node.js path for aube global tools (Linux)
+  command: "{{ mise_bin }} where node@{{ tool_versions.runtimes.node }}"
+  register: common_aube_global_tools_node_path_linux
+  changed_when: false
+  when: ansible_facts["os_family"] == "Debian"
+
 - name: Install mise Node.js global tools (Linux)
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_mise_node_global_tools.yml'
   when: ansible_facts["os_family"] == "Debian"
@@ -645,7 +661,7 @@
 
 - name: Merge model, statusLine, and permissions into Claude settings
   set_fact:
-    merged_settings: "{{ claude_settings | combine({'model': 'opus[1m]', 'effortLevel': 'max', 'statusLine': {'type': 'command', 'command': 'npx -y ccstatusline@' ~ ccstatusline_version, 'padding': 0}, 'permissions': merged_permissions | combine({'defaultMode': 'acceptEdits'})}, recursive=True) }}"
+    merged_settings: "{{ claude_settings | combine({'model': 'opus[1m]', 'effortLevel': 'max', 'statusLine': {'type': 'command', 'command': 'AUBE_PARANOID=true aubx ccstatusline@' ~ ccstatusline_version, 'padding': 0}, 'permissions': merged_permissions | combine({'defaultMode': 'acceptEdits'})}, recursive=True) }}"
 
 - name: Write merged Claude settings.json
   copy:
@@ -1063,32 +1079,32 @@
     path: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
     mode: '0600'
 
-- name: Prepare pinned Node.js before common npm tools (macOS)
+- name: Prepare pinned Node.js before common Node package tools (macOS)
   block:
-    - name: Create mise default-packages file before common npm tools (macOS)
+    - name: Create mise default-packages file before common Node package tools (macOS)
       copy:
         backup: yes
         dest: '{{ ansible_facts["user_dir"] }}/.default-npm-packages'
         src: '{{ playbook_dir }}/roles/macos/files/mise/default-npm-packages'
         mode: '0600'
 
-    - name: Heal any broken mise-managed Node.js installs before common npm tools (macOS)
+    - name: Heal any broken mise-managed Node.js installs before common Node package tools (macOS)
       include_tasks: '{{ playbook_dir }}/roles/common/tasks/heal_mise_node_installs.yml'
 
-    - name: Check if pinned Node.js version is listed before common npm tools (macOS)
+    - name: Check if pinned Node.js version is listed before common Node package tools (macOS)
       shell: "{{ mise_bin }} ls --installed node | awk '$1 == \"node\" && $2 == \"{{ tool_versions.runtimes.node }}\" { found = 1 } END { exit(found ? 0 : 1) }'"
       register: common_macos_node_listed
       changed_when: false
       failed_when: false
 
-    - name: Create temporary GPG home for pinned Node.js before common npm tools (macOS)
+    - name: Create temporary GPG home for pinned Node.js before common Node package tools (macOS)
       tempfile:
         state: directory
         prefix: common-macos-node-pin-gpg-
       register: common_macos_node_pin_gpg_home
       when: common_macos_node_listed.rc != 0
 
-    - name: Install pinned Node.js version before common npm tools (macOS)
+    - name: Install pinned Node.js version before common Node package tools (macOS)
       command: "{{ mise_bin }} install node@{{ tool_versions.runtimes.node }}"
       environment:
         GNUPGHOME: "{{ common_macos_node_pin_gpg_home.path }}"
@@ -1096,7 +1112,7 @@
         - common_macos_node_listed.rc != 0
         - common_macos_node_pin_gpg_home.path is defined
   always:
-    - name: Remove temporary GPG home for pinned Node.js before common npm tools (macOS)
+    - name: Remove temporary GPG home for pinned Node.js before common Node package tools (macOS)
       file:
         path: "{{ common_macos_node_pin_gpg_home.path }}"
         state: absent
@@ -1105,32 +1121,110 @@
         - common_macos_node_pin_gpg_home.path is defined
   when: ansible_facts["os_family"] == "Darwin"
 
-- name: Install or update Codex CLI via npm (macOS)
-  command: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- npm install -g @openai/codex@latest"
+- name: Install aube via mise (macOS)
+  command: "{{ mise_bin }} install aube@{{ tool_versions.runtimes.aube }}"
   changed_when: false
   when: ansible_facts["os_family"] == "Darwin"
 
-# Use mise exec to run npm with mise's node (not nvm's).
+- name: Set global aube version via mise (macOS)
+  command: "{{ mise_bin }} use --global aube@{{ tool_versions.runtimes.aube }}"
+  changed_when: false
+  when: ansible_facts["os_family"] == "Darwin"
+
+- name: Resolve pinned mise Node.js path for aube global tools (macOS)
+  command: "{{ mise_bin }} where node@{{ tool_versions.runtimes.node }}"
+  register: common_aube_global_tools_node_path_macos
+  changed_when: false
+  when: ansible_facts["os_family"] == "Darwin"
+
+- name: Install or update Codex CLI via aube (macOS)
+  shell: |
+    set -euo pipefail
+    aube_config_dir="$(mktemp -d)"
+    trap 'rm -rf "$aube_config_dir"' EXIT
+    printf '%s\n' 'minimumReleaseAgeExclude=@openai/codex' > "$aube_config_dir/.npmrc"
+    "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} aube -- \
+      aube add -C "$aube_config_dir" -g @openai/codex@latest
+  args:
+    executable: /bin/bash
+  environment:
+    AUBE_PARANOID: "true"
+    AUBE_GLOBAL_BIN_DIR: "{{ common_aube_global_tools_node_path_macos.stdout }}/bin"
+  register: common_codex_aube_install_result
+  until: common_codex_aube_install_result.rc == 0
+  retries: 3
+  delay: 10
+  changed_when: false
+  when: ansible_facts["os_family"] == "Darwin"
+
+# Use mise exec to run aube with mise's node (not nvm's).
 # mise activate relies on PROMPT_COMMAND which doesn't fire in Ansible's
 # non-interactive shell, so we use mise exec instead.
 # PATH is extended because mise may have been installed during pre_tasks
 # and isn't in the inherited PATH yet.
-- name: Install or update Codex CLI via npm (Linux)
-  shell: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- npm install -g @openai/codex@latest"
+- name: Install or update Codex CLI via aube (Linux)
+  shell: |
+    set -euo pipefail
+    aube_config_dir="$(mktemp -d)"
+    trap 'rm -rf "$aube_config_dir"' EXIT
+    printf '%s\n' 'minimumReleaseAgeExclude=@openai/codex' > "$aube_config_dir/.npmrc"
+    "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} aube -- \
+      aube add -C "$aube_config_dir" -g @openai/codex@latest
+  args:
+    executable: /bin/bash
   environment:
+    AUBE_PARANOID: "true"
+    AUBE_GLOBAL_BIN_DIR: "{{ common_aube_global_tools_node_path_linux.stdout }}/bin"
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
+  register: common_codex_aube_install_result
+  until: common_codex_aube_install_result.rc == 0
+  retries: 3
+  delay: 10
   when: ansible_facts["os_family"] == "Debian"
   changed_when: false
 
-- name: Install or update pi-coding-agent via npm (macOS)
-  command: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- npm install -g @mariozechner/pi-coding-agent@latest"
+- name: Install or update pi-coding-agent via aube (macOS)
+  shell: |
+    set -euo pipefail
+    aube_config_dir="$(mktemp -d)"
+    trap 'rm -rf "$aube_config_dir"' EXIT
+    printf '%s\n' 'minimumReleaseAgeExclude=@mariozechner/pi-coding-agent' > "$aube_config_dir/.npmrc"
+    "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} aube -- \
+      aube add -C "$aube_config_dir" -g --allow-build=@google/genai \
+        --allow-build=koffi --allow-build=protobufjs \
+        @mariozechner/pi-coding-agent@latest
+  args:
+    executable: /bin/bash
+  environment:
+    AUBE_PARANOID: "true"
+    AUBE_GLOBAL_BIN_DIR: "{{ common_aube_global_tools_node_path_macos.stdout }}/bin"
+  register: common_pi_aube_install_result
+  until: common_pi_aube_install_result.rc == 0
+  retries: 3
+  delay: 10
   changed_when: false
   when: ansible_facts["os_family"] == "Darwin"
 
-- name: Install or update pi-coding-agent via npm (Linux)
-  shell: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- npm install -g @mariozechner/pi-coding-agent@latest"
+- name: Install or update pi-coding-agent via aube (Linux)
+  shell: |
+    set -euo pipefail
+    aube_config_dir="$(mktemp -d)"
+    trap 'rm -rf "$aube_config_dir"' EXIT
+    printf '%s\n' 'minimumReleaseAgeExclude=@mariozechner/pi-coding-agent' > "$aube_config_dir/.npmrc"
+    "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} aube -- \
+      aube add -C "$aube_config_dir" -g --allow-build=@google/genai \
+        --allow-build=koffi --allow-build=protobufjs \
+        @mariozechner/pi-coding-agent@latest
+  args:
+    executable: /bin/bash
   environment:
+    AUBE_PARANOID: "true"
+    AUBE_GLOBAL_BIN_DIR: "{{ common_aube_global_tools_node_path_linux.stdout }}/bin"
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
+  register: common_pi_aube_install_result
+  until: common_pi_aube_install_result.rc == 0
+  retries: 3
+  delay: 10
   when: ansible_facts["os_family"] == "Debian"
   changed_when: false
 
@@ -1150,9 +1244,9 @@
   failed_when: pi_plugin_linux.rc != 0
   when: ansible_facts["os_family"] == "Debian"
 
-# Symlink globally-installed npm binaries into ~/.local/bin so they work
+# Symlink globally-installed Node package binaries into ~/.local/bin so they work
 # regardless of which Node version the current directory's mise.toml selects.
-- name: Create ~/.local/bin symlinks for global npm tools (Linux)
+- name: Create ~/.local/bin symlinks for global Node package tools (Linux)
   shell: |
     node_bin="$("{{ mise_bin }}" where node@{{ tool_versions.runtimes.node }})/bin"
     for cmd in codex pi; do
