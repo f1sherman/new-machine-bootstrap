@@ -81,6 +81,15 @@ assert_no_file "$state_dir/%1.@agent_worktree_pid" "set-worktree clears stale pi
 assert_file_not_contains "$state_dir/%1.@pane-label" "old-worktree-label" "set-worktree clears stale pane label"
 assert_file_contains "$TMPROOT/window.log" "%1" "set-worktree refresh invokes tmux-window-label"
 
+fallback_path="$TMPROOT/fallback-project"
+mkdir -p "$fallback_path"
+printf 'old-worktree-label' > "$state_dir/%1.@pane-label"
+export TMUX_AGENT_STATE_CURRENT_PATH="$fallback_path"
+"$STATE" clear-worktree
+assert_no_file "$state_dir/%1.@agent_worktree_path" "clear-worktree removes worktree path"
+assert_file_not_contains "$state_dir/%1.@pane-label" "old-worktree-label" "clear-worktree clears stale pane label"
+assert_file_contains "$state_dir/%1.@pane-label" "fallback-project" "clear-worktree rerenders pane label from current path"
+
 "$SUBJECT" clear
 assert_no_file "$state_dir/%1.@agent_subject" "subject clear removes subject"
 assert_no_file "$state_dir/%1.@agent_subject_stale" "subject clear removes stale flag"
