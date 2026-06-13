@@ -28,7 +28,7 @@
 - Test: `ruby tests/murder.rb`
 - Test: `bash tests/ci-test-inventory.sh`
 
-- [ ] **Step 1: Create the failing test**
+- [x] **Step 1: Create the failing test**
 
 Create `tests/murder.rb` with a small assertion harness. The test should spawn child Ruby processes that trap `TERM`, invoke `roles/macos/templates/murder` by PID, and assert:
 
@@ -36,7 +36,7 @@ Create `tests/murder.rb` with a small assertion harness. The test should spawn c
 - `-y` works with stdin closed.
 - no bypass flag with stdin closed exits non-zero and leaves the child alive.
 
-- [ ] **Step 2: Add CI workflow invocation**
+- [x] **Step 2: Add CI workflow invocation**
 
 Add a workflow step after repo policy checks:
 
@@ -45,7 +45,7 @@ Add a workflow step after repo policy checks:
         run: ruby tests/murder.rb
 ```
 
-- [ ] **Step 3: Verify red**
+- [x] **Step 3: Verify red**
 
 Run:
 
@@ -70,11 +70,11 @@ Expected: PASS because the new test is referenced by CI.
 - Test: `ruby tests/murder.rb`
 - Test: `ruby -c roles/macos/templates/murder`
 
-- [ ] **Step 1: Add parser state**
+- [x] **Step 1: Add parser state**
 
 Rename the local `force` variable to `skip_confirmation`, default it to `false`, and pass it to `terminate_process`.
 
-- [ ] **Step 2: Add `--yes` / `-y`**
+- [x] **Step 2: Add `--yes` / `-y`**
 
 Add an OptionParser entry:
 
@@ -86,11 +86,11 @@ Add an OptionParser entry:
 
 Keep `--force` supported by setting the same variable.
 
-- [ ] **Step 3: Handle closed stdin**
+- [x] **Step 3: Handle closed stdin**
 
 Update `confirm_kill` so it stores `response = STDIN.gets`, exits with a clear error when `response.nil?`, and only strips/downcases after the nil check.
 
-- [ ] **Step 4: Verify green**
+- [x] **Step 4: Verify green**
 
 Run:
 
@@ -108,7 +108,7 @@ Expected: all behavior tests pass and Ruby reports `Syntax OK`.
 - Test: `bash tests/ci-test-inventory.sh`
 - Test: `bash tests/repo-policy.sh all`
 
-- [ ] **Step 1: Run full relevant verification**
+- [x] **Step 1: Run full relevant verification**
 
 Run:
 

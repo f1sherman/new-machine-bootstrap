@@ -24,6 +24,9 @@ jobs:
       - name: Verify pinned tool version wiring
         run: bash tests/repo-policy.sh all
 
+      - name: Verify murder helper behavior
+        run: ruby tests/murder.rb
+
       - name: Verify repo lifecycle helpers
         run: bash tests/repo-lifecycle.sh
 

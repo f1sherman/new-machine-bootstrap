@@ -83,7 +83,12 @@ def confirm_kill(pid)
   end
   puts "Process details:\n#{details}"
   puts "Do you really want to kill this process? (y/n)"
-  response = STDIN.gets.strip.downcase
+  response = STDIN.gets
+  if response.nil?
+    log_error_and_exit("Confirmation required but stdin is unavailable. Re-run with --yes to skip confirmation.")
+  end
+
+  response = response.strip.downcase
   unless response.start_with?('y')
     log_info("Process kill aborted by user.")
     return false
@@ -103,13 +108,13 @@ def resolve_pids(input)
 end
 
 # Attempt to kill the process gracefully, then forcefully if needed
-def terminate_process(pid, force)
+def terminate_process(pid, skip_confirmation)
   unless process_alive?(pid)
     log_warn("Process #{pid} is not running (may have already been terminated).")
     return
   end
 
-  return unless force || confirm_kill(pid)
+  return unless skip_confirmation || confirm_kill(pid)
 
   log_info("Attempting to gracefully kill process #{pid}...")
   killed = kill_process(pid, "TERM")
@@ -130,7 +135,7 @@ def terminate_process(pid, force)
 end
 
 # Command-line option parsing
-force = false
+skip_confirmation = false
 
 OptionParser.new do |parser|
   parser.banner = <<~BANNER
@@ -141,8 +146,12 @@ OptionParser.new do |parser|
       murder :3000         # Kill process running on port 3000
   BANNER
 
-  parser.on('-f', '--force', 'Force kill without confirmation') do
-    force = true
+  parser.on('-y', '--yes', 'Run without confirmation prompt') do
+    skip_confirmation = true
+  end
+
+  parser.on('-f', '--force', 'Skip confirmation prompt (same as --yes)') do
+    skip_confirmation = true
   end
 
   parser.on('-h', '--help', 'Prints this help') do
@@ -161,5 +170,5 @@ input = ARGV[0]
 pids = resolve_pids(input)
 
 pids.each do |pid|
-  terminate_process(pid, force)
+  terminate_process(pid, skip_confirmation)
 end
