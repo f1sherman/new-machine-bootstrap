@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require "tmpdir"
+require "open3"
 
 SKIP_PATH_PATTERNS = [
   %r{\Adocs/},
@@ -25,7 +26,6 @@ def metadata_line?(line)
     line.match?(/\A\s*#/) ||
     line.include?(".npmrc") ||
     line.include?("default-npm-packages") ||
-    line.include?("npm:") ||
     line.include?("node_modules/npm") ||
     line.include?("bin/npm") ||
     line.include?("bin/npx") ||
@@ -34,8 +34,11 @@ def metadata_line?(line)
 end
 
 def scanned_paths(root)
-  if File.directory?(File.join(root, ".git"))
-    IO.popen(["git", "-C", root, "ls-files"], &:read).lines.map(&:chomp)
+  if File.exist?(File.join(root, ".git"))
+    output, status = Open3.capture2e("git", "-C", root, "ls-files")
+    raise "git ls-files failed for #{root}: #{output.strip}" unless status.success?
+
+    output.lines.map(&:chomp)
   else
     Dir.chdir(root) do
       Dir.glob("**/*", File::FNM_DOTMATCH).select { |path| File.file?(path) }
@@ -101,6 +104,7 @@ Dir.mktmpdir("paranoid-package-tools") do |dir|
   File.write(
     File.join(dir, "bad.sh"),
     "npm install left-pad\n" \
+      "npm install npm:package-spec\n" \
       "aube add -g some-tool\n"
   )
   File.write(
@@ -122,7 +126,20 @@ Dir.mktmpdir("paranoid-package-tools") do |dir|
 
   violations = scan_violations(dir)
   assert_violation(violations, "npm install left-pad")
+  assert_violation(violations, "npm install npm:package-spec")
   assert_violation(violations, "aube add -g some-tool")
+end
+
+Dir.mktmpdir("paranoid-package-tools-git-failure") do |dir|
+  Dir.mkdir(File.join(dir, ".git"))
+
+  begin
+    scan_violations(dir)
+  rescue RuntimeError => e
+    abort "expected git ls-files failure, got #{e.message.inspect}" unless e.message.include?("git ls-files failed")
+  else
+    abort "expected git ls-files failure"
+  end
 end
 
 repo_root = File.expand_path("..", __dir__)
