@@ -73,6 +73,13 @@ printf '%s\n' "\$*" >> "$TMPROOT/window-label.log"
 exit 0
 STUB
   chmod +x "$stubdir/tmux-window-label"
+
+  cat >"$stubdir/tmux-agent-state" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$TMPROOT/agent-state.log"
+exit 0
+STUB
+  chmod +x "$stubdir/tmux-agent-state"
 }
 
 run_hook() {
@@ -80,6 +87,7 @@ run_hook() {
   : > "$TMPROOT/tmux.log"
   : > "$TMPROOT/update-pane-label.log"
   : > "$TMPROOT/window-label.log"
+  : > "$TMPROOT/agent-state.log"
   printf '%s' "$payload" | TMUX=1 TMUX_PANE="%1" PATH="$stubdir:$PATH" "$HOOK"
 }
 
@@ -90,6 +98,7 @@ out_a="$(run_hook "$stubdir_a" '{"session_id":"abc","cwd":"/tmp/launch","transcr
 
 assert_file_contains "$TMPROOT/update-pane-label.log" "%1" "Part 1: tmux-update-pane-label invoked with TMUX_PANE"
 assert_file_contains "$TMPROOT/window-label.log" "%1" "Part 1: tmux-window-label invoked with TMUX_PANE"
+assert_file_contains "$TMPROOT/agent-state.log" "set-kind codex" "SessionStart binds Codex agent kind"
 
 
 # ----- Scenario B: @agent_worktree_path UNSET; nudge fires. -----
