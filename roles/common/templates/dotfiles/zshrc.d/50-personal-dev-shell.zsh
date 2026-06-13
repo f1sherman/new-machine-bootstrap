@@ -137,10 +137,54 @@ bgrep() {
 }
 
 alias codex > /dev/null && unalias codex
+_codex_args_include_reasoning_effort() {
+  local arg
+  for arg in "$@"; do
+    [[ "$arg" == *model_reasoning_effort* ]] && return 0
+  done
+  return 1
+}
+
+_codex_invocation_is_review() {
+  local -a args
+  local index
+  args=("$@")
+  index=1
+
+  while (( index <= $#args )); do
+    case "${args[$index]}" in
+      --)
+        (( index++ ))
+        break
+        ;;
+      -c|--config|-m|--model|-p|--profile|-s|--sandbox|-C|--cd|-a|--ask-for-approval|--remote|--remote-auth-token-env|--local-provider|--add-dir|-i|--image|--enable|--disable)
+        (( index += 2 ))
+        ;;
+      --config=*|--model=*|--profile=*|--sandbox=*|--cd=*|--ask-for-approval=*|--remote=*|--remote-auth-token-env=*|--local-provider=*|--add-dir=*|--image=*|--enable=*|--disable=*)
+        (( index++ ))
+        ;;
+      -*)
+        (( index++ ))
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  [[ "${args[$index]:-}" == "review" ]] && return 0
+  [[ "${args[$index]:-}" == "exec" && "${args[$((index + 1))]:-}" == "review" ]] && return 0
+  return 1
+}
+
 function codex() {
   (
     unset OPENAI_API_KEY
-    command codex "$@"
+    if _codex_invocation_is_review "$@" && ! _codex_args_include_reasoning_effort "$@"; then
+      command codex -c 'model_reasoning_effort="xhigh"' "$@"
+    else
+      command codex "$@"
+    fi
   )
 }
 

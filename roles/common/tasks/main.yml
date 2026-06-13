@@ -1202,7 +1202,7 @@
 
     filtered_root.insert(
       insertion_index,
-      'model_reasoning_effort = "xhigh"'
+      'model_reasoning_effort = "high"'
     )
 
     new_lines = filtered_root + (lines[index..] || [])
