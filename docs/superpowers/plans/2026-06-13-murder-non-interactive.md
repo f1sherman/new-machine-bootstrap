@@ -125,6 +125,6 @@ Expected: all commands exit 0.
 
 Commit the spec, plan, tests, workflow, and implementation.
 
-- [ ] **Step 3: Create pull request**
+- [x] **Step 3: Create pull request**
 
 Push the branch and invoke the repo pull-request workflow.
