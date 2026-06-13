@@ -11,6 +11,8 @@ IFS=$'\t' read -r window_id pane_active window_name pane_tty pane_current_path p
 [ -n "$window_id" ] || exit 0
 [ "$pane_active" = "1" ] || exit 0
 
+label="$(tmux show-options -qv -p -t "$pane_id" "@window-label" 2>/dev/null || true)"
+
 is_remote_candidate_command() {
   case "$1" in
     ssh|gh|ruby) return 0 ;;
@@ -48,8 +50,7 @@ strip_host_suffix() {
   printf '%s\n' "${1%% | *}"
 }
 
-label=""
-if is_remote_candidate_command "$pane_current_command"; then
+if [ -z "$label" ] && is_remote_candidate_command "$pane_current_command"; then
   label="$(structured_remote_label "$pane_title" 2>/dev/null || true)"
   if [ -n "$label" ]; then
     :
@@ -61,10 +62,6 @@ if is_remote_candidate_command "$pane_current_command"; then
       label=""
     fi
   fi
-fi
-
-if [ -z "$label" ]; then
-  label="$(tmux show-options -qv -p -t "$pane_id" "@window-label" 2>/dev/null || true)"
 fi
 
 if [ -z "$label" ]; then

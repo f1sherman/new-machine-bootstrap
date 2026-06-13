@@ -124,6 +124,13 @@ mark_subject_stale() {
   TMUX_AGENT_STATE_DIR="${TMUX_AGENT_WORKTREE_STATE_DIR:-}" "$state" mark-subject-stale >/dev/null 2>&1
 }
 
+clear_agent_worktree() {
+  local state
+  state="$(agent_state_bin)"
+  [ -x "$state" ] || return 1
+  TMUX_AGENT_STATE_DIR="${TMUX_AGENT_WORKTREE_STATE_DIR:-}" "$state" clear-worktree >/dev/null 2>&1
+}
+
 is_git_worktree_path() {
   local path="$1"
   [ -d "$path" ] || return 1
@@ -370,7 +377,10 @@ cmd_clear() {
   clear_pane_option "$TMUX_PANE" "@pane-label"
   clear_pane_option "$TMUX_PANE" "@pane-link"
   clear_pane_option "$TMUX_PANE" "@pane-link-source"
-  if [ -n "$subject" ] && mark_subject_stale; then
+  if clear_agent_worktree; then
+    if [ -n "$subject" ]; then
+      mark_subject_stale || true
+    fi
     return 0
   fi
   refresh_window_label
