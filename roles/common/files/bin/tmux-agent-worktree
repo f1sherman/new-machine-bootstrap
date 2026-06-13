@@ -96,6 +96,41 @@ publish_title() {
   tmux-remote-title publish >/dev/null 2>&1 || true
 }
 
+agent_state_bin() {
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [ -x "$script_dir/tmux-agent-state" ]; then
+    printf '%s\n' "$script_dir/tmux-agent-state"
+  else
+    printf '%s\n' "${HOME:-}/.local/bin/tmux-agent-state"
+  fi
+}
+
+refresh_agent_state() {
+  local state
+  state="$(agent_state_bin)"
+  if [ -x "$state" ]; then
+    TMUX_AGENT_STATE_DIR="${TMUX_AGENT_WORKTREE_STATE_DIR:-}" "$state" refresh >/dev/null 2>&1 || true
+    return 0
+  fi
+  refresh_window_label
+  publish_title
+}
+
+mark_subject_stale() {
+  local state
+  state="$(agent_state_bin)"
+  [ -x "$state" ] || return 1
+  TMUX_AGENT_STATE_DIR="${TMUX_AGENT_WORKTREE_STATE_DIR:-}" "$state" mark-subject-stale >/dev/null 2>&1
+}
+
+clear_agent_worktree() {
+  local state
+  state="$(agent_state_bin)"
+  [ -x "$state" ] || return 1
+  TMUX_AGENT_STATE_DIR="${TMUX_AGENT_WORKTREE_STATE_DIR:-}" "$state" clear-worktree >/dev/null 2>&1
+}
+
 is_git_worktree_path() {
   local path="$1"
   [ -d "$path" ] || return 1
@@ -329,18 +364,25 @@ cmd_set() {
   fi
   write_pane_option "$pane_id" "@pane-label" "$(repo_label_for_path "$path")"
   publish_cached_pr_pane_link_for_path "$pane_id" "$path"
-  refresh_window_label
-  publish_title
+  refresh_agent_state
 }
 
 cmd_clear() {
+  local subject
   [ -n "${TMUX:-}" ] || return 0
   [ -n "${TMUX_PANE:-}" ] || return 0
+  subject="$(read_pane_option "$TMUX_PANE" "@agent_subject" 2>/dev/null || true)"
   clear_pane_option "$TMUX_PANE" "@agent_worktree_path"
   clear_pane_option "$TMUX_PANE" "@agent_worktree_pid"
   clear_pane_option "$TMUX_PANE" "@pane-label"
   clear_pane_option "$TMUX_PANE" "@pane-link"
   clear_pane_option "$TMUX_PANE" "@pane-link-source"
+  if clear_agent_worktree; then
+    if [ -n "$subject" ]; then
+      mark_subject_stale || true
+    fi
+    return 0
+  fi
   refresh_window_label
   publish_title
 }
@@ -369,8 +411,7 @@ cmd_sync_current() {
   fi
   write_pane_option "$TMUX_PANE" "@pane-label" "$(repo_label_for_path "$PWD")"
   publish_cached_pr_pane_link_for_path "$TMUX_PANE" "$PWD"
-  refresh_window_label
-  publish_title
+  refresh_agent_state
 }
 
 main() {

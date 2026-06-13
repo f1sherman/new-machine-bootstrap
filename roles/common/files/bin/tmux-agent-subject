@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+state="${TMUX_AGENT_STATE_BIN:-$script_dir/tmux-agent-state}"
+[[ -x "$state" ]] || state="${HOME:-}/.local/bin/tmux-agent-state"
+
+case "${1:-}" in
+  set)
+    shift
+    "$state" set-subject "$@"
+    ;;
+  clear)
+    "$state" clear-subject
+    ;;
+  status)
+    "$state" status
+    ;;
+  *)
+    printf 'Usage: tmux-agent-subject set <subject>|clear|status\n' >&2
+    exit 2
+    ;;
+esac

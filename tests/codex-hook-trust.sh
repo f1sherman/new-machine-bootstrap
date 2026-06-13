@@ -48,7 +48,7 @@ assert_mode_600() {
 }
 
 write_metadata() {
-  local path="$1" workdir="$2" hooks_file="$3" work_hash="$4" push_hash="$5" edit_hash="$6" spec_hash="$7" session_hash="$8" prompt_hash="$9" user_hash="${10}"
+  local path="$1" workdir="$2" hooks_file="$3" work_hash="$4" push_hash="$5" edit_hash="$6" spec_hash="$7" session_hash="$8" prompt_hash="$9" subject_hash="${10}" user_hash="${11}"
   jq -n \
     --arg cwd "$workdir" \
     --arg hooks "$hooks_file" \
@@ -58,6 +58,7 @@ write_metadata() {
     --arg specHash "$spec_hash" \
     --arg sessionHash "$session_hash" \
     --arg promptHash "$prompt_hash" \
+    --arg subjectHash "$subject_hash" \
     --arg userHash "$user_hash" \
     '{
       data: [
@@ -183,6 +184,23 @@ write_metadata() {
               enabled: true,
               isManaged: false,
               currentHash: $promptHash,
+              trustStatus: "untrusted"
+            },
+            {
+              key: ($hooks + ":user_prompt_submit:1:0"),
+              eventName: "userPromptSubmit",
+              handlerType: "command",
+              matcher: null,
+              command: "~/.local/bin/codex-remind-agent-subject-on-prompt",
+              timeoutSec: 600,
+              statusMessage: null,
+              sourcePath: $hooks,
+              source: "user",
+              pluginId: null,
+              displayOrder: 1,
+              enabled: true,
+              isManaged: false,
+              currentHash: $subjectHash,
               trustStatus: "untrusted"
             }
           ]
@@ -321,6 +339,7 @@ write_metadata "$metadata_file" "$tmpdir/work" "$hooks_file" \
   "sha256:spec-v1" \
   "sha256:session-v1" \
   "sha256:prompt-v1" \
+  "sha256:subject-v1" \
   "sha256:user-v1"
 
 out="$(
@@ -343,6 +362,8 @@ assert_file_contains "$config_file" "[hooks.state.\"$hooks_file:session_start:0:
 assert_file_contains "$config_file" 'trusted_hash = "sha256:session-v1"' "session hook hash is trusted"
 assert_file_contains "$config_file" "[hooks.state.\"$hooks_file:user_prompt_submit:0:0\"]" "repo-start prompt hook state section is written"
 assert_file_contains "$config_file" 'trusted_hash = "sha256:prompt-v1"' "repo-start prompt hook hash is trusted"
+assert_file_contains "$config_file" "[hooks.state.\"$hooks_file:user_prompt_submit:1:0\"]" "agent subject prompt hook state section is written"
+assert_file_contains "$config_file" 'trusted_hash = "sha256:subject-v1"' "agent subject prompt hook hash is trusted"
 assert_file_not_contains "$config_file" "sha256:user-v1" "unrelated user hook is not auto-trusted"
 assert_file_not_contains "$config_file" "$hooks_file:pre_tool_use:99:0" "stale state for same hooks file is removed"
 assert_file_not_contains "$config_file" "$hooks_file:post_tool_use:99:0" "stale post hook state for same hooks file is removed"
@@ -371,6 +392,7 @@ write_metadata "$metadata_file" "$tmpdir/work" "$hooks_file" \
   "sha256:spec-v2" \
   "sha256:session-v2" \
   "sha256:prompt-v2" \
+  "sha256:subject-v2" \
   "sha256:user-v2"
 out="$(
   CODEX_HOME="$codex_home" \
@@ -386,12 +408,14 @@ assert_file_contains "$config_file" 'trusted_hash = "sha256:edit-v2"' "changed m
 assert_file_contains "$config_file" 'trusted_hash = "sha256:spec-v2"' "changed current spec hash is refreshed"
 assert_file_contains "$config_file" 'trusted_hash = "sha256:session-v2"' "changed session hash is refreshed"
 assert_file_contains "$config_file" 'trusted_hash = "sha256:prompt-v2"' "changed prompt hash is refreshed"
+assert_file_contains "$config_file" 'trusted_hash = "sha256:subject-v2"' "changed agent subject prompt hash is refreshed"
 assert_file_not_contains "$config_file" "sha256:work-v1" "old managed hash is removed"
 assert_file_not_contains "$config_file" "sha256:push-v1" "old push hash is removed"
 assert_file_not_contains "$config_file" "sha256:edit-v1" "old main edit hash is removed"
 assert_file_not_contains "$config_file" "sha256:spec-v1" "old current spec hash is removed"
 assert_file_not_contains "$config_file" "sha256:session-v1" "old session hash is removed"
 assert_file_not_contains "$config_file" "sha256:prompt-v1" "old prompt hash is removed"
+assert_file_not_contains "$config_file" "sha256:subject-v1" "old agent subject prompt hash is removed"
 assert_file_not_contains "$config_file" "sha256:user-v2" "changed unrelated user hook is still not trusted"
 
 escape_home="$tmpdir/codex-escape"
@@ -423,6 +447,7 @@ write_metadata "$escape_metadata_file" "$tmpdir/work" "$escape_hooks_file" \
   "sha256:escape-spec" \
   "sha256:escape-session" \
   "sha256:escape-prompt" \
+  "sha256:escape-subject" \
   "sha256:escape-user"
 
 out="$(
@@ -447,8 +472,8 @@ unless text.include?(expected)
   warn "missing escaped TOML table #{expected.inspect}"
   exit 1
 end
-unless text.scan(/trusted_hash = /).length == 7
-  warn "expected 7 trusted_hash entries"
+unless text.scan(/trusted_hash = /).length == 8
+  warn "expected 8 trusted_hash entries"
   exit 1
 end
 RUBY
@@ -536,6 +561,7 @@ write_metadata "$drift_metadata_file" "$tmpdir/work" "$drift_hooks_file" \
   "sha256:drift-spec" \
   "sha256:drift-session" \
   "sha256:drift-prompt" \
+  "sha256:drift-subject" \
   "sha256:drift-user"
 jq --arg hooks "$drift_hooks_file" '
   (.data[0].hooks[] | select(.command == "~/.local/bin/codex-block-git-push-main").key) = ($hooks + ":pre_tool_use:2:0")
@@ -584,6 +610,7 @@ write_metadata "$warnings_metadata_file" "$tmpdir/work" "$warnings_hooks_file" \
   "sha256:warn-spec" \
   "sha256:warn-session" \
   "sha256:warn-prompt" \
+  "sha256:warn-subject" \
   "sha256:warn-user"
 
 jq '.data[0].warnings = ["loading hooks from both /a/hooks.json and /a/config.toml; prefer a single representation for this layer"]' \

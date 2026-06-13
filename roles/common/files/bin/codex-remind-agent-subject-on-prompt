@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]] || exit 0
+command -v jq >/dev/null 2>&1 || exit 0
+command -v tmux >/dev/null 2>&1 || exit 0
+
+input="$(cat)"
+prompt="$(printf '%s' "$input" | jq -r '.prompt // .user_prompt // empty' 2>/dev/null || true)"
+if ! printf '%s\n' "$prompt" | grep -Eq '(\$superpowers:(brainstorming|systematic-debugging)([^[:alnum:]_-]|$)|^[[:space:]]*superpowers:(brainstorming|systematic-debugging)([^[:alnum:]_-]|$))'; then
+  exit 0
+fi
+
+subject="$(tmux show-options -qv -p -t "$TMUX_PANE" @agent_subject 2>/dev/null || true)"
+stale="$(tmux show-options -qv -p -t "$TMUX_PANE" @agent_subject_stale 2>/dev/null || true)"
+[[ -z "$subject" || "$stale" == "1" ]] || exit 0
+
+reminder='You invoked brainstorming or systematic-debugging in a tmux agent pane without a current subject. Before continuing, run `tmux-agent-subject set "<short subject>"` using a concise noun phrase for this task.'
+
+jq -n --arg ctx "$reminder" '{
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "additionalContext": $ctx
+  }
+}'
