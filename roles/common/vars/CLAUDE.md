@@ -32,7 +32,7 @@ When adding new permissions:
 1. **Be specific**: `Bash(docker ps *)` instead of `Bash(docker *)`
 2. **Limit scope**: `Bash(bundle info *)` instead of `Bash(bundle *)`
 3. **Use deny rules**: Block dangerous variants even when allowing the base command
-4. **Specific tool invocations**: `Bash(aubx eslint *)` instead of `Bash(aubx *)`
+4. **Specific tool invocations**: `Bash(AUBE_PARANOID=true aubx eslint *)` instead of `Bash(aubx *)`
 
 ### Deny Rules
 

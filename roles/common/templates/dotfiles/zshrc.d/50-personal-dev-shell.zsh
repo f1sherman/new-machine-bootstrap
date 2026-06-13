@@ -128,7 +128,7 @@ re() {
     echo "Usage: 2markdown <url>"
     return 1
   fi
-  aubx -p readability-cli readable "$1" | pandoc --from html --to gfm --wrap=none --output page.md
+  AUBE_PARANOID=true aubx -p readability-cli readable "$1" | pandoc --from html --to gfm --wrap=none --output page.md
 }
 
 bgrep() {
