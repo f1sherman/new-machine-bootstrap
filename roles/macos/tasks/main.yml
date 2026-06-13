@@ -551,7 +551,7 @@
     mode: '0644'
 
 - name: Reload Hammerspoon configuration
-  shell: hs -c 'hs.timer.doAfter(1, function() hs.reload() end)'
+  shell: hs -A -c 'hs.timer.doAfter(1, function() hs.reload() end)'
   args:
     executable: /bin/zsh
   changed_when: false

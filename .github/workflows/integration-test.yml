@@ -17,6 +17,8 @@ jobs:
 
       - name: Run provisioning
         run: bin/provision
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Verify CI test inventory
         run: bash tests/ci-test-inventory.sh
