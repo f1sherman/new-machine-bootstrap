@@ -108,9 +108,9 @@ claude_permissions:
     - "Bash(bundle update *)"
 
     # JavaScript/Node (specific tools only, no general package manager access)
-    - "Bash(aubx eslint *)"
-    - "Bash(aubx prettier *)"
-    - "Bash(aubx stylelint *)"
+    - "Bash(AUBE_PARANOID=true aubx eslint *)"
+    - "Bash(AUBE_PARANOID=true aubx prettier *)"
+    - "Bash(AUBE_PARANOID=true aubx stylelint *)"
 
     # Bootstrap scripts
     - "Bash(bin/provision --check *)"
@@ -166,3 +166,6 @@ claude_permissions_allow_remove:
   - "Bash(npx eslint *)"
   - "Bash(npx prettier *)"
   - "Bash(npx stylelint *)"
+  - "Bash(aubx eslint *)"
+  - "Bash(aubx prettier *)"
+  - "Bash(aubx stylelint *)"

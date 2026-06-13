@@ -21,6 +21,9 @@ jobs:
       - name: Verify CI test inventory
         run: bash tests/ci-test-inventory.sh
 
+      - name: Verify package tool paranoid mode
+        run: ruby tests/paranoid-package-tools.rb
+
       - name: Verify pinned tool version wiring
         run: bash tests/repo-policy.sh all
 
