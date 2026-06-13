@@ -44,6 +44,17 @@ assert_file_contains() {
   pass_case "$name"
 }
 
+assert_file_not_contains() {
+  local path="$1" needle="$2" name="$3"
+  if [ ! -f "$path" ]; then
+    fail_case "$name" "missing file: $path"
+  fi
+  if grep -Fq -- "$needle" "$path"; then
+    fail_case "$name" "found '$needle' in $path"
+  fi
+  pass_case "$name"
+}
+
 assert_no_file() {
   local path="$1" name="$2"
   if [ -e "$path" ]; then
@@ -213,6 +224,29 @@ assert_no_file "$state_dir/%1.@agent_worktree_path" "repo-end tmux clearer remov
 assert_no_file "$state_dir/%1.@agent_worktree_pid" "repo-end tmux clearer removes explicit repo pid"
 assert_no_file "$state_dir/%1.@pane-label" "repo-end tmux clearer removes cached pane label"
 
+subject_state_dir="$TMPROOT/state-subject-retained"
+mkdir -p "$subject_state_dir"
+printf 'codex' > "$subject_state_dir/%12.@agent_kind"
+printf 'tmux subject labels' > "$subject_state_dir/%12.@agent_subject"
+printf '%s' "$repo_path" > "$subject_state_dir/%12.@agent_worktree_path"
+printf '12345' > "$subject_state_dir/%12.@agent_worktree_pid"
+printf 'fj#42 https://example.com/pr/42' > "$subject_state_dir/%12.@pane-link"
+printf 'pr-status-cache' > "$subject_state_dir/%12.@pane-link-source"
+TMUX=1 \
+TMUX_PANE="%12" \
+TMUX_AGENT_WORKTREE_STATE_DIR="$subject_state_dir" \
+TMUX_AGENT_STATE_DIR="$subject_state_dir" \
+PATH="$stub_bin:$BIN_DIR:$PATH" \
+  "$AGENT_WORKTREE" clear
+assert_no_file "$subject_state_dir/%12.@agent_worktree_path" "repo-end tmux clearer removes subject pane repo path"
+assert_no_file "$subject_state_dir/%12.@agent_worktree_pid" "repo-end tmux clearer removes subject pane repo pid"
+assert_no_file "$subject_state_dir/%12.@pane-link" "repo-end tmux clearer removes subject pane PR link"
+assert_no_file "$subject_state_dir/%12.@pane-link-source" "repo-end tmux clearer removes subject pane PR link source"
+assert_file_contains "$subject_state_dir/%12.@agent_subject" "tmux subject labels" "repo-end tmux clearer retains agent subject"
+assert_file_contains "$subject_state_dir/%12.@agent_subject_stale" "1" "repo-end tmux clearer marks subject stale"
+assert_file_contains "$subject_state_dir/%12.@window-label" "codex: tmux subject labels" "repo-end tmux clearer keeps stale marker out of window label"
+assert_file_not_contains "$subject_state_dir/%12.@window-label" "stale" "repo-end tmux clearer does not visibly mark stale"
+
 fake_tmux_dir="$TMPROOT/fake-tmux-bin"
 window_log="$TMPROOT/window-label.log"
 mkdir -p "$fake_tmux_dir"
@@ -269,6 +303,32 @@ chmod +x "$cached_tmux_dir/tmux"
 
 TMUX_WINDOW_LABEL_LOG="$cached_log" PATH="$cached_tmux_dir:$PATH" "$WINDOW_LABEL" "%2"
 assert_file_contains "$cached_log" "rename-window -t @2 (cached-branch) cached-repo" "agent panes use cached @pane-label for window name"
+
+window_label_log="$TMPROOT/window-label-priority.log"
+window_label_tmux_dir="$TMPROOT/window-label-priority-bin"
+mkdir -p "$window_label_tmux_dir"
+cat >"$window_label_tmux_dir/tmux" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  display-message)
+    printf '@4\t1\told-name\t/dev/null\t/tmp/current\tzsh\tplain\t%%4\n'
+    ;;
+  show-options)
+    case "${*: -1}" in
+      @window-label) printf 'codex: tmux subject labels' ;;
+      @agent_worktree_path) printf '' ;;
+      @pane-label) printf '(feature/label) label-repo | host-a' ;;
+    esac
+    ;;
+  rename-window)
+    printf '%s\n' "$*" >> "$TMUX_WINDOW_LABEL_LOG"
+    ;;
+esac
+STUB
+chmod +x "$window_label_tmux_dir/tmux"
+
+TMUX_WINDOW_LABEL_LOG="$window_label_log" PATH="$window_label_tmux_dir:$PATH" "$WINDOW_LABEL" "%4"
+assert_file_contains "$window_label_log" "rename-window -t @4 codex: tmux subject labels" "window labels prefer @window-label over @pane-label"
 
 stale_tmux_dir="$TMPROOT/fake-tmux-bin-stale"
 stale_log="$TMPROOT/window-label-stale.log"
