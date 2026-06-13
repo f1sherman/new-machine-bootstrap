@@ -9,6 +9,7 @@ User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min toke
 * Comments: use sparingly. Explain why, not what. No ticket/issue refs unless `# TODO: <url>` for future work. State what code does, not what it doesn't.
 * Scripts/snippets: write scripts in ruby; snippets in bash unless otherwise instructed.
 * JSON/YAML parsing: use `jq` or `yq`, never use python or ruby.
+* Fuzzy judgment: when logic needs semantic or human judgment, use an LLM/model call instead of keyword or regex heuristics.
 * Multi-line commands: write script to `/tmp`. Do not ask user to copy/paste over multiple lines.
 * Testing: use Red/Green TDD.
 * Superpowers specs/plans commit step: check `git check-ignore -q docs/superpowers`. If ignored, skip commit — keep local. Never `git add -f` / `--force` on `docs/superpowers/`.
