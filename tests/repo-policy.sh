@@ -411,6 +411,7 @@ run_install_checks() {
   assert_contains "$COMMON_MAIN" "settings set ruby.compile false" "common Linux role opts into precompiled Ruby binaries"
   assert_contains "$COMMON_MAIN" 'ansible_facts["os_family"] != "Darwin" or ansible_facts["architecture"] in ["arm64", "aarch64"]' "common Ruby precompiled setting preserves Intel macOS source fallback"
   assert_contains "$COMMON_MAIN" "bash -s -- latest" "common Claude installer makes latest explicit"
+  assert_yaml_equals "$COMMON_MAIN" '.[] | select(.name == "Clone prezto") | .git.depth' "1" "common Prezto clone is shallow for fresh provisioning speed"
   assert_not_contains "$COMMON_MAIN" "CODEX_DEFAULT_MODEL" "common Codex config does not pin a model"
   assert_not_contains "$COMMON_MAIN" '"model = #{' "common Codex config does not write a root model override"
   assert_contains "$COMMON_MAIN" "vim_mode_default = true" "common Codex config defaults composer to Vim mode"
