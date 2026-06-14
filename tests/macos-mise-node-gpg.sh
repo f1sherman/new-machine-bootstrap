@@ -131,24 +131,24 @@ assert_task_block_contains \
   "common macOS Node package tools remove temporary GPG home"
 assert_task_block_contains \
   "$common_tasks" \
-  "Install or update Codex CLI via aube (macOS)" \
-  'aube add -C "$aube_config_dir" -g @openai/codex@latest' \
-  "common macOS Codex install runs through aube under pinned mise Node"
+  "Install managed mise npm tools through aube" \
+  "MISE_NPM_PACKAGE_MANAGER: aube" \
+  "common macOS Codex install runs through aube-backed mise npm tools"
 assert_task_block_contains \
   "$common_tasks" \
-  "Install or update Codex CLI via aube (macOS)" \
-  "AUBE_PARANOID: \"true\"" \
-  "common macOS Codex install enables aube paranoid mode"
+  "Install managed mise npm tools through aube" \
+  "install --yes" \
+  "common macOS Codex install uses managed mise tool config"
 assert_task_block_contains \
   "$common_tasks" \
-  "Install or update pi-coding-agent via aube (macOS)" \
-  'aube add -C "$aube_config_dir" -g --allow-build=@google/genai' \
-  "common macOS pi install runs through aube under pinned mise Node"
+  "Install machine-wide mise and aube configuration" \
+  "roles/common/templates/dotfiles/mise" \
+  "common macOS pi install is managed through mise tool config"
 assert_task_block_contains \
   "$common_tasks" \
-  "Install or update pi-coding-agent via aube (macOS)" \
-  "AUBE_PARANOID: \"true\"" \
-  "common macOS pi install enables aube paranoid mode"
+  "Install machine-wide mise and aube configuration" \
+  "roles/common/templates/dotfiles/aube" \
+  "common macOS aube config is managed before Pi install"
 assert_task_block_contains \
   "$common_tasks" \
   "Install pi-subdir-context plugin for pi-coding-agent (macOS)" \

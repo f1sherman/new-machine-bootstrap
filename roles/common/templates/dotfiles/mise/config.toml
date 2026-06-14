@@ -1,0 +1,12 @@
+# Managed by new-machine-bootstrap. Source of truth for machine-wide mise tools.
+[tools]
+node = "{{ tool_versions.runtimes.node }}"
+ruby = "{{ tool_versions.runtimes.ruby }}"
+aube = "{{ tool_versions.runtimes.aube }}"
+"npm:@openai/codex" = { version = "latest", depends = ["aube"], minimum_release_age = "0d" }
+"npm:@earendil-works/pi-coding-agent" = { version = "{{ tool_versions.runtimes.pi_coding_agent }}", depends = ["aube"], minimum_release_age = "0d", aube_args = "--deny-build=@google/genai --deny-build=protobufjs" }
+
+[settings]
+npm.package_manager = "aube"
+ruby.compile = false
+trusted_config_paths = ["{{ ansible_facts['user_dir'] }}/projects"]

@@ -29,6 +29,7 @@ def metadata_line?(line)
     line.include?("node_modules/npm") ||
     line.include?("bin/npm") ||
     line.include?("bin/npx") ||
+    line.match?(/\A\s*(aube|aubx)\s*=/) ||
     line.match?(/\baube@\{\{/) ||
     line.match?(/\baube@\d/)
 end
