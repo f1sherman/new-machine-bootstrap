@@ -18,6 +18,7 @@ jobs:
       - name: Run provisioning
         run: bin/provision
         env:
+          ANSIBLE_CALLBACKS_ENABLED: profile_tasks
           GITHUB_TOKEN: ${{ github.token }}
 
       - name: Verify CI test inventory
