@@ -352,6 +352,7 @@ run_catalog_checks() {
   assert_yaml_matches "$CATALOG" '.tool_versions.github_releases.yq' '^v[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins yq"
   assert_yaml_matches "$CATALOG" '.tool_versions.github_releases.zoxide' '^v[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins zoxide"
   assert_yaml_matches "$CATALOG" '.tool_versions.runtimes.mise' '^v[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins mise"
+  assert_not_contains "$CATALOG" "mise: v2026.6.2" "catalog does not pin mise release with installed-version fast-path regression"
   assert_yaml_matches "$CATALOG" '.tool_versions.runtimes.aube' '^[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins aube"
   assert_yaml_matches "$CATALOG" '.tool_versions.runtimes.node' '^[0-9]+\.[0-9]+\.[0-9]+$' "catalog pins Node.js"
   assert_toml_value_equals_yaml "$MISE_TOML" '.tools.node' "$CATALOG" '.tool_versions.runtimes.node' "repo mise config uses catalog-pinned Node.js"
