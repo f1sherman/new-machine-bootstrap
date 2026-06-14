@@ -30,6 +30,7 @@
     repo: 'https://github.com/sorin-ionescu/prezto.git'
     recursive: yes
     update: yes
+    depth: 1
 
 - name: Clone vim config repository
   git:
