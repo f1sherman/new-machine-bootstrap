@@ -233,14 +233,14 @@ assert_codex_vim_mode_merge() {
 
 run_codex_vim_mode_checks() {
   assert_codex_reasoning_defaults_merge \
-    "Codex reasoning defaults use high effort" \
+    "Codex reasoning defaults use medium effort" \
     "" \
-    "model_reasoning_effort = \"high\"\n"
+    "model_reasoning_effort = \"medium\"\n"
 
   assert_codex_reasoning_defaults_merge \
-    "Codex reasoning defaults replace root xhigh with high" \
+    "Codex reasoning defaults replace root xhigh with medium" \
     "# managed\nmodel_reasoning_effort = \"xhigh\"\n[tui]\nvim_mode_default = true\n" \
-    "# managed\nmodel_reasoning_effort = \"high\"\n[tui]\nvim_mode_default = true\n"
+    "# managed\nmodel_reasoning_effort = \"medium\"\n[tui]\nvim_mode_default = true\n"
 
   assert_codex_vim_mode_merge \
     "Codex Vim mode merge creates the TUI section" \
