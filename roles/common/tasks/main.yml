@@ -520,6 +520,26 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
+- name: Ensure machine-wide mise and aube config directories exist
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - .config/mise
+    - .config/aube
+
+- name: Install machine-wide mise and aube configuration
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ ansible_facts['user_dir'] }}/{{ item.dest }}"
+    mode: '0644'
+  loop:
+    - src: roles/common/templates/dotfiles/mise/config.toml
+      dest: .config/mise/config.toml
+    - src: roles/common/templates/dotfiles/aube/config.toml
+      dest: .config/aube/config.toml
+
 - name: Heal any broken mise-managed Node.js installs (Linux)
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/heal_mise_node_installs.yml'
   when: ansible_facts["os_family"] == "Debian"
@@ -1192,95 +1212,16 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Darwin"
 
-- name: Install or update Codex CLI via aube (macOS)
-  shell: |
-    set -euo pipefail
-    aube_config_dir="$(mktemp -d)"
-    trap 'rm -rf "$aube_config_dir"' EXIT
-    printf '%s\n' 'minimumReleaseAgeExclude=@openai/codex' > "$aube_config_dir/.npmrc"
-    "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} aube -- \
-      aube add -C "$aube_config_dir" -g @openai/codex@latest
-  args:
-    executable: /bin/bash
+- name: Install managed mise npm tools through aube
+  command: "{{ mise_bin }} --cd {{ ansible_facts['user_dir'] }} install --yes"
   environment:
     AUBE_PARANOID: "true"
-    AUBE_GLOBAL_BIN_DIR: "{{ common_aube_global_tools_node_path_macos.stdout }}/bin"
-  register: common_codex_aube_install_result
-  until: common_codex_aube_install_result.rc == 0
-  retries: 3
-  delay: 10
-  changed_when: false
-  when: ansible_facts["os_family"] == "Darwin"
-
-# Use mise exec to run aube with mise's node (not nvm's).
-# mise activate relies on PROMPT_COMMAND which doesn't fire in Ansible's
-# non-interactive shell, so we use mise exec instead.
-# PATH is extended because mise may have been installed during pre_tasks
-# and isn't in the inherited PATH yet.
-- name: Install or update Codex CLI via aube (Linux)
-  shell: |
-    set -euo pipefail
-    aube_config_dir="$(mktemp -d)"
-    trap 'rm -rf "$aube_config_dir"' EXIT
-    printf '%s\n' 'minimumReleaseAgeExclude=@openai/codex' > "$aube_config_dir/.npmrc"
-    "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} aube -- \
-      aube add -C "$aube_config_dir" -g @openai/codex@latest
-  args:
-    executable: /bin/bash
-  environment:
-    AUBE_PARANOID: "true"
-    AUBE_GLOBAL_BIN_DIR: "{{ common_aube_global_tools_node_path_linux.stdout }}/bin"
+    MISE_NPM_PACKAGE_MANAGER: aube
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
-  register: common_codex_aube_install_result
-  until: common_codex_aube_install_result.rc == 0
+  register: common_mise_managed_tool_install_result
+  until: common_mise_managed_tool_install_result.rc == 0
   retries: 3
   delay: 10
-  when: ansible_facts["os_family"] == "Debian"
-  changed_when: false
-
-- name: Install or update pi-coding-agent via aube (macOS)
-  shell: |
-    set -euo pipefail
-    aube_config_dir="$(mktemp -d)"
-    trap 'rm -rf "$aube_config_dir"' EXIT
-    printf '%s\n' 'minimumReleaseAgeExclude=@mariozechner/pi-coding-agent' > "$aube_config_dir/.npmrc"
-    "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} aube -- \
-      aube add -C "$aube_config_dir" -g --allow-build=@google/genai \
-        --allow-build=koffi --allow-build=protobufjs \
-        @mariozechner/pi-coding-agent@latest
-  args:
-    executable: /bin/bash
-  environment:
-    AUBE_PARANOID: "true"
-    AUBE_GLOBAL_BIN_DIR: "{{ common_aube_global_tools_node_path_macos.stdout }}/bin"
-  register: common_pi_aube_install_result
-  until: common_pi_aube_install_result.rc == 0
-  retries: 3
-  delay: 10
-  changed_when: false
-  when: ansible_facts["os_family"] == "Darwin"
-
-- name: Install or update pi-coding-agent via aube (Linux)
-  shell: |
-    set -euo pipefail
-    aube_config_dir="$(mktemp -d)"
-    trap 'rm -rf "$aube_config_dir"' EXIT
-    printf '%s\n' 'minimumReleaseAgeExclude=@mariozechner/pi-coding-agent' > "$aube_config_dir/.npmrc"
-    "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} aube -- \
-      aube add -C "$aube_config_dir" -g --allow-build=@google/genai \
-        --allow-build=koffi --allow-build=protobufjs \
-        @mariozechner/pi-coding-agent@latest
-  args:
-    executable: /bin/bash
-  environment:
-    AUBE_PARANOID: "true"
-    AUBE_GLOBAL_BIN_DIR: "{{ common_aube_global_tools_node_path_linux.stdout }}/bin"
-    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
-  register: common_pi_aube_install_result
-  until: common_pi_aube_install_result.rc == 0
-  retries: 3
-  delay: 10
-  when: ansible_facts["os_family"] == "Debian"
   changed_when: false
 
 - name: Install pi-subdir-context plugin for pi-coding-agent (macOS)
@@ -1301,12 +1242,13 @@
 
 # Symlink globally-installed Node package binaries into ~/.local/bin so they work
 # regardless of which Node version the current directory's mise.toml selects.
-- name: Create ~/.local/bin symlinks for global Node package tools (Linux)
+- name: Create ~/.local/bin symlinks for managed npm tools (Linux)
   shell: |
-    node_bin="$("{{ mise_bin }}" where node@{{ tool_versions.runtimes.node }})/bin"
-    for cmd in codex pi; do
-      [ -x "$node_bin/$cmd" ] && ln -sf "$node_bin/$cmd" ~/.local/bin/"$cmd"
-    done
+    set -euo pipefail
+    codex_bin="$("{{ mise_bin }}" where 'npm:@openai/codex')/bin/codex"
+    pi_bin="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')/bin/pi"
+    ln -sf "$codex_bin" "{{ ansible_facts['user_dir'] }}/.local/bin/codex"
+    ln -sf "$pi_bin" "{{ ansible_facts['user_dir'] }}/.local/bin/pi"
   args:
     executable: /bin/bash
   changed_when: false

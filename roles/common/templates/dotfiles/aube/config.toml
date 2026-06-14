@@ -1,0 +1,2 @@
+# Managed by new-machine-bootstrap. Harden npm installs that flow through aube.
+paranoid = true
