@@ -594,6 +594,7 @@ run_integration_checks() {
   assert_contains "$INTEGRATION_WORKFLOW" "bash tests/ci-test-inventory.sh" "integration workflow verifies the test inventory"
   assert_contains "$INTEGRATION_WORKFLOW" "bash tests/repo-policy.sh all" "integration workflow runs all repository policy regression checks"
   assert_yaml_equals "$INTEGRATION_WORKFLOW" '.jobs.provision.steps[] | select(.name == "Run provisioning") | .env.GITHUB_TOKEN' '${{ github.token }}' "integration workflow passes GITHUB_TOKEN to provisioning"
+  assert_yaml_equals "$INTEGRATION_WORKFLOW" '.jobs.provision.steps[] | select(.name == "Run provisioning") | .env.ANSIBLE_CALLBACKS_ENABLED' 'profile_tasks' "integration workflow enables Ansible task profiling during provisioning"
   assert_contains "$INTEGRATION_WORKFLOW" "vars/tool_versions.yml" "integration workflow reads the shared version catalog"
   assert_contains "$INTEGRATION_WORKFLOW" 'local_bin="$HOME/.local/bin"' "integration workflow resolves the user-local binary directory"
   assert_contains "$INTEGRATION_WORKFLOW" 'user_mise="$local_bin/mise"' "integration workflow checks the provisioned mise binary"
