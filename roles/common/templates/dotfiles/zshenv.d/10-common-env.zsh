@@ -44,6 +44,12 @@ unset _mise_shims
 
 export GIT_MERGE_AUTOEDIT=no
 
+# Claude Code grabs the mouse (DEC 1003/1006) for its own scroll/click. With tmux
+# `mouse off` that state is reflected onto the host terminal, stealing native text
+# selection and modifier-click. Keep the terminal's own mouse behavior instead.
+# In zshenv so it covers non-interactive `zsh -c claude` launches too.
+export CLAUDE_CODE_DISABLE_MOUSE=1
+
 export HISTSIZE='32768'
 export HISTFILESIZE="${HISTSIZE}"
 
