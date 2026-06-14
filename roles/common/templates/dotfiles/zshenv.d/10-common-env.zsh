@@ -50,6 +50,11 @@ export GIT_MERGE_AUTOEDIT=no
 # In zshenv so it covers non-interactive `zsh -c claude` launches too.
 export CLAUDE_CODE_DISABLE_MOUSE=1
 
+# Claude Code's fullscreen renderer draws on the alternate screen buffer, so the
+# conversation never lands in tmux scrollback and copy-mode can't reach earlier
+# output. Force the classic inline renderer so history flows into native scrollback.
+export CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1
+
 export HISTSIZE='32768'
 export HISTFILESIZE="${HISTSIZE}"
 
