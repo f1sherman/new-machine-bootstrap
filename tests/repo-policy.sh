@@ -396,7 +396,7 @@ run_install_checks() {
   assert_contains "$COMMON_AUBE_CONFIG" "paranoid = true" "common aube config enables paranoid mode globally"
   assert_contains "$COMMON_MISE_CONFIG" 'npm.package_manager = "aube"' "common mise config routes npm tools through aube"
   assert_contains "$COMMON_MISE_CONFIG" 'trusted_config_paths = ["{{ ansible_facts['"'"'user_dir'"'"'] }}/projects"]' "common mise config preserves managed project trust path"
-  assert_contains "$COMMON_MISE_CONFIG" '"npm:@openai/codex" = { version = "latest", depends = ["aube"]' "common mise config installs Codex as an aube-backed npm tool"
+  assert_contains "$COMMON_MISE_CONFIG" '"npm:@openai/codex" = { version = "latest", depends = ["aube"], minimum_release_age = "0d" }' "common mise config installs Codex as an aube-backed npm tool"
   assert_contains "$COMMON_MISE_CONFIG" '"npm:@earendil-works/pi-coding-agent" = { version = "{{ tool_versions.runtimes.pi_coding_agent }}", depends = ["aube"], minimum_release_age = "0d", aube_args = "--deny-build=@google/genai --deny-build=protobufjs" }' "common mise config installs renamed pi package with reviewed aube args"
   assert_contains "$COMMON_MAIN" "AUBE_PARANOID=true aubx ccstatusline@" "common Claude statusline enables aube paranoid mode"
   assert_not_contains "$COMMON_MAIN" "@mariozechner/pi-coding-agent" "common role no longer installs deprecated pi package"
