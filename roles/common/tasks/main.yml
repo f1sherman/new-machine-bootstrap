@@ -1219,9 +1219,10 @@
     AUBE_PARANOID: "true"
     # Codex tracks "latest", so a release under the 24h paranoid age gate would
     # otherwise hard-fail the install (strict mode won't fall back). Codex also
-    # ships its binary as same-day per-platform packages that hit the gate
-    # independently, so each must be exempted by name alongside the meta package.
-    AUBE_MINIMUM_RELEASE_AGE_EXCLUDE: "@openai/codex,@openai/codex-darwin-arm64,@openai/codex-darwin-x64,@openai/codex-linux-x64,@openai/codex-linux-arm64"
+    # ships its binary as same-day per-platform packages, and aube gates the
+    # whole declared optionalDependencies graph regardless of host platform, so
+    # every platform package must be exempted alongside the meta package.
+    AUBE_MINIMUM_RELEASE_AGE_EXCLUDE: "@openai/codex,@openai/codex-darwin-arm64,@openai/codex-darwin-x64,@openai/codex-linux-x64,@openai/codex-linux-arm64,@openai/codex-win32-x64,@openai/codex-win32-arm64"
     MISE_NPM_PACKAGE_MANAGER: aube
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   register: common_mise_managed_tool_install_result
