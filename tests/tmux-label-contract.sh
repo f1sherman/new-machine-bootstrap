@@ -66,7 +66,7 @@ assert_no_file() {
 
 assert_link_before_label() {
   local file="$1" name="$2" line before link_idx label_idx
-  line="$(grep -F 'pane-border-format' "$file")" || fail_case "$name" "no pane-border-format in $file"
+  line="$(grep -F 'set -g pane-border-format' "$file")" || fail_case "$name" "no pane-border-format in $file"
   before="${line%%@pane-link*}"
   link_idx=${#before}
   before="${line%%@pane-label*}"
