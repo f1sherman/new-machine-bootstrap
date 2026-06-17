@@ -7,6 +7,7 @@ BIN_DIR="$REPO_ROOT/roles/common/files/bin"
 PANE_LABEL="$BIN_DIR/tmux-pane-label"
 AGENT_WORKTREE="$BIN_DIR/tmux-agent-worktree"
 WINDOW_LABEL="$BIN_DIR/tmux-window-label"
+PANE_LINK="$BIN_DIR/tmux-pane-link"
 
 TMPROOT="$(mktemp -d)"
 trap 'rm -rf "$TMPROOT"' EXIT
@@ -110,6 +111,14 @@ write_pr_status_cache() {
     > "$cache_dir/$key.json"
 }
 
+pane_link_state_dir="$TMPROOT/state-pane-link"
+mkdir -p "$pane_link_state_dir"
+direct_url="https://github.com/org/repo/pull/7"
+TMUX=1 \
+TMUX_AGENT_WORKTREE_STATE_DIR="$pane_link_state_dir" \
+  "$PANE_LINK" --pane %20 "$direct_url"
+assert_equals "$(cat "$pane_link_state_dir/%20.@pane-link")" "$direct_url" "tmux-pane-link stores bare URL with no label"
+
 plain_path="$TMPROOT/plain-dir"
 mkdir -p "$plain_path"
 plain_label="$(TMUX_PANE_LABEL_HOST_TAG=host-a "$PANE_LABEL" /dev/null "$plain_path" zsh)"
@@ -181,7 +190,7 @@ HOME="$cache_home" \
 PATH="$stub_bin:$BIN_DIR:$PATH" \
   "$AGENT_WORKTREE" set "$repo_path"
 
-assert_file_contains "$cache_state_dir/%10.@pane-link" "fj##42 $pr_url" "repo-start tmux writer publishes cached PR URL"
+assert_equals "$(cat "$cache_state_dir/%10.@pane-link")" "$pr_url" "repo-start tmux writer publishes bare cached PR URL"
 assert_file_contains "$cache_state_dir/%10.@pane-link-source" "pr-status-cache" "repo-start tmux writer marks cached PR URL source"
 
 manual_link_state_dir="$TMPROOT/state-manual-link"

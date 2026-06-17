@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Attach a label + URL annotation to the current tmux pane. The URL is
+# Attach a URL annotation to the current tmux pane. The URL is
 # rendered verbatim in pane-border-format so terminals with URL detection
 # (Ghostty, iTerm2, kitty, …) make it cmd-/ctrl-clickable. Stored as the
 # @pane-link user option.
@@ -57,8 +57,7 @@ if [ "$clear_mode" -eq 1 ]; then
   exit 0
 fi
 
-label="${positional[0]:-}"
-url="${positional[1]:-}"
+url="${positional[0]:-}"
 
 err() {
   printf 'tmux-pane-link: %s\n' "$1" >&2
@@ -76,14 +75,9 @@ if printf '%s' "$url" | LC_ALL=C grep -qE '[[:cntrl:]"\\]'; then
   err "URL contains forbidden character"
 fi
 
-if [ "${#label}" -gt 64 ]; then
-  label="${label:0:63}…"
-fi
-# Double `#` so tmux's format parser renders them literally; the URL is
-# emitted as-is for terminal URL detection.
-label="${label//#/##}"
+# Double `#` so tmux's format parser renders them literally.
 url_escaped="${url//#/##}"
-value="$label $url_escaped"
+value="$url_escaped"
 write_pane_option "$pane" "@pane-link" "$value"
 clear_pane_option "$pane" "@pane-link-source"
 refresh_client
