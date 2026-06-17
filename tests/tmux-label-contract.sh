@@ -64,6 +64,19 @@ assert_no_file() {
   pass_case "$name"
 }
 
+assert_link_before_label() {
+  local file="$1" name="$2" line before link_idx label_idx
+  line="$(grep -F 'pane-border-format' "$file")" || fail_case "$name" "no pane-border-format in $file"
+  before="${line%%@pane-link*}"
+  link_idx=${#before}
+  before="${line%%@pane-label*}"
+  label_idx=${#before}
+  if [ "$link_idx" -ge "$label_idx" ]; then
+    fail_case "$name" "@pane-link ($link_idx) is not before @pane-label ($label_idx) in $file"
+  fi
+  pass_case "$name"
+}
+
 create_repo() {
   local name="$1" repo
   repo="$TMPROOT/$name"
@@ -424,5 +437,8 @@ bash_profile_template="$REPO_ROOT/roles/macos/templates/dotfiles/bash_profile"
 bash_repo_end_wrapper="$TMPROOT/repo-end-wrapper.bash"
 awk '/^repo-end\(\)/,/^}/' "$bash_profile_template" > "$bash_repo_end_wrapper"
 assert_file_not_contains "$bash_repo_end_wrapper" "worktree_sync_tmux_state" "repo-end bash wrapper leaves completed tmux label intact"
+
+assert_link_before_label "$REPO_ROOT/roles/macos/templates/dotfiles/tmux.conf" "macOS pane border renders PR link before label"
+assert_link_before_label "$REPO_ROOT/roles/linux/files/dotfiles/tmux.conf" "Linux pane border renders PR link before label"
 
 printf 'tmux label contract checks complete\n'
