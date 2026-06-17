@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- This repository is **public**: no BetterUp names, internal repo names, ticket prefixes, employee handles, or internal tooling references (incl. devpods/codespaces) in code, comments, commits, or docs.
+- This repository is **public**: no employer names, internal repo names, ticket prefixes, employee handles, or internal tooling references (incl. devpods/codespaces) in code, comments, commits, or docs.
 - Never edit deployed files in `~`; all changes go in this repo and apply via `bin/provision`.
 - Comments sparingly; explain why, not what. No ticket/issue refs.
 - The `tmux-pane-link` interface and the `tmux-agent-worktree` call site are coupled — they must change together (Task 1) or the `%10` contract test breaks.
