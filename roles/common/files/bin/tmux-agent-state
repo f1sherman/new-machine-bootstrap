@@ -142,7 +142,6 @@ case "$cmd" in
   clear-worktree)
     clear_pane_option "$pane" @agent_worktree_path
     clear_pane_option "$pane" @agent_worktree_pid
-    clear_pane_option "$pane" @pane-label
     clear_pane_option "$pane" @pane-link
     clear_pane_option "$pane" @pane-link-source
     refresh "$pane"

@@ -222,7 +222,7 @@ PATH="$stub_bin:$PATH" \
 
 assert_no_file "$state_dir/%1.@agent_worktree_path" "repo-end tmux clearer removes explicit repo path"
 assert_no_file "$state_dir/%1.@agent_worktree_pid" "repo-end tmux clearer removes explicit repo pid"
-assert_file_not_contains "$state_dir/%1.@pane-label" "feature/label" "repo-end tmux clearer refreshes cached pane label"
+assert_file_contains "$state_dir/%1.@pane-label" "feature/label" "repo-end tmux clearer preserves completed work label"
 
 subject_state_dir="$TMPROOT/state-subject-retained"
 mkdir -p "$subject_state_dir"
@@ -405,5 +405,15 @@ chmod +x "$stale_tmux_dir/tmux"
 
 TMUX_PANE_LABEL_HOST_TAG=host-a TMUX_WINDOW_LABEL_LOG="$stale_log" PATH="$stale_tmux_dir:$PATH" "$WINDOW_LABEL" "%3"
 assert_file_contains "$stale_log" "rename-window -t @3 fresh-dir" "non-agent panes ignore @pane-label cache and re-derive from current path"
+
+zshrc_template="$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/50-personal-dev-shell.zsh"
+repo_end_wrapper="$TMPROOT/repo-end-wrapper.zsh"
+awk '/^repo-end\(\)/,/^}/' "$zshrc_template" > "$repo_end_wrapper"
+assert_file_not_contains "$repo_end_wrapper" "worktree_sync_tmux_state" "repo-end shell wrapper leaves completed tmux label intact"
+
+bash_profile_template="$REPO_ROOT/roles/macos/templates/dotfiles/bash_profile"
+bash_repo_end_wrapper="$TMPROOT/repo-end-wrapper.bash"
+awk '/^repo-end\(\)/,/^}/' "$bash_profile_template" > "$bash_repo_end_wrapper"
+assert_file_not_contains "$bash_repo_end_wrapper" "worktree_sync_tmux_state" "repo-end bash wrapper leaves completed tmux label intact"
 
 printf 'tmux label contract checks complete\n'
