@@ -55,9 +55,11 @@ If starting fresh or need more context:
    Return: File-by-file comparison of planned vs actual
 
    Task 3 - Verify test coverage:
-   Check if tests were added/modified as specified.
-   Run test commands and capture results.
-   Return: Test status and any missing coverage
+   Check whether meaningful tests were added or modified as specified.
+   A meaningful test proves behavior that can break: it fails for a plausible regression, survives harmless refactors, and asserts behavior, generated structure, or an external contract.
+   Do not treat tautological string-presence checks over prose, install lists, docs, or skill text as useful coverage unless the exact string is a user-facing compatibility contract.
+   If no useful automated test exists, verify with focused manual or end-to-end steps and say why no test was added.
+   Return: Test status, manual/end-to-end verification if applicable, and any missing meaningful coverage
    ```
 
 ### Step 2: Systematic Validation

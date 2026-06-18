@@ -53,6 +53,8 @@ ansible-playbook playbook.yml --check --diff
 
 CI is the test source of truth. Do not add standalone test files unless `.github/workflows/integration-test.yml` invokes them directly. The CI inventory check fails when tracked test-like files are not referenced by a workflow run step.
 
+Tests must prove behavior that can break. A useful test fails for a plausible regression, survives harmless refactors, and asserts behavior, generated structure, or an external contract. Do not add tests that only assert exact prose, YAML snippets, install-loop entries, README wording, skill text, or command strings unless that literal text is itself a user-facing compatibility contract. No automated test is better than a tautological test; use focused manual or end-to-end verification when no useful automated test exists.
+
 ## Legal
 
 Some of the Claude configuration files were derived from https://github.com/humanlayer/humanlayer/blob/main/.claude, which is [licensed under Apache 2.0](https://github.com/humanlayer/humanlayer/blob/006d7d6cc5c6aedc6665ccfd7479596e0fb09288/LICENSE).
