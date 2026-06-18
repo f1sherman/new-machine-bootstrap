@@ -15,6 +15,7 @@
 - Comments sparingly; explain why, not what. No ticket/issue refs.
 - The `tmux-pane-link` interface and the `tmux-agent-worktree` call site are coupled — they must change together (Task 1) or the `%10` contract test breaks.
 - Do not add new test files: extend `tests/tmux-label-contract.sh`, which is already registered in `.github/workflows/integration-test.yml` and validated by `tests/ci-test-inventory.sh`.
+- Keep the PR description's `Related PRs` section in sync with the spec's root-cause notes so reviewers can trace the regression origin.
 
 ---
 
