@@ -25,7 +25,7 @@
 - Modify: `README.md`
 - Modify: `roles/common/files/claude/CLAUDE.md.d/00-base.md`
 
-- [ ] **Step 1: Inspect current guidance**
+- [x] **Step 1: Inspect current guidance**
 
 Run:
 
@@ -36,7 +36,7 @@ sed -n '1,35p' roles/common/files/claude/CLAUDE.md.d/00-base.md
 
 Expected: the README only says CI is the source of truth, and base guidance only says `Testing: use Red/Green TDD`.
 
-- [ ] **Step 2: Replace README testing section**
+- [x] **Step 2: Replace README testing section**
 
 Edit the `## Testing` section so it keeps the existing command examples and replaces the final paragraph with:
 
@@ -46,7 +46,7 @@ CI is the test source of truth. Do not add standalone test files unless `.github
 Tests must prove behavior that can break. A useful test fails for a plausible regression, survives harmless refactors, and asserts behavior, generated structure, or an external contract. Do not add tests that only assert exact prose, YAML snippets, install-loop entries, README wording, skill text, or command strings unless that literal text is itself a user-facing compatibility contract. No automated test is better than a tautological test; use focused manual or end-to-end verification when no useful automated test exists.
 ```
 
-- [ ] **Step 3: Replace base agent testing bullet**
+- [x] **Step 3: Replace base agent testing bullet**
 
 In `roles/common/files/claude/CLAUDE.md.d/00-base.md`, replace:
 
@@ -60,7 +60,7 @@ with:
 * Testing: use Red/Green TDD only for meaningful behavior tests. A useful test fails for a plausible regression and survives harmless refactors. Do not add tautological tests that merely assert exact prose, YAML snippets, install-loop entries, docs wording, skill text, or command strings. No test is better than a tautological test; use manual or end-to-end verification when no useful automated test exists.
 ```
 
-- [ ] **Step 4: Verify guidance directly**
+- [x] **Step 4: Verify guidance directly**
 
 Run:
 
@@ -70,7 +70,7 @@ rg -n "tautological|plausible regression|No automated test is better|No test is 
 
 Expected: matches in both files.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 Run:
 
