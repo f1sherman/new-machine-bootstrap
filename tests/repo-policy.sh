@@ -4,8 +4,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+AGENTS="$REPO_ROOT/AGENTS.md"
 PLAYBOOK="$REPO_ROOT/playbook.yml"
 SETUP="$REPO_ROOT/bin/setup"
+PROVISION="$REPO_ROOT/bin/provision"
 CATALOG="$REPO_ROOT/vars/tool_versions.yml"
 MISE_TOML="$REPO_ROOT/mise.toml"
 COMMON_AUBE_CONFIG="$REPO_ROOT/roles/common/templates/dotfiles/aube/config.toml"
@@ -621,6 +623,21 @@ run_integration_checks() {
   assert_contains "$INTEGRATION_WORKFLOW" "Expected versions verified" "integration workflow verifies pinned versions"
 }
 
+run_provision_checks() {
+  assert_contains "$AGENTS" "Avoid compatibility inference for minor features" "AGENTS discourages compatibility inference for minor features"
+  assert_contains "$AGENTS" "Keep cleanup tasks when removing known-unwanted managed state" "AGENTS preserves cleanup for unwanted managed state"
+  assert_contains "$PROVISION" 'args_include_diff()' "provision wrapper detects explicit diff arguments"
+  assert_contains "$PROVISION" '[[ "$arg" == "--diff" || "$arg" == "-D" ]]' "provision wrapper recognizes long and short diff flags"
+  assert_contains "$PROVISION" 'provision_marker()' "provision wrapper defines a successful-run marker"
+  assert_contains "$PROVISION" '${XDG_STATE_HOME:-$HOME/.local/state}/new-machine-bootstrap/provisioned' "provision wrapper stores marker under XDG state"
+  assert_contains "$PROVISION" 'provision_has_run_before()' "provision wrapper distinguishes first and later runs"
+  assert_not_contains "$PROVISION" '$HOME/.local/bin/mise' "provision wrapper does not infer prior runs from mise binary"
+  assert_not_contains "$PROVISION" '$HOME/.config/mise/config.toml' "provision wrapper does not infer prior runs from mise config"
+  assert_contains "$PROVISION" 'cmd_parts+=("--diff")' "provision wrapper keeps diffs on for later default runs"
+  assert_contains "$PROVISION" 'First provisioning run detected; skipping implicit Ansible diff' "provision wrapper skips implicit diffs on first run"
+  assert_contains "$PROVISION" 'record_successful_provision' "provision wrapper records successful runs"
+}
+
 run_review_workflow_checks() {
   if [[ ! -e "$REVIEW_WORKFLOW" ]]; then
     pass_case "review workflow has been removed"
@@ -652,22 +669,25 @@ case "${1:-all}" in
   codex-vim-mode) run_codex_vim_mode_checks ;;
   renovate) run_renovate_checks ;;
   integration) run_integration_checks ;;
+  provision) run_provision_checks ;;
   review) run_review_workflow_checks ;;
   core)
     run_catalog_checks
     run_install_checks
     run_renovate_checks
     run_integration_checks
+    run_provision_checks
     ;;
   all)
     run_catalog_checks
     run_install_checks
     run_renovate_checks
     run_integration_checks
+    run_provision_checks
     run_review_workflow_checks
     ;;
   *)
-    echo "usage: $0 [catalog|installs|codex-vim-mode|renovate|integration|review|core|all]" >&2
+    echo "usage: $0 [catalog|installs|codex-vim-mode|renovate|integration|provision|review|core|all]" >&2
     exit 1
     ;;
 esac

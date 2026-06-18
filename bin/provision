@@ -43,8 +43,32 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+args_include_diff() {
+  local arg
+  for arg in "$@"; do
+    [[ "$arg" == "--diff" || "$arg" == "-D" ]] && return 0
+  done
+  return 1
+}
+
 mac_os() {
   [[ "$OSTYPE" == "darwin"* ]]
+}
+
+provision_marker() {
+  printf '%s\n' "${XDG_STATE_HOME:-$HOME/.local/state}/new-machine-bootstrap/provisioned"
+}
+
+provision_has_run_before() {
+  [[ -f "$(provision_marker)" ]]
+}
+
+record_successful_provision() {
+  local marker marker_dir
+  marker="$(provision_marker)"
+  marker_dir="$(dirname "$marker")"
+  mkdir -p "$marker_dir"
+  printf 'provisioned_at=%s\n' "$(timestamp)" > "$marker"
 }
 
 say_message() {
@@ -230,7 +254,13 @@ cmd_parts=("ansible-playbook")
 cmd_parts+=("--inventory" "localhost,")
 cmd_parts+=("--connection" "local")
 cmd_parts+=("playbook.yml")
-cmd_parts+=("--diff")
+if provision_has_run_before; then
+  if ! args_include_diff "$@"; then
+    cmd_parts+=("--diff")
+  fi
+else
+  log_info "First provisioning run detected; skipping implicit Ansible diff. Pass --diff to enable diffs."
+fi
 if [[ -n "${ANSIBLE_BECOME_PASS:-}" ]]; then
   cmd_parts+=("--extra-vars" "ansible_become_pass=${ANSIBLE_BECOME_PASS}")
 fi
@@ -248,9 +278,17 @@ if ! "${cmd_parts[@]}" 2>&1 | tee -a "$LOGFILE_PATH" | tee "$output"; then
   exit 1
 fi
 
-output_content=$(cat "$output")
-parse_and_print_changes "$output_content"
-parse_and_print_deprecation_warnings "$output_content"
+record_successful_provision
+
+summary_max_bytes="${PROVISION_SUMMARY_MAX_BYTES:-65536}"
+output_bytes=$(wc -c < "$output" | tr -d ' ')
+if [[ "$summary_max_bytes" =~ ^[0-9]+$ ]] && [[ "$output_bytes" -le "$summary_max_bytes" ]]; then
+  output_content=$(cat "$output")
+  parse_and_print_changes "$output_content"
+  parse_and_print_deprecation_warnings "$output_content"
+else
+  log_info "Skipping parsed change summary for ${output_bytes}-byte Ansible output (limit: ${summary_max_bytes} bytes)."
+fi
 rm -f "$output"
 
 elapsed=$(($(date +%s) - PROVISIONING_START))
