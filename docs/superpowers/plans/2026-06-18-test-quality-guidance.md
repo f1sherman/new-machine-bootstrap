@@ -228,3 +228,8 @@ create-pull-request
 ```
 
 Expected: one PR for `nmb`, one PR for `hnp`.
+
+### PR Feedback Checkpoint
+
+- [x] Verified `roles/common/files/config/skills/claude/_implement-plan/SKILL.md` uses the meaningful-test exception instead of unconditional throwaway-test creation.
+- [x] Verified the deployed implementation skill now matches the base guidance: use Red/Green TDD only for meaningful behavior tests, reject tautological prose/config/string checks, and use focused manual or end-to-end verification when no useful automated test exists.
