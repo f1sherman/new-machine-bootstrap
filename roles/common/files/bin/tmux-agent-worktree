@@ -374,7 +374,6 @@ cmd_clear() {
   subject="$(read_pane_option "$TMUX_PANE" "@agent_subject" 2>/dev/null || true)"
   clear_pane_option "$TMUX_PANE" "@agent_worktree_path"
   clear_pane_option "$TMUX_PANE" "@agent_worktree_pid"
-  clear_pane_option "$TMUX_PANE" "@pane-label"
   clear_pane_option "$TMUX_PANE" "@pane-link"
   clear_pane_option "$TMUX_PANE" "@pane-link-source"
   if clear_agent_worktree; then

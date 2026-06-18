@@ -111,7 +111,6 @@ repo-end() {
   done
   target="$("$HOME/.local/bin/repo-end" "$@" --print-path)" || return $?
   cd "$target" || return $?
-  worktree_sync_tmux_state
   printf '%s\n' "$target"
 }
 

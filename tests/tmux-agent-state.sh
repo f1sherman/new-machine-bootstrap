@@ -87,8 +87,8 @@ printf 'old-worktree-label' > "$state_dir/%1.@pane-label"
 export TMUX_AGENT_STATE_CURRENT_PATH="$fallback_path"
 "$STATE" clear-worktree
 assert_no_file "$state_dir/%1.@agent_worktree_path" "clear-worktree removes worktree path"
-assert_file_not_contains "$state_dir/%1.@pane-label" "old-worktree-label" "clear-worktree clears stale pane label"
-assert_file_contains "$state_dir/%1.@pane-label" "fallback-project" "clear-worktree rerenders pane label from current path"
+assert_file_contains "$state_dir/%1.@pane-label" "old-worktree-label" "clear-worktree preserves completed pane label"
+assert_file_not_contains "$state_dir/%1.@pane-label" "fallback-project" "clear-worktree does not replace completed pane label from current path"
 
 "$SUBJECT" clear
 assert_no_file "$state_dir/%1.@agent_subject" "subject clear removes subject"
