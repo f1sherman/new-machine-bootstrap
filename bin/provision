@@ -43,8 +43,34 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+args_include_diff() {
+  local arg
+  for arg in "$@"; do
+    [[ "$arg" == "--diff" || "$arg" == "-D" ]] && return 0
+  done
+  return 1
+}
+
 mac_os() {
   [[ "$OSTYPE" == "darwin"* ]]
+}
+
+provision_marker() {
+  printf '%s\n' "${XDG_STATE_HOME:-$HOME/.local/state}/new-machine-bootstrap/provisioned"
+}
+
+provision_has_run_before() {
+  local marker
+  marker="$(provision_marker)"
+  [[ -f "$marker" || -x "$HOME/.local/bin/mise" || -f "$HOME/.config/mise/config.toml" ]]
+}
+
+record_successful_provision() {
+  local marker marker_dir
+  marker="$(provision_marker)"
+  marker_dir="$(dirname "$marker")"
+  mkdir -p "$marker_dir"
+  printf 'provisioned_at=%s\n' "$(timestamp)" > "$marker"
 }
 
 say_message() {
@@ -230,6 +256,13 @@ cmd_parts=("ansible-playbook")
 cmd_parts+=("--inventory" "localhost,")
 cmd_parts+=("--connection" "local")
 cmd_parts+=("playbook.yml")
+if provision_has_run_before; then
+  if ! args_include_diff "$@"; then
+    cmd_parts+=("--diff")
+  fi
+else
+  log_info "First provisioning run detected; skipping implicit Ansible diff. Pass --diff to enable diffs."
+fi
 if [[ -n "${ANSIBLE_BECOME_PASS:-}" ]]; then
   cmd_parts+=("--extra-vars" "ansible_become_pass=${ANSIBLE_BECOME_PASS}")
 fi
@@ -246,6 +279,8 @@ if ! "${cmd_parts[@]}" 2>&1 | tee -a "$LOGFILE_PATH" | tee "$output"; then
   rm -f "$output"
   exit 1
 fi
+
+record_successful_provision
 
 summary_max_bytes="${PROVISION_SUMMARY_MAX_BYTES:-65536}"
 output_bytes=$(wc -c < "$output" | tr -d ' ')
