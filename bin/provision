@@ -60,9 +60,7 @@ provision_marker() {
 }
 
 provision_has_run_before() {
-  local marker
-  marker="$(provision_marker)"
-  [[ -f "$marker" || -x "$HOME/.local/bin/mise" || -f "$HOME/.config/mise/config.toml" ]]
+  [[ -f "$(provision_marker)" ]]
 }
 
 record_successful_provision() {

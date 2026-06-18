@@ -87,6 +87,7 @@ After making changes, apply them with `bin/provision` when the environment allow
 - **Do it yourself**: If you can run a command such as `bin/provision` or `git commit`, do it directly instead of asking the user to run it.
 - **Always use worktrees**: Before making changes, create a git worktree using the `superpowers:using-git-worktrees` skill. Never work directly on the current branch.
 - **Always commit specs and plans**: Design specs and implementation plans must be committed under `docs/superpowers/` or `.coding-agent/`.
+- **Avoid compatibility inference for minor features**: For small quality-of-life behavior, prefer one explicit marker or setting over fallbacks, heuristics, or migration logic. Keep cleanup tasks when removing known-unwanted managed state, but do not add permanent backwards-compatibility detection unless data loss, security, or clear breakage is likely.
 
 ## Code Style
 - Ruby: Standard Ruby conventions, minimal comments

@@ -4,6 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+AGENTS="$REPO_ROOT/AGENTS.md"
 PLAYBOOK="$REPO_ROOT/playbook.yml"
 SETUP="$REPO_ROOT/bin/setup"
 PROVISION="$REPO_ROOT/bin/provision"
@@ -623,13 +624,15 @@ run_integration_checks() {
 }
 
 run_provision_checks() {
+  assert_contains "$AGENTS" "Avoid compatibility inference for minor features" "AGENTS discourages compatibility inference for minor features"
+  assert_contains "$AGENTS" "Keep cleanup tasks when removing known-unwanted managed state" "AGENTS preserves cleanup for unwanted managed state"
   assert_contains "$PROVISION" 'args_include_diff()' "provision wrapper detects explicit diff arguments"
   assert_contains "$PROVISION" '[[ "$arg" == "--diff" || "$arg" == "-D" ]]' "provision wrapper recognizes long and short diff flags"
   assert_contains "$PROVISION" 'provision_marker()' "provision wrapper defines a successful-run marker"
   assert_contains "$PROVISION" '${XDG_STATE_HOME:-$HOME/.local/state}/new-machine-bootstrap/provisioned' "provision wrapper stores marker under XDG state"
   assert_contains "$PROVISION" 'provision_has_run_before()' "provision wrapper distinguishes first and later runs"
-  assert_contains "$PROVISION" '$HOME/.local/bin/mise' "provision wrapper treats existing managed mise binary as already provisioned"
-  assert_contains "$PROVISION" '$HOME/.config/mise/config.toml' "provision wrapper treats existing managed mise config as already provisioned"
+  assert_not_contains "$PROVISION" '$HOME/.local/bin/mise' "provision wrapper does not infer prior runs from mise binary"
+  assert_not_contains "$PROVISION" '$HOME/.config/mise/config.toml' "provision wrapper does not infer prior runs from mise config"
   assert_contains "$PROVISION" 'cmd_parts+=("--diff")' "provision wrapper keeps diffs on for later default runs"
   assert_contains "$PROVISION" 'First provisioning run detected; skipping implicit Ansible diff' "provision wrapper skips implicit diffs on first run"
   assert_contains "$PROVISION" 'record_successful_provision' "provision wrapper records successful runs"
