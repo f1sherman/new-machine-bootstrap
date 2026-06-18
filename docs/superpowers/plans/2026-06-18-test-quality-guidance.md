@@ -85,7 +85,7 @@ git commit -m "Clarify meaningful test guidance"
 - Modify: `roles/common/files/config/skills/common/_validate-plan/SKILL.md`
 - Modify if needed: `roles/common/files/config/skills/common/_spec-to-pr/SKILL.md`
 
-- [ ] **Step 1: Inspect skill guidance**
+- [x] **Step 1: Inspect skill guidance**
 
 Run:
 
@@ -95,7 +95,7 @@ rg -n "test coverage|Tests pass|automated|verification|test" roles/common/files/
 
 Expected: `_validate-plan` contains test coverage and automated verification guidance; `_spec-to-pr` may only mention verification generically.
 
-- [ ] **Step 2: Update validation guidance**
+- [x] **Step 2: Update validation guidance**
 
 In `_validate-plan/SKILL.md`, revise the test coverage guidance so it says:
 
@@ -105,11 +105,11 @@ Check whether meaningful tests were added or modified as specified. A meaningful
 
 Keep the rest of the validation workflow intact.
 
-- [ ] **Step 3: Update spec-to-PR guidance only if needed**
+- [x] **Step 3: Update spec-to-PR guidance only if needed**
 
 If `_spec-to-pr/SKILL.md` contains language that broadly requires tests for all changes, replace it with the same meaningful-test standard. If it only says to verify work, leave it unchanged.
 
-- [ ] **Step 4: Verify no placeholder language**
+- [x] **Step 4: Verify no placeholder language**
 
 Run:
 
@@ -119,7 +119,7 @@ rg -n "appropriate tests|write tests for|test coverage" roles/common/files/confi
 
 Expected: no new placeholder-style guidance; remaining `test coverage` wording must be tied to meaningful tests.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 Run:
 
