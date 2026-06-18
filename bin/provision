@@ -248,9 +248,15 @@ if ! "${cmd_parts[@]}" 2>&1 | tee -a "$LOGFILE_PATH" | tee "$output"; then
   exit 1
 fi
 
-output_content=$(cat "$output")
-parse_and_print_changes "$output_content"
-parse_and_print_deprecation_warnings "$output_content"
+summary_max_bytes="${PROVISION_SUMMARY_MAX_BYTES:-65536}"
+output_bytes=$(wc -c < "$output" | tr -d ' ')
+if [[ "$summary_max_bytes" =~ ^[0-9]+$ ]] && [[ "$output_bytes" -le "$summary_max_bytes" ]]; then
+  output_content=$(cat "$output")
+  parse_and_print_changes "$output_content"
+  parse_and_print_deprecation_warnings "$output_content"
+else
+  log_info "Skipping parsed change summary for ${output_bytes}-byte Ansible output (limit: ${summary_max_bytes} bytes)."
+fi
 rm -f "$output"
 
 elapsed=$(($(date +%s) - PROVISIONING_START))
