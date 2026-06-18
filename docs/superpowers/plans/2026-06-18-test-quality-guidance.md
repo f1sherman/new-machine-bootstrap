@@ -219,7 +219,7 @@ memento context "tautological tests meaningful behavior tests reviewer guidance"
 
 Expected: either relevant entries are reviewed and annotated if needed, or the command failure is reported in the final answer.
 
-- [ ] **Step 4: Open pull requests**
+- [x] **Step 4: Open pull requests**
 
 Run PR creation from each worktree after verification passes:
 
