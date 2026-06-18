@@ -230,7 +230,6 @@ cmd_parts=("ansible-playbook")
 cmd_parts+=("--inventory" "localhost,")
 cmd_parts+=("--connection" "local")
 cmd_parts+=("playbook.yml")
-cmd_parts+=("--diff")
 if [[ -n "${ANSIBLE_BECOME_PASS:-}" ]]; then
   cmd_parts+=("--extra-vars" "ansible_become_pass=${ANSIBLE_BECOME_PASS}")
 fi
