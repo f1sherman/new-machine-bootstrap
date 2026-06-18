@@ -7,6 +7,7 @@ BIN_DIR="$REPO_ROOT/roles/common/files/bin"
 PANE_LABEL="$BIN_DIR/tmux-pane-label"
 AGENT_WORKTREE="$BIN_DIR/tmux-agent-worktree"
 WINDOW_LABEL="$BIN_DIR/tmux-window-label"
+PANE_LINK="$BIN_DIR/tmux-pane-link"
 
 TMPROOT="$(mktemp -d)"
 trap 'rm -rf "$TMPROOT"' EXIT
@@ -63,6 +64,19 @@ assert_no_file() {
   pass_case "$name"
 }
 
+assert_link_before_label() {
+  local file="$1" name="$2" line before link_idx label_idx
+  line="$(grep -F 'set -g pane-border-format' "$file")" || fail_case "$name" "no pane-border-format in $file"
+  before="${line%%@pane-link*}"
+  link_idx=${#before}
+  before="${line%%@pane-label*}"
+  label_idx=${#before}
+  if [ "$link_idx" -ge "$label_idx" ]; then
+    fail_case "$name" "@pane-link ($link_idx) is not before @pane-label ($label_idx) in $file"
+  fi
+  pass_case "$name"
+}
+
 create_repo() {
   local name="$1" repo
   repo="$TMPROOT/$name"
@@ -109,6 +123,14 @@ write_pr_status_cache() {
     '{schema_version:$schema_version,platform:$platform,repo_root:$repo_root,git_common_dir:$git_common_dir,remote_url:$remote_url,branch:$branch,head_sha:$head_sha,pr_number:$pr_number,display_ref:$display_ref,html_url:$html_url,state:$state,source:$source,updated_at_epoch:$updated_at_epoch,expires_at_epoch:$expires_at_epoch}' \
     > "$cache_dir/$key.json"
 }
+
+pane_link_state_dir="$TMPROOT/state-pane-link"
+mkdir -p "$pane_link_state_dir"
+direct_url="https://github.com/org/repo/pull/7"
+TMUX=1 \
+TMUX_AGENT_WORKTREE_STATE_DIR="$pane_link_state_dir" \
+  "$PANE_LINK" --pane %20 "$direct_url"
+assert_equals "$(cat "$pane_link_state_dir/%20.@pane-link")" "$direct_url" "tmux-pane-link stores bare URL with no label"
 
 plain_path="$TMPROOT/plain-dir"
 mkdir -p "$plain_path"
@@ -181,7 +203,7 @@ HOME="$cache_home" \
 PATH="$stub_bin:$BIN_DIR:$PATH" \
   "$AGENT_WORKTREE" set "$repo_path"
 
-assert_file_contains "$cache_state_dir/%10.@pane-link" "fj##42 $pr_url" "repo-start tmux writer publishes cached PR URL"
+assert_equals "$(cat "$cache_state_dir/%10.@pane-link")" "$pr_url" "repo-start tmux writer publishes bare cached PR URL"
 assert_file_contains "$cache_state_dir/%10.@pane-link-source" "pr-status-cache" "repo-start tmux writer marks cached PR URL source"
 
 manual_link_state_dir="$TMPROOT/state-manual-link"
@@ -415,5 +437,8 @@ bash_profile_template="$REPO_ROOT/roles/macos/templates/dotfiles/bash_profile"
 bash_repo_end_wrapper="$TMPROOT/repo-end-wrapper.bash"
 awk '/^repo-end\(\)/,/^}/' "$bash_profile_template" > "$bash_repo_end_wrapper"
 assert_file_not_contains "$bash_repo_end_wrapper" "worktree_sync_tmux_state" "repo-end bash wrapper leaves completed tmux label intact"
+
+assert_link_before_label "$REPO_ROOT/roles/macos/templates/dotfiles/tmux.conf" "macOS pane border renders PR link before label"
+assert_link_before_label "$REPO_ROOT/roles/linux/files/dotfiles/tmux.conf" "Linux pane border renders PR link before label"
 
 printf 'tmux label contract checks complete\n'

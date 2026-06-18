@@ -264,15 +264,14 @@ cached_pr_pane_link_for_path() {
       | (.html_url // "") as $html_url
       | select($display_ref | test("^(gh|fj)#[0-9]+$"))
       | select($html_url | test("^[Hh][Tt][Tt][Pp][Ss]?://"))
-      | [$display_ref, $html_url]
-      | @tsv
+      | $html_url
     ' "$cache_file" 2>/dev/null
 }
 
 publish_cached_pr_pane_link_for_path() {
   local pane_id="$1"
   local path="$2"
-  local link display_ref url source
+  local link url source
 
   link="$(cached_pr_pane_link_for_path "$path" 2>/dev/null || true)"
   if [ -z "$link" ] || ! command -v tmux-pane-link >/dev/null 2>&1; then
@@ -284,10 +283,8 @@ publish_cached_pr_pane_link_for_path() {
     return 0
   fi
 
-  IFS=$'\t' read -r display_ref url <<EOF
-$link
-EOF
-  if [ -z "$display_ref" ] || [ -z "$url" ]; then
+  url="$link"
+  if [ -z "$url" ]; then
     source="$(read_pane_option "$pane_id" "@pane-link-source" 2>/dev/null || true)"
     if [ "$source" = "pr-status-cache" ]; then
       clear_pane_option "$pane_id" "@pane-link"
@@ -296,7 +293,7 @@ EOF
     return 0
   fi
 
-  if tmux-pane-link --pane "$pane_id" "$display_ref" "$url" >/dev/null 2>&1; then
+  if tmux-pane-link --pane "$pane_id" "$url" >/dev/null 2>&1; then
     write_pane_option "$pane_id" "@pane-link-source" "pr-status-cache"
   else
     source="$(read_pane_option "$pane_id" "@pane-link-source" 2>/dev/null || true)"

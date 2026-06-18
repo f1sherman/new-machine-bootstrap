@@ -48,23 +48,17 @@ assert_no_file() {
 
 # Test cases get added below by subsequent tasks.
 
-# Case: set with valid https URL writes "label url" to @pane-link
+# Case: set with https writes bare URL to @pane-link
 state_dir="$TMPROOT/state-https"
 TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-  "$PANE_LINK" "GH1234" "https://example.com/pulls/1234"
-assert_file_contains \
-  "$state_dir/%1.@pane-link" \
-  'GH1234 https://example.com/pulls/1234' \
-  "set with https writes label + URL"
+  "$PANE_LINK" "https://example.com/pulls/1234"
+assert_equals "$(cat "$state_dir/%1.@pane-link")" "https://example.com/pulls/1234" "set with https writes bare URL"
 
 # Case: set with valid http URL also works
 state_dir="$TMPROOT/state-http"
 TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-  "$PANE_LINK" "x" "http://example.com"
-assert_file_contains \
-  "$state_dir/%1.@pane-link" \
-  'x http://example.com' \
-  "set with http writes label + URL"
+  "$PANE_LINK" "http://example.com"
+assert_equals "$(cat "$state_dir/%1.@pane-link")" "http://example.com" "set with http writes bare URL"
 
 # Case: --clear removes the @pane-link option
 state_dir="$TMPROOT/state-clear"
@@ -81,7 +75,7 @@ state_dir="$TMPROOT/state-direct-set-source"
 mkdir -p "$state_dir"
 printf 'pr-status-cache' > "$state_dir/%1.@pane-link-source"
 TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-  "$PANE_LINK" "manual" "https://example.com/manual"
+  "$PANE_LINK" "https://example.com/manual"
 assert_no_file "$state_dir/%1.@pane-link-source" "direct set removes PR-cache provenance"
 
 # Case: javascript: scheme rejected
@@ -89,7 +83,7 @@ state_dir="$TMPROOT/state-bad-js"
 mkdir -p "$state_dir"
 set +e
 TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-  "$PANE_LINK" "x" "javascript:alert(1)"
+  "$PANE_LINK" "javascript:alert(1)"
 rc=$?
 set -e
 assert_equals "$rc" "2" "javascript: URL exits 2"
@@ -100,7 +94,7 @@ state_dir="$TMPROOT/state-bad-file"
 mkdir -p "$state_dir"
 set +e
 TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-  "$PANE_LINK" "x" "file:///etc/passwd"
+  "$PANE_LINK" "file:///etc/passwd"
 rc=$?
 set -e
 assert_equals "$rc" "2" "file:// URL exits 2"
@@ -111,7 +105,7 @@ state_dir="$TMPROOT/state-bad-bare"
 mkdir -p "$state_dir"
 set +e
 TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-  "$PANE_LINK" "x" "example.com"
+  "$PANE_LINK" "example.com"
 rc=$?
 set -e
 assert_equals "$rc" "2" "scheme-less URL exits 2"
@@ -122,7 +116,7 @@ state_dir="$TMPROOT/state-bad-ctrl"
 mkdir -p "$state_dir"
 set +e
 TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-  "$PANE_LINK" "x" $'https://example.com/\x1b]8;;evil\x1b\\'
+  "$PANE_LINK" $'https://example.com/\x1b]8;;evil\x1b\\'
 rc=$?
 set -e
 assert_equals "$rc" "2" "URL with ESC byte exits 2"
@@ -133,7 +127,7 @@ state_dir="$TMPROOT/state-bad-bs"
 mkdir -p "$state_dir"
 set +e
 TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-  "$PANE_LINK" "x" 'https://example.com/\bad'
+  "$PANE_LINK" 'https://example.com/\bad'
 rc=$?
 set -e
 assert_equals "$rc" "2" "URL with backslash exits 2"
@@ -144,64 +138,32 @@ state_dir="$TMPROOT/state-bad-dq"
 mkdir -p "$state_dir"
 set +e
 TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-  "$PANE_LINK" "x" 'https://example.com/"injected'
+  "$PANE_LINK" 'https://example.com/"injected'
 rc=$?
 set -e
 assert_equals "$rc" "2" "URL with double-quote exits 2"
 assert_no_file "$state_dir/%1.@pane-link" "URL with double-quote writes nothing"
 
-# Case: # in LABEL is doubled to ## so tmux's format parser treats it as literal
-state_dir="$TMPROOT/state-hash"
-TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-  "$PANE_LINK" "GH#1234" "https://example.com"
-assert_file_contains \
-  "$state_dir/%1.@pane-link" \
-  'GH##1234 https://example.com' \
-  "# in LABEL is doubled in stored value"
-
-# Case: # in URL is doubled too (URLs with fragments must survive tmux's parser)
+# Case: # in URL is doubled (URLs with fragments must survive tmux's format parser)
 state_dir="$TMPROOT/state-url-hash"
 TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-  "$PANE_LINK" "x" "https://example.com/page#frag"
-assert_file_contains \
-  "$state_dir/%1.@pane-link" \
-  'x https://example.com/page##frag' \
-  "# in URL is doubled in stored value"
-
-# Case: LABEL longer than 64 chars is truncated to 63 chars + …
-state_dir="$TMPROOT/state-trunc"
-long="$(printf 'a%.0s' {1..100})"
-TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-  "$PANE_LINK" "$long" "https://example.com"
-content="$(cat "$state_dir/%1.@pane-link")"
-expected_label="$(printf 'a%.0s' {1..63})…"
-assert_file_contains \
-  "$state_dir/%1.@pane-link" \
-  "${expected_label} https://example.com" \
-  "long LABEL truncated to 63 chars + ellipsis"
-# Confirm the un-truncated 100-char run did NOT survive.
-if grep -Fq "$(printf 'a%.0s' {1..100})" "$state_dir/%1.@pane-link"; then
-  fail_case "long LABEL truncated to 63 chars + ellipsis" \
-    "found 100-char run in: $content"
-fi
+  "$PANE_LINK" "https://example.com/page#frag"
+assert_equals "$(cat "$state_dir/%1.@pane-link")" "https://example.com/page##frag" "# in URL is doubled in stored value"
 
 # Case: no $TMUX → exit 0, no write, even with otherwise-valid args
 state_dir="$TMPROOT/state-no-tmux"
 mkdir -p "$state_dir"
 ( unset TMUX; \
   TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-    "$PANE_LINK" "GH1" "https://example.com" )
+    "$PANE_LINK" "https://example.com" )
 assert_no_file "$state_dir/%1.@pane-link" "no \$TMUX writes nothing"
 
 # Case: --pane targets the specified pane id (without $TMUX_PANE)
 state_dir="$TMPROOT/state-pane-flag"
 ( unset TMUX_PANE; \
   TMUX=1 TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-    "$PANE_LINK" --pane "%9" "x" "https://example.com" )
-assert_file_contains \
-  "$state_dir/%9.@pane-link" \
-  'x https://example.com' \
-  "--pane targets the specified pane id"
+    "$PANE_LINK" --pane "%9" "https://example.com" )
+assert_equals "$(cat "$state_dir/%9.@pane-link")" "https://example.com" "--pane targets the specified pane id"
 
 # Case: --pane combines with --clear
 state_dir="$TMPROOT/state-pane-clear"
@@ -214,7 +176,7 @@ assert_no_file "$state_dir/%9.@pane-link" "--pane --clear removes from named pan
 # Case: tmux-agent-worktree clear (the path repo-end calls) also removes @pane-link.
 state_dir="$TMPROOT/state-aw-clear"
 TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
-  "$PANE_LINK" "GH1" "https://example.com"
+  "$PANE_LINK" "https://example.com"
 [ -f "$state_dir/%1.@pane-link" ] || \
   fail_case "tmux-agent-worktree clear removes @pane-link" "set did not write the option"
 
