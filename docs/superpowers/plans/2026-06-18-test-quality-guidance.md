@@ -135,7 +135,7 @@ If `_spec-to-pr/SKILL.md` was not changed, omit it from `git add`.
 **Files:**
 - Modify: `/Users/brian/projects/home-network-provisioning/tools/codex-pr-review/upstream_review_prompt.md`
 
-- [ ] **Step 1: Start or reuse an `hnp` feature worktree**
+- [x] **Step 1: Start or reuse an `hnp` feature worktree**
 
 Run from `/Users/brian/projects/home-network-provisioning`:
 
@@ -145,7 +145,7 @@ repo-start test-quality-reviewer-guidance
 
 Expected: prints a non-main worktree path. Use that path for all `hnp` edits. If `repo-start` reports an existing branch/worktree, use the printed path.
 
-- [ ] **Step 2: Add reviewer rubric guidance**
+- [x] **Step 2: Add reviewer rubric guidance**
 
 In `tools/codex-pr-review/upstream_review_prompt.md`, add this under the repository-specific `GUIDELINES:` list:
 
@@ -153,7 +153,7 @@ In `tools/codex-pr-review/upstream_review_prompt.md`, add this under the reposit
 - Treat newly added tautological tests as actionable maintainability bugs when they create false confidence or lock implementation text. Flag tests that only assert exact strings, config snippets, prose, install-list membership, or other implementation text when behavior could be verified by running the system or parsing generated structure. Do not demand tests for every change; if existing end-to-end checks or manual verification are more useful, accept that. Prefer findings that ask the author to delete unhelpful tests, replace them with behavior tests, or document manual verification. Do not flag pre-existing bad tests unless the PR adds to them or relies on them as proof.
 ```
 
-- [ ] **Step 3: Verify prompt text directly**
+- [x] **Step 3: Verify prompt text directly**
 
 Run in the `hnp` worktree:
 
@@ -163,7 +163,7 @@ rg -n "tautological tests|false confidence|manual verification|pre-existing bad 
 
 Expected: one guideline block contains all phrases.
 
-- [ ] **Step 4: Run narrow reviewer tests if prompt tests exist**
+- [x] **Step 4: Run narrow reviewer tests if prompt tests exist**
 
 Run in the `hnp` worktree:
 
@@ -173,7 +173,7 @@ ruby -Itest test/codex_pr_review_test.rb
 
 Expected: pass. If it fails only because an existing test asserts prompt text, update that test only if it verifies behavior or prompt assembly rather than exact wording.
 
-- [ ] **Step 5: Commit Task 3 in `hnp`**
+- [x] **Step 5: Commit Task 3 in `hnp`**
 
 Run in the `hnp` worktree:
 
