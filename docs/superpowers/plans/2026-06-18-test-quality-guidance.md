@@ -187,7 +187,7 @@ git commit -m "Guide reviewer away from tautological tests"
 **Files:**
 - Read: all modified files in both repos
 
-- [ ] **Step 1: Verify `nmb` guidance and status**
+- [x] **Step 1: Verify `nmb` guidance and status**
 
 Run in the `nmb` worktree:
 
@@ -198,7 +198,7 @@ git status --short
 
 Expected: guidance matches are present; status is clean.
 
-- [ ] **Step 2: Verify `hnp` reviewer guidance and status**
+- [x] **Step 2: Verify `hnp` reviewer guidance and status**
 
 Run in the `hnp` worktree:
 
@@ -209,7 +209,7 @@ git status --short
 
 Expected: reviewer prompt matches are present; status is clean.
 
-- [ ] **Step 3: Re-check memento for concrete terms**
+- [x] **Step 3: Re-check memento for concrete terms**
 
 Run in each repo:
 
