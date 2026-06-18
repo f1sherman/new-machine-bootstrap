@@ -89,27 +89,29 @@ How would you like to handle each?
 
 Follow-ups that get added to the current plan should be incorporated into the appropriate phase. Follow-ups deferred to separate plans should be left checked off in the Follow-ups section with a note like `(deferred to separate plan)`. Discarded items should be checked off with `(discarded)`.
 
-## Red/Green TDD Per Phase
+## Testing and Verification Per Phase
 
-Every phase uses red/green TDD. Even if the repo has no test suite, create tests — throwaway scripts are fine. Try to run as many tests yourself as possible; only ask the user to run tests you cannot (permissions, visual checks, physical devices).
+Use Red/Green TDD when the phase has a meaningful behavior test. A useful test fails for a plausible regression, survives harmless refactors, and asserts behavior, generated structure, or an external contract.
+
+Do not create tautological tests that only assert exact prose, YAML snippets, install-loop entries, docs wording, skill text, or command strings, except when the exact literal value is the user-facing behavior or compatibility contract. When no useful automated test exists, say so and use focused manual or end-to-end verification instead. Try to run as many verification steps yourself as possible; only ask the user to run checks you cannot (permissions, visual checks, physical devices).
 
 ### Before implementing a phase (Red):
 
-1. **Write or identify the tests** listed in the phase's Tests section
-2. **Run them and verify they fail in the expected way**:
+1. **Write or identify the meaningful tests** listed in the phase's Tests section, or document why no useful automated test exists
+2. **Run them and verify they fail in the expected way** when a red test is useful:
    - The failure should be because the feature isn't implemented yet, NOT because the test itself is broken
    - If a test fails for the wrong reason, fix the test first
-3. **Check off the "Red (pre-implementation)" checkbox** in the plan once confirmed
+3. **Check off the "Red (pre-implementation)" checkbox** in the plan once confirmed, or mark it not applicable with the manual/end-to-end verification you will use instead
 
 ### After implementing a phase (Green → Self-Review → Human Review loop):
 
-1. **Run the phase's tests**
-2. **If tests fail**: fix the implementation and re-run — do NOT proceed
+1. **Run the phase's meaningful tests or planned manual/end-to-end verification**
+2. **If tests or verification fail**: fix the implementation and re-run — do NOT proceed
 3. **Self-review your changes**:
    - Review all code written in this phase for quality, correctness, and consistency with codebase patterns
    - Check for edge cases, error handling, and any issues
-   - If self-review reveals problems, fix them and go back to step 1 (re-run tests)
-4. **Testing and self-review must both pass consecutively** — always re-run tests after fixing any self-review issue
+   - If self-review reveals problems, fix them and go back to step 1 (re-run verification)
+4. **Testing/verification and self-review must both pass consecutively** — always re-run verification after fixing any self-review issue
 5. **Once both pass consecutively**, check off the "Green" and "Self-Review" checkboxes
 6. **Present a phase summary to the user for human review**:
    ```
@@ -123,8 +125,8 @@ Every phase uses red/green TDD. Even if the repo has no test suite, create tests
    - [What broke and how it was fixed]
    - [What self-review caught and how it was addressed]
 
-   Tests passing:
-   - [List of test commands and results]
+   Verification passing:
+   - [List of test commands, manual checks, or end-to-end results]
 
    Ready to proceed to Phase [N+1]?
    ```
