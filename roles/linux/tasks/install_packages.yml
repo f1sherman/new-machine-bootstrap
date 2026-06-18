@@ -54,15 +54,22 @@
     state: absent
   become: yes
 
-- name: Install fzf
-  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
-  vars:
-    github_repo: junegunn/fzf
-    binary_name: fzf
-    pinned_release_tag: "{{ tool_versions.github_releases.fzf }}"
-    asset_pattern: "fzf-{version}-linux_{arch}.tar.gz"
-    install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
-    download_type: tarball
+- name: Install pinned GitHub release binaries in parallel
+  shell: bash '{{ playbook_dir }}/roles/linux/files/install-pinned-github-binaries'
+  args:
+    executable: /bin/bash
+  environment:
+    NMB_HOME_DIR: '{{ ansible_facts["user_dir"] }}'
+    NMB_ARCHITECTURE: '{{ ansible_facts["architecture"] }}'
+    NMB_FZF_VERSION: '{{ tool_versions.github_releases.fzf }}'
+    NMB_RIPGREP_VERSION: '{{ tool_versions.github_releases.ripgrep }}'
+    NMB_DELTA_VERSION: '{{ tool_versions.github_releases.delta }}'
+    NMB_TMUX_VERSION: '{{ tool_versions.github_releases.tmux }}'
+    NMB_NEOVIM_VERSION: '{{ tool_versions.github_releases.neovim }}'
+    NMB_YQ_VERSION: '{{ tool_versions.github_releases.yq }}'
+    NMB_ZOXIDE_VERSION: '{{ tool_versions.github_releases.zoxide }}'
+  register: linux_github_release_binary_install
+  changed_when: linux_github_release_binary_install.stdout_lines[-1] | default('') == 'changed'
 
 - name: Clone fzf repo for shell integration files
   git:
@@ -91,49 +98,6 @@
     state: directory
     mode: 0755
 
-- name: Install rg
-  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
-  vars:
-    github_repo: BurntSushi/ripgrep
-    binary_name: rg
-    pinned_release_tag: "{{ tool_versions.github_releases.ripgrep }}"
-    asset_pattern: "ripgrep_{version}-1_{arch}.deb"
-    install_dest: /usr/bin/rg
-    download_type: deb
-    arch_map:
-      x86_64: amd64
-
-- name: Install delta
-  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
-  vars:
-    github_repo: dandavison/delta
-    binary_name: delta
-    pinned_release_tag: "{{ tool_versions.github_releases.delta }}"
-    asset_pattern: "delta-{version}-{arch}-unknown-linux-gnu.tar.gz"
-    install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
-    download_type: tarball
-    tarball_extra_args:
-      - --strip-components=1
-      - --wildcards
-      - '*/delta'
-    arch_map:
-      x86_64: x86_64
-      aarch64: aarch64
-      arm64: aarch64
-
-- name: Install tmux
-  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
-  vars:
-    github_repo: tmux/tmux-builds
-    binary_name: tmux
-    pinned_release_tag: "{{ tool_versions.github_releases.tmux }}"
-    asset_pattern: "tmux-{version}-linux-{arch}.tar.gz"
-    install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
-    download_type: tarball
-    arch_map:
-      x86_64: x86_64
-      aarch64: arm64
-
 - name: Create tmux symlink in /usr/local/bin
   file:
     src: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux'
@@ -146,48 +110,6 @@
     name: neovim
     state: absent
   become: yes
-
-- name: Install nvim
-  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
-  vars:
-    github_repo: neovim/neovim
-    binary_name: nvim
-    pinned_release_tag: "{{ tool_versions.github_releases.neovim }}"
-    asset_pattern: "nvim-linux-{arch}.tar.gz"
-    install_dest: '{{ ansible_facts["user_dir"] }}/.local'
-    download_type: tarball
-    tarball_extra_args:
-      - --strip-components=1
-    arch_map:
-      x86_64: x86_64
-      aarch64: arm64
-      arm64: arm64
-
-- name: Install yq
-  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
-  vars:
-    github_repo: mikefarah/yq
-    binary_name: yq
-    pinned_release_tag: "{{ tool_versions.github_releases.yq }}"
-    asset_pattern: "yq_linux_{arch}"
-    install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin/yq'
-
-- name: Install zoxide
-  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
-  vars:
-    github_repo: ajeetdsouza/zoxide
-    binary_name: zoxide
-    pinned_release_tag: "{{ tool_versions.github_releases.zoxide }}"
-    asset_pattern: "zoxide-{version}-{arch}-unknown-linux-musl.tar.gz"
-    install_dest: '{{ ansible_facts["user_dir"] }}/.local/bin'
-    download_type: tarball
-    tarball_extra_args:
-      - --wildcards
-      - 'zoxide'
-    arch_map:
-      x86_64: x86_64
-      aarch64: aarch64
-      arm64: aarch64
 
 - name: Check for existing mise binary
   shell: |

@@ -1,0 +1,216 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+home_dir="${NMB_HOME_DIR:?}"
+architecture="${NMB_ARCHITECTURE:?}"
+manifest="${NMB_GITHUB_RELEASE_MANIFEST:-$home_dir/.local/share/github-releases.json}"
+local_bin="$home_dir/.local/bin"
+status_dir="$(mktemp -d)"
+download_dir="$(mktemp -d)"
+
+cleanup() {
+  rm -rf "$status_dir" "$download_dir"
+}
+trap cleanup EXIT
+
+mkdir -p "$local_bin" "$(dirname "$manifest")"
+if [ ! -f "$manifest" ]; then
+  printf '{}\n' > "$manifest"
+fi
+
+version_without_v() {
+  printf '%s\n' "${1#v}"
+}
+
+manifest_version() {
+  jq -r --arg name "$1" '.[$name] // ""' "$manifest"
+}
+
+record_status() {
+  local name="$1" version="$2" status="$3"
+  printf '%s\t%s\n' "$status" "$version" > "$status_dir/$name"
+}
+
+download() {
+  local url="$1" dest="$2"
+  curl -fsSL --retry 3 --retry-delay 10 "$url" -o "$dest"
+}
+
+install_binary() {
+  local name="$1" tag="$2" url="$3" dest="$4"
+  local version
+  version="$(version_without_v "$tag")"
+
+  if [ "$(manifest_version "$name")" = "$version" ] && [ -x "$dest" ]; then
+    record_status "$name" "$version" unchanged
+    return
+  fi
+
+  download "$url" "$dest"
+  chmod 0755 "$dest"
+  record_status "$name" "$version" changed
+}
+
+install_tarball() {
+  local name="$1" tag="$2" url="$3" dest_dir="$4" binary_path="$5"
+  shift 5
+  local version archive
+  version="$(version_without_v "$tag")"
+
+  if [ "$(manifest_version "$name")" = "$version" ] && [ -x "$binary_path" ]; then
+    record_status "$name" "$version" unchanged
+    return
+  fi
+
+  mkdir -p "$dest_dir"
+  archive="$download_dir/$name.tar.gz"
+  download "$url" "$archive"
+  tar -xzf "$archive" -C "$dest_dir" "$@"
+  chmod 0755 "$binary_path"
+  record_status "$name" "$version" changed
+}
+
+install_deb() {
+  local name="$1" tag="$2" url="$3" binary_path="$4"
+  local version deb depcheck
+  version="$(version_without_v "$tag")"
+
+  if [ "$(manifest_version "$name")" = "$version" ] && [ -x "$binary_path" ]; then
+    record_status "$name" "$version" unchanged
+    return
+  fi
+
+  deb="$download_dir/$name.deb"
+  download "$url" "$deb"
+
+  depcheck="$(
+    dpkg-deb -f "$deb" Depends | tr ',' '\n' | while read -r dep; do
+      dep="$(echo "$dep" | xargs)"
+      [ -n "$dep" ] || continue
+      pkg="$(echo "$dep" | awk '{print $1}')"
+      ver_constraint="$(echo "$dep" | grep -oP '\(>=\s*\K[^)]+' || true)"
+      if [ -n "$ver_constraint" ]; then
+        installed="$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null || echo 0)"
+        if ! dpkg --compare-versions "$installed" '>=' "$ver_constraint"; then
+          printf '%s >= %s required (have: %s)\n' "$pkg" "$ver_constraint" "$installed"
+          exit 1
+        fi
+      fi
+    done
+  )" || {
+    printf 'Skipping %s v%s: dependencies not satisfiable: %s\n' "$name" "$version" "$depcheck" >&2
+    record_status "$name" "$version" unchanged
+    return
+  }
+
+  sudo apt-get install -y "$deb"
+  record_status "$name" "$version" changed
+}
+
+arch_for() {
+  local name="$1"
+  case "$name:$architecture" in
+    fzf:x86_64|rg:x86_64|yq:x86_64) printf 'amd64\n' ;;
+    fzf:aarch64|fzf:arm64|yq:aarch64|yq:arm64) printf 'arm64\n' ;;
+    rg:aarch64|rg:arm64) printf 'arm64\n' ;;
+    delta:x86_64|tmux:x86_64|nvim:x86_64|zoxide:x86_64) printf 'x86_64\n' ;;
+    delta:aarch64|delta:arm64|zoxide:aarch64|zoxide:arm64) printf 'aarch64\n' ;;
+    tmux:aarch64|tmux:arm64|nvim:aarch64|nvim:arm64) printf 'arm64\n' ;;
+    *) printf 'Unsupported architecture %s for %s\n' "$architecture" "$name" >&2; return 1 ;;
+  esac
+}
+
+install_fzf() {
+  local tag="${NMB_FZF_VERSION:?}" version arch url
+  version="$(version_without_v "$tag")"
+  arch="$(arch_for fzf)"
+  url="https://github.com/junegunn/fzf/releases/download/$tag/fzf-$version-linux_$arch.tar.gz"
+  install_tarball fzf "$tag" "$url" "$local_bin" "$local_bin/fzf" fzf
+}
+
+install_rg() {
+  local tag="${NMB_RIPGREP_VERSION:?}" version arch url
+  version="$(version_without_v "$tag")"
+  arch="$(arch_for rg)"
+  url="https://github.com/BurntSushi/ripgrep/releases/download/$tag/ripgrep_${version}-1_${arch}.deb"
+  install_deb rg "$tag" "$url" /usr/bin/rg
+}
+
+install_delta() {
+  local tag="${NMB_DELTA_VERSION:?}" version arch url
+  version="$(version_without_v "$tag")"
+  arch="$(arch_for delta)"
+  url="https://github.com/dandavison/delta/releases/download/$tag/delta-$version-$arch-unknown-linux-gnu.tar.gz"
+  install_tarball delta "$tag" "$url" "$local_bin" "$local_bin/delta" --strip-components=1 --wildcards '*/delta'
+}
+
+install_tmux() {
+  local tag="${NMB_TMUX_VERSION:?}" version arch url
+  version="$(version_without_v "$tag")"
+  arch="$(arch_for tmux)"
+  url="https://github.com/tmux/tmux-builds/releases/download/$tag/tmux-$version-linux-$arch.tar.gz"
+  install_tarball tmux "$tag" "$url" "$local_bin" "$local_bin/tmux" tmux
+}
+
+install_nvim() {
+  local tag="${NMB_NEOVIM_VERSION:?}" arch url
+  arch="$(arch_for nvim)"
+  url="https://github.com/neovim/neovim/releases/download/$tag/nvim-linux-$arch.tar.gz"
+  install_tarball nvim "$tag" "$url" "$home_dir/.local" "$local_bin/nvim" --strip-components=1
+}
+
+install_yq() {
+  local tag="${NMB_YQ_VERSION:?}" arch url
+  arch="$(arch_for yq)"
+  url="https://github.com/mikefarah/yq/releases/download/$tag/yq_linux_$arch"
+  install_binary yq "$tag" "$url" "$local_bin/yq"
+}
+
+install_zoxide() {
+  local tag="${NMB_ZOXIDE_VERSION:?}" version arch url
+  version="$(version_without_v "$tag")"
+  arch="$(arch_for zoxide)"
+  url="https://github.com/ajeetdsouza/zoxide/releases/download/$tag/zoxide-$version-$arch-unknown-linux-musl.tar.gz"
+  install_tarball zoxide "$tag" "$url" "$local_bin" "$local_bin/zoxide" --wildcards zoxide
+}
+
+pids=()
+for installer in install_fzf install_rg install_delta install_tmux install_nvim install_yq install_zoxide; do
+  "$installer" &
+  pids+=("$!")
+done
+
+failed=false
+for pid in "${pids[@]}"; do
+  if ! wait "$pid"; then
+    failed=true
+  fi
+done
+
+if [ "$failed" = true ]; then
+  exit 1
+fi
+
+manifest_tmp="$(mktemp)"
+cp "$manifest" "$manifest_tmp"
+changed=false
+for status_file in "$status_dir"/*; do
+  [ -e "$status_file" ] || continue
+  name="$(basename "$status_file")"
+  status="$(awk '{print $1}' "$status_file")"
+  version="$(awk '{print $2}' "$status_file")"
+  if [ "$status" = changed ]; then
+    changed=true
+    next_manifest="$(mktemp)"
+    jq --arg name "$name" --arg version "$version" '. + {($name): $version}' "$manifest_tmp" > "$next_manifest"
+    mv "$next_manifest" "$manifest_tmp"
+  fi
+done
+mv "$manifest_tmp" "$manifest"
+chmod 0644 "$manifest"
+
+if [ "$changed" = true ]; then
+  echo changed
+else
+  echo unchanged
+fi
