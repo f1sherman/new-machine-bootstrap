@@ -540,6 +540,80 @@ git -C "$prune_repo" add prune-squashed.txt
 git -C "$prune_repo" commit -q -m "main squashed equivalent"
 git -C "$prune_repo" push -q origin main
 
+git -C "$prune_repo" checkout -q -b feature/prune-split-rewrite main
+printf 'alpha\nbeta\ngamma\n' >"$prune_repo/prune-split-rewrite.txt"
+git -C "$prune_repo" add prune-split-rewrite.txt
+git -C "$prune_repo" commit -q -m "branch split rewrite one"
+printf 'alpha\nBETA\ngamma\n' >"$prune_repo/prune-split-rewrite.txt"
+git -C "$prune_repo" add prune-split-rewrite.txt
+git -C "$prune_repo" commit -q -m "branch split rewrite two"
+git -C "$prune_repo" checkout -q main
+printf 'alpha\nbeta\ngamma\n' >"$prune_repo/prune-split-rewrite.txt"
+git -C "$prune_repo" add prune-split-rewrite.txt
+git -C "$prune_repo" commit -q -m "main split rewrite one"
+printf 'alpha\nBETA\ngamma\n' >"$prune_repo/prune-split-rewrite.txt"
+git -C "$prune_repo" add prune-split-rewrite.txt
+git -C "$prune_repo" commit -q -m "main split rewrite two"
+printf 'ALPHA\nBETA\ngamma\n' >"$prune_repo/prune-split-rewrite.txt"
+git -C "$prune_repo" add prune-split-rewrite.txt
+git -C "$prune_repo" commit -q -m "main split rewrite extra"
+git -C "$prune_repo" checkout -q -b feature/prune-split-reverted main
+printf 'one\ntwo\n' >"$prune_repo/prune-split-reverted.txt"
+git -C "$prune_repo" add prune-split-reverted.txt
+git -C "$prune_repo" commit -q -m "branch split reverted one"
+printf 'one\nTWO\n' >"$prune_repo/prune-split-reverted.txt"
+git -C "$prune_repo" add prune-split-reverted.txt
+git -C "$prune_repo" commit -q -m "branch split reverted two"
+git -C "$prune_repo" checkout -q main
+printf 'one\ntwo\n' >"$prune_repo/prune-split-reverted.txt"
+git -C "$prune_repo" add prune-split-reverted.txt
+git -C "$prune_repo" commit -q -m "main split reverted one"
+printf 'one\nTWO\n' >"$prune_repo/prune-split-reverted.txt"
+git -C "$prune_repo" add prune-split-reverted.txt
+git -C "$prune_repo" commit -q -m "main split reverted two"
+git -C "$prune_repo" revert --no-edit --no-commit HEAD HEAD~1
+git -C "$prune_repo" commit -q -m "main split reverted aggregate"
+git -C "$prune_repo" checkout -q -b feature/prune-split-reapplied main
+printf 'red\nblue\n' >"$prune_repo/prune-split-reapplied.txt"
+git -C "$prune_repo" add prune-split-reapplied.txt
+git -C "$prune_repo" commit -q -m "branch split reapplied one"
+printf 'red\nBLUE\n' >"$prune_repo/prune-split-reapplied.txt"
+git -C "$prune_repo" add prune-split-reapplied.txt
+git -C "$prune_repo" commit -q -m "branch split reapplied two"
+git -C "$prune_repo" checkout -q main
+printf 'red\nblue\n' >"$prune_repo/prune-split-reapplied.txt"
+git -C "$prune_repo" add prune-split-reapplied.txt
+git -C "$prune_repo" commit -q -m "main split reapplied one"
+printf 'red\nBLUE\n' >"$prune_repo/prune-split-reapplied.txt"
+git -C "$prune_repo" add prune-split-reapplied.txt
+git -C "$prune_repo" commit -q -m "main split reapplied two"
+git -C "$prune_repo" revert --no-edit --no-commit HEAD HEAD~1
+git -C "$prune_repo" commit -q -m "main split reapplied aggregate revert"
+printf 'red\nblue\n' >"$prune_repo/prune-split-reapplied.txt"
+git -C "$prune_repo" add prune-split-reapplied.txt
+git -C "$prune_repo" commit -q -m "main split reapplied one again"
+printf 'red\nBLUE\n' >"$prune_repo/prune-split-reapplied.txt"
+git -C "$prune_repo" add prune-split-reapplied.txt
+git -C "$prune_repo" commit -q -m "main split reapplied two again"
+printf 'RED\nBLUE\n' >"$prune_repo/prune-split-reapplied.txt"
+git -C "$prune_repo" add prune-split-reapplied.txt
+git -C "$prune_repo" commit -q -m "main split reapplied extra"
+git -C "$prune_repo" push -q origin main
+git -C "$prune_repo" checkout -q -b feature/prune-reapplied main
+printf 'reapplied\n' >"$prune_repo/prune-reapplied.txt"
+git -C "$prune_repo" add prune-reapplied.txt
+git -C "$prune_repo" commit -q -m "branch reapplied"
+git -C "$prune_repo" checkout -q main
+printf 'reapplied\n' >"$prune_repo/prune-reapplied.txt"
+git -C "$prune_repo" add prune-reapplied.txt
+git -C "$prune_repo" commit -q -m "main reapplied one"
+git -C "$prune_repo" revert --no-edit HEAD >/dev/null
+printf 'reapplied\n' >"$prune_repo/prune-reapplied.txt"
+git -C "$prune_repo" add prune-reapplied.txt
+git -C "$prune_repo" commit -q -m "main reapplied again"
+git -C "$prune_repo" push -q origin main
+git -C "$prune_repo" push -q origin main
+
 git -C "$prune_repo" checkout -q -b feature/prune-unmerged main
 commit_file "$prune_repo" prune-unmerged.txt "unmerged" "unmerged change"
 
@@ -567,13 +641,36 @@ if git -C "$prune_repo" show-ref --verify --quiet refs/heads/feature/prune-squas
 fi
 pass_case "repo-end prunes squash-merged branch"
 
+if git -C "$prune_repo" show-ref --verify --quiet refs/heads/feature/prune-reapplied; then
+  fail_case "repo-end prunes reapplied branch" "feature/prune-reapplied still exists"
+fi
+pass_case "repo-end prunes reapplied branch"
+
+if git -C "$prune_repo" show-ref --verify --quiet refs/heads/feature/prune-split-rewrite; then
+  fail_case "repo-end prunes split rewrite-merged branch" "feature/prune-split-rewrite still exists"
+fi
+pass_case "repo-end prunes split rewrite-merged branch"
+
+if git -C "$prune_repo" show-ref --verify --quiet refs/heads/feature/prune-split-reapplied; then
+  fail_case "repo-end prunes reapplied split branch" "feature/prune-split-reapplied still exists"
+fi
+pass_case "repo-end prunes reapplied split branch"
+
 if ! git -C "$prune_repo" show-ref --verify --quiet refs/heads/feature/prune-unmerged; then
   fail_case "repo-end keeps unmerged branch" "feature/prune-unmerged was deleted"
 fi
 pass_case "repo-end keeps unmerged branch"
 
+if ! git -C "$prune_repo" show-ref --verify --quiet refs/heads/feature/prune-split-reverted; then
+  fail_case "repo-end keeps aggregate-reverted split branch" "feature/prune-split-reverted was deleted"
+fi
+pass_case "repo-end keeps aggregate-reverted split branch"
+
 assert_file_contains "$prune_err" "Pruned merged local branch: feature/prune-ancestor" "repo-end announces pruned ancestor branch"
 assert_file_contains "$prune_err" "Pruned merged local branch: feature/prune-squashed" "repo-end announces pruned squash-merged branch"
+assert_file_contains "$prune_err" "Pruned merged local branch: feature/prune-reapplied" "repo-end announces pruned reapplied branch"
+assert_file_contains "$prune_err" "Pruned merged local branch: feature/prune-split-rewrite" "repo-end announces pruned split rewrite branch"
+assert_file_contains "$prune_err" "Pruned merged local branch: feature/prune-split-reapplied" "repo-end announces pruned reapplied split branch"
 
 create_remote_repo end-recovery
 recovery_repo="$CREATED_REPO"

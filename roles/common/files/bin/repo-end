@@ -227,8 +227,8 @@ already_merged() {
   # effect is already present. Reverted historical patches fail this check.
   local merge_tree main_tree
   if merge_tree="$("$git_cmd" -C "$work_dir" merge-tree --write-tree "origin/${main_branch}" "$ref" 2>/dev/null)"; then
-    [[ -n "$merge_tree" ]] || return 1
     main_tree="$("$git_cmd" -C "$work_dir" rev-parse "origin/${main_branch}^{tree}" 2>/dev/null || true)"
+    [[ -n "$merge_tree" ]] || return 1
     [[ -n "$main_tree" && "$merge_tree" == "$main_tree" ]]
     return $?
   fi
@@ -261,7 +261,93 @@ squash_patch_previously_applied() {
     fi
   done < <("$git_cmd" -C "$work_dir" rev-list --reverse "${base}..origin/${main_branch}")
 
-  [[ "$matched" == "true" ]]
+  if [[ "$matched" == "true" ]]; then
+    return 0
+  fi
+
+  split_patch_previously_applied "$git_cmd" "$work_dir" "$base" "$ref"
+}
+
+split_patch_previously_applied() {
+  local git_cmd="$1"
+  local work_dir="$2"
+  local base="$3"
+  local ref="$4"
+  local main_commits=() main_patches=() branch_patches=() branch_reverse_patches=() main_commit branch_commit
+  local patch reverse_patch branch_reverse_patch search_from sequence_from match_index i j candidate_reversed sequence_reversed sequence_ok
+
+  while IFS= read -r main_commit; do
+    main_commits+=("$main_commit")
+  done < <("$git_cmd" -C "$work_dir" rev-list --reverse "${base}..origin/${main_branch}")
+  [[ "${#main_commits[@]}" -gt 0 ]] || return 1
+
+  for main_commit in "${main_commits[@]}"; do
+    main_patches+=("$("$git_cmd" -C "$work_dir" show --pretty=format: "$main_commit" | "$git_cmd" -C "$work_dir" patch-id --stable | awk 'NR == 1 {print $1}')")
+  done
+
+  branch_reverse_patch="$("$git_cmd" -C "$work_dir" diff "$ref" "$base" | "$git_cmd" -C "$work_dir" patch-id --stable | awk 'NR == 1 {print $1}')"
+  [[ -n "$branch_reverse_patch" ]] || return 1
+
+  while IFS= read -r branch_commit; do
+    patch="$("$git_cmd" -C "$work_dir" show --pretty=format: "$branch_commit" | "$git_cmd" -C "$work_dir" patch-id --stable | awk 'NR == 1 {print $1}')"
+    [[ -n "$patch" ]] || continue
+    reverse_patch="$("$git_cmd" -C "$work_dir" diff "$branch_commit" "${branch_commit}^" | "$git_cmd" -C "$work_dir" patch-id --stable | awk 'NR == 1 {print $1}')"
+    [[ -n "$reverse_patch" ]] || return 1
+    branch_patches+=("$patch")
+    branch_reverse_patches+=("$reverse_patch")
+  done < <("$git_cmd" -C "$work_dir" rev-list --reverse "${base}..${ref}")
+  [[ "${#branch_patches[@]}" -gt 0 ]] || return 1
+
+  search_from=0
+  while [[ "$search_from" -lt "${#main_patches[@]}" ]]; do
+    sequence_from="$search_from"
+    sequence_ok=true
+
+    for ((i = 0; i < ${#branch_patches[@]}; i++)); do
+      patch="${branch_patches[$i]}"
+      reverse_patch="${branch_reverse_patches[$i]}"
+      match_index=-1
+
+      for ((j = sequence_from; j < ${#main_patches[@]}; j++)); do
+        [[ "${main_patches[$j]}" == "$patch" ]] || continue
+
+        candidate_reversed=false
+        for ((match_index = j + 1; match_index < ${#main_patches[@]}; match_index++)); do
+          [[ "${main_patches[$match_index]}" == "$patch" ]] && break
+          if [[ "${main_patches[$match_index]}" == "$reverse_patch" ]]; then
+            candidate_reversed=true
+            break
+          fi
+        done
+        [[ "$candidate_reversed" == "true" ]] && continue
+
+        match_index="$j"
+        break
+      done
+
+      if [[ "$match_index" -lt 0 ]]; then
+        sequence_ok=false
+        break
+      fi
+      sequence_from=$((match_index + 1))
+    done
+
+    [[ "$sequence_ok" == "true" ]] || return 1
+
+    sequence_reversed=false
+    for ((i = sequence_from; i < ${#main_patches[@]}; i++)); do
+      if [[ "${main_patches[$i]}" == "$branch_reverse_patch" ]]; then
+        search_from=$((i + 1))
+        sequence_reversed=true
+        break
+      fi
+    done
+    [[ "$sequence_reversed" == "true" ]] && continue
+
+    return 0
+  done
+
+  return 1
 }
 
 prune_merged_local_branches() {
