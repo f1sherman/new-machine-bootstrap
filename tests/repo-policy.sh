@@ -531,7 +531,7 @@ run_install_checks() {
   assert_not_contains "$CODEX_WORKTREE_HOOK" "worktree-delete" "raw worktree hook stops naming worktree-delete"
   assert_not_contains "$CODEX_WORKTREE_HOOK" "worktree-done" "raw worktree hook stops naming worktree-done"
   assert_contains "$TMUX_AGENT_WORKTREE" 'write_pane_option "$pane_id" "@pane-label"' "tmux lifecycle writer caches explicit pane label"
-  assert_contains "$TMUX_AGENT_WORKTREE" 'clear_pane_option "$TMUX_PANE" "@pane-label"' "tmux lifecycle clearer removes explicit pane label"
+  assert_not_contains "$TMUX_AGENT_WORKTREE" 'clear_pane_option "$TMUX_PANE" "@pane-label"' "tmux lifecycle clearer preserves completed pane label"
   assert_contains "$TMUX_PANE_LABEL" 'dir_basename "$pane_current_path"' "tmux pane fallback uses cwd basename"
   assert_not_contains "$TMUX_PANE_LABEL" "git_branch_for_path" "tmux pane fallback does not infer branch state"
   assert_contains "$TMUX_WINDOW_LABEL" "strip_host_suffix" "tmux window label strips host suffix"

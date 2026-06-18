@@ -411,4 +411,9 @@ repo_end_wrapper="$TMPROOT/repo-end-wrapper.zsh"
 awk '/^repo-end\(\)/,/^}/' "$zshrc_template" > "$repo_end_wrapper"
 assert_file_not_contains "$repo_end_wrapper" "worktree_sync_tmux_state" "repo-end shell wrapper leaves completed tmux label intact"
 
+bash_profile_template="$REPO_ROOT/roles/macos/templates/dotfiles/bash_profile"
+bash_repo_end_wrapper="$TMPROOT/repo-end-wrapper.bash"
+awk '/^repo-end\(\)/,/^}/' "$bash_profile_template" > "$bash_repo_end_wrapper"
+assert_file_not_contains "$bash_repo_end_wrapper" "worktree_sync_tmux_state" "repo-end bash wrapper leaves completed tmux label intact"
+
 printf 'tmux label contract checks complete\n'
