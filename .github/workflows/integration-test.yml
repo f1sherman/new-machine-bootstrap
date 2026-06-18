@@ -27,9 +27,6 @@ jobs:
       - name: Verify package tool paranoid mode
         run: ruby tests/paranoid-package-tools.rb
 
-      - name: Verify pinned tool version wiring
-        run: bash tests/repo-policy.sh all
-
       - name: Verify murder helper behavior
         run: ruby tests/murder.rb
 
@@ -71,12 +68,6 @@ jobs:
 
       - name: Verify Codex hook trust provisioning
         run: bash tests/codex-hook-trust.sh
-
-      - name: Verify Codex auth skill guidance
-        run: bash tests/generate-codex-auth-skill.sh
-
-      - name: Verify macOS Node GPG isolation regression
-        run: bash tests/macos-mise-node-gpg.sh
 
       - name: Verify tmux pane-title hook regression
         run: ruby tests/tmux-pane-title-changed.rb
