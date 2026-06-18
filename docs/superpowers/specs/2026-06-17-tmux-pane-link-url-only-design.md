@@ -14,6 +14,13 @@ The URL — the only part the terminal makes clickable — sits last. On a narro
 pane it is pushed off the right edge and becomes untruncated/unclickable. The
 `gh#123` reference is redundant noise that consumes the space the URL needs.
 
+## Related PRs
+
+- Number + URL both shown: introduced by #203, which changed `@pane-link` to
+  store the combined display label and URL.
+- Link rendered after the branch label: introduced by #187, which first added
+  `@pane-link` to `pane-border-format` after `@pane-label`.
+
 ## Goal
 
 - Drop the PR display reference (`gh#123`) entirely.
