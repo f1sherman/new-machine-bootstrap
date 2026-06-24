@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Skip when something else is managing the status/border bars (e.g. a
+# system-level /etc/tmux.conf). Opt out with: tmux set -g @managed-bars off
+if [ "$(tmux show -gv @managed-bars 2>/dev/null)" = "off" ]; then
+  exit 0
+fi
+
 pane_id="${1:-${TMUX_PANE:-}}"
 [ -n "$pane_id" ] || exit 0
 

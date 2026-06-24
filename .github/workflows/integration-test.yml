@@ -45,6 +45,9 @@ jobs:
       - name: Verify tmux label contract
         run: bash tests/tmux-label-contract.sh
 
+      - name: Verify tmux managed-bars opt-out contract
+        run: bash tests/tmux-managed-bars-contract.sh
+
       - name: Verify tmux agent state helper
         run: bash tests/tmux-agent-state.sh
 
