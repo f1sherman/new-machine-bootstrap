@@ -22,7 +22,7 @@ tool_versions:
     # renovate: datasource=github-tags depName=tmux-plugins/tpm
     tpm: v3.1.0
     # renovate: datasource=github-tags depName=obra/superpowers
-    superpowers: v5.1.0
+    superpowers: v6.0.2
 
   runtimes:
     # renovate: datasource=github-releases depName=jdx/mise
