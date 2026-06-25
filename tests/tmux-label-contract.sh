@@ -10,7 +10,31 @@ WINDOW_LABEL="$BIN_DIR/tmux-window-label"
 PANE_LINK="$BIN_DIR/tmux-pane-link"
 
 TMPROOT="$(mktemp -d)"
-trap 'rm -rf "$TMPROOT"' EXIT
+
+# git-ai bootstraps a `git-ai bg run` daemon when its hooks fire under a
+# throwaway HOME. This test runs git tooling under HOME dirs inside TMPROOT, so
+# disable the hooks and reap any daemon that still managed to root itself there.
+export GIT_AI_SKIP_ALL_HOOKS=1
+
+tmproot_git_ai_daemon_pids() {
+  # pgrep cannot match on the full executable path portably, and we filter on
+  # the daemon's path being rooted under TMPROOT. No match is the normal,
+  # successful case, so the grep chain must not abort the caller.
+  # shellcheck disable=SC2009
+  ps -axww -o pid=,args= 2>/dev/null \
+    | { grep 'git-ai bg' || true; } \
+    | { grep -F -- "$TMPROOT" || true; } \
+    | awk '{ print $1 }'
+}
+
+reap_tmproot_git_ai_daemons() {
+  local pid
+  for pid in $(tmproot_git_ai_daemon_pids); do
+    kill "$pid" 2>/dev/null || true
+  done
+}
+
+trap 'reap_tmproot_git_ai_daemons; rm -rf "$TMPROOT"' EXIT
 
 export GIT_AUTHOR_NAME=test
 export GIT_AUTHOR_EMAIL=test@example.com
@@ -440,5 +464,8 @@ assert_file_not_contains "$bash_repo_end_wrapper" "worktree_sync_tmux_state" "re
 
 assert_link_before_label "$REPO_ROOT/roles/macos/templates/dotfiles/tmux.conf" "macOS pane border renders PR link before label"
 assert_link_before_label "$REPO_ROOT/roles/linux/files/dotfiles/tmux.conf" "Linux pane border renders PR link before label"
+
+leaked_git_ai_daemons="$(tmproot_git_ai_daemon_pids | tr '\n' ' ' | sed 's/ *$//')"
+assert_equals "$leaked_git_ai_daemons" "" "no git-ai daemon leaks into the test HOME"
 
 printf 'tmux label contract checks complete\n'

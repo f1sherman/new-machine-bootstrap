@@ -22,6 +22,10 @@ fi
 TMPROOT="$(mktemp -d)"
 trap 'rm -rf "$TMPROOT"' EXIT
 
+# Keep git-ai from bootstrapping a `git-ai bg run` daemon into the throwaway
+# HOME dirs this test drives git under.
+export GIT_AI_SKIP_ALL_HOOKS=1
+
 export GIT_AUTHOR_NAME=test
 export GIT_AUTHOR_EMAIL=test@example.com
 export GIT_COMMITTER_NAME=test
