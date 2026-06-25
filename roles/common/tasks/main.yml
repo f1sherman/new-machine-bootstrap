@@ -296,7 +296,6 @@
     - tmux-agent-state
     - tmux-agent-subject
     - tmux-window-label
-    - tmux-sync-status-visibility
     - tmux-sync-pane-border-status
     - tmux-pane-title-changed
     - tmux-hook-run
@@ -321,6 +320,11 @@
   loop:
     - tmux-restore-client
     - tmux-restore-lib.sh
+
+- name: Remove obsolete tmux-sync-status-visibility helper
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-sync-status-visibility'
+    state: absent
 
 - name: Install tmux-switch-session script
   copy:
