@@ -8,5 +8,6 @@ aube = "{{ tool_versions.runtimes.aube }}"
 
 [settings]
 npm.package_manager = "aube"
+node.verify = false
 ruby.compile = false
 trusted_config_paths = ["{{ ansible_facts['user_dir'] }}/projects"]
