@@ -33,7 +33,6 @@
       'gnu-sed',
       'llm',
       'jq',
-      'mise',
       'ncdu',
       'nmap',
       'neovim',
@@ -59,41 +58,55 @@
     state: present
     update_homebrew: no
 
-# Older mise versions silently leave node installs incomplete (bin/npm
-# missing), and Homebrew's `state: present` never upgrades. Compare against
-# the catalog pin and upgrade if behind.
-- name: Check installed mise version (macOS)
-  shell: 'mise --version | awk ''{print $1}'''
-  register: macos_mise_version
-  changed_when: false
-  check_mode: false
-  failed_when: false
-
-- name: Upgrade mise if older than catalog pin (macOS)
+# A path-keyed outbound application firewall (e.g. Little Snitch) identifies a
+# process by its executable path and code signature. Homebrew re-signs its mise
+# bottle ad-hoc and embeds the version in the Cellar path, so every upgrade
+# produces a fresh identity and a stale allow decision. Install the official
+# Developer-ID build instead, which keeps a stable path and signing identity.
+- name: Ensure Homebrew mise is absent (macOS)
   homebrew:
     name: mise
-    state: latest
-    update_homebrew: yes
-  when:
-    - macos_mise_version.rc == 0
-    - macos_mise_version.stdout is version(tool_versions.runtimes.mise | regex_replace('^v', ''), '<')
+    state: absent
 
-- name: Re-read mise version after upgrade (macOS)
-  shell: 'mise --version | awk ''{print $1}'''
-  register: macos_mise_version_post
+- name: Check for existing mise binary (macOS)
+  shell: |
+    candidates=(
+      "{{ ansible_facts['user_dir'] }}/.local/bin/mise"
+      "$(command -v mise 2>/dev/null || true)"
+      "/opt/homebrew/bin/mise"
+      "/usr/local/bin/mise"
+    )
+    for candidate in "${candidates[@]}"; do
+      [ -n "$candidate" ] && [ -f "$candidate" ] && [ -x "$candidate" ] && echo "$candidate" && exit 0
+    done
+    exit 1
+  args:
+    executable: /bin/bash
+  register: macos_mise_check
   changed_when: false
-  check_mode: false
   failed_when: false
 
-- name: Fail if installed mise is still older than catalog pin (macOS)
-  fail:
-    msg: |
-      Installed mise '{{ macos_mise_version_post.stdout }}' is older than catalog pin
-      '{{ tool_versions.runtimes.mise | regex_replace('^v', '') }}'. Run 'brew update && brew upgrade mise'
-      manually, or bump 'tool_versions.runtimes.mise' in vars/tool_versions.yml to a version Homebrew already ships.
+- name: Resolve existing mise binary path (macOS)
+  set_fact:
+    macos_mise_bin: "{{ macos_mise_check.stdout | trim if macos_mise_check.rc == 0 else '' }}"
+
+- name: Check installed mise version (macOS)
+  shell: "{{ macos_mise_bin }} --version | awk '{print $1}'"
+  args:
+    executable: /bin/bash
+  register: macos_mise_version
+  changed_when: false
+  failed_when: false
+  when: macos_mise_bin | length > 0
+
+- name: Install mise (Developer-ID build)
+  shell: curl -fsSL https://mise.run | sh
+  args:
+    executable: /bin/bash
+  environment:
+    MISE_VERSION: "{{ tool_versions.runtimes.mise }}"
   when:
-    - not ansible_check_mode
-    - macos_mise_version_post.stdout is version(tool_versions.runtimes.mise | regex_replace('^v', ''), '<')
+    - macos_mise_bin | length == 0 or (macos_mise_version.stdout | default('')) != (tool_versions.runtimes.mise | regex_replace('^v', ''))
 
 - name: Check which packages to remove are actually linked (not keg-only)
   shell: |
