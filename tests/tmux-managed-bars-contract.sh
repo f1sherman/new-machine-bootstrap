@@ -49,32 +49,34 @@ tmux -L "$SOCK" run-shell "$PANE_BORDER #{pane_id}"
 assert_equals "$(tmux -L "$SOCK" show-window-options -v -t s pane-border-status)" "off" \
   "pane-border sync no-ops when @managed-bars off"
 
-# status-visibility hook. Load the conf so the client hooks register, pull out
-# the client-attached hook that toggles status, and re-run it via source-file
-# so tmux re-parses its own command (no bash requoting). The detached session
-# has no client, so the nesting branch is false and the hook forces status on —
-# unless @managed-bars is off, in which case the outer guard makes it a no-op.
+# status-visibility hook. The bar is toggled by a client-TERM hook inside the
+# tmux.conf, scoped to the attaching client's session. Load the conf so the
+# hook registers, pull out the client-attached hook that toggles status, and
+# replay it via source-file (tmux re-parses its own command — no bash
+# requoting). With no client attached the nesting branch is false, so this
+# covers the @managed-bars guard and the non-nested "show" branch. The
+# nested -> hide branch needs a real attached client with a tmux* TERM; that is
+# verified manually/e2e rather than here, because attaching a client over a pty
+# is too host-coupled (mise/shell shims) to be a reliable contract test.
 HOME="$TEST_HOME" tmux -L "$SOCK" source-file "$LINUX_TMUX_CONF"
 status_hook="$(tmux -L "$SOCK" show-hooks -g \
   | sed -n 's/^client-attached\[[0-9]*\] //p' \
-  | grep 'set -g status' | head -1)"
+  | grep 'set status' | head -1)"
 [ -n "$status_hook" ] || fail_case "status hook registered" \
   "no client-attached hook toggling status found in $LINUX_TMUX_CONF"
 status_hook_file="$TEST_HOME/status-hook.tmux"
 printf '%s\n' "$status_hook" > "$status_hook_file"
 
-# The hook toggles the global status option, so assert at global scope (a
-# session-level value would mask the global one).
 tmux -L "$SOCK" set -gu @managed-bars 2>/dev/null || true
-tmux -L "$SOCK" set -g status off
+tmux -L "$SOCK" set-option -t "$sid" status off
 tmux -L "$SOCK" source-file "$status_hook_file"
-assert_equals "$(tmux -L "$SOCK" show-options -g -v status)" "on" \
-  "status hook forces on when flag unset"
+assert_equals "$(tmux -L "$SOCK" show-options -v -t "$sid" status)" "on" \
+  "status hook shows the bar for a non-nested client"
 
 tmux -L "$SOCK" set -g @managed-bars off
-tmux -L "$SOCK" set -g status off
+tmux -L "$SOCK" set-option -t "$sid" status off
 tmux -L "$SOCK" source-file "$status_hook_file"
-assert_equals "$(tmux -L "$SOCK" show-options -g -v status)" "off" \
+assert_equals "$(tmux -L "$SOCK" show-options -v -t "$sid" status)" "off" \
   "status hook no-ops when @managed-bars off"
 
 # managed config load
