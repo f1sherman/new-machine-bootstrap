@@ -4,6 +4,16 @@
 # Never blocks.
 set -euo pipefail
 
+# Initiation-skill identifiers. Defaults match superpowers; a generated
+# config (written by the provisioner) overrides them. NMB_INITIATION_SKILLS_CONFIG
+# lets tests point at a controlled file instead of the deployed one.
+NMB_BRAINSTORMING_SKILL='superpowers:brainstorming'
+NMB_DEBUGGING_SKILL='superpowers:systematic-debugging'
+_init_cfg="${NMB_INITIATION_SKILLS_CONFIG:-$HOME/.claude/hooks/initiation-skills.sh}"
+[ -f "$_init_cfg" ] && . "$_init_cfg"
+NMB_BRAINSTORMING_VERB="${NMB_BRAINSTORMING_SKILL##*:}"
+NMB_DEBUGGING_VERB="${NMB_DEBUGGING_SKILL##*:}"
+
 input="$(cat)"
 
 tool_name="$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null || true)"
@@ -13,7 +23,7 @@ fi
 
 skill="$(printf '%s' "$input" | jq -r '.tool_input.skill // empty' 2>/dev/null || true)"
 case "$skill" in
-  superpowers:brainstorming|superpowers:systematic-debugging|_spec-first|_spec-to-pr|_fix) ;;
+  "$NMB_BRAINSTORMING_SKILL"|"$NMB_DEBUGGING_SKILL"|_spec-first|_spec-to-pr|_fix) ;;
   *) exit 0 ;;
 esac
 

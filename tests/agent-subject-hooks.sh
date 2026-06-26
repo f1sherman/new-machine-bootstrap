@@ -4,6 +4,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 CLAUDE_HOOK="$REPO_ROOT/roles/common/files/claude/hooks/remind-agent-subject-on-skill.sh"
+
+ISO_CFG="$(mktemp)"; printf "NMB_BRAINSTORMING_SKILL='superpowers:brainstorming'\nNMB_DEBUGGING_SKILL='superpowers:systematic-debugging'\n" > "$ISO_CFG"
+export NMB_INITIATION_SKILLS_CONFIG="$ISO_CFG"
+trap 'rm -f "$ISO_CFG" "${OVR_CFG:-}"' EXIT
 CODEX_HOOK="$REPO_ROOT/roles/common/files/bin/codex-remind-agent-subject-on-prompt"
 
 TMPROOT="$(mktemp -d)"
@@ -74,5 +78,11 @@ assert_empty "$codex_other" "Codex hook ignores unrelated prompts"
 
 codex_mention="$(printf '%s' '{"prompt":"please compare superpowers:brainstorming docs"}' | TMUX=1 TMUX_PANE=%1 PATH="$stub_missing:$PATH" "$CODEX_HOOK")"
 assert_empty "$codex_mention" "Codex hook ignores mid-sentence skill mentions"
+
+OVR_CFG="$(mktemp)"; printf "NMB_BRAINSTORMING_SKILL='alt:design'\nNMB_DEBUGGING_SKILL='alt:debug'\n" > "$OVR_CFG"
+claude_ovr="$(printf '%s' '{"tool_name":"Skill","tool_input":{"skill":"alt:design"}}' | TMUX=1 TMUX_PANE=%1 NMB_INITIATION_SKILLS_CONFIG="$OVR_CFG" PATH="$stub_missing:$PATH" "$CLAUDE_HOOK")"
+assert_contains "$claude_ovr" "alt:design" "Claude reminder fires for overridden skill id"
+claude_old="$(printf '%s' '{"tool_name":"Skill","tool_input":{"skill":"superpowers:brainstorming"}}' | TMUX=1 TMUX_PANE=%1 NMB_INITIATION_SKILLS_CONFIG="$OVR_CFG" PATH="$stub_missing:$PATH" "$CLAUDE_HOOK" || true)"
+assert_empty "$claude_old" "Claude reminder silent for old id under override"
 
 printf 'agent subject hook checks complete\n'

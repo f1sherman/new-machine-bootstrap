@@ -54,6 +54,9 @@ jobs:
       - name: Verify tmux agent subject reminder hooks
         run: bash tests/agent-subject-hooks.sh
 
+      - name: Run block-initiation-skill hook test
+        run: bash tests/block-initiation-skill.sh
+
       - name: Verify tmux pane-link contract
         run: bash tests/tmux-pane-link.sh
 
