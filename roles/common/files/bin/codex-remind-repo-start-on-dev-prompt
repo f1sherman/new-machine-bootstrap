@@ -10,6 +10,16 @@
 # feature worktree (a common harness state — cwd lags behind binding).
 set -euo pipefail
 
+# Initiation-skill identifiers. Defaults match superpowers; a generated
+# config (written by the provisioner) overrides them. NMB_INITIATION_SKILLS_CONFIG
+# lets tests point at a controlled file instead of the deployed one.
+NMB_BRAINSTORMING_SKILL='superpowers:brainstorming'
+NMB_DEBUGGING_SKILL='superpowers:systematic-debugging'
+_init_cfg="${NMB_INITIATION_SKILLS_CONFIG:-$HOME/.claude/hooks/initiation-skills.sh}"
+[ -f "$_init_cfg" ] && . "$_init_cfg"
+NMB_BRAINSTORMING_VERB="${NMB_BRAINSTORMING_SKILL##*:}"
+NMB_DEBUGGING_VERB="${NMB_DEBUGGING_SKILL##*:}"
+
 input="$(cat)"
 prompt="$(printf '%s' "$input" | jq -r '.prompt // empty' 2>/dev/null || true)"
 
@@ -45,7 +55,7 @@ if [[ "$branch" != "main" ]]; then
 fi
 
 lower_prompt="$(printf '%s' "$prompt" | tr '[:upper:]' '[:lower:]')"
-skill_pattern='(^|[^[:alnum:]_])(_fix|_spec-first|_spec-to-pr|systematic-debugging|brainstorming)([^[:alnum:]_]|$)'
+skill_pattern="(^|[^[:alnum:]_])(_fix|_spec-first|_spec-to-pr|${NMB_DEBUGGING_VERB}|${NMB_BRAINSTORMING_VERB})([^[:alnum:]_]|\$)"
 if ! printf '%s\n' "$lower_prompt" | grep -Eq "$skill_pattern"; then
   exit 0
 fi

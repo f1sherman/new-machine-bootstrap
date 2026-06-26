@@ -12,7 +12,11 @@ fi
 TMPROOT="$(mktemp -d)"
 TMUX_PANE_STATE_DIR="$TMPROOT/pane-state"
 mkdir -p "$TMUX_PANE_STATE_DIR"
-trap 'rm -rf "$TMPROOT"' EXIT
+
+ISO_CFG="$(mktemp)"; printf "NMB_BRAINSTORMING_SKILL='superpowers:brainstorming'\nNMB_DEBUGGING_SKILL='superpowers:systematic-debugging'\n" > "$ISO_CFG"
+export NMB_INITIATION_SKILLS_CONFIG="$ISO_CFG"
+
+trap 'rm -rf "$TMPROOT"; rm -f "$ISO_CFG" "${OVR_CFG:-}"' EXIT
 
 # Test isolation: ensure the harness's tmux state never leaks into the
 # cwd-only test cases. Individual bound-pane tests set these explicitly.
@@ -178,5 +182,10 @@ run_reminder_bound_main_case \
   "/superpowers:brainstorming please check the dashboard" \
   "$MAIN_REPO" \
   "$TMPROOT/does-not-exist"
+
+OVR_CFG="$(mktemp)"; printf "NMB_BRAINSTORMING_SKILL='alt:solution-design'\nNMB_DEBUGGING_SKILL='alt:root-cause-debugging'\n" > "$OVR_CFG"
+NMB_INITIATION_SKILLS_CONFIG="$OVR_CFG" run_reminder_case "override: reminds for solution-design verb on main" "use alt:solution-design please" "main"
+NMB_INITIATION_SKILLS_CONFIG="$OVR_CFG" run_reminder_case "override: reminds for root-cause-debugging verb on main" "alt:root-cause-debugging the test" "main"
+NMB_INITIATION_SKILLS_CONFIG="$OVR_CFG" run_silent_case "override: silent for old brainstorming verb on main" "/superpowers:brainstorming check the dashboard" "main"
 
 printf 'PASS  remind-repo-start-on-dev-prompt test suite\n'
