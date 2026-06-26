@@ -741,6 +741,12 @@
     mode: '0755'
     directory_mode: '0755'
 
+- name: Write initiation-skills hook config
+  template:
+    src: '{{ playbook_dir }}/roles/common/templates/claude/hooks/initiation-skills.sh.j2'
+    dest: '{{ ansible_facts["user_dir"] }}/.claude/hooks/initiation-skills.sh'
+    mode: '0644'
+
 - name: Register PreToolUse Bash hook for blocking git commit
   shell: |
     SETTINGS='{{ ansible_facts["user_dir"] }}/.claude/settings.json'
