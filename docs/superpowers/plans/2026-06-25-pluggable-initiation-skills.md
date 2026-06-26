@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- nmb is a **public** repository. Do NOT introduce BetterUp, internal repo names, employee handles, or `engineering`/`betterup-engineering`/toolkit references anywhere in this repo. Describe the downstream consumer abstractly. (Concrete consumer steps live in the private bootstrap-brian-john spec.)
+- nmb is a **public** repository. Do NOT introduce company names, internal repo names, employee handles, internal marketplace/plugin names, or internal tooling references anywhere in this repo. Describe the downstream consumer abstractly. (Concrete consumer steps live in a private downstream provisioner's own spec.)
 - Defaults must preserve today's behavior exactly: `NMB_INSTALL_SUPERPOWERS_PLUGIN=true`, `NMB_BRAINSTORMING_SKILL=superpowers:brainstorming`, `NMB_DEBUGGING_SKILL=superpowers:systematic-debugging`. An unset environment produces no behavior change and no provision diff beyond the new (default-valued) config file.
 - No backwards-compatibility dual-matching: each hook matches exactly the configured ids, not "old OR new".
 - Comments: sparingly, explain why not what. Ruby for scripts, bash for snippets. `jq`/`yq` for JSON/YAML, never python/ruby for parsing.
@@ -486,7 +486,7 @@ Expected: success; `~/.claude/hooks/initiation-skills.sh` now exists with superp
 
 ## Out of scope (separate, private follow-up)
 
-The consumer wiring in **bootstrap-brian-john** — exporting `NMB_INSTALL_SUPERPOWERS_PLUGIN=false` + the two skill-id overrides around its upstream `bin/provision` call, uninstalling the now-unmanaged superpowers plugin, adding the work marketplace, and installing the alternate skill plugin — is implemented under that repo's own private spec/plan/branch/PR after this lands. Do not add those concrete references here (public repo).
+The consumer wiring in a **private downstream provisioner** — exporting `NMB_INSTALL_SUPERPOWERS_PLUGIN=false` + the two skill-id overrides around its upstream `bin/provision` call, uninstalling the now-unmanaged superpowers plugin, adding its preferred marketplace, and installing the alternate skill plugin — is implemented under that repo's own private spec/plan/branch/PR after this lands. Do not add those concrete references here (public repo).
 
 ## Self-review notes
 

@@ -7,11 +7,10 @@ CLAUDE_HOOK="$REPO_ROOT/roles/common/files/claude/hooks/remind-agent-subject-on-
 
 ISO_CFG="$(mktemp)"; printf "NMB_BRAINSTORMING_SKILL='superpowers:brainstorming'\nNMB_DEBUGGING_SKILL='superpowers:systematic-debugging'\n" > "$ISO_CFG"
 export NMB_INITIATION_SKILLS_CONFIG="$ISO_CFG"
-trap 'rm -f "$ISO_CFG" "${OVR_CFG:-}"' EXIT
 CODEX_HOOK="$REPO_ROOT/roles/common/files/bin/codex-remind-agent-subject-on-prompt"
 
 TMPROOT="$(mktemp -d)"
-trap 'rm -rf "$TMPROOT"' EXIT
+trap 'rm -rf "$TMPROOT"; rm -f "$ISO_CFG" "${OVR_CFG:-}"' EXIT
 
 pass_case() { printf 'PASS  %s\n' "$1"; }
 fail_case() { printf 'FAIL  %s\n%s\n' "$1" "$2" >&2; exit 1; }
