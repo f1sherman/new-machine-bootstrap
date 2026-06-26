@@ -358,6 +358,21 @@ def weak_summary?(line)
   ].include?(lower)
 end
 
+def brainstorming_verb
+  cfg = ENV["NMB_INITIATION_SKILLS_CONFIG"] ||
+        File.join(Dir.home, ".claude", "hooks", "initiation-skills.sh")
+  id = "superpowers:brainstorming"
+  if File.file?(cfg)
+    File.foreach(cfg) do |line|
+      if (m = line.match(/\ANMB_BRAINSTORMING_SKILL=['"]?([^'"\n]+)['"]?/))
+        id = m[1]
+        break
+      end
+    end
+  end
+  id.split(":").last
+end
+
 def normalize_summary_candidate(candidate)
   cleaned = trim_one_line(candidate)
   return nil if cleaned.empty?
@@ -367,8 +382,9 @@ def normalize_summary_candidate(candidate)
   return nil if lower == "prompt received. ready."
   return nil if lower == "test prompt"
 
-  if cleaned.match?(/\AUsing `?brainstorming`?\.\s*/i)
-    cleaned = cleaned.sub(/\AUsing `?brainstorming`?\.\s*/i, "")
+  verb = Regexp.escape(brainstorming_verb)
+  if cleaned.match?(/\AUsing `?#{verb}`?\.\s*/i)
+    cleaned = cleaned.sub(/\AUsing `?#{verb}`?\.\s*/i, "")
   end
 
   if cleaned.match?(/\ARunning `?_(?:find|recover)-agent-sessions`?\b/i)
