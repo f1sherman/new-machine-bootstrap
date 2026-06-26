@@ -448,6 +448,12 @@
     state: directory
     mode: '0700'
 
+- name: Resolve initiation-skill identifiers and plugin opt-out (overridable by downstream provisioners)
+  set_fact:
+    install_superpowers_plugin: "{{ (lookup('env', 'NMB_INSTALL_SUPERPOWERS_PLUGIN') | default('true', true)) | bool }}"
+    brainstorming_skill: "{{ lookup('env', 'NMB_BRAINSTORMING_SKILL') | default('superpowers:brainstorming', true) }}"
+    debugging_skill: "{{ lookup('env', 'NMB_DEBUGGING_SKILL') | default('superpowers:systematic-debugging', true) }}"
+
 - name: Install base ~/.claude/CLAUDE.md fragment
   copy:
     src: '{{ playbook_dir }}/roles/common/files/claude/CLAUDE.md.d/00-base.md'
@@ -717,9 +723,7 @@
 
 - name: Install Claude Code plugins
   command: claude plugin install {{ item }} --scope user
-  loop:
-    - pr-review-toolkit@claude-plugins-official
-    - superpowers@claude-plugins-official
+  loop: "{{ ['pr-review-toolkit@claude-plugins-official'] + (['superpowers@claude-plugins-official'] if install_superpowers_plugin else []) }}"
   register: claude_plugin_result
   changed_when: "'already installed' not in (claude_plugin_result.stdout | default(''))"
   failed_when: false
