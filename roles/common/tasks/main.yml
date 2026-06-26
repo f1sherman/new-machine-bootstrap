@@ -455,8 +455,8 @@
     debugging_skill: "{{ lookup('env', 'NMB_DEBUGGING_SKILL') | default('superpowers:systematic-debugging', true) }}"
 
 - name: Install base ~/.claude/CLAUDE.md fragment
-  copy:
-    src: '{{ playbook_dir }}/roles/common/files/claude/CLAUDE.md.d/00-base.md'
+  template:
+    src: '{{ playbook_dir }}/roles/common/templates/claude/CLAUDE.md.d/00-base.md.j2'
     dest: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md.d/00-base.md'
     mode: '0600'
 
