@@ -17,6 +17,16 @@
 - set_fact:
     brew_prefix: "{{ brew_prefix_output.stdout }}"
 
+- name: Remove retired patched tmux formula
+  homebrew:
+    name: tmux-patched
+    state: absent
+
+- name: Remove retired local patched tmux tap
+  file:
+    path: "{{ brew_prefix }}/Library/Taps/local/homebrew-nmb"
+    state: absent
+
 - name: 'Install Brew packages'
   homebrew:
     name: [
@@ -46,6 +56,7 @@
       'sqlparse',
       'ssh-copy-id',
       'tree',
+      'tmux',
       'uv',
       'vim',
       'wget',
