@@ -108,7 +108,7 @@ pane="$(require_pane)"
 case "$cmd" in
   set-kind)
     case "${1:-}" in
-      claude|codex) set_pane_option "$pane" @agent_kind "$1" ;;
+      claude|codex|pi) set_pane_option "$pane" @agent_kind "$1" ;;
       *) exit 0 ;;
     esac
     refresh "$pane"

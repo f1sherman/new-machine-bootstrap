@@ -1276,6 +1276,18 @@
   failed_when: pi_plugin_linux.rc != 0
   when: ansible_facts["os_family"] == "Debian"
 
+- name: Create pi-coding-agent global extensions directory
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/.pi/agent/extensions"
+    state: directory
+    mode: '0755'
+
+- name: Install managed pi-coding-agent hooks
+  copy:
+    src: pi/extensions/managed-hooks.ts
+    dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/extensions/managed-hooks.ts"
+    mode: '0644'
+
 # Symlink globally-installed Node package binaries into ~/.local/bin so they work
 # regardless of which Node version the current directory's mise.toml selects.
 - name: Create ~/.local/bin symlinks for managed npm tools (Linux)
