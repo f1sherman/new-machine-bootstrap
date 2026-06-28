@@ -51,6 +51,9 @@ jobs:
       - name: Verify tmux agent state helper
         run: bash tests/tmux-agent-state.sh
 
+      - name: Verify pi managed hooks
+        run: bash tests/pi-managed-hooks.sh
+
       - name: Verify tmux agent subject reminder hooks
         run: bash tests/agent-subject-hooks.sh
 

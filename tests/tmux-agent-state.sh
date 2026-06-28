@@ -105,4 +105,8 @@ assert_file_not_contains "$state_dir/%1.@window-label" "$(printf '\033')" "windo
 assert_file_not_contains "$state_dir/%1.@window-label" "$(printf '\a')" "window label removes bell byte"
 assert_file_not_contains "$state_dir/%1.@window-label" "$(printf '\001')" "window label removes soh byte"
 
+"$STATE" set-kind pi
+assert_file_contains "$state_dir/%1.@agent_kind" "pi" "set-kind stores pi agent kind"
+assert_file_contains "$state_dir/%1.@window-label" "pi: bad chars subject" "pi kind renders window label"
+
 printf 'tmux-agent-state checks complete\n'
