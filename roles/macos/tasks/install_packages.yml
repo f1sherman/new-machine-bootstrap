@@ -17,10 +17,16 @@
 - set_fact:
     brew_prefix: "{{ brew_prefix_output.stdout }}"
 
+- name: Check for retired patched tmux formula
+  shell: brew list --formula -1 2>/dev/null | grep -qx tmux-patched
+  register: tmux_patched_formula_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
 - name: Remove retired patched tmux formula
-  homebrew:
-    name: tmux-patched
-    state: absent
+  command: brew uninstall --formula --force tmux-patched
+  when: tmux_patched_formula_check.rc == 0
 
 - name: Remove retired local patched tmux tap
   file:
