@@ -193,6 +193,11 @@ formatted_remote_label() {
 append_edge_marker() {
   local title="$1" pane_command="$2" edge_flags="$3"
 
+  if [ -n "${TMUX_REMOTE_TITLE_SUPPRESS_EDGE:-}" ]; then
+    printf '%s\n' "$title"
+    return 0
+  fi
+
   case "$pane_command" in
     *vim*)
       printf '%s\n' "$title"

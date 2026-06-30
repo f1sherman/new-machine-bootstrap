@@ -139,6 +139,24 @@ fi
 alias duss="du -d 1 -h 2>/dev/null | sort -hr"
 
 if [[ -n "$TMUX" ]]; then
+  _tmux_remote_title_should_sync() {
+    [[ -n "${SSH_CONNECTION:-}${CODESPACES:-}${DEVPOD_WORKSPACE_ID:-}" ]] || return 1
+    command -v tmux-remote-title >/dev/null 2>&1
+  }
+
+  _tmux_remote_title_preexec() {
+    _tmux_remote_title_should_sync || return 0
+    TMUX_REMOTE_TITLE_SUPPRESS_EDGE=1 command tmux-remote-title publish >/dev/null 2>&1 || true
+  }
+
+  _tmux_remote_title_precmd() {
+    _tmux_remote_title_should_sync || return 0
+    command tmux-remote-title publish >/dev/null 2>&1 || true
+  }
+
+  add-zsh-hook preexec _tmux_remote_title_preexec
+  add-zsh-hook precmd _tmux_remote_title_precmd
+
   # chpwd-only: pane_current_path changes don't fire any tmux event hook,
   # so we still need a zsh-side trigger when the user `cd`s. Other label
   # refresh paths (pane focus, pane title, new pane) are covered by the

@@ -172,6 +172,36 @@ assert_equals "$remote_edge_title" "label-repo | remote-host [nmb-edge=hj]" "rem
 remote_vim_title="$(TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=nvim TMUX_REMOTE_TITLE_EDGE_FLAGS=hj "$REMOTE_TITLE" print)"
 assert_equals "$remote_vim_title" "label-repo | remote-host" "remote title suppresses edge marker for vim panes"
 
+remote_suppressed_title="$(TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=zsh TMUX_REMOTE_TITLE_EDGE_FLAGS=hj TMUX_REMOTE_TITLE_SUPPRESS_EDGE=1 "$REMOTE_TITLE" print)"
+assert_equals "$remote_suppressed_title" "label-repo | remote-host" "remote title can suppress stale edge marker while commands run"
+
+zsh_hook_home="$TMPROOT/zsh-hook-home"
+zsh_hook_log="$TMPROOT/zsh-hook.log"
+zsh_hook_bin="$TMPROOT/zsh-hook-bin"
+mkdir -p "$zsh_hook_home" "$zsh_hook_bin"
+cat >"$zsh_hook_bin/tmux-remote-title" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\t%s\n' "${TMUX_REMOTE_TITLE_SUPPRESS_EDGE:-0}" "${1:-}" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
+STUB
+cat >"$zsh_hook_bin/tmux-window-label" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+cat >"$zsh_hook_bin/tmux-sync-pane-border-status" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+chmod +x "$zsh_hook_bin/tmux-remote-title" "$zsh_hook_bin/tmux-window-label" "$zsh_hook_bin/tmux-sync-pane-border-status"
+HOME="$zsh_hook_home" \
+TMUX=/tmp/tmux-test \
+TMUX_PANE=%1 \
+SSH_CONNECTION="127.0.0.1 1 127.0.0.1 2" \
+TMUX_REMOTE_TITLE_HOOK_LOG="$zsh_hook_log" \
+PATH="$zsh_hook_bin:$PATH" \
+  zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; _tmux_remote_title_preexec 'nvim'; _tmux_remote_title_precmd"
+assert_file_contains "$zsh_hook_log" $'1\tpublish' "zsh preexec clears remote edge marker before foreground command"
+assert_file_contains "$zsh_hook_log" $'0\tpublish' "zsh precmd restores remote edge marker at prompt"
+
 stub_bin="$TMPROOT/stub-bin"
 mkdir -p "$stub_bin"
 cat >"$stub_bin/tmux-window-label" <<'STUB'
