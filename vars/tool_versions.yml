@@ -29,7 +29,7 @@ tool_versions:
     mise: v2026.6.12
     aube: 1.19.0
     # renovate: datasource=node-version depName=node
-    node: 24.17.0
+    node: 24.18.0
     ruby: 4.0.2
     # renovate: datasource=npm depName=@earendil-works/pi-coding-agent
     pi_coding_agent: 0.79.9
