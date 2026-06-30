@@ -27,9 +27,15 @@ is_structured_remote_label() {
   esac
 }
 
+strip_edge_marker() {
+  local title="${1:-}"
+  printf '%s\n' "${title% \[nmb-edge=*]}"
+}
+
 structured_remote_label() {
   local title="${1:-}" nested_title prefix
 
+  title="$(strip_edge_marker "$title")"
   is_structured_remote_label "$title" || return 1
   nested_title="${title#*: }"
   prefix="${title%%: *}"
@@ -43,7 +49,9 @@ structured_remote_label() {
 }
 
 remote_host_suffix() {
-  printf '%s\n' "${1##* | }"
+  local title
+  title="$(strip_edge_marker "$1")"
+  printf '%s\n' "${title##* | }"
 }
 
 strip_host_suffix() {

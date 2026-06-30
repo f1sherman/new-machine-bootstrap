@@ -21,6 +21,7 @@ esac
 structured_remote_label() {
   local title="${1:-}" nested_title prefix
 
+  title="${title% \[nmb-edge=*]}"
   case "$title" in
     *" | "*)
       nested_title="${title#*: }"

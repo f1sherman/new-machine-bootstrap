@@ -8,6 +8,7 @@ PANE_LABEL="$BIN_DIR/tmux-pane-label"
 AGENT_WORKTREE="$BIN_DIR/tmux-agent-worktree"
 WINDOW_LABEL="$BIN_DIR/tmux-window-label"
 PANE_LINK="$BIN_DIR/tmux-pane-link"
+REMOTE_TITLE="$BIN_DIR/tmux-remote-title"
 
 TMPROOT="$(mktemp -d)"
 
@@ -165,6 +166,12 @@ repo_path="$(create_repo label-repo)"
 fallback_repo_label="$(TMUX_PANE_LABEL_HOST_TAG=host-a "$PANE_LABEL" /dev/null "$repo_path" zsh)"
 assert_equals "$fallback_repo_label" "label-repo | host-a" "fallback pane label does not infer repo branch"
 
+remote_edge_title="$(TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=tmux TMUX_REMOTE_TITLE_EDGE_FLAGS=hj "$REMOTE_TITLE" print)"
+assert_equals "$remote_edge_title" "label-repo | remote-host [nmb-edge=hj]" "remote title publishes tmux edge marker"
+
+remote_vim_title="$(TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=nvim TMUX_REMOTE_TITLE_EDGE_FLAGS=hj "$REMOTE_TITLE" print)"
+assert_equals "$remote_vim_title" "label-repo | remote-host" "remote title suppresses edge marker for vim panes"
+
 stub_bin="$TMPROOT/stub-bin"
 mkdir -p "$stub_bin"
 cat >"$stub_bin/tmux-window-label" <<'STUB'
@@ -313,7 +320,7 @@ mkdir -p "$fake_tmux_dir"
 cat >"$fake_tmux_dir/tmux" <<'STUB'
 #!/usr/bin/env bash
 if [ "$1" = "display-message" ]; then
-  printf '@1\t1\told-window\t/dev/null\t/tmp/project\tssh\t(feature/remote) project | remote-host\t%%1\n'
+  printf '@1\t1\told-window\t/dev/null\t/tmp/project\tssh\t(feature/remote) project | remote-host [nmb-edge=hjl]\t%%1\n'
   exit 0
 fi
 if [ "$1" = "rename-window" ]; then
