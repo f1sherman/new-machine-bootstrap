@@ -10,15 +10,17 @@ devpod_name_helper="${TMUX_DEVPOD_NAME_BIN:-$script_dir/tmux-devpod-name}"
 
 pane_info() {
   if [ -n "${TMUX_REMOTE_TITLE_PANE_PATH:-}" ] || [ -n "${TMUX_REMOTE_TITLE_CLIENT_TTY:-}" ] || [ -n "${TMUX_REMOTE_TITLE_PANE_TTY:-}" ]; then
-    printf '%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\t%s\n' \
       "${TMUX_REMOTE_TITLE_PANE_PATH:-}" \
       "${TMUX_REMOTE_TITLE_CLIENT_TTY:-}" \
-      "${TMUX_REMOTE_TITLE_PANE_TTY:-}"
+      "${TMUX_REMOTE_TITLE_PANE_TTY:-}" \
+      "${TMUX_REMOTE_TITLE_PANE_COMMAND:-}" \
+      "${TMUX_REMOTE_TITLE_EDGE_FLAGS:-}"
     return 0
   fi
 
   [ -n "$pane_id" ] || return 1
-  tmux display-message -p -t "$pane_id" '#{pane_current_path}	#{client_tty}	#{pane_tty}' 2>/dev/null
+  tmux display-message -p -t "$pane_id" '#{pane_current_path}	#{client_tty}	#{pane_tty}	#{pane_current_command}	#{?pane_at_left,h,}#{?pane_at_bottom,j,}#{?pane_at_top,k,}#{?pane_at_right,l,}' 2>/dev/null
 }
 
 read_pane_option() {
@@ -188,6 +190,28 @@ formatted_remote_label() {
   printf '%s | %s\n' "$(formatted_remote_path_label "$1")" "$2"
 }
 
+append_edge_marker() {
+  local title="$1" pane_command="$2" edge_flags="$3"
+
+  if [ -n "${TMUX_REMOTE_TITLE_SUPPRESS_EDGE:-}" ]; then
+    printf '%s\n' "$title"
+    return 0
+  fi
+
+  case "$pane_command" in
+    *vim*)
+      printf '%s\n' "$title"
+      return 0
+      ;;
+  esac
+
+  if [ -n "$edge_flags" ]; then
+    printf '%s [nmb-edge=%s]\n' "$title" "$edge_flags"
+  else
+    printf '%s\n' "$title"
+  fi
+}
+
 is_git_worktree_path() {
   local path="$1"
   [ -d "$path" ] || return 1
@@ -220,12 +244,12 @@ host_tag() {
 }
 
 main() {
-  local pane_path client_tty pane_tty host title worktree_path worktree_pid active_agent_pid
+  local pane_path client_tty pane_tty pane_command edge_flags host title worktree_path worktree_pid active_agent_pid
   local info
 
   info="$(pane_info)" || exit 0
   [ -n "$info" ] || exit 0
-  IFS=$'\t' read -r pane_path client_tty pane_tty <<< "$info"
+  IFS=$'\t' read -r pane_path client_tty pane_tty pane_command edge_flags <<< "$info"
   [ -n "$pane_path" ] || exit 0
 
   host="$(host_tag)"
@@ -248,6 +272,7 @@ main() {
   if [ -z "${title:-}" ]; then
     title="$(formatted_remote_label "$pane_path" "$host" 2>/dev/null || true)"
   fi
+  title="$(append_edge_marker "$title" "${pane_command:-}" "${edge_flags:-}")"
 
   case "$mode" in
     print)
