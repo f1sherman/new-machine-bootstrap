@@ -46,6 +46,11 @@ extract_ch_predicate() {
     sed -n 's/.*if-shell -F "\([^"]*\)".*/\1/p'
 }
 
+extract_ch_fallback_predicate() {
+  extract_ch_binding |
+    sed -n 's/.*if-shell -F \\"\([^"]*\)\\" \\"send-keys C-h\\".*/\1/p'
+}
+
 extract_md_predicate() {
   tmux -L "$SOCK" list-keys -T root |
     grep -E 'bind-key[[:space:]]+-T root M-d[[:space:]]' |
@@ -62,6 +67,8 @@ assert_contains "$ch_binding" "select-pane -L" "C-h binding can select the outer
 
 predicate="$(extract_ch_predicate)"
 [ -n "$predicate" ] || fail_case "C-h predicate is registered" "no if-shell predicate found"
+fallback_predicate="$(extract_ch_fallback_predicate)"
+[ -n "$fallback_predicate" ] || fail_case "C-h fallback predicate is registered" "no nested if-shell predicate found"
 md_predicate="$(extract_md_predicate)"
 [ -n "$md_predicate" ] || fail_case "M-d predicate is registered" "no if-shell predicate found"
 
@@ -69,6 +76,8 @@ pane="$(tmux -L "$SOCK" display-message -p -t s '#{pane_id}')"
 tmux -L "$SOCK" set-option -pt "$pane" -u @agent_kind 2>/dev/null || true
 assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$predicate")" "0" \
   "plain shell pane does not trigger passthrough"
+assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$fallback_predicate")" "0" \
+  "plain shell pane does not trigger fallback passthrough"
 
 tmux -L "$SOCK" set-option -pt "$pane" @is_remote_session 1
 tmux -L "$SOCK" select-pane -t "$pane" -T 'remote-repo | dev [nmb-edge=h]'
@@ -81,20 +90,22 @@ tmux -L "$SOCK" set-option -pt "$pane" @agent_kind codex
 tmux -L "$SOCK" display-message -p -t "$pane" '#{pane_current_command}' >/dev/null
 assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$predicate")" "0" \
   "stale codex marker on shell pane does not trigger navigation passthrough"
+assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$fallback_predicate")" "0" \
+  "stale codex marker on shell pane does not trigger fallback passthrough"
 
-tmux -L "$SOCK" respawn-pane -k -t "$pane" "$NODE_BIN $TEST_HOME/sleep.js"
+tmux -L "$SOCK" respawn-pane -k -t "$pane" "$NODE_BIN" "$TEST_HOME/sleep.js"
 sleep 0.1
-assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$predicate")" "0" \
-  "codex-marked pane does not consume pane navigation keys"
+assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$fallback_predicate")" "1" \
+  "codex-marked active agent pane triggers navigation fallback passthrough"
 assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$md_predicate")" "1" \
   "codex-marked pane triggers agent helper passthrough"
 
 tmux -L "$SOCK" set-option -pt "$pane" @agent_kind claude
-assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$predicate")" "0" \
-  "claude-marked pane does not consume pane navigation keys"
+assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$fallback_predicate")" "1" \
+  "claude-marked active agent pane triggers navigation fallback passthrough"
 
 tmux -L "$SOCK" set-option -pt "$pane" @agent_kind pi
-assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$predicate")" "0" \
-  "pi-marked pane does not consume pane navigation keys"
+assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$fallback_predicate")" "1" \
+  "pi-marked active agent pane triggers navigation fallback passthrough"
 
 printf '\nAll agent key passthrough checks passed\n'
