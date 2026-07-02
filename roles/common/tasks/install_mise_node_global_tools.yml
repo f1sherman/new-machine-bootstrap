@@ -4,21 +4,44 @@
   register: mise_node_global_tools_node_path
   changed_when: false
 
-- name: Install or update gsd-browser via mise aube
+- name: Install or update gsd-browser release binary
   shell: |
     set -euo pipefail
     node_bin="{{ mise_node_global_tools_node_path.stdout }}/bin"
     mise_bin_dir="$(dirname "{{ mise_bin }}")"
-    aube_config_dir="$(mktemp -d)"
-    trap 'rm -rf "$aube_config_dir"' EXIT
-    printf '%s\n' 'minimumReleaseAgeExclude=gsd-browser' > "$aube_config_dir/.npmrc"
-    AUBE_PARANOID=true AUBE_GLOBAL_BIN_DIR="$node_bin" PATH="$node_bin:$mise_bin_dir:$PATH" \
+    export AUBE_PARANOID=true AUBE_GLOBAL_BIN_DIR="$node_bin" PATH="$node_bin:$mise_bin_dir:$PATH"
+    if "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} aube -- \
+      aube list -g --json | jq -e '.[] | select(.name == "gsd-browser")' >/dev/null; then
       "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} aube -- \
-        aube add -C "$aube_config_dir" -g --allow-low-downloads gsd-browser@latest
+        aube remove -g gsd-browser
+    fi
+
+    case "$(uname -s)-$(uname -m)" in
+      Darwin-arm64|Darwin-aarch64) asset="gsd-browser-darwin-arm64" ;;
+      Darwin-x86_64|Darwin-amd64) asset="gsd-browser-darwin-x64" ;;
+      Linux-arm64|Linux-aarch64) asset="gsd-browser-linux-arm64" ;;
+      Linux-x86_64|Linux-amd64) asset="gsd-browser-linux-x64" ;;
+      *) echo "unsupported gsd-browser platform: $(uname -s)-$(uname -m)" >&2; exit 1 ;;
+    esac
+
+    release_json="$(curl -fsSL https://api.github.com/repos/open-gsd/gsd-browser/releases/latest)"
+    tag="$(printf '%s\n' "$release_json" | jq -r '.tag_name')"
+    if [ -z "$tag" ] || [ "$tag" = "null" ]; then
+      echo "could not resolve latest gsd-browser release" >&2
+      exit 1
+    fi
+
+    url="https://github.com/open-gsd/gsd-browser/releases/download/${tag}/${asset}"
+    tmp="$(mktemp "$node_bin/.gsd-browser.XXXXXX")"
+    trap 'rm -f "$tmp"' EXIT
+    curl -fsSL -o "$tmp" "$url"
+    chmod 0755 "$tmp"
+    mv -f "$tmp" "$node_bin/gsd-browser"
+    trap - EXIT
   args:
     executable: /bin/bash
-  register: mise_node_global_tools_aube_install_result
-  until: mise_node_global_tools_aube_install_result.rc == 0
+  register: mise_node_global_tools_gsd_browser_install_result
+  until: mise_node_global_tools_gsd_browser_install_result.rc == 0
   retries: 3
   delay: 10
   changed_when: false
