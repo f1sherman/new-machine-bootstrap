@@ -520,10 +520,10 @@ assert_file_contains "$TMPROOT/detached.err" "detached HEAD" "repo-end rejects d
 
 create_remote_repo end-main
 main_repo="$CREATED_REPO"
-if (cd "$main_repo" && "$REPO_END_SCRIPT") >"$TMPROOT/main.out" 2>"$TMPROOT/main.err"; then
-  fail_case "repo-end rejects main branch" "repo-end unexpectedly succeeded"
-fi
-assert_file_contains "$TMPROOT/main.err" "already on main" "repo-end rejects main branch"
+main_home="$TMPROOT/end-main-home"
+mkdir -p "$main_home"
+(cd "$main_repo" && HOME="$main_home" "$REPO_END_SCRIPT" --print-path >"$TMPROOT/main.out" 2>"$TMPROOT/main.err")
+assert_file_contains "$TMPROOT/main.out" "$main_repo" "repo-end main checkout prints main path"
 
 create_remote_repo end-prune
 prune_repo="$CREATED_REPO"
