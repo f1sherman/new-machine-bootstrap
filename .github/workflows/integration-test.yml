@@ -27,6 +27,9 @@ jobs:
       - name: Verify package tool paranoid mode
         run: ruby tests/paranoid-package-tools.rb
 
+      - name: Verify gsd-browser package contract
+        run: ruby tests/gsd-browser-package-contract.rb
+
       - name: Verify murder helper behavior
         run: ruby tests/murder.rb
 
