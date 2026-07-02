@@ -198,9 +198,9 @@ if [[ -z "$current_branch" ]]; then
 fi
 
 main_branch="$(_worktree_main_branch)"
+already_on_main="false"
 if [[ "$current_branch" == "$main_branch" ]]; then
-  printf 'Error: already on %s\n' "$main_branch" >&2
-  exit 1
+  already_on_main="true"
 fi
 
 if [[ -n "$(_repo_status_excluding_config "$repo_root")" ]]; then
@@ -379,6 +379,22 @@ fi
 if [[ -n "$(_repo_status_excluding_config "$main_path")" ]]; then
   printf 'Error: main checkout has uncommitted changes\n' >&2
   exit 1
+fi
+
+if [[ "$already_on_main" == "true" ]]; then
+  if [[ "$print_path" == "true" ]]; then
+    prune_merged_local_branches >&2
+  else
+    prune_merged_local_branches
+  fi
+  clear_repo_tmux_state
+  if [[ "$print_path" == "true" ]]; then
+    run_repo_end_callbacks >&2
+  else
+    run_repo_end_callbacks
+  fi || exit 1
+  printf '%s\n' "$main_path"
+  exit 0
 fi
 
 if ! already_merged; then

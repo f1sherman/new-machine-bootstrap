@@ -350,6 +350,33 @@ assert_file_contains \
   "callback progress" \
   "callback progress is still visible on stderr"
 
+already_main_repo="$(create_repo already-main-callback)"
+tmp_home_already_main="$TMPROOT/already-main-callback-home"
+already_main_callback_dir="$tmp_home_already_main/.local/bin/repo-end.d"
+mkdir -p "$already_main_callback_dir"
+already_main_log="$tmp_home_already_main/.local/state/repo-end-already-main-callback.log"
+mkdir -p "$(dirname "$already_main_log")"
+cat >"$already_main_callback_dir/10-main.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'callback-main %s\n' "$*" >> "$HOME/.local/state/repo-end-already-main-callback.log"
+EOF
+chmod +x "$already_main_callback_dir/10-main.sh"
+
+run_case "already-main checkout runs callbacks successfully" \
+  "$already_main_repo" \
+  "$tmp_home_already_main" \
+  "$TMPROOT/already-main-callback.out" \
+  "$TMPROOT/already-main-callback.err"
+
+assert_file_equals \
+  "$already_main_log" \
+  "callback-main --repo-dir $already_main_repo --branch main --main-branch main --main-path $already_main_repo" \
+  "already-main callback receives main branch context"
+assert_file_equals \
+  "$TMPROOT/already-main-callback.out" \
+  "$already_main_repo" \
+  "already-main print-path stdout contains final path"
+
 fail_repo="$(create_repo callback-fails)"
 add_feature_branch "$fail_repo" feature/fails callback-fails.txt
 merge_feature_to_origin_main "$fail_repo" feature/fails
