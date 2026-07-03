@@ -19,9 +19,13 @@ fi
 
 cat >"$TMPROOT/check.mjs" <<'NODE'
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const extensionPath = process.argv[2];
+const worktreeRoot = process.env.PI_HOOK_TEST_WORKTREE;
+fs.mkdirSync(path.join(worktreeRoot, "tests"), { recursive: true });
 const { default: install } = await import(pathToFileURL(extensionPath));
 
 const handlers = new Map();
@@ -39,8 +43,12 @@ const pi = {
     calls.push({ command, args });
     if (command === "tmux-agent-state") return ok();
     if (command === "tmux") return fail();
-    if (command === "git" && args.includes("rev-parse")) return ok("/repo\n");
-    if (command === "git" && args.includes("branch")) return ok(`${branch}\n`);
+    if (command === "git" && args.includes("rev-parse")) {
+      return ok(args.includes(path.join(worktreeRoot, "tests")) ? `${worktreeRoot}\n` : "/repo\n");
+    }
+    if (command === "git" && args.includes("branch")) {
+      return ok(args.includes(worktreeRoot) ? "feature\n" : `${branch}\n`);
+    }
     return fail();
   },
 };
@@ -110,6 +118,18 @@ const editBlock = await handlers.get("tool_call")({
 }, { cwd: "/repo" });
 assert.equal(editBlock.block, true, "blocks edit/write tools on main");
 
+const worktreeWrite = await handlers.get("tool_call")({
+  toolName: "write",
+  input: { path: path.join(worktreeRoot, "tests", "new-contract.rb"), content: "ok" },
+}, { cwd: "/repo" });
+assert.equal(worktreeWrite, undefined, "allows write tools for absolute paths in a feature worktree even when session cwd is main");
+
+const mainWrite = await handlers.get("tool_call")({
+  toolName: "write",
+  input: { path: "/repo/main-contract.rb", content: "no" },
+}, { cwd: worktreeRoot });
+assert.equal(mainWrite.block, true, "blocks write tools for absolute paths in main even when session cwd is a feature worktree");
+
 branch = "feature";
 const featureEdit = await handlers.get("tool_call")({
   toolName: "write",
@@ -120,4 +140,4 @@ assert.equal(featureEdit, undefined, "allows edit/write tools off main");
 console.log("pi-managed-hooks checks complete");
 NODE
 
-"${node_cmd[@]}" "$TMPROOT/check.mjs" "$TMPROOT/managed-hooks.mjs"
+PI_HOOK_TEST_WORKTREE="$TMPROOT/worktree" "${node_cmd[@]}" "$TMPROOT/check.mjs" "$TMPROOT/managed-hooks.mjs"
