@@ -1,5 +1,7 @@
 # shellcheck shell=bash
 
+export PI_SKIP_VERSION_CHECK=1
+
 if [[ -n "$ZSH_ENV_LOADED" ]]; then
   return 0
 fi
