@@ -49,6 +49,26 @@ async function boundWorktreePath(pi, fallbackCwd) {
   return tmuxPath || fallbackCwd;
 }
 
+function expandHome(filePath) {
+  if (filePath === "~") return process.env.HOME || filePath;
+  if (filePath.startsWith("~/")) return path.join(process.env.HOME || "", filePath.slice(2));
+  return filePath;
+}
+
+function probeDir(filePath, fallbackCwd) {
+  const expandedPath = expandHome(filePath);
+  let probe = path.isAbsolute(expandedPath) ? expandedPath : path.resolve(fallbackCwd, expandedPath);
+  if (!fs.existsSync(probe) || !fs.statSync(probe).isDirectory()) {
+    probe = path.dirname(probe);
+  }
+
+  while (!fs.existsSync(probe) && probe !== path.dirname(probe)) {
+    probe = path.dirname(probe);
+  }
+
+  return fs.existsSync(probe) ? probe : fallbackCwd;
+}
+
 async function gitRoot(pi, cwd) {
   const result = await exec(pi, "git", ["-C", cwd, "rev-parse", "--show-toplevel"]);
   if (result.code !== 0) return "";
@@ -133,11 +153,15 @@ export default function managedHooks(pi) {
       return;
     }
 
-    if ((event.toolName === "edit" || event.toolName === "write") && await onMainBranch(pi, ctx.cwd)) {
-      return {
-        block: true,
-        reason: "File edit blocked on main. Start a non-main branch with repo-start <branch>, then retry.",
-      };
+    if (event.toolName === "edit" || event.toolName === "write") {
+      const targetPath = event.input.path || event.input.file_path || "";
+      const cwd = targetPath ? probeDir(targetPath, ctx.cwd) : ctx.cwd;
+      if (await onMainBranch(pi, cwd)) {
+        return {
+          block: true,
+          reason: "File edit blocked on main. Start a non-main branch with repo-start <branch>, then retry.",
+        };
+      }
     }
   });
 }
