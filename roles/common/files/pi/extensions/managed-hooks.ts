@@ -5,7 +5,7 @@ const COMMAND_TIMEOUT_MS = 5000;
 const REPO_START_TRIGGERS = /(^|\s)(?:_fix|_spec-first|_spec-to-pr|superpowers:systematic-debugging|superpowers:brainstorming)(?=\s|$)/i;
 const SUBJECT_TRIGGERS = /(^|\s)superpowers:(?:brainstorming|systematic-debugging)(?=\s|$)/i;
 const SHELL_TOKEN = "[^\\s;&|()]+";
-const GIT_PREAMBLE = "(^|[;&|()])\\s*(?:(?:(?:if|then|do|elif|while|until)\\s+|!\\s+)*)((?:(?:[A-Za-z_][A-Za-z0-9_]*)=\\S+\\s+|command\\s+|env\\s+)*)git(?:\\s+-\\S+(?:\\s+\\S+)*)*\\s+";
+const GIT_PREAMBLE = "(^|[;&|()])\\s*(?:(?:(?:if|then|do|elif|while|until)\\s+|!\\s+)*)((?:(?:[A-Za-z_][A-Za-z0-9_]*)=\\S+\\s+|command\\s+|env\\s+|sudo(?:\\s+-\\S+)*\\s+|time(?:\\s+-\\S+)*\\s+)*)git(?:\\s+-\\S+(?:\\s+\\S+)*)*\\s+";
 
 function warn(message, error) {
   const detail = error instanceof Error ? error.message : String(error ?? "unknown error");
@@ -87,6 +87,237 @@ async function onMainBranch(pi, cwd) {
   return (await branchName(pi, cwd)) === "main";
 }
 
+function shellWrappedPayload(segment) {
+  const match = segment.match(/^(?:command\s+|env\s+(?:\S+\s+)*|sudo(?:\s+-\S+)*\s+|time(?:\s+-\S+)*\s+)*(?:\S+\/)?(?:bash|sh|zsh)(?:\s+-\S+)*\s+-[A-Za-z]*c[A-Za-z]*(?:\s+\S+)*\s+(['"])([\s\S]*)\1(?:\s+.*)?$/);
+  return match ? match[2] : "";
+}
+
+function splitShellSegments(command) {
+  const segments = [];
+  let current = "";
+  let quote = "";
+  let escaped = false;
+
+  for (let i = 0; i < command.length; i += 1) {
+    const char = command[i];
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+    if (char === "\\" && quote !== "'") {
+      current += char;
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      current += char;
+      if (char === quote) quote = "";
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      current += char;
+      quote = char;
+      continue;
+    }
+    if (char === "&" || char === "|") {
+      if (current.trim()) segments.push(current.trim());
+      current = "";
+      if (command[i + 1] === char) i += 1;
+      continue;
+    }
+    if (char === ";" || char === "(" || char === ")" || char === "\n" || char === "\r") {
+      if (current.trim()) segments.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+
+  if (current.trim()) segments.push(current.trim());
+  return segments;
+}
+
+function splitCommandSegments(command) {
+  const expanded = [];
+  for (const segment of splitShellSegments(command)) {
+    const payload = shellWrappedPayload(segment);
+    if (payload) {
+      expanded.push(...splitCommandSegments(payload));
+    } else {
+      expanded.push(segment);
+    }
+  }
+  return expanded;
+}
+
+function unquoteShellToken(token) {
+  if ((token.startsWith('"') && token.endsWith('"')) || (token.startsWith("'") && token.endsWith("'"))) {
+    return token.slice(1, -1);
+  }
+  return token;
+}
+
+function gitCommandCwd(segment, fallbackCwd) {
+  const tokens = segment.replace(/\s+/g, " ").trim().split(" ").map(unquoteShellToken);
+  const gitIndex = tokens.indexOf("git");
+  if (gitIndex === -1) return fallbackCwd;
+
+  let selectedCwd = fallbackCwd;
+  for (let i = gitIndex + 1; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    if (token === "push" || token === "commit" || token === "add" || token === "worktree" || token === "branch" || token === "switch" || token === "checkout") break;
+    if (token === "-C" && tokens[i + 1]) {
+      selectedCwd = path.isAbsolute(tokens[i + 1]) ? tokens[i + 1] : path.resolve(selectedCwd, tokens[i + 1]);
+      i += 1;
+    } else if (token.startsWith("-C") && token.length > 2) {
+      const value = token.slice(2);
+      selectedCwd = path.isAbsolute(value) ? value : path.resolve(selectedCwd, value);
+    }
+  }
+
+  return selectedCwd;
+}
+
+function rawCommitBlockReason(command) {
+  for (const segment of splitCommandSegments(command)) {
+    const normalized = segment.replace(/\s+/g, " ").trim();
+    if (new RegExp(`${GIT_PREAMBLE}commit([\\s;&|()]|$)`).test(normalized)) {
+      return "Do not run git commit directly. Use the _commit skill instead.";
+    }
+  }
+  return "";
+}
+
+function changedDirectory(segment, cwd) {
+  const match = segment.replace(/\s+/g, " ").trim().match(/^cd(?:\s+--)?\s+([^\s;&|()]+)$/);
+  if (!match) return "";
+  const target = expandHome(unquoteShellToken(match[1]));
+  return path.isAbsolute(target) ? target : path.resolve(cwd, target);
+}
+
+function changedDirectoryCandidates(segment, cwd) {
+  const nextCwd = changedDirectory(segment, cwd);
+  if (!nextCwd) return [];
+  return [cwd, nextCwd];
+}
+
+async function anyMainBranch(pi, cwds) {
+  for (const cwd of cwds) {
+    if (await onMainBranch(pi, cwd)) return true;
+  }
+  return false;
+}
+
+function gitPushPositionals(segment) {
+  const tokens = segment.replace(/\s+/g, " ").trim().split(" ").map(unquoteShellToken);
+  const pushIndex = tokens.indexOf("push");
+  if (pushIndex === -1) return [];
+
+  const positionals = [];
+  for (let i = pushIndex + 1; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    if (token === "--") {
+      positionals.push(...tokens.slice(i + 1));
+      break;
+    }
+    if (token === "-o" || token === "--push-option" || token === "--receive-pack" || token === "--exec" || token === "--repo") {
+      i += 1;
+      continue;
+    }
+    if (token.startsWith("-")) continue;
+    positionals.push(token);
+  }
+  return positionals;
+}
+
+async function pushMainBlockReason(pi, command, cwd) {
+  const mainRef = "\\+?(([^\\s;&|()]+:)?(main|refs/heads/main)|:(main|refs/heads/main)?|:)";
+  let segmentCwds = [cwd];
+  for (const segment of splitShellSegments(command)) {
+    const payload = shellWrappedPayload(segment);
+    if (payload) {
+      for (const segmentCwd of segmentCwds) {
+        const nestedReason = await pushMainBlockReason(pi, payload, segmentCwd);
+        if (nestedReason) return nestedReason;
+      }
+      continue;
+    }
+
+    const normalized = segment.replace(/\s+/g, " ").trim();
+    const nextCwds = segmentCwds.flatMap((segmentCwd) => changedDirectoryCandidates(segment, segmentCwd));
+    if (nextCwds.length > 0) {
+      segmentCwds = [...new Set(nextCwds)];
+      continue;
+    }
+
+    if (new RegExp(`${GIT_PREAMBLE}push(?:\\s+${SHELL_TOKEN})*\\s+${mainRef}([\\s;&|()]|$)`).test(normalized)) {
+      return "Do not push to main directly. Open a PR.";
+    }
+    if (new RegExp(`${GIT_PREAMBLE}push(?:\\s+${SHELL_TOKEN})*\\s+(--all|--mirror)([\\s;&|()]|$)`).test(normalized)) {
+      return "Do not push to main directly. Open a PR.";
+    }
+
+    const isGitPush = new RegExp(`${GIT_PREAMBLE}push([\\s;&|()]|$)`).test(normalized);
+    if (!isGitPush) continue;
+
+    const selectedCwds = segmentCwds.map((segmentCwd) => gitCommandCwd(segment, segmentCwd));
+    const pushPositionals = gitPushPositionals(segment);
+    const safePushMode = /(^|\s)(--dry-run|--tags)(\s|$)/.test(normalized);
+    const headPush = pushPositionals.includes("HEAD");
+    const implicitPush = !safePushMode && pushPositionals.length <= 1;
+    if ((headPush || implicitPush) && await anyMainBranch(pi, selectedCwds)) {
+      return "Do not push to main directly. Open a PR.";
+    }
+  }
+
+  return "";
+}
+
+function isSuperpowersDocsPath(filePath) {
+  return /(^|\/)docs\/superpowers(\/|$)/.test(filePath.replaceAll(path.sep, "/"));
+}
+
+function forceAddOperandsTargetSuperpowersDocs(segment, cwd) {
+  const tokens = segment.replace(/\s+/g, " ").trim().split(" ").map(unquoteShellToken);
+  const addIndex = tokens.indexOf("add");
+  if (addIndex === -1) return false;
+  for (const token of tokens.slice(addIndex + 1)) {
+    if (!token || token.startsWith("-")) continue;
+    const expanded = expandHome(token);
+    const absolute = path.isAbsolute(expanded) ? expanded : path.resolve(cwd, expanded);
+    if (isSuperpowersDocsPath(absolute)) return true;
+  }
+  return false;
+}
+
+function forceAddSuperpowersDocsBlockReason(command, cwd) {
+  let segmentCwd = cwd;
+  for (const segment of splitCommandSegments(command)) {
+    const normalized = segment.replace(/\s+/g, " ").trim();
+    const nextCwd = changedDirectory(segment, segmentCwd);
+    if (nextCwd) {
+      segmentCwd = nextCwd;
+      continue;
+    }
+
+    const isGitAdd = new RegExp(`${GIT_PREAMBLE}add([\\s;&|()]|$)`).test(normalized);
+    const hasForce = /(^|\s)--f[a-z]*(\s|=|$)|(^|\s)-[A-Za-z]*f[A-Za-z]*(\s|$)/.test(normalized);
+    const gitCwd = gitCommandCwd(segment, segmentCwd);
+    if (isGitAdd && hasForce && (normalized.includes("docs/superpowers") || isSuperpowersDocsPath(gitCwd) || forceAddOperandsTargetSuperpowersDocs(segment, gitCwd))) {
+      return "docs/superpowers/ may be gitignored intentionally. Do not bypass .gitignore with -f / --force.";
+    }
+  }
+  return "";
+}
+
+async function bashCommandBlockReason(pi, command, cwd) {
+  return worktreeCommandBlockReason(command)
+    || rawCommitBlockReason(command)
+    || await pushMainBlockReason(pi, command, cwd)
+    || forceAddSuperpowersDocsBlockReason(command, cwd);
+}
+
 function worktreeCommandBlockReason(command) {
   const normalized = command.replace(/\s+/g, " ").trim();
   if (new RegExp(`${GIT_PREAMBLE}worktree\\s+add(?:\\s|$)`).test(normalized)) {
@@ -116,6 +347,28 @@ async function needsSubjectReminder(pi) {
   const subject = readState("@agent_subject") || await tmuxOption(pi, "@agent_subject");
   const stale = readState("@agent_subject_stale") || await tmuxOption(pi, "@agent_subject_stale");
   return !subject || Boolean(stale);
+}
+
+function superpowersSpecPath(event, cwd, repoRoot) {
+  const targetPath = event.input.path || event.input.file_path || "";
+  if (!targetPath) return "";
+  const expanded = expandHome(targetPath);
+  const absolute = path.isAbsolute(expanded) ? expanded : path.resolve(cwd, expanded);
+  const root = repoRoot || cwd;
+  const relative = path.relative(root, absolute).replaceAll(path.sep, "/");
+  if (/^docs\/superpowers\/specs\/[^/]+[.]md$/.test(relative)) return absolute;
+  return "";
+}
+
+async function updateCurrentSpec(pi, event, ctx) {
+  if (!inTmux()) return;
+  if (event.toolName !== "edit" && event.toolName !== "write") return;
+  const targetPath = event.input.path || event.input.file_path || "";
+  const targetCwd = targetPath ? probeDir(targetPath, ctx.cwd) : ctx.cwd;
+  const root = await gitRoot(pi, targetCwd);
+  const specPath = superpowersSpecPath(event, ctx.cwd, root);
+  if (!specPath) return;
+  await exec(pi, "tmux", ["set-option", "-p", "-t", process.env.TMUX_PANE, "@agent_current_spec_path", specPath]);
 }
 
 export default function managedHooks(pi) {
@@ -148,7 +401,7 @@ export default function managedHooks(pi) {
 
   pi.on("tool_call", async (event, ctx) => {
     if (event.toolName === "bash") {
-      const reason = worktreeCommandBlockReason(event.input.command || "");
+      const reason = await bashCommandBlockReason(pi, event.input.command || "", ctx.cwd);
       if (reason) return { block: true, reason };
       return;
     }
@@ -162,6 +415,7 @@ export default function managedHooks(pi) {
           reason: "File edit blocked on main. Start a non-main branch with repo-start <branch>, then retry.",
         };
       }
+      await updateCurrentSpec(pi, event, ctx);
     }
   });
 }
