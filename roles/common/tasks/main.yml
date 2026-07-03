@@ -154,6 +154,13 @@
     - { name: tmux-pipe-pane-rotate, mode: '0755' }
     - { name: tmux-restore-handler-claude_session_id, mode: '0755' }
 
+- name: Install Pi settings helper
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/pi-codex-subscription-defaults'
+    src: '{{ playbook_dir }}/roles/common/files/bin/pi-codex-subscription-defaults'
+    mode: '0755'
+
 - name: Remove legacy public worktree helpers
   file:
     path: '{{ ansible_facts["user_dir"] }}/.local/bin/{{ item }}'
@@ -1287,6 +1294,11 @@
     src: pi/extensions/managed-hooks.ts
     dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/extensions/managed-hooks.ts"
     mode: '0644'
+
+- name: Prefer OpenAI Codex subscription defaults for pi-coding-agent
+  command: "{{ mise_bin }} exec ruby@{{ tool_versions.runtimes.ruby }} -- ruby {{ ansible_facts['user_dir'] }}/.local/bin/pi-codex-subscription-defaults"
+  register: common_pi_codex_subscription_defaults
+  changed_when: common_pi_codex_subscription_defaults.stdout.strip() == 'changed'
 
 - name: Link pi-coding-agent into the active mise Node.js global package tree
   shell: |

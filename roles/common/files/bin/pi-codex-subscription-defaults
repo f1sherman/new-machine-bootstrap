@@ -1,0 +1,44 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "fileutils"
+require "json"
+require "tempfile"
+
+settings_path = File.join(Dir.home, ".pi/agent/settings.json")
+settings_dir = File.dirname(settings_path)
+desired = {
+  "defaultProvider" => "openai-codex",
+  "defaultModel" => "gpt-5.5"
+}
+
+FileUtils.mkdir_p(settings_dir)
+
+settings = if File.exist?(settings_path) && !File.zero?(settings_path)
+  JSON.parse(File.read(settings_path))
+else
+  {}
+end
+
+unless settings.is_a?(Hash)
+  abort "#{settings_path} must contain a JSON object"
+end
+
+updated = settings.merge(desired)
+mode_changed = File.exist?(settings_path) && (File.stat(settings_path).mode & 0o777) != 0o600
+changed = updated != settings || mode_changed
+
+if updated != settings || !File.exist?(settings_path)
+  Tempfile.create(["settings", ".json"], settings_dir) do |tmp|
+    tmp.write(JSON.pretty_generate(updated))
+    tmp.write("\n")
+    tmp.flush
+    tmp.close
+    File.chmod(0o600, tmp.path)
+    File.rename(tmp.path, settings_path)
+  end
+else
+  File.chmod(0o600, settings_path)
+end
+
+puts changed ? "changed" : "unchanged"
