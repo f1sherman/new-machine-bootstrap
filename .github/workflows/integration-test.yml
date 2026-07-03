@@ -60,6 +60,9 @@ jobs:
       - name: Verify pi managed hooks
         run: bash tests/pi-managed-hooks.sh
 
+      - name: Verify Pi managed aube update contract
+        run: ruby tests/pi-managed-aube-update-contract.rb
+
       - name: Verify tmux agent subject reminder hooks
         run: bash tests/agent-subject-hooks.sh
 
