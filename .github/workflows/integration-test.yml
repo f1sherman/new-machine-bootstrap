@@ -69,6 +69,9 @@ jobs:
       - name: Verify Pi shared skills
         run: ruby tests/pi-shared-skills.rb
 
+      - name: Verify Pi skill conflict cleanup
+        run: ruby tests/pi-skill-conflicts.rb
+
       - name: Verify Pi managed aube update contract
         run: ruby tests/pi-managed-aube-update-contract.rb
 
