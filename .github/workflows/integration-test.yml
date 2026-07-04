@@ -60,6 +60,9 @@ jobs:
       - name: Verify pi managed hooks
         run: bash tests/pi-managed-hooks.sh
 
+      - name: Verify Pi attention bell
+        run: bash tests/pi-attention-bell.sh
+
       - name: Verify Pi shared skills
         run: ruby tests/pi-shared-skills.rb
 
