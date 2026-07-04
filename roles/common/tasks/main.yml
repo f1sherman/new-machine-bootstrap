@@ -2219,6 +2219,7 @@
     state: absent
   loop:
     - .gsd
+    - .agents/skills/committing-changes
     - .local/bin/gsd
     - .local/bin/gsd-cli
 
