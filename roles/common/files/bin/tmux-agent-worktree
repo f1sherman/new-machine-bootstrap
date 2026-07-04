@@ -380,11 +380,13 @@ cmd_set() {
 }
 
 cmd_clear() {
-  local subject window_label
+  local subject window_label pane_link pane_link_source
   [ -n "${TMUX:-}" ] || return 0
   [ -n "${TMUX_PANE:-}" ] || return 0
   subject="$(read_pane_option "$TMUX_PANE" "@agent_subject" 2>/dev/null || true)"
   window_label="$(read_pane_option "$TMUX_PANE" "@window-label" 2>/dev/null || true)"
+  pane_link="$(read_pane_option "$TMUX_PANE" "@pane-link" 2>/dev/null || true)"
+  pane_link_source="$(read_pane_option "$TMUX_PANE" "@pane-link-source" 2>/dev/null || true)"
   clear_pane_option "$TMUX_PANE" "@agent_worktree_path"
   clear_pane_option "$TMUX_PANE" "@agent_worktree_pid"
   clear_pane_option "$TMUX_PANE" "@pane-link"
@@ -395,6 +397,10 @@ cmd_clear() {
       mark_subject_done || true
     elif [ -n "$window_label" ]; then
       mark_window_label_done "$window_label" || true
+      if [ -n "$pane_link" ] && [ "$pane_link_source" = "pr-status-cache" ]; then
+        write_pane_option "$TMUX_PANE" "@pane-link" "$pane_link"
+        write_pane_option "$TMUX_PANE" "@pane-link-source" "$pane_link_source"
+      fi
     fi
     return 0
   fi

@@ -336,6 +336,8 @@ mkdir -p "$stale_window_state_dir"
 printf 'codex' > "$stale_window_state_dir/%13.@agent_kind"
 printf '%s' "$repo_path" > "$stale_window_state_dir/%13.@agent_worktree_path"
 printf 'codex: old task subject' > "$stale_window_state_dir/%13.@window-label"
+printf 'https://example.com/pr/42' > "$stale_window_state_dir/%13.@pane-link"
+printf 'pr-status-cache' > "$stale_window_state_dir/%13.@pane-link-source"
 TMUX=1 \
 TMUX_PANE="%13" \
 TMUX_AGENT_WORKTREE_STATE_DIR="$stale_window_state_dir" \
@@ -344,6 +346,8 @@ PATH="$stub_bin:$BIN_DIR:$PATH" \
   "$AGENT_WORKTREE" clear
 assert_file_contains "$stale_window_state_dir/%13.@agent_completed_window_label" "✓ codex: old task subject" "repo-end tmux clearer stores completed window label without subject"
 assert_file_contains "$stale_window_state_dir/%13.@window-label" "✓ codex: old task subject" "repo-end tmux clearer preserves completed window label without subject"
+assert_file_contains "$stale_window_state_dir/%13.@pane-link" "https://example.com/pr/42" "repo-end tmux clearer preserves completed window PR link"
+assert_file_contains "$stale_window_state_dir/%13.@pane-link-source" "pr-status-cache" "repo-end tmux clearer preserves completed window PR link source"
 
 fake_tmux_dir="$TMPROOT/fake-tmux-bin"
 window_log="$TMPROOT/window-label.log"
