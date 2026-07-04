@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(git rev-parse --show-toplevel)"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+repo_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 zshenv_fragment="$repo_root/roles/common/templates/dotfiles/zshenv.d/10-common-env.zsh"
 zshrc_fragment="$repo_root/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh"
 
