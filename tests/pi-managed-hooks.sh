@@ -66,7 +66,7 @@ const pi = {
 };
 
 const ctx = {
-  cwd: "/repo",
+  cwd: "/repo/main-repo",
   sessionManager: {
     getSessionName() {
       return currentSessionName;
@@ -91,24 +91,24 @@ assert.deepEqual(calls.slice(-4), [
   { command: "tmux-agent-state", args: ["set-kind", "pi"] },
   { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@window-label"] },
 ], "session_start refreshes pane labels before rendering pi window label and naming the session");
-assert.deepEqual(sessionNames, ["pi main-repo"], "session_start names the Pi session from tmux @window-label");
+assert.deepEqual(sessionNames, [], "directory-only pi labels do not set redundant Pi session names");
 assert.equal(typeof handlers.get("tool_result"), "function", "registers tool_result hook");
 
-windowLabel = "pi feature-work";
+windowLabel = "pi main-repo feature-work";
 await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
-assert.deepEqual(sessionNames, ["pi main-repo", "pi feature-work"], "successful bash results resync managed Pi session names from tmux");
+assert.deepEqual(sessionNames, ["feature-work"], "successful bash results set only the meaningful Pi session name");
 
 currentSessionName = "manual investigation name";
 windowLabel = "pi later-worktree";
 await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
 assert.equal(currentSessionName, "manual investigation name", "manual Pi session names are not overwritten by managed tmux sync");
-assert.deepEqual(sessionNames, ["pi main-repo", "pi feature-work"], "manual-name preservation does not call setSessionName again");
+assert.deepEqual(sessionNames, ["feature-work"], "manual-name preservation does not call setSessionName again");
 
 await handlers.get("tool_result")({ toolName: "read", isError: false }, ctx);
-assert.deepEqual(sessionNames, ["pi main-repo", "pi feature-work"], "non-bash tool results do not resync session names");
+assert.deepEqual(sessionNames, ["feature-work"], "non-bash tool results do not resync session names");
 
 await handlers.get("tool_result")({ toolName: "bash", isError: true }, ctx);
-assert.deepEqual(sessionNames, ["pi main-repo", "pi feature-work"], "failed bash results do not resync session names");
+assert.deepEqual(sessionNames, ["feature-work"], "failed bash results do not resync session names");
 
 const reminder = await handlers.get("before_agent_start")({
   prompt: "Use _fix for this",
