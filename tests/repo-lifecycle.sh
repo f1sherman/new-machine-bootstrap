@@ -667,6 +667,57 @@ if [[ ! -d "$api_ambiguous_feature" ]]; then
 fi
 pass_case "repo-end ambiguous API proof keeps worktree"
 
+# --- repo-end refuses existing unmerged remote branch before API fallback ---
+create_remote_repo end-worktree-unmerged-remote-api
+unmerged_remote_origin="$CREATED_ORIGIN"
+unmerged_remote_main="$CREATED_REPO"
+unmerged_remote_feature="$TMPROOT/end-worktree-unmerged-remote-api-feature"
+git -C "$unmerged_remote_main" worktree add -q -b feature/unmerged-remote-api "$unmerged_remote_feature" main
+printf 'unmerged remote base\n' >"$unmerged_remote_feature/unmerged-remote.txt"
+git -C "$unmerged_remote_feature" add unmerged-remote.txt
+git -C "$unmerged_remote_feature" commit -q -m "unmerged remote base"
+git -C "$unmerged_remote_feature" push -q -u origin feature/unmerged-remote-api
+unmerged_remote_peer="$TMPROOT/end-worktree-unmerged-remote-api-peer"
+git clone -q "$unmerged_remote_origin" "$unmerged_remote_peer"
+git -C "$unmerged_remote_peer" checkout -q feature/unmerged-remote-api
+printf 'unmerged remote final\n' >"$unmerged_remote_peer/unmerged-remote.txt"
+git -C "$unmerged_remote_peer" add unmerged-remote.txt
+git -C "$unmerged_remote_peer" commit -q -m "unmerged remote final"
+git -C "$unmerged_remote_peer" push -q origin feature/unmerged-remote-api
+git -C "$unmerged_remote_main" remote set-url origin git@github.com:example/end-worktree-unmerged-remote-api.git
+stub_unmerged_remote_bin="$TMPROOT/unmerged-remote-api-bin"
+mkdir -p "$stub_unmerged_remote_bin"
+cat >"$stub_unmerged_remote_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'gh should not be called\n' >>"$UNMERGED_REMOTE_GH_LOG"
+cat <<'JSON'
+[{"number":88,"merged_at":"2026-07-04T02:00:00Z","base":{"ref":"main"},"head":{"ref":"feature/unmerged-remote-api"}}]
+JSON
+EOF
+chmod +x "$stub_unmerged_remote_bin/gh"
+cat >"$stub_unmerged_remote_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$unmerged_remote_origin'
+EOF
+chmod +x "$stub_unmerged_remote_bin/ssh"
+if (cd "$unmerged_remote_feature" && \
+  UNMERGED_REMOTE_GH_LOG="$TMPROOT/unmerged-remote-gh.log" \
+  PATH="$stub_unmerged_remote_bin:$BIN_DIR:$PATH" \
+  GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$stub_unmerged_remote_bin/ssh" \
+  "$REPO_END_SCRIPT" >"$TMPROOT/unmerged-remote.out" 2>"$TMPROOT/unmerged-remote.err"); then
+  fail_case "repo-end refuses unmerged remote branch before API fallback" "repo-end unexpectedly succeeded"
+fi
+assert_file_contains "$TMPROOT/unmerged-remote.err" "origin/feature/unmerged-remote-api is not merged into origin/main" "repo-end explains unmerged remote refusal"
+if [[ -e "$TMPROOT/unmerged-remote-gh.log" ]]; then
+  fail_case "repo-end unmerged remote refusal avoids API" "GitHub API fallback was called"
+fi
+pass_case "repo-end unmerged remote refusal avoids API"
+if [[ ! -d "$unmerged_remote_feature" ]]; then
+  fail_case "repo-end unmerged remote refusal keeps worktree" "worktree was removed"
+fi
+pass_case "repo-end unmerged remote refusal keeps worktree"
+
 # --- repo-end refuses local-only commits ahead of remote before API fallback ---
 create_remote_repo end-worktree-local-ahead
 local_ahead_origin="$CREATED_ORIGIN"

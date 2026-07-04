@@ -398,7 +398,8 @@ select_git_merge_proof_ref() {
       remote_branch_ref
       return 0
     fi
-    return 1
+    printf 'Error: origin/%s is not merged into origin/%s; merge the PR first, then run repo-end again\n' "$current_branch" "$main_branch" >&2
+    exit 1
   fi
 
   if remote_branch_is_ancestor_of_local; then
