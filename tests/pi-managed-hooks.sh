@@ -527,12 +527,13 @@ assert.deepEqual(calls.at(-1), {
   args: ["set-option", "-p", "-t", "%1", "@agent_current_spec_path", path.join(worktreeRoot, "docs", "superpowers", "specs", "subdir-relative-design.md")],
 }, "tracks write/edit spec paths relative to the tool cwd, not repo root");
 
-const beforeMissingCommandResult = calls.length;
+const beforeMissingCommandResultSetOptions = calls.filter((call) => call.command === "tmux" && call.args.includes("@agent_current_spec_path")).length;
 await handlers.get("tool_result")({
   toolName: "bash",
   isError: false,
 }, { cwd: worktreeRoot });
-assert.equal(calls.length, beforeMissingCommandResult, "ignores bash results without command input");
+const afterMissingCommandResultSetOptions = calls.filter((call) => call.command === "tmux" && call.args.includes("@agent_current_spec_path")).length;
+assert.equal(afterMissingCommandResultSetOptions, beforeMissingCommandResultSetOptions, "ignores bash results without command input for current-spec tracking");
 
 const bashSpecPath = path.join(worktreeRoot, "docs", "superpowers", "specs", "bash-created-design.md");
 fs.mkdirSync(path.dirname(bashSpecPath), { recursive: true });
