@@ -89,6 +89,12 @@ After making changes, apply them with `bin/provision` when the environment allow
 - **Always commit specs and plans**: Design specs and implementation plans must be committed under `docs/superpowers/` or `.coding-agent/`.
 - **Avoid compatibility inference for minor features**: For small quality-of-life behavior, prefer one explicit marker or setting over fallbacks, heuristics, or migration logic. Keep cleanup tasks when removing known-unwanted managed state, but do not add permanent backwards-compatibility detection unless data loss, security, or clear breakage is likely.
 
+## Repo Lifecycle Provider Hooks
+
+NMB owns generic `repo-start`/`repo-end` lifecycle helpers. Provider-specific internal forge behavior does not belong in this repo. If a consuming environment needs extra merge proof for a private Git provider, install an executable callback from that consuming repo under `~/.local/bin/repo-end.d`.
+
+`repo-end` calls callbacks with `--phase merge-proof` before cleanup only when built-in proof fails. Exit `0` means the callback proved the branch was merged, exit `1` means no proof and lets `repo-end` try the next callback, and exit `2+` aborts cleanup. After successful cleanup, callbacks run with `--phase post-cleanup` for notification or sweep behavior.
+
 ## Code Style
 - Ruby: Standard Ruby conventions, minimal comments
 - Shell scripts: Executable, clear variable names
