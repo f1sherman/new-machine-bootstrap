@@ -139,6 +139,7 @@
     - { name: repo-lib.sh, mode: '0644' }
     - { name: repo-start, mode: '0755' }
     - { name: repo-end, mode: '0755' }
+    - { name: pi-agent-assemble-agents, mode: '0755' }
     - { name: codex-block-worktree-commands, mode: '0755' }
     - { name: codex-remind-repo-start-on-dev-prompt, mode: '0755' }
     - { name: codex-remind-agent-subject-on-prompt, mode: '0755' }
@@ -1311,10 +1312,10 @@
     mode: '0600'
 
 - name: Assemble pi-coding-agent global AGENTS.md from fragments
-  assemble:
-    src: "{{ ansible_facts['user_dir'] }}/.pi/agent/AGENTS.md.d"
-    dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/AGENTS.md"
-    mode: '0600'
+  command: "{{ ansible_facts['user_dir'] }}/.local/bin/pi-agent-assemble-agents"
+  environment:
+    HOME: "{{ ansible_facts['user_dir'] }}"
+  changed_when: false
 
 - name: Install managed pi-coding-agent keybindings
   copy:

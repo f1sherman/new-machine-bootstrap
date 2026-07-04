@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+agent_dir="${PI_AGENT_DIR:-$HOME/.pi/agent}"
+fragment_dir="$agent_dir/AGENTS.md.d"
+output_file="$agent_dir/AGENTS.md"
+
+tmp_file="$(mktemp)"
+trap 'rm -f "$tmp_file"' EXIT
+
+if [[ -d "$fragment_dir" ]]; then
+  find "$fragment_dir" -maxdepth 1 -type f | sort | while IFS= read -r fragment; do
+    cat "$fragment"
+    printf '\n'
+  done >"$tmp_file"
+else
+  : >"$tmp_file"
+fi
+
+install -m 0600 "$tmp_file" "$output_file"
