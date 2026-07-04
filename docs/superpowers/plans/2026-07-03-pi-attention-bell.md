@@ -24,7 +24,7 @@
 - `roles/common/files/pi/extensions/pi-attention-bell.ts`: new Pi extension. Single responsibility: request terminal attention on Pi user-input wait points.
 - `roles/common/tasks/main.yml`: install the new extension into `~/.pi/agent/extensions/` next to `managed-hooks.ts`.
 - `tests/pi-attention-bell.sh`: CI-safe behavior/provisioning contract test. Imports the extension with mocked Pi contexts and asserts BEL, wrapper idempotency, fail-open behavior, and no desktop notification implementation.
-- `tests/pi-attention-bell-e2e.sh`: local E2E test. Runs real Pi in a pseudo-terminal with the managed extension plus a temporary prompt extension, captures raw output, and asserts BEL appears for `agent_end` and a blocking prompt.
+- `bin/pi-attention-bell-e2e`: local E2E test. Runs real Pi in a pseudo-terminal with the managed extension plus a temporary prompt extension, captures raw output, and asserts BEL appears for `agent_end` and a blocking prompt.
 - `.github/workflows/integration-test.yml`: run the CI-safe contract test. Do not run the local E2E in CI unless it proves stable without network/model credentials.
 
 ---
@@ -323,7 +323,7 @@ Expected: one commit containing only Ansible and workflow wiring.
 ### Task 3: Add a local Pi E2E test for raw BEL output
 
 **Files:**
-- Create: `tests/pi-attention-bell-e2e.sh`
+- Create: `bin/pi-attention-bell-e2e`
 
 **Interfaces:**
 - Consumes: `roles/common/files/pi/extensions/pi-attention-bell.ts`.
@@ -332,7 +332,7 @@ Expected: one commit containing only Ansible and workflow wiring.
 
 - [ ] **Step 1: Write the E2E test script**
 
-Create `tests/pi-attention-bell-e2e.sh` with this content:
+Create `bin/pi-attention-bell-e2e` with this content:
 
 ```bash
 #!/usr/bin/env bash
@@ -420,7 +420,7 @@ echo "pi-attention-bell E2E checks complete"
 Run:
 
 ```bash
-bash tests/pi-attention-bell-e2e.sh
+bash bin/pi-attention-bell-e2e
 ```
 
 Expected: PASS with `pi-attention-bell E2E checks complete`.
@@ -432,7 +432,7 @@ If it fails because Pi's model/provider CLI flags differ from the script, inspec
 Run:
 
 ```bash
-bash ~/.local/share/skills/_commit/commit.sh -m "Add Pi attention bell E2E coverage" tests/pi-attention-bell-e2e.sh
+bash ~/.local/share/skills/_commit/commit.sh -m "Add Pi attention bell E2E coverage" bin/pi-attention-bell-e2e
 ```
 
 Expected: one commit containing only the local E2E script.
@@ -465,7 +465,7 @@ Expected: both commands pass.
 Run:
 
 ```bash
-bash tests/pi-attention-bell-e2e.sh
+bash bin/pi-attention-bell-e2e
 ```
 
 Expected: PASS with `pi-attention-bell E2E checks complete`.
@@ -498,7 +498,7 @@ Use the repo PR workflow. The PR description must include:
 - Summary of the extension and BEL behavior.
 - Verification commands and results.
 - Whether `bin/provision --check --diff` was run or why it was skipped.
-- Note that `tests/pi-attention-bell-e2e.sh` is a local E2E test and whether it passed.
+- Note that `bin/pi-attention-bell-e2e` is a local E2E test and whether it passed.
 
 Expected: PR opened; do not merge.
 
