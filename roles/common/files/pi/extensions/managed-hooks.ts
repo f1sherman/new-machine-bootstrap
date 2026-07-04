@@ -42,6 +42,21 @@ async function tmuxOption(pi, key) {
   return result.code === 0 ? result.stdout.trim() : "";
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function piSessionNameFromTmuxLabel(label, cwd) {
+  let sessionName = label.trim().replace(/^pi(?:\s*:\s*|\s+)/i, "").trim();
+  const directoryName = cwd ? path.basename(cwd) : "";
+  if (directoryName) {
+    sessionName = sessionName
+      .replace(new RegExp(`^${escapeRegExp(directoryName)}(?:\\s*:\\s*|\\s+|$)`), "")
+      .trim();
+  }
+  return sessionName;
+}
+
 let lastManagedSessionName = "";
 
 async function refreshTmuxLabels(pi) {
@@ -57,16 +72,19 @@ async function syncSessionNameFromTmux(pi, ctx) {
   const label = await tmuxOption(pi, "@window-label");
   if (!label) return;
 
+  const sessionName = piSessionNameFromTmuxLabel(label, ctx?.cwd || "");
+  if (!sessionName) return;
+
   const currentName = ctx?.sessionManager?.getSessionName?.() || "";
-  if (currentName === label) {
-    lastManagedSessionName = label;
+  if (currentName === sessionName) {
+    lastManagedSessionName = sessionName;
     return;
   }
   if (currentName && currentName !== lastManagedSessionName) return;
 
   try {
-    pi.setSessionName(label);
-    lastManagedSessionName = label;
+    pi.setSessionName(sessionName);
+    lastManagedSessionName = sessionName;
   } catch (error) {
     warn("set Pi session name from tmux label failed", error);
   }
