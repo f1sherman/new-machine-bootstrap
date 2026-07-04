@@ -379,15 +379,34 @@ async function needsSubjectReminder(pi) {
   return !subject || Boolean(stale);
 }
 
-function superpowersSpecPath(event, cwd, repoRoot) {
-  const targetPath = event.input.path || event.input.file_path || "";
-  if (!targetPath) return "";
-  const expanded = expandHome(targetPath);
-  const absolute = path.isAbsolute(expanded) ? expanded : path.resolve(cwd, expanded);
+function normalizeSuperpowersSpecPath(candidatePath, cwd, repoRoot) {
+  if (!candidatePath) return "";
+  const unquoted = candidatePath.replace(/^['\"`]+|['\"`.,:;]+$/g, "");
+  if (/[*?[\]]/.test(unquoted)) return "";
+  const expanded = expandHome(unquoted.startsWith("./") ? unquoted.slice(2) : unquoted);
+  const absolute = path.isAbsolute(expanded) ? expanded : path.resolve(repoRoot || cwd, expanded);
   const root = repoRoot || cwd;
   const relative = path.relative(root, absolute).replaceAll(path.sep, "/");
   if (/^docs\/superpowers\/specs\/[^/]+[.]md$/.test(relative)) return absolute;
   return "";
+}
+
+function superpowersSpecPath(event, cwd, repoRoot) {
+  return normalizeSuperpowersSpecPath(event.input.path || event.input.file_path || "", cwd, repoRoot);
+}
+
+function superpowersSpecPathsInCommand(command, cwd, repoRoot) {
+  const paths = [];
+  const pathPattern = /(?:^|[\s'"`])((?:\.\/)?docs\/superpowers\/specs\/[^\s'"`;&|()<>]+[.]md|\/[^\s'"`;&|()<>]*\/docs\/superpowers\/specs\/[^\s'"`;&|()<>]+[.]md)(?=$|[\s'"`.,:;]|[;&|()<>])/g;
+  for (const match of command.matchAll(pathPattern)) {
+    const specPath = normalizeSuperpowersSpecPath(match[1], cwd, repoRoot);
+    if (specPath && fs.existsSync(specPath) && !paths.includes(specPath)) paths.push(specPath);
+  }
+  return paths;
+}
+
+async function setCurrentSpec(pi, specPath) {
+  await exec(pi, "tmux", ["set-option", "-p", "-t", process.env.TMUX_PANE, "@agent_current_spec_path", specPath]);
 }
 
 async function updateCurrentSpec(pi, event, ctx) {
@@ -398,7 +417,18 @@ async function updateCurrentSpec(pi, event, ctx) {
   const root = await gitRoot(pi, targetCwd);
   const specPath = superpowersSpecPath(event, ctx.cwd, root);
   if (!specPath) return;
-  await exec(pi, "tmux", ["set-option", "-p", "-t", process.env.TMUX_PANE, "@agent_current_spec_path", specPath]);
+  await setCurrentSpec(pi, specPath);
+}
+
+async function updateCurrentSpecFromBash(pi, event, ctx) {
+  if (!inTmux() || event.isError) return;
+  const command = event.input.command || "";
+  if (!command.includes("docs/superpowers/specs")) return;
+  const cwd = await boundWorktreePath(pi, ctx.cwd);
+  const root = await gitRoot(pi, cwd);
+  const specPaths = superpowersSpecPathsInCommand(command, cwd, root);
+  if (specPaths.length !== 1) return;
+  await setCurrentSpec(pi, specPaths[0]);
 }
 
 export default function managedHooks(pi) {
@@ -454,6 +484,12 @@ export default function managedHooks(pi) {
         };
       }
       await updateCurrentSpec(pi, event, ctx);
+    }
+  });
+
+  pi.on("tool_result", async (event, ctx) => {
+    if (event.toolName === "bash") {
+      await updateCurrentSpecFromBash(pi, event, ctx);
     }
   });
 }

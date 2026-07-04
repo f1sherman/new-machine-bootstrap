@@ -78,6 +78,7 @@ install(pi);
 assert.equal(typeof handlers.get("session_start"), "function", "registers session_start hook");
 assert.equal(typeof handlers.get("before_agent_start"), "function", "registers before_agent_start hook");
 assert.equal(typeof handlers.get("tool_call"), "function", "registers tool_call hook");
+assert.equal(typeof handlers.get("tool_result"), "function", "registers tool_result hook");
 
 process.env.TMUX = "1";
 process.env.TMUX_PANE = "%1";
@@ -516,6 +517,19 @@ assert.deepEqual(calls.at(-1), {
   command: "tmux",
   args: ["set-option", "-p", "-t", "%1", "@agent_current_spec_path", externalSpecPath],
 }, "tracks absolute spec paths in the edited file's repo even when session cwd differs");
+
+const bashSpecPath = path.join(worktreeRoot, "docs", "superpowers", "specs", "bash-created-design.md");
+fs.mkdirSync(path.dirname(bashSpecPath), { recursive: true });
+fs.writeFileSync(bashSpecPath, "# Design\n");
+await handlers.get("tool_result")({
+  toolName: "bash",
+  input: { command: "cat > docs/superpowers/specs/bash-created-design.md <<'EOF'\n# Design\nEOF" },
+  isError: false,
+}, { cwd: worktreeRoot });
+assert.deepEqual(calls.at(-1), {
+  command: "tmux",
+  args: ["set-option", "-p", "-t", "%1", "@agent_current_spec_path", bashSpecPath],
+}, "tracks successful bash-created superpowers spec paths in tmux pane state");
 
 console.log("pi-managed-hooks checks complete");
 NODE
