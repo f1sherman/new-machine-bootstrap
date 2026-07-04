@@ -3,6 +3,7 @@
 
 require "tmpdir"
 require "open3"
+require "yaml"
 
 SKIP_PATH_PATTERNS = [
   %r{\Adocs/},
@@ -101,6 +102,19 @@ def assert_violation(violations, expected)
   abort "expected violation containing #{expected.inspect}, got:\n#{violations.join("\n")}"
 end
 
+def managed_pi_package_install_platforms(tasks, package)
+  tasks.filter_map do |task|
+    next unless task.is_a?(Hash)
+    next unless task["name"].to_s.start_with?("Install #{package} plugin for pi-coding-agent")
+    next unless task["command"].to_s.include?("pi install npm:#{package}") || task["shell"].to_s.include?("pi install npm:#{package}")
+
+    case task["when"].to_s
+    when /Darwin/ then "Darwin"
+    when /Debian/ then "Debian"
+    end
+  end.compact.sort.uniq
+end
+
 Dir.mktmpdir("paranoid-package-tools") do |dir|
   File.write(
     File.join(dir, "bad.sh"),
@@ -147,8 +161,9 @@ end
 repo_root = File.expand_path("..", __dir__)
 violations = scan_violations(repo_root)
 
-unless File.read(File.join(repo_root, "roles/common/tasks/main.yml")).include?("pi install npm:pi-session-manager")
-  violations << "roles/common/tasks/main.yml: missing managed pi-session-manager install"
+common_tasks = YAML.load_file(File.join(repo_root, "roles/common/tasks/main.yml"))
+unless managed_pi_package_install_platforms(common_tasks, "pi-session-manager") == ["Darwin", "Debian"]
+  violations << "roles/common/tasks/main.yml: missing managed pi-session-manager install for macOS and Linux"
 end
 
 if violations.empty?
