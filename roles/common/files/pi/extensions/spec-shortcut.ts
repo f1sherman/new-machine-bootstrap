@@ -11,6 +11,10 @@ function specOpenCommand() {
   return path.join(process.env.HOME || "", ".local/bin/tmux-spec-open");
 }
 
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error ?? "unknown error");
+}
+
 function resultMessage(result) {
   return (result.stderr || result.stdout || `exited with code ${result.code}`).trim();
 }
@@ -24,9 +28,13 @@ export default function specShortcut(pi) {
         return;
       }
 
-      const result = await pi.exec(specOpenCommand(), [], { timeout: COMMAND_TIMEOUT_MS });
-      if (result.code !== 0) {
-        ctx.ui.notify(`Could not open spec pane: ${resultMessage(result)}`, "error");
+      try {
+        const result = await pi.exec(specOpenCommand(), [], { timeout: COMMAND_TIMEOUT_MS });
+        if (result.code !== 0) {
+          ctx.ui.notify(`Could not open spec pane: ${resultMessage(result)}`, "error");
+        }
+      } catch (error) {
+        ctx.ui.notify(`Could not open spec pane: ${errorMessage(error)}`, "error");
       }
     },
   });
