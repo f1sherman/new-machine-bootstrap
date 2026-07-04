@@ -51,6 +51,9 @@ jobs:
       - name: Verify tmux managed-bars opt-out contract
         run: bash tests/tmux-managed-bars-contract.sh
 
+      - name: Verify editor environment contract
+        run: bash tests/editor-env-contract.sh
+
       - name: Verify tmux agent key passthrough contract
         run: bash tests/tmux-agent-key-passthrough.sh
 
