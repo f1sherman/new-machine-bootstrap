@@ -528,6 +528,93 @@ if [[ -d "$remote_proof_feature" ]]; then
 fi
 pass_case "repo-end remote proof removes linked worktree"
 
+# --- repo-end worktree mode: deleted remote branch uses merged GitHub PR proof ---
+create_remote_repo end-worktree-github-proof
+github_proof_origin="$CREATED_ORIGIN"
+github_proof_main="$CREATED_REPO"
+github_proof_feature="$TMPROOT/end-worktree-github-proof-feature"
+git -C "$github_proof_main" worktree add -q -b feature/github-proof "$github_proof_feature" main
+printf 'github stale content\n' >"$github_proof_feature/github-proof.txt"
+git -C "$github_proof_feature" add github-proof.txt
+git -C "$github_proof_feature" commit -q -m "github stale feature commit"
+# Merge equivalent content directly to main as a squash and delete the remote feature ref.
+git -C "$github_proof_main" checkout -q main
+printf 'github merged content\n' >"$github_proof_main/github-proof.txt"
+git -C "$github_proof_main" add github-proof.txt
+git -C "$github_proof_main" commit -q -m "squash github proof"
+git -C "$github_proof_main" push -q origin main
+git -C "$github_proof_main" remote set-url origin git@github.com:example/end-worktree-github-proof.git
+stub_api_bin="$TMPROOT/github-proof-bin"
+mkdir -p "$stub_api_bin"
+cat >"$stub_api_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "gh $*" >>"$GH_STUB_LOG"
+cat <<'JSON'
+[{"number":298,"merged_at":"2026-07-04T02:41:51Z","base":{"ref":"main"},"head":{"ref":"feature/github-proof"}}]
+JSON
+EOF
+chmod +x "$stub_api_bin/gh"
+cat >"$stub_api_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$github_proof_origin'
+EOF
+chmod +x "$stub_api_bin/ssh"
+github_proof_home="$TMPROOT/end-worktree-github-proof-home"
+mkdir -p "$github_proof_home"
+(cd "$github_proof_feature" && \
+  GH_STUB_LOG="$TMPROOT/github-proof-gh.log" \
+  HOME="$github_proof_home" \
+  PATH="$stub_api_bin:$BIN_DIR:$PATH" \
+  GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$stub_api_bin/ssh" \
+  "$REPO_END_SCRIPT" --print-path \
+  >"$TMPROOT/end-worktree-github-proof.out" \
+  2>"$TMPROOT/end-worktree-github-proof.err")
+assert_file_contains "$TMPROOT/end-worktree-github-proof.out" "$github_proof_main" "repo-end GitHub proof prints main path"
+assert_file_contains "$TMPROOT/end-worktree-github-proof.err" "Using merged GitHub PR #298 as merge proof" "repo-end announces GitHub PR proof"
+assert_file_contains "$TMPROOT/github-proof-gh.log" "repos/example/end-worktree-github-proof/pulls" "repo-end queries GitHub pulls API"
+if [[ -d "$github_proof_feature" ]]; then
+  fail_case "repo-end GitHub proof removes linked worktree" "worktree remains at $github_proof_feature"
+fi
+pass_case "repo-end GitHub proof removes linked worktree"
+
+# --- repo-end API fallback refuses ambiguous merged PRs ---
+create_remote_repo end-worktree-api-ambiguous
+api_ambiguous_origin="$CREATED_ORIGIN"
+api_ambiguous_main="$CREATED_REPO"
+api_ambiguous_feature="$TMPROOT/end-worktree-api-ambiguous-feature"
+git -C "$api_ambiguous_main" worktree add -q -b feature/api-ambiguous "$api_ambiguous_feature" main
+printf 'ambiguous local\n' >"$api_ambiguous_feature/ambiguous.txt"
+git -C "$api_ambiguous_feature" add ambiguous.txt
+git -C "$api_ambiguous_feature" commit -q -m "ambiguous local"
+git -C "$api_ambiguous_main" remote set-url origin git@github.com:example/end-worktree-api-ambiguous.git
+stub_ambiguous_bin="$TMPROOT/api-ambiguous-bin"
+mkdir -p "$stub_ambiguous_bin"
+cat >"$stub_ambiguous_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+cat <<'JSON'
+[
+  {"number":10,"merged_at":"2026-07-04T02:00:00Z","base":{"ref":"main"},"head":{"ref":"feature/api-ambiguous"}},
+  {"number":11,"merged_at":"2026-07-04T03:00:00Z","base":{"ref":"main"},"head":{"ref":"feature/api-ambiguous"}}
+]
+JSON
+EOF
+chmod +x "$stub_ambiguous_bin/gh"
+cat >"$stub_ambiguous_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$api_ambiguous_origin'
+EOF
+chmod +x "$stub_ambiguous_bin/ssh"
+if (cd "$api_ambiguous_feature" && HOME="$TMPROOT/api-ambiguous-home" PATH="$stub_ambiguous_bin:$BIN_DIR:$PATH" GIT_CONFIG_GLOBAL=/dev/null GIT_SSH="$stub_ambiguous_bin/ssh" \
+  "$REPO_END_SCRIPT" >"$TMPROOT/api-ambiguous.out" 2>"$TMPROOT/api-ambiguous.err"); then
+  fail_case "repo-end refuses ambiguous API PR proof" "repo-end unexpectedly succeeded"
+fi
+assert_file_contains "$TMPROOT/api-ambiguous.err" "multiple merged PRs" "repo-end explains ambiguous API proof"
+if [[ ! -d "$api_ambiguous_feature" ]]; then
+  fail_case "repo-end ambiguous API proof keeps worktree" "worktree was removed"
+fi
+pass_case "repo-end ambiguous API proof keeps worktree"
+
 create_remote_repo end-dirty-current
 dirty_current_repo="$CREATED_REPO"
 git -C "$dirty_current_repo" checkout -q -b feature/dirty-current
