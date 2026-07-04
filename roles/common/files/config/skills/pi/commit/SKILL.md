@@ -9,9 +9,9 @@ description: >
 
 Invoking this skill is explicit approval to commit the current repository state. This skill does not push.
 
-Create the needed git commit or commits while keeping the main conversation focused on the higher-level task. Delegate the git inspection and commit planning to a worker so the main conversation does not absorb the diff.
+Create the needed git commit or commits while keeping the main conversation focused on the higher-level task.
 1. Write a 2-4 sentence summary of what you accomplished in this session - what changed, why, and any key decisions made. Include a list of the files that should be committed.
-2. Call `spawn_agent` with `agent_type: worker` and `fork_context: false` using the summary plus these instructions:
+2. Spawn a subagent with your summary and file list. Instruct the subagent:
 
 ```text
 You are responsible for creating the commit(s) for the current repository state.
@@ -27,5 +27,5 @@ Use this process:
 8. On success, return a short success message (e.g., "Committed." or "Created 2 commits."). On failure, return the actual error output.
 ```
 
-3. Call `wait_agent` on the spawned agent immediately so the handoff behaves like a foreground step.
-4. Report the worker result to the user.
+3. Wait for the subagent so the handoff behaves like a foreground step.
+4. Report the subagent result to the user.
