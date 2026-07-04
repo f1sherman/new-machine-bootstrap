@@ -60,6 +60,9 @@ jobs:
       - name: Verify pi managed hooks
         run: bash tests/pi-managed-hooks.sh
 
+      - name: Verify Pi shared skills
+        run: ruby tests/pi-shared-skills.rb
+
       - name: Verify Pi managed aube update contract
         run: ruby tests/pi-managed-aube-update-contract.rb
 
