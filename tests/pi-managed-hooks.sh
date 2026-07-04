@@ -30,7 +30,10 @@ const { default: install } = await import(pathToFileURL(extensionPath));
 
 const handlers = new Map();
 const calls = [];
+const sessionNames = [];
 let branch = "main";
+let currentSessionName = "";
+let windowLabel = "pi main-repo";
 
 const ok = (stdout = "") => ({ stdout, stderr: "", code: 0, killed: false });
 const fail = () => ({ stdout: "", stderr: "", code: 1, killed: false });
@@ -39,9 +42,16 @@ const pi = {
   on(event, handler) {
     handlers.set(event, handler);
   },
+  setSessionName(name) {
+    currentSessionName = name;
+    sessionNames.push(name);
+  },
   async exec(command, args) {
     calls.push({ command, args });
     if (command === "tmux-agent-state") return ok();
+    if (command === "tmux-update-pane-label") return ok();
+    if (command === "tmux-window-label") return ok();
+    if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@window-label") return ok(`${windowLabel}\n`);
     if (command === "tmux" && args[0] === "set-option") return ok();
     if (command === "tmux") return fail();
     if (command === "git" && args.includes("rev-parse")) {
@@ -55,6 +65,15 @@ const pi = {
   },
 };
 
+const ctx = {
+  cwd: "/repo",
+  sessionManager: {
+    getSessionName() {
+      return currentSessionName;
+    },
+  },
+};
+
 install(pi);
 assert.equal(typeof handlers.get("session_start"), "function", "registers session_start hook");
 assert.equal(typeof handlers.get("before_agent_start"), "function", "registers before_agent_start hook");
@@ -64,8 +83,14 @@ process.env.TMUX = "1";
 process.env.TMUX_PANE = "%1";
 delete process.env.TMUX_AGENT_STATE_DIR;
 
-await handlers.get("session_start")({}, { cwd: "/repo" });
-assert.deepEqual(calls.at(-1), { command: "tmux-agent-state", args: ["set-kind", "pi"] }, "session_start binds pi tmux kind");
+await handlers.get("session_start")({}, ctx);
+assert.deepEqual(calls.slice(-4), [
+  { command: "tmux-agent-state", args: ["set-kind", "pi"] },
+  { command: "tmux-update-pane-label", args: ["%1"] },
+  { command: "tmux-window-label", args: ["%1"] },
+  { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@window-label"] },
+], "session_start binds pi kind, refreshes tmux labels, and reads the rendered window label");
+assert.deepEqual(sessionNames, ["pi main-repo"], "session_start names the Pi session from tmux @window-label");
 
 const reminder = await handlers.get("before_agent_start")({
   prompt: "Use _fix for this",

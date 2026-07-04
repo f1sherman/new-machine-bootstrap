@@ -42,6 +42,36 @@ async function tmuxOption(pi, key) {
   return result.code === 0 ? result.stdout.trim() : "";
 }
 
+let lastManagedSessionName = "";
+
+async function refreshTmuxLabels(pi) {
+  if (!inTmux()) return;
+  await exec(pi, "tmux-update-pane-label", [process.env.TMUX_PANE]);
+  await exec(pi, "tmux-window-label", [process.env.TMUX_PANE]);
+}
+
+async function syncSessionNameFromTmux(pi, ctx) {
+  if (!inTmux()) return;
+  if (typeof pi.setSessionName !== "function") return;
+
+  const label = await tmuxOption(pi, "@window-label");
+  if (!label) return;
+
+  const currentName = ctx?.sessionManager?.getSessionName?.() || "";
+  if (currentName === label) {
+    lastManagedSessionName = label;
+    return;
+  }
+  if (currentName && currentName !== lastManagedSessionName) return;
+
+  try {
+    pi.setSessionName(label);
+    lastManagedSessionName = label;
+  } catch (error) {
+    warn("set Pi session name from tmux label failed", error);
+  }
+}
+
 async function boundWorktreePath(pi, fallbackCwd) {
   const statePath = readState("@agent_worktree_path");
   if (statePath) return statePath;
@@ -372,9 +402,11 @@ async function updateCurrentSpec(pi, event, ctx) {
 }
 
 export default function managedHooks(pi) {
-  pi.on("session_start", async () => {
+  pi.on("session_start", async (_event, ctx) => {
     if (!inTmux()) return;
     await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);
+    await refreshTmuxLabels(pi);
+    await syncSessionNameFromTmux(pi, ctx);
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
