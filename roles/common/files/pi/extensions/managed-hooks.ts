@@ -379,12 +379,12 @@ async function needsSubjectReminder(pi) {
   return !subject || Boolean(stale);
 }
 
-function normalizeSuperpowersSpecPath(candidatePath, cwd, repoRoot) {
+function normalizeSuperpowersSpecPath(candidatePath, cwd, repoRoot, resolveFrom = cwd) {
   if (!candidatePath) return "";
   const unquoted = candidatePath.replace(/^['\"`]+|['\"`.,:;]+$/g, "");
   if (/[*?[\]]/.test(unquoted)) return "";
   const expanded = expandHome(unquoted.startsWith("./") ? unquoted.slice(2) : unquoted);
-  const absolute = path.isAbsolute(expanded) ? expanded : path.resolve(repoRoot || cwd, expanded);
+  const absolute = path.isAbsolute(expanded) ? expanded : path.resolve(resolveFrom, expanded);
   const root = repoRoot || cwd;
   const relative = path.relative(root, absolute).replaceAll(path.sep, "/");
   if (/^docs\/superpowers\/specs\/[^/]+[.]md$/.test(relative)) return absolute;
@@ -392,14 +392,14 @@ function normalizeSuperpowersSpecPath(candidatePath, cwd, repoRoot) {
 }
 
 function superpowersSpecPath(event, cwd, repoRoot) {
-  return normalizeSuperpowersSpecPath(event.input.path || event.input.file_path || "", cwd, repoRoot);
+  return normalizeSuperpowersSpecPath(event.input.path || event.input.file_path || "", cwd, repoRoot, cwd);
 }
 
 function superpowersSpecPathsInCommand(command, cwd, repoRoot) {
   const paths = [];
   const pathPattern = /(?:^|[\s'"`])((?:\.\/)?docs\/superpowers\/specs\/[^\s'"`;&|()<>]+[.]md|\/[^\s'"`;&|()<>]*\/docs\/superpowers\/specs\/[^\s'"`;&|()<>]+[.]md)(?=$|[\s'"`.,:;]|[;&|()<>])/g;
   for (const match of command.matchAll(pathPattern)) {
-    const specPath = normalizeSuperpowersSpecPath(match[1], cwd, repoRoot);
+    const specPath = normalizeSuperpowersSpecPath(match[1], cwd, repoRoot, repoRoot || cwd);
     if (specPath && fs.existsSync(specPath) && !paths.includes(specPath)) paths.push(specPath);
   }
   return paths;

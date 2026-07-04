@@ -518,6 +518,15 @@ assert.deepEqual(calls.at(-1), {
   args: ["set-option", "-p", "-t", "%1", "@agent_current_spec_path", externalSpecPath],
 }, "tracks absolute spec paths in the edited file's repo even when session cwd differs");
 
+await handlers.get("tool_call")({
+  toolName: "write",
+  input: { path: "../docs/superpowers/specs/subdir-relative-design.md", content: "# Design" },
+}, { cwd: path.join(worktreeRoot, "subdir") });
+assert.deepEqual(calls.at(-1), {
+  command: "tmux",
+  args: ["set-option", "-p", "-t", "%1", "@agent_current_spec_path", path.join(worktreeRoot, "docs", "superpowers", "specs", "subdir-relative-design.md")],
+}, "tracks write/edit spec paths relative to the tool cwd, not repo root");
+
 const bashSpecPath = path.join(worktreeRoot, "docs", "superpowers", "specs", "bash-created-design.md");
 fs.mkdirSync(path.dirname(bashSpecPath), { recursive: true });
 fs.writeFileSync(bashSpecPath, "# Design\n");
