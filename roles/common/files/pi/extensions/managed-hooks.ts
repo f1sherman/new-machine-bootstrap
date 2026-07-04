@@ -404,8 +404,8 @@ async function updateCurrentSpec(pi, event, ctx) {
 export default function managedHooks(pi) {
   pi.on("session_start", async (_event, ctx) => {
     if (!inTmux()) return;
-    await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);
     await refreshTmuxLabels(pi);
+    await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);
     await syncSessionNameFromTmux(pi, ctx);
   });
 

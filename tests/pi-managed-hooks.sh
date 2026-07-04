@@ -85,11 +85,11 @@ delete process.env.TMUX_AGENT_STATE_DIR;
 
 await handlers.get("session_start")({}, ctx);
 assert.deepEqual(calls.slice(-4), [
-  { command: "tmux-agent-state", args: ["set-kind", "pi"] },
   { command: "tmux-update-pane-label", args: ["%1"] },
   { command: "tmux-window-label", args: ["%1"] },
+  { command: "tmux-agent-state", args: ["set-kind", "pi"] },
   { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@window-label"] },
-], "session_start binds pi kind, refreshes tmux labels, and reads the rendered window label");
+], "session_start refreshes pane labels before rendering pi window label and naming the session");
 assert.deepEqual(sessionNames, ["pi main-repo"], "session_start names the Pi session from tmux @window-label");
 assert.equal(typeof handlers.get("tool_result"), "function", "registers tool_result hook");
 
