@@ -35,6 +35,7 @@ let branch = "main";
 let currentSessionName = "";
 let windowLabel = "pi main-repo";
 let agentWorktreePath = "/repo/main-repo";
+let managedPiSessionName = "";
 
 const ok = (stdout = "") => ({ stdout, stderr: "", code: 0, killed: false });
 const fail = () => ({ stdout: "", stderr: "", code: 1, killed: false });
@@ -54,7 +55,11 @@ const pi = {
     if (command === "tmux-window-label") return ok();
     if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@window-label") return ok(`${windowLabel}\n`);
     if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@agent_worktree_path") return agentWorktreePath ? ok(`${agentWorktreePath}\n`) : fail();
-    if (command === "tmux" && args[0] === "set-option") return ok();
+    if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@pi_managed_session_name") return managedPiSessionName ? ok(`${managedPiSessionName}\n`) : fail();
+    if (command === "tmux" && args[0] === "set-option") {
+      if (args.includes("@pi_managed_session_name")) managedPiSessionName = args.at(-1);
+      return ok();
+    }
     if (command === "tmux") return fail();
     if (command === "git" && args.includes("rev-parse")) {
       if (args.some((arg) => String(arg).startsWith("/missing"))) return fail();
@@ -111,18 +116,27 @@ assert.equal(typeof handlers.get("tool_result"), "function", "registers tool_res
 windowLabel = "pi main-repo feature-work";
 await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
 assert.deepEqual(sessionNames, ["feature-work"], "successful bash results set only the meaningful Pi session name");
+assert.equal(managedPiSessionName, "feature-work", "managed Pi session names are marked in tmux pane state");
+
+currentSessionName = "feature-work";
+windowLabel = "pi main-repo feature-work";
+await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
+windowLabel = "pi main-repo reload-work";
+await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
+assert.equal(currentSessionName, "reload-work", "marked managed Pi session names keep updating after state recovery");
+assert.deepEqual(sessionNames, ["feature-work", "reload-work"], "state recovery allows subsequent managed rename");
 
 currentSessionName = "manual investigation name";
 windowLabel = "pi main-repo later-worktree";
 await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
 assert.equal(currentSessionName, "manual investigation name", "manual Pi session names are not overwritten by managed tmux sync");
-assert.deepEqual(sessionNames, ["feature-work"], "manual-name preservation does not call setSessionName again");
+assert.deepEqual(sessionNames, ["feature-work", "reload-work"], "manual-name preservation does not call setSessionName again");
 
 await handlers.get("tool_result")({ toolName: "read", isError: false }, ctx);
-assert.deepEqual(sessionNames, ["feature-work"], "non-bash tool results do not resync session names");
+assert.deepEqual(sessionNames, ["feature-work", "reload-work"], "non-bash tool results do not resync session names");
 
 await handlers.get("tool_result")({ toolName: "bash", isError: true }, ctx);
-assert.deepEqual(sessionNames, ["feature-work"], "failed bash results do not resync session names");
+assert.deepEqual(sessionNames, ["feature-work", "reload-work"], "failed bash results do not resync session names");
 
 const reminder = await handlers.get("before_agent_start")({
   prompt: "Use _fix for this",
