@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const COMMAND_TIMEOUT_MS = 5000;
+const MANAGED_PI_SESSION_NAME_OPTION = "@pi_managed_session_name";
 const REPO_START_TRIGGERS = /(^|\s)(?:_fix|_spec-first|_spec-to-pr|superpowers:systematic-debugging|superpowers:brainstorming)(?=\s|$)/i;
 const SUBJECT_TRIGGERS = /(^|\s)superpowers:(?:brainstorming|systematic-debugging)(?=\s|$)/i;
 const SHELL_TOKEN = "[^\\s;&|()]+";
@@ -77,12 +78,18 @@ async function syncSessionNameFromTmux(pi, ctx) {
   if (!sessionName) return;
 
   const currentName = ctx?.sessionManager?.getSessionName?.() || "";
-  if (currentName === sessionName) return;
+  if (currentName === sessionName) {
+    if (await tmuxOption(pi, MANAGED_PI_SESSION_NAME_OPTION) === sessionName) {
+      lastManagedSessionName = sessionName;
+    }
+    return;
+  }
   if (currentName && currentName !== lastManagedSessionName) return;
 
   try {
     pi.setSessionName(sessionName);
     lastManagedSessionName = sessionName;
+    await exec(pi, "tmux", ["set-option", "-p", "-t", process.env.TMUX_PANE, MANAGED_PI_SESSION_NAME_OPTION, sessionName]);
   } catch (error) {
     warn("set Pi session name from tmux label failed", error);
   }
