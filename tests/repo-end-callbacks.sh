@@ -79,6 +79,29 @@ HOOK
   git -C "$repo" config core.hooksPath "$hooks_dir"
 }
 
+create_squash_merged_worktree() {
+  local name="$1"
+  local branch="$2"
+  local file="$3"
+  local repo feature_path
+
+  repo="$(create_repo "$name")"
+  feature_path="$TMPROOT/${name}-feature"
+  git -C "$repo" worktree add -q -b "$branch" "$feature_path" main
+  printf '%s\n' "feature content" >"$feature_path/$file"
+  git -C "$feature_path" add "$file"
+  git -C "$feature_path" commit -q -m "feature work"
+
+  git -C "$repo" checkout -q main
+  printf '%s\n' "squash merged content" >"$repo/$file"
+  git -C "$repo" add "$file"
+  git -C "$repo" commit -q -m "squash merge feature"
+  git -C "$repo" push -q origin main
+
+  CREATED_REPO="$repo"
+  CREATED_WORKTREE="$feature_path"
+}
+
 run_case() {
   local name="$1"
   local repo="$2"
@@ -308,11 +331,11 @@ run_case "ordered callbacks run lexicographically" \
   "$TMPROOT/ordered-callbacks.err"
 
 expected_first="$(
-  printf 'callback-first --repo-dir %s --branch feature/ordered --main-branch main --main-path %s' \
+  printf 'callback-first --phase post-cleanup --repo-dir %s --branch feature/ordered --main-branch main --main-path %s' \
     "$ordered_callbacks_repo" "$ordered_callbacks_repo"
 )"
 expected_second="$(
-  printf 'callback-second --repo-dir %s --branch feature/ordered --main-branch main --main-path %s' \
+  printf 'callback-second --phase post-cleanup --repo-dir %s --branch feature/ordered --main-branch main --main-path %s' \
     "$ordered_callbacks_repo" "$ordered_callbacks_repo"
 )"
 assert_ordered_output \
@@ -529,4 +552,81 @@ assert_file_not_contains \
   "$interrupt_log" \
   "callback-orphaned" \
   "repo-end interrupt terminates callback descendants"
+
+merge_proof_home="$TMPROOT/merge-proof-home"
+mkdir -p "$merge_proof_home/.local/bin/repo-end.d" "$merge_proof_home/.local/state"
+create_squash_merged_worktree merge-proof-callbacks feature/provider-proof provider-proof.txt
+merge_proof_main="$CREATED_REPO"
+merge_proof_worktree="$CREATED_WORKTREE"
+
+cat >"$merge_proof_home/.local/bin/repo-end.d/10-no-proof" <<'EOF'
+#!/usr/bin/env bash
+printf 'no-proof %s\n' "$*" >>"$HOME/.local/state/merge-proof.log"
+case " $* " in
+  *' --phase merge-proof '*) exit 1 ;;
+  *' --phase post-cleanup '*) exit 0 ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod +x "$merge_proof_home/.local/bin/repo-end.d/10-no-proof"
+
+cat >"$merge_proof_home/.local/bin/repo-end.d/20-proof" <<'EOF'
+#!/usr/bin/env bash
+printf 'proof %s\n' "$*" >>"$HOME/.local/state/merge-proof.log"
+case " $* " in
+  *' --phase merge-proof '*) printf 'Using provider callback proof\n' >&2; exit 0 ;;
+  *' --phase post-cleanup '*) exit 0 ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod +x "$merge_proof_home/.local/bin/repo-end.d/20-proof"
+
+run_case "merge-proof callback success allows cleanup" \
+  "$merge_proof_worktree" \
+  "$merge_proof_home" \
+  "$TMPROOT/merge-proof.out" \
+  "$TMPROOT/merge-proof.err"
+assert_file_contains "$TMPROOT/merge-proof.err" "Using provider callback proof" \
+  "merge-proof callback proof message is visible"
+assert_file_contains "$merge_proof_home/.local/state/merge-proof.log" \
+  "no-proof --phase merge-proof --repo-dir $merge_proof_worktree --branch feature/provider-proof --main-branch main --main-path $merge_proof_main" \
+  "first merge-proof callback receives context"
+assert_file_contains "$merge_proof_home/.local/state/merge-proof.log" \
+  "proof --phase merge-proof --repo-dir $merge_proof_worktree --branch feature/provider-proof --main-branch main --main-path $merge_proof_main" \
+  "second merge-proof callback receives context after fallthrough"
+if [[ -d "$merge_proof_worktree" ]]; then
+  printf 'FAIL  merge-proof callback removes worktree\nworktree remains at %s\n' "$merge_proof_worktree" >&2
+  exit 1
+fi
+printf 'PASS  merge-proof callback removes worktree\n'
+
+hard_fail_home="$TMPROOT/merge-proof-hard-fail-home"
+mkdir -p "$hard_fail_home/.local/bin/repo-end.d" "$hard_fail_home/.local/state"
+create_squash_merged_worktree merge-proof-hard-fail feature/provider-ambiguous provider-ambiguous.txt
+hard_fail_worktree="$CREATED_WORKTREE"
+
+cat >"$hard_fail_home/.local/bin/repo-end.d/10-hard-fail" <<'EOF'
+#!/usr/bin/env bash
+printf 'hard-fail %s\n' "$*" >>"$HOME/.local/state/merge-proof-hard-fail.log"
+case " $* " in
+  *' --phase merge-proof '*) printf 'provider proof ambiguous\n' >&2; exit 2 ;;
+  *' --phase post-cleanup '*) exit 0 ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod +x "$hard_fail_home/.local/bin/repo-end.d/10-hard-fail"
+
+run_case "merge-proof callback hard failure aborts cleanup" \
+  "$hard_fail_worktree" \
+  "$hard_fail_home" \
+  "$TMPROOT/merge-proof-hard-fail.out" \
+  "$TMPROOT/merge-proof-hard-fail.err" \
+  false
+assert_file_contains "$TMPROOT/merge-proof-hard-fail.err" "provider proof ambiguous" \
+  "merge-proof hard failure is surfaced"
+if [[ ! -d "$hard_fail_worktree" ]]; then
+  printf 'FAIL  merge-proof hard failure preserves worktree\nworktree was removed\n' >&2
+  exit 1
+fi
+printf 'PASS  merge-proof hard failure preserves worktree\n'
 printf 'repo-end callback behavior checks complete\n'
