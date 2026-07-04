@@ -2176,6 +2176,36 @@
     state: directory
     mode: '0755'
 
+- name: Remove deleted managed Claude skills
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.claude/skills/{{ item }}'
+    state: absent
+  loop:
+    - _validate-plan
+    - _create-plan
+    - _implement-plan
+    - _research-codebase
+
+- name: Remove deleted managed Codex skills
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.codex/skills/{{ item }}'
+    state: absent
+  loop:
+    - _validate-plan
+    - _create-plan
+    - _implement-plan
+    - _research-codebase
+
+- name: Remove deleted managed Pi skills
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.pi/agent/skills/{{ item }}'
+    state: absent
+  loop:
+    - validate-plan
+    - create-plan
+    - implement-plan
+    - research-codebase
+
 - name: Install common skills to ~/.claude/skills
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/common/'
