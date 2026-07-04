@@ -629,4 +629,36 @@ if [[ ! -d "$hard_fail_worktree" ]]; then
   exit 1
 fi
 printf 'PASS  merge-proof hard failure preserves worktree\n'
+
+merge_timeout_home="$TMPROOT/merge-proof-timeout-home"
+mkdir -p "$merge_timeout_home/.local/bin/repo-end.d" "$merge_timeout_home/.local/state"
+create_squash_merged_worktree merge-proof-timeout feature/provider-timeout provider-timeout.txt
+merge_timeout_worktree="$CREATED_WORKTREE"
+cat >"$merge_timeout_home/.local/bin/repo-end.d/10-timeout" <<'EOF'
+#!/usr/bin/env bash
+printf 'timeout-started %s\n' "$*" >>"$HOME/.local/state/merge-proof-timeout.log"
+sleep 5
+EOF
+chmod +x "$merge_timeout_home/.local/bin/repo-end.d/10-timeout"
+
+if (
+  cd "$merge_timeout_worktree" &&
+    HOME="$merge_timeout_home" \
+    REPO_END_CALLBACK_TIMEOUT_SECONDS=1 \
+    "$REPO_END_SCRIPT" --print-path \
+      >"$TMPROOT/merge-proof-timeout.out" \
+      2>"$TMPROOT/merge-proof-timeout.err"
+); then
+  printf 'FAIL  merge-proof timeout aborts cleanup\nrepo-end unexpectedly succeeded\n' >&2
+  exit 1
+fi
+printf 'PASS  merge-proof timeout aborts cleanup\n'
+assert_file_contains "$TMPROOT/merge-proof-timeout.err" "repo-end callback timed out after 1s" \
+  "merge-proof timeout warning is surfaced"
+if [[ ! -d "$merge_timeout_worktree" ]]; then
+  printf 'FAIL  merge-proof timeout preserves worktree\nworktree was removed\n' >&2
+  exit 1
+fi
+printf 'PASS  merge-proof timeout preserves worktree\n'
+
 printf 'repo-end callback behavior checks complete\n'

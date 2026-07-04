@@ -172,6 +172,9 @@ run_repo_end_callback() {
     repo_end_active_watchdog_pid=""
     rm -f "$timeout_marker"
     printf 'repo-end callback timed out after %ss: %s\n' "$timeout_seconds" "$callback" >&2
+    if [[ "$phase" == "merge-proof" ]]; then
+      return 2
+    fi
     return 0
   fi
 
