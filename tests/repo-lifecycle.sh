@@ -392,7 +392,9 @@ git -C "$branch_repo" checkout -q -b feature/end-branch
 commit_file "$branch_repo" branch.txt "branch" "branch change"
 branch_out="$TMPROOT/end-branch.out"
 branch_err="$TMPROOT/end-branch.err"
-if (cd "$branch_repo" && "$REPO_END_SCRIPT" --print-path >"$branch_out" 2>"$branch_err"); then
+branch_unmerged_home="$TMPROOT/end-branch-unmerged-home"
+mkdir -p "$branch_unmerged_home"
+if (cd "$branch_repo" && HOME="$branch_unmerged_home" "$REPO_END_SCRIPT" --print-path >"$branch_out" 2>"$branch_err"); then
   fail_case "repo-end branch mode rejects unmerged branch" "repo-end unexpectedly succeeded"
 fi
 assert_file_contains "$branch_err" "merge the PR first" "repo-end branch mode explains unmerged branch"
@@ -452,7 +454,9 @@ worktree_feature="$(realpath "$worktree_feature")"
 commit_file "$worktree_feature" worktree.txt "worktree" "worktree change"
 worktree_out="$TMPROOT/end-worktree.out"
 worktree_err="$TMPROOT/end-worktree.err"
-if (cd "$worktree_feature" && "$REPO_END_SCRIPT" --print-path >"$worktree_out" 2>"$worktree_err"); then
+worktree_unmerged_home="$TMPROOT/end-worktree-unmerged-home"
+mkdir -p "$worktree_unmerged_home"
+if (cd "$worktree_feature" && HOME="$worktree_unmerged_home" "$REPO_END_SCRIPT" --print-path >"$worktree_out" 2>"$worktree_err"); then
   fail_case "repo-end worktree mode rejects unmerged branch" "repo-end unexpectedly succeeded"
 fi
 assert_file_contains "$worktree_err" "merge the PR first" "repo-end worktree mode explains unmerged branch"
@@ -800,7 +804,10 @@ cat >"$stub_unsupported_bin/ssh" <<EOF
 exec git-upload-pack '$unsupported_origin'
 EOF
 chmod +x "$stub_unsupported_bin/ssh"
+unsupported_home="$TMPROOT/unsupported-api-home"
+mkdir -p "$unsupported_home"
 if (cd "$unsupported_feature" && \
+  HOME="$unsupported_home" \
   UNSUPPORTED_CURL_LOG="$TMPROOT/unsupported-curl.log" \
   FORGEJO_TOKEN=test-token \
   PATH="$stub_unsupported_bin:$BIN_DIR:$PATH" \
