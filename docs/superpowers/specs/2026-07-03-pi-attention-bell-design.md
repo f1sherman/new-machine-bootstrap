@@ -122,16 +122,16 @@ Add a CI-safe NMB test that verifies:
 
 This catches accidental drift toward Notification Center or desktop-toaster implementations.
 
-### End-to-end test
+### Live behavior proof
 
-Add an E2E test that runs Pi with the extension in a pseudo-terminal and captures raw terminal output.
+The CI-safe contract test proves the extension emits BEL at the intended Pi lifecycle and UI prompt points. The Ghostty bounce itself should be verified manually because it depends on local terminal and macOS focus behavior.
 
-The test should cover:
+Manual proof:
 
-1. **Agent turn completion**: run a minimal Pi turn with the extension loaded and assert the captured output contains `\x07` after the agent finishes.
-2. **Extension prompt coverage**: load a tiny temporary test extension/command that calls one blocking UI method such as `ctx.ui.confirm` or `ctx.ui.input`, invoke that command in TUI mode, and assert the captured output contains `\x07` while the prompt is displayed.
+1. Confirm Ghostty bounces for a direct BEL with `sleep 3; printf '\a'` while Ghostty is unfocused.
+2. Load the extension into a real Pi session, switch away from Ghostty, and confirm the app bounces when Pi finishes a turn.
 
-If the full TUI interaction is too brittle for normal CI, keep the E2E test in an explicit local/manual lane, but implement it as an executable test and run it before the PR. The PR description should state the exact command and result.
+This avoids carrying a brittle pseudo-terminal harness in the repository while still proving the live end-to-end behavior before merge.
 
 ## Error Handling
 
@@ -146,7 +146,7 @@ The attention feature must never break Pi interaction.
 ## Rollout
 
 1. Add and test the extension in an NMB worktree.
-2. Run the static/provisioning test and the E2E test locally.
+2. Run the static/provisioning test and perform the live Ghostty bounce proof locally.
 3. Open a PR from the feature branch.
 4. After merge, provision the relevant local/dev hosts with `bin/provision`.
 5. If the Ghostty tab does not bounce, inspect Ghostty `bell-features` configuration.
