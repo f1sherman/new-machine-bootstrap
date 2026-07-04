@@ -489,6 +489,336 @@ fi
 pass_case "repo-end worktree mode removes linked worktree"
 assert_file_contains "$worktree_log" "--repo-dir $worktree_feature --branch feature/end-worktree --main-branch main --main-path $worktree_main" "repo-end worktree mode invokes callbacks with context"
 
+# --- repo-end worktree mode: stale local branch uses remote branch proof ---
+create_remote_repo end-worktree-remote-proof
+remote_proof_origin="$CREATED_ORIGIN"
+remote_proof_main="$CREATED_REPO"
+remote_proof_feature="$TMPROOT/end-worktree-remote-proof-feature"
+git -C "$remote_proof_main" worktree add -q -b feature/remote-proof "$remote_proof_feature" main
+printf 'local stale content\n' >"$remote_proof_feature/remote-proof.txt"
+git -C "$remote_proof_feature" add remote-proof.txt
+git -C "$remote_proof_feature" commit -q -m "local stale feature commit"
+git -C "$remote_proof_feature" push -q -u origin feature/remote-proof
+# Simulate another worker updating the PR branch and merging that final state.
+remote_proof_peer="$TMPROOT/end-worktree-remote-proof-peer"
+git clone -q "$remote_proof_origin" "$remote_proof_peer"
+git -C "$remote_proof_peer" checkout -q feature/remote-proof
+printf 'remote final content\n' >"$remote_proof_peer/remote-proof.txt"
+git -C "$remote_proof_peer" add remote-proof.txt
+git -C "$remote_proof_peer" commit -q -m "remote final feature commit"
+git -C "$remote_proof_peer" push -q origin feature/remote-proof
+git -C "$remote_proof_peer" checkout -q main
+printf 'remote final content\n' >"$remote_proof_peer/remote-proof.txt"
+git -C "$remote_proof_peer" add remote-proof.txt
+git -C "$remote_proof_peer" commit -q -m "squash remote final feature"
+git -C "$remote_proof_peer" push -q origin main
+remote_proof_home="$TMPROOT/end-worktree-remote-proof-home"
+mkdir -p "$remote_proof_home"
+(cd "$remote_proof_feature" && \
+  HOME="$remote_proof_home" \
+  PATH="$BIN_DIR:$PATH" \
+  GIT_CONFIG_GLOBAL=/dev/null \
+  "$REPO_END_SCRIPT" --print-path \
+  >"$TMPROOT/end-worktree-remote-proof.out" \
+  2>"$TMPROOT/end-worktree-remote-proof.err")
+assert_file_contains "$TMPROOT/end-worktree-remote-proof.out" "$remote_proof_main" "repo-end remote proof prints main path"
+assert_file_contains "$TMPROOT/end-worktree-remote-proof.err" "Using origin/feature/remote-proof as merge proof" "repo-end announces remote branch proof"
+if [[ -d "$remote_proof_feature" ]]; then
+  fail_case "repo-end remote proof removes linked worktree" "worktree remains at $remote_proof_feature"
+fi
+pass_case "repo-end remote proof removes linked worktree"
+
+# --- repo-end worktree mode: deleted remote branch uses merged GitHub PR proof ---
+create_remote_repo end-worktree-github-proof
+github_proof_origin="$CREATED_ORIGIN"
+github_proof_main="$CREATED_REPO"
+github_proof_feature="$TMPROOT/end-worktree-github-proof-feature"
+git -C "$github_proof_main" worktree add -q -b feature/github-proof "$github_proof_feature" main
+printf 'github stale content\n' >"$github_proof_feature/github-proof.txt"
+git -C "$github_proof_feature" add github-proof.txt
+git -C "$github_proof_feature" commit -q -m "github stale feature commit"
+# Merge equivalent content directly to main as a squash and delete the remote feature ref.
+git -C "$github_proof_main" checkout -q main
+printf 'github merged content\n' >"$github_proof_main/github-proof.txt"
+git -C "$github_proof_main" add github-proof.txt
+git -C "$github_proof_main" commit -q -m "squash github proof"
+git -C "$github_proof_main" push -q origin main
+git -C "$github_proof_main" remote set-url origin git@github.com:example/end-worktree-github-proof.git
+stub_api_bin="$TMPROOT/github-proof-bin"
+mkdir -p "$stub_api_bin"
+cat >"$stub_api_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "gh $*" >>"$GH_STUB_LOG"
+cat <<'JSON'
+[{"number":298,"merged_at":"2026-07-04T02:41:51Z","base":{"ref":"main"},"head":{"ref":"feature/github-proof"}}]
+JSON
+EOF
+chmod +x "$stub_api_bin/gh"
+cat >"$stub_api_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$github_proof_origin'
+EOF
+chmod +x "$stub_api_bin/ssh"
+github_proof_home="$TMPROOT/end-worktree-github-proof-home"
+mkdir -p "$github_proof_home"
+(cd "$github_proof_feature" && \
+  GH_STUB_LOG="$TMPROOT/github-proof-gh.log" \
+  HOME="$github_proof_home" \
+  PATH="$stub_api_bin:$BIN_DIR:$PATH" \
+  GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$stub_api_bin/ssh" \
+  "$REPO_END_SCRIPT" --print-path \
+  >"$TMPROOT/end-worktree-github-proof.out" \
+  2>"$TMPROOT/end-worktree-github-proof.err")
+assert_file_contains "$TMPROOT/end-worktree-github-proof.out" "$github_proof_main" "repo-end GitHub proof prints main path"
+assert_file_contains "$TMPROOT/end-worktree-github-proof.err" "Using merged GitHub PR #298 as merge proof" "repo-end announces GitHub PR proof"
+assert_file_contains "$TMPROOT/github-proof-gh.log" "repos/example/end-worktree-github-proof/pulls" "repo-end queries GitHub pulls API"
+if [[ -d "$github_proof_feature" ]]; then
+  fail_case "repo-end GitHub proof removes linked worktree" "worktree remains at $github_proof_feature"
+fi
+pass_case "repo-end GitHub proof removes linked worktree"
+
+# --- repo-end worktree mode: deleted remote branch uses merged Forgejo PR proof ---
+create_remote_repo end-worktree-forgejo-proof
+forgejo_proof_origin="$CREATED_ORIGIN"
+forgejo_proof_main="$CREATED_REPO"
+forgejo_proof_feature="$TMPROOT/end-worktree-forgejo-proof-feature"
+git -C "$forgejo_proof_main" worktree add -q -b feature/forgejo-proof "$forgejo_proof_feature" main
+printf 'forgejo stale content\n' >"$forgejo_proof_feature/forgejo-proof.txt"
+git -C "$forgejo_proof_feature" add forgejo-proof.txt
+git -C "$forgejo_proof_feature" commit -q -m "forgejo stale feature commit"
+# Merge equivalent content directly to main as a squash and delete the remote feature ref.
+git -C "$forgejo_proof_main" checkout -q main
+printf 'forgejo merged content\n' >"$forgejo_proof_main/forgejo-proof.txt"
+git -C "$forgejo_proof_main" add forgejo-proof.txt
+git -C "$forgejo_proof_main" commit -q -m "squash forgejo proof"
+git -C "$forgejo_proof_main" push -q origin main
+git -C "$forgejo_proof_main" remote set-url origin ssh://git@forgejo.brianjohn.com:2222/example/end-worktree-forgejo-proof.git
+stub_forgejo_bin="$TMPROOT/forgejo-proof-bin"
+mkdir -p "$stub_forgejo_bin"
+cat >"$stub_forgejo_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "curl $*" >>"$FORGEJO_STUB_LOG"
+cat <<'JSON'
+[
+  {"number":42,"merged":true,"base":{"ref":"main"},"head":{"ref":"feature/forgejo-proof"}}
+]
+JSON
+EOF
+chmod +x "$stub_forgejo_bin/curl"
+cat >"$stub_forgejo_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$forgejo_proof_origin'
+EOF
+chmod +x "$stub_forgejo_bin/ssh"
+forgejo_proof_home="$TMPROOT/end-worktree-forgejo-proof-home"
+mkdir -p "$forgejo_proof_home"
+(cd "$forgejo_proof_feature" && \
+  FORGEJO_STUB_LOG="$TMPROOT/forgejo-proof-curl.log" \
+  FORGEJO_TOKEN=test-token \
+  HOME="$forgejo_proof_home" \
+  PATH="$stub_forgejo_bin:$BIN_DIR:$PATH" \
+  GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$stub_forgejo_bin/ssh" \
+  "$REPO_END_SCRIPT" --print-path \
+  >"$TMPROOT/end-worktree-forgejo-proof.out" \
+  2>"$TMPROOT/end-worktree-forgejo-proof.err")
+assert_file_contains "$TMPROOT/end-worktree-forgejo-proof.out" "$forgejo_proof_main" "repo-end Forgejo proof prints main path"
+assert_file_contains "$TMPROOT/end-worktree-forgejo-proof.err" "Using merged Forgejo PR #42 as merge proof" "repo-end announces Forgejo PR proof"
+if [[ -d "$forgejo_proof_feature" ]]; then
+  fail_case "repo-end Forgejo proof removes linked worktree" "worktree remains at $forgejo_proof_feature"
+fi
+pass_case "repo-end Forgejo proof removes linked worktree"
+
+# --- repo-end API fallback refuses ambiguous merged PRs ---
+create_remote_repo end-worktree-api-ambiguous
+api_ambiguous_origin="$CREATED_ORIGIN"
+api_ambiguous_main="$CREATED_REPO"
+api_ambiguous_feature="$TMPROOT/end-worktree-api-ambiguous-feature"
+git -C "$api_ambiguous_main" worktree add -q -b feature/api-ambiguous "$api_ambiguous_feature" main
+printf 'ambiguous local\n' >"$api_ambiguous_feature/ambiguous.txt"
+git -C "$api_ambiguous_feature" add ambiguous.txt
+git -C "$api_ambiguous_feature" commit -q -m "ambiguous local"
+git -C "$api_ambiguous_main" remote set-url origin git@github.com:example/end-worktree-api-ambiguous.git
+stub_ambiguous_bin="$TMPROOT/api-ambiguous-bin"
+mkdir -p "$stub_ambiguous_bin"
+cat >"$stub_ambiguous_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+cat <<'JSON'
+[
+  {"number":10,"merged_at":"2026-07-04T02:00:00Z","base":{"ref":"main"},"head":{"ref":"feature/api-ambiguous"}},
+  {"number":11,"merged_at":"2026-07-04T03:00:00Z","base":{"ref":"main"},"head":{"ref":"feature/api-ambiguous"}}
+]
+JSON
+EOF
+chmod +x "$stub_ambiguous_bin/gh"
+cat >"$stub_ambiguous_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$api_ambiguous_origin'
+EOF
+chmod +x "$stub_ambiguous_bin/ssh"
+if (cd "$api_ambiguous_feature" && HOME="$TMPROOT/api-ambiguous-home" PATH="$stub_ambiguous_bin:$BIN_DIR:$PATH" GIT_CONFIG_GLOBAL=/dev/null GIT_SSH="$stub_ambiguous_bin/ssh" \
+  "$REPO_END_SCRIPT" >"$TMPROOT/api-ambiguous.out" 2>"$TMPROOT/api-ambiguous.err"); then
+  fail_case "repo-end refuses ambiguous API PR proof" "repo-end unexpectedly succeeded"
+fi
+assert_file_contains "$TMPROOT/api-ambiguous.err" "multiple merged PRs" "repo-end explains ambiguous API proof"
+if [[ ! -d "$api_ambiguous_feature" ]]; then
+  fail_case "repo-end ambiguous API proof keeps worktree" "worktree was removed"
+fi
+pass_case "repo-end ambiguous API proof keeps worktree"
+
+# --- repo-end refuses existing unmerged remote branch before API fallback ---
+create_remote_repo end-worktree-unmerged-remote-api
+unmerged_remote_origin="$CREATED_ORIGIN"
+unmerged_remote_main="$CREATED_REPO"
+unmerged_remote_feature="$TMPROOT/end-worktree-unmerged-remote-api-feature"
+git -C "$unmerged_remote_main" worktree add -q -b feature/unmerged-remote-api "$unmerged_remote_feature" main
+printf 'unmerged remote base\n' >"$unmerged_remote_feature/unmerged-remote.txt"
+git -C "$unmerged_remote_feature" add unmerged-remote.txt
+git -C "$unmerged_remote_feature" commit -q -m "unmerged remote base"
+git -C "$unmerged_remote_feature" push -q -u origin feature/unmerged-remote-api
+unmerged_remote_peer="$TMPROOT/end-worktree-unmerged-remote-api-peer"
+git clone -q "$unmerged_remote_origin" "$unmerged_remote_peer"
+git -C "$unmerged_remote_peer" checkout -q feature/unmerged-remote-api
+printf 'unmerged remote final\n' >"$unmerged_remote_peer/unmerged-remote.txt"
+git -C "$unmerged_remote_peer" add unmerged-remote.txt
+git -C "$unmerged_remote_peer" commit -q -m "unmerged remote final"
+git -C "$unmerged_remote_peer" push -q origin feature/unmerged-remote-api
+git -C "$unmerged_remote_main" remote set-url origin git@github.com:example/end-worktree-unmerged-remote-api.git
+stub_unmerged_remote_bin="$TMPROOT/unmerged-remote-api-bin"
+mkdir -p "$stub_unmerged_remote_bin"
+cat >"$stub_unmerged_remote_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'gh should not be called\n' >>"$UNMERGED_REMOTE_GH_LOG"
+cat <<'JSON'
+[{"number":88,"merged_at":"2026-07-04T02:00:00Z","base":{"ref":"main"},"head":{"ref":"feature/unmerged-remote-api"}}]
+JSON
+EOF
+chmod +x "$stub_unmerged_remote_bin/gh"
+cat >"$stub_unmerged_remote_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$unmerged_remote_origin'
+EOF
+chmod +x "$stub_unmerged_remote_bin/ssh"
+if (cd "$unmerged_remote_feature" && \
+  UNMERGED_REMOTE_GH_LOG="$TMPROOT/unmerged-remote-gh.log" \
+  PATH="$stub_unmerged_remote_bin:$BIN_DIR:$PATH" \
+  GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$stub_unmerged_remote_bin/ssh" \
+  "$REPO_END_SCRIPT" >"$TMPROOT/unmerged-remote.out" 2>"$TMPROOT/unmerged-remote.err"); then
+  fail_case "repo-end refuses unmerged remote branch before API fallback" "repo-end unexpectedly succeeded"
+fi
+assert_file_contains "$TMPROOT/unmerged-remote.err" "origin/feature/unmerged-remote-api is not merged into origin/main" "repo-end explains unmerged remote refusal"
+if [[ -e "$TMPROOT/unmerged-remote-gh.log" ]]; then
+  fail_case "repo-end unmerged remote refusal avoids API" "GitHub API fallback was called"
+fi
+pass_case "repo-end unmerged remote refusal avoids API"
+if [[ ! -d "$unmerged_remote_feature" ]]; then
+  fail_case "repo-end unmerged remote refusal keeps worktree" "worktree was removed"
+fi
+pass_case "repo-end unmerged remote refusal keeps worktree"
+
+# --- repo-end refuses local-only commits ahead of remote before API fallback ---
+create_remote_repo end-worktree-local-ahead
+local_ahead_origin="$CREATED_ORIGIN"
+local_ahead_main="$CREATED_REPO"
+local_ahead_feature="$TMPROOT/end-worktree-local-ahead-feature"
+git -C "$local_ahead_main" worktree add -q -b feature/local-ahead "$local_ahead_feature" main
+printf 'remote branch content\n' >"$local_ahead_feature/local-ahead.txt"
+git -C "$local_ahead_feature" add local-ahead.txt
+git -C "$local_ahead_feature" commit -q -m "remote branch commit"
+git -C "$local_ahead_feature" push -q -u origin feature/local-ahead
+printf 'local-only content\n' >"$local_ahead_feature/local-ahead.txt"
+git -C "$local_ahead_feature" add local-ahead.txt
+git -C "$local_ahead_feature" commit -q -m "local only commit"
+git -C "$local_ahead_main" checkout -q main
+printf 'squashed branch content\n' >"$local_ahead_main/local-ahead.txt"
+git -C "$local_ahead_main" add local-ahead.txt
+git -C "$local_ahead_main" commit -q -m "squash local ahead branch"
+git -C "$local_ahead_main" push -q origin main
+git -C "$local_ahead_main" remote set-url origin git@github.com:example/end-worktree-local-ahead.git
+stub_local_ahead_bin="$TMPROOT/local-ahead-bin"
+mkdir -p "$stub_local_ahead_bin"
+cat >"$stub_local_ahead_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'gh should not be called\n' >>"$LOCAL_AHEAD_GH_LOG"
+cat <<'JSON'
+[{"number":99,"merged_at":"2026-07-04T02:00:00Z","base":{"ref":"main"},"head":{"ref":"feature/local-ahead"}}]
+JSON
+EOF
+chmod +x "$stub_local_ahead_bin/gh"
+cat >"$stub_local_ahead_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$local_ahead_origin'
+EOF
+chmod +x "$stub_local_ahead_bin/ssh"
+if (cd "$local_ahead_feature" && \
+  LOCAL_AHEAD_GH_LOG="$TMPROOT/local-ahead-gh.log" \
+  PATH="$stub_local_ahead_bin:$BIN_DIR:$PATH" \
+  GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$stub_local_ahead_bin/ssh" \
+  "$REPO_END_SCRIPT" >"$TMPROOT/local-ahead.out" 2>"$TMPROOT/local-ahead.err"); then
+  fail_case "repo-end refuses local branch ahead of remote" "repo-end unexpectedly succeeded"
+fi
+assert_file_contains "$TMPROOT/local-ahead.err" "has commits not present on origin/feature/local-ahead" "repo-end explains local-ahead refusal"
+if [[ -e "$TMPROOT/local-ahead-gh.log" ]]; then
+  fail_case "repo-end local-ahead refusal avoids API" "GitHub API fallback was called"
+fi
+pass_case "repo-end local-ahead refusal avoids API"
+if [[ ! -d "$local_ahead_feature" ]]; then
+  fail_case "repo-end local-ahead refusal keeps worktree" "worktree was removed"
+fi
+pass_case "repo-end local-ahead refusal keeps worktree"
+
+# --- repo-end refuses unsupported remotes instead of treating them as Forgejo ---
+create_remote_repo end-worktree-unsupported-api
+unsupported_origin="$CREATED_ORIGIN"
+unsupported_main="$CREATED_REPO"
+unsupported_feature="$TMPROOT/end-worktree-unsupported-api-feature"
+git -C "$unsupported_main" worktree add -q -b feature/unsupported-api "$unsupported_feature" main
+printf 'unsupported local\n' >"$unsupported_feature/unsupported.txt"
+git -C "$unsupported_feature" add unsupported.txt
+git -C "$unsupported_feature" commit -q -m "unsupported local"
+git -C "$unsupported_main" checkout -q main
+printf 'unsupported squash\n' >"$unsupported_main/unsupported.txt"
+git -C "$unsupported_main" add unsupported.txt
+git -C "$unsupported_main" commit -q -m "unsupported squash"
+git -C "$unsupported_main" push -q origin main
+git -C "$unsupported_main" remote set-url origin ssh://git@unsupported.example:2222/example/end-worktree-unsupported-api.git
+stub_unsupported_bin="$TMPROOT/unsupported-api-bin"
+mkdir -p "$stub_unsupported_bin"
+cat >"$stub_unsupported_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+printf 'curl should not be called\n' >>"$UNSUPPORTED_CURL_LOG"
+cat <<'JSON'
+[{"number":77,"merged":true,"base":{"ref":"main"},"head":{"ref":"feature/unsupported-api"}}]
+JSON
+EOF
+chmod +x "$stub_unsupported_bin/curl"
+cat >"$stub_unsupported_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$unsupported_origin'
+EOF
+chmod +x "$stub_unsupported_bin/ssh"
+if (cd "$unsupported_feature" && \
+  UNSUPPORTED_CURL_LOG="$TMPROOT/unsupported-curl.log" \
+  FORGEJO_TOKEN=test-token \
+  PATH="$stub_unsupported_bin:$BIN_DIR:$PATH" \
+  GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$stub_unsupported_bin/ssh" \
+  "$REPO_END_SCRIPT" >"$TMPROOT/unsupported-api.out" 2>"$TMPROOT/unsupported-api.err"); then
+  fail_case "repo-end refuses unsupported API platform" "repo-end unexpectedly succeeded"
+fi
+assert_file_contains "$TMPROOT/unsupported-api.err" "merge the PR first" "repo-end unsupported platform keeps generic refusal"
+if [[ -e "$TMPROOT/unsupported-curl.log" ]]; then
+  fail_case "repo-end unsupported platform avoids Forgejo API" "Forgejo API fallback was called"
+fi
+pass_case "repo-end unsupported platform avoids Forgejo API"
+if [[ ! -d "$unsupported_feature" ]]; then
+  fail_case "repo-end unsupported platform keeps worktree" "worktree was removed"
+fi
+pass_case "repo-end unsupported platform keeps worktree"
+
 create_remote_repo end-dirty-current
 dirty_current_repo="$CREATED_REPO"
 git -C "$dirty_current_repo" checkout -q -b feature/dirty-current
