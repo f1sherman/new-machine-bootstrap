@@ -2148,6 +2148,11 @@
     state: directory
     mode: '0755'
 
+- name: Create ~/.pi/agent/skills directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.pi/agent/skills'
+    state: directory
+    mode: '0755'
 
 - name: Install common skills to ~/.claude/skills
   copy:
@@ -2187,6 +2192,19 @@
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/common/_commit/commit.sh'
     dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/_commit/commit.sh'
+    mode: '0755'
+
+- name: Install Pi skills to ~/.pi/agent/skills
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/pi/'
+    dest: '{{ ansible_facts["user_dir"] }}/.pi/agent/skills/'
+    mode: preserve
+    directory_mode: '0755'
+
+- name: Install Pi commit helper to ~/.pi/agent/skills
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/pi/commit/commit.sh'
+    dest: '{{ ansible_facts["user_dir"] }}/.pi/agent/skills/commit/commit.sh'
     mode: '0755'
 
 - name: Remove legacy GSD state
