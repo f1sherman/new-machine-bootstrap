@@ -2272,6 +2272,7 @@
   loop:
     - .gsd
     - .agents/skills/committing-changes
+    - .agents/skills/review
     - .local/bin/gsd
     - .local/bin/gsd-cli
 
