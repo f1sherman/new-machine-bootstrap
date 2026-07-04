@@ -122,7 +122,8 @@ Dir.mktmpdir("paranoid-package-tools") do |dir|
   File.write(
     File.join(dir, "good.sh"),
     "AUBE_PARANOID=true aubx safe-tool@latest\n" \
-      "pi install npm:pi-subdir-context\n"
+      "pi install npm:pi-subdir-context\n" \
+      "pi install npm:pi-session-manager\n"
   )
 
   violations = scan_violations(dir)
@@ -145,6 +146,10 @@ end
 
 repo_root = File.expand_path("..", __dir__)
 violations = scan_violations(repo_root)
+
+unless File.read(File.join(repo_root, "roles/common/tasks/main.yml")).include?("pi install npm:pi-session-manager")
+  violations << "roles/common/tasks/main.yml: missing managed pi-session-manager install"
+end
 
 if violations.empty?
   puts "PASS  package tool invocations require paranoid mode"

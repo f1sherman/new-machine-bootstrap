@@ -1276,6 +1276,22 @@
   failed_when: pi_plugin_linux.rc != 0
   when: ansible_facts["os_family"] == "Debian"
 
+- name: Install pi-session-manager plugin for pi-coding-agent (macOS)
+  command: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- pi install npm:pi-session-manager"
+  register: pi_session_manager_plugin_macos
+  changed_when: "'already installed' not in pi_session_manager_plugin_macos.stdout"
+  failed_when: pi_session_manager_plugin_macos.rc != 0
+  when: ansible_facts["os_family"] == "Darwin"
+
+- name: Install pi-session-manager plugin for pi-coding-agent (Linux)
+  shell: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- pi install npm:pi-session-manager"
+  register: pi_session_manager_plugin_linux
+  environment:
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
+  changed_when: "'already installed' not in pi_session_manager_plugin_linux.stdout"
+  failed_when: pi_session_manager_plugin_linux.rc != 0
+  when: ansible_facts["os_family"] == "Debian"
+
 - name: Create pi-coding-agent global extensions directory
   file:
     path: "{{ ansible_facts['user_dir'] }}/.pi/agent/extensions"
