@@ -6,7 +6,7 @@
 
 **Architecture:** Mirror the existing Claude global instruction fragment pattern for Pi: create the fragment directory, install a generic base fragment, and assemble sorted fragments into `~/.pi/agent/AGENTS.md`. Keep repo-start callbacks unchanged because they already provide the downstream hook needed by HNP.
 
-**Tech Stack:** Ansible `file`, `copy`, and `assemble` tasks; shell/Ruby-free verification with repo grep and Ansible syntax checking.
+**Tech Stack:** Ansible `file`, `copy`, and `command` tasks; a small Bash helper for assembling sorted Pi AGENTS fragments; shell verification with a behavior test and Ansible syntax checking.
 
 ## Global Constraints
 
@@ -20,18 +20,21 @@
 ## File structure
 
 - Create `roles/common/files/pi/AGENTS.md.d/00-base.md`: generic Pi global instruction fragment. Its job is to document that downstream fragments may add workflow-specific guidance; it must not name HNP or personal PR skills.
-- Modify `roles/common/tasks/main.yml`: add Pi global AGENTS directory creation and assembly near the existing Pi setup tasks, before Pi sessions need extensions/skills.
-- Optionally modify `tests/pi-managed-hooks.sh` only if implementation touches managed hooks; current plan does not.
+- Create `roles/common/files/bin/pi-agent-assemble-agents`: generic helper that concatenates sorted fragment files into `~/.pi/agent/AGENTS.md` with mode `0600`.
+- Modify `roles/common/tasks/main.yml`: install the helper, add Pi global AGENTS directory creation, install the base fragment, and run the helper near the existing Pi setup tasks.
+- Create `tests/pi-agent-assemble-agents.sh`: behavior test for sorted assembly, output mode, and base-fragment neutrality.
 
 ### Task 1: Add neutral Pi global AGENTS assembly
 
 **Files:**
 - Create: `roles/common/files/pi/AGENTS.md.d/00-base.md`
+- Create: `roles/common/files/bin/pi-agent-assemble-agents`
+- Create: `tests/pi-agent-assemble-agents.sh`
 - Modify: `roles/common/tasks/main.yml`
 
 **Interfaces:**
 - Consumes: Ansible facts `ansible_facts['user_dir']` and `playbook_dir`, consistent with nearby common-role tasks.
-- Produces: `~/.pi/agent/AGENTS.md.d/00-base.md` and assembled `~/.pi/agent/AGENTS.md` for Pi to load globally.
+- Produces: `~/.pi/agent/AGENTS.md.d/00-base.md`, a reusable `pi-agent-assemble-agents` helper for downstream reassembly, and assembled `~/.pi/agent/AGENTS.md` for Pi to load globally.
 
 - [ ] **Step 1: Add the neutral base fragment**
 
@@ -47,9 +50,36 @@ User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min toke
 * Verification: end to end verify; confirm empirically before claiming completion.
 ```
 
-- [ ] **Step 2: Insert Pi AGENTS tasks into `roles/common/tasks/main.yml`**
+- [ ] **Step 2: Create the reusable assembly helper**
 
-Place these tasks after the existing `Create pi-coding-agent global extensions directory` task and before `Install managed pi-coding-agent keybindings`:
+Create `roles/common/files/bin/pi-agent-assemble-agents` with:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+agent_dir="${PI_AGENT_DIR:-$HOME/.pi/agent}"
+fragment_dir="$agent_dir/AGENTS.md.d"
+output_file="$agent_dir/AGENTS.md"
+
+tmp_file="$(mktemp)"
+trap 'rm -f "$tmp_file"' EXIT
+
+if [[ -d "$fragment_dir" ]]; then
+  find "$fragment_dir" -maxdepth 1 -type f | sort | while IFS= read -r fragment; do
+    cat "$fragment"
+    printf '\n'
+  done >"$tmp_file"
+else
+  : >"$tmp_file"
+fi
+
+install -m 0600 "$tmp_file" "$output_file"
+```
+
+- [ ] **Step 3: Insert Pi AGENTS tasks into `roles/common/tasks/main.yml`**
+
+Add `pi-agent-assemble-agents` to the existing `Install worktree helpers` loop with mode `0755`. Then place these tasks after the existing `Create pi-coding-agent global extensions directory` task and before `Install managed pi-coding-agent keybindings`:
 
 ```yaml
 - name: Create pi-coding-agent global AGENTS fragment directory
@@ -65,13 +95,25 @@ Place these tasks after the existing `Create pi-coding-agent global extensions d
     mode: '0600'
 
 - name: Assemble pi-coding-agent global AGENTS.md from fragments
-  assemble:
-    src: "{{ ansible_facts['user_dir'] }}/.pi/agent/AGENTS.md.d"
-    dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/AGENTS.md"
-    mode: '0600'
+  command: "{{ ansible_facts['user_dir'] }}/.local/bin/pi-agent-assemble-agents"
+  environment:
+    HOME: "{{ ansible_facts['user_dir'] }}"
+  changed_when: false
 ```
 
-- [ ] **Step 3: Verify the fragment is neutral**
+- [ ] **Step 4: Add and run the helper behavior test**
+
+Create `tests/pi-agent-assemble-agents.sh` to verify sorted assembly, mode `0600`, and base-fragment neutrality. Run:
+
+```bash
+cd /Users/brian/projects/new-machine-bootstrap/.worktrees/pi-global-agents-fragments
+chmod +x tests/pi-agent-assemble-agents.sh
+bash tests/pi-agent-assemble-agents.sh
+```
+
+Expected: output includes `pi AGENTS assembly checks complete`.
+
+- [ ] **Step 5: Verify the fragment is neutral**
 
 Run:
 
@@ -85,7 +127,7 @@ fi
 
 Expected: no output and exit status `0`.
 
-- [ ] **Step 4: Verify Ansible syntax**
+- [ ] **Step 6: Verify Ansible syntax**
 
 Run:
 
@@ -96,7 +138,7 @@ ansible-playbook playbook.yml --syntax-check
 
 Expected: syntax check succeeds.
 
-- [ ] **Step 5: Commit implementation**
+- [ ] **Step 7: Commit implementation**
 
 Run:
 
@@ -104,7 +146,9 @@ Run:
 cd /Users/brian/projects/new-machine-bootstrap/.worktrees/pi-global-agents-fragments
 ~/.pi/agent/skills/commit/commit.sh -m "Add Pi global AGENTS fragment assembly" \
   roles/common/files/pi/AGENTS.md.d/00-base.md \
-  roles/common/tasks/main.yml
+  roles/common/files/bin/pi-agent-assemble-agents \
+  roles/common/tasks/main.yml \
+  tests/pi-agent-assemble-agents.sh
 ```
 
 Expected: one implementation commit.
