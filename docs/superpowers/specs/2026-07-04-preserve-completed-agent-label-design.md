@@ -19,19 +19,25 @@ When `tmux-agent-worktree clear` runs and an agent subject exists, the pane shou
 ✓ pi: <subject>
 ```
 
+When no agent subject exists, the pane should preserve the current `@window-label` and mark that label completed instead. This covers sessions whose useful identity came from the worktree/PR label rather than an explicit subject:
+
+```text
+✓ pi (branch gh#123) new-machine-bootstrap
+```
+
 Active subjects continue to render as:
 
 ```text
 pi: <subject>
 ```
 
-Panes with no subject continue to render as:
+Panes with no subject and no completed label continue to render as:
 
 ```text
 pi <repo>
 ```
 
-The implementation should store a pane-local completion marker, for example `@agent_subject_done=1`, when clearing a worktree with an existing subject. `tmux-agent-state render` should prefix `✓ ` only when the marker is set and a subject exists. `set-subject` and `clear-subject` should clear the marker so new work does not inherit the completed state. `mark-subject-stale` may remain for reminder behavior, but it should not be the rendering signal.
+The implementation should store explicit pane-local completion markers, such as `@agent_subject_done=1` for subject labels and `@agent_completed_window_label` for preserved window labels. `tmux-agent-state render` should prefix subject labels when the subject marker is set, or render the preserved completed window label when no subject exists. `set-kind`, `set-subject`, `clear-subject`, and `set-worktree` should clear completion state so new work does not inherit the completed label. `mark-subject-stale` may remain for reminder behavior, but it should not be the rendering signal.
 
 ## Non-goals
 
@@ -46,4 +52,5 @@ Add shell tests that exercise `tmux-agent-state` and `tmux-agent-worktree` throu
 
 1. A completed subject renders with a leading check mark after worktree clear.
 2. Setting a new subject clears the completed marker.
-3. Clearing with no subject still falls back to the generic `pi <repo>` label.
+3. Clearing with no subject preserves the prior window label with a leading check mark.
+4. Starting a new agent session kind clears the completed marker.
