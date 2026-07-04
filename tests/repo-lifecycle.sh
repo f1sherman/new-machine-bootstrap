@@ -582,58 +582,6 @@ if [[ -d "$github_proof_feature" ]]; then
 fi
 pass_case "repo-end GitHub proof removes linked worktree"
 
-# --- repo-end worktree mode: deleted remote branch uses merged Forgejo PR proof ---
-create_remote_repo end-worktree-forgejo-proof
-forgejo_proof_origin="$CREATED_ORIGIN"
-forgejo_proof_main="$CREATED_REPO"
-forgejo_proof_feature="$TMPROOT/end-worktree-forgejo-proof-feature"
-git -C "$forgejo_proof_main" worktree add -q -b feature/forgejo-proof "$forgejo_proof_feature" main
-printf 'forgejo stale content\n' >"$forgejo_proof_feature/forgejo-proof.txt"
-git -C "$forgejo_proof_feature" add forgejo-proof.txt
-git -C "$forgejo_proof_feature" commit -q -m "forgejo stale feature commit"
-# Merge equivalent content directly to main as a squash and delete the remote feature ref.
-git -C "$forgejo_proof_main" checkout -q main
-printf 'forgejo merged content\n' >"$forgejo_proof_main/forgejo-proof.txt"
-git -C "$forgejo_proof_main" add forgejo-proof.txt
-git -C "$forgejo_proof_main" commit -q -m "squash forgejo proof"
-git -C "$forgejo_proof_main" push -q origin main
-git -C "$forgejo_proof_main" remote set-url origin ssh://git@forgejo.brianjohn.com:2222/example/end-worktree-forgejo-proof.git
-stub_forgejo_bin="$TMPROOT/forgejo-proof-bin"
-mkdir -p "$stub_forgejo_bin"
-cat >"$stub_forgejo_bin/curl" <<'EOF'
-#!/usr/bin/env bash
-printf '%s\n' "curl $*" >>"$FORGEJO_STUB_LOG"
-cat <<'JSON'
-[
-  {"number":42,"merged":true,"base":{"ref":"main"},"head":{"ref":"feature/forgejo-proof"}}
-]
-JSON
-EOF
-chmod +x "$stub_forgejo_bin/curl"
-cat >"$stub_forgejo_bin/ssh" <<EOF
-#!/usr/bin/env bash
-exec git-upload-pack '$forgejo_proof_origin'
-EOF
-chmod +x "$stub_forgejo_bin/ssh"
-forgejo_proof_home="$TMPROOT/end-worktree-forgejo-proof-home"
-mkdir -p "$forgejo_proof_home"
-(cd "$forgejo_proof_feature" && \
-  FORGEJO_STUB_LOG="$TMPROOT/forgejo-proof-curl.log" \
-  FORGEJO_TOKEN=test-token \
-  HOME="$forgejo_proof_home" \
-  PATH="$stub_forgejo_bin:$BIN_DIR:$PATH" \
-  GIT_CONFIG_GLOBAL=/dev/null \
-  GIT_SSH="$stub_forgejo_bin/ssh" \
-  "$REPO_END_SCRIPT" --print-path \
-  >"$TMPROOT/end-worktree-forgejo-proof.out" \
-  2>"$TMPROOT/end-worktree-forgejo-proof.err")
-assert_file_contains "$TMPROOT/end-worktree-forgejo-proof.out" "$forgejo_proof_main" "repo-end Forgejo proof prints main path"
-assert_file_contains "$TMPROOT/end-worktree-forgejo-proof.err" "Using merged Forgejo PR #42 as merge proof" "repo-end announces Forgejo PR proof"
-if [[ -d "$forgejo_proof_feature" ]]; then
-  fail_case "repo-end Forgejo proof removes linked worktree" "worktree remains at $forgejo_proof_feature"
-fi
-pass_case "repo-end Forgejo proof removes linked worktree"
-
 # --- repo-end API fallback refuses ambiguous merged PRs ---
 create_remote_repo end-worktree-api-ambiguous
 api_ambiguous_origin="$CREATED_ORIGIN"
@@ -774,7 +722,7 @@ if [[ ! -d "$local_ahead_feature" ]]; then
 fi
 pass_case "repo-end local-ahead refusal keeps worktree"
 
-# --- repo-end refuses unsupported remotes instead of treating them as Forgejo ---
+# --- repo-end refuses unsupported remotes without provider proof ---
 create_remote_repo end-worktree-unsupported-api
 unsupported_origin="$CREATED_ORIGIN"
 unsupported_main="$CREATED_REPO"
@@ -791,14 +739,6 @@ git -C "$unsupported_main" push -q origin main
 git -C "$unsupported_main" remote set-url origin ssh://git@unsupported.example:2222/example/end-worktree-unsupported-api.git
 stub_unsupported_bin="$TMPROOT/unsupported-api-bin"
 mkdir -p "$stub_unsupported_bin"
-cat >"$stub_unsupported_bin/curl" <<'EOF'
-#!/usr/bin/env bash
-printf 'curl should not be called\n' >>"$UNSUPPORTED_CURL_LOG"
-cat <<'JSON'
-[{"number":77,"merged":true,"base":{"ref":"main"},"head":{"ref":"feature/unsupported-api"}}]
-JSON
-EOF
-chmod +x "$stub_unsupported_bin/curl"
 cat >"$stub_unsupported_bin/ssh" <<EOF
 #!/usr/bin/env bash
 exec git-upload-pack '$unsupported_origin'
@@ -808,8 +748,6 @@ unsupported_home="$TMPROOT/unsupported-api-home"
 mkdir -p "$unsupported_home"
 if (cd "$unsupported_feature" && \
   HOME="$unsupported_home" \
-  UNSUPPORTED_CURL_LOG="$TMPROOT/unsupported-curl.log" \
-  FORGEJO_TOKEN=test-token \
   PATH="$stub_unsupported_bin:$BIN_DIR:$PATH" \
   GIT_CONFIG_GLOBAL=/dev/null \
   GIT_SSH="$stub_unsupported_bin/ssh" \
@@ -817,10 +755,6 @@ if (cd "$unsupported_feature" && \
   fail_case "repo-end refuses unsupported API platform" "repo-end unexpectedly succeeded"
 fi
 assert_file_contains "$TMPROOT/unsupported-api.err" "merge the PR first" "repo-end unsupported platform keeps generic refusal"
-if [[ -e "$TMPROOT/unsupported-curl.log" ]]; then
-  fail_case "repo-end unsupported platform avoids Forgejo API" "Forgejo API fallback was called"
-fi
-pass_case "repo-end unsupported platform avoids Forgejo API"
 if [[ ! -d "$unsupported_feature" ]]; then
   fail_case "repo-end unsupported platform keeps worktree" "worktree was removed"
 fi
