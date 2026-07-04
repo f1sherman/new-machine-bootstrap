@@ -489,6 +489,45 @@ fi
 pass_case "repo-end worktree mode removes linked worktree"
 assert_file_contains "$worktree_log" "--repo-dir $worktree_feature --branch feature/end-worktree --main-branch main --main-path $worktree_main" "repo-end worktree mode invokes callbacks with context"
 
+# --- repo-end worktree mode: stale local branch uses remote branch proof ---
+create_remote_repo end-worktree-remote-proof
+remote_proof_origin="$CREATED_ORIGIN"
+remote_proof_main="$CREATED_REPO"
+remote_proof_feature="$TMPROOT/end-worktree-remote-proof-feature"
+git -C "$remote_proof_main" worktree add -q -b feature/remote-proof "$remote_proof_feature" main
+printf 'local stale content\n' >"$remote_proof_feature/remote-proof.txt"
+git -C "$remote_proof_feature" add remote-proof.txt
+git -C "$remote_proof_feature" commit -q -m "local stale feature commit"
+git -C "$remote_proof_feature" push -q -u origin feature/remote-proof
+# Simulate another worker updating the PR branch and merging that final state.
+remote_proof_peer="$TMPROOT/end-worktree-remote-proof-peer"
+git clone -q "$remote_proof_origin" "$remote_proof_peer"
+git -C "$remote_proof_peer" checkout -q feature/remote-proof
+printf 'remote final content\n' >"$remote_proof_peer/remote-proof.txt"
+git -C "$remote_proof_peer" add remote-proof.txt
+git -C "$remote_proof_peer" commit -q -m "remote final feature commit"
+git -C "$remote_proof_peer" push -q origin feature/remote-proof
+git -C "$remote_proof_peer" checkout -q main
+printf 'remote final content\n' >"$remote_proof_peer/remote-proof.txt"
+git -C "$remote_proof_peer" add remote-proof.txt
+git -C "$remote_proof_peer" commit -q -m "squash remote final feature"
+git -C "$remote_proof_peer" push -q origin main
+remote_proof_home="$TMPROOT/end-worktree-remote-proof-home"
+mkdir -p "$remote_proof_home"
+(cd "$remote_proof_feature" && \
+  HOME="$remote_proof_home" \
+  PATH="$BIN_DIR:$PATH" \
+  GIT_CONFIG_GLOBAL=/dev/null \
+  "$REPO_END_SCRIPT" --print-path \
+  >"$TMPROOT/end-worktree-remote-proof.out" \
+  2>"$TMPROOT/end-worktree-remote-proof.err")
+assert_file_contains "$TMPROOT/end-worktree-remote-proof.out" "$remote_proof_main" "repo-end remote proof prints main path"
+assert_file_contains "$TMPROOT/end-worktree-remote-proof.err" "Using origin/feature/remote-proof as merge proof" "repo-end announces remote branch proof"
+if [[ -d "$remote_proof_feature" ]]; then
+  fail_case "repo-end remote proof removes linked worktree" "worktree remains at $remote_proof_feature"
+fi
+pass_case "repo-end remote proof removes linked worktree"
+
 create_remote_repo end-dirty-current
 dirty_current_repo="$CREATED_REPO"
 git -C "$dirty_current_repo" checkout -q -b feature/dirty-current

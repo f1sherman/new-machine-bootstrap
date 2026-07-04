@@ -366,6 +366,49 @@ prune_merged_local_branches() {
   done < <("$git_cmd" -C "$main_path" for-each-ref --format='%(refname:short)'$'\t''%(worktreepath)' refs/heads/)
 }
 
+remote_branch_ref() {
+  printf 'refs/remotes/origin/%s\n' "$current_branch"
+}
+
+remote_branch_exists() {
+  "$(_worktree_cmd git)" -C "$repo_root" show-ref --verify --quiet "$(remote_branch_ref)"
+}
+
+local_branch_is_ancestor_of_remote() {
+  "$(_worktree_cmd git)" -C "$repo_root" merge-base --is-ancestor HEAD "$(remote_branch_ref)"
+}
+
+remote_branch_is_ancestor_of_local() {
+  "$(_worktree_cmd git)" -C "$repo_root" merge-base --is-ancestor "$(remote_branch_ref)" HEAD
+}
+
+select_git_merge_proof_ref() {
+  if already_merged "$repo_root" HEAD; then
+    printf 'HEAD\n'
+    return 0
+  fi
+
+  if ! remote_branch_exists; then
+    return 1
+  fi
+
+  if local_branch_is_ancestor_of_remote; then
+    if already_merged "$repo_root" "$(remote_branch_ref)"; then
+      printf 'Using origin/%s as merge proof\n' "$current_branch" >&2
+      remote_branch_ref
+      return 0
+    fi
+    return 1
+  fi
+
+  if ! remote_branch_is_ancestor_of_local; then
+    printf 'Error: local branch %s diverged from origin/%s; resolve manually before re-running repo-end\n' "$current_branch" "$current_branch" >&2
+    exit 1
+  fi
+
+  return 1
+}
+
 main_path="$(_worktree_main_path "$main_branch" || true)"
 if [[ -z "$main_path" ]]; then
   if [[ -d "$repo_root/.git" ]]; then
@@ -397,7 +440,8 @@ if [[ "$already_on_main" == "true" ]]; then
   exit 0
 fi
 
-if ! already_merged; then
+merge_proof_ref="$(select_git_merge_proof_ref || true)"
+if [[ -z "$merge_proof_ref" ]]; then
   printf 'Error: branch %s is not merged into origin/%s; merge the PR first, then run repo-end again\n' "$current_branch" "$main_branch" >&2
   exit 1
 fi
