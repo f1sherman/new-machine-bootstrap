@@ -72,14 +72,12 @@ async function syncSessionNameFromTmux(pi, ctx) {
   const label = await tmuxOption(pi, "@window-label");
   if (!label) return;
 
-  const sessionName = piSessionNameFromTmuxLabel(label, ctx?.cwd || "");
+  const labelPath = await boundWorktreePath(pi, ctx?.cwd || "");
+  const sessionName = piSessionNameFromTmuxLabel(label, labelPath);
   if (!sessionName) return;
 
   const currentName = ctx?.sessionManager?.getSessionName?.() || "";
-  if (currentName === sessionName) {
-    lastManagedSessionName = sessionName;
-    return;
-  }
+  if (currentName === sessionName) return;
   if (currentName && currentName !== lastManagedSessionName) return;
 
   try {
