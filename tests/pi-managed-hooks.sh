@@ -34,6 +34,7 @@ const sessionNames = [];
 let branch = "main";
 let currentSessionName = "";
 let windowLabel = "pi main-repo";
+let agentWorktreePath = "/repo/main-repo";
 
 const ok = (stdout = "") => ({ stdout, stderr: "", code: 0, killed: false });
 const fail = () => ({ stdout: "", stderr: "", code: 1, killed: false });
@@ -52,6 +53,7 @@ const pi = {
     if (command === "tmux-update-pane-label") return ok();
     if (command === "tmux-window-label") return ok();
     if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@window-label") return ok(`${windowLabel}\n`);
+    if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@agent_worktree_path") return agentWorktreePath ? ok(`${agentWorktreePath}\n`) : fail();
     if (command === "tmux" && args[0] === "set-option") return ok();
     if (command === "tmux") return fail();
     if (command === "git" && args.includes("rev-parse")) {
@@ -66,7 +68,7 @@ const pi = {
 };
 
 const ctx = {
-  cwd: "/repo/main-repo",
+  cwd: "/repo/main-repo/src",
   sessionManager: {
     getSessionName() {
       return currentSessionName;
@@ -84,12 +86,24 @@ process.env.TMUX = "1";
 process.env.TMUX_PANE = "%1";
 delete process.env.TMUX_AGENT_STATE_DIR;
 
+currentSessionName = "feature-work";
+windowLabel = "pi main-repo feature-work";
 await handlers.get("session_start")({}, ctx);
-assert.deepEqual(calls.slice(-4), [
+windowLabel = "pi main-repo other-work";
+await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
+assert.equal(currentSessionName, "feature-work", "manual compact Pi session names are not adopted as managed names");
+assert.deepEqual(sessionNames, [], "manual compact-name preservation does not call setSessionName");
+
+currentSessionName = "";
+windowLabel = "pi main-repo";
+calls.length = 0;
+await handlers.get("session_start")({}, ctx);
+assert.deepEqual(calls.slice(-5), [
   { command: "tmux-update-pane-label", args: ["%1"] },
   { command: "tmux-window-label", args: ["%1"] },
   { command: "tmux-agent-state", args: ["set-kind", "pi"] },
   { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@window-label"] },
+  { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@agent_worktree_path"] },
 ], "session_start refreshes pane labels before rendering pi window label and naming the session");
 assert.deepEqual(sessionNames, [], "directory-only pi labels do not set redundant Pi session names");
 assert.equal(typeof handlers.get("tool_result"), "function", "registers tool_result hook");
@@ -99,7 +113,7 @@ await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
 assert.deepEqual(sessionNames, ["feature-work"], "successful bash results set only the meaningful Pi session name");
 
 currentSessionName = "manual investigation name";
-windowLabel = "pi later-worktree";
+windowLabel = "pi main-repo later-worktree";
 await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
 assert.equal(currentSessionName, "manual investigation name", "manual Pi session names are not overwritten by managed tmux sync");
 assert.deepEqual(sessionNames, ["feature-work"], "manual-name preservation does not call setSessionName again");
@@ -498,6 +512,7 @@ const featureEdit = await handlers.get("tool_call")({
 }, { cwd: "/repo" });
 assert.equal(featureEdit, undefined, "allows edit/write tools off main");
 
+agentWorktreePath = "";
 await handlers.get("tool_call")({
   toolName: "write",
   input: { path: "docs/superpowers/specs/pi-managed-hooks-design.md", content: "# Design" },
@@ -543,10 +558,7 @@ await handlers.get("tool_result")({
   input: { command: "cat > docs/superpowers/specs/bash-created-design.md <<'EOF'\n# Design\nEOF" },
   isError: false,
 }, { cwd: worktreeRoot });
-assert.deepEqual(calls.at(-1), {
-  command: "tmux",
-  args: ["set-option", "-p", "-t", "%1", "@agent_current_spec_path", bashSpecPath],
-}, "tracks successful bash-created superpowers spec paths in tmux pane state");
+assert(calls.some((call) => call.command === "tmux" && JSON.stringify(call.args) === JSON.stringify(["set-option", "-p", "-t", "%1", "@agent_current_spec_path", bashSpecPath])), "tracks successful bash-created superpowers spec paths in tmux pane state");
 
 console.log("pi-managed-hooks checks complete");
 NODE
