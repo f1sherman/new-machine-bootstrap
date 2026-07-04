@@ -401,12 +401,13 @@ select_git_merge_proof_ref() {
     return 1
   fi
 
-  if ! remote_branch_is_ancestor_of_local; then
-    printf 'Error: local branch %s diverged from origin/%s; resolve manually before re-running repo-end\n' "$current_branch" "$current_branch" >&2
+  if remote_branch_is_ancestor_of_local; then
+    printf 'Error: local branch %s has commits not present on origin/%s; push or discard local-only commits before re-running repo-end\n' "$current_branch" "$current_branch" >&2
     exit 1
   fi
 
-  return 1
+  printf 'Error: local branch %s diverged from origin/%s; resolve manually before re-running repo-end\n' "$current_branch" "$current_branch" >&2
+  exit 1
 }
 
 origin_url() {
@@ -470,8 +471,8 @@ forgejo_base_url() {
     *) return 1 ;;
   esac
   case "$host" in
-    forgejo|forgejo-git) printf 'https://forgejo.brianjohn.com\n' ;;
-    *) printf 'https://%s\n' "$host" ;;
+    forgejo|forgejo-git|forgejo.brianjohn.com) printf 'https://forgejo.brianjohn.com\n' ;;
+    *) return 1 ;;
   esac
 }
 

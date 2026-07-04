@@ -593,7 +593,7 @@ printf 'forgejo merged content\n' >"$forgejo_proof_main/forgejo-proof.txt"
 git -C "$forgejo_proof_main" add forgejo-proof.txt
 git -C "$forgejo_proof_main" commit -q -m "squash forgejo proof"
 git -C "$forgejo_proof_main" push -q origin main
-git -C "$forgejo_proof_main" remote set-url origin ssh://git@forgejo.example:2222/example/end-worktree-forgejo-proof.git
+git -C "$forgejo_proof_main" remote set-url origin ssh://git@forgejo.brianjohn.com:2222/example/end-worktree-forgejo-proof.git
 stub_forgejo_bin="$TMPROOT/forgejo-proof-bin"
 mkdir -p "$stub_forgejo_bin"
 cat >"$stub_forgejo_bin/curl" <<'EOF'
@@ -666,6 +666,107 @@ if [[ ! -d "$api_ambiguous_feature" ]]; then
   fail_case "repo-end ambiguous API proof keeps worktree" "worktree was removed"
 fi
 pass_case "repo-end ambiguous API proof keeps worktree"
+
+# --- repo-end refuses local-only commits ahead of remote before API fallback ---
+create_remote_repo end-worktree-local-ahead
+local_ahead_origin="$CREATED_ORIGIN"
+local_ahead_main="$CREATED_REPO"
+local_ahead_feature="$TMPROOT/end-worktree-local-ahead-feature"
+git -C "$local_ahead_main" worktree add -q -b feature/local-ahead "$local_ahead_feature" main
+printf 'remote branch content\n' >"$local_ahead_feature/local-ahead.txt"
+git -C "$local_ahead_feature" add local-ahead.txt
+git -C "$local_ahead_feature" commit -q -m "remote branch commit"
+git -C "$local_ahead_feature" push -q -u origin feature/local-ahead
+printf 'local-only content\n' >"$local_ahead_feature/local-ahead.txt"
+git -C "$local_ahead_feature" add local-ahead.txt
+git -C "$local_ahead_feature" commit -q -m "local only commit"
+git -C "$local_ahead_main" checkout -q main
+printf 'squashed branch content\n' >"$local_ahead_main/local-ahead.txt"
+git -C "$local_ahead_main" add local-ahead.txt
+git -C "$local_ahead_main" commit -q -m "squash local ahead branch"
+git -C "$local_ahead_main" push -q origin main
+git -C "$local_ahead_main" remote set-url origin git@github.com:example/end-worktree-local-ahead.git
+stub_local_ahead_bin="$TMPROOT/local-ahead-bin"
+mkdir -p "$stub_local_ahead_bin"
+cat >"$stub_local_ahead_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'gh should not be called\n' >>"$LOCAL_AHEAD_GH_LOG"
+cat <<'JSON'
+[{"number":99,"merged_at":"2026-07-04T02:00:00Z","base":{"ref":"main"},"head":{"ref":"feature/local-ahead"}}]
+JSON
+EOF
+chmod +x "$stub_local_ahead_bin/gh"
+cat >"$stub_local_ahead_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$local_ahead_origin'
+EOF
+chmod +x "$stub_local_ahead_bin/ssh"
+if (cd "$local_ahead_feature" && \
+  LOCAL_AHEAD_GH_LOG="$TMPROOT/local-ahead-gh.log" \
+  PATH="$stub_local_ahead_bin:$BIN_DIR:$PATH" \
+  GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$stub_local_ahead_bin/ssh" \
+  "$REPO_END_SCRIPT" >"$TMPROOT/local-ahead.out" 2>"$TMPROOT/local-ahead.err"); then
+  fail_case "repo-end refuses local branch ahead of remote" "repo-end unexpectedly succeeded"
+fi
+assert_file_contains "$TMPROOT/local-ahead.err" "has commits not present on origin/feature/local-ahead" "repo-end explains local-ahead refusal"
+if [[ -e "$TMPROOT/local-ahead-gh.log" ]]; then
+  fail_case "repo-end local-ahead refusal avoids API" "GitHub API fallback was called"
+fi
+pass_case "repo-end local-ahead refusal avoids API"
+if [[ ! -d "$local_ahead_feature" ]]; then
+  fail_case "repo-end local-ahead refusal keeps worktree" "worktree was removed"
+fi
+pass_case "repo-end local-ahead refusal keeps worktree"
+
+# --- repo-end refuses unsupported remotes instead of treating them as Forgejo ---
+create_remote_repo end-worktree-unsupported-api
+unsupported_origin="$CREATED_ORIGIN"
+unsupported_main="$CREATED_REPO"
+unsupported_feature="$TMPROOT/end-worktree-unsupported-api-feature"
+git -C "$unsupported_main" worktree add -q -b feature/unsupported-api "$unsupported_feature" main
+printf 'unsupported local\n' >"$unsupported_feature/unsupported.txt"
+git -C "$unsupported_feature" add unsupported.txt
+git -C "$unsupported_feature" commit -q -m "unsupported local"
+git -C "$unsupported_main" checkout -q main
+printf 'unsupported squash\n' >"$unsupported_main/unsupported.txt"
+git -C "$unsupported_main" add unsupported.txt
+git -C "$unsupported_main" commit -q -m "unsupported squash"
+git -C "$unsupported_main" push -q origin main
+git -C "$unsupported_main" remote set-url origin ssh://git@unsupported.example:2222/example/end-worktree-unsupported-api.git
+stub_unsupported_bin="$TMPROOT/unsupported-api-bin"
+mkdir -p "$stub_unsupported_bin"
+cat >"$stub_unsupported_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+printf 'curl should not be called\n' >>"$UNSUPPORTED_CURL_LOG"
+cat <<'JSON'
+[{"number":77,"merged":true,"base":{"ref":"main"},"head":{"ref":"feature/unsupported-api"}}]
+JSON
+EOF
+chmod +x "$stub_unsupported_bin/curl"
+cat >"$stub_unsupported_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$unsupported_origin'
+EOF
+chmod +x "$stub_unsupported_bin/ssh"
+if (cd "$unsupported_feature" && \
+  UNSUPPORTED_CURL_LOG="$TMPROOT/unsupported-curl.log" \
+  FORGEJO_TOKEN=test-token \
+  PATH="$stub_unsupported_bin:$BIN_DIR:$PATH" \
+  GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$stub_unsupported_bin/ssh" \
+  "$REPO_END_SCRIPT" >"$TMPROOT/unsupported-api.out" 2>"$TMPROOT/unsupported-api.err"); then
+  fail_case "repo-end refuses unsupported API platform" "repo-end unexpectedly succeeded"
+fi
+assert_file_contains "$TMPROOT/unsupported-api.err" "merge the PR first" "repo-end unsupported platform keeps generic refusal"
+if [[ -e "$TMPROOT/unsupported-curl.log" ]]; then
+  fail_case "repo-end unsupported platform avoids Forgejo API" "Forgejo API fallback was called"
+fi
+pass_case "repo-end unsupported platform avoids Forgejo API"
+if [[ ! -d "$unsupported_feature" ]]; then
+  fail_case "repo-end unsupported platform keeps worktree" "worktree was removed"
+fi
+pass_case "repo-end unsupported platform keeps worktree"
 
 create_remote_repo end-dirty-current
 dirty_current_repo="$CREATED_REPO"
