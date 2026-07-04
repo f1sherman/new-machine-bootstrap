@@ -1,19 +1,18 @@
 ---
 name: resume-claude-session
 description: >
-  Resume a Claude Code session within Codex by reading the Claude session file and continuing the work.
-  Use when the user wants to continue Claude work in Codex.
+  Resume a Claude Code session in Pi by reading the Claude session transcript
+  and continuing the work with Pi's tools.
 ---
 
-# Resume a Claude Code Session in Codex
+# Resume a Claude Code Session in Pi
 
-You are tasked with reading a Claude Code session file and resuming that work within this Codex session.
+You are tasked with reading a Claude Code session file and resuming that work in this Pi session.
 
 ## Initial Response
 
-1. **If a session file path or index was provided**: Read and load that session immediately.
-
-2. **If no path was provided**: List recent sessions for the user to choose from.
+1. **If a session file path or index was provided**: read and load that session immediately.
+2. **If no path was provided**: list recent Claude sessions for the user to choose from.
 
 ## Process
 
@@ -25,45 +24,29 @@ If no session was specified, list recent sessions:
 list-claude-sessions
 ```
 
-This shows the 10 most recent sessions with:
-- Index number (for easy selection)
-- Timestamp
-- Project name
-- Preview of the last message
+This shows recent sessions with an index, timestamp, project name, and preview of the last message.
 
-Present this to the user and ask which session to resume (by number).
+Ask which session to resume by number. To get the file path for a selected session:
 
-To get the file path for a selected session (needed for step 2):
 ```bash
 list-claude-sessions --json | jq -r '.[] | select(.index == INDEX) | .file'
 ```
 
-To filter by project:
-```bash
-list-claude-sessions --project <project-dir>
-```
-
 ### Step 2: Load the Full Session Transcript
 
-Once a session is selected, load the full transcript into context:
+Once a session is selected, load the full transcript:
 
 ```bash
 read-claude-session <session-file> --transcript
 ```
 
-This outputs the complete conversation in a format optimized for resumption:
-- Session metadata (ID, directory, git branch, Claude Code version)
-- All user messages in order
-- All assistant responses
-- All tool calls made
-
-**Read and internalize this entire transcript.** This is your context for what was being worked on.
+Read and internalize the complete transcript. This is the context for what was being worked on.
 
 ### Step 3: Analyze and Confirm
 
 After loading the transcript, present a brief summary:
 
-```
+```markdown
 I've loaded the Claude Code session from [timestamp].
 
 **Working Directory**: [cwd]
@@ -85,34 +68,25 @@ Ready to continue?
 
 After user confirmation:
 
-1. **Verify current state**: Check that relevant files still exist and match expected state
-2. **Pick up where Claude left off**: Continue the task naturally
-3. **Apply learnings**: Use any patterns, decisions, or context from the session
+1. Verify current state: check that relevant files still exist and match expected state.
+2. Continue naturally using Pi's available tools and skills.
+3. Preserve intent, decisions, and constraints from the Claude session.
+4. Do not repeat completed work unless verification shows it is missing or stale.
 
 ## Guidelines
 
-1. **Load the full transcript**: Always use `--transcript` to get complete context
-2. **Verify state**: Files may have changed since the session ended
-3. **Acknowledge tool differences**: Codex may have different capabilities than Claude Code
-4. **Preserve intent**: Continue the work in the spirit of what was being accomplished
-5. **Don't repeat work**: If something was already done in the session, don't redo it
+- Always load the full transcript with `--transcript`.
+- Verify state because files may have changed since the Claude session ended.
+- Acknowledge tool differences when they matter.
+- Preserve the user's original intent.
+- Use Pi-native skills and helpers for new work, not Claude-specific workflows, unless interacting with Claude is the point of the task.
 
 ## Quick Reference
 
 ```bash
-# List recent sessions (shows last 10 by default)
 list-claude-sessions
-
-# List more sessions or filter by time/project
 list-claude-sessions --limit 20 --days 30
-list-claude-sessions --project <project-name>
-
-# Get JSON with file paths for programmatic access
 list-claude-sessions --json
-
-# Load full transcript for a session
 read-claude-session <session-file> --transcript
-
-# Get summary only (less detail)
 read-claude-session <session-file>
 ```

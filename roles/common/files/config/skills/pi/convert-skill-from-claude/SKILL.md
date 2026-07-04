@@ -1,13 +1,13 @@
 ---
 name: convert-skill-from-claude
 description: >
-  Convert a Claude Code skill to Codex format. You are Codex receiving a Claude skill and rewriting it for yourself.
-  Use when the user wants to port a Claude skill to Codex.
+  Convert a Claude Code skill to Pi format. Use when the user wants to port a
+  Claude skill into Pi's global skill directory.
 ---
 
-# Convert Claude Code Skill to Codex
+# Convert Claude Code Skill to Pi
 
-You are Codex. You're receiving a Claude Code skill and need to rewrite it for yourself.
+You are Pi. You're receiving a Claude Code skill and need to rewrite it for Pi.
 
 ## Finding Claude Skills
 
@@ -16,185 +16,69 @@ Claude skills are located at `~/.claude/skills/`. Each skill is a directory cont
 - Additional files - Templates, scripts, examples, or other supporting files
 
 To list available Claude skills:
+
 ```bash
 ls ~/.claude/skills/
 ```
 
 ## Initial Response
 
-If the user has not specified which skill to convert, list the available Claude skills and ask them to choose:
-
-```
-I'll help you convert a Claude skill to Codex format.
-
-Available Claude skills:
-[list from ~/.claude/skills/]
-
-Which skill would you like me to convert?
-```
-
-Then wait for the user's input before proceeding.
-
-## Your Approach
-
-Don't think about "removing Claude features." Instead:
-
-1. Read the Claude skill to understand what it accomplishes
-2. Write a fresh Codex skill that achieves the same goal using your native capabilities
-3. Express the workflow in your idiom
+If the user has not specified which skill to convert, list available Claude skills and ask them to choose.
 
 ## Process
 
 ### Step 1: Understand the Source Skill
 
-Read the Claude skill from `~/.claude/skills/<skill-name>/`. Start with SKILL.md, then read other files only as needed:
-- What is this skill trying to help the user accomplish?
-- What are the key steps in the workflow?
-- What constraints or guidelines matter?
+Read `~/.claude/skills/<skill-name>/SKILL.md` and any supporting files needed to understand intent, workflow, constraints, scripts, and helper paths.
 
-Focus on the INTENT, not the Claude-specific implementation details like sub-agents or parallel tasks.
+Focus on the intent, not Claude-specific implementation details.
 
-### Step 2: Write Your Version
+### Step 2: Discover Pi Capabilities
 
-Write a skill that accomplishes the same intent using your capabilities.
+Check available Pi skills and any project guidance:
 
-**Frontmatter:**
+```bash
+find ~/.pi/agent/skills ~/.pi/agent/git ~/.pi/agent/npm -name SKILL.md 2>/dev/null
+```
+
+Pi skills use YAML frontmatter with a `name` and `description`. Skill names must be Pi-valid: no leading underscore and no `personal:` prefix.
+
+### Step 3: Write the Pi Version
+
+Create a fresh Pi skill that accomplishes the same goal using Pi's native tools and conventions.
+
+Frontmatter:
+
 ```yaml
 ---
-name: personal:<skill-name>
+name: <skill-name-without-leading-underscore>
 description: >
-  [What the skill does - write naturally, don't copy Claude's description]
+  <natural description of when to use this skill>
 ---
 ```
 
-**Workflow:**
-Express the steps in your natural idiom:
-- You can run independent tool calls in parallel via `multi_tool_use.parallel`
-- You use `shell_command` with `rg`, `cat`, `ls`, etc.
-- You are the agent - no delegation to sub-agents
-- You keep all context in one conversation
+Workflow guidance:
+- Use Pi tool names and paths.
+- Prefer `~/.pi/agent/skills/<skill-name>/` for installed output.
+- If the skill calls helper scripts, update paths and script names for Pi.
+- Do not keep Claude-only commands unless the skill intentionally interacts with Claude.
+- Keep cross-agent references only where they are part of the skill's purpose.
 
-**When Claude uses sub-agents for parallel work, you can:**
-- Use `multi_tool_use.parallel` for independent operations (e.g., searching multiple patterns at once)
-- Or do the work sequentially if operations depend on each other
-- Use `rg` and `rg --files` for discovery
-- Use `cat` or file reading for deep analysis
+### Step 4: Handle Supporting Files
 
-### Step 3: Text Replacements
+For each additional file in the Claude skill directory:
+- Copy files that remain useful.
+- Update paths from the Claude skill directory to `~/.pi/agent/skills` when they refer to the converted skill.
+- Update helper names and wording for Pi.
+- Preserve executable modes for scripts.
 
-Apply these replacements to agent/tool references only (not API names or documentation):
+### Step 5: Validate
 
-| Claude | Codex |
-|--------|-------|
-| `Claude Code` | `Codex` |
-| `Claude` (the agent) | `Codex` |
-| `Claude attribution` | `Codex attribution` |
-| `Generated with Claude` | `Generated with Codex` |
-| `list-claude-sessions` | `list-codex-sessions` |
-| `read-claude-session` | `read-codex-session` |
+Before finishing:
+- Ensure frontmatter YAML is valid.
+- Ensure the frontmatter `name` matches the destination directory name.
+- Ensure there is no leading underscore in the Pi skill name.
+- Ensure all required supporting files were copied or intentionally omitted.
+- Ensure remaining `Claude` references are intentional cross-agent references.
 
-**Tool name mappings:**
-
-| Claude Tool | Codex Equivalent |
-|-------------|------------------|
-| `Read` tool | `shell_command` with `cat` or `nl -ba` |
-| `Bash` tool | `shell_command` |
-| `Glob` tool | `shell_command` with `rg --files -g "pattern"` |
-| `Grep` tool | `shell_command` with `rg` |
-| `Edit` tool | `apply_patch` |
-| `Write` tool | `shell_command` with heredoc or `apply_patch` |
-| `Task` tool (sub-agents) | Do the work yourself (see Step 4) |
-| `WebSearch`/`WebFetch` | Not available - ask user or skip |
-
-### Step 4: Handle Claude-Specific Patterns
-
-When you encounter these Claude patterns, express them in your idiom:
-
-**Sub-agent spawning:**
-```markdown
-# Claude says:
-Spawn parallel sub-tasks:
-- Use `codebase-locator` to find files
-- Use `codebase-analyzer` to understand code
-Wait for all to complete, then synthesize.
-
-# You write:
-Research the codebase:
-- Use `rg --files` and `rg "pattern"` to find relevant files
-- Read the files to understand the code
-- Synthesize your findings
-```
-
-**Task tool references:**
-```markdown
-# Claude says:
-Create multiple Task agents to research concurrently
-
-# You write:
-Research each aspect (use multi_tool_use.parallel for independent searches)
-```
-
-**"Main agent" / "sub-agents":**
-- Remove these concepts entirely
-- You are the only agent - just describe what to do
-
-**Claude-only capabilities:**
-- `WebSearch`/`WebFetch`: Note that this requires user assistance or skip
-- `web-search-researcher`: Ask user to provide information instead
-
-### Step 5: Handle Supporting Files
-
-For each additional file in the skill directory:
-- Templates: Apply text replacements
-- Scripts: Update any Claude-specific commands
-- Examples: Update to reflect Codex patterns
-
-### Step 6: Write and Validate
-
-1. Write all files to `~/.codex/skills/<skill-name>/`
-2. Validate:
-   - [ ] No remaining "Claude Code" references (except when discussing cross-agent work)
-   - [ ] No sub-agent or Task tool references
-   - [ ] No Claude sub-agent references (`personal:codebase-*`, `personal:web-search-*`)
-   - [ ] Skill name in frontmatter uses `personal:` prefix (this is fine)
-   - [ ] Claude tool names converted to Codex equivalents
-   - [ ] YAML frontmatter is valid
-   - [ ] All source files accounted for
-
-3. Summarize:
-   ```
-   Converted: [skill name]
-
-   Intent: [what the skill accomplishes]
-
-   Key adaptations:
-   - [How you expressed parallel work]
-   - [Sub-agent patterns you replaced]
-   - [Tool mappings applied]
-   - [Text replacements made]
-
-   Output: [path]
-   ```
-
-## Example
-
-**Claude skill says:**
-```markdown
-Spawn parallel sub-tasks for research:
-- Use `codebase-locator` to find WHERE files live
-- Use `codebase-analyzer` to understand HOW code works
-- Use `codebase-pattern-finder` to find similar patterns
-
-Wait for all sub-agents to complete and synthesize findings.
-```
-
-**You would write:**
-```markdown
-Research the codebase:
-- Pass 1 (Discovery): use `rg --files` and `rg "keyword"` to locate candidate files
-- Pass 2 (Deep reads): read the most relevant files fully
-- Pass 3 (Patterns): find similar patterns and examples
-- Keep notes with file:line references as you go
-```
-
-You're not "removing sub-agents" - you're just writing how YOU would accomplish the same goal.
+Summarize the converted skill, key adaptations, and output path.
