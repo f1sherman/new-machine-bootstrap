@@ -34,7 +34,13 @@ HOME="$tmp_home" "$HELPER"
 assert_file_equals "$tmp_home/.pi/agent/AGENTS.md" $'first\n\nsecond' \
   "helper assembles Pi global AGENTS fragments in sorted order"
 
-mode="$(stat -f '%Lp' "$tmp_home/.pi/agent/AGENTS.md" 2>/dev/null || stat -c '%a' "$tmp_home/.pi/agent/AGENTS.md")"
+if mode="$(stat -c '%a' "$tmp_home/.pi/agent/AGENTS.md" 2>/dev/null)"; then
+  :
+elif mode="$(stat -f '%Lp' "$tmp_home/.pi/agent/AGENTS.md" 2>/dev/null)"; then
+  :
+else
+  fail "could not read assembled AGENTS.md mode"
+fi
 [[ "$mode" == "600" ]] || fail "assembled AGENTS.md should have mode 0600, got $mode"
 printf 'PASS  assembled AGENTS.md mode is 0600\n'
 
