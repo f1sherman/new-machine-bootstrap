@@ -45,8 +45,8 @@ fi
 unset _mise_shims
 
 export GIT_MERGE_AUTOEDIT=no
-export EDITOR="${EDITOR:-nvim}"
-export VISUAL="${VISUAL:-nvim}"
+export EDITOR="${EDITOR:-${VISUAL:-nvim}}"
+export VISUAL="${VISUAL:-$EDITOR}"
 
 # Claude Code grabs the mouse (DEC 1003/1006) for its own scroll/click. With tmux
 # `mouse off` that state is reflected onto the host terminal, stealing native text
