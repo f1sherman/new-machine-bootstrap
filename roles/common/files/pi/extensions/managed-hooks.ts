@@ -422,7 +422,7 @@ async function updateCurrentSpec(pi, event, ctx) {
 
 async function updateCurrentSpecFromBash(pi, event, ctx) {
   if (!inTmux() || event.isError) return;
-  const command = event.input.command || "";
+  const command = event.input?.command || "";
   if (!command.includes("docs/superpowers/specs")) return;
   const cwd = await boundWorktreePath(pi, ctx.cwd);
   const root = await gitRoot(pi, cwd);

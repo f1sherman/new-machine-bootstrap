@@ -527,6 +527,13 @@ assert.deepEqual(calls.at(-1), {
   args: ["set-option", "-p", "-t", "%1", "@agent_current_spec_path", path.join(worktreeRoot, "docs", "superpowers", "specs", "subdir-relative-design.md")],
 }, "tracks write/edit spec paths relative to the tool cwd, not repo root");
 
+const beforeMissingCommandResult = calls.length;
+await handlers.get("tool_result")({
+  toolName: "bash",
+  isError: false,
+}, { cwd: worktreeRoot });
+assert.equal(calls.length, beforeMissingCommandResult, "ignores bash results without command input");
+
 const bashSpecPath = path.join(worktreeRoot, "docs", "superpowers", "specs", "bash-created-design.md");
 fs.mkdirSync(path.dirname(bashSpecPath), { recursive: true });
 fs.writeFileSync(bashSpecPath, "# Design\n");
