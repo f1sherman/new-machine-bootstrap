@@ -393,7 +393,7 @@ run_case "already-main checkout runs callbacks successfully" \
 
 assert_file_equals \
   "$already_main_log" \
-  "callback-main --repo-dir $already_main_repo --branch main --main-branch main --main-path $already_main_repo" \
+  "callback-main --phase post-cleanup --repo-dir $already_main_repo --branch main --main-branch main --main-path $already_main_repo" \
   "already-main callback receives main branch context"
 assert_file_equals \
   "$TMPROOT/already-main-callback.out" \
@@ -424,7 +424,7 @@ run_case "callback failure makes repo-end fail" \
   false
 
 assert_file_contains "$tmp_home_fail/.local/state/repo-end-fail-callback.log" \
-  "callback-failed --repo-dir $fail_repo --branch feature/fails --main-branch main --main-path $fail_repo" \
+  "callback-failed --phase post-cleanup --repo-dir $fail_repo --branch feature/fails --main-branch main --main-path $fail_repo" \
   "failing callback receives expected args"
 assert_file_contains "$TMPROOT/fail-callback.err" "repo-end callback failed" "callback failure is surfaced"
 
@@ -475,7 +475,7 @@ assert_file_contains \
   "timeout warning is surfaced"
 assert_file_contains \
   "$timeout_log" \
-  "callback-after --repo-dir $timeout_repo --branch feature/timeout --main-branch main --main-path $timeout_repo" \
+  "callback-after --phase post-cleanup --repo-dir $timeout_repo --branch feature/timeout --main-branch main --main-path $timeout_repo" \
   "callbacks continue after timeout"
 assert_file_not_contains \
   "$timeout_log" \

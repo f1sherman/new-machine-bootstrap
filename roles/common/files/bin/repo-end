@@ -34,6 +34,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 run_repo_end_callbacks() {
+  local phase="$1"
   local callback_dir="$HOME/.local/bin/repo-end.d"
   local callback
   local callback_timeout_seconds
@@ -43,7 +44,7 @@ run_repo_end_callbacks() {
   callback_timeout_seconds="$(repo_end_callback_timeout_seconds)" || return 1
   for callback in "$callback_dir"/*; do
     [[ -f "$callback" && -x "$callback" ]] || continue
-    if ! run_repo_end_callback "$callback" "$callback_timeout_seconds"; then
+    if ! run_repo_end_callback "$callback" "$callback_timeout_seconds" "$phase"; then
       printf 'repo-end callback failed: %s\n' "$callback" >&2
       return 1
     fi
@@ -133,11 +134,18 @@ repo_end_timeout_watchdog() {
 run_repo_end_callback() {
   local callback="$1"
   local timeout_seconds="$2"
-  local timeout_marker callback_pid watchdog_pid status
+  local phase="$3"
+  local timeout_marker callback_pid watchdog_pid status errexit_was_on
+
+  case "$-" in
+    *e*) errexit_was_on="true" ;;
+    *) errexit_was_on="false" ;;
+  esac
 
   timeout_marker="$("$(_worktree_cmd mktemp)" "${TMPDIR:-/tmp}/repo-end-callback-timeout.XXXXXX")" || return 1
 
   repo_end_start_background_group "$callback" \
+    --phase "$phase" \
     --repo-dir "$repo_root" \
     --branch "$current_branch" \
     --main-branch "$main_branch" \
@@ -152,7 +160,11 @@ run_repo_end_callback() {
   set +e
   wait "$callback_pid"
   status=$?
-  set -e
+  if [[ "$errexit_was_on" == "true" ]]; then
+    set -e
+  else
+    set +e
+  fi
 
   if [[ -s "$timeout_marker" ]]; then
     wait "$watchdog_pid" 2>/dev/null || true
@@ -170,6 +182,41 @@ run_repo_end_callback() {
   repo_end_active_watchdog_pid=""
   rm -f "$timeout_marker"
   return "$status"
+}
+
+run_repo_end_merge_proof_callbacks() {
+  local callback_dir="$HOME/.local/bin/repo-end.d"
+  local callback callback_timeout_seconds status errexit_was_on
+
+  case "$-" in
+    *e*) errexit_was_on="true" ;;
+    *) errexit_was_on="false" ;;
+  esac
+
+  [[ -d "$callback_dir" ]] || return 1
+  callback_timeout_seconds="$(repo_end_callback_timeout_seconds)" || return 2
+
+  for callback in "$callback_dir"/*; do
+    [[ -f "$callback" && -x "$callback" ]] || continue
+    set +e
+    run_repo_end_callback "$callback" "$callback_timeout_seconds" "merge-proof"
+    status=$?
+    if [[ "$errexit_was_on" == "true" ]]; then
+      set -e
+    else
+      set +e
+    fi
+    case "$status" in
+      0) return 0 ;;
+      1) ;;
+      *)
+        printf 'repo-end merge-proof callback failed: %s\n' "$callback" >&2
+        return "$status"
+        ;;
+    esac
+  done
+
+  return 1
 }
 
 trap 'repo_end_cleanup_active_callback' EXIT
@@ -536,9 +583,9 @@ if [[ "$already_on_main" == "true" ]]; then
   fi
   clear_repo_tmux_state
   if [[ "$print_path" == "true" ]]; then
-    run_repo_end_callbacks >&2
+    run_repo_end_callbacks post-cleanup >&2
   else
-    run_repo_end_callbacks
+    run_repo_end_callbacks post-cleanup
   fi || exit 1
   printf '%s\n' "$main_path"
   exit 0
@@ -547,10 +594,20 @@ fi
 merge_proof_ref="$(select_git_merge_proof_ref || true)"
 if [[ -z "$merge_proof_ref" ]]; then
   if platform_merged_pr_proof; then
-    merge_proof_ref="platform-api"
+    merge_proof_ref="origin/$main_branch"
   else
-    printf 'Error: branch %s is not merged into origin/%s; merge the PR first, then run repo-end again\n' "$current_branch" "$main_branch" >&2
-    exit 1
+    set +e
+    run_repo_end_merge_proof_callbacks
+    merge_proof_status=$?
+    set -e
+    if [[ "$merge_proof_status" -eq 0 ]]; then
+      merge_proof_ref="origin/$main_branch"
+    elif [[ "$merge_proof_status" -eq 1 ]]; then
+      printf 'Error: branch %s is not merged into origin/%s; merge the PR first, then run repo-end again\n' "$current_branch" "$main_branch" >&2
+      exit 1
+    else
+      exit "$merge_proof_status"
+    fi
   fi
 fi
 
@@ -605,9 +662,9 @@ fi
 clear_repo_tmux_state
 
 if [[ "$print_path" == "true" ]]; then
-  run_repo_end_callbacks >&2
+  run_repo_end_callbacks post-cleanup >&2
 else
-  run_repo_end_callbacks
+  run_repo_end_callbacks post-cleanup
 fi || exit 1
 
 printf '%s\n' "$main_path"
