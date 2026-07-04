@@ -3,8 +3,6 @@
 export TMPDIR="$HOME/.tmp"
 [[ -d "$TMPDIR" ]] || mkdir -p "$TMPDIR"
 
-export EDITOR=nvim
-
 alias vim=nvim
 
 memusage() {
