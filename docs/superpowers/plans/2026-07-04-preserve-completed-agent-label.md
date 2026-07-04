@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Preserve completed tmux/Pi work identity after `repo-end` by rendering completed subjects as `✓ pi: <subject>`.
+**Goal:** Preserve completed tmux/Pi work identity after `repo-end` by rendering completed labels with a leading check mark.
 
-**Architecture:** Extend pane-local agent state with an `@agent_subject_done` marker. `tmux-agent-worktree clear` sets the marker when clearing a worktree that has a subject, and `tmux-agent-state render` prefixes the window label when the marker is present.
+**Architecture:** Extend pane-local agent state with explicit completion markers. `tmux-agent-worktree clear` marks an existing subject done, or preserves the current `@window-label` as a completed label when no subject exists; `tmux-agent-state render` uses those markers to keep completed work visible.
 
 **Tech Stack:** Bash helpers, tmux pane options, shell-based verification scripts.
 
@@ -25,7 +25,7 @@
 
 **Interfaces:**
 - Consumes: `roles/common/files/bin/tmux-agent-state`, `roles/common/files/bin/tmux-agent-worktree`
-- Produces: Executable shell test covering file-backed pane state via `TMUX_AGENT_STATE_DIR` and `TMUX_AGENT_WORKTREE_STATE_DIR`.
+- Produces: Executable shell test covering file-backed pane state via `TMUX_AGENT_STATE_DIR` and `TMUX_AGENT_WORKTREE_STATE_DIR`, including subject-based and prior-window-label-based completion.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -41,12 +41,13 @@ Expected: FAIL because `@agent_subject_done` is not set/rendered yet.
 
 Modify `roles/common/files/bin/tmux-agent-state` to:
 
-- read `@agent_subject_done` in `render`
+- read `@agent_subject_done` and `@agent_completed_window_label` in `render`
 - render `✓ ${kind}: ${subject}` when kind, subject, and done marker are present
-- clear `@agent_subject_done` in `set-subject` and `clear-subject`
-- add a command to mark the current subject done
+- render the preserved completed window label when no subject exists
+- clear completion state in `set-kind`, `set-subject`, `clear-subject`, and `set-worktree`
+- add commands to mark the current subject done and to preserve a completed window label
 
-Modify `roles/common/files/bin/tmux-agent-worktree` so `cmd_clear` marks the subject done when clearing a worktree with an existing subject.
+Modify `roles/common/files/bin/tmux-agent-worktree` so `cmd_clear` marks the subject done when clearing a worktree with an existing subject, or preserves the prior `@window-label` as completed when no subject exists.
 
 - [ ] **Step 4: Run test to verify it passes**
 

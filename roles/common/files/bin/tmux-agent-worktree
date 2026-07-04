@@ -117,11 +117,19 @@ refresh_agent_state() {
   publish_title
 }
 
-mark_subject_stale() {
+mark_subject_done() {
   local state
   state="$(agent_state_bin)"
   [ -x "$state" ] || return 1
-  TMUX_AGENT_STATE_DIR="${TMUX_AGENT_WORKTREE_STATE_DIR:-}" "$state" mark-subject-stale >/dev/null 2>&1
+  TMUX_AGENT_STATE_DIR="${TMUX_AGENT_WORKTREE_STATE_DIR:-}" "$state" mark-subject-done >/dev/null 2>&1
+}
+
+mark_window_label_done() {
+  local state label="$1"
+  state="$(agent_state_bin)"
+  [ -x "$state" ] || return 1
+  [ -n "$label" ] || return 1
+  TMUX_AGENT_STATE_DIR="${TMUX_AGENT_WORKTREE_STATE_DIR:-}" "$state" mark-window-label-done "$label" >/dev/null 2>&1
 }
 
 clear_agent_worktree() {
@@ -365,17 +373,20 @@ cmd_set() {
 }
 
 cmd_clear() {
-  local subject
+  local subject window_label
   [ -n "${TMUX:-}" ] || return 0
   [ -n "${TMUX_PANE:-}" ] || return 0
   subject="$(read_pane_option "$TMUX_PANE" "@agent_subject" 2>/dev/null || true)"
+  window_label="$(read_pane_option "$TMUX_PANE" "@window-label" 2>/dev/null || true)"
   clear_pane_option "$TMUX_PANE" "@agent_worktree_path"
   clear_pane_option "$TMUX_PANE" "@agent_worktree_pid"
   clear_pane_option "$TMUX_PANE" "@pane-link"
   clear_pane_option "$TMUX_PANE" "@pane-link-source"
   if clear_agent_worktree; then
     if [ -n "$subject" ]; then
-      mark_subject_stale || true
+      mark_subject_done || true
+    elif [ -n "$window_label" ]; then
+      mark_window_label_done "$window_label" || true
     fi
     return 0
   fi

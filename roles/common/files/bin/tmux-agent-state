@@ -71,14 +71,20 @@ fallback_cwd_label() {
 }
 
 render() {
-  local pane="$1" kind subject pane_label window_label
+  local pane="$1" kind subject subject_done completed_window_label pane_label window_label
   kind="$(get_pane_option "$pane" @agent_kind 2>/dev/null || true)"
   subject="$(get_pane_option "$pane" @agent_subject 2>/dev/null || true)"
+  subject_done="$(get_pane_option "$pane" @agent_subject_done 2>/dev/null || true)"
+  completed_window_label="$(get_pane_option "$pane" @agent_completed_window_label 2>/dev/null || true)"
   pane_label="$(detect_path_label "$pane" 2>/dev/null || true)"
   [[ -n "$pane_label" ]] || pane_label="$(fallback_cwd_label "$pane")"
 
-  if [[ -n "$kind" && -n "$subject" ]]; then
+  if [[ -n "$kind" && -n "$subject" && -n "$subject_done" ]]; then
+    window_label="✓ ${kind}: ${subject}"
+  elif [[ -n "$kind" && -n "$subject" ]]; then
     window_label="${kind}: ${subject}"
+  elif [[ -n "$completed_window_label" ]]; then
+    window_label="$completed_window_label"
   elif [[ -n "$kind" ]]; then
     window_label="${kind} ${pane_label%% | *}"
   else
@@ -111,6 +117,8 @@ case "$cmd" in
       claude|codex|pi) set_pane_option "$pane" @agent_kind "$1" ;;
       *) exit 0 ;;
     esac
+    clear_pane_option "$pane" @agent_subject_done
+    clear_pane_option "$pane" @agent_completed_window_label
     refresh "$pane"
     ;;
   set-subject)
@@ -118,11 +126,15 @@ case "$cmd" in
     [[ -n "$subject" ]] || exit 0
     set_pane_option "$pane" @agent_subject "$subject"
     clear_pane_option "$pane" @agent_subject_stale
+    clear_pane_option "$pane" @agent_subject_done
+    clear_pane_option "$pane" @agent_completed_window_label
     refresh "$pane"
     ;;
   clear-subject)
     clear_pane_option "$pane" @agent_subject
     clear_pane_option "$pane" @agent_subject_stale
+    clear_pane_option "$pane" @agent_subject_done
+    clear_pane_option "$pane" @agent_completed_window_label
     refresh "$pane"
     ;;
   mark-subject-stale)
@@ -131,12 +143,29 @@ case "$cmd" in
     fi
     refresh "$pane"
     ;;
+  mark-subject-done)
+    if [[ -n "$(get_pane_option "$pane" @agent_subject 2>/dev/null || true)" ]]; then
+      set_pane_option "$pane" @agent_subject_done "1"
+      clear_pane_option "$pane" @agent_completed_window_label
+    fi
+    refresh "$pane"
+    ;;
+  mark-window-label-done)
+    label="$(sanitize_subject "$*")"
+    [[ -n "$label" ]] || exit 0
+    label="${label#✓ }"
+    set_pane_option "$pane" @agent_completed_window_label "✓ $label"
+    clear_pane_option "$pane" @agent_subject_done
+    refresh "$pane"
+    ;;
   set-worktree)
     path="${1:-}"
     [[ "$path" = /* && -d "$path" ]] || exit 0
     set_pane_option "$pane" @agent_worktree_path "$path"
     clear_pane_option "$pane" @agent_worktree_pid
     clear_pane_option "$pane" @pane-label
+    clear_pane_option "$pane" @agent_subject_done
+    clear_pane_option "$pane" @agent_completed_window_label
     refresh "$pane"
     ;;
   clear-worktree)
