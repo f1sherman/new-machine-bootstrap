@@ -1298,6 +1298,24 @@
     state: directory
     mode: '0755'
 
+- name: Create pi-coding-agent global AGENTS fragment directory
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/.pi/agent/AGENTS.md.d"
+    state: directory
+    mode: '0700'
+
+- name: Install base pi-coding-agent global AGENTS fragment
+  copy:
+    src: pi/AGENTS.md.d/00-base.md
+    dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/AGENTS.md.d/00-base.md"
+    mode: '0600'
+
+- name: Assemble pi-coding-agent global AGENTS.md from fragments
+  assemble:
+    src: "{{ ansible_facts['user_dir'] }}/.pi/agent/AGENTS.md.d"
+    dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/AGENTS.md"
+    mode: '0600'
+
 - name: Install managed pi-coding-agent keybindings
   copy:
     dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/keybindings.json"
