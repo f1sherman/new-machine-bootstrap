@@ -43,6 +43,6 @@ export default function piAttentionBell(pi) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
-    wrapAttentionUi(ctx.ui);
+    wrapAttentionUi(ctx?.ui);
   });
 }

@@ -102,6 +102,10 @@ try {
   captured = "";
   const badCtx = { ui: null };
   await handlers.get("session_start")({}, badCtx);
+  await assert.doesNotReject(
+    () => handlers.get("session_start")({}, undefined),
+    "missing UI context fails open without throwing",
+  );
   assert.equal(captured, "", "bad UI context fails open without BEL spam");
 } finally {
   process.stdout.write = originalWrite;
