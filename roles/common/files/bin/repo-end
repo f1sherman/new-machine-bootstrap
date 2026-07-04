@@ -450,8 +450,65 @@ github_merged_pr_proof() {
   return 1
 }
 
+forgejo_repo_parts() {
+  local url="$1" path
+  case "$url" in
+    ssh://git@*/*) path="${url#ssh://git@*/}" ;;
+    git@*:*) path="${url#git@*:}" ;;
+    https://*/*) path="${url#https://*/}" ;;
+    *) return 1 ;;
+  esac
+  printf '%s\n' "$path" | sed 's/[.]git$//'
+}
+
+forgejo_base_url() {
+  local url="$1" host
+  case "$url" in
+    ssh://git@*) host="${url#ssh://git@}"; host="${host%%/*}"; host="${host%%:*}" ;;
+    git@*:*) host="${url#git@}"; host="${host%%:*}" ;;
+    https://*) host="${url#https://}"; host="${host%%/*}" ;;
+    *) return 1 ;;
+  esac
+  case "$host" in
+    forgejo|forgejo-git) printf 'https://forgejo.brianjohn.com\n' ;;
+    *) printf 'https://%s\n' "$host" ;;
+  esac
+}
+
+forgejo_merged_pr_proof() {
+  command -v curl >/dev/null 2>&1 || return 1
+  local token="${FORGEJO_TOKEN:-${GITEA_TOKEN:-}}"
+  [[ -n "$token" ]] || return 1
+  local remote base_url repo_path encoded json count number
+  remote="$(origin_url)"
+  repo_path="$(forgejo_repo_parts "$remote")" || return 1
+  base_url="$(forgejo_base_url "$remote")" || return 1
+  [[ -n "$repo_path" && -n "$base_url" ]] || return 1
+  encoded="$(printf '%s' "$repo_path" | sed 's#/#%2F#g')"
+  json="$(curl -sf -H "Authorization: token ${token}" "${base_url}/api/v1/repos/${repo_path}/pulls?state=closed" 2>/dev/null)" || return 1
+  count="$(printf '%s\n' "$json" | ruby -rjson -e '
+    prs = JSON.parse(STDIN.read)
+    matches = prs.select { |pr| (pr["merged"] == true || pr["merged_at"].to_s != "") && pr.dig("base", "ref") == ARGV[0] && pr.dig("head", "ref") == ARGV[1] }
+    puts matches.length
+  ' "$main_branch" "$current_branch")" || return 1
+  if [[ "$count" == "1" ]]; then
+    number="$(printf '%s\n' "$json" | ruby -rjson -e '
+      prs = JSON.parse(STDIN.read)
+      matches = prs.select { |pr| (pr["merged"] == true || pr["merged_at"].to_s != "") && pr.dig("base", "ref") == ARGV[0] && pr.dig("head", "ref") == ARGV[1] }
+      puts matches.fetch(0).fetch("number")
+    ' "$main_branch" "$current_branch")"
+    printf 'Using merged Forgejo PR #%s as merge proof\n' "$number" >&2
+    return 0
+  fi
+  if [[ "$count" -gt 1 ]]; then
+    printf 'Error: multiple merged PRs found for branch %s targeting %s; refusing cleanup\n' "$current_branch" "$main_branch" >&2
+    exit 1
+  fi
+  return 1
+}
+
 platform_merged_pr_proof() {
-  github_merged_pr_proof
+  github_merged_pr_proof || forgejo_merged_pr_proof
 }
 
 main_path="$(_worktree_main_path "$main_branch" || true)"

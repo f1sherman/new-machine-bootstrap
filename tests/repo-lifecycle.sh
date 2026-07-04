@@ -578,6 +578,58 @@ if [[ -d "$github_proof_feature" ]]; then
 fi
 pass_case "repo-end GitHub proof removes linked worktree"
 
+# --- repo-end worktree mode: deleted remote branch uses merged Forgejo PR proof ---
+create_remote_repo end-worktree-forgejo-proof
+forgejo_proof_origin="$CREATED_ORIGIN"
+forgejo_proof_main="$CREATED_REPO"
+forgejo_proof_feature="$TMPROOT/end-worktree-forgejo-proof-feature"
+git -C "$forgejo_proof_main" worktree add -q -b feature/forgejo-proof "$forgejo_proof_feature" main
+printf 'forgejo stale content\n' >"$forgejo_proof_feature/forgejo-proof.txt"
+git -C "$forgejo_proof_feature" add forgejo-proof.txt
+git -C "$forgejo_proof_feature" commit -q -m "forgejo stale feature commit"
+# Merge equivalent content directly to main as a squash and delete the remote feature ref.
+git -C "$forgejo_proof_main" checkout -q main
+printf 'forgejo merged content\n' >"$forgejo_proof_main/forgejo-proof.txt"
+git -C "$forgejo_proof_main" add forgejo-proof.txt
+git -C "$forgejo_proof_main" commit -q -m "squash forgejo proof"
+git -C "$forgejo_proof_main" push -q origin main
+git -C "$forgejo_proof_main" remote set-url origin ssh://git@forgejo.example:2222/example/end-worktree-forgejo-proof.git
+stub_forgejo_bin="$TMPROOT/forgejo-proof-bin"
+mkdir -p "$stub_forgejo_bin"
+cat >"$stub_forgejo_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "curl $*" >>"$FORGEJO_STUB_LOG"
+cat <<'JSON'
+[
+  {"number":42,"merged":true,"base":{"ref":"main"},"head":{"ref":"feature/forgejo-proof"}}
+]
+JSON
+EOF
+chmod +x "$stub_forgejo_bin/curl"
+cat >"$stub_forgejo_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$forgejo_proof_origin'
+EOF
+chmod +x "$stub_forgejo_bin/ssh"
+forgejo_proof_home="$TMPROOT/end-worktree-forgejo-proof-home"
+mkdir -p "$forgejo_proof_home"
+(cd "$forgejo_proof_feature" && \
+  FORGEJO_STUB_LOG="$TMPROOT/forgejo-proof-curl.log" \
+  FORGEJO_TOKEN=test-token \
+  HOME="$forgejo_proof_home" \
+  PATH="$stub_forgejo_bin:$BIN_DIR:$PATH" \
+  GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$stub_forgejo_bin/ssh" \
+  "$REPO_END_SCRIPT" --print-path \
+  >"$TMPROOT/end-worktree-forgejo-proof.out" \
+  2>"$TMPROOT/end-worktree-forgejo-proof.err")
+assert_file_contains "$TMPROOT/end-worktree-forgejo-proof.out" "$forgejo_proof_main" "repo-end Forgejo proof prints main path"
+assert_file_contains "$TMPROOT/end-worktree-forgejo-proof.err" "Using merged Forgejo PR #42 as merge proof" "repo-end announces Forgejo PR proof"
+if [[ -d "$forgejo_proof_feature" ]]; then
+  fail_case "repo-end Forgejo proof removes linked worktree" "worktree remains at $forgejo_proof_feature"
+fi
+pass_case "repo-end Forgejo proof removes linked worktree"
+
 # --- repo-end API fallback refuses ambiguous merged PRs ---
 create_remote_repo end-worktree-api-ambiguous
 api_ambiguous_origin="$CREATED_ORIGIN"
