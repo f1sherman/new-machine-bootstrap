@@ -9,8 +9,9 @@ TMPROOT="$(mktemp -d)"
 trap 'rm -rf "$TMPROOT"' EXIT
 
 export PI_SKIP_VERSION_CHECK=1
-export HOME="$TMPROOT/home"
-mkdir -p "$HOME" "$TMPROOT/project"
+export PI_CODING_AGENT_DIR="$TMPROOT/pi-agent"
+export PI_CODING_AGENT_SESSION_DIR="$TMPROOT/pi-sessions"
+mkdir -p "$PI_CODING_AGENT_DIR" "$PI_CODING_AGENT_SESSION_DIR" "$TMPROOT/project"
 
 cat >"$TMPROOT/prompt-extension.ts" <<'TS'
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
