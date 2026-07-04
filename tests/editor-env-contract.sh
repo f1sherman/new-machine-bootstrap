@@ -25,8 +25,10 @@ reject_line() {
   fi
 }
 
-require_line "$zshenv_fragment" 'export EDITOR=nvim'
-require_line "$zshenv_fragment" 'export VISUAL=nvim'
+require_line "$zshenv_fragment" 'export EDITOR="${EDITOR:-nvim}"'
+require_line "$zshenv_fragment" 'export VISUAL="${VISUAL:-nvim}"'
+reject_line "$zshenv_fragment" 'export EDITOR=nvim'
+reject_line "$zshenv_fragment" 'export VISUAL=nvim'
 reject_line "$zshrc_fragment" 'export EDITOR=nvim'
 
 printf 'PASS  editor defaults are exported from zshenv\n'
