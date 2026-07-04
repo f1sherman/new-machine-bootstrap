@@ -74,6 +74,7 @@ The extension should:
 
 - Define `requestAttention()` that writes `\x07` to the terminal stream.
 - Prefer a direct write to `process.stdout`, because the signal must travel through SSH/tmux to the attached terminal.
+- Skip the write when stdout is not a TTY so non-interactive `pi --print` output remains machine-readable.
 - Register `pi.on("agent_end", ...)` and call `requestAttention()`.
 - On `session_start`, wrap the current shared `ctx.ui` methods:
   - `select`
@@ -136,6 +137,7 @@ If the full TUI interaction is too brittle for normal CI, keep the E2E test in a
 
 The attention feature must never break Pi interaction.
 
+- If stdout is not attached to a TTY, skip BEL.
 - If writing BEL fails, ignore the error.
 - If UI wrapping fails, leave Pi unmodified and continue.
 - If a method has already been wrapped, do not wrap it again.

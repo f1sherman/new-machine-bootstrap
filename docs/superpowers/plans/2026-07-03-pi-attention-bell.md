@@ -38,7 +38,7 @@
 **Interfaces:**
 - Consumes: Pi extension API object with `on(event, handler)`.
 - Produces: default export `piAttentionBell(pi)` registering `agent_end` and `session_start` handlers.
-- Produces: `requestAttention()` internal helper that writes exactly one BEL byte per call.
+- Produces: `requestAttention()` internal helper that writes exactly one BEL byte per call when stdout is a TTY, and skips non-interactive stdout.
 - Produces: wrapped `ctx.ui.select`, `confirm`, `input`, `editor`, and `custom` methods that call the original methods with original `this` and arguments.
 
 - [ ] **Step 1: Write the failing behavior test**
@@ -111,7 +111,8 @@ try {
   assert.equal(typeof handlers.get("session_start"), "function", "registers session_start handler");
 
   await handlers.get("agent_end")({}, {});
-  assert.equal(captured, "\x07", "agent_end emits one BEL");
+  Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: true });
+  assert.equal(captured, "\x07", "agent_end emits one BEL when stdout is a TTY");
 
   captured = "";
   const calls = [];
@@ -177,6 +178,8 @@ type UiWithMarker = Record<string | symbol, unknown>;
 
 function requestAttention(): void {
   try {
+    if (!process.stdout.isTTY) return;
+
     process.stdout.write("\x07");
   } catch {
     // Attention must never break Pi interaction.

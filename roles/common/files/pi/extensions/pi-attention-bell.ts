@@ -3,6 +3,8 @@ const ATTENTION_METHODS = ["select", "confirm", "input", "editor", "custom"];
 
 function requestAttention() {
   try {
+    if (!process.stdout.isTTY) return;
+
     process.stdout.write("\x07");
   } catch {
     // Attention must never break Pi interaction.
