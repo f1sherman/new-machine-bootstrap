@@ -1297,6 +1297,12 @@
     dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/extensions/managed-hooks.ts"
     mode: '0644'
 
+- name: Install managed pi-coding-agent attention bell extension
+  copy:
+    src: pi/extensions/pi-attention-bell.ts
+    dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/extensions/pi-attention-bell.ts"
+    mode: '0644'
+
 - name: Link pi-coding-agent into the active mise Node.js global package tree
   shell: |
     set -euo pipefail
