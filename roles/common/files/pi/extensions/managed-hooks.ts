@@ -431,6 +431,12 @@ export default function managedHooks(pi) {
     };
   });
 
+  pi.on("tool_result", async (event, ctx) => {
+    if (event.toolName !== "bash") return;
+    if (event.isError) return;
+    await syncSessionNameFromTmux(pi, ctx);
+  });
+
   pi.on("tool_call", async (event, ctx) => {
     if (event.toolName === "bash") {
       const reason = await bashCommandBlockReason(pi, event.input.command || "", ctx.cwd);
