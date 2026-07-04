@@ -72,6 +72,9 @@ jobs:
       - name: Verify Pi attention bell
         run: bash tests/pi-attention-bell.sh
 
+      - name: Verify Pi global AGENTS assembly
+        run: bash tests/pi-agent-assemble-agents.sh
+
       - name: Verify Pi shared skills
         run: ruby tests/pi-shared-skills.rb
 
