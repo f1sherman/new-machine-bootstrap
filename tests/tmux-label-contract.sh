@@ -327,7 +327,8 @@ assert_no_file "$subject_state_dir/%12.@pane-link" "repo-end tmux clearer remove
 assert_no_file "$subject_state_dir/%12.@pane-link-source" "repo-end tmux clearer removes subject pane PR link source"
 assert_file_contains "$subject_state_dir/%12.@agent_subject" "tmux subject labels" "repo-end tmux clearer retains agent subject"
 assert_file_contains "$subject_state_dir/%12.@agent_subject_stale" "1" "repo-end tmux clearer marks subject stale"
-assert_file_contains "$subject_state_dir/%12.@window-label" "codex: tmux subject labels" "repo-end tmux clearer keeps stale marker out of window label"
+assert_file_contains "$subject_state_dir/%12.@agent_subject_done" "1" "repo-end tmux clearer marks subject done"
+assert_file_contains "$subject_state_dir/%12.@window-label" "✓ codex: tmux subject labels" "repo-end tmux clearer visibly marks subject done"
 assert_file_not_contains "$subject_state_dir/%12.@window-label" "stale" "repo-end tmux clearer does not visibly mark stale"
 
 stale_window_state_dir="$TMPROOT/state-stale-window-label"
@@ -341,8 +342,8 @@ TMUX_AGENT_WORKTREE_STATE_DIR="$stale_window_state_dir" \
 TMUX_AGENT_STATE_DIR="$stale_window_state_dir" \
 PATH="$stub_bin:$BIN_DIR:$PATH" \
   "$AGENT_WORKTREE" clear
-assert_file_not_contains "$stale_window_state_dir/%13.@window-label" "old task subject" "repo-end tmux clearer refreshes stale window label without subject"
-assert_file_contains "$stale_window_state_dir/%13.@window-label" "codex" "repo-end tmux clearer renders fallback window label without subject"
+assert_file_contains "$stale_window_state_dir/%13.@agent_completed_window_label" "✓ codex: old task subject" "repo-end tmux clearer stores completed window label without subject"
+assert_file_contains "$stale_window_state_dir/%13.@window-label" "✓ codex: old task subject" "repo-end tmux clearer preserves completed window label without subject"
 
 fake_tmux_dir="$TMPROOT/fake-tmux-bin"
 window_log="$TMPROOT/window-label.log"

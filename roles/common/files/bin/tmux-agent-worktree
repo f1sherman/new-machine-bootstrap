@@ -117,6 +117,13 @@ refresh_agent_state() {
   publish_title
 }
 
+mark_subject_stale() {
+  local state
+  state="$(agent_state_bin)"
+  [ -x "$state" ] || return 1
+  TMUX_AGENT_STATE_DIR="${TMUX_AGENT_WORKTREE_STATE_DIR:-}" "$state" mark-subject-stale >/dev/null 2>&1
+}
+
 mark_subject_done() {
   local state
   state="$(agent_state_bin)"
@@ -384,6 +391,7 @@ cmd_clear() {
   clear_pane_option "$TMUX_PANE" "@pane-link-source"
   if clear_agent_worktree; then
     if [ -n "$subject" ]; then
+      mark_subject_stale || true
       mark_subject_done || true
     elif [ -n "$window_label" ]; then
       mark_window_label_done "$window_label" || true
