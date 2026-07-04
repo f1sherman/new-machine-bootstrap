@@ -49,6 +49,7 @@ const pi = {
 
 let captured = "";
 const originalWrite = process.stdout.write;
+const originalIsTTY = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
 process.stdout.write = (chunk, encoding, callback) => {
   captured += String(chunk);
   if (typeof encoding === "function") encoding();
@@ -62,8 +63,16 @@ try {
   assert.equal(typeof handlers.get("agent_end"), "function", "registers agent_end handler");
   assert.equal(typeof handlers.get("session_start"), "function", "registers session_start handler");
 
+  Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: true });
   await handlers.get("agent_end")({}, {});
-  assert.equal(captured, "\x07", "agent_end emits one BEL");
+  assert.equal(captured, "\x07", "agent_end emits one BEL when stdout is a TTY");
+
+  Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: false });
+  captured = "";
+  await handlers.get("agent_end")({}, {});
+  assert.equal(captured, "", "agent_end skips BEL when stdout is not a TTY");
+
+  Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: true });
 
   captured = "";
   const calls = [];
@@ -96,6 +105,11 @@ try {
   assert.equal(captured, "", "bad UI context fails open without BEL spam");
 } finally {
   process.stdout.write = originalWrite;
+  if (originalIsTTY) {
+    Object.defineProperty(process.stdout, "isTTY", originalIsTTY);
+  } else {
+    delete process.stdout.isTTY;
+  }
 }
 
 console.log("pi-attention-bell checks complete");
