@@ -63,6 +63,9 @@ jobs:
       - name: Verify pi managed hooks
         run: bash tests/pi-managed-hooks.sh
 
+      - name: Verify Pi spec shortcut
+        run: bash tests/pi-spec-shortcut.sh
+
       - name: Verify Pi attention bell
         run: bash tests/pi-attention-bell.sh
 
