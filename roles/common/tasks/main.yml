@@ -1361,10 +1361,13 @@
     expected = Pathname.new(ENV.fetch("NODE_PATH")).join("lib/node_modules/@earendil-works/pi-coding-agent")
 
     FileUtils.mkdir_p(expected.dirname)
-    if expected.symlink? || expected.exist?
+    if expected.symlink?
       current = expected.realpath.to_s rescue nil
       exit 0 if current == package_root.to_s
-      abort "#{expected} already exists and points to #{current || 'a non-symlink path'}"
+      # Stale managed symlink from a previous package version; replace it.
+      expected.delete
+    elsif expected.exist?
+      abort "#{expected} already exists and is not a symlink"
     end
 
     FileUtils.ln_s(package_root.to_s, expected.to_s)
