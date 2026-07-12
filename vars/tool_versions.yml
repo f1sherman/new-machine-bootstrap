@@ -14,7 +14,7 @@ tool_versions:
     # renovate: datasource=github-releases depName=mikefarah/yq
     yq: v4.53.3
     # renovate: datasource=github-releases depName=ajeetdsouza/zoxide
-    zoxide: v0.9.9
+    zoxide: v0.10.0
 
   git_tags:
     # renovate: datasource=github-tags depName=junegunn/fzf
