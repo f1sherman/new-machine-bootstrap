@@ -4,7 +4,7 @@ User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min toke
 * Bias toward action. Only ask user when you can't do it yourself.
 * Spec approval and plan execution: the written spec is the only approval gate; once approved, proceed without another implementation approval prompt and always choose subagent execution automatically.
 * Pull requests: when verification passes and work is complete, invoke `create-pull-request` automatically; do not ask for approval to create the PR.
-* Branch/worktree lifecycle: start with `repo-start <branch>`. Created other way: run `tmux-agent-worktree set <absolute-path>`. After the PR has merged, run `repo-end`.
+* Branch/worktree lifecycle: start with `repo-start <branch>`. Created other way: run `tmux-agent-worktree set <absolute-path>`. After the PR has merged, run `repo-end` with a 300s Bash timeout (`timeout: 300000`) — its post-merge cleanup and hooks can run past the default.
 * Tmux agent subject: when invoking `superpowers:brainstorming` or `superpowers:systematic-debugging` inside tmux, run `tmux-agent-subject set "<short subject>"` if the pane has no current subject or the previous subject is stale.
 * `repo-start` errors `no .repo.yml found`: interactive (have a user channel) → ask user worktree-vs-branch, retry with `--use-worktrees` or `--no-worktrees` (writes `.repo.yml`). Non-interactive (subagent, automation) → retry with `--no-worktrees --ephemeral` (branch mode, no `.repo.yml` written).
 * Comments: use sparingly. Explain why, not what. No ticket/issue refs unless `# TODO: <url>` for future work. State what code does, not what it doesn't.
