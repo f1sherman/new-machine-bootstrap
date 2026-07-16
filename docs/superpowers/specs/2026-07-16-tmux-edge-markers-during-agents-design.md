@@ -1,5 +1,10 @@
 # Tmux Edge Markers During Running Agents Design
 
+## Related PRs
+
+- Introduced by: #282
+- Companion fix: #328
+
 ## Problem
 
 `C-h/j/k/l` from a local tmux pane SSH'd into a remote agent session should fall
