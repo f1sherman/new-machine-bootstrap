@@ -383,6 +383,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/tmux-sync-remote-title'
     mode: 0755
 
+- name: Install tmux-edge-suffix script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/tmux-edge-suffix'
+    src: '{{ playbook_dir }}/roles/common/files/bin/tmux-edge-suffix'
+    mode: 0755
+
 - name: Install tmux-agent-pane-status script
   copy:
     backup: yes

@@ -57,6 +57,9 @@ jobs:
       - name: Verify tmux agent key passthrough contract
         run: bash tests/tmux-agent-key-passthrough.sh
 
+      - name: Verify tmux edge suffix helper
+        run: bash tests/tmux-edge-suffix.sh
+
       - name: Verify tmux agent state helper
         run: bash tests/tmux-agent-state.sh
 

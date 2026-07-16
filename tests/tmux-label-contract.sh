@@ -199,8 +199,21 @@ SSH_CONNECTION="127.0.0.1 1 127.0.0.1 2" \
 TMUX_REMOTE_TITLE_HOOK_LOG="$zsh_hook_log" \
 PATH="$zsh_hook_bin:$PATH" \
   zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; _tmux_remote_title_preexec 'nvim'; _tmux_remote_title_precmd"
-assert_file_contains "$zsh_hook_log" $'1\tpublish' "zsh preexec clears remote edge marker before foreground command"
+assert_file_contains "$zsh_hook_log" $'1\tpublish' "zsh preexec clears remote edge marker before vim-like command"
 assert_file_contains "$zsh_hook_log" $'0\tpublish' "zsh precmd restores remote edge marker at prompt"
+
+# Non-vim foreground commands (agents) must keep the edge marker live so the
+# outer tmux can use C-h/j/k/l edge fallback while the agent runs.
+zsh_agent_log="$TMPROOT/zsh-agent-hook.log"
+HOME="$zsh_hook_home" \
+TMUX=/tmp/tmux-test \
+TMUX_PANE=%1 \
+SSH_CONNECTION="127.0.0.1 1 127.0.0.1 2" \
+TMUX_REMOTE_TITLE_HOOK_LOG="$zsh_agent_log" \
+PATH="$zsh_hook_bin:$PATH" \
+  zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; _tmux_remote_title_preexec 'claude --resume'"
+assert_file_contains "$zsh_agent_log" $'0\tpublish' "zsh preexec keeps remote edge marker for non-vim command"
+assert_file_not_contains "$zsh_agent_log" $'1\tpublish' "zsh preexec does not suppress edge marker for non-vim command"
 
 stub_bin="$TMPROOT/stub-bin"
 mkdir -p "$stub_bin"

@@ -12,7 +12,17 @@ title=$(tmux display-message -p '#S')
 session_id=$(tmux display-message -p '#{session_id}')
 [ -n "$session_id" ] || exit 0
 
+# Keep the remote edge marker alive after Claude stops so C-h/j/k/l can
+# still fall back to outer-tmux panes; empty on local sessions. $HOME path
+# first: hooks may run without ~/.local/bin on PATH.
+suffix=""
+if [ -x "$HOME/.local/bin/tmux-edge-suffix" ]; then
+  suffix="$("$HOME/.local/bin/tmux-edge-suffix" "$session_id" 2>/dev/null || true)"
+elif command -v tmux-edge-suffix >/dev/null 2>&1; then
+  suffix="$(tmux-edge-suffix "$session_id" 2>/dev/null || true)"
+fi
+
 while IFS= read -r tty; do
-  [ -n "$tty" ] && printf '\033]2;%s\033\\' "$title" > "$tty"
+  [ -n "$tty" ] && printf '\033]2;%s%s\033\\' "$title" "$suffix" > "$tty"
 done < <(tmux list-clients -t "$session_id" -F '#{client_tty}' 2>/dev/null)
 exit 0
