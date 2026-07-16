@@ -142,9 +142,15 @@ if [[ -n "$TMUX" ]]; then
     command -v tmux-remote-title >/dev/null 2>&1
   }
 
+  # Markers stay live for non-vim foreground commands (agents) so the outer
+  # tmux can use edge fallback; vim consumes C-h/j/k/l itself, so its launch
+  # suppresses markers (matching append_edge_marker in tmux-remote-title).
   _tmux_remote_title_preexec() {
     _tmux_remote_title_should_sync || return 0
-    TMUX_REMOTE_TITLE_SUPPRESS_EDGE=1 command tmux-remote-title publish >/dev/null 2>&1 || true
+    case "${2:-$1}" in
+      *vim*) TMUX_REMOTE_TITLE_SUPPRESS_EDGE=1 command tmux-remote-title publish >/dev/null 2>&1 || true ;;
+      *) command tmux-remote-title publish >/dev/null 2>&1 || true ;;
+    esac
   }
 
   _tmux_remote_title_precmd() {

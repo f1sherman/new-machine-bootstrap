@@ -1,0 +1,30 @@
+#!/bin/bash
+# Print the ' [nmb-edge=<flags>]' title suffix for a tmux session's active
+# pane so title writers (Claude working-status hooks) keep the edge marker
+# live while an agent runs; the outer/local tmux uses it to decide whether
+# C-h/j/k/l should fall back to selecting local panes.
+#
+# Prints nothing when not on a remote host (local Ghostty tabs keep plain
+# titles), when the active pane runs vim (vim consumes the keys itself,
+# matching append_edge_marker in tmux-remote-title), or when the pane has
+# no edges. Always exits 0: title publishing must never break on this.
+
+session_id="${1:-}"
+if [ -z "$session_id" ]; then
+  session_id="$(tmux display-message -p '#{session_id}' 2>/dev/null)" || exit 0
+fi
+[ -n "$session_id" ] || exit 0
+
+[ -n "${SSH_CONNECTION:-}${CODESPACES:-}${DEVPOD_WORKSPACE_ID:-}" ] || exit 0
+
+pane_command="$(tmux display-message -p -t "$session_id" '#{pane_current_command}' 2>/dev/null)" || exit 0
+case "$pane_command" in
+  *vim*) exit 0 ;;
+esac
+
+edge_flags="$(tmux display-message -p -t "$session_id" \
+  '#{?pane_at_left,h,}#{?pane_at_bottom,j,}#{?pane_at_top,k,}#{?pane_at_right,l,}' 2>/dev/null)" || exit 0
+[ -n "$edge_flags" ] || exit 0
+
+printf ' [nmb-edge=%s]' "$edge_flags"
+exit 0
