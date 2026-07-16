@@ -4,7 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 LINUX_TMUX_CONF="$REPO_ROOT/roles/linux/files/dotfiles/tmux.conf"
-NODE_BIN="$(command -v node || true)"
+# Resolve the real node binary: a mise shim would fail under the test's fake HOME.
+NODE_BIN="$(mise which node 2>/dev/null || command -v node || true)"
 [ -n "$NODE_BIN" ] || { printf 'FAIL  node is required for active agent simulation\n' >&2; exit 1; }
 
 SOCK="nmb-agent-key-passthrough-$$"
@@ -94,18 +95,21 @@ assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$fallback_predic
   "stale codex marker on shell pane does not trigger fallback passthrough"
 
 tmux -L "$SOCK" respawn-pane -k -t "$pane" "$NODE_BIN" "$TEST_HOME/sleep.js"
-sleep 0.1
-assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$fallback_predicate")" "1" \
-  "codex-marked active agent pane triggers navigation fallback passthrough"
+for _ in $(seq 1 50); do
+  [ "$(tmux -L "$SOCK" display-message -p -t "$pane" '#{pane_current_command}')" = "node" ] && break
+  sleep 0.1
+done
+assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$fallback_predicate")" "0" \
+  "codex-marked active agent pane does not consume navigation keys"
 assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$md_predicate")" "1" \
   "codex-marked pane triggers agent helper passthrough"
 
 tmux -L "$SOCK" set-option -pt "$pane" @agent_kind claude
-assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$fallback_predicate")" "1" \
-  "claude-marked active agent pane triggers navigation fallback passthrough"
+assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$fallback_predicate")" "0" \
+  "claude-marked active agent pane does not consume navigation keys"
 
 tmux -L "$SOCK" set-option -pt "$pane" @agent_kind pi
-assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$fallback_predicate")" "1" \
-  "pi-marked active agent pane triggers navigation fallback passthrough"
+assert_equals "$(tmux -L "$SOCK" display-message -p -t "$pane" "$fallback_predicate")" "0" \
+  "pi-marked active agent pane does not consume navigation keys"
 
 printf '\nAll agent key passthrough checks passed\n'
