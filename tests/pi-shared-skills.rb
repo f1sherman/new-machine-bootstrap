@@ -15,6 +15,16 @@ expected_pi_names = source_skill_dirs.map do |path|
 end.uniq.sort
 actual_pi_names = Dir.children(pi_root).select { |name| File.directory?(File.join(pi_root, name)) }.sort
 
+legacy_pi_names = expected_pi_names.map { |name| name.delete_prefix("z-") }
+tasks_file = File.read(File.join(repo_root, "roles/common/tasks/main.yml"))
+cleanup_block = tasks_file[/^- name: Remove deleted managed Pi skills\n.*?(?=^- name:)/m]
+abort "Missing managed Pi skill cleanup task" unless cleanup_block
+
+missing_cleanup_names = legacy_pi_names.reject do |name|
+  cleanup_block.match?(/^    - #{Regexp.escape(name)}$/)
+end
+abort "Managed Pi cleanup task is missing old names: #{missing_cleanup_names.inspect}" unless missing_cleanup_names.empty?
+
 abort "Pi shared skills do not match z-prefixed Claude/Codex/common counterparts\nExpected: #{expected_pi_names.inspect}\nActual:   #{actual_pi_names.inspect}" unless actual_pi_names == expected_pi_names
 
 actual_pi_names.each do |name|

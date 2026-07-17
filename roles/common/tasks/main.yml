@@ -2240,6 +2240,24 @@
     - create-plan
     - implement-plan
     - research-codebase
+    - approve-spec
+    - catchup
+    - commit
+    - convert-skill-from-claude
+    - convert-skill-from-codex
+    - create-handoff
+    - create-ics
+    - deep-research
+    - fix
+    - generate-codex-auth
+    - humanizer
+    - macos-keychain-secrets
+    - recover-agent-sessions
+    - resume-claude-session
+    - resume-codex-session
+    - resume-handoff
+    - spec-first
+    - spec-to-pr
 
 - name: Install common skills to ~/.claude/skills
   copy:
