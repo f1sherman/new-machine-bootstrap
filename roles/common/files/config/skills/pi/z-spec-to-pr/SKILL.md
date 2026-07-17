@@ -183,7 +183,7 @@ invoke `writing-plans` immediately.
 Invoke `writing-plans` with this explicit continuation rule:
 
 > Do not offer the execution choice from `writing-plans`. After the plan is
-> written and self-reviewed, return directly to `spec-to-pr` so it can
+> written and self-reviewed, return directly to `z-spec-to-pr` so it can
 > self-approve the plan and continue execution.
 
 ### Self-Approve The Plan
