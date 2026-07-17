@@ -138,12 +138,14 @@ assert.deepEqual(sessionNames, ["feature-work", "reload-work"], "non-bash tool r
 await handlers.get("tool_result")({ toolName: "bash", isError: true }, ctx);
 assert.deepEqual(sessionNames, ["feature-work", "reload-work"], "failed bash results do not resync session names");
 
-const reminder = await handlers.get("before_agent_start")({
-  prompt: "Use _fix for this",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, { cwd: "/repo" });
-assert.match(reminder.message.content, /repo-start <branch>/, "main branch prompt gets repo-start reminder");
+for (const workflow of ["z-fix", "z-spec-first", "z-spec-to-pr"]) {
+  const reminder = await handlers.get("before_agent_start")({
+    prompt: `Use ${workflow} for this`,
+    systemPrompt: "",
+    systemPromptOptions: { cwd: "/repo" },
+  }, { cwd: "/repo" });
+  assert.match(reminder?.message.content || "", /repo-start <branch>/, `${workflow} prompt on main gets repo-start reminder`);
+}
 
 const subjectReminder = await handlers.get("before_agent_start")({
   prompt: "invoke superpowers:brainstorming",
@@ -189,7 +191,7 @@ const commitBlock = await handlers.get("tool_call")({
   input: { command: "git commit -m test" },
 }, { cwd: "/repo" });
 assert.equal(commitBlock.block, true, "blocks raw git commit");
-assert.match(commitBlock.reason, /_commit/, "commit block points to _commit skill");
+assert.match(commitBlock.reason, /z-commit/, "commit block points to z-commit skill");
 
 const commitHelper = await handlers.get("tool_call")({
   toolName: "bash",
