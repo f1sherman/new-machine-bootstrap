@@ -10,13 +10,15 @@ pi_root = File.join(skills_root, "pi")
 source_skill_dirs = Dir.chdir(skills_root) do
   Dir.glob("{common,claude,codex}/*").select { |path| File.directory?(path) }
 end
-expected_pi_names = source_skill_dirs.map { |path| File.basename(path).sub(/^_/, "") }.uniq.sort
+expected_pi_names = source_skill_dirs.map do |path|
+  "z-#{File.basename(path).sub(/^_/, "")}"
+end.uniq.sort
 actual_pi_names = Dir.children(pi_root).select { |name| File.directory?(File.join(pi_root, name)) }.sort
 
-abort "Pi shared skills do not match Claude/Codex/common counterparts\nExpected: #{expected_pi_names.inspect}\nActual:   #{actual_pi_names.inspect}" unless actual_pi_names == expected_pi_names
+abort "Pi shared skills do not match z-prefixed Claude/Codex/common counterparts\nExpected: #{expected_pi_names.inspect}\nActual:   #{actual_pi_names.inspect}" unless actual_pi_names == expected_pi_names
 
 actual_pi_names.each do |name|
-  abort "Pi skill name must not start with underscore: #{name}" if name.start_with?("_")
+  abort "Pi skill name must start with z-: #{name}" unless name.start_with?("z-")
 
   skill_file = File.join(pi_root, name, "SKILL.md")
   abort "Missing SKILL.md for #{name}" unless File.file?(skill_file)
@@ -27,11 +29,11 @@ actual_pi_names.each do |name|
 
   metadata = YAML.safe_load(frontmatter)
   abort "Frontmatter name for #{name} must equal directory name, got #{metadata["name"].inspect}" unless metadata["name"] == name
-  abort "Pi skill frontmatter name must not start with underscore: #{name}" if metadata["name"].start_with?("_")
+  abort "Pi skill frontmatter name must start with z-: #{name}" unless metadata["name"].start_with?("z-")
 end
 
-commit_helper = File.join(pi_root, "commit", "commit.sh")
+commit_helper = File.join(pi_root, "z-commit", "commit.sh")
 abort "Missing Pi commit helper" unless File.file?(commit_helper)
 abort "Pi commit helper must be executable" unless File.executable?(commit_helper)
 
-puts "PASS  Pi shared skills mirror NMB Claude/Codex/common skill counterparts"
+puts "PASS  z-prefixed Pi skills mirror NMB Claude/Codex/common skill counterparts"
