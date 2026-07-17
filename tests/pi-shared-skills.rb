@@ -42,6 +42,11 @@ actual_pi_names.each do |name|
   abort "Pi skill frontmatter name must start with z-: #{name}" unless metadata["name"].start_with?("z-")
 end
 
+spec_to_pr_file = File.join(pi_root, "z-spec-to-pr", "SKILL.md")
+spec_to_pr_contents = File.read(spec_to_pr_file)
+abort "Pi z-spec-to-pr must return from writing-plans to z-spec-to-pr" unless spec_to_pr_contents.include?("return directly to `z-spec-to-pr`")
+abort "Pi z-spec-to-pr must not return from writing-plans to unprefixed spec-to-pr" if spec_to_pr_contents.include?("return directly to `spec-to-pr`")
+
 commit_helper = File.join(pi_root, "z-commit", "commit.sh")
 abort "Missing Pi commit helper" unless File.file?(commit_helper)
 abort "Pi commit helper must be executable" unless File.executable?(commit_helper)
