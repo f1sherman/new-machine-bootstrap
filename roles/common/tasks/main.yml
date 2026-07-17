@@ -480,7 +480,13 @@
     dest: '{{ ansible_facts["user_dir"] }}/.codex/AGENTS.md'
     state: link
 
-- name: Install superpowers via Codex native skill discovery
+# Superpowers is installed per-harness, not via a shared ~/.agents/skills
+# symlink: Codex uses the obra/superpowers plugin, and Pi uses the
+# git:github.com/obra/superpowers package (skills + .pi extension) from
+# bootstrap-brian-john. A ~/.agents/skills/superpowers symlink is redundant
+# and made Pi double-load superpowers (collision), so it is no longer created
+# here (and is removed by the "Remove legacy GSD state" cleanup below).
+- name: Ensure ~/.agents/skills shared directory exists
   tags:
     - superpowers
   block:
@@ -495,21 +501,6 @@
         path: '{{ ansible_facts["user_dir"] }}/.agents/skills'
         state: directory
         mode: '0755'
-
-    - name: Clone superpowers repository for Codex native skill discovery
-      git:
-        dest: '{{ ansible_facts["user_dir"] }}/.codex/superpowers'
-        repo: 'https://github.com/obra/superpowers.git'
-        version: "{{ tool_versions.git_tags.superpowers }}"
-        update: yes
-        force: no
-
-    - name: Link superpowers skills into ~/.agents/skills
-      file:
-        src: '{{ ansible_facts["user_dir"] }}/.codex/superpowers/skills'
-        dest: '{{ ansible_facts["user_dir"] }}/.agents/skills/superpowers'
-        state: link
-        force: yes
 
 - name: Create ccstatusline config directory
   file:
@@ -2320,6 +2311,10 @@
     - .gsd
     - .agents/skills/committing-changes
     - .agents/skills/review
+    # Redundant Pi-conflicting superpowers symlink (Pi uses the obra pi
+    # package; Codex uses the plugin). state: absent on a symlink removes
+    # only the link, not the ~/.codex/superpowers clone target.
+    - .agents/skills/superpowers
     - .local/bin/gsd
     - .local/bin/gsd-cli
 
