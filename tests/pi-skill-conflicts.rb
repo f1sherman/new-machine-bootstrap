@@ -6,7 +6,8 @@ tasks = File.read(File.join(repo_root, "roles/common/tasks/main.yml"))
 
 required_cleanup_paths = [
   ".agents/skills/committing-changes",
-  ".agents/skills/review"
+  ".agents/skills/review",
+  ".agents/skills/superpowers"
 ]
 
 missing = required_cleanup_paths.reject { |path| tasks.include?(path) }

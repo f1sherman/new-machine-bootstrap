@@ -21,8 +21,6 @@ tool_versions:
     fzf: v0.74.0
     # renovate: datasource=github-tags depName=tmux-plugins/tpm
     tpm: v3.1.0
-    # renovate: datasource=github-tags depName=obra/superpowers
-    superpowers: v6.1.1
 
   runtimes:
     # renovate: datasource=github-releases depName=jdx/mise
