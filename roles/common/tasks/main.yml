@@ -2290,8 +2290,8 @@
 
 - name: Install Pi commit helper to ~/.pi/agent/skills
   copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/pi/commit/commit.sh'
-    dest: '{{ ansible_facts["user_dir"] }}/.pi/agent/skills/commit/commit.sh'
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/pi/z-commit/commit.sh'
+    dest: '{{ ansible_facts["user_dir"] }}/.pi/agent/skills/z-commit/commit.sh'
     mode: '0755'
 
 - name: Remove legacy GSD state
