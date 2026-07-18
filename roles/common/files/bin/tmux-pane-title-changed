@@ -11,7 +11,8 @@ done
 
 [ -n "$pane_id" ] || exit 0
 
-title="$(tmux display-message -p -t "$pane_id" '#{pane_title}' 2>/dev/null)" || exit 0
+pane_info="$(tmux display-message -p -t "$pane_id" '#{pane_title}	#{pane_current_command}' 2>/dev/null)" || exit 0
+IFS=$'\t' read -r title pane_current_command <<< "$pane_info"
 structured="$(tmux show-options -qv -p -t "$pane_id" @pane-title-structured 2>/dev/null || true)"
 
 case "$title" in
@@ -22,9 +23,17 @@ case "$title" in
     tmux-update-pane-label "$pane_id"
     ;;
   *)
-    # Foreground programs can transiently degrade a structured remote title to
-    # a bare host or spinner. Keep the last structured task identity sticky;
-    # command/focus hooks handle the eventual transition away from SSH.
     [ -n "$structured" ] || exit 0
+    case "$pane_current_command" in
+      ssh|gh|ruby)
+        # A foreground remote program can transiently degrade its title to a
+        # bare host or spinner. Keep the last structured task identity sticky.
+        exit 0
+        ;;
+    esac
+    tmux set-option -p -q -u -t "$pane_id" @pane-title-structured
+    tmux-sync-pane-border-status "$pane_id"
+    tmux-update-pane-label "$pane_id"
+    tmux-window-label "$pane_id"
     ;;
 esac

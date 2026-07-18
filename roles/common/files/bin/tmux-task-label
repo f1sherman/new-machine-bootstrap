@@ -107,10 +107,14 @@ structured_remote_label() {
 extract_remote_task() {
   local label local_label marker="" branch
   label="$(structured_remote_label "$1")" || return 1
-  local_label="${label%% | *}"
+  local_label="${label% | *}"
+
+  if [[ "$local_label" =~ ^(~\ .*)\ ·\ (.+)$ ]]; then
+    truncate_label "${BASH_REMATCH[1]}"
+    return 0
+  fi
 
   case "$local_label" in
-    "~ "*" · "*) truncate_label "${local_label%% · *}"; return 0 ;;
     "✓ "*) marker="✓ "; local_label="${local_label#✓ }" ;;
   esac
 
