@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+unset TMUX TMUX_PANE
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 BIN_DIR="$REPO_ROOT/roles/common/files/bin"
