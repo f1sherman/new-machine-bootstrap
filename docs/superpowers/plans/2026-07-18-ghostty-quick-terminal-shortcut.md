@@ -135,9 +135,10 @@ Run:
 
 ```bash
 bin/provision
-ghostty +show-config | grep -F 'keybind = global:ctrl+space=toggle_quick_terminal'
+grep -F 'keybind = global:ctrl+space=toggle_quick_terminal' "$HOME/Library/Application Support/com.mitchellh.ghostty/config"
+ghostty +show-config | grep -F 'keybind = ctrl+space=toggle_quick_terminal'
 ```
 
-Expected: provisioning succeeds and the second command prints the exact managed binding.
+Expected: provisioning succeeds, the managed config check prints the exact binding including `global:`, and Ghostty's normalized effective output prints the binding without `global:`.
 
-From a non-Ghostty application, press `Ctrl+Space` twice. Expected: the first press opens the quick terminal and the second hides it. If macOS prompts for Accessibility access, grant it to Ghostty and retry; if macOS input-source switching owns `Ctrl+Space`, remove that conflicting system shortcut and retry.
+As a manual operational check, from a non-Ghostty application, press `Ctrl+Space` twice. Expected: the first press opens the quick terminal and the second hides it. Do not claim this manual check was verified unless it was performed interactively. If macOS prompts for Accessibility access, grant it to Ghostty and retry; if macOS input-source switching owns `Ctrl+Space`, remove that conflicting system shortcut and retry.
