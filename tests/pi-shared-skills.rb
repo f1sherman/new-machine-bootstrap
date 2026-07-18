@@ -42,10 +42,22 @@ actual_pi_names.each do |name|
   abort "Pi skill frontmatter name must start with z-: #{name}" unless metadata["name"].start_with?("z-")
 end
 
-spec_to_pr_file = File.join(pi_root, "z-spec-to-pr", "SKILL.md")
-spec_to_pr_contents = File.read(spec_to_pr_file)
-abort "Pi z-spec-to-pr must return from writing-plans to z-spec-to-pr" unless spec_to_pr_contents.include?("return directly to `z-spec-to-pr`")
-abort "Pi z-spec-to-pr must not return from writing-plans to unprefixed spec-to-pr" if spec_to_pr_contents.include?("return directly to `spec-to-pr`")
+quick_pr_file = File.join(pi_root, "z-quick-pr", "SKILL.md")
+quick_pr_contents = File.read(quick_pr_file)
+abort "Pi z-quick-pr must return from writing-plans to z-quick-pr" unless quick_pr_contents.include?("return directly to `z-quick-pr`")
+abort "Pi z-quick-pr must not return from writing-plans to old spec-to-pr names" if quick_pr_contents.match?(/return directly to `(?:z-)?spec-to-pr`/)
+
+abort "Old common _spec-to-pr skill directory still exists" if Dir.exist?(File.join(skills_root, "common", "_spec-to-pr"))
+abort "Old Pi z-spec-to-pr skill directory still exists" if Dir.exist?(File.join(pi_root, "z-spec-to-pr"))
+
+%w[_spec-to-pr].each do |name|
+  abort "Claude cleanup is missing #{name}" unless tasks_file.match?(/- name: Remove deleted managed Claude skills\n.*?^    - #{Regexp.escape(name)}$/m)
+  abort "Codex cleanup is missing #{name}" unless tasks_file.match?(/- name: Remove deleted managed Codex skills\n.*?^    - #{Regexp.escape(name)}$/m)
+end
+
+%w[spec-to-pr z-spec-to-pr].each do |name|
+  abort "Pi cleanup is missing #{name}" unless cleanup_block.match?(/^    - #{Regexp.escape(name)}$/)
+end
 
 commit_helper = File.join(pi_root, "z-commit", "commit.sh")
 abort "Missing Pi commit helper" unless File.file?(commit_helper)
