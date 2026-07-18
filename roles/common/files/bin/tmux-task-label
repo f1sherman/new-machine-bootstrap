@@ -118,7 +118,7 @@ extract_remote_task() {
     "✓ "*) marker="✓ "; local_label="${local_label#✓ }" ;;
   esac
 
-  if [[ "$local_label" =~ ^\((.*)\)\ (.+)$ ]]; then
+  if [[ "$local_label" =~ ^\(([^[:space:]]*)\)\ (.+)$ ]]; then
     branch="${BASH_REMATCH[1]}"
     [[ -n "$branch" ]] || return 1
     truncate_label "${marker}${branch}"

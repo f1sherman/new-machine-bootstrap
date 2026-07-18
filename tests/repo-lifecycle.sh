@@ -508,11 +508,11 @@ git -C "$remote_delete_repo" checkout -q feature/remote-delete-failure
 reject_remote_branch_deletion "$remote_delete_origin" feature/remote-delete-failure
 remote_delete_home="$TMPROOT/end-remote-delete-failure-home"
 mkdir -p "$remote_delete_home"
-if (cd "$remote_delete_repo" && HOME="$remote_delete_home" PATH="$tmux_stub_bin:$PATH" TMUX=1 TMUX_PANE="%1" REPO_END_TMUX_LOG="$tmux_log" "$REPO_END_SCRIPT" --print-path >"$TMPROOT/end-remote-delete-failure.out" 2>"$TMPROOT/end-remote-delete-failure.err"); then
-  fail_case "repo-end surfaces remote branch deletion failure" "repo-end unexpectedly succeeded"
+if ! (cd "$remote_delete_repo" && HOME="$remote_delete_home" PATH="$tmux_stub_bin:$PATH" TMUX=1 TMUX_PANE="%1" REPO_END_TMUX_LOG="$tmux_log" "$REPO_END_SCRIPT" --print-path >"$TMPROOT/end-remote-delete-failure.out" 2>"$TMPROOT/end-remote-delete-failure.err"); then
+  fail_case "repo-end tolerates remote branch deletion failure" "repo-end failed unexpectedly"
 fi
-assert_file_contains "$TMPROOT/end-remote-delete-failure.err" "failed to delete remote branch feature/remote-delete-failure" "repo-end reports remote branch deletion failure"
-assert_no_file "$tmux_log" "repo-end remote deletion failure does not complete tmux task state"
+assert_file_contains "$TMPROOT/end-remote-delete-failure.err" "failed to delete remote branch feature/remote-delete-failure" "repo-end warns about retained remote branch"
+assert_file_contains "$tmux_log" "complete" "repo-end remote deletion failure still completes tmux task state"
 
 create_remote_repo end-worktree-unmerged
 worktree_main="$CREATED_REPO"
