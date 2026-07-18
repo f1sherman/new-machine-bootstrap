@@ -396,6 +396,16 @@ TMUX_TEST_TITLE='~ tmux label persistence · project | remote-host' \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
 assert_file_contains "$window_log" "rename-window -t @1 ~ tmux label persistence" "outer window extracts provisional remote subject"
 
+for separator_case in \
+  '~ auth · billing · project | remote-host' \
+  '~ auth | billing · project | remote-host'; do
+  expected="${separator_case% · project | remote-host}"
+  : > "$window_log"
+  TMUX_TEST_TITLE="$separator_case" TMUX_WINDOW_LABEL_LOG="$window_log" \
+    PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+  assert_file_contains "$window_log" "rename-window -t @1 $expected" "outer window preserves provisional separators: $expected"
+done
+
 for remote_case in \
   '(feature/a)b) project | remote-host' \
   "(feature/$(printf 'a%.0s' {1..60})) project | remote-host" \
@@ -441,6 +451,16 @@ for task_case in \
   TMUX_TEST_TITLE="$title" TMUX_SYNC_REMOTE_LOG="$sync_remote_log" \
     PATH="$sync_remote_tmux_dir:$PATH" "$SYNC_REMOTE_TITLE" %9
   assert_file_contains "$sync_remote_log" "rename-window -t @9 $expected" "remote sync extracts task-only label: $expected"
+done
+
+for separator_case in \
+  '~ auth · billing · project | remote-host' \
+  '~ auth | billing · project | remote-host'; do
+  expected="${separator_case% · project | remote-host}"
+  : > "$sync_remote_log"
+  TMUX_TEST_TITLE="$separator_case" TMUX_SYNC_REMOTE_LOG="$sync_remote_log" \
+    PATH="$sync_remote_tmux_dir:$PATH" "$SYNC_REMOTE_TITLE" %9
+  assert_file_contains "$sync_remote_log" "rename-window -t @9 $expected" "remote sync preserves provisional separators: $expected"
 done
 
 for remote_case in \

@@ -93,6 +93,9 @@ jobs:
       - name: Verify tmux agent subject reminder hooks
         run: bash tests/agent-subject-hooks.sh
 
+      - name: Verify Claude agent subject hook settings
+        run: bash tests/claude-agent-subject-hook-settings.sh
+
       - name: Verify tmux pane-link contract
         run: bash tests/tmux-pane-link.sh
 

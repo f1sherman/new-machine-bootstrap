@@ -39,11 +39,12 @@ def write_executable(path, body)
   FileUtils.chmod("+x", path)
 end
 
-def run_helper(tmpdir, *args, title:, structured: false)
+def run_helper(tmpdir, *args, title:, command: "ssh", structured: false)
   env = {
     "PATH" => "#{File.join(tmpdir, "bin")}:#{ENV.fetch("PATH")}",
     "TMUX_TEST_LOG" => File.join(tmpdir, "calls.log"),
     "TMUX_TEST_TITLE" => title,
+    "TMUX_TEST_COMMAND" => command,
     "TMUX_TEST_STRUCTURED" => structured ? "1" : "0"
   }
   out, err, status = Open3.capture3(env, HELPER, *args)
@@ -85,8 +86,8 @@ if File.exist?(HELPER) && File.executable?(HELPER)
     args = ARGV
     File.open(ENV.fetch("TMUX_TEST_LOG"), "a") { |f| f.puts((["tmux"] + args).join("\t")) }
 
-    if args[0, 3] == ["display-message", "-p", "-t"] && args[4] == '#{pane_title}'
-      puts ENV.fetch("TMUX_TEST_TITLE")
+    if args[0, 3] == ["display-message", "-p", "-t"] && args[4] == "\#{pane_title}\t\#{pane_current_command}"
+      puts "#{ENV.fetch("TMUX_TEST_TITLE")}\t#{ENV.fetch("TMUX_TEST_COMMAND")}"
     elsif args[0, 4] == ["show-options", "-qv", "-p", "-t"] && args[5] == "@pane-title-structured"
       exit 1 unless ENV.fetch("TMUX_TEST_STRUCTURED") == "1"
       puts "1"
@@ -98,7 +99,7 @@ if File.exist?(HELPER) && File.executable?(HELPER)
     end
   RUBY
 
-  %w[tmux-sync-remote-title tmux-sync-pane-border-status tmux-update-pane-label].each do |name|
+  %w[tmux-sync-remote-title tmux-sync-pane-border-status tmux-update-pane-label tmux-window-label].each do |name|
     write_executable(File.join(bin, name), <<~RUBY)
       #!/usr/bin/env ruby
       File.open(ENV.fetch("TMUX_TEST_LOG"), "a") { |f| f.puts(([#{name.inspect}] + ARGV).join("\\t")) }
@@ -134,7 +135,21 @@ if File.exist?(HELPER) && File.executable?(HELPER)
   assert("degraded title cannot overwrite structured task labels", log) do
     !log.include?("tmux-sync-remote-title\t%93") &&
       !log.include?("tmux-sync-pane-border-status\t%93") &&
-      !log.include?("tmux-update-pane-label\t%93")
+      !log.include?("tmux-update-pane-label\t%93") &&
+      !log.include?("tmux-window-label\t%93")
+  end
+
+  File.write(File.join(tmpdir, "calls.log"), "")
+  _out, err, status, log = run_helper(tmpdir, "%94", title: "dev-host", command: "zsh", structured: true)
+  assert("same-pane remote exit clears structured marker immediately", err) do
+    status.success? &&
+      log.include?("tmux\tset-option\t-p\t-q\t-u\t-t\t%94\t@pane-title-structured")
+  end
+  assert("same-pane remote exit refreshes pane and window labels immediately", log) do
+    log.include?("tmux-sync-pane-border-status\t%94") &&
+      log.include?("tmux-update-pane-label\t%94") &&
+      log.include?("tmux-window-label\t%94") &&
+      !log.include?("tmux-sync-remote-title\t%94")
   end
   end
 end

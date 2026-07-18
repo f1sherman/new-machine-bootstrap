@@ -14,7 +14,9 @@ IFS=$'\t' read -r window_id pane_active window_name pane_tty pane_current_path p
 [ -n "$window_id" ] || exit 0
 [ "$pane_active" = "1" ] || exit 0
 
-label="$(tmux show-options -qv -p -t "$pane_id" "@window-label" 2>/dev/null || true)"
+cached_window_label="$(tmux show-options -qv -p -t "$pane_id" "@window-label" 2>/dev/null || true)"
+label="$cached_window_label"
+task_label_resolved=""
 
 is_remote_candidate_command() {
   case "$1" in
@@ -71,10 +73,13 @@ strip_host_suffix() {
 
 if [ -z "$label" ] && is_remote_candidate_command "$pane_current_command"; then
   label="$(task_from_remote_label "$pane_title" 2>/dev/null || true)"
-  if [ -z "$label" ]; then
+  if [ -n "$label" ]; then
+    task_label_resolved="1"
+  else
     structured_window="$(structured_remote_label "$window_name" 2>/dev/null || true)"
     if [ -n "$structured_window" ] && [ "$pane_title" = "$(remote_host_suffix "$structured_window")" ]; then
       label="$(task_from_remote_label "$structured_window" 2>/dev/null || true)"
+      [ -z "$label" ] || task_label_resolved="1"
     fi
   fi
   if [ -z "$label" ]; then
@@ -82,6 +87,7 @@ if [ -z "$label" ] && is_remote_candidate_command "$pane_current_command"; then
     cached_pane_label="$(tmux show-options -qv -p -t "$pane_id" "@pane-label" 2>/dev/null || true)"
     if [ -n "$structured_marker" ] && is_structured_remote_label "$cached_pane_label"; then
       label="$(task_from_remote_label "$cached_pane_label" 2>/dev/null || true)"
+      [ -z "$label" ] || task_label_resolved="1"
     fi
   fi
 fi
@@ -102,7 +108,7 @@ if [ -z "$label" ]; then
   label="$("$label_helper" "$pane_tty" "$pane_current_path" "$pane_current_command" "$pane_id" 2>/dev/null || true)"
 fi
 [ -n "$label" ] || exit 0
-if [ -z "$(tmux show-options -qv -p -t "$pane_id" "@window-label" 2>/dev/null || true)" ]; then
+if [ -z "$cached_window_label" ] && [ -z "$task_label_resolved" ]; then
   label="$(strip_host_suffix "$label")"
 fi
 [ -n "$label" ] || exit 0

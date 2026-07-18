@@ -148,6 +148,13 @@ done
 assert_file_contains "$TMPROOT/window.log" "%1" "provisional refresh invokes tmux-window-label"
 assert_file_contains "$TMPROOT/title.log" "publish" "provisional refresh publishes remote title"
 
+"$SUBJECT" set "auth · billing"
+assert_file_eq "$state_dir/%1.@window-label" "~ auth · billing" "local provisional top preserves middle-dot separator"
+assert_file_eq "$state_dir/%1.@pane-label" "~ auth · billing · repo | host-a" "local provisional bottom preserves middle-dot separator"
+"$SUBJECT" set "auth | billing"
+assert_file_eq "$state_dir/%1.@window-label" "~ auth | billing" "local provisional top preserves pipe separator"
+assert_file_eq "$state_dir/%1.@pane-label" "~ auth | billing · repo | host-a" "local provisional bottom preserves pipe separator"
+
 "$STATE" activate-branch "$repo"
 assert_file_eq "$state_dir/%1.@task_label" "feature/durable-label" "captures branch"
 assert_file_eq "$state_dir/%1.@task_source" "branch" "stores branch source"
