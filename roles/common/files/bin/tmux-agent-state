@@ -265,6 +265,9 @@ case "$cmd" in
     current_source="$(get_pane_option "$pane" @task_source 2>/dev/null || true)"
     current_state="$(get_pane_option "$pane" @task_state 2>/dev/null || true)"
     [[ "$current_source" != "branch" || "$current_state" != "active" ]] || exit 0
+    if [[ -z "$current_state" || "$current_state" == "completed" ]]; then
+      clear_pane_option "$pane" @task_context
+    fi
     set_task "$pane" "$subject" agent provisional
     refresh "$pane"
     ;;

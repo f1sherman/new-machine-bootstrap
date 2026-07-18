@@ -600,8 +600,7 @@ cleanup_after_merge() {
 
   if "$(_worktree_cmd git)" -C "$main_path" ls-remote --exit-code --heads origin "refs/heads/${current_branch}" >/dev/null 2>&1; then
     if ! "$(_worktree_cmd git)" -C "$main_path" push --quiet origin --delete "$current_branch"; then
-      printf 'Error: failed to delete remote branch %s; local cleanup already completed\n' "$current_branch" >&2
-      return 1
+      printf 'Warning: failed to delete remote branch %s; local cleanup completed\n' "$current_branch" >&2
     fi
   fi
 }

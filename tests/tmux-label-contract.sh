@@ -398,6 +398,11 @@ TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" 
 assert_file_contains "$window_log" "rename-window -t @1 feature/remote" "outer window extracts active remote branch"
 
 : > "$window_log"
+TMUX_TEST_TITLE='(feature) repo) foo | remote-host' \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" "rename-window -t @1 feature" "outer window ignores closing-parenthesis text in repo context"
+
+: > "$window_log"
 TMUX_TEST_TITLE='✓ (feature/remote) project | remote-host' \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
 assert_file_contains "$window_log" "rename-window -t @1 ✓ feature/remote" "outer window extracts completed remote branch"
