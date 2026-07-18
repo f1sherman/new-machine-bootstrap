@@ -149,6 +149,14 @@
     create: yes
     mode: 0644
 
+- name: Configure ghostty quick-terminal shortcut
+  lineinfile:
+    path: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty/config'
+    regexp: '^keybind\s*=\s*global:ctrl\+space='
+    line: 'keybind = global:ctrl+space=toggle_quick_terminal'
+    create: yes
+    mode: 0644
+
 - name: Configure ghostty command
   lineinfile:
     path: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty/config'
