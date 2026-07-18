@@ -190,15 +190,26 @@ case "$1" in
     ;;
   show-options)
     case "${*: -1}" in
-      @task_state) printf 'active' ;;
-      @pane-label) printf '(feature/durable-label) project | remote-host' ;;
+      @task_label) printf '%s' "$TMUX_TEST_TASK_LABEL" ;;
+      @task_state) printf '%s' "$TMUX_TEST_TASK_STATE" ;;
+      @task_context) printf '%s' "$TMUX_TEST_TASK_CONTEXT" ;;
+      @pane-label) printf '%s' "$TMUX_TEST_PANE_LABEL" ;;
     esac
     ;;
 esac
 STUB
 chmod +x "$remote_task_tmux_dir/tmux"
-remote_task_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
-assert_equals "$remote_task_title" "(feature/durable-label) project | remote-host" "remote title publishes contextual task label"
+remote_task_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL=feature/durable-label TMUX_TEST_TASK_STATE=active TMUX_TEST_TASK_CONTEXT=project TMUX_TEST_PANE_LABEL='(feature/durable-label fj#42) project | wrong-host' PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
+assert_equals "$remote_task_title" "(feature/durable-label) project | remote-host" "remote title builds active label from canonical task fields"
+
+remote_pipe_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL='auth | billing' TMUX_TEST_TASK_STATE=provisional TMUX_TEST_TASK_CONTEXT=project TMUX_TEST_PANE_LABEL='~ wrong rendered label | wrong-host' PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
+assert_equals "$remote_pipe_title" "~ auth | billing · project | remote-host" "remote title preserves pipe in canonical provisional subject"
+
+remote_dot_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL='auth · billing' TMUX_TEST_TASK_STATE=provisional TMUX_TEST_TASK_CONTEXT='project | remote-host' TMUX_TEST_PANE_LABEL='~ wrong rendered label | wrong-host' PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
+assert_equals "$remote_dot_title" "~ auth · billing · project | remote-host" "remote title preserves middle dot and avoids duplicate host"
+
+remote_completed_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL=feature/durable-label TMUX_TEST_TASK_STATE=completed TMUX_TEST_TASK_CONTEXT=project TMUX_TEST_PANE_LABEL='✓ wrong rendered label | wrong-host' PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
+assert_equals "$remote_completed_title" "✓ (feature/durable-label) project | remote-host" "remote title builds completed label from canonical task fields"
 
 zsh_hook_home="$TMPROOT/zsh-hook-home"
 zsh_hook_log="$TMPROOT/zsh-hook.log"

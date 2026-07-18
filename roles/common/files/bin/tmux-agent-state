@@ -102,16 +102,16 @@ live_path_label() {
 }
 
 context_suffix() {
-  local label="${1:-}"
+  local label="${1:-}" task_label="${2:-}" task_state="${3:-}" prefix
   label="${label#✓ }"
-  case "$label" in
-    "~ "*" · "*) label="${label#* · }" ;;
-    \(*\)\ *)
-      if [[ "$label" =~ ^\((.*)\)\ (.+)$ ]]; then
-        label="${BASH_REMATCH[2]}"
-      fi
-      ;;
-  esac
+  prefix="~ $task_label · "
+  if [[ "$task_state" == "provisional" && -n "$task_label" && "$label" == "$prefix"* ]]; then
+    label="${label#"$prefix"}"
+  elif [[ -z "$task_label" && "$label" == "~ "*" · "* ]]; then
+    label="${label##* · }"
+  elif [[ "$label" =~ ^\((.*)\)\ (.+)$ ]]; then
+    label="${BASH_REMATCH[2]}"
+  fi
   printf '%s\n' "$label"
 }
 
@@ -132,15 +132,15 @@ render() {
   live="$(live_path_label "$pane" 2>/dev/null || true)"
 
   if [[ -n "$live" ]]; then
-    context="$(context_suffix "$live")"
+    context="$(context_suffix "$live" "$task_label" "$task_state")"
     [[ -z "$task_label" ]] || set_pane_option "$pane" @task_context "$context"
-  elif [[ -n "$task_label" && -n "$structured" && "$existing" == *" | "* ]]; then
-    context="$(context_suffix "$existing")"
-    set_pane_option "$pane" @task_context "$context"
   elif [[ -n "$task_label" && -n "$task_context" ]]; then
     context="$task_context"
+  elif [[ -n "$task_label" && -n "$structured" && "$existing" == *" | "* ]]; then
+    context="$(context_suffix "$existing" "$task_label" "$task_state")"
+    set_pane_option "$pane" @task_context "$context"
   elif [[ -n "$existing" ]]; then
-    context="$(context_suffix "$existing")"
+    context="$(context_suffix "$existing" "$task_label" "$task_state")"
     [[ -z "$task_label" ]] || set_pane_option "$pane" @task_context "$context"
   else
     context="$(fallback_cwd_label "$pane")"
