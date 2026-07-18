@@ -13,6 +13,12 @@ trap 'rm -rf "$TMPROOT"' EXIT
 pass_case() { printf 'PASS  %s\n' "$1"; }
 fail_case() { printf 'FAIL  %s\n%s\n' "$1" "$2" >&2; exit 1; }
 
+assert_eq() {
+  local expected="$1" actual="$2" name="$3"
+  [[ "$actual" == "$expected" ]] || fail_case "$name" "expected '$expected', got '$actual'"
+  pass_case "$name"
+}
+
 assert_file_contains() {
   local path="$1" needle="$2" name="$3"
   [[ -f "$path" ]] || fail_case "$name" "missing file: $path"
@@ -35,78 +41,122 @@ assert_no_file() {
 
 stub_bin="$TMPROOT/bin"
 state_dir="$TMPROOT/state"
-mkdir -p "$stub_bin" "$state_dir"
+repo="$TMPROOT/repo"
+mkdir -p "$stub_bin" "$state_dir" "$repo"
 
 cat >"$stub_bin/tmux-window-label" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$TMUX_AGENT_STATE_WINDOW_LOG"
 STUB
-chmod +x "$stub_bin/tmux-window-label"
-
 cat >"$stub_bin/tmux-remote-title" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$TMUX_AGENT_STATE_TITLE_LOG"
 STUB
-chmod +x "$stub_bin/tmux-remote-title"
+cat >"$stub_bin/tmux-label-format" <<'STUB'
+#!/usr/bin/env bash
+path="$2"
+branch="$(git -C "$path" branch --show-current)"
+printf '(%s) repo | host-a\n' "$branch"
+STUB
+chmod +x "$stub_bin/tmux-window-label" "$stub_bin/tmux-remote-title" "$stub_bin/tmux-label-format"
+
+git -c init.defaultBranch=main -C "$repo" init -q
+git -C "$repo" config user.email test@example.com
+git -C "$repo" config user.name Test
+printf 'base\n' >"$repo/file"
+git -C "$repo" add file
+git -C "$repo" commit -qm base
+git -C "$repo" update-ref refs/remotes/origin/main HEAD
+git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+git -C "$repo" checkout -qb feature/durable-label
 
 export TMUX=1
 export TMUX_PANE="%1"
 export TMUX_AGENT_STATE_DIR="$state_dir"
 export TMUX_AGENT_STATE_WINDOW_LOG="$TMPROOT/window.log"
 export TMUX_AGENT_STATE_TITLE_LOG="$TMPROOT/title.log"
+export TMUX_AGENT_STATE_LABEL_FORMAT_BIN="$stub_bin/tmux-label-format"
+export TMUX_AGENT_STATE_CURRENT_PATH="$repo"
 export PATH="$stub_bin:$PATH"
 
-"$STATE" set-kind codex
-"$SUBJECT" set "tmux subject labels"
+for key in @agent_subject @agent_subject_stale @agent_subject_done @agent_completed_window_label; do
+  printf old >"$state_dir/%1.$key"
+done
+printf '(main) repo | host-a' >"$state_dir/%1.@pane-label"
 
-assert_file_contains "$state_dir/%1.@agent_kind" "codex" "set-kind stores agent kind"
-assert_file_contains "$state_dir/%1.@agent_subject" "tmux subject labels" "subject wrapper stores subject"
-assert_no_file "$state_dir/%1.@agent_subject_stale" "setting subject clears stale flag"
-assert_file_contains "$state_dir/%1.@window-label" "codex: tmux subject labels" "subject renders codex window label"
-assert_file_contains "$TMPROOT/window.log" "%1" "subject refresh invokes tmux-window-label"
-assert_file_contains "$TMPROOT/title.log" "publish" "subject refresh publishes remote title"
+"$SUBJECT" set "tmux label persistence"
+assert_file_contains "$state_dir/%1.@task_label" "tmux label persistence" "stores provisional label"
+assert_file_contains "$state_dir/%1.@task_source" "agent" "stores provisional source"
+assert_file_contains "$state_dir/%1.@task_state" "provisional" "stores provisional state"
+assert_file_contains "$state_dir/%1.@window-label" "~ tmux label persistence" "renders provisional top label"
+assert_file_contains "$state_dir/%1.@pane-label" "~ tmux label persistence · repo | host-a" "renders provisional contextual bottom label"
+for key in @agent_subject @agent_subject_stale @agent_subject_done @agent_completed_window_label; do
+  assert_no_file "$state_dir/%1.$key" "set removes obsolete $key"
+done
+assert_file_contains "$TMPROOT/window.log" "%1" "provisional refresh invokes tmux-window-label"
+assert_file_contains "$TMPROOT/title.log" "publish" "provisional refresh publishes remote title"
 
-"$STATE" mark-subject-stale
-assert_file_contains "$state_dir/%1.@agent_subject_stale" "1" "mark-subject-stale records invisible stale state"
-assert_file_contains "$state_dir/%1.@window-label" "codex: tmux subject labels" "stale subject does not change rendered window label"
+"$STATE" activate-branch "$repo"
+assert_file_contains "$state_dir/%1.@task_label" "feature/durable-label" "captures branch"
+assert_file_contains "$state_dir/%1.@task_source" "branch" "stores branch source"
+assert_file_contains "$state_dir/%1.@task_state" "active" "activates branch"
+assert_file_contains "$state_dir/%1.@window-label" "feature/durable-label" "branch replaces subject"
+assert_file_contains "$state_dir/%1.@pane-label" "(feature/durable-label) repo | host-a" "active bottom retains full branch and context"
 
-worktree_path="$TMPROOT/worktree-like-path"
-mkdir -p "$worktree_path"
-printf '99999' > "$state_dir/%1.@agent_worktree_pid"
-printf 'old-worktree-label' > "$state_dir/%1.@pane-label"
-: > "$TMPROOT/window.log"
-"$STATE" set-worktree "$worktree_path"
-assert_file_contains "$state_dir/%1.@agent_worktree_path" "$worktree_path" "set-worktree stores worktree path"
-assert_no_file "$state_dir/%1.@agent_worktree_pid" "set-worktree clears stale pid without pid"
-assert_file_not_contains "$state_dir/%1.@pane-label" "old-worktree-label" "set-worktree clears stale pane label"
-assert_file_contains "$TMPROOT/window.log" "%1" "set-worktree refresh invokes tmux-window-label"
+# A default branch must not replace an existing useful task identity.
+git -C "$repo" checkout -q main
+"$STATE" activate-branch "$repo"
+assert_file_contains "$state_dir/%1.@task_label" "feature/durable-label" "default branch retains task identity"
+assert_file_contains "$state_dir/%1.@task_state" "active" "default branch retains active state"
 
-fallback_path="$TMPROOT/fallback-project"
-mkdir -p "$fallback_path"
-printf 'old-worktree-label' > "$state_dir/%1.@pane-label"
-export TMUX_AGENT_STATE_CURRENT_PATH="$fallback_path"
-"$STATE" clear-worktree
-assert_no_file "$state_dir/%1.@agent_worktree_path" "clear-worktree removes worktree path"
-assert_file_contains "$state_dir/%1.@pane-label" "old-worktree-label" "clear-worktree preserves completed pane label"
-assert_file_not_contains "$state_dir/%1.@pane-label" "fallback-project" "clear-worktree does not replace completed pane label from current path"
+# Failed Git lookup must not erase captured identity.
+"$STATE" activate-branch "$TMPROOT/missing"
+assert_file_contains "$state_dir/%1.@task_label" "feature/durable-label" "Git lookup failure retains identity"
 
-"$SUBJECT" clear
-assert_no_file "$state_dir/%1.@agent_subject" "subject clear removes subject"
-assert_no_file "$state_dir/%1.@agent_subject_stale" "subject clear removes stale flag"
+# Restore the contextual active label before completion.
+git -C "$repo" checkout -q feature/durable-label
+"$STATE" activate-branch "$repo"
+printf 999 >"$state_dir/%1.@agent_worktree_pid"
+printf link >"$state_dir/%1.@pane-link"
+printf source >"$state_dir/%1.@pane-link-source"
+"$STATE" complete-worktree
+assert_file_contains "$state_dir/%1.@task_state" "completed" "completion stores completed state"
+assert_file_contains "$state_dir/%1.@window-label" "✓ feature/durable-label" "renders completed branch"
+assert_file_contains "$state_dir/%1.@pane-label" "✓ (feature/durable-label) repo | host-a" "completed bottom retains full context"
+assert_no_file "$state_dir/%1.@agent_worktree_path" "completion clears worktree path"
+assert_no_file "$state_dir/%1.@agent_worktree_pid" "completion clears worktree pid"
+assert_no_file "$state_dir/%1.@pane-link" "completion clears pane link"
+assert_no_file "$state_dir/%1.@pane-link-source" "completion clears pane link source"
+assert_eq $'completed\tbranch\tfeature/durable-label' "$("$STATE" status)" "status contract"
+
+"$STATE" complete-worktree
+assert_file_contains "$state_dir/%1.@window-label" "✓ feature/durable-label" "completion is idempotent"
+assert_file_not_contains "$state_dir/%1.@window-label" "✓ ✓" "completion does not duplicate marker"
+
+"$STATE" clear-task
+assert_no_file "$state_dir/%1.@task_label" "clear-task removes label"
+assert_no_file "$state_dir/%1.@task_source" "clear-task removes source"
+assert_no_file "$state_dir/%1.@task_state" "clear-task removes state"
+assert_eq "" "$("$STATE" status)" "empty status emits nothing"
+
+printf old >"$state_dir/%1.@agent_subject_done"
+"$STATE" set-kind pi
+assert_no_file "$state_dir/%1.@agent_subject_done" "session kind clears obsolete completion state"
+
+"$SUBJECT" set "$(printf ' \033\a\001 ')"
+assert_no_file "$state_dir/%1.@task_label" "empty sanitized subject leaves identity empty"
 
 control_subject="$(printf 'bad \033chars\a\001 subject')"
 "$SUBJECT" set "$control_subject"
-assert_file_contains "$state_dir/%1.@agent_subject" "bad chars subject" "subject set removes control bytes"
-assert_file_contains "$state_dir/%1.@window-label" "codex: bad chars subject" "window label removes subject control bytes"
-assert_file_not_contains "$state_dir/%1.@agent_subject" "$(printf '\033')" "stored subject removes escape byte"
-assert_file_not_contains "$state_dir/%1.@agent_subject" "$(printf '\a')" "stored subject removes bell byte"
-assert_file_not_contains "$state_dir/%1.@agent_subject" "$(printf '\001')" "stored subject removes soh byte"
-assert_file_not_contains "$state_dir/%1.@window-label" "$(printf '\033')" "window label removes escape byte"
+assert_file_contains "$state_dir/%1.@task_label" "bad chars subject" "subject removes control bytes"
+assert_file_not_contains "$state_dir/%1.@task_label" "$(printf '\033')" "stored subject removes escape byte"
 assert_file_not_contains "$state_dir/%1.@window-label" "$(printf '\a')" "window label removes bell byte"
-assert_file_not_contains "$state_dir/%1.@window-label" "$(printf '\001')" "window label removes soh byte"
 
-"$STATE" set-kind pi
-assert_file_contains "$state_dir/%1.@agent_kind" "pi" "set-kind stores pi agent kind"
-assert_file_contains "$state_dir/%1.@window-label" "pi: bad chars subject" "pi kind renders window label"
+long_subject="$(printf 'a%.0s' {1..60})"
+"$SUBJECT" set "$long_subject"
+long_label="$(cat "$state_dir/%1.@window-label")"
+assert_eq "40" "$(printf '%s' "$long_label" | wc -m | tr -d ' ')" "top label is exactly 40 characters"
+assert_eq "…" "${long_label: -1}" "long top label ends with ellipsis"
+assert_file_contains "$state_dir/%1.@pane-label" "$long_subject" "bottom label retains full subject"
 
 printf 'tmux-agent-state checks complete\n'

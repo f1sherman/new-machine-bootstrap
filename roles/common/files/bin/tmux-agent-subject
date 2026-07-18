@@ -8,10 +8,10 @@ state="${TMUX_AGENT_STATE_BIN:-$script_dir/tmux-agent-state}"
 case "${1:-}" in
   set)
     shift
-    "$state" set-subject "$@"
+    "$state" set-provisional "$@"
     ;;
   clear)
-    "$state" clear-subject
+    "$state" clear-task
     ;;
   status)
     "$state" status
