@@ -117,33 +117,27 @@ refresh_agent_state() {
   publish_title
 }
 
-mark_subject_stale() {
-  local state
+run_agent_state() {
+  local state label_formatter=""
   state="$(agent_state_bin)"
   [ -x "$state" ] || return 1
-  TMUX_AGENT_STATE_DIR="${TMUX_AGENT_WORKTREE_STATE_DIR:-}" "$state" mark-subject-stale >/dev/null 2>&1
+  label_formatter="$(command -v tmux-label-format 2>/dev/null || true)"
+  TMUX_AGENT_STATE_DIR="${TMUX_AGENT_WORKTREE_STATE_DIR:-}" \
+    TMUX_AGENT_STATE_LABEL_FORMAT_BIN="$label_formatter" \
+    "$state" "$@" >/dev/null 2>&1
 }
 
-mark_subject_done() {
-  local state
-  state="$(agent_state_bin)"
-  [ -x "$state" ] || return 1
-  TMUX_AGENT_STATE_DIR="${TMUX_AGENT_WORKTREE_STATE_DIR:-}" "$state" mark-subject-done >/dev/null 2>&1
+activate_task_branch() {
+  run_agent_state activate-branch "$1" || return 1
+  run_agent_state refresh
 }
 
-mark_window_label_done() {
-  local state label="$1"
-  state="$(agent_state_bin)"
-  [ -x "$state" ] || return 1
-  [ -n "$label" ] || return 1
-  TMUX_AGENT_STATE_DIR="${TMUX_AGENT_WORKTREE_STATE_DIR:-}" "$state" mark-window-label-done "$label" >/dev/null 2>&1
+clear_task_worktree() {
+  run_agent_state clear-worktree
 }
 
-clear_agent_worktree() {
-  local state
-  state="$(agent_state_bin)"
-  [ -x "$state" ] || return 1
-  TMUX_AGENT_STATE_DIR="${TMUX_AGENT_WORKTREE_STATE_DIR:-}" "$state" clear-worktree >/dev/null 2>&1
+complete_task_worktree() {
+  run_agent_state complete-worktree
 }
 
 is_git_worktree_path() {
@@ -376,34 +370,34 @@ cmd_set() {
   fi
   write_pane_option "$pane_id" "@pane-label" "$(repo_label_for_path "$path")"
   publish_cached_pr_pane_link_for_path "$pane_id" "$path"
-  refresh_agent_state
+  activate_task_branch "$path" || refresh_agent_state
 }
 
-cmd_clear() {
-  local subject window_label pane_link pane_link_source
-  [ -n "${TMUX:-}" ] || return 0
-  [ -n "${TMUX_PANE:-}" ] || return 0
-  subject="$(read_pane_option "$TMUX_PANE" "@agent_subject" 2>/dev/null || true)"
-  window_label="$(read_pane_option "$TMUX_PANE" "@window-label" 2>/dev/null || true)"
-  pane_link="$(read_pane_option "$TMUX_PANE" "@pane-link" 2>/dev/null || true)"
-  pane_link_source="$(read_pane_option "$TMUX_PANE" "@pane-link-source" 2>/dev/null || true)"
+clear_operational_options() {
   clear_pane_option "$TMUX_PANE" "@agent_worktree_path"
   clear_pane_option "$TMUX_PANE" "@agent_worktree_pid"
   clear_pane_option "$TMUX_PANE" "@pane-link"
   clear_pane_option "$TMUX_PANE" "@pane-link-source"
-  if clear_agent_worktree; then
-    if [ -n "$subject" ]; then
-      mark_subject_stale || true
-      mark_subject_done || true
-    elif [ -n "$window_label" ]; then
-      mark_window_label_done "$window_label" || true
-      if [ -n "$pane_link" ] && [ "$pane_link_source" = "pr-status-cache" ]; then
-        write_pane_option "$TMUX_PANE" "@pane-link" "$pane_link"
-        write_pane_option "$TMUX_PANE" "@pane-link-source" "$pane_link_source"
-      fi
-    fi
+}
+
+cmd_clear() {
+  [ -n "${TMUX:-}" ] || return 0
+  [ -n "${TMUX_PANE:-}" ] || return 0
+  if clear_task_worktree; then
     return 0
   fi
+  clear_operational_options
+  refresh_window_label
+  publish_title
+}
+
+cmd_complete() {
+  [ -n "${TMUX:-}" ] || return 0
+  [ -n "${TMUX_PANE:-}" ] || return 0
+  if complete_task_worktree; then
+    return 0
+  fi
+  clear_operational_options
   refresh_window_label
   publish_title
 }
@@ -432,7 +426,7 @@ cmd_sync_current() {
   fi
   write_pane_option "$TMUX_PANE" "@pane-label" "$(repo_label_for_path "$PWD")"
   publish_cached_pr_pane_link_for_path "$TMUX_PANE" "$PWD"
-  refresh_agent_state
+  activate_task_branch "$PWD" || refresh_agent_state
 }
 
 main() {
@@ -446,6 +440,9 @@ main() {
       ;;
     clear)
       cmd_clear
+      ;;
+    complete)
+      cmd_complete
       ;;
     *)
       exit 0

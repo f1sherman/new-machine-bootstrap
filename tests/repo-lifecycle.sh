@@ -386,6 +386,15 @@ wt_fresh_path="$(cd "$wt_from_main_repo" && "$REPO_START_SCRIPT" --use-worktrees
 assert_equals "$(git -C "$wt_fresh_path" rev-parse HEAD)" "$wt_advanced_main_tip" "worktree mode cuts new branch from latest origin main, not HEAD"
 assert_no_file "$wt_fresh_path/wt-side.txt" "worktree mode new branch excludes other branch content"
 
+tmux_stub_bin="$TMPROOT/repo-end-tmux-bin"
+tmux_log="$TMPROOT/repo-end-tmux.log"
+mkdir -p "$tmux_stub_bin"
+cat >"$tmux_stub_bin/tmux-agent-worktree" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$REPO_END_TMUX_LOG"
+STUB
+chmod +x "$tmux_stub_bin/tmux-agent-worktree"
+
 create_remote_repo end-branch-unmerged
 branch_repo="$CREATED_REPO"
 git -C "$branch_repo" checkout -q -b feature/end-branch
@@ -394,7 +403,7 @@ branch_out="$TMPROOT/end-branch.out"
 branch_err="$TMPROOT/end-branch.err"
 branch_unmerged_home="$TMPROOT/end-branch-unmerged-home"
 mkdir -p "$branch_unmerged_home"
-if (cd "$branch_repo" && HOME="$branch_unmerged_home" "$REPO_END_SCRIPT" --print-path >"$branch_out" 2>"$branch_err"); then
+if (cd "$branch_repo" && HOME="$branch_unmerged_home" PATH="$tmux_stub_bin:$PATH" TMUX=1 TMUX_PANE="%1" REPO_END_TMUX_LOG="$tmux_log" "$REPO_END_SCRIPT" --print-path >"$branch_out" 2>"$branch_err"); then
   fail_case "repo-end branch mode rejects unmerged branch" "repo-end unexpectedly succeeded"
 fi
 assert_file_contains "$branch_err" "merge the PR first" "repo-end branch mode explains unmerged branch"
@@ -406,6 +415,7 @@ if git -C "$branch_repo" show main:branch.txt >/dev/null 2>&1; then
   fail_case "repo-end branch mode does not merge unmerged branch" "branch.txt reached main"
 fi
 pass_case "repo-end branch mode does not merge unmerged branch"
+assert_no_file "$tmux_log" "repo-end unmerged failure does not complete tmux task state"
 
 create_remote_repo end-branch-merged
 branch_repo="$CREATED_REPO"
@@ -419,21 +429,13 @@ forbid_origin_main_pushes "$branch_repo"
 branch_home="$TMPROOT/end-branch-home"
 branch_log="$branch_home/.local/state/repo-end.log"
 install_callback "$branch_home" "$branch_log"
-clear_stub_bin="$TMPROOT/end-branch-bin"
-clear_log="$TMPROOT/end-branch-clear.log"
-mkdir -p "$clear_stub_bin"
-cat >"$clear_stub_bin/tmux-agent-worktree" <<'STUB'
-#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$REPO_END_TMUX_CLEAR_LOG"
-STUB
-chmod +x "$clear_stub_bin/tmux-agent-worktree"
 branch_out="$TMPROOT/end-branch-merged.out"
 (cd "$branch_repo" && \
   HOME="$branch_home" \
-  PATH="$clear_stub_bin:$PATH" \
+  PATH="$tmux_stub_bin:$PATH" \
   TMUX=1 \
   TMUX_PANE="%1" \
-  REPO_END_TMUX_CLEAR_LOG="$clear_log" \
+  REPO_END_TMUX_LOG="$tmux_log" \
   REPO_END_CALLBACK_LOG="$branch_log" \
   "$REPO_END_SCRIPT" --print-path >"$branch_out")
 assert_file_contains "$branch_out" "$branch_repo" "repo-end branch mode prints main path"
@@ -444,7 +446,7 @@ if git -C "$branch_repo" show-ref --verify --quiet refs/heads/feature/end-branch
 fi
 pass_case "repo-end branch mode deletes local branch"
 assert_file_contains "$branch_log" "--repo-dir $branch_repo --branch feature/end-branch --main-branch main --main-path $branch_repo" "repo-end branch mode invokes callbacks with context"
-assert_file_contains "$clear_log" "clear" "repo-end clears explicit tmux repo label state"
+assert_file_contains "$tmux_log" "complete" "repo-end completes tmux task state after successful cleanup"
 
 create_remote_repo end-worktree-unmerged
 worktree_main="$CREATED_REPO"
