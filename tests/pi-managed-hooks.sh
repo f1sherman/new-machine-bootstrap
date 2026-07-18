@@ -138,7 +138,7 @@ assert.deepEqual(sessionNames, ["feature-work", "reload-work"], "non-bash tool r
 await handlers.get("tool_result")({ toolName: "bash", isError: true }, ctx);
 assert.deepEqual(sessionNames, ["feature-work", "reload-work"], "failed bash results do not resync session names");
 
-for (const workflow of ["z-fix", "z-spec-first", "z-spec-to-pr"]) {
+for (const workflow of ["z-fix", "z-spec-first", "z-quick-pr"]) {
   const reminder = await handlers.get("before_agent_start")({
     prompt: `Use ${workflow} for this`,
     systemPrompt: "",

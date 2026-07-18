@@ -46,7 +46,7 @@ if [[ "$branch" != "main" ]]; then
 fi
 
 lower_prompt="$(printf '%s' "$prompt" | tr '[:upper:]' '[:lower:]')"
-skill_pattern='(^|[^[:alnum:]_])(_fix|_spec-first|_spec-to-pr|systematic-debugging|brainstorming)([^[:alnum:]_]|$)'
+skill_pattern='(^|[^[:alnum:]_])(_fix|_spec-first|_quick-pr|systematic-debugging|brainstorming)([^[:alnum:]_]|$)'
 if ! printf '%s\n' "$lower_prompt" | grep -Eq "$skill_pattern"; then
   exit 0
 fi

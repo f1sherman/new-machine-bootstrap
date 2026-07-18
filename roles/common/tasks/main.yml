@@ -2211,6 +2211,7 @@
     - _create-plan
     - _implement-plan
     - _research-codebase
+    - _spec-to-pr
 
 - name: Remove deleted managed Codex skills
   file:
@@ -2221,6 +2222,7 @@
     - _create-plan
     - _implement-plan
     - _research-codebase
+    - _spec-to-pr
 
 - name: Remove deleted managed Pi skills
   file:
@@ -2243,12 +2245,14 @@
     - generate-codex-auth
     - humanizer
     - macos-keychain-secrets
+    - quick-pr
     - recover-agent-sessions
     - resume-claude-session
     - resume-codex-session
     - resume-handoff
     - spec-first
     - spec-to-pr
+    - z-spec-to-pr
 
 - name: Install common skills to ~/.claude/skills
   copy:

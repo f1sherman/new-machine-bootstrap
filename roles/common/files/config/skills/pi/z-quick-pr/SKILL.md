@@ -1,12 +1,12 @@
 ---
-name: _spec-to-pr
+name: z-quick-pr
 description: >
   Use when a user wants a feature or change taken from rough idea through
   design, planning, implementation, verification, and pull request, and asks to
   skip clarifying questions, approvals, or execution-choice prompts.
 ---
 
-# Spec To PR
+# Quick PR
 
 Take a rough request through written spec, implementation plan, execution,
 verification, and pull request without interactive approval loops.
@@ -44,9 +44,9 @@ Create a task for each item and complete them in order:
 12. **Self-approve plan** - review the plan internally and mark it approved.
 13. **Execute plan** - choose `subagent-driven-development` automatically when available.
 14. **Verify and commit** - run required verification and commit completed work.
-15. **Create pull request** - invoke `_pull-request`.
+15. **Create pull request** - invoke `pull-request`.
 
-The terminal state is an open or updated pull request handled by `_pull-request`.
+The terminal state is an open or updated pull request handled by `pull-request`.
 
 ## Process
 
@@ -183,7 +183,7 @@ invoke `writing-plans` immediately.
 Invoke `writing-plans` with this explicit continuation rule:
 
 > Do not offer the execution choice from `writing-plans`. After the plan is
-> written and self-reviewed, return directly to `_spec-to-pr` so it can
+> written and self-reviewed, return directly to `z-quick-pr` so it can
 > self-approve the plan and continue execution.
 
 ### Self-Approve The Plan
@@ -215,6 +215,6 @@ TDD, keep plan checkboxes current, run verification, and commit completed work.
 
 ### Pull Request
 
-After verification passes and work is complete, invoke `_pull-request` from the
+After verification passes and work is complete, invoke `pull-request` from the
 implementation worktree. Let that shared workflow review, push, create or update
 the pull request, post proof, and monitor the PR to its terminal state.

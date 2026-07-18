@@ -13,7 +13,7 @@ fi
 
 skill="$(printf '%s' "$input" | jq -r '.tool_input.skill // empty' 2>/dev/null || true)"
 case "$skill" in
-  superpowers:brainstorming|superpowers:systematic-debugging|_spec-first|_spec-to-pr|_fix) ;;
+  superpowers:brainstorming|superpowers:systematic-debugging|_spec-first|_quick-pr|_fix) ;;
   *) exit 0 ;;
 esac
 
