@@ -909,12 +909,13 @@
 
     jq --arg cmd "$hook_cmd" --arg legacy "$legacy_cmd" --argjson entry "$managed_entry" '
       .hooks //= {} |
-      .hooks.PostToolUse = [(.hooks.PostToolUse // [])[] | select(.hooks | all(.command != $legacy))] |
+      .hooks.PostToolUse = ((.hooks.PostToolUse // [])
+        | map(.hooks = ((.hooks // []) | map(select(.type != "command" or .command != $legacy))))
+        | map(select((.hooks // []) | length > 0))) |
       if (.hooks.PostToolUse | length) == 0 then del(.hooks.PostToolUse) else . end |
-      .hooks.UserPromptSubmit = ([
-        (.hooks.UserPromptSubmit // [])[]
-        | select(.hooks | all(.command != $cmd))
-      ] + [$entry])
+      .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // [])
+        | map(.hooks = ((.hooks // []) | map(select(.type != "command" or .command != $cmd))))
+        | map(select((.hooks // []) | length > 0))) + [$entry])
     ' "$settings_file" > "$tmp_file"
 
     if cmp -s "$settings_file" "$tmp_file"; then
