@@ -245,7 +245,7 @@ host_tag() {
 
 main() {
   local pane_path client_tty pane_tty pane_command edge_flags host title worktree_path worktree_pid active_agent_pid
-  local info
+  local info task_state task_context
 
   info="$(pane_info)" || exit 0
   [ -n "$info" ] || exit 0
@@ -255,10 +255,20 @@ main() {
   host="$(host_tag)"
   [ -n "$host" ] || exit 0
 
+  task_state="$(read_pane_option "@task_state" 2>/dev/null || true)"
+  task_context="$(read_pane_option "@pane-label" 2>/dev/null || true)"
+  if [ -n "$task_state" ] && [ -n "$task_context" ]; then
+    title="$task_context"
+    case "$title" in
+      *" | "*) ;;
+      *) title="$title | $host" ;;
+    esac
+  fi
+
   worktree_path="$(read_pane_option "@agent_worktree_path" 2>/dev/null || true)"
   worktree_pid="$(read_pane_option "@agent_worktree_pid" 2>/dev/null || true)"
 
-  if [ -n "$worktree_path" ] && is_valid_explicit_path "$worktree_path"; then
+  if [ -z "${title:-}" ] && [ -n "$worktree_path" ] && is_valid_explicit_path "$worktree_path"; then
     if [ -z "$worktree_pid" ]; then
       title="$(formatted_explicit_remote_label "$worktree_path" "$host" 2>/dev/null || true)"
     else

@@ -126,15 +126,16 @@ if File.exist?(HELPER) && File.executable?(HELPER)
   end
 
   File.write(File.join(tmpdir, "calls.log"), "")
-  _out, err, status, log = run_helper(tmpdir, "%93", title: "repo", structured: true)
-  assert("unstructured title clears previous structured marker", err) do
-    status.success? && log.include?("tmux\tset-option\t-p\t-q\t-u\t-t\t%93\t@pane-title-structured")
+  _out, err, status, log = run_helper(tmpdir, "%93", title: "dev-host", structured: true)
+  assert("degraded title preserves previous structured marker", err) do
+    status.success? &&
+      !log.include?("tmux\tset-option\t-p\t-q\t-u\t-t\t%93\t@pane-title-structured")
   end
-    assert("unstructured title refreshes labels without remote title sync", log) do
-      log.include?("tmux-sync-pane-border-status\t%93") &&
-        log.include?("tmux-update-pane-label\t%93") &&
-        !log.include?("tmux-sync-remote-title\t%93")
-    end
+  assert("degraded title cannot overwrite structured task labels", log) do
+    !log.include?("tmux-sync-remote-title\t%93") &&
+      !log.include?("tmux-sync-pane-border-status\t%93") &&
+      !log.include?("tmux-update-pane-label\t%93")
+  end
   end
 end
 

@@ -22,9 +22,9 @@ case "$title" in
     tmux-update-pane-label "$pane_id"
     ;;
   *)
+    # Foreground programs can transiently degrade a structured remote title to
+    # a bare host or spinner. Keep the last structured task identity sticky;
+    # command/focus hooks handle the eventual transition away from SSH.
     [ -n "$structured" ] || exit 0
-    tmux set-option -p -q -u -t "$pane_id" @pane-title-structured
-    tmux-sync-pane-border-status "$pane_id"
-    tmux-update-pane-label "$pane_id"
     ;;
 esac

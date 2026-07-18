@@ -11,6 +11,7 @@ AGENT_WORKTREE="$BIN_DIR/tmux-agent-worktree"
 WINDOW_LABEL="$BIN_DIR/tmux-window-label"
 PANE_LINK="$BIN_DIR/tmux-pane-link"
 REMOTE_TITLE="$BIN_DIR/tmux-remote-title"
+SYNC_REMOTE_TITLE="$BIN_DIR/tmux-sync-remote-title"
 
 TMPROOT="$(mktemp -d)"
 
@@ -177,6 +178,26 @@ assert_equals "$remote_vim_title" "label-repo | remote-host" "remote title suppr
 remote_suppressed_title="$(TMUX_PANE= TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=zsh TMUX_REMOTE_TITLE_EDGE_FLAGS=hj TMUX_REMOTE_TITLE_SUPPRESS_EDGE=1 "$REMOTE_TITLE" print)"
 assert_equals "$remote_suppressed_title" "label-repo | remote-host" "remote title can suppress stale edge marker while commands run"
 
+remote_task_tmux_dir="$TMPROOT/remote-task-tmux-bin"
+mkdir -p "$remote_task_tmux_dir"
+cat >"$remote_task_tmux_dir/tmux" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  display-message)
+    printf '/tmp/project\t/dev/null\t/dev/null\tzsh\t\n'
+    ;;
+  show-options)
+    case "${*: -1}" in
+      @task_state) printf 'active' ;;
+      @pane-label) printf '(feature/durable-label) project | remote-host' ;;
+    esac
+    ;;
+esac
+STUB
+chmod +x "$remote_task_tmux_dir/tmux"
+remote_task_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
+assert_equals "$remote_task_title" "(feature/durable-label) project | remote-host" "remote title publishes contextual task label"
+
 zsh_hook_home="$TMPROOT/zsh-hook-home"
 zsh_hook_log="$TMPROOT/zsh-hook.log"
 zsh_hook_bin="$TMPROOT/zsh-hook-bin"
@@ -342,20 +363,69 @@ window_log="$TMPROOT/window-label.log"
 mkdir -p "$fake_tmux_dir"
 cat >"$fake_tmux_dir/tmux" <<'STUB'
 #!/usr/bin/env bash
-if [ "$1" = "display-message" ]; then
-  printf '@1\t1\told-window\t/dev/null\t/tmp/project\tssh\t(feature/remote) project | remote-host [nmb-edge=hjl]\t%%1\n'
-  exit 0
-fi
-if [ "$1" = "rename-window" ]; then
-  printf '%s\n' "$*" >> "$TMUX_WINDOW_LABEL_LOG"
-  exit 0
-fi
-exit 0
+case "$1" in
+  display-message)
+    printf '@1\t1\t%s\t/dev/null\t/tmp/project\t%s\t%s\t%%1\n' \
+      "${TMUX_TEST_WINDOW_NAME:-old-window}" "${TMUX_TEST_COMMAND:-ssh}" "${TMUX_TEST_TITLE:-}"
+    ;;
+  show-options)
+    case "${*: -1}" in
+      @window-label) printf '%s' "${TMUX_TEST_WINDOW_LABEL:-}" ;;
+    esac
+    ;;
+  rename-window)
+    printf '%s\n' "$*" >> "$TMUX_WINDOW_LABEL_LOG"
+    ;;
+esac
 STUB
 chmod +x "$fake_tmux_dir/tmux"
 
+TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-edge=hjl]' \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
-assert_file_contains "$window_log" "rename-window -t @1 (feature/remote) project" "window labels strip hostname from structured labels"
+assert_file_contains "$window_log" "rename-window -t @1 feature/remote" "outer window extracts active remote branch"
+
+: > "$window_log"
+TMUX_TEST_TITLE='✓ (feature/remote) project | remote-host' \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" "rename-window -t @1 ✓ feature/remote" "outer window extracts completed remote branch"
+
+: > "$window_log"
+TMUX_TEST_TITLE='~ tmux label persistence · project | remote-host' \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" "rename-window -t @1 ~ tmux label persistence" "outer window extracts provisional remote subject"
+
+: > "$window_log"
+TMUX_TEST_COMMAND=zsh TMUX_TEST_WINDOW_LABEL='feature/durable-label' \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" "rename-window -t @1 feature/durable-label" "local window uses task-only cached label unchanged"
+
+sync_remote_log="$TMPROOT/sync-remote-title.log"
+sync_remote_tmux_dir="$TMPROOT/sync-remote-title-bin"
+mkdir -p "$sync_remote_tmux_dir"
+cat >"$sync_remote_tmux_dir/tmux" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  display-message)
+    printf '@9\t1\tssh\t/dev/null\t%s\t%s\n' "$TMUX_TEST_TITLE" "${TMUX_TEST_WINDOW_NAME:-old-window}"
+    ;;
+  rename-window)
+    printf '%s\n' "$*" >> "$TMUX_SYNC_REMOTE_LOG"
+    ;;
+esac
+STUB
+chmod +x "$sync_remote_tmux_dir/tmux"
+
+for task_case in \
+  'feature/remote|(feature/remote) project | remote-host' \
+  '✓ feature/remote|✓ (feature/remote) project | remote-host' \
+  '~ tmux label persistence|~ tmux label persistence · project | remote-host'; do
+  expected="${task_case%%|*}"
+  title="${task_case#*|}"
+  : > "$sync_remote_log"
+  TMUX_TEST_TITLE="$title" TMUX_SYNC_REMOTE_LOG="$sync_remote_log" \
+    PATH="$sync_remote_tmux_dir:$PATH" "$SYNC_REMOTE_TITLE" %9
+  assert_file_contains "$sync_remote_log" "rename-window -t @9 $expected" "remote sync extracts task-only label: $expected"
+done
 
 remote_window_label_log="$TMPROOT/window-label-remote-priority.log"
 remote_window_label_tmux_dir="$TMPROOT/window-label-remote-priority-bin"
@@ -494,6 +564,12 @@ assert_file_not_contains "$bash_repo_end_wrapper" "worktree_sync_tmux_state" "re
 
 assert_link_before_label "$REPO_ROOT/roles/macos/templates/dotfiles/tmux.conf" "macOS pane border renders PR link before label"
 assert_link_before_label "$REPO_ROOT/roles/linux/files/dotfiles/tmux.conf" "Linux pane border renders PR link before label"
+for config in \
+  "$REPO_ROOT/roles/macos/templates/dotfiles/tmux.conf" \
+  "$REPO_ROOT/roles/linux/files/dotfiles/tmux.conf"; do
+  assert_file_contains "$config" '#{@pane-label}' "$config bottom bar consumes cached pane label"
+  assert_file_contains "$config" '#{window_name}' "$config top bar consumes native window name"
+done
 
 leaked_git_ai_daemons="$(tmproot_git_ai_daemon_pids | tr '\n' ' ' | sed 's/ *$//')"
 assert_equals "$leaked_git_ai_daemons" "" "no git-ai daemon leaks into the test HOME"
