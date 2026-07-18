@@ -151,6 +151,13 @@ assert_file_contains "$TMPROOT/title.log" "publish" "provisional refresh publish
 "$SUBJECT" set "auth · billing"
 assert_file_eq "$state_dir/%1.@window-label" "~ auth · billing" "local provisional top preserves middle-dot separator"
 assert_file_eq "$state_dir/%1.@pane-label" "~ auth · billing · repo | host-a" "local provisional bottom preserves middle-dot separator"
+printf '1' >"$state_dir/%1.@pane-title-structured"
+printf '~ auth · billing · repo | host-a' >"$state_dir/%1.@pane-label"
+rm -f "$state_dir/%1.@task_context"
+"$STATE" refresh
+"$STATE" refresh
+assert_file_eq "$state_dir/%1.@task_context" "repo | host-a" "repeated structured refresh keeps canonical provisional context"
+assert_file_eq "$state_dir/%1.@pane-label" "~ auth · billing · repo | host-a" "repeated structured refresh does not duplicate provisional subject"
 "$SUBJECT" set "auth | billing"
 assert_file_eq "$state_dir/%1.@window-label" "~ auth | billing" "local provisional top preserves pipe separator"
 assert_file_eq "$state_dir/%1.@pane-label" "~ auth | billing · repo | host-a" "local provisional bottom preserves pipe separator"

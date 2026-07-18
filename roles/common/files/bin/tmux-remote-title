@@ -243,9 +243,25 @@ host_tag() {
   fi
 }
 
+managed_task_title() {
+  local task_label="$1" task_state="$2" task_context="$3" host="$4" context
+  [ -n "$task_label" ] && [ -n "$task_context" ] || return 1
+  context="$task_context"
+  if [ "${context##* | }" != "$host" ]; then
+    context="$context | $host"
+  fi
+
+  case "$task_state" in
+    provisional) printf '~ %s · %s\n' "$task_label" "$context" ;;
+    active) printf '(%s) %s\n' "$task_label" "$context" ;;
+    completed) printf '✓ (%s) %s\n' "$task_label" "$context" ;;
+    *) return 1 ;;
+  esac
+}
+
 main() {
   local pane_path client_tty pane_tty pane_command edge_flags host title worktree_path worktree_pid active_agent_pid
-  local info task_state task_context
+  local info task_label task_state task_context
 
   info="$(pane_info)" || exit 0
   [ -n "$info" ] || exit 0
@@ -255,14 +271,11 @@ main() {
   host="$(host_tag)"
   [ -n "$host" ] || exit 0
 
+  task_label="$(read_pane_option "@task_label" 2>/dev/null || true)"
   task_state="$(read_pane_option "@task_state" 2>/dev/null || true)"
-  task_context="$(read_pane_option "@pane-label" 2>/dev/null || true)"
-  if [ -n "$task_state" ] && [ -n "$task_context" ]; then
-    title="$task_context"
-    case "$title" in
-      *" | "*) ;;
-      *) title="$title | $host" ;;
-    esac
+  task_context="$(read_pane_option "@task_context" 2>/dev/null || true)"
+  if [ -n "$task_label" ] && [ -n "$task_state" ] && [ -n "$task_context" ]; then
+    title="$(managed_task_title "$task_label" "$task_state" "$task_context" "$host" 2>/dev/null || true)"
   fi
 
   worktree_path="$(read_pane_option "@agent_worktree_path" 2>/dev/null || true)"
