@@ -117,6 +117,35 @@ CALLBACK
   chmod +x "$callback_dir/10-log.sh"
 }
 
+install_failing_callback() {
+  local home_dir="$1"
+  local callback_dir="$home_dir/.local/bin/repo-end.d"
+
+  mkdir -p "$callback_dir"
+  cat >"$callback_dir/10-fail.sh" <<'CALLBACK'
+#!/usr/bin/env bash
+printf 'intentional post-cleanup callback failure\n' >&2
+exit 1
+CALLBACK
+  chmod +x "$callback_dir/10-fail.sh"
+}
+
+reject_remote_branch_deletion() {
+  local origin="$1" branch="$2"
+
+  mkdir -p "$origin/hooks"
+  cat >"$origin/hooks/pre-receive" <<HOOK
+#!/usr/bin/env bash
+while read -r _old_sha new_sha ref; do
+  if [ "\$ref" = "refs/heads/$branch" ] && [ "\$new_sha" = "0000000000000000000000000000000000000000" ]; then
+    printf 'remote branch deletion rejected\n' >&2
+    exit 1
+  fi
+done
+HOOK
+  chmod +x "$origin/hooks/pre-receive"
+}
+
 forbid_origin_main_pushes() {
   local repo="$1"
   local hooks_dir
@@ -447,6 +476,43 @@ fi
 pass_case "repo-end branch mode deletes local branch"
 assert_file_contains "$branch_log" "--repo-dir $branch_repo --branch feature/end-branch --main-branch main --main-path $branch_repo" "repo-end branch mode invokes callbacks with context"
 assert_file_contains "$tmux_log" "complete" "repo-end completes tmux task state after successful cleanup"
+
+rm -f "$tmux_log"
+create_remote_repo end-callback-failure
+callback_failure_repo="$CREATED_REPO"
+git -C "$callback_failure_repo" checkout -q -b feature/callback-failure
+commit_file "$callback_failure_repo" callback.txt "callback" "callback change"
+git -C "$callback_failure_repo" checkout -q main
+git -C "$callback_failure_repo" merge --ff-only --quiet feature/callback-failure
+git -C "$callback_failure_repo" push -q origin main
+git -C "$callback_failure_repo" checkout -q feature/callback-failure
+callback_failure_home="$TMPROOT/end-callback-failure-home"
+install_failing_callback "$callback_failure_home"
+if (cd "$callback_failure_repo" && HOME="$callback_failure_home" PATH="$tmux_stub_bin:$PATH" TMUX=1 TMUX_PANE="%1" REPO_END_TMUX_LOG="$tmux_log" "$REPO_END_SCRIPT" --print-path >"$TMPROOT/end-callback-failure.out" 2>"$TMPROOT/end-callback-failure.err"); then
+  fail_case "repo-end surfaces post-cleanup callback failure" "repo-end unexpectedly succeeded"
+fi
+assert_file_contains "$TMPROOT/end-callback-failure.err" "repo-end callback failed" "repo-end reports post-cleanup callback failure"
+assert_no_file "$tmux_log" "repo-end callback failure does not complete tmux task state"
+
+rm -f "$tmux_log"
+create_remote_repo end-remote-delete-failure
+remote_delete_origin="$CREATED_ORIGIN"
+remote_delete_repo="$CREATED_REPO"
+git -C "$remote_delete_repo" checkout -q -b feature/remote-delete-failure
+commit_file "$remote_delete_repo" remote-delete.txt "remote delete" "remote delete change"
+git -C "$remote_delete_repo" push -q -u origin feature/remote-delete-failure
+git -C "$remote_delete_repo" checkout -q main
+git -C "$remote_delete_repo" merge --ff-only --quiet feature/remote-delete-failure
+git -C "$remote_delete_repo" push -q origin main
+git -C "$remote_delete_repo" checkout -q feature/remote-delete-failure
+reject_remote_branch_deletion "$remote_delete_origin" feature/remote-delete-failure
+remote_delete_home="$TMPROOT/end-remote-delete-failure-home"
+mkdir -p "$remote_delete_home"
+if (cd "$remote_delete_repo" && HOME="$remote_delete_home" PATH="$tmux_stub_bin:$PATH" TMUX=1 TMUX_PANE="%1" REPO_END_TMUX_LOG="$tmux_log" "$REPO_END_SCRIPT" --print-path >"$TMPROOT/end-remote-delete-failure.out" 2>"$TMPROOT/end-remote-delete-failure.err"); then
+  fail_case "repo-end surfaces remote branch deletion failure" "repo-end unexpectedly succeeded"
+fi
+assert_file_contains "$TMPROOT/end-remote-delete-failure.err" "failed to delete remote branch feature/remote-delete-failure" "repo-end reports remote branch deletion failure"
+assert_no_file "$tmux_log" "repo-end remote deletion failure does not complete tmux task state"
 
 create_remote_repo end-worktree-unmerged
 worktree_main="$CREATED_REPO"
