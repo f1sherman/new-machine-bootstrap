@@ -39,14 +39,15 @@ assert_eq() {
 
 "$STATE" set-provisional "fix pi review skill conflict"
 printf '(feature/fix-review) new-machine-bootstrap | dev-host' >"$(state_file @pane-label)"
+printf '1' >"$(state_file @pane-title-structured)"
 printf '/tmp/removed-worktree' >"$(state_file @agent_worktree_path)"
 "$STATE" complete-worktree
 assert_eq "✓ fix pi review skill conflict" "$(read_state @window-label)" "completed provisional identity keeps leading check"
-assert_eq "✓ (feature/fix-review) new-machine-bootstrap | dev-host" "$(read_state @pane-label)" "completed identity retains previous contextual pane label"
+assert_eq "✓ (fix pi review skill conflict) new-machine-bootstrap | dev-host" "$(read_state @pane-label)" "completed identity renders stored task with retained context"
 
 "$STATE" complete-worktree
 assert_eq "✓ fix pi review skill conflict" "$(read_state @window-label)" "repeated completion does not duplicate top marker"
-assert_eq "✓ (feature/fix-review) new-machine-bootstrap | dev-host" "$(read_state @pane-label)" "repeated completion does not duplicate bottom marker"
+assert_eq "✓ (fix pi review skill conflict) new-machine-bootstrap | dev-host" "$(read_state @pane-label)" "repeated completion does not duplicate bottom marker"
 
 "$STATE" set-provisional "new task"
 assert_eq "~ new task" "$(read_state @window-label)" "new provisional subject replaces completed identity"

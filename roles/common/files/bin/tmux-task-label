@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+truncate_label() {
+  local label="$1"
+  if command -v python3 >/dev/null 2>&1; then
+    TMUX_TASK_LABEL="$label" python3 - <<'PY'
+import os
+import unicodedata
+
+label = os.environ["TMUX_TASK_LABEL"]
+
+
+def is_extend(character):
+    codepoint = ord(character)
+    return (
+        unicodedata.combining(character)
+        or unicodedata.category(character) in {"Me", "Mn"}
+        or 0xFE00 <= codepoint <= 0xFE0F
+        or 0xE0100 <= codepoint <= 0xE01EF
+        or 0x1F3FB <= codepoint <= 0x1F3FF
+    )
+
+
+def grapheme_clusters(text):
+    index = 0
+    while index < len(text):
+        start = index
+        first = ord(text[index])
+        index += 1
+        if 0x1F1E6 <= first <= 0x1F1FF and index < len(text) and 0x1F1E6 <= ord(text[index]) <= 0x1F1FF:
+            index += 1
+        while index < len(text) and is_extend(text[index]):
+            index += 1
+        while index < len(text) and text[index] == "\u200d":
+            index += 1
+            if index < len(text):
+                index += 1
+                while index < len(text) and is_extend(text[index]):
+                    index += 1
+        yield text[start:index]
+
+
+def cluster_width(cluster):
+    visible = [character for character in cluster if character != "\u200d" and not is_extend(character)]
+    if not visible:
+        return 0
+    codepoints = [ord(character) for character in cluster]
+    if 0xFE0F in codepoints or 0x200D in codepoints:
+        return 2
+    if len(visible) == 2 and all(0x1F1E6 <= ord(character) <= 0x1F1FF for character in visible):
+        return 2
+    return max(2 if unicodedata.east_asian_width(character) in {"F", "W"} else 1 for character in visible)
+
+
+clusters = list(grapheme_clusters(label))
+if sum(cluster_width(cluster) for cluster in clusters) <= 40:
+    print(label)
+else:
+    width = 0
+    output = []
+    for cluster in clusters:
+        cluster_cells = cluster_width(cluster)
+        if width + cluster_cells > 39:
+            break
+        output.append(cluster)
+        width += cluster_cells
+    print("".join(output) + "…")
+PY
+    return 0
+  fi
+
+  if (( ${#label} > 40 )); then
+    printf '%s…\n' "${label:0:39}"
+  else
+    printf '%s\n' "$label"
+  fi
+}
+
+strip_edge_marker() {
+  printf '%s\n' "${1% \[nmb-edge=*]}"
+}
+
+structured_remote_label() {
+  local title nested_title prefix
+  title="$(strip_edge_marker "$1")"
+  case "$title" in
+    *" | "*) ;;
+    *) return 1 ;;
+  esac
+
+  nested_title="${title#*: }"
+  prefix="${title%%: *}"
+  if [[ "$nested_title" != "$title" ]] && {
+    [[ "$prefix" =~ ^[0-9]+$ ]] ||
+      [[ "$nested_title" == \(* ]] ||
+      [[ "$nested_title" == "✓ ("* ]] ||
+      [[ "$nested_title" == "~ "* ]]
+  }; then
+    case "$nested_title" in
+      *" | "*) printf '%s\n' "$nested_title"; return 0 ;;
+    esac
+  fi
+  printf '%s\n' "$title"
+}
+
+extract_remote_task() {
+  local label local_label marker="" branch
+  label="$(structured_remote_label "$1")" || return 1
+  local_label="${label%% | *}"
+
+  case "$local_label" in
+    "~ "*" · "*) truncate_label "${local_label%% · *}"; return 0 ;;
+    "✓ "*) marker="✓ "; local_label="${local_label#✓ }" ;;
+  esac
+
+  if [[ "$local_label" =~ ^\((.*)\)\ (.+)$ ]]; then
+    branch="${BASH_REMATCH[1]}"
+    [[ -n "$branch" ]] || return 1
+    truncate_label "${marker}${branch}"
+    return 0
+  fi
+  return 1
+}
+
+case "${1:-}" in
+  truncate)
+    shift
+    truncate_label "$*"
+    ;;
+  extract-remote)
+    shift
+    extract_remote_task "$*"
+    ;;
+  *)
+    printf 'Usage: tmux-task-label truncate <label>|extract-remote <structured-title>\n' >&2
+    exit 2
+    ;;
+esac

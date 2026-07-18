@@ -3,6 +3,9 @@ set -euo pipefail
 
 pane_id="${1:-${TMUX_PANE:-}}"
 [ -n "$pane_id" ] || exit 0
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+task_label_helper="${TMUX_TASK_LABEL_BIN:-$script_dir/tmux-task-label}"
+[ -x "$task_label_helper" ] || task_label_helper="${HOME:-}/.local/bin/tmux-task-label"
 
 pane_info="$(tmux display-message -p -t "$pane_id" '#{window_id}	#{pane_active}	#{pane_current_command}	#{pane_tty}	#{pane_title}	#{window_name}' 2>/dev/null || true)"
 [ -n "$pane_info" ] || exit 0
@@ -18,60 +21,9 @@ case "$pane_current_command" in
     ;;
 esac
 
-structured_remote_label() {
-  local title="${1:-}" nested_title prefix
-
-  title="${title% \[nmb-edge=*]}"
-  case "$title" in
-    *" | "*)
-      nested_title="${title#*: }"
-      prefix="${title%%: *}"
-      if [ "$nested_title" != "$title" ] && {
-        [[ "$prefix" =~ ^[0-9]+$ ]] ||
-          [[ "$nested_title" == \(* ]] ||
-          [[ "$nested_title" == "✓ ("* ]] ||
-          [[ "$nested_title" == "~ "* ]]
-      }; then
-        case "$nested_title" in
-          *" | "*)
-            printf '%s\n' "$nested_title"
-            return 0
-            ;;
-        esac
-      fi
-      printf '%s\n' "$title"
-      ;;
-    *) return 1 ;;
-  esac
-}
-
 task_from_remote_label() {
-  local label local_label marker="" branch
-  label="$(structured_remote_label "${1:-}" 2>/dev/null || true)"
-  [ -n "$label" ] || return 1
-  local_label="${label%% | *}"
-
-  case "$local_label" in
-    "~ "*" · "*)
-      printf '%s\n' "${local_label%% · *}"
-      return 0
-      ;;
-    "✓ "*)
-      marker="✓ "
-      local_label="${local_label#✓ }"
-      ;;
-  esac
-
-  case "$local_label" in
-    \(*\)*)
-      branch="${local_label#(}"
-      branch="${branch%%)*}"
-      branch="${branch%% *}"
-      [ -n "$branch" ] || return 1
-      printf '%s%s\n' "$marker" "$branch"
-      ;;
-    *) return 1 ;;
-  esac
+  [ -x "$task_label_helper" ] || return 1
+  "$task_label_helper" extract-remote "${1:-}"
 }
 
 pane_title="$(task_from_remote_label "$pane_title" 2>/dev/null || true)"
