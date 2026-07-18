@@ -42,8 +42,7 @@ sanitize_subject() {
   printf '%s' "$*" \
     | tr '\r\n\t' '   ' \
     | tr -d '\000-\010\013\014\016-\037\177' \
-    | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//' \
-    | cut -c 1-512
+    | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//'
 }
 
 clear_obsolete_options() {
@@ -118,22 +117,61 @@ import unicodedata
 
 label = os.environ["TMUX_TASK_LABEL"]
 
-def cell_width(character):
-    if unicodedata.combining(character) or unicodedata.category(character) in {"Cf", "Me", "Mn"}:
-        return 0
-    return 2 if unicodedata.east_asian_width(character) in {"F", "W"} else 1
 
-if sum(cell_width(character) for character in label) <= 40:
+def is_extend(character):
+    codepoint = ord(character)
+    return (
+        unicodedata.combining(character)
+        or unicodedata.category(character) in {"Me", "Mn"}
+        or 0xFE00 <= codepoint <= 0xFE0F
+        or 0xE0100 <= codepoint <= 0xE01EF
+        or 0x1F3FB <= codepoint <= 0x1F3FF
+    )
+
+
+def grapheme_clusters(text):
+    index = 0
+    while index < len(text):
+        start = index
+        first = ord(text[index])
+        index += 1
+        if 0x1F1E6 <= first <= 0x1F1FF and index < len(text) and 0x1F1E6 <= ord(text[index]) <= 0x1F1FF:
+            index += 1
+        while index < len(text) and is_extend(text[index]):
+            index += 1
+        while index < len(text) and text[index] == "\u200d":
+            index += 1
+            if index < len(text):
+                index += 1
+                while index < len(text) and is_extend(text[index]):
+                    index += 1
+        yield text[start:index]
+
+
+def cluster_width(cluster):
+    visible = [character for character in cluster if character != "\u200d" and not is_extend(character)]
+    if not visible:
+        return 0
+    codepoints = [ord(character) for character in cluster]
+    if 0xFE0F in codepoints or 0x200D in codepoints:
+        return 2
+    if len(visible) == 2 and all(0x1F1E6 <= ord(character) <= 0x1F1FF for character in visible):
+        return 2
+    return max(2 if unicodedata.east_asian_width(character) in {"F", "W"} else 1 for character in visible)
+
+
+clusters = list(grapheme_clusters(label))
+if sum(cluster_width(cluster) for cluster in clusters) <= 40:
     print(label)
 else:
     width = 0
     output = []
-    for character in label:
-        character_width = cell_width(character)
-        if width + character_width > 39:
+    for cluster in clusters:
+        cluster_cells = cluster_width(cluster)
+        if width + cluster_cells > 39:
             break
-        output.append(character)
-        width += character_width
+        output.append(cluster)
+        width += cluster_cells
     print("".join(output) + "…")
 PY
     return 0
@@ -263,6 +301,7 @@ case "$cmd" in
   set-provisional)
     subject="$(sanitize_subject "$*")"
     [[ -n "$subject" ]] || exit 0
+    (( ${#subject} <= 512 )) || exit 0
     current_source="$(get_pane_option "$pane" @task_source 2>/dev/null || true)"
     current_state="$(get_pane_option "$pane" @task_state 2>/dev/null || true)"
     [[ "$current_source" != "branch" || "$current_state" != "active" ]] || exit 0
