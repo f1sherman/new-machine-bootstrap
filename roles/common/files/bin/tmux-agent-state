@@ -43,7 +43,7 @@ sanitize_subject() {
     | tr '\r\n\t' '   ' \
     | tr -d '\000-\010\013\014\016-\037\177' \
     | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//' \
-    | cut -c 1-80
+    | cut -c 1-512
 }
 
 clear_obsolete_options() {
@@ -111,6 +111,34 @@ context_suffix() {
 
 truncate_top_label() {
   local label="$1"
+  if command -v python3 >/dev/null 2>&1; then
+    TMUX_TASK_LABEL="$label" python3 - <<'PY'
+import os
+import unicodedata
+
+label = os.environ["TMUX_TASK_LABEL"]
+
+def cell_width(character):
+    if unicodedata.combining(character) or unicodedata.category(character) in {"Cf", "Me", "Mn"}:
+        return 0
+    return 2 if unicodedata.east_asian_width(character) in {"F", "W"} else 1
+
+if sum(cell_width(character) for character in label) <= 40:
+    print(label)
+else:
+    width = 0
+    output = []
+    for character in label:
+        character_width = cell_width(character)
+        if width + character_width > 39:
+            break
+        output.append(character)
+        width += character_width
+    print("".join(output) + "…")
+PY
+    return 0
+  fi
+
   if (( ${#label} > 40 )); then
     printf '%s…\n' "${label:0:39}"
   else
@@ -119,10 +147,8 @@ truncate_top_label() {
 }
 
 render() {
-  local pane="$1" kind task_label task_source task_state existing live context pane_label window_label
-  kind="$(get_pane_option "$pane" @agent_kind 2>/dev/null || true)"
+  local pane="$1" task_label task_state existing live context pane_label window_label
   task_label="$(get_pane_option "$pane" @task_label 2>/dev/null || true)"
-  task_source="$(get_pane_option "$pane" @task_source 2>/dev/null || true)"
   task_state="$(get_pane_option "$pane" @task_state 2>/dev/null || true)"
   existing="$(get_pane_option "$pane" @pane-label 2>/dev/null || true)"
   live="$(live_path_label "$pane" 2>/dev/null || true)"
@@ -156,11 +182,7 @@ render() {
   else
     context="$(context_suffix "$context")"
     pane_label="$context"
-    if [[ -n "$kind" ]]; then
-      window_label="$kind ${context%% | *}"
-    else
-      window_label="${context%% | *}"
-    fi
+    window_label="${context%% | *}"
   fi
 
   set_pane_option "$pane" @pane-label "$pane_label"
@@ -180,10 +202,6 @@ default_branch_for_path() {
   branch="${branch#origin/}"
   if [[ -n "$branch" ]]; then
     printf '%s\n' "$branch"
-  elif git -C "$path" show-ref --verify --quiet refs/heads/main; then
-    printf 'main\n'
-  elif git -C "$path" show-ref --verify --quiet refs/heads/master; then
-    printf 'master\n'
   fi
 }
 
@@ -194,7 +212,11 @@ activate_branch() {
   branch="$(git -C "$path" branch --show-current 2>/dev/null || true)"
   [[ -n "$branch" ]] || return 0
   default_branch="$(default_branch_for_path "$path")"
-  [[ "$branch" != "$default_branch" && "$branch" != "main" && "$branch" != "master" ]] || return 0
+  if [[ -n "$default_branch" ]]; then
+    [[ "$branch" != "$default_branch" ]] || return 0
+  else
+    [[ "$branch" != "main" && "$branch" != "master" ]] || return 0
+  fi
 
   set_pane_option "$pane" @agent_worktree_path "$path"
   set_task "$pane" "$branch" branch active
@@ -241,6 +263,9 @@ case "$cmd" in
   set-provisional)
     subject="$(sanitize_subject "$*")"
     [[ -n "$subject" ]] || exit 0
+    current_source="$(get_pane_option "$pane" @task_source 2>/dev/null || true)"
+    current_state="$(get_pane_option "$pane" @task_state 2>/dev/null || true)"
+    [[ "$current_source" != "branch" || "$current_state" != "active" ]] || exit 0
     set_task "$pane" "$subject" agent provisional
     refresh "$pane"
     ;;
