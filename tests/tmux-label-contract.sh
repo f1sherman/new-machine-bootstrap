@@ -12,6 +12,7 @@ WINDOW_LABEL="$BIN_DIR/tmux-window-label"
 PANE_LINK="$BIN_DIR/tmux-pane-link"
 REMOTE_TITLE="$BIN_DIR/tmux-remote-title"
 SYNC_REMOTE_TITLE="$BIN_DIR/tmux-sync-remote-title"
+UPDATE_PANE_LABEL="$BIN_DIR/tmux-update-pane-label"
 
 TMPROOT="$(mktemp -d)"
 
@@ -426,6 +427,88 @@ for task_case in \
     PATH="$sync_remote_tmux_dir:$PATH" "$SYNC_REMOTE_TITLE" %9
   assert_file_contains "$sync_remote_log" "rename-window -t @9 $expected" "remote sync extracts task-only label: $expected"
 done
+
+focus_state="$TMPROOT/focus-remote-state"
+focus_tmux_dir="$TMPROOT/focus-remote-bin"
+mkdir -p "$focus_state" "$focus_tmux_dir"
+printf '%s' '(feature/remote) project | dev-host' > "$focus_state/pane-label"
+printf '%s' '1' > "$focus_state/structured"
+printf '%s' 'feature/remote' > "$focus_state/window-name"
+printf '%s' 'dev-host' > "$focus_state/pane-title"
+printf '%s' 'ssh' > "$focus_state/pane-command"
+cat >"$focus_tmux_dir/tmux" <<'STUB'
+#!/usr/bin/env bash
+state="$TMUX_FOCUS_STATE"
+case "$1" in
+  display-message)
+    format="${*: -1}"
+    case "$format" in
+      '#{window_id}'$'\t'*)
+        printf '@12\t1\t%s\t/dev/null\t/tmp/local-project\t%s\t%s\t%%12\n' \
+          "$(cat "$state/window-name")" "$(cat "$state/pane-command")" "$(cat "$state/pane-title")"
+        ;;
+      '#{window_id}') printf '@12\n' ;;
+      '#{pane_tty}|#{pane_current_path}|#{pane_current_command}|#{pane_title}')
+        printf '/dev/null|/tmp/local-project|%s|%s\n' \
+          "$(cat "$state/pane-command")" "$(cat "$state/pane-title")"
+        ;;
+      '#{pane_tty}|#{pane_current_path}|#{pane_current_command}')
+        printf '/dev/null|/tmp/local-project|%s\n' "$(cat "$state/pane-command")"
+        ;;
+      *pane_title*window_name*)
+        printf '%s\t%s\n' "$(cat "$state/pane-title")" "$(cat "$state/window-name")"
+        ;;
+    esac
+    ;;
+  show-options)
+    key="${*: -1}"
+    case "$key" in
+      @pane-title-structured) cat "$state/structured" ;;
+      @pane-label) cat "$state/pane-label" ;;
+      @window-label|@agent_worktree_path) ;;
+    esac
+    ;;
+  set-option)
+    case "$*" in
+      *' -u '*)
+        key="${*: -1}"
+        [ "$key" != '@pane-title-structured' ] || rm -f "$state/structured"
+        ;;
+      *)
+        key="${*: -2:1}"
+        value="${*: -1}"
+        case "$key" in
+          @pane-label) printf '%s' "$value" > "$state/pane-label" ;;
+          @pane-title-structured) printf '1' > "$state/structured" ;;
+        esac
+        ;;
+    esac
+    ;;
+  rename-window)
+    printf '%s' "${*: -1}" > "$state/window-name"
+    ;;
+esac
+STUB
+chmod +x "$focus_tmux_dir/tmux"
+
+TMUX_FOCUS_STATE="$focus_state" PATH="$focus_tmux_dir:$PATH" "$WINDOW_LABEL" %12
+TMUX_FOCUS_STATE="$focus_state" PATH="$focus_tmux_dir:$PATH" "$UPDATE_PANE_LABEL" %12
+assert_equals "$(cat "$focus_state/pane-label")" '(feature/remote) project | dev-host' "focus refresh preserves contextual remote pane cache after degraded title"
+assert_equals "$(cat "$focus_state/window-name")" 'feature/remote' "focus refresh preserves task-only top after degraded title"
+assert_file_contains "$focus_state/structured" '1' "focus refresh keeps structured marker while pane remains remote"
+
+printf '%s' '(feature/new-label) project | dev-host' > "$focus_state/pane-title"
+TMUX_FOCUS_STATE="$focus_state" PATH="$focus_tmux_dir:$PATH" "$UPDATE_PANE_LABEL" %12
+assert_equals "$(cat "$focus_state/pane-label")" '(feature/new-label) project | dev-host' "valid structured update replaces contextual pane cache"
+
+printf '%s' 'zsh' > "$focus_state/pane-command"
+printf '%s' 'shell' > "$focus_state/pane-title"
+TMUX_FOCUS_STATE="$focus_state" PATH="$focus_tmux_dir:$PATH" "$UPDATE_PANE_LABEL" %12
+assert_no_file "$focus_state/structured" "leaving remote command clears structured marker"
+if [ "$(cat "$focus_state/pane-label")" = '(feature/new-label) project | dev-host' ]; then
+  fail_case "leaving remote command replaces contextual pane cache" "stale remote pane label remained"
+fi
+pass_case "leaving remote command replaces contextual pane cache"
 
 remote_window_label_log="$TMPROOT/window-label-remote-priority.log"
 remote_window_label_tmux_dir="$TMPROOT/window-label-remote-priority-bin"

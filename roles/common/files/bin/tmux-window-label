@@ -98,6 +98,13 @@ if [ -z "$label" ] && is_remote_candidate_command "$pane_current_command"; then
       label="$(task_from_remote_label "$structured_window" 2>/dev/null || true)"
     fi
   fi
+  if [ -z "$label" ]; then
+    structured_marker="$(tmux show-options -qv -p -t "$pane_id" "@pane-title-structured" 2>/dev/null || true)"
+    cached_pane_label="$(tmux show-options -qv -p -t "$pane_id" "@pane-label" 2>/dev/null || true)"
+    if [ -n "$structured_marker" ] && is_structured_remote_label "$cached_pane_label"; then
+      label="$(task_from_remote_label "$cached_pane_label" 2>/dev/null || true)"
+    fi
+  fi
 fi
 
 if [ -z "$label" ]; then
