@@ -14,10 +14,30 @@ explicit_path="$(tmux show-options -qv -p -t "$pane_id" "@agent_worktree_path" 2
 
 # One tmux call to read everything we need. Pipe-delimited so paths with
 # spaces survive the read.
-state="$(tmux display-message -p -t "$pane_id" '#{pane_tty}|#{pane_current_path}|#{pane_current_command}' 2>/dev/null)" || exit 0
+state="$(tmux display-message -p -t "$pane_id" '#{pane_tty}|#{pane_current_path}|#{pane_current_command}|#{pane_title}' 2>/dev/null)" || exit 0
 [ -n "$state" ] || exit 0
 
-IFS='|' read -r tty path cmd <<< "$state"
+IFS='|' read -r tty path cmd title <<< "$state"
+
+structured="$(tmux show-options -qv -p -t "$pane_id" "@pane-title-structured" 2>/dev/null || true)"
+if [ -n "$structured" ]; then
+  case "$cmd" in
+    ssh|gh|ruby)
+      cached_label="$(tmux show-options -qv -p -t "$pane_id" "@pane-label" 2>/dev/null || true)"
+      case "$title" in
+        *" | "*) ;;
+        *)
+          case "$cached_label" in
+            *" | "*) exit 0 ;;
+          esac
+          ;;
+      esac
+      ;;
+    *)
+      tmux set-option -p -q -u -t "$pane_id" @pane-title-structured 2>/dev/null || true
+      ;;
+  esac
+fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 labeler="${TMUX_PANE_LABEL_BIN:-$script_dir/tmux-pane-label}"
