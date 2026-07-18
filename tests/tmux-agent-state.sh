@@ -38,8 +38,43 @@ display_width() {
   TMUX_TASK_LABEL="$1" python3 - <<'PY'
 import os
 import unicodedata
+
 text = os.environ["TMUX_TASK_LABEL"]
-print(sum(0 if unicodedata.combining(c) or unicodedata.category(c) in {"Cf", "Me", "Mn"} else 2 if unicodedata.east_asian_width(c) in {"F", "W"} else 1 for c in text))
+
+def extend(c):
+    cp = ord(c)
+    return unicodedata.combining(c) or unicodedata.category(c) in {"Me", "Mn"} or 0xFE00 <= cp <= 0xFE0F or 0xE0100 <= cp <= 0xE01EF or 0x1F3FB <= cp <= 0x1F3FF
+
+def clusters(value):
+    i = 0
+    while i < len(value):
+        start = i
+        first = ord(value[i])
+        i += 1
+        if 0x1F1E6 <= first <= 0x1F1FF and i < len(value) and 0x1F1E6 <= ord(value[i]) <= 0x1F1FF:
+            i += 1
+        while i < len(value) and extend(value[i]):
+            i += 1
+        while i < len(value) and value[i] == "\u200d":
+            i += 1
+            if i < len(value):
+                i += 1
+                while i < len(value) and extend(value[i]):
+                    i += 1
+        yield value[start:i]
+
+def width(cluster):
+    visible = [c for c in cluster if c != "\u200d" and not extend(c)]
+    if not visible:
+        return 0
+    cps = [ord(c) for c in cluster]
+    if 0xFE0F in cps or 0x200D in cps:
+        return 2
+    if len(visible) == 2 and all(0x1F1E6 <= ord(c) <= 0x1F1FF for c in visible):
+        return 2
+    return max(2 if unicodedata.east_asian_width(c) in {"F", "W"} else 1 for c in visible)
+
+print(sum(width(cluster) for cluster in clusters(text)))
 PY
 }
 
@@ -204,11 +239,36 @@ assert_eq "…" "${long_label: -1}" "long top label ends with ellipsis"
 assert_file_eq "$state_dir/%1.@task_label" "$long_subject" "stored subject is not capped at 80 characters"
 assert_file_eq "$state_dir/%1.@pane-label" "~ $long_subject · repo | host-a" "bottom label retains full subject"
 
+max_subject="$(printf 'b%.0s' {1..512})"
+"$SUBJECT" set "$max_subject"
+assert_file_eq "$state_dir/%1.@task_label" "$max_subject" "512-character subject is accepted in full"
+assert_file_eq "$state_dir/%1.@pane-label" "~ $max_subject · repo | host-a" "512-character bottom identity remains full"
+max_window="$(cat "$state_dir/%1.@window-label")"
+max_pane="$(cat "$state_dir/%1.@pane-label")"
+
+oversized_subject="$(printf 'c%.0s' {1..513})"
+"$SUBJECT" set "$oversized_subject"
+assert_file_eq "$state_dir/%1.@task_label" "$max_subject" "513-character subject is rejected"
+assert_file_eq "$state_dir/%1.@task_source" "agent" "oversized subject leaves source intact"
+assert_file_eq "$state_dir/%1.@task_state" "provisional" "oversized subject leaves state intact"
+assert_file_eq "$state_dir/%1.@window-label" "$max_window" "oversized subject leaves top label intact"
+assert_file_eq "$state_dir/%1.@pane-label" "$max_pane" "oversized subject leaves bottom label intact"
+
 wide_subject="$(printf '界%.0s' {1..30})"
 "$SUBJECT" set "$wide_subject"
 wide_label="$(cat "$state_dir/%1.@window-label")"
 assert_eq "39" "$(display_width "$wide_label")" "wide-glyph top label stays within 40 cells"
 assert_eq "~ $(printf '界%.0s' {1..18})…" "$wide_label" "wide-glyph truncation is exact"
 assert_file_eq "$state_dir/%1.@task_label" "$wide_subject" "wide subject remains full in storage"
+
+combining="$(printf 'e\314\201')"
+zwj_run="$(printf '👩‍💻%.0s' {1..20})"
+emoji_subject="${combining}™️👋🏽${zwj_run}"
+"$SUBJECT" set "$emoji_subject"
+emoji_label="$(cat "$state_dir/%1.@window-label")"
+expected_emoji_label="~ ${combining}™️👋🏽$(printf '👩‍💻%.0s' {1..16})…"
+assert_eq "40" "$(display_width "$emoji_label")" "emoji sequence top label stays within 40 cells"
+assert_eq "$expected_emoji_label" "$emoji_label" "emoji presentation and ZWJ clusters are not split"
+assert_file_eq "$state_dir/%1.@task_label" "$emoji_subject" "emoji task identity remains full in storage"
 
 printf 'tmux-agent-state checks complete\n'
