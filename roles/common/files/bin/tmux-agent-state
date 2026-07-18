@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 pane_id() {
   printf '%s\n' "${TMUX_PANE:-}"
 }
@@ -65,6 +67,7 @@ clear_task_options() {
   clear_pane_option "$pane" @task_label
   clear_pane_option "$pane" @task_source
   clear_pane_option "$pane" @task_state
+  clear_pane_option "$pane" @task_context
   clear_obsolete_options "$pane"
 }
 
@@ -103,104 +106,48 @@ context_suffix() {
   label="${label#✓ }"
   case "$label" in
     "~ "*" · "*) label="${label#* · }" ;;
-    \(*\)\ *) label="${label#*) }" ;;
+    \(*\)\ *)
+      if [[ "$label" =~ ^\((.*)\)\ (.+)$ ]]; then
+        label="${BASH_REMATCH[2]}"
+      fi
+      ;;
   esac
   printf '%s\n' "$label"
 }
 
 truncate_top_label() {
-  local label="$1"
-  if command -v python3 >/dev/null 2>&1; then
-    TMUX_TASK_LABEL="$label" python3 - <<'PY'
-import os
-import unicodedata
-
-label = os.environ["TMUX_TASK_LABEL"]
-
-
-def is_extend(character):
-    codepoint = ord(character)
-    return (
-        unicodedata.combining(character)
-        or unicodedata.category(character) in {"Me", "Mn"}
-        or 0xFE00 <= codepoint <= 0xFE0F
-        or 0xE0100 <= codepoint <= 0xE01EF
-        or 0x1F3FB <= codepoint <= 0x1F3FF
-    )
-
-
-def grapheme_clusters(text):
-    index = 0
-    while index < len(text):
-        start = index
-        first = ord(text[index])
-        index += 1
-        if 0x1F1E6 <= first <= 0x1F1FF and index < len(text) and 0x1F1E6 <= ord(text[index]) <= 0x1F1FF:
-            index += 1
-        while index < len(text) and is_extend(text[index]):
-            index += 1
-        while index < len(text) and text[index] == "\u200d":
-            index += 1
-            if index < len(text):
-                index += 1
-                while index < len(text) and is_extend(text[index]):
-                    index += 1
-        yield text[start:index]
-
-
-def cluster_width(cluster):
-    visible = [character for character in cluster if character != "\u200d" and not is_extend(character)]
-    if not visible:
-        return 0
-    codepoints = [ord(character) for character in cluster]
-    if 0xFE0F in codepoints or 0x200D in codepoints:
-        return 2
-    if len(visible) == 2 and all(0x1F1E6 <= ord(character) <= 0x1F1FF for character in visible):
-        return 2
-    return max(2 if unicodedata.east_asian_width(character) in {"F", "W"} else 1 for character in visible)
-
-
-clusters = list(grapheme_clusters(label))
-if sum(cluster_width(cluster) for cluster in clusters) <= 40:
-    print(label)
-else:
-    width = 0
-    output = []
-    for cluster in clusters:
-        cluster_cells = cluster_width(cluster)
-        if width + cluster_cells > 39:
-            break
-        output.append(cluster)
-        width += cluster_cells
-    print("".join(output) + "…")
-PY
-    return 0
-  fi
-
-  if (( ${#label} > 40 )); then
-    printf '%s…\n' "${label:0:39}"
-  else
-    printf '%s\n' "$label"
-  fi
+  local helper
+  helper="${TMUX_TASK_LABEL_BIN:-$script_dir/tmux-task-label}"
+  [[ -x "$helper" ]] || helper="${HOME:-}/.local/bin/tmux-task-label"
+  "$helper" truncate "$1"
 }
 
 render() {
-  local pane="$1" task_label task_state existing live context pane_label window_label
+  local pane="$1" task_label task_state task_context structured existing live context pane_label window_label
   task_label="$(get_pane_option "$pane" @task_label 2>/dev/null || true)"
   task_state="$(get_pane_option "$pane" @task_state 2>/dev/null || true)"
+  task_context="$(get_pane_option "$pane" @task_context 2>/dev/null || true)"
+  structured="$(get_pane_option "$pane" @pane-title-structured 2>/dev/null || true)"
   existing="$(get_pane_option "$pane" @pane-label 2>/dev/null || true)"
   live="$(live_path_label "$pane" 2>/dev/null || true)"
 
   if [[ -n "$live" ]]; then
-    context="$live"
+    context="$(context_suffix "$live")"
+    [[ -z "$task_label" ]] || set_pane_option "$pane" @task_context "$context"
+  elif [[ -n "$task_label" && -n "$structured" && "$existing" == *" | "* ]]; then
+    context="$(context_suffix "$existing")"
+    set_pane_option "$pane" @task_context "$context"
+  elif [[ -n "$task_label" && -n "$task_context" ]]; then
+    context="$task_context"
   elif [[ -n "$existing" ]]; then
-    context="$existing"
+    context="$(context_suffix "$existing")"
+    [[ -z "$task_label" ]] || set_pane_option "$pane" @task_context "$context"
   else
     context="$(fallback_cwd_label "$pane")"
+    [[ -z "$task_label" ]] || set_pane_option "$pane" @task_context "$context"
   fi
 
   if [[ -n "$task_label" && "$task_state" == "provisional" ]]; then
-    context="$(context_suffix "$context")"
     window_label="~ $task_label"
     pane_label="~ $task_label · $context"
   elif [[ -n "$task_label" && "$task_state" == "active" ]]; then
@@ -208,15 +155,11 @@ render() {
     if [[ -n "$live" ]]; then
       pane_label="$live"
     else
-      context="$(context_suffix "$context")"
       pane_label="($task_label) $context"
     fi
   elif [[ -n "$task_label" && "$task_state" == "completed" ]]; then
     window_label="✓ $task_label"
-    case "$context" in
-      "✓ "*) pane_label="$context" ;;
-      *) pane_label="✓ $context" ;;
-    esac
+    pane_label="✓ ($task_label) $context"
   else
     context="$(context_suffix "$context")"
     pane_label="$context"

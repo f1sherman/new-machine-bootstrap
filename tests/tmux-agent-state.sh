@@ -154,6 +154,11 @@ assert_file_eq "$state_dir/%1.@task_source" "branch" "stores branch source"
 assert_file_eq "$state_dir/%1.@task_state" "active" "activates branch"
 assert_file_eq "$state_dir/%1.@window-label" "feature/durable-label" "branch replaces subject"
 assert_file_eq "$state_dir/%1.@pane-label" "(feature/durable-label) repo | host-a" "active bottom retains full branch and context"
+git -C "$repo" checkout -qb 'feature/a)b'
+"$STATE" activate-branch "$repo"
+assert_file_eq "$state_dir/%1.@pane-label" "(feature/a)b) repo | host-a" "active bottom supports closing parenthesis in branch"
+git -C "$repo" checkout -q feature/durable-label
+"$STATE" activate-branch "$repo"
 
 "$SUBJECT" set "must not replace active branch"
 assert_file_eq "$state_dir/%1.@task_label" "feature/durable-label" "provisional cannot replace active branch"
@@ -205,6 +210,9 @@ assert_eq $'completed\tbranch\tfeature/durable-label' "$("$STATE" status)" "stat
 "$STATE" complete-worktree
 assert_file_eq "$state_dir/%1.@window-label" "✓ feature/durable-label" "completion is idempotent"
 assert_file_not_contains "$state_dir/%1.@window-label" "✓ ✓" "completion does not duplicate marker"
+printf 'generic-cwd | wrong-host' > "$state_dir/%1.@pane-label"
+"$STATE" refresh
+assert_file_eq "$state_dir/%1.@pane-label" "✓ (feature/durable-label) repo | host-a" "completed refresh rebuilds bottom from durable task context"
 
 "$SUBJECT" set "next provisional task"
 assert_file_eq "$state_dir/%1.@task_label" "next provisional task" "provisional replaces completed branch"
@@ -215,6 +223,7 @@ assert_file_eq "$state_dir/%1.@task_state" "provisional" "replacement changes st
 assert_no_file "$state_dir/%1.@task_label" "clear-task removes label"
 assert_no_file "$state_dir/%1.@task_source" "clear-task removes source"
 assert_no_file "$state_dir/%1.@task_state" "clear-task removes state"
+assert_no_file "$state_dir/%1.@task_context" "clear-task removes durable context"
 assert_eq "" "$("$STATE" status)" "empty status emits nothing"
 
 printf old >"$state_dir/%1.@agent_subject_done"

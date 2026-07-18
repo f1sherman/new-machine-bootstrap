@@ -296,6 +296,7 @@
     - tmux-update-all-pane-labels
     - tmux-agent-state
     - tmux-agent-subject
+    - tmux-task-label
     - tmux-window-label
     - tmux-sync-pane-border-status
     - tmux-pane-title-changed

@@ -9,6 +9,19 @@ set -u
 pane_id="${1:-}"
 [ -n "$pane_id" ] || exit 0
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+task_state="$(tmux show-options -qv -p -t "$pane_id" "@task_state" 2>/dev/null || true)"
+case "$task_state" in
+  provisional|active|completed)
+    state_helper="${TMUX_AGENT_STATE_BIN:-$script_dir/tmux-agent-state}"
+    [ -x "$state_helper" ] || state_helper="${HOME:-}/.local/bin/tmux-agent-state"
+    if [ -x "$state_helper" ]; then
+      TMUX_PANE="$pane_id" "$state_helper" refresh >/dev/null 2>&1 || true
+    fi
+    exit 0
+    ;;
+esac
+
 explicit_path="$(tmux show-options -qv -p -t "$pane_id" "@agent_worktree_path" 2>/dev/null || true)"
 [ -z "$explicit_path" ] || exit 0
 
@@ -39,7 +52,6 @@ if [ -n "$structured" ]; then
   esac
 fi
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 labeler="${TMUX_PANE_LABEL_BIN:-$script_dir/tmux-pane-label}"
 [ -x "$labeler" ] || labeler="${HOME:-}/.local/bin/tmux-pane-label"
 

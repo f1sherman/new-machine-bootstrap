@@ -13,6 +13,7 @@ PANE_LINK="$BIN_DIR/tmux-pane-link"
 REMOTE_TITLE="$BIN_DIR/tmux-remote-title"
 SYNC_REMOTE_TITLE="$BIN_DIR/tmux-sync-remote-title"
 UPDATE_PANE_LABEL="$BIN_DIR/tmux-update-pane-label"
+TASK_LABEL="$BIN_DIR/tmux-task-label"
 
 TMPROOT="$(mktemp -d)"
 
@@ -395,6 +396,20 @@ TMUX_TEST_TITLE='~ tmux label persistence · project | remote-host' \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
 assert_file_contains "$window_log" "rename-window -t @1 ~ tmux label persistence" "outer window extracts provisional remote subject"
 
+for remote_case in \
+  '(feature/a)b) project | remote-host' \
+  "(feature/$(printf 'a%.0s' {1..60})) project | remote-host" \
+  "(feature/$(printf '界%.0s' {1..30})) project | remote-host" \
+  "~ $(printf 'p%.0s' {1..60}) · project | remote-host" \
+  "✓ (feature/$(printf '👩‍💻%.0s' {1..20})) project | remote-host"; do
+  expected="$($TASK_LABEL extract-remote "$remote_case")"
+  : > "$window_log"
+  TMUX_TEST_TITLE="$remote_case" TMUX_WINDOW_LABEL_LOG="$window_log" \
+    PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+  assert_file_contains "$window_log" "rename-window -t @1 $expected" "outer window applies exact remote task contract: $expected"
+done
+assert_equals "$($TASK_LABEL extract-remote '(feature/a)b) project | remote-host')" 'feature/a)b' "remote parser preserves branch closing parenthesis"
+
 : > "$window_log"
 TMUX_TEST_COMMAND=zsh TMUX_TEST_WINDOW_LABEL='feature/durable-label' \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
@@ -426,6 +441,59 @@ for task_case in \
   TMUX_TEST_TITLE="$title" TMUX_SYNC_REMOTE_LOG="$sync_remote_log" \
     PATH="$sync_remote_tmux_dir:$PATH" "$SYNC_REMOTE_TITLE" %9
   assert_file_contains "$sync_remote_log" "rename-window -t @9 $expected" "remote sync extracts task-only label: $expected"
+done
+
+for remote_case in \
+  "(feature/$(printf 'a%.0s' {1..60})) project | remote-host" \
+  "✓ (feature/$(printf '界%.0s' {1..30})) project | remote-host" \
+  "~ $(printf '👩‍💻%.0s' {1..20}) · project | remote-host" \
+  '(feature/a)b) project | remote-host'; do
+  expected="$($TASK_LABEL extract-remote "$remote_case")"
+  : > "$sync_remote_log"
+  TMUX_TEST_TITLE="$remote_case" TMUX_SYNC_REMOTE_LOG="$sync_remote_log" \
+    PATH="$sync_remote_tmux_dir:$PATH" "$SYNC_REMOTE_TITLE" %9
+  assert_file_contains "$sync_remote_log" "rename-window -t @9 $expected" "remote sync applies exact capped task contract: $expected"
+done
+
+task_focus_state="$TMPROOT/task-focus-state"
+task_focus_bin="$TMPROOT/task-focus-bin"
+task_focus_log="$TMPROOT/task-focus-refresh.log"
+mkdir -p "$task_focus_state" "$task_focus_bin"
+cat >"$task_focus_bin/tmux" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  show-options)
+    case "${*: -1}" in
+      @task_state) printf '%s' "$TMUX_TASK_FOCUS_STATE" ;;
+      @agent_worktree_path) ;;
+    esac
+    ;;
+  set-option) printf 'unexpected set-option: %s\n' "$*" >&2; exit 1 ;;
+esac
+STUB
+cat >"$task_focus_bin/tmux-agent-state" <<'STUB'
+#!/usr/bin/env bash
+printf '%s %s\n' "$TMUX_PANE" "$*" >> "$TMUX_TASK_FOCUS_LOG"
+STUB
+chmod +x "$task_focus_bin/tmux" "$task_focus_bin/tmux-agent-state"
+
+for task_case in \
+  'provisional|~ pre-branch subject|~ pre-branch subject · repo | host-a' \
+  'active|feature/focus-durable|(feature/focus-durable) repo | host-a' \
+  'completed|✓ feature/focus-durable|✓ (feature/focus-durable) repo | host-a'; do
+  state="${task_case%%|*}"
+  remainder="${task_case#*|}"
+  top="${remainder%%|*}"
+  bottom="${remainder#*|}"
+  printf '%s' "$top" > "$task_focus_state/window-label"
+  printf '%s' "$bottom" > "$task_focus_state/pane-label"
+  : > "$task_focus_log"
+  TMUX=1 TMUX_TASK_FOCUS_STATE="$state" TMUX_TASK_FOCUS_LOG="$task_focus_log" \
+    TMUX_AGENT_STATE_BIN="$task_focus_bin/tmux-agent-state" PATH="$task_focus_bin:$PATH" \
+    "$UPDATE_PANE_LABEL" %44
+  assert_equals "$(cat "$task_focus_state/window-label")" "$top" "focus preserves exact $state task top without worktree path"
+  assert_equals "$(cat "$task_focus_state/pane-label")" "$bottom" "focus preserves exact $state task bottom without worktree path"
+  assert_file_contains "$task_focus_log" '%44 refresh' "focus delegates $state task pane to shared renderer"
 done
 
 focus_state="$TMPROOT/focus-remote-state"
@@ -653,6 +721,7 @@ for config in \
   assert_file_contains "$config" '#{@pane-label}' "$config bottom bar consumes cached pane label"
   assert_file_contains "$config" '#{window_name}' "$config top bar consumes native window name"
 done
+assert_file_contains "$REPO_ROOT/roles/common/tasks/main.yml" '- tmux-task-label' "shared task label helper is provisioned"
 
 leaked_git_ai_daemons="$(tmproot_git_ai_daemon_pids | tr '\n' ' ' | sed 's/ *$//')"
 assert_equals "$leaked_git_ai_daemons" "" "no git-ai daemon leaks into the test HOME"
