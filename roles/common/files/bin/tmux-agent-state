@@ -46,15 +46,35 @@ sanitize_subject() {
     | cut -c 1-80
 }
 
-detect_path_label() {
-  local pane="$1" path label
-  path="$(get_pane_option "$pane" @agent_worktree_path 2>/dev/null || true)"
-  if [[ -n "$path" && -x "${TMUX_AGENT_STATE_LABEL_FORMAT_BIN:-}" ]]; then
-    label="$("${TMUX_AGENT_STATE_LABEL_FORMAT_BIN}" local "$path" 2>/dev/null || true)"
-    [[ -n "$label" ]] && { printf '%s\n' "$label"; return 0; }
-  fi
-  label="$(get_pane_option "$pane" @pane-label 2>/dev/null || true)"
-  [[ -n "$label" ]] && printf '%s\n' "$label"
+clear_obsolete_options() {
+  local pane="$1" key
+  for key in @agent_subject @agent_subject_stale @agent_subject_done @agent_completed_window_label; do
+    clear_pane_option "$pane" "$key"
+  done
+}
+
+set_task() {
+  local pane="$1" label="$2" source="$3" state="$4"
+  set_pane_option "$pane" @task_label "$label"
+  set_pane_option "$pane" @task_source "$source"
+  set_pane_option "$pane" @task_state "$state"
+  clear_obsolete_options "$pane"
+}
+
+clear_task_options() {
+  local pane="$1"
+  clear_pane_option "$pane" @task_label
+  clear_pane_option "$pane" @task_source
+  clear_pane_option "$pane" @task_state
+  clear_obsolete_options "$pane"
+}
+
+clear_worktree_options() {
+  local pane="$1"
+  clear_pane_option "$pane" @agent_worktree_path
+  clear_pane_option "$pane" @agent_worktree_pid
+  clear_pane_option "$pane" @pane-link
+  clear_pane_option "$pane" @pane-link-source
 }
 
 fallback_cwd_label() {
@@ -70,29 +90,81 @@ fallback_cwd_label() {
   printf '%s\n' "$label"
 }
 
-render() {
-  local pane="$1" kind subject subject_done completed_window_label pane_label window_label
-  kind="$(get_pane_option "$pane" @agent_kind 2>/dev/null || true)"
-  subject="$(get_pane_option "$pane" @agent_subject 2>/dev/null || true)"
-  subject_done="$(get_pane_option "$pane" @agent_subject_done 2>/dev/null || true)"
-  completed_window_label="$(get_pane_option "$pane" @agent_completed_window_label 2>/dev/null || true)"
-  pane_label="$(detect_path_label "$pane" 2>/dev/null || true)"
-  [[ -n "$pane_label" ]] || pane_label="$(fallback_cwd_label "$pane")"
+live_path_label() {
+  local pane="$1" path label
+  path="$(get_pane_option "$pane" @agent_worktree_path 2>/dev/null || true)"
+  [[ -n "$path" && -x "${TMUX_AGENT_STATE_LABEL_FORMAT_BIN:-}" ]] || return 1
+  label="$("${TMUX_AGENT_STATE_LABEL_FORMAT_BIN}" local "$path" 2>/dev/null || true)"
+  [[ -n "$label" ]] || return 1
+  printf '%s\n' "$label"
+}
 
-  if [[ -n "$kind" && -n "$subject" && -n "$subject_done" ]]; then
-    window_label="✓ ${kind}: ${subject}"
-  elif [[ -n "$kind" && -n "$subject" ]]; then
-    window_label="${kind}: ${subject}"
-  elif [[ -n "$completed_window_label" ]]; then
-    window_label="$completed_window_label"
-  elif [[ -n "$kind" ]]; then
-    window_label="${kind} ${pane_label%% | *}"
+context_suffix() {
+  local label="${1:-}"
+  label="${label#✓ }"
+  case "$label" in
+    "~ "*" · "*) label="${label#* · }" ;;
+    \(*\)\ *) label="${label#*) }" ;;
+  esac
+  printf '%s\n' "$label"
+}
+
+truncate_top_label() {
+  local label="$1"
+  if (( ${#label} > 40 )); then
+    printf '%s…\n' "${label:0:39}"
   else
-    window_label="$pane_label"
+    printf '%s\n' "$label"
+  fi
+}
+
+render() {
+  local pane="$1" kind task_label task_source task_state existing live context pane_label window_label
+  kind="$(get_pane_option "$pane" @agent_kind 2>/dev/null || true)"
+  task_label="$(get_pane_option "$pane" @task_label 2>/dev/null || true)"
+  task_source="$(get_pane_option "$pane" @task_source 2>/dev/null || true)"
+  task_state="$(get_pane_option "$pane" @task_state 2>/dev/null || true)"
+  existing="$(get_pane_option "$pane" @pane-label 2>/dev/null || true)"
+  live="$(live_path_label "$pane" 2>/dev/null || true)"
+
+  if [[ -n "$live" ]]; then
+    context="$live"
+  elif [[ -n "$existing" ]]; then
+    context="$existing"
+  else
+    context="$(fallback_cwd_label "$pane")"
+  fi
+
+  if [[ -n "$task_label" && "$task_state" == "provisional" ]]; then
+    context="$(context_suffix "$context")"
+    window_label="~ $task_label"
+    pane_label="~ $task_label · $context"
+  elif [[ -n "$task_label" && "$task_state" == "active" ]]; then
+    window_label="$task_label"
+    if [[ -n "$live" ]]; then
+      pane_label="$live"
+    else
+      context="$(context_suffix "$context")"
+      pane_label="($task_label) $context"
+    fi
+  elif [[ -n "$task_label" && "$task_state" == "completed" ]]; then
+    window_label="✓ $task_label"
+    case "$context" in
+      "✓ "*) pane_label="$context" ;;
+      *) pane_label="✓ $context" ;;
+    esac
+  else
+    context="$(context_suffix "$context")"
+    pane_label="$context"
+    if [[ -n "$kind" ]]; then
+      window_label="$kind ${context%% | *}"
+    else
+      window_label="${context%% | *}"
+    fi
   fi
 
   set_pane_option "$pane" @pane-label "$pane_label"
-  set_pane_option "$pane" @window-label "$window_label"
+  set_pane_option "$pane" @window-label "$(truncate_top_label "$window_label")"
 }
 
 refresh() {
@@ -100,6 +172,50 @@ refresh() {
   render "$pane"
   command -v tmux-window-label >/dev/null 2>&1 && tmux-window-label "$pane" >/dev/null 2>&1 || true
   command -v tmux-remote-title >/dev/null 2>&1 && tmux-remote-title publish >/dev/null 2>&1 || true
+}
+
+default_branch_for_path() {
+  local path="$1" branch
+  branch="$(git -C "$path" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  branch="${branch#origin/}"
+  if [[ -n "$branch" ]]; then
+    printf '%s\n' "$branch"
+  elif git -C "$path" show-ref --verify --quiet refs/heads/main; then
+    printf 'main\n'
+  elif git -C "$path" show-ref --verify --quiet refs/heads/master; then
+    printf 'master\n'
+  fi
+}
+
+activate_branch() {
+  local pane="$1" path="$2" branch default_branch
+  [[ "$path" = /* && -d "$path" ]] || return 0
+  [[ "$(git -C "$path" rev-parse --is-inside-work-tree 2>/dev/null || true)" == "true" ]] || return 0
+  branch="$(git -C "$path" branch --show-current 2>/dev/null || true)"
+  [[ -n "$branch" ]] || return 0
+  default_branch="$(default_branch_for_path "$path")"
+  [[ "$branch" != "$default_branch" && "$branch" != "main" && "$branch" != "master" ]] || return 0
+
+  set_pane_option "$pane" @agent_worktree_path "$path"
+  set_task "$pane" "$branch" branch active
+  refresh "$pane"
+}
+
+complete_task() {
+  local pane="$1" label source
+  label="$(get_pane_option "$pane" @task_label 2>/dev/null || true)"
+  source="$(get_pane_option "$pane" @task_source 2>/dev/null || true)"
+  [[ -n "$label" && -n "$source" ]] || return 0
+  set_task "$pane" "$label" "$source" completed
+}
+
+print_status() {
+  local pane="$1" state source label
+  state="$(get_pane_option "$pane" @task_state 2>/dev/null || true)"
+  source="$(get_pane_option "$pane" @task_source 2>/dev/null || true)"
+  label="$(get_pane_option "$pane" @task_label 2>/dev/null || true)"
+  [[ -n "$state" && -n "$source" && -n "$label" ]] || return 0
+  printf '%s\t%s\t%s\n' "$state" "$source" "$label"
 }
 
 require_pane() {
@@ -114,72 +230,41 @@ pane="$(require_pane)"
 case "$cmd" in
   set-kind)
     case "${1:-}" in
-      claude|codex|pi) set_pane_option "$pane" @agent_kind "$1" ;;
+      claude|codex|pi)
+        set_pane_option "$pane" @agent_kind "$1"
+        clear_obsolete_options "$pane"
+        ;;
       *) exit 0 ;;
     esac
-    clear_pane_option "$pane" @agent_subject_done
-    clear_pane_option "$pane" @agent_completed_window_label
     refresh "$pane"
     ;;
-  set-subject)
+  set-provisional)
     subject="$(sanitize_subject "$*")"
     [[ -n "$subject" ]] || exit 0
-    set_pane_option "$pane" @agent_subject "$subject"
-    clear_pane_option "$pane" @agent_subject_stale
-    clear_pane_option "$pane" @agent_subject_done
-    clear_pane_option "$pane" @agent_completed_window_label
+    set_task "$pane" "$subject" agent provisional
     refresh "$pane"
     ;;
-  clear-subject)
-    clear_pane_option "$pane" @agent_subject
-    clear_pane_option "$pane" @agent_subject_stale
-    clear_pane_option "$pane" @agent_subject_done
-    clear_pane_option "$pane" @agent_completed_window_label
-    refresh "$pane"
-    ;;
-  mark-subject-stale)
-    if [[ -n "$(get_pane_option "$pane" @agent_subject 2>/dev/null || true)" ]]; then
-      set_pane_option "$pane" @agent_subject_stale "1"
-    fi
-    refresh "$pane"
-    ;;
-  mark-subject-done)
-    if [[ -n "$(get_pane_option "$pane" @agent_subject 2>/dev/null || true)" ]]; then
-      set_pane_option "$pane" @agent_subject_done "1"
-      clear_pane_option "$pane" @agent_completed_window_label
-    fi
-    refresh "$pane"
-    ;;
-  mark-window-label-done)
-    label="$(sanitize_subject "$*")"
-    [[ -n "$label" ]] || exit 0
-    label="${label#✓ }"
-    set_pane_option "$pane" @agent_completed_window_label "✓ $label"
-    clear_pane_option "$pane" @agent_subject_done
-    refresh "$pane"
-    ;;
-  set-worktree)
-    path="${1:-}"
-    [[ "$path" = /* && -d "$path" ]] || exit 0
-    set_pane_option "$pane" @agent_worktree_path "$path"
-    clear_pane_option "$pane" @agent_worktree_pid
-    clear_pane_option "$pane" @pane-label
-    clear_pane_option "$pane" @agent_subject_done
-    clear_pane_option "$pane" @agent_completed_window_label
-    refresh "$pane"
+  activate-branch)
+    activate_branch "$pane" "${1:-}"
     ;;
   clear-worktree)
-    clear_pane_option "$pane" @agent_worktree_path
-    clear_pane_option "$pane" @agent_worktree_pid
-    clear_pane_option "$pane" @pane-link
-    clear_pane_option "$pane" @pane-link-source
+    clear_worktree_options "$pane"
+    refresh "$pane"
+    ;;
+  complete-worktree)
+    clear_worktree_options "$pane"
+    complete_task "$pane"
+    refresh "$pane"
+    ;;
+  clear-task)
+    clear_task_options "$pane"
     refresh "$pane"
     ;;
   refresh)
     refresh "$pane"
     ;;
   status)
-    get_pane_option "$pane" @agent_subject 2>/dev/null || true
+    print_status "$pane"
     ;;
   *)
     exit 0
