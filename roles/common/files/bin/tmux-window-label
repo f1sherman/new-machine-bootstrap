@@ -40,12 +40,44 @@ structured_remote_label() {
   nested_title="${title#*: }"
   prefix="${title%%: *}"
   if [ "$nested_title" != "$title" ] && is_structured_remote_label "$nested_title" && {
-    [[ "$prefix" =~ ^[0-9]+$ ]] || [[ "$nested_title" == \(* ]];
+    [[ "$prefix" =~ ^[0-9]+$ ]] ||
+      [[ "$nested_title" == \(* ]] ||
+      [[ "$nested_title" == "✓ ("* ]] ||
+      [[ "$nested_title" == "~ "* ]]
   }; then
     printf '%s\n' "$nested_title"
   else
     printf '%s\n' "$title"
   fi
+}
+
+task_from_remote_label() {
+  local label local_label marker="" branch
+  label="$(structured_remote_label "${1:-}" 2>/dev/null || true)"
+  [ -n "$label" ] || return 1
+  local_label="${label%% | *}"
+
+  case "$local_label" in
+    "~ "*" · "*)
+      printf '%s\n' "${local_label%% · *}"
+      return 0
+      ;;
+    "✓ "*)
+      marker="✓ "
+      local_label="${local_label#✓ }"
+      ;;
+  esac
+
+  case "$local_label" in
+    \(*\)*)
+      branch="${local_label#(}"
+      branch="${branch%%)*}"
+      branch="${branch%% *}"
+      [ -n "$branch" ] || return 1
+      printf '%s%s\n' "$marker" "$branch"
+      ;;
+    *) return 1 ;;
+  esac
 }
 
 remote_host_suffix() {
@@ -59,15 +91,11 @@ strip_host_suffix() {
 }
 
 if [ -z "$label" ] && is_remote_candidate_command "$pane_current_command"; then
-  label="$(structured_remote_label "$pane_title" 2>/dev/null || true)"
-  if [ -n "$label" ]; then
-    :
-  else
-    label="$(structured_remote_label "$window_name" 2>/dev/null || true)"
-    if [ -n "$label" ] && [ "$pane_title" = "$(remote_host_suffix "$label")" ]; then
-      :
-    else
-      label=""
+  label="$(task_from_remote_label "$pane_title" 2>/dev/null || true)"
+  if [ -z "$label" ]; then
+    structured_window="$(structured_remote_label "$window_name" 2>/dev/null || true)"
+    if [ -n "$structured_window" ] && [ "$pane_title" = "$(remote_host_suffix "$structured_window")" ]; then
+      label="$(task_from_remote_label "$structured_window" 2>/dev/null || true)"
     fi
   fi
 fi
@@ -88,7 +116,9 @@ if [ -z "$label" ]; then
   label="$("$label_helper" "$pane_tty" "$pane_current_path" "$pane_current_command" "$pane_id" 2>/dev/null || true)"
 fi
 [ -n "$label" ] || exit 0
-label="$(strip_host_suffix "$label")"
+if [ -z "$(tmux show-options -qv -p -t "$pane_id" "@window-label" 2>/dev/null || true)" ]; then
+  label="$(strip_host_suffix "$label")"
+fi
 [ -n "$label" ] || exit 0
 [ "$label" != "$window_name" ] || exit 0
 

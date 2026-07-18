@@ -26,7 +26,12 @@ structured_remote_label() {
     *" | "*)
       nested_title="${title#*: }"
       prefix="${title%%: *}"
-      if [ "$nested_title" != "$title" ] && { [[ "$prefix" =~ ^[0-9]+$ ]] || [[ "$nested_title" == \(* ]]; }; then
+      if [ "$nested_title" != "$title" ] && {
+        [[ "$prefix" =~ ^[0-9]+$ ]] ||
+          [[ "$nested_title" == \(* ]] ||
+          [[ "$nested_title" == "✓ ("* ]] ||
+          [[ "$nested_title" == "~ "* ]]
+      }; then
         case "$nested_title" in
           *" | "*)
             printf '%s\n' "$nested_title"
@@ -36,15 +41,40 @@ structured_remote_label() {
       fi
       printf '%s\n' "$title"
       ;;
-    *)
-      return 1
-      ;;
+    *) return 1 ;;
   esac
 }
 
-pane_title="$(structured_remote_label "$pane_title" 2>/dev/null || true)"
-[ -n "$pane_title" ] || exit 0
-pane_title="${pane_title%% | *}"
+task_from_remote_label() {
+  local label local_label marker="" branch
+  label="$(structured_remote_label "${1:-}" 2>/dev/null || true)"
+  [ -n "$label" ] || return 1
+  local_label="${label%% | *}"
+
+  case "$local_label" in
+    "~ "*" · "*)
+      printf '%s\n' "${local_label%% · *}"
+      return 0
+      ;;
+    "✓ "*)
+      marker="✓ "
+      local_label="${local_label#✓ }"
+      ;;
+  esac
+
+  case "$local_label" in
+    \(*\)*)
+      branch="${local_label#(}"
+      branch="${branch%%)*}"
+      branch="${branch%% *}"
+      [ -n "$branch" ] || return 1
+      printf '%s%s\n' "$marker" "$branch"
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+pane_title="$(task_from_remote_label "$pane_title" 2>/dev/null || true)"
 [ -n "$pane_title" ] || exit 0
 [ "$pane_title" = "$window_name" ] || tmux rename-window -t "$window_id" "$pane_title" 2>/dev/null || true
 exit 0
