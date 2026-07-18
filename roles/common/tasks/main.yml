@@ -2245,7 +2245,6 @@
     - generate-codex-auth
     - humanizer
     - macos-keychain-secrets
-    - quick-pr
     - recover-agent-sessions
     - resume-claude-session
     - resume-codex-session
