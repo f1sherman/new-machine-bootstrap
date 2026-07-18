@@ -15,15 +15,20 @@ expected_pi_names = source_skill_dirs.map do |path|
 end.uniq.sort
 actual_pi_names = Dir.children(pi_root).select { |name| File.directory?(File.join(pi_root, name)) }.sort
 
-legacy_pi_names = expected_pi_names.map { |name| name.delete_prefix("z-") }
+legacy_pi_names = expected_pi_names.map { |name| name.delete_prefix("z-") }.reject { |name| name == "quick-pr" }
 tasks_file = File.read(File.join(repo_root, "roles/common/tasks/main.yml"))
-cleanup_block = tasks_file[/^- name: Remove deleted managed Pi skills\n.*?(?=^- name:)/m]
-abort "Missing managed Pi skill cleanup task" unless cleanup_block
+claude_cleanup_block = tasks_file[/^- name: Remove deleted managed Claude skills\n.*?(?=^- name:)/m]
+codex_cleanup_block = tasks_file[/^- name: Remove deleted managed Codex skills\n.*?(?=^- name:)/m]
+pi_cleanup_block = tasks_file[/^- name: Remove deleted managed Pi skills\n.*?(?=^- name:)/m]
+abort "Missing managed Claude skill cleanup task" unless claude_cleanup_block
+abort "Missing managed Codex skill cleanup task" unless codex_cleanup_block
+abort "Missing managed Pi skill cleanup task" unless pi_cleanup_block
 
 missing_cleanup_names = legacy_pi_names.reject do |name|
-  cleanup_block.match?(/^    - #{Regexp.escape(name)}$/)
+  pi_cleanup_block.match?(/^    - #{Regexp.escape(name)}$/)
 end
 abort "Managed Pi cleanup task is missing old names: #{missing_cleanup_names.inspect}" unless missing_cleanup_names.empty?
+abort "Pi cleanup must not remove unmanaged quick-pr" if pi_cleanup_block.match?(/^    - quick-pr$/)
 
 abort "Pi shared skills do not match z-prefixed Claude/Codex/common counterparts\nExpected: #{expected_pi_names.inspect}\nActual:   #{actual_pi_names.inspect}" unless actual_pi_names == expected_pi_names
 
@@ -51,12 +56,12 @@ abort "Old common _spec-to-pr skill directory still exists" if Dir.exist?(File.j
 abort "Old Pi z-spec-to-pr skill directory still exists" if Dir.exist?(File.join(pi_root, "z-spec-to-pr"))
 
 %w[_spec-to-pr].each do |name|
-  abort "Claude cleanup is missing #{name}" unless tasks_file.match?(/- name: Remove deleted managed Claude skills\n.*?^    - #{Regexp.escape(name)}$/m)
-  abort "Codex cleanup is missing #{name}" unless tasks_file.match?(/- name: Remove deleted managed Codex skills\n.*?^    - #{Regexp.escape(name)}$/m)
+  abort "Claude cleanup is missing #{name}" unless claude_cleanup_block.match?(/^    - #{Regexp.escape(name)}$/)
+  abort "Codex cleanup is missing #{name}" unless codex_cleanup_block.match?(/^    - #{Regexp.escape(name)}$/)
 end
 
 %w[spec-to-pr z-spec-to-pr].each do |name|
-  abort "Pi cleanup is missing #{name}" unless cleanup_block.match?(/^    - #{Regexp.escape(name)}$/)
+  abort "Pi cleanup is missing #{name}" unless pi_cleanup_block.match?(/^    - #{Regexp.escape(name)}$/)
 end
 
 commit_helper = File.join(pi_root, "z-commit", "commit.sh")
