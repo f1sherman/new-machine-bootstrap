@@ -4,7 +4,6 @@ import path from "node:path";
 const COMMAND_TIMEOUT_MS = 5000;
 const MANAGED_PI_SESSION_NAME_OPTION = "@pi_managed_session_name";
 const REPO_START_TRIGGERS = /(^|\s)(?:z-fix|z-spec-first|z-quick-pr|superpowers:systematic-debugging|superpowers:brainstorming)(?=\s|$)/i;
-const SUBJECT_TRIGGERS = /(^|\s)superpowers:(?:brainstorming|systematic-debugging)(?=\s|$)/i;
 const SHELL_TOKEN = "[^\\s;&|()]+";
 const GIT_PREAMBLE = "(^|[;&|()])\\s*(?:(?:(?:if|then|do|elif|while|until)\\s+|!\\s+)*)((?:(?:[A-Za-z_][A-Za-z0-9_]*)=\\S+\\s+|command\\s+|env\\s+|sudo(?:\\s+-\\S+)*\\s+|time(?:\\s+-\\S+)*\\s+)*)git(?:\\s+-\\S+(?:\\s+\\S+)*)*\\s+";
 
@@ -397,9 +396,10 @@ function worktreeCommandBlockReason(command) {
 
 async function needsSubjectReminder(pi) {
   if (!inTmux()) return false;
-  const subject = readState("@agent_subject") || await tmuxOption(pi, "@agent_subject");
-  const stale = readState("@agent_subject_stale") || await tmuxOption(pi, "@agent_subject_stale");
-  return !subject || Boolean(stale);
+  const result = await exec(pi, "tmux-agent-state", ["status"]);
+  if (result.code !== 0) return false;
+  const currentTask = result.stdout.trim();
+  return !currentTask || currentTask.startsWith("completed\t");
 }
 
 function normalizeSuperpowersSpecPath(candidatePath, cwd, repoRoot, resolveFrom = cwd) {
@@ -470,8 +470,8 @@ export default function managedHooks(pi) {
       notes.push("You are on main. Before changing files, run `repo-start <branch>` and continue from the created worktree.");
     }
 
-    if (SUBJECT_TRIGGERS.test(event.prompt) && await needsSubjectReminder(pi)) {
-      notes.push("Set the tmux agent subject before continuing: `tmux-agent-subject set \"<short subject>\"`.");
+    if (await needsSubjectReminder(pi)) {
+      notes.push("Choose a concise task subject, then run `tmux-agent-subject set \"<short subject>\"` before continuing. The provisional label will be replaced by the feature branch.");
     }
 
     if (notes.length === 0) return;

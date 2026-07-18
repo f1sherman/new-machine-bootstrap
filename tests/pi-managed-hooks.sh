@@ -36,6 +36,7 @@ let currentSessionName = "";
 let windowLabel = "pi main-repo";
 let agentWorktreePath = "/repo/main-repo";
 let managedPiSessionName = "";
+let taskStatus = "";
 
 const ok = (stdout = "") => ({ stdout, stderr: "", code: 0, killed: false });
 const fail = () => ({ stdout: "", stderr: "", code: 1, killed: false });
@@ -50,6 +51,7 @@ const pi = {
   },
   async exec(command, args) {
     calls.push({ command, args });
+    if (command === "tmux-agent-state" && args[0] === "status") return ok(taskStatus);
     if (command === "tmux-agent-state") return ok();
     if (command === "tmux-update-pane-label") return ok();
     if (command === "tmux-window-label") return ok();
@@ -147,12 +149,34 @@ for (const workflow of ["z-fix", "z-spec-first", "z-quick-pr"]) {
   assert.match(reminder?.message.content || "", /repo-start <branch>/, `${workflow} prompt on main gets repo-start reminder`);
 }
 
+branch = "feature";
+taskStatus = "";
 const subjectReminder = await handlers.get("before_agent_start")({
-  prompt: "invoke superpowers:brainstorming",
+  prompt: "improve tmux labels",
   systemPrompt: "",
   systemPromptOptions: { cwd: "/repo" },
 }, { cwd: "/repo" });
-assert.match(subjectReminder.message.content, /tmux-agent-subject set/, "stale or missing subject gets subject reminder");
+assert.match(subjectReminder.message.content, /tmux-agent-subject set/, "ordinary prompt with no task gets subject reminder");
+
+taskStatus = "completed\tbranch\told-task\n";
+const completedReminder = await handlers.get("before_agent_start")({
+  prompt: "start another task",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, { cwd: "/repo" });
+assert.match(completedReminder.message.content, /tmux-agent-subject set/, "completed task gets next-subject reminder");
+
+for (const state of ["provisional\tagent\tshort subject\n", "active\tbranch\tfeature/current\n"]) {
+  taskStatus = state;
+  const currentTaskResult = await handlers.get("before_agent_start")({
+    prompt: "continue current work",
+    systemPrompt: "",
+    systemPromptOptions: { cwd: "/repo" },
+  }, { cwd: "/repo" });
+  assert.equal(currentTaskResult, undefined, `${state.split("\t")[0]} task skips subject reminder`);
+}
+taskStatus = "";
+branch = "main";
 
 const worktreeBlock = await handlers.get("tool_call")({
   toolName: "bash",

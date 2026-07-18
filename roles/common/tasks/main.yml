@@ -735,6 +735,11 @@
     mode: '0755'
     directory_mode: '0755'
 
+- name: Remove legacy Claude agent subject skill hook
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.claude/hooks/remind-agent-subject-on-skill.sh'
+    state: absent
+
 - name: Register PreToolUse Bash hook for blocking git commit
   shell: |
     SETTINGS='{{ ansible_facts["user_dir"] }}/.claude/settings.json'
@@ -879,28 +884,15 @@
   register: block_initiation_skill_hook_result
   changed_when: block_initiation_skill_hook_result.stdout.strip() == 'changed'
 
-- name: Register PostToolUse Skill hook for agent subject reminder
+- name: Register UserPromptSubmit hook for provisional task label reminder
   shell: |
     set -euo pipefail
 
     settings_file="${SETTINGS_FILE:?}"
-    hook_cmd='~/.claude/hooks/remind-agent-subject-on-skill.sh'
-
-    if [ ! -s "$settings_file" ]; then
-      echo '{}' > "$settings_file"
-    fi
-
-    if jq -e --arg cmd "$hook_cmd" '
-      .hooks.PostToolUse // []
-      | any(.matcher == "Skill" and any(.hooks[]?; .type == "command" and .command == $cmd))
-    ' "$settings_file" >/dev/null 2>&1; then
-      echo "unchanged"
-      exit 0
-    fi
-
+    hook_cmd='~/.claude/hooks/remind-agent-subject-on-prompt.sh'
+    legacy_cmd='~/.claude/hooks/remind-agent-subject-on-skill.sh'
     managed_entry="$(
       jq -n --arg cmd "$hook_cmd" '{
-        matcher: "Skill",
         hooks: [
           {
             type: "command",
@@ -911,15 +903,24 @@
     )"
     tmp_file="$(mktemp)"
 
-    if [ -f "$settings_file" ] && [ -s "$settings_file" ]; then
-      jq --argjson entry "$managed_entry" '
-        .hooks //= {} |
-        .hooks.PostToolUse = ((.hooks.PostToolUse // []) + [$entry])
-      ' "$settings_file" > "$tmp_file"
-    else
-      jq -n --argjson entry "$managed_entry" '
-        {hooks: {PostToolUse: [$entry]}}
-      ' > "$tmp_file"
+    if [ ! -s "$settings_file" ]; then
+      echo '{}' > "$settings_file"
+    fi
+
+    jq --arg cmd "$hook_cmd" --arg legacy "$legacy_cmd" --argjson entry "$managed_entry" '
+      .hooks //= {} |
+      .hooks.PostToolUse = [(.hooks.PostToolUse // [])[] | select(.hooks | all(.command != $legacy))] |
+      if (.hooks.PostToolUse | length) == 0 then del(.hooks.PostToolUse) else . end |
+      .hooks.UserPromptSubmit = ([
+        (.hooks.UserPromptSubmit // [])[]
+        | select(.hooks | all(.command != $cmd))
+      ] + [$entry])
+    ' "$settings_file" > "$tmp_file"
+
+    if cmp -s "$settings_file" "$tmp_file"; then
+      rm -f "$tmp_file"
+      echo "unchanged"
+      exit 0
     fi
 
     mv "$tmp_file" "$settings_file"
@@ -928,8 +929,8 @@
     executable: /bin/bash
   environment:
     SETTINGS_FILE: '{{ ansible_facts["user_dir"] }}/.claude/settings.json'
-  register: agent_subject_skill_hook_result
-  changed_when: agent_subject_skill_hook_result.stdout.strip() == 'changed'
+  register: agent_subject_prompt_hook_result
+  changed_when: agent_subject_prompt_hook_result.stdout.strip() == 'changed'
 
 - name: Register UserPromptSubmit hook for repo-start main-branch reminder
   shell: |
