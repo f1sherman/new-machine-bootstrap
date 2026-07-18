@@ -168,13 +168,13 @@ repo_path="$(create_repo label-repo)"
 fallback_repo_label="$(TMUX_PANE_LABEL_HOST_TAG=host-a "$PANE_LABEL" /dev/null "$repo_path" zsh)"
 assert_equals "$fallback_repo_label" "label-repo | host-a" "fallback pane label does not infer repo branch"
 
-remote_edge_title="$(TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=tmux TMUX_REMOTE_TITLE_EDGE_FLAGS=hj "$REMOTE_TITLE" print)"
+remote_edge_title="$(TMUX_PANE= TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=tmux TMUX_REMOTE_TITLE_EDGE_FLAGS=hj "$REMOTE_TITLE" print)"
 assert_equals "$remote_edge_title" "label-repo | remote-host [nmb-edge=hj]" "remote title publishes tmux edge marker"
 
-remote_vim_title="$(TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=nvim TMUX_REMOTE_TITLE_EDGE_FLAGS=hj "$REMOTE_TITLE" print)"
+remote_vim_title="$(TMUX_PANE= TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=nvim TMUX_REMOTE_TITLE_EDGE_FLAGS=hj "$REMOTE_TITLE" print)"
 assert_equals "$remote_vim_title" "label-repo | remote-host" "remote title suppresses edge marker for vim panes"
 
-remote_suppressed_title="$(TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=zsh TMUX_REMOTE_TITLE_EDGE_FLAGS=hj TMUX_REMOTE_TITLE_SUPPRESS_EDGE=1 "$REMOTE_TITLE" print)"
+remote_suppressed_title="$(TMUX_PANE= TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=zsh TMUX_REMOTE_TITLE_EDGE_FLAGS=hj TMUX_REMOTE_TITLE_SUPPRESS_EDGE=1 "$REMOTE_TITLE" print)"
 assert_equals "$remote_suppressed_title" "label-repo | remote-host" "remote title can suppress stale edge marker while commands run"
 
 zsh_hook_home="$TMPROOT/zsh-hook-home"
@@ -243,6 +243,9 @@ PATH="$stub_bin:$PATH" \
   "$AGENT_WORKTREE" set "$repo_path"
 
 assert_file_contains "$state_dir/%1.@agent_worktree_path" "$repo_path" "repo-start tmux writer stores explicit repo path"
+assert_file_contains "$state_dir/%1.@task_label" "feature/label" "repo-start tmux writer captures branch identity"
+assert_file_contains "$state_dir/%1.@task_source" "branch" "repo-start tmux writer stores branch source"
+assert_file_contains "$state_dir/%1.@task_state" "active" "repo-start tmux writer activates branch identity"
 assert_file_contains "$state_dir/%1.@pane-label" "(feature/label) label-repo | host-a" "repo-start tmux writer stores repo branch pane label"
 
 cat >"$stub_bin/tmux-label-format" <<'STUB'
@@ -318,51 +321,21 @@ TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
 PATH="$stub_bin:$PATH" \
   "$AGENT_WORKTREE" clear
 
-assert_no_file "$state_dir/%1.@agent_worktree_path" "repo-end tmux clearer removes explicit repo path"
-assert_no_file "$state_dir/%1.@agent_worktree_pid" "repo-end tmux clearer removes explicit repo pid"
-assert_file_contains "$state_dir/%1.@pane-label" "feature/label" "repo-end tmux clearer preserves completed work label"
+assert_no_file "$state_dir/%1.@agent_worktree_path" "ordinary tmux clear removes explicit repo path"
+assert_no_file "$state_dir/%1.@agent_worktree_pid" "ordinary tmux clear removes explicit repo pid"
+assert_file_contains "$state_dir/%1.@task_state" "active" "ordinary tmux clear does not complete task identity"
+assert_file_contains "$state_dir/%1.@window-label" "feature/label" "ordinary tmux clear preserves active branch label"
 
-subject_state_dir="$TMPROOT/state-subject-retained"
-mkdir -p "$subject_state_dir"
-printf 'codex' > "$subject_state_dir/%12.@agent_kind"
-printf 'tmux subject labels' > "$subject_state_dir/%12.@agent_subject"
-printf '%s' "$repo_path" > "$subject_state_dir/%12.@agent_worktree_path"
-printf '12345' > "$subject_state_dir/%12.@agent_worktree_pid"
-printf 'fj#42 https://example.com/pr/42' > "$subject_state_dir/%12.@pane-link"
-printf 'pr-status-cache' > "$subject_state_dir/%12.@pane-link-source"
 TMUX=1 \
-TMUX_PANE="%12" \
-TMUX_AGENT_WORKTREE_STATE_DIR="$subject_state_dir" \
-TMUX_AGENT_STATE_DIR="$subject_state_dir" \
-PATH="$stub_bin:$BIN_DIR:$PATH" \
-  "$AGENT_WORKTREE" clear
-assert_no_file "$subject_state_dir/%12.@agent_worktree_path" "repo-end tmux clearer removes subject pane repo path"
-assert_no_file "$subject_state_dir/%12.@agent_worktree_pid" "repo-end tmux clearer removes subject pane repo pid"
-assert_no_file "$subject_state_dir/%12.@pane-link" "repo-end tmux clearer removes subject pane PR link"
-assert_no_file "$subject_state_dir/%12.@pane-link-source" "repo-end tmux clearer removes subject pane PR link source"
-assert_file_contains "$subject_state_dir/%12.@agent_subject" "tmux subject labels" "repo-end tmux clearer retains agent subject"
-assert_file_contains "$subject_state_dir/%12.@agent_subject_stale" "1" "repo-end tmux clearer marks subject stale"
-assert_file_contains "$subject_state_dir/%12.@agent_subject_done" "1" "repo-end tmux clearer marks subject done"
-assert_file_contains "$subject_state_dir/%12.@window-label" "✓ codex: tmux subject labels" "repo-end tmux clearer visibly marks subject done"
-assert_file_not_contains "$subject_state_dir/%12.@window-label" "stale" "repo-end tmux clearer does not visibly mark stale"
+TMUX_PANE="%1" \
+TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+PATH="$stub_bin:$PATH" \
+  "$AGENT_WORKTREE" complete
 
-stale_window_state_dir="$TMPROOT/state-stale-window-label"
-mkdir -p "$stale_window_state_dir"
-printf 'codex' > "$stale_window_state_dir/%13.@agent_kind"
-printf '%s' "$repo_path" > "$stale_window_state_dir/%13.@agent_worktree_path"
-printf 'codex: old task subject' > "$stale_window_state_dir/%13.@window-label"
-printf 'https://example.com/pr/42' > "$stale_window_state_dir/%13.@pane-link"
-printf 'pr-status-cache' > "$stale_window_state_dir/%13.@pane-link-source"
-TMUX=1 \
-TMUX_PANE="%13" \
-TMUX_AGENT_WORKTREE_STATE_DIR="$stale_window_state_dir" \
-TMUX_AGENT_STATE_DIR="$stale_window_state_dir" \
-PATH="$stub_bin:$BIN_DIR:$PATH" \
-  "$AGENT_WORKTREE" clear
-assert_file_contains "$stale_window_state_dir/%13.@agent_completed_window_label" "✓ codex: old task subject" "repo-end tmux clearer stores completed window label without subject"
-assert_file_contains "$stale_window_state_dir/%13.@window-label" "✓ codex: old task subject" "repo-end tmux clearer preserves completed window label without subject"
-assert_file_contains "$stale_window_state_dir/%13.@pane-link" "https://example.com/pr/42" "repo-end tmux clearer preserves completed window PR link"
-assert_file_contains "$stale_window_state_dir/%13.@pane-link-source" "pr-status-cache" "repo-end tmux clearer preserves completed window PR link source"
+assert_file_contains "$state_dir/%1.@task_state" "completed" "explicit tmux completion marks task identity"
+assert_file_contains "$state_dir/%1.@window-label" "✓ feature/label" "explicit tmux completion marks branch label"
+assert_no_file "$state_dir/%1.@agent_worktree_path" "explicit tmux completion clears repo path"
+assert_no_file "$state_dir/%1.@pane-link" "explicit tmux completion clears pane link"
 
 fake_tmux_dir="$TMPROOT/fake-tmux-bin"
 window_log="$TMPROOT/window-label.log"

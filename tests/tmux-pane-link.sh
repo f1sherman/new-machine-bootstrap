@@ -200,4 +200,12 @@ PATH="$stub_bin:$PATH" \
 assert_no_file "$state_dir/%1.@pane-link" \
   "tmux-agent-worktree clear removes @pane-link"
 
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+  "$PANE_LINK" "https://example.com/completed"
+TMUX=1 TMUX_PANE="%1" TMUX_AGENT_WORKTREE_STATE_DIR="$state_dir" \
+PATH="$stub_bin:$PATH" \
+  "$AGENT_WORKTREE" complete
+assert_no_file "$state_dir/%1.@pane-link" \
+  "tmux-agent-worktree complete removes @pane-link"
+
 printf 'tmux pane-link checks complete\n'
