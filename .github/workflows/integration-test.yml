@@ -27,6 +27,9 @@ jobs:
       - name: Verify tmux restore startup coordination
         run: ruby tests/tmux-restore-startup.rb
 
+      - name: Verify tmux restore diagnostics
+        run: bash tests/tmux-restore-diagnostics.sh
+
       - name: Verify Ghostty quick-terminal shortcut
         run: bash tests/ghostty-quick-terminal.sh
 

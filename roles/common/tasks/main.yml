@@ -315,6 +315,8 @@
     - { name: tmux-session-gc, mode: '0755' }
     - { name: tmux-client-attached, mode: '0755' }
     - { name: tmux-resurrect-restore-wrapper, mode: '0755' }
+    - { name: tmux-restore-log.sh, mode: '0644' }
+    - { name: tmux-restore-debug-report, mode: '0755' }
 
 - name: Remove obsolete terminal-restore helpers
   file:
