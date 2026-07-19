@@ -163,39 +163,46 @@ for (const workflow of ["z-fix", "z-spec-first", "z-quick-pr"]) {
 
 branch = "feature";
 taskStatus = "";
-calls.length = 0;
-subjectChildExecOptions = undefined;
-const automaticSubject = await handlers.get("before_agent_start")({
-  prompt: "improve tmux labels; printf injected",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, { cwd: "/repo", signal: subjectSignal });
-assert.equal(automaticSubject, undefined, "valid child subject adds no main-context reminder");
-const childCall = calls.find((call) => call.command === "pi");
-assert.ok(childCall, "missing task invokes isolated Pi child");
-assert.deepEqual(childCall.args.slice(0, -1), [
-  "--mode", "text",
-  "--print",
-  "--no-session",
-  "--model", "openai-codex/gpt-5.3-codex-spark",
-  "--thinking", "off",
-  "--no-tools",
-  "--no-extensions",
-  "--no-skills",
-  "--no-prompt-templates",
-  "--no-themes",
-  "--no-context-files",
-  "--no-approve",
-  "--system-prompt", "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.",
-], "subject child disables context-bearing resources");
-assert.equal(childCall.args.at(-1), "improve tmux labels; printf injected", "prompt is passed as one argv value");
-assert.equal(subjectChildExecOptions.cwd, "/repo/main-repo", "subject child runs from the resolved worktree cwd");
-assert.equal(subjectChildExecOptions.timeout, 15000, "subject child timeout is threaded through");
-assert.equal(subjectChildExecOptions.signal, subjectSignal, "subject child receives the before_agent_start cancellation signal");
-assert.deepEqual(calls.find((call) => call.command === "tmux-agent-subject"), {
-  command: "tmux-agent-subject",
-  args: ["set", "improve tmux labels"],
-}, "parent applies the validated child subject");
+const subjectChildPrompts = [
+  "@.env",
+  "--model malicious",
+  "improve tmux labels; printf injected",
+];
+for (const prompt of subjectChildPrompts) {
+  calls.length = 0;
+  subjectChildExecOptions = undefined;
+  const automaticSubject = await handlers.get("before_agent_start")({
+    prompt,
+    systemPrompt: "",
+    systemPromptOptions: { cwd: "/repo" },
+  }, { cwd: "/repo", signal: subjectSignal });
+  assert.equal(automaticSubject, undefined, `${prompt} prompt adds no main-context reminder`);
+  const childCall = calls.find((call) => call.command === "pi");
+  assert.ok(childCall, `${prompt} invokes isolated Pi child`);
+  assert.deepEqual(childCall.args.slice(0, -1), [
+    "--mode", "text",
+    "--print",
+    "--no-session",
+    "--model", "openai-codex/gpt-5.3-codex-spark",
+    "--thinking", "off",
+    "--no-tools",
+    "--no-extensions",
+    "--no-skills",
+    "--no-prompt-templates",
+    "--no-themes",
+    "--no-context-files",
+    "--no-approve",
+    "--system-prompt", "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.",
+  ], "subject child disables context-bearing resources");
+  assert.equal(childCall.args.at(-1), `Task: ${prompt}`, `${prompt} is passed as one framed argv value`);
+  assert.equal(subjectChildExecOptions.cwd, "/repo/main-repo", "subject child runs from the resolved worktree cwd");
+  assert.equal(subjectChildExecOptions.timeout, 15000, "subject child timeout is threaded through");
+  assert.equal(subjectChildExecOptions.signal, subjectSignal, "subject child receives the before_agent_start cancellation signal");
+  assert.deepEqual(calls.find((call) => call.command === "tmux-agent-subject"), {
+    command: "tmux-agent-subject",
+    args: ["set", "improve tmux labels"],
+  }, `${prompt} keeps the validated child subject`);
+}
 
 const subjectPromptSentinel = "prompt-sentinel-7f3c7b7f";
 for (const [label, failureResult, failureError, expectedMetadata] of [
