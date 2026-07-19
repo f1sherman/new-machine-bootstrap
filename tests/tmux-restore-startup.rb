@@ -207,6 +207,21 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert_equal ["restore-failure"], fallback_invocations.map { |entry| entry.fetch("label") }
   end
 
+  def test_unreserved_restored_session_named_zero_is_selected
+    env = helper_env("FAKE_RESTORE_SESSIONS" => "0")
+
+    _out, _err, status = Open3.capture3(env, HELPER)
+    attachment = read_attachments.first
+
+    assert status.success?
+    assert_equal "$2", attachment.fetch("session_id"),
+      "numeric session name must not be parsed as a live reservation owner"
+    assert_equal "0", attachment.fetch("session_name")
+    assert_helper_owned_reservation(attachment)
+    assert_equal ["0"], read_state.fetch("sessions").map { |session| session.fetch("name") },
+      "helper must not create a new session when the restored session is available"
+  end
+
   def test_empty_restore_creates_and_attaches_normal_session
     env = helper_env("FAKE_RESTORE_SESSIONS" => "")
 
