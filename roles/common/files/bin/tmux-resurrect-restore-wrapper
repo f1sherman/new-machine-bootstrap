@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# DEBUG WRAPPER (added 2026-05-01 to diagnose missed auto-restore).
-# Logs every invocation of resurrect's restore.sh, then delegates to it.
-DEBUG_LOG="$HOME/.local/state/tmux-debug.log"
-mkdir -p "$(dirname "$DEBUG_LOG")"
-{
-  printf '[%s] restore-wrapper pid=%s ppid=%s: INVOKED args=(%s)\n' "$(date '+%H:%M:%S')" "$$" "$PPID" "$*"
-  echo "    tmux processes at restore time:"
-  /bin/ps -axo pid,ppid,command | /usr/bin/grep -E '[t]mux' | sed 's/^/      /' || true
-} >> "$DEBUG_LOG" 2>&1 || true
+set -e
 
-exec "$HOME/.tmux/plugins/tmux-resurrect/scripts/restore.sh" "$@"
+source "${TMUX_RESTORE_LOG_LIB:-$HOME/.local/bin/tmux-restore-log.sh}"
+restore_script="${TMUX_RESURRECT_RESTORE_SCRIPT:-$HOME/.tmux/plugins/tmux-resurrect/scripts/restore.sh}"
+tmux_restore_log_event restore_start "script=$restore_script"
+set +e
+"$restore_script" "$@"
+status=$?
+set -e
+tmux_restore_log_event restore_end "status=$status"
+exit "$status"

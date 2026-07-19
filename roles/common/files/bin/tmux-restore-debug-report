@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -u
+
+TMUX_RESTORE_STATE_DIR="${TMUX_RESTORE_STATE_DIR:-$HOME/.local/state/tmux}"
+TMUX_RESTORE_LOG="${TMUX_RESTORE_LOG:-$TMUX_RESTORE_STATE_DIR/restore.log}"
+
+heading() {
+  printf '\n%s\n' "$1"
+  printf '%s\n' '------------------------'
+}
+
+printf '%s\n' 'Tmux restore diagnostics'
+
+heading 'Recent restore events'
+for restore_log in "$TMUX_RESTORE_LOG.previous" "$TMUX_RESTORE_LOG"; do
+  if [ -f "$restore_log" ]; then
+    printf '%s:\n' "$restore_log"
+    tail -n 100 "$restore_log" 2>/dev/null || true
+  fi
+done
+
+sessions="$(tmux list-sessions -F '#{session_id}\t#{session_name}\tattached=#{session_attached}\towner=#{@ghostty_attach_owner}' 2>/dev/null || true)"
+heading 'Current sessions'
+if [ -n "$sessions" ]; then
+  printf '%s\n' "$sessions"
+else
+  printf '%s\n' '(none or tmux unavailable)'
+fi
+
+heading 'Current clients'
+tmux list-clients -F '#{client_tty}\t#{session_id}\t#{session_name}' 2>/dev/null ||
+  printf '%s\n' '(none or tmux unavailable)'
+
+heading 'Reservations'
+reservation_count=0
+while IFS="$(printf '\t')" read -r session_id session_name attached owner; do
+  owner="${owner#owner=}"
+  [ -n "$owner" ] || continue
+  reservation_count=$((reservation_count + 1))
+  alive=no
+  case "$owner" in
+    *[!0-9]*|'') ;;
+    *) kill -0 "$owner" 2>/dev/null && alive=yes ;;
+  esac
+  printf '%s\t%s\towner=%s\talive=%s\n' "$session_id" "$session_name" "$owner" "$alive"
+done <<EOF
+$sessions
+EOF
+[ "$reservation_count" -gt 0 ] || printf '%s\n' '(none)'
+
+heading 'Restore state'
+restore_state="$(tmux show-options -gqv @ghostty_restore_state 2>/dev/null || true)"
+printf '%s\n' "${restore_state:-(unset)}"
+
+heading 'Latest resurrect snapshot'
+resurrect_link="$HOME/.tmux/resurrect/last"
+if [ -L "$resurrect_link" ]; then
+  resurrect_target="$(readlink "$resurrect_link" 2>/dev/null || true)"
+  case "$resurrect_target" in
+    /*) ;;
+    *) resurrect_target="$(dirname "$resurrect_link")/$resurrect_target" ;;
+  esac
+  printf '%s\n' "$resurrect_target"
+elif [ -e "$resurrect_link" ]; then
+  printf '%s\n' "$resurrect_link"
+else
+  printf '%s\n' '(none)'
+fi
