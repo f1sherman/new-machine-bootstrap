@@ -30,6 +30,8 @@ tmux_restore_log_event helper_invoked "tty=$(tty 2>/dev/null || printf none)"
 
 LOCK_FILE="${TMUX_ATTACH_LOCK_FILE:-/tmp/tmux-attach-or-new.lock}"
 LOCK_TIMEOUT="${TMUX_ATTACH_LOCK_TIMEOUT:-30}"
+GHOSTTY_MANIFEST="${TMUX_GHOSTTY_MANIFEST:-$HOME/.local/state/tmux/ghostty-session-manifest.json}"
+GHOSTTY_RESTORE_QUEUE="${TMUX_GHOSTTY_RESTORE_QUEUE:-$HOME/.local/state/tmux/ghostty-restore-queue.json}"
 lock_held=0
 reserved_target=""
 
@@ -50,6 +52,33 @@ resurrect_snapshot() {
   else
     printf '%s\n' none
   fi
+}
+
+replace_restore_queue() {
+  local queue_dir tmp
+
+  queue_dir="$(dirname "$GHOSTTY_RESTORE_QUEUE")"
+  mkdir -p "$queue_dir" 2>/dev/null || return 1
+  tmp="$(mktemp "$queue_dir/ghostty-restore-queue.XXXXXX")" || return 1
+  if ! cat >"$tmp" || ! chmod 0600 "$tmp" || ! mv "$tmp" "$GHOSTTY_RESTORE_QUEUE"; then
+    rm -f "$tmp"
+    return 1
+  fi
+}
+
+resolve_ghostty_app_pid() {
+  local login_pid app_pid
+
+  if [ -n "${TMUX_GHOSTTY_APP_PID:-}" ]; then
+    app_pid="$TMUX_GHOSTTY_APP_PID"
+  else
+    login_pid="$(ps -o ppid= -p "$$" 2>/dev/null | tr -d '[:space:]')"
+    app_pid="$(ps -o ppid= -p "$login_pid" 2>/dev/null | tr -d '[:space:]')"
+  fi
+  case "$app_pid" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  printf '%s\n' "$app_pid"
 }
 
 unlock_startup() {
@@ -194,7 +223,102 @@ fi
 
 target=""
 tab="$(printf '\t')"
-while IFS="$tab" read -r session_id attached bootstrap owner_field _session_name; do
+ghostty_app_pid=""
+if [ -f "$GHOSTTY_MANIFEST" ]; then
+  ghostty_app_pid="$(resolve_ghostty_app_pid 2>/dev/null || true)"
+fi
+
+if [ -n "$ghostty_app_pid" ]; then
+  queue_pid="$(jq -er '.ghostty_pid | select(type == "number")' "$GHOSTTY_RESTORE_QUEUE" 2>/dev/null || true)"
+  if [ "$queue_pid" != "$ghostty_app_pid" ]; then
+    manifest_pid="$(jq -er '.ghostty_pid | select(type == "number")' "$GHOSTTY_MANIFEST" 2>/dev/null || true)"
+    if [ -n "$manifest_pid" ] && [ "$manifest_pid" != "$ghostty_app_pid" ]; then
+      if jq -e --argjson ghostty_pid "$ghostty_app_pid" '
+        [.windows[].tabs[].session_name] as $pending
+        | select(.version == 1 and ($pending | length) > 0)
+        | {version: 1, ghostty_pid: $ghostty_pid, pending: $pending}
+      ' "$GHOSTTY_MANIFEST" 2>/dev/null | replace_restore_queue; then
+        pending_count="$(jq '.pending | length' "$GHOSTTY_RESTORE_QUEUE")"
+        tmux_restore_log_event restore_queue_initialized \
+          "ghostty_pid=$ghostty_app_pid" "sessions=$pending_count"
+      else
+        tmux_restore_log_event restore_queue_skipped \
+          "ghostty_pid=$ghostty_app_pid" "reason=invalid_manifest"
+      fi
+    else
+      if jq -n --argjson ghostty_pid "$ghostty_app_pid" \
+        '{version: 1, ghostty_pid: $ghostty_pid, pending: []}' | replace_restore_queue; then
+        tmux_restore_log_event restore_queue_skipped \
+          "ghostty_pid=$ghostty_app_pid" "reason=current_process_manifest"
+      else
+        tmux_restore_log_event restore_queue_skipped \
+          "ghostty_pid=$ghostty_app_pid" "reason=queue_write_failed"
+      fi
+    fi
+  fi
+
+  while candidate_name="$(jq -er '.pending[0] | select(type == "string")' "$GHOSTTY_RESTORE_QUEUE" 2>/dev/null)"; do
+    if ! jq '.pending |= .[1:]' "$GHOSTTY_RESTORE_QUEUE" 2>/dev/null | replace_restore_queue; then
+      tmux_restore_log_event restore_queue_candidate_skipped \
+        "session=$candidate_name" "reason=queue_write_failed"
+      break
+    fi
+
+    candidate_id="$(tmux display-message -p -t "=$candidate_name" '#{session_id}' 2>/dev/null || true)"
+    if [ -z "$candidate_id" ]; then
+      tmux_restore_log_event restore_queue_candidate_skipped \
+        "session=$candidate_name" "reason=missing"
+      continue
+    fi
+
+    candidate_found=0
+    while IFS="$tab" read -r session_id attached bootstrap owner_field _session_name; do
+      [ "$session_id" = "$candidate_id" ] || continue
+      candidate_found=1
+      if [ "$bootstrap" != "0" ]; then
+        tmux_restore_log_event restore_queue_candidate_skipped \
+          "session=$candidate_name" "reason=bootstrap"
+        break
+      fi
+      if [ "$attached" != "0" ]; then
+        tmux_restore_log_event restore_queue_candidate_skipped \
+          "session=$candidate_name" "reason=attached"
+        break
+      fi
+
+      owner="${owner_field#owner=}"
+      if [ -n "$owner" ]; then
+        if kill -0 "$owner" 2>/dev/null; then
+          tmux_restore_log_event restore_queue_candidate_skipped \
+            "session=$candidate_name" "reason=reserved"
+          break
+        fi
+        tmux set-option -qu -t "$session_id" @ghostty_attach_owner 2>/dev/null || true
+        tmux_restore_log_event reservation_reclaimed "target=$session_id" "owner=$owner"
+      fi
+
+      target="$session_id"
+      tmux_restore_log_event restore_queue_claimed \
+        "ghostty_pid=$ghostty_app_pid" "session=$candidate_name" "target=$target"
+      break
+    done <<EOF
+$sessions_output
+EOF
+
+    [ -n "$target" ] && break
+    if [ "$candidate_found" = "0" ]; then
+      tmux_restore_log_event restore_queue_candidate_skipped \
+        "session=$candidate_name" "reason=missing"
+    fi
+  done
+fi
+
+if [ -z "$target" ] && [ -n "$ghostty_app_pid" ] && \
+  [ "$(jq -r '.pending | length' "$GHOSTTY_RESTORE_QUEUE" 2>/dev/null || printf unknown)" = "0" ]; then
+  tmux_restore_log_event restore_queue_exhausted "ghostty_pid=$ghostty_app_pid"
+fi
+
+while [ -z "$target" ] && IFS="$tab" read -r session_id attached bootstrap owner_field _session_name; do
   [ -n "$session_id" ] || continue
   [ "$bootstrap" = "0" ] || continue
   [ "$attached" = "0" ] || continue

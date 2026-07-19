@@ -24,6 +24,8 @@ class TmuxRestoreStartupTest < Minitest::Test
     @fallback_log = File.join(@tmpdir, "fallback.log")
     @events_path = File.join(@tmpdir, "events.log")
     @lock_file = File.join(@tmpdir, "startup.lock")
+    @manifest_path = File.join(@tmpdir, "ghostty-session-manifest.json")
+    @queue_path = File.join(@tmpdir, "ghostty-restore-queue.json")
     write_json(@state_path, base_state)
     write_json(@attachments_path, [])
     write_fake_tmux
@@ -34,6 +36,65 @@ class TmuxRestoreStartupTest < Minitest::Test
 
   def teardown
     FileUtils.remove_entry(@tmpdir)
+  end
+
+  def test_new_ghostty_process_claims_exact_manifest_set
+    set_sessions(%w[17 19 journal hnp nmb command-proxy misc])
+    write_manifest(pid: 100, sessions: %w[journal hnp nmb command-proxy misc])
+    env = helper_env(
+      "TMUX_GHOSTTY_APP_PID" => "200",
+      "TMUX_ATTACH_LOCK_TIMEOUT" => "5",
+      "FAKE_TMUX_ATTACH_DELAY" => "0.25"
+    )
+
+    results = 5.times.map do
+      Thread.new { Open3.capture3(env, HELPER) }
+    end.map(&:value)
+    names = read_attachments.map { |entry| entry.fetch("session_name") }
+
+    results.each do |out, err, status|
+      assert status.success?, "helper failed:\n#{out}\n#{err}"
+    end
+    assert_equal [], fallback_invocations, File.read(@events_path)
+    assert_equal %w[command-proxy hnp journal misc nmb], names.sort
+    refute_includes names, "17"
+    refute_includes names, "19"
+    assert_event(/event=restore_queue_initialized\tghostty_pid=200\tsessions=5/)
+  end
+
+  def test_restore_queue_skips_missing_saved_session
+    set_sessions(%w[17 journal])
+    write_manifest(pid: 100, sessions: %w[missing journal])
+
+    _out, _err, status = Open3.capture3(helper_env("TMUX_GHOSTTY_APP_PID" => "200"), HELPER)
+
+    assert status.success?
+    assert_equal ["journal"], read_attachments.map { |entry| entry.fetch("session_name") }
+    assert_event(/event=restore_queue_candidate_skipped\tsession=missing\treason=missing/)
+  end
+
+  def test_helper_uses_normal_selection_after_restore_queue_is_exhausted
+    set_sessions(%w[17 19 journal])
+    write_manifest(pid: 100, sessions: ["journal"])
+    env = helper_env("TMUX_GHOSTTY_APP_PID" => "200")
+
+    first = Open3.capture3(env, HELPER)
+    second = Open3.capture3(env, HELPER)
+
+    assert first.last.success?
+    assert second.last.success?
+    assert_equal %w[journal 17], read_attachments.map { |entry| entry.fetch("session_name") }
+  end
+
+  def test_same_ghostty_process_as_manifest_uses_normal_selection
+    set_sessions(%w[17 journal])
+    write_manifest(pid: 200, sessions: ["journal"])
+
+    _out, _err, status = Open3.capture3(helper_env("TMUX_GHOSTTY_APP_PID" => "200"), HELPER)
+
+    assert status.success?
+    assert_equal ["17"], read_attachments.map { |entry| entry.fetch("session_name") }
+    assert_event(/event=restore_queue_skipped\tghostty_pid=200\treason=current_process_manifest/)
   end
 
   def test_concurrent_helpers_select_distinct_restored_sessions
@@ -281,8 +342,22 @@ class TmuxRestoreStartupTest < Minitest::Test
       "TMUX_RESTORE_LOG_LIB" => File.join(@tmpdir, "tmux-restore-log.sh"),
       "TMUX_RESURRECT_RESTORE_WRAPPER" => File.join(@tmpdir, "restore"),
       "TMUX_ATTACH_FALLBACK_SHELL" => File.join(@tmpdir, "fallback-shell"),
+      "TMUX_GHOSTTY_MANIFEST" => @manifest_path,
+      "TMUX_GHOSTTY_RESTORE_QUEUE" => @queue_path,
       "SHELL" => File.join(@tmpdir, "fallback-shell")
     }.merge(extra)
+  end
+
+  def write_manifest(pid:, sessions:)
+    tabs = sessions.each_with_index.map do |name, index|
+      { "tab_index" => index + 1, "session_name" => name }
+    end
+    write_json(@manifest_path, {
+      "version" => 1,
+      "ghostty_pid" => pid,
+      "saved_at" => Time.now.to_i,
+      "windows" => [{ "window_ordinal" => 1, "selected_tab_index" => 1, "tabs" => tabs }]
+    })
   end
 
   def set_sessions(names, owners: {})
@@ -438,7 +513,15 @@ class TmuxRestoreStartupTest < Minitest::Test
           end
         end
       when "display-message"
-        puts File.join(ENV.fetch("HOME"), ".tmux", "fake-socket")
+        target = option_value(args, "-t")
+        format = args.last
+        if format == '#{session_id}'
+          session = locked_json(state_path) { |state| find_session(state, target)&.dup }
+          exit 1 unless session
+          puts session.fetch("id")
+        else
+          puts File.join(ENV.fetch("HOME"), ".tmux", "fake-socket")
+        end
       when "kill-session"
         target = option_value(args, "-t")
         locked_json(state_path) do |state|
