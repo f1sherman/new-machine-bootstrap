@@ -100,6 +100,18 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert_helper_owned_reservation(attachments.first)
   end
 
+  def test_tab_in_session_name_does_not_corrupt_selection_fields
+    set_sessions(["tab\tname", "available"])
+
+    _out, _err, status = Open3.capture3(helper_env, HELPER)
+    attachment = read_attachments.first
+
+    assert status.success?
+    assert_equal "$1", attachment.fetch("session_id")
+    assert_equal "tab\tname", attachment.fetch("session_name")
+    assert_helper_owned_reservation(attachment)
+  end
+
   def test_attach_failure_clears_reservation_and_opens_fallback_shell
     set_sessions(["broken"])
     env = helper_env(
@@ -107,7 +119,12 @@ class TmuxRestoreStartupTest < Minitest::Test
       "FAKE_TMUX_ATTACH_FAILURE" => "$1"
     )
 
-    out, err, status = Open3.capture3(env, HELPER)
+    stdin, stdout, stderr, wait_thread = Open3.popen3(env, HELPER)
+    helper_pid = wait_thread.pid
+    stdin.close
+    out = stdout.read
+    err = stderr.read
+    status = wait_thread.value
     failed_session = session_named("broken")
     session_options = failed_session.fetch("options")
     fallback_output = out + err
@@ -117,6 +134,23 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert_nil session_options.fetch("@ghostty_attach_owner", nil)
     assert_includes fallback_output, "tmux-restore-debug-report"
     assert_equal ["attach-failure"], fallback_invocations.map { |entry| entry.fetch("label") }
+    assert_equal helper_pid, fallback_invocations.first.fetch("pid"),
+      "fallback shell must replace the helper process rather than run as its child"
+  end
+
+  def test_missing_fallback_shell_keeps_visible_failure_diagnostics
+    set_sessions(["broken"])
+    missing_shell = File.join(@tmpdir, "missing-fallback-shell")
+    env = helper_env(
+      "FAKE_TMUX_ATTACH_FAILURE" => "$1",
+      "TMUX_ATTACH_FALLBACK_SHELL" => missing_shell
+    )
+
+    out, err, status = Open3.capture3(env, HELPER)
+
+    refute status.success?
+    assert_includes out + err, "tmux-restore-debug-report"
+    assert_includes out + err, "Unable to start fallback shell #{missing_shell}"
   end
 
   def test_restore_failure_is_shared_and_opens_fallback_shell
@@ -278,6 +312,7 @@ class TmuxRestoreStartupTest < Minitest::Test
 
       def render(format, session)
         format
+          .gsub('#{==:#{session_name},__bootstrap__}', (session.fetch("name") == "__bootstrap__" ? "1" : "0"))
           .gsub('#{session_id}', session.fetch("id"))
           .gsub('#{session_name}', session.fetch("name"))
           .gsub('#{session_attached}', session.fetch("attached").to_s)
