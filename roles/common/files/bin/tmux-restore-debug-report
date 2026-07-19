@@ -4,6 +4,8 @@ set -u
 TMUX_RESTORE_STATE_DIR="${TMUX_RESTORE_STATE_DIR:-$HOME/.local/state/tmux}"
 TMUX_RESTORE_LOG="${TMUX_RESTORE_LOG:-$TMUX_RESTORE_STATE_DIR/restore.log}"
 TMUX_RESURRECT_DIR="${TMUX_RESURRECT_DIR:-$HOME/.local/share/tmux/resurrect}"
+TMUX_GHOSTTY_MANIFEST="${TMUX_GHOSTTY_MANIFEST:-$TMUX_RESTORE_STATE_DIR/ghostty-session-manifest.json}"
+TMUX_GHOSTTY_RESTORE_QUEUE="${TMUX_GHOSTTY_RESTORE_QUEUE:-$TMUX_RESTORE_STATE_DIR/ghostty-restore-queue.json}"
 tab="$(printf '\t')"
 
 heading() {
@@ -49,6 +51,25 @@ done <<EOF
 $reservations
 EOF
 [ "$reservation_count" -gt 0 ] || printf '%s\n' '(none)'
+
+print_json_state() {
+  local path
+
+  path="$1"
+  if [ ! -f "$path" ]; then
+    printf '%s\n' '(none)'
+  elif command -v jq >/dev/null 2>&1 && jq -e . "$path" >/dev/null 2>&1; then
+    jq . "$path" 2>/dev/null || true
+  else
+    cat "$path" 2>/dev/null || true
+  fi
+}
+
+heading 'Ghostty session manifest'
+print_json_state "$TMUX_GHOSTTY_MANIFEST"
+
+heading 'Ghostty restore queue'
+print_json_state "$TMUX_GHOSTTY_RESTORE_QUEUE"
 
 heading 'Restore state'
 restore_state="$(tmux show-options -gqv @ghostty_restore_state 2>/dev/null || true)"

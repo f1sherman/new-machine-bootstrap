@@ -164,11 +164,13 @@
     line: 'command = {{ ansible_facts["user_dir"] }}/.local/bin/tmux-attach-or-new'
     create: yes
     mode: 0644
-- name: Remove ghostty window-save-state setting
+- name: Configure ghostty native window state restoration
   lineinfile:
     path: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty/config'
     regexp: '^window-save-state\s*='
-    state: absent
+    line: 'window-save-state = always'
+    create: yes
+    mode: 0644
 - name: Create .vimtmp directory
   file:
     path: '{{ ansible_facts["user_dir"] }}/.vimtmp'
@@ -369,6 +371,24 @@
   loop:
     - ghostty-layout-save
     - ghostty-layout-reconcile
+
+- name: Install Ghostty session manifest LaunchAgent plist
+  template:
+    src: launchd/com.user.ghostty-session-manifest-save.plist
+    dest: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-session-manifest-save.plist'
+    mode: '0644'
+  register: ghostty_session_manifest_plist
+
+- name: Unload Ghostty session manifest launchd job if changed
+  command: launchctl unload {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-session-manifest-save.plist
+  when: ghostty_session_manifest_plist.changed
+  changed_when: false
+  failed_when: false
+
+- name: Load Ghostty session manifest launchd job
+  command: launchctl load {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-session-manifest-save.plist
+  changed_when: false
+  failed_when: false
 
 - name: Install tmux pipe-pane rotate LaunchAgent plist
   template:

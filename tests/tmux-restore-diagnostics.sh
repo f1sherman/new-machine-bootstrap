@@ -34,7 +34,15 @@ export HOME="$tmpdir/home"
 export TMUX_RESTORE_STATE_DIR="$tmpdir/state"
 export TMUX_RESTORE_LOG="$TMUX_RESTORE_STATE_DIR/restore.log"
 export TMUX_RESTORE_LOG_LIMIT=512
-mkdir -p "$HOME/.local/bin" "$HOME/.local/share/tmux/resurrect" "$tmpdir/bin"
+export TMUX_GHOSTTY_MANIFEST="$TMUX_RESTORE_STATE_DIR/ghostty-session-manifest.json"
+export TMUX_GHOSTTY_RESTORE_QUEUE="$TMUX_RESTORE_STATE_DIR/ghostty-restore-queue.json"
+mkdir -p "$HOME/.local/bin" "$HOME/.local/share/tmux/resurrect" "$tmpdir/bin" "$TMUX_RESTORE_STATE_DIR"
+cat > "$TMUX_GHOSTTY_MANIFEST" <<'JSON'
+{"version":1,"ghostty_pid":100,"windows":[{"window_ordinal":1,"selected_tab_index":1,"tabs":[{"tab_index":1,"session_name":"journal"}]}]}
+JSON
+cat > "$TMUX_GHOSTTY_RESTORE_QUEUE" <<'JSON'
+{"version":1,"ghostty_pid":200,"pending":["hnp"]}
+JSON
 
 [ -f "$log_lib" ] || fail "missing logging library: $log_lib"
 [ -x "$report" ] || fail "missing report command: $report"
@@ -275,6 +283,8 @@ for heading in \
   "Current sessions" \
   "Current clients" \
   "Reservations" \
+  "Ghostty session manifest" \
+  "Ghostty restore queue" \
   "Restore state" \
   "Latest resurrect snapshot"; do
   assert_contains "$report_output" "$heading"
@@ -282,6 +292,8 @@ done
 assert_contains "$report_output" 'alive=yes'
 assert_contains "$report_output" 'alive=no'
 assert_contains "$report_output" 'tmux_resurrect_test.txt'
+assert_contains "$report_output" '"session_name": "journal"'
+assert_contains "$report_output" '"hnp"'
 assert_contains "$report_output" 'report-line-105'
 assert_not_contains "$report_output" 'report-line-001'
 failed_state_report="$(FAKE_RESTORE_STATE=failed PATH="$tmpdir/bin:$PATH" "$report")"
