@@ -3,6 +3,7 @@ set -u
 
 TMUX_RESTORE_STATE_DIR="${TMUX_RESTORE_STATE_DIR:-$HOME/.local/state/tmux}"
 TMUX_RESTORE_LOG="${TMUX_RESTORE_LOG:-$TMUX_RESTORE_STATE_DIR/restore.log}"
+TMUX_RESURRECT_DIR="${TMUX_RESURRECT_DIR:-$HOME/.local/share/tmux/resurrect}"
 
 heading() {
   printf '\n%s\n' "$1"
@@ -53,7 +54,7 @@ restore_state="$(tmux show-options -gqv @ghostty_restore_state 2>/dev/null || tr
 printf '%s\n' "${restore_state:-(unset)}"
 
 heading 'Latest resurrect snapshot'
-resurrect_link="$HOME/.tmux/resurrect/last"
+resurrect_link="$TMUX_RESURRECT_DIR/last"
 if [ -L "$resurrect_link" ]; then
   resurrect_target="$(readlink "$resurrect_link" 2>/dev/null || true)"
   case "$resurrect_target" in
