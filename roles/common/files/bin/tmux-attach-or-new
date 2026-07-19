@@ -291,7 +291,7 @@ if [ -n "$ghostty_app_pid" ]; then
       break
     fi
 
-    candidate_id="$(tmux display-message -p -t "=$candidate_name" '#{session_id}' 2>/dev/null || true)"
+    candidate_id="$(tmux display-message -p -t "=$candidate_name:" '#{session_id}' 2>/dev/null || true)"
     if [ -z "$candidate_id" ]; then
       tmux_restore_log_event restore_queue_candidate_skipped \
         "session=$candidate_name" "reason=missing"

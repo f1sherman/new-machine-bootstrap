@@ -565,7 +565,12 @@ class TmuxRestoreStartupTest < Minitest::Test
         target = option_value(args, "-t")
         format = args.last
         if format == '#{session_id}'
-          session = locked_json(state_path) { |state| find_session(state, target)&.dup }
+          if target.to_s.start_with?("=") && !target.to_s.end_with?(":")
+            puts ""
+            exit 0
+          end
+          session_target = target.to_s.delete_suffix(":")
+          session = locked_json(state_path) { |state| find_session(state, session_target)&.dup }
           exit 1 unless session
           puts session.fetch("id")
         else
