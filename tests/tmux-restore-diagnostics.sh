@@ -34,7 +34,7 @@ export HOME="$tmpdir/home"
 export TMUX_RESTORE_STATE_DIR="$tmpdir/state"
 export TMUX_RESTORE_LOG="$TMUX_RESTORE_STATE_DIR/restore.log"
 export TMUX_RESTORE_LOG_LIMIT=100
-mkdir -p "$HOME/.local/bin" "$HOME/.tmux/resurrect" "$tmpdir/bin"
+mkdir -p "$HOME/.local/bin" "$HOME/.local/share/tmux/resurrect" "$tmpdir/bin"
 
 [ -f "$log_lib" ] || fail "missing logging library: $log_lib"
 [ -x "$report" ] || fail "missing report command: $report"
@@ -47,6 +47,11 @@ first_event="$(cat "$TMUX_RESTORE_LOG")"
   fail "event containing a newline was not written as one line"
 assert_contains "$first_event" 'event=event with controls'
 assert_contains "$first_event" 'detail=one  two three'
+exec 9> "$tmpdir/caller-fd"
+tmux_restore_log_event fd_scope
+printf '%s\n' 'caller-fd-preserved' >&9
+exec 9>&-
+assert_contains "$(cat "$tmpdir/caller-fd")" 'caller-fd-preserved'
 
 for number in 1 2 3 4; do
   tmux_restore_log_event rotation_test "number=$number" "padding=abcdefghijklmnopqrstuvwxyz"
@@ -58,6 +63,63 @@ done
   fail "rotation retained more than current and previous logs"
 [ "$(cat "$TMUX_RESTORE_LOG" "$TMUX_RESTORE_LOG.previous" | wc -l | tr -d ' ')" -ge 2 ] ||
   fail "events were not written as lines"
+
+monitor_dir="$tmpdir/monitor"
+mkdir -p "$monitor_dir" "$tmpdir/concurrent-bin"
+cat > "$tmpdir/concurrent-bin/wc" <<'SH'
+#!/usr/bin/env bash
+owns_marker=no
+if mkdir "$TMUX_RESTORE_TEST_ACTIVE" 2>/dev/null; then
+  owns_marker=yes
+else
+  : > "$TMUX_RESTORE_TEST_OVERLAP"
+fi
+sleep 0.05
+[ "$owns_marker" = no ] || rmdir "$TMUX_RESTORE_TEST_ACTIVE"
+exec /usr/bin/wc "$@"
+SH
+chmod +x "$tmpdir/concurrent-bin/wc"
+cat > "$tmpdir/concurrent-writer" <<'SH'
+#!/usr/bin/env bash
+set -e
+# shellcheck source=/dev/null
+source "$TMUX_RESTORE_TEST_LOG_LIB"
+tmux_restore_log_event concurrent_writer "writer=$1" "padding=abcdefghijklmnopqrstuvwxyz"
+SH
+chmod +x "$tmpdir/concurrent-writer"
+: > "$TMUX_RESTORE_LOG"
+padding_count=1
+while [ "$padding_count" -le 20 ]; do
+  printf 'timestamp=seed-%02d\tevent=rotation_seed\tpadding=%s\n' \
+    "$padding_count" 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' >> "$TMUX_RESTORE_LOG"
+  padding_count=$((padding_count + 1))
+done
+export TMUX_RESTORE_TEST_ACTIVE="$monitor_dir/active"
+export TMUX_RESTORE_TEST_OVERLAP="$monitor_dir/overlap"
+export TMUX_RESTORE_TEST_LOG_LIB="$log_lib"
+writer=1
+while [ "$writer" -le 12 ]; do
+  PATH="$tmpdir/concurrent-bin:$PATH" TMUX_RESTORE_LOG_LIMIT=1500 \
+    "$tmpdir/concurrent-writer" "$writer" &
+  writer=$((writer + 1))
+done
+wait
+[ ! -e "$TMUX_RESTORE_TEST_OVERLAP" ] || fail "concurrent writers entered rotation without synchronization"
+[ -f "$TMUX_RESTORE_STATE_DIR/restore.lock" ] || fail "dedicated restore lock was not created"
+[ "$(find "$TMUX_RESTORE_STATE_DIR" -type f -name 'restore.log*' | wc -l | tr -d ' ')" = 2 ] ||
+  fail "lock file was counted as a retained log"
+concurrent_events="$(cat "$TMUX_RESTORE_LOG.previous" "$TMUX_RESTORE_LOG" | grep -c 'event=concurrent_writer' || true)"
+[ "$concurrent_events" = 12 ] || fail "concurrent rotation lost or corrupted events"
+[ "$(grep -c '^timestamp=.*event=concurrent_writer' "$TMUX_RESTORE_LOG" || true)" = 12 ] ||
+  fail "current log contains malformed concurrent events"
+assert_contains "$(cat "$TMUX_RESTORE_LOG.previous")" 'timestamp=seed-01'
+assert_contains "$(cat "$TMUX_RESTORE_LOG.previous")" 'timestamp=seed-20'
+writer=1
+while [ "$writer" -le 12 ]; do
+  [ "$(grep -c "writer=$writer"$'\t''padding=' "$TMUX_RESTORE_LOG" || true)" = 1 ] ||
+    fail "concurrent writer $writer was lost or duplicated"
+  writer=$((writer + 1))
+done
 
 export FAKE_LIVE_PID="$$"
 cat > "$tmpdir/bin/tmux" <<'SH'
@@ -76,8 +138,9 @@ case "$1" in
 esac
 SH
 chmod +x "$tmpdir/bin/tmux"
-printf 'snapshot\n' > "$HOME/.tmux/resurrect/tmux_resurrect_test.txt"
-ln -s tmux_resurrect_test.txt "$HOME/.tmux/resurrect/last"
+resurrect_dir="$HOME/.local/share/tmux/resurrect"
+printf 'snapshot\n' > "$resurrect_dir/tmux_resurrect_test.txt"
+ln -s tmux_resurrect_test.txt "$resurrect_dir/last"
 line_number=1
 while [ "$line_number" -le 105 ]; do
   printf 'report-line-%03d\n' "$line_number" >> "$TMUX_RESTORE_LOG"
@@ -99,7 +162,7 @@ assert_contains "$report_output" 'alive=no'
 assert_contains "$report_output" 'tmux_resurrect_test.txt'
 assert_contains "$report_output" 'report-line-105'
 assert_not_contains "$report_output" 'report-line-001'
-rm "$HOME/.tmux/resurrect/last"
+rm "$resurrect_dir/last"
 report_without_snapshot="$(PATH="$tmpdir/bin:$PATH" "$report")"
 assert_contains "$report_without_snapshot" 'Latest resurrect snapshot'
 assert_contains "$report_without_snapshot" '(none)'
