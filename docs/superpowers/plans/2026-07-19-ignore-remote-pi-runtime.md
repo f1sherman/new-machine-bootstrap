@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Ignore `.pi/remote-pi/` across all repositories.
+- Ignore `**/.pi/remote-pi/` at repository root and below nested working directories.
 - Do not ignore all of `.pi/`.
 - Preserve existing Remote Pi configuration files.
 
@@ -23,7 +23,7 @@
 - Create: `tests/gitignore-contract.sh`
 - Modify: `.github/workflows/integration-test.yml`
 
-- [ ] Add a failing contract test that requires exactly `.pi/remote-pi/` and rejects a blanket `.pi/` entry.
+- [ ] Add a failing contract test that requires exactly `**/.pi/remote-pi/`, proves root and nested runtime files are ignored, and rejects a blanket `.pi/` entry.
 - [ ] Run `bash tests/gitignore-contract.sh` and confirm it fails.
 - [ ] Add the targeted Remote Pi section to the managed global Git ignore template.
 - [ ] Register the contract test in the integration workflow.
