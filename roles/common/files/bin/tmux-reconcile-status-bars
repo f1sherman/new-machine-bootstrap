@@ -1,6 +1,23 @@
 #!/usr/bin/env bash
 set -u
 
+lock_name=tmux-reconcile-status-bars
+lock_held=false
+
+release_lock() {
+  [ "$lock_held" = true ] || return
+  lock_held=false
+  tmux wait-for -U "$lock_name" 2>/dev/null || true
+}
+
+trap release_lock EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+tmux wait-for -L "$lock_name" 2>/dev/null || exit 0
+lock_held=true
+
 [ "$(tmux show-options -gv @managed-bars 2>/dev/null || true)" != "off" ] || exit 0
 
 tmux list-sessions -F '#{session_id}' 2>/dev/null | while IFS= read -r session_id; do

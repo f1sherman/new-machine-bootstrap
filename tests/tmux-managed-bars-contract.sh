@@ -12,6 +12,7 @@ LINUX_TMUX_CONF="$REPO_ROOT/roles/linux/files/dotfiles/tmux.conf"
 MACOS_TMUX_CONF="$REPO_ROOT/roles/macos/templates/dotfiles/tmux.conf"
 PANE_BORDER="$BIN_DIR/tmux-sync-pane-border-status"
 RECONCILER="$BIN_DIR/tmux-reconcile-status-bars"
+RECONCILE_LOCK="tmux-reconcile-status-bars"
 
 SOCK="nmb-managed-bars-$$"
 TEST_HOME="$REPO_ROOT/.tmp/tmux-managed-bars-$$"
@@ -47,14 +48,26 @@ assert_file_not_contains() {
 
 [ -x "$RECONCILER" ] || fail_case "status reconciler helper exists" \
   "missing executable $RECONCILER"
+assert_file_contains "$RECONCILER" \
+  'tmux wait-for -L ' \
+  "status reconciler acquires a server lock"
+assert_file_contains "$RECONCILER" \
+  'tmux wait-for -U ' \
+  "status reconciler releases its server lock"
+assert_file_contains "$RECONCILER" \
+  '^trap release_lock EXIT$' \
+  "status reconciler releases its lock on exit"
 
 for config in "$LINUX_TMUX_CONF" "$MACOS_TMUX_CONF"; do
   platform="$(basename "$(dirname "$(dirname "$(dirname "$config")")")")"
-  for event in client-attached client-detached client-session-changed; do
+  for event in client-attached client-session-changed; do
     assert_file_contains "$config" \
       "set-hook -ag ${event} .*tmux-reconcile-status-bars" \
       "$platform config reconciles status on $event"
   done
+  assert_file_contains "$config" \
+    'set-hook -g client-detached .*tmux-reconcile-status-bars' \
+    "$platform config owns status reconciliation on client-detached"
   assert_file_contains "$config" \
     '^run-shell -b .*tmux-reconcile-status-bars' \
     "$platform config reconciles status at load time"
@@ -85,8 +98,16 @@ assert_equals "$(tmux -L "$SOCK" show-window-options -v -t s pane-border-status)
 tmux -L "$SOCK" set -gu @managed-bars
 tmux -L "$SOCK" set-option -t "$sid" status off
 HOME="$TEST_HOME" tmux -L "$SOCK" source-file "$LINUX_TMUX_CONF"
+HOME="$TEST_HOME" tmux -L "$SOCK" source-file "$LINUX_TMUX_CONF"
+HOME="$TEST_HOME" tmux -L "$SOCK" source-file "$LINUX_TMUX_CONF"
+detach_reconcilers="$(
+  tmux -L "$SOCK" show-hooks -g client-detached 2>/dev/null |
+    grep -c 'tmux-reconcile-status-bars' || true
+)"
+assert_equals "$detach_reconcilers" "1" \
+  "repeated config sourcing keeps one client-detached reconciler"
 
-python3 - "$SOCK" "$TEST_HOME" <<'PY'
+python3 - "$SOCK" "$TEST_HOME" "$RECONCILE_LOCK" "$LINUX_TMUX_CONF" <<'PY'
 import fcntl
 import os
 import pty
@@ -97,7 +118,7 @@ import sys
 import termios
 import time
 
-sock, test_home = sys.argv[1:]
+sock, test_home, reconcile_lock, linux_tmux_conf = sys.argv[1:]
 base_env = os.environ.copy()
 base_env["HOME"] = test_home
 base_env.pop("TMUX", None)
@@ -171,7 +192,7 @@ def client_ttys():
     return output.splitlines() if output else []
 
 
-def attach(session, term):
+def start_attach(session, term):
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
     tty = os.ttyname(slave)
@@ -190,16 +211,24 @@ def attach(session, term):
     os.set_blocking(master, False)
     client = {"process": process, "master": master, "tty": tty}
     clients.append(client)
+    return client
+
+
+def attach(session, term):
+    client = start_attach(session, term)
     wait_until(
-        lambda: tty in client_ttys(),
+        lambda: client["tty"] in client_ttys(),
         f"{term} client attaches to {session}",
-        f"client tty {tty} was not listed",
+        f"client tty {client['tty']} was not listed",
     )
     return client
 
 
-def detach(client):
+def request_detach(client):
     tmux("detach-client", "-t", client["tty"])
+
+
+def finish_detach(client):
     deadline = time.monotonic() + 3
     while client["process"].poll() is None and time.monotonic() < deadline:
         drain_clients()
@@ -207,6 +236,11 @@ def detach(client):
     client["process"].wait(timeout=0)
     clients.remove(client)
     os.close(client["master"])
+
+
+def detach(client):
+    request_detach(client)
+    finish_detach(client)
 
 
 try:
@@ -241,6 +275,21 @@ try:
     detach(nested)
     assert_status("s", "on", "last nested client detach restores status on")
 
+    for iteration in range(8):
+        nested = start_attach("s", "tmux-256color")
+        direct = start_attach("s", "xterm-256color")
+        wait_until(
+            lambda: {nested["tty"], direct["tty"]}.issubset(client_ttys()),
+            f"rapid client pair {iteration + 1} attaches",
+            "both rapid clients were not listed",
+        )
+        tmux("set-option", "-t", "s", "status", "off")
+        request_detach(direct)
+        request_detach(nested)
+        finish_detach(direct)
+        finish_detach(nested)
+    assert_status("s", "on", "rapid attach/detach bursts converge to zero-client status")
+
     tmux("new-session", "-d", "-s", "switch-source", "sleep", "300")
     tmux("new-session", "-d", "-s", "switch-destination", "sleep", "300")
     switcher = attach("switch-source", "tmux-256color")
@@ -253,6 +302,35 @@ try:
     assert_status("unrelated", "on", "session switch reconciles an unrelated session")
     detach(switcher)
     assert_status("switch-destination", "on", "switched client's detach restores status")
+
+    for event in ("client-attached", "client-detached", "client-session-changed"):
+        tmux("set-hook", "-gu", event)
+    direct = attach("s", "xterm-256color")
+    tmux("wait-for", "-L", reconcile_lock)
+    tmux("set-option", "-t", "s", "status", "off")
+    tmux("run-shell", "-b", f"{test_home}/.local/bin/tmux-reconcile-status-bars")
+    assert_statuses_stay(
+        {"s": "off"},
+        "queued reconciliation waits for the server lock",
+        timeout=0.5,
+    )
+    detach(direct)
+    nested = attach("s", "tmux-256color")
+    tmux("set-option", "-t", "s", "status", "on")
+    tmux("wait-for", "-U", reconcile_lock)
+    assert_status(
+        "s",
+        "off",
+        "queued reconciliation snapshots clients only after locking",
+    )
+    detach(nested)
+    tmux("set-option", "-t", "unrelated", "status", "off")
+    tmux("source-file", linux_tmux_conf)
+    assert_status(
+        "unrelated",
+        "on",
+        "restored config hooks finish load reconciliation",
+    )
 
     tmux("new-session", "-d", "-s", "opt-source", "sleep", "300")
     tmux("new-session", "-d", "-s", "opt-destination", "sleep", "300")
