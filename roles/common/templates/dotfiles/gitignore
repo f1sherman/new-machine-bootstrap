@@ -11,6 +11,9 @@ CLAUDE.local.md
 # OpenAI Codex
 .codex/
 
+# Remote Pi per-repository runtime state
+.pi/remote-pi/
+
 .bg-shell/
 .repo.yml
 .worktrees/
