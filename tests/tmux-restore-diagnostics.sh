@@ -44,6 +44,7 @@ for tmux_config in \
   "$repo_root/roles/linux/files/dotfiles/tmux.conf"; do
   [ -f "$tmux_config" ] || fail "missing managed tmux config: $tmux_config"
   config_contents="$(cat "$tmux_config")"
+  # shellcheck disable=SC2016
   assert_contains "$config_contents" 'set -g @resurrect-restore-script-path "$HOME/.local/bin/tmux-resurrect-restore-wrapper"'
   assert_not_contains "$config_contents" 'tmux-debug.log'
   assert_not_contains "$config_contents" '/bin/ps -axo'
@@ -159,7 +160,11 @@ case "$1" in
     printf '/dev/ttys001\t$1\tdiagnostics\n'
     ;;
   show-options)
-    printf 'restored\n'
+    restore_state="${FAKE_RESTORE_STATE:-restored}"
+    case "$restore_state" in
+      absent) exit 1 ;;
+      *) printf '%s\n' "$restore_state" ;;
+    esac
     ;;
 esac
 SH
@@ -180,6 +185,7 @@ for heading in \
   "Current sessions" \
   "Current clients" \
   "Reservations" \
+  "Restore state" \
   "Latest resurrect snapshot"; do
   assert_contains "$report_output" "$heading"
 done
@@ -188,6 +194,14 @@ assert_contains "$report_output" 'alive=no'
 assert_contains "$report_output" 'tmux_resurrect_test.txt'
 assert_contains "$report_output" 'report-line-105'
 assert_not_contains "$report_output" 'report-line-001'
+failed_state_report="$(FAKE_RESTORE_STATE=failed PATH="$tmpdir/bin:$PATH" "$report")"
+assert_contains "$failed_state_report" "Restore state
+------------------------
+failed"
+absent_state_report="$(FAKE_RESTORE_STATE=absent PATH="$tmpdir/bin:$PATH" "$report")"
+assert_contains "$absent_state_report" "Restore state
+------------------------
+(unset)"
 rm "$resurrect_dir/last"
 report_without_snapshot="$(PATH="$tmpdir/bin:$PATH" "$report")"
 assert_contains "$report_without_snapshot" 'Latest resurrect snapshot'
@@ -199,8 +213,11 @@ cat > "$restore_script" <<'SH'
 exit 23
 SH
 chmod +x "$restore_script"
+printf 'wrapper snapshot\n' > "$resurrect_dir/tmux_resurrect_wrapper.txt"
+ln -s tmux_resurrect_wrapper.txt "$resurrect_dir/last"
 set +e
 TMUX_RESTORE_LOG_LIB="$log_lib" \
+TMUX_RESURRECT_DIR="$resurrect_dir" \
 TMUX_RESURRECT_RESTORE_SCRIPT="$restore_script" \
   "$repo_root/roles/common/files/bin/tmux-resurrect-restore-wrapper"
 wrapper_status=$?
@@ -209,6 +226,8 @@ set -e
 wrapper_events="$(cat "$TMUX_RESTORE_LOG" "$TMUX_RESTORE_LOG.previous")"
 assert_contains "$wrapper_events" 'event=restore_start'
 assert_contains "$wrapper_events" 'event=restore_end'
+assert_contains "$wrapper_events" "snapshot=$resurrect_dir/tmux_resurrect_wrapper.txt"
+assert_contains "$wrapper_events" 'elapsed_seconds='
 assert_contains "$wrapper_events" 'status=23'
 
 printf 'PASS  bounded tmux restore diagnostics\n'

@@ -1,12 +1,36 @@
 #!/usr/bin/env bash
 set -e
 
+# shellcheck source=/dev/null
 source "${TMUX_RESTORE_LOG_LIB:-$HOME/.local/bin/tmux-restore-log.sh}"
 restore_script="${TMUX_RESURRECT_RESTORE_SCRIPT:-$HOME/.tmux/plugins/tmux-resurrect/scripts/restore.sh}"
-tmux_restore_log_event restore_start "script=$restore_script"
+resurrect_dir="${TMUX_RESURRECT_DIR:-$HOME/.local/share/tmux/resurrect}"
+resurrect_link="$resurrect_dir/last"
+
+resurrect_snapshot() {
+  local snapshot
+
+  if [ -L "$resurrect_link" ]; then
+    snapshot="$(readlink "$resurrect_link" 2>/dev/null || true)"
+    case "$snapshot" in
+      /*) ;;
+      *) snapshot="$(dirname "$resurrect_link")/$snapshot" ;;
+    esac
+    printf '%s\n' "${snapshot:-none}"
+  elif [ -e "$resurrect_link" ]; then
+    printf '%s\n' "$resurrect_link"
+  else
+    printf '%s\n' none
+  fi
+}
+
+snapshot="$(resurrect_snapshot)"
+restore_started=$SECONDS
+tmux_restore_log_event restore_start "script=$restore_script" "snapshot=$snapshot"
 set +e
 "$restore_script" "$@"
 status=$?
 set -e
-tmux_restore_log_event restore_end "status=$status"
+tmux_restore_log_event restore_end "snapshot=$snapshot" \
+  "elapsed_seconds=$((SECONDS - restore_started))" "status=$status"
 exit "$status"
