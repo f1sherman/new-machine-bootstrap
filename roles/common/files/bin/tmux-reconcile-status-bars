@@ -11,12 +11,15 @@ release_lock() {
 }
 
 trap release_lock EXIT
+trap '' HUP INT TERM
+if ! tmux wait-for -L "$lock_name" 2>/dev/null; then
+  trap - HUP INT TERM
+  exit 0
+fi
+lock_held=true
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
-
-tmux wait-for -L "$lock_name" 2>/dev/null || exit 0
-lock_held=true
 
 [ "$(tmux show-options -gv @managed-bars 2>/dev/null || true)" != "off" ] || exit 0
 
