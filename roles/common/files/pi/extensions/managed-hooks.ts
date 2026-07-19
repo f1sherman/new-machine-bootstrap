@@ -412,7 +412,25 @@ function normalizeGeneratedSubject(output) {
   return subject;
 }
 
-async function setSubjectFromSubagent(pi, prompt, cwd) {
+function subjectChildFailureDetails(value) {
+  if (value instanceof Error) {
+    return {
+      name: value.name || "Error",
+      code: value.code,
+      exitCode: value.exitCode,
+      killed: value.killed,
+    };
+  }
+
+  return {
+    name: "SubjectChildResult",
+    code: value?.code,
+    exitCode: value?.exitCode,
+    killed: value?.killed,
+  };
+}
+
+async function setSubjectFromSubagent(pi, prompt, cwd, signal) {
   let result;
   try {
     result = await pi.exec("pi", [
@@ -430,14 +448,14 @@ async function setSubjectFromSubagent(pi, prompt, cwd) {
       "--no-approve",
       "--system-prompt", SUBJECT_CHILD_SYSTEM_PROMPT,
       prompt,
-    ], { cwd, timeout: SUBJECT_CHILD_TIMEOUT_MS });
+    ], { cwd, timeout: SUBJECT_CHILD_TIMEOUT_MS, signal });
   } catch (error) {
-    warn("tmux subject child failed", error);
+    console.warn("[managed-hooks] tmux subject child failed", subjectChildFailureDetails(error));
     return false;
   }
 
   if (result.code !== 0 || result.killed) {
-    warn("tmux subject child failed", result.stderr || `exit ${result.code}`);
+    console.warn("[managed-hooks] tmux subject child failed", subjectChildFailureDetails(result));
     return false;
   }
 
@@ -519,7 +537,7 @@ export default function managedHooks(pi) {
       notes.push("You are on main. Before changing files, run `repo-start <branch>` and continue from the created worktree.");
     }
 
-    if (await needsSubjectReminder(pi) && !await setSubjectFromSubagent(pi, event.prompt, cwd)) {
+    if (await needsSubjectReminder(pi) && !await setSubjectFromSubagent(pi, event.prompt, cwd, ctx.signal)) {
       notes.push("Choose a concise task subject, then run `tmux-agent-subject set \"<short subject>\"` before continuing. The provisional label will be replaced by the feature branch.");
     }
 

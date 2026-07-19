@@ -42,6 +42,7 @@ const ok = (stdout = "") => ({ stdout, stderr: "", code: 0, killed: false });
 const fail = () => ({ stdout: "", stderr: "", code: 1, killed: false });
 let subjectChildResult = ok("improve tmux labels\n");
 let subjectChildError;
+let subjectChildExecOptions;
 let subjectApplyResult = ok();
 
 const pi = {
@@ -52,7 +53,7 @@ const pi = {
     currentSessionName = name;
     sessionNames.push(name);
   },
-  async exec(command, args) {
+  async exec(command, args, options = {}) {
     calls.push({ command, args });
     if (command === "tmux-agent-state" && args[0] === "status") return ok(taskStatus);
     if (command === "tmux-agent-state") return ok();
@@ -67,6 +68,7 @@ const pi = {
     }
     if (command === "tmux") return fail();
     if (command === "pi") {
+      subjectChildExecOptions = options;
       if (subjectChildError) throw subjectChildError;
       return subjectChildResult;
     }
@@ -82,8 +84,10 @@ const pi = {
   },
 };
 
+const subjectSignal = new AbortController().signal;
 const ctx = {
   cwd: "/repo/main-repo/src",
+  signal: subjectSignal,
   sessionManager: {
     getSessionName() {
       return currentSessionName;
@@ -160,11 +164,12 @@ for (const workflow of ["z-fix", "z-spec-first", "z-quick-pr"]) {
 branch = "feature";
 taskStatus = "";
 calls.length = 0;
+subjectChildExecOptions = undefined;
 const automaticSubject = await handlers.get("before_agent_start")({
   prompt: "improve tmux labels; printf injected",
   systemPrompt: "",
   systemPromptOptions: { cwd: "/repo" },
-}, { cwd: "/repo" });
+}, { cwd: "/repo", signal: subjectSignal });
 assert.equal(automaticSubject, undefined, "valid child subject adds no main-context reminder");
 const childCall = calls.find((call) => call.command === "pi");
 assert.ok(childCall, "missing task invokes isolated Pi child");
@@ -184,10 +189,56 @@ assert.deepEqual(childCall.args.slice(0, -1), [
   "--system-prompt", "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.",
 ], "subject child disables context-bearing resources");
 assert.equal(childCall.args.at(-1), "improve tmux labels; printf injected", "prompt is passed as one argv value");
+assert.equal(subjectChildExecOptions.cwd, "/repo/main-repo", "subject child runs from the resolved worktree cwd");
+assert.equal(subjectChildExecOptions.timeout, 15000, "subject child timeout is threaded through");
+assert.equal(subjectChildExecOptions.signal, subjectSignal, "subject child receives the before_agent_start cancellation signal");
 assert.deepEqual(calls.find((call) => call.command === "tmux-agent-subject"), {
   command: "tmux-agent-subject",
   args: ["set", "improve tmux labels"],
 }, "parent applies the validated child subject");
+
+const subjectPromptSentinel = "prompt-sentinel-7f3c7b7f";
+for (const [label, failureResult, failureError, expectedMetadata] of [
+  [
+    "thrown error",
+    ok("unused\n"),
+    Object.assign(new TypeError(`child unavailable ${subjectPromptSentinel}`), {
+      code: "ERR_INVALID_ARG_VALUE",
+      exitCode: 1,
+      killed: false,
+    }),
+    { name: "TypeError", code: "ERR_INVALID_ARG_VALUE", exitCode: 1, killed: false },
+  ],
+  [
+    "stderr failure",
+    { stdout: "", stderr: `raw child stderr ${subjectPromptSentinel}`, code: 1, killed: true },
+    undefined,
+    { name: "SubjectChildResult", code: 1, exitCode: undefined, killed: true },
+  ],
+]) {
+  subjectChildResult = failureResult;
+  subjectChildError = failureError;
+  taskStatus = "";
+  branch = "feature";
+  calls.length = 0;
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  try {
+    const fallback = await handlers.get("before_agent_start")({
+      prompt: `fallback ${label} ${subjectPromptSentinel}`,
+      systemPrompt: "",
+      systemPromptOptions: { cwd: "/repo" },
+    }, { cwd: "/repo", signal: subjectSignal });
+    assert.match(fallback.message.content, /tmux-agent-subject set/, `${label} child result preserves reminder fallback`);
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.equal(warnings.length > 0, true, `${label} child emits diagnostics`);
+  assert.deepEqual(warnings[0], ["[managed-hooks] tmux subject child failed", expectedMetadata], `${label} child logs only safe metadata`);
+  const warningText = warnings.flatMap((args) => args.map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg)))).join("\n");
+  assert.equal(warningText.includes(subjectPromptSentinel), false, `${label} child diagnostics do not echo the prompt`);
+}
 
 subjectChildResult = ok("start another task\n");
 taskStatus = "completed\tbranch\told-task\n";
