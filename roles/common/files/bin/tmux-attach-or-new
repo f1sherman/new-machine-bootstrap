@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# DEBUG INSTRUMENTATION (added 2026-05-01 to diagnose missed auto-restore).
-# All logging is best-effort — must never break tmux launch.
-DEBUG_LOG="$HOME/.local/state/tmux-debug.log"
-mkdir -p "$(dirname "$DEBUG_LOG")" 2>/dev/null || true
-debug_log() { printf '[%s] tmux-attach-or-new pid=%s ppid=%s: %s\n' "$(date '+%H:%M:%S')" "$$" "$PPID" "$*" >> "$DEBUG_LOG" 2>/dev/null || true; }
-debug_log "INVOKED (tty=$(tty 2>/dev/null || echo none))"
-{ /bin/ps -axo pid,ppid,command 2>/dev/null | /usr/bin/grep -E '[t]mux' | sed 's/^/    /' >> "$DEBUG_LOG" 2>/dev/null; } || true
-
 # Ghostty (and other GUI terminals) launch this via `bash --noprofile --norc`,
 # so GUI startup may not include mise or Homebrew paths. Normalize PATH before
 # running tmux so it can find the right binaries (including flock).
@@ -31,80 +23,148 @@ pathprepend "$HOME/.local/bin"
 pathprepend "${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
 export PATH
 
-# Several terminal windows can run this script in parallel on login
-# (terminal restoring its previous windows). Without serialization the
-# bootstrap path below would race and only one of N parallel restores
-# would finish, leaving us with a mix of restored and empty sessions.
-# flock(2) gives us a kernel-level lock that auto-releases when the
-# holding process exits — no stale-lock recovery needed. macOS ships
-# flock(2) but not the flock(1) wrapper; provisioning installs it via
-# Homebrew (see roles/macos/tasks/install_packages.yml).
+# shellcheck source=/dev/null
+source "${TMUX_RESTORE_LOG_LIB:-$HOME/.local/bin/tmux-restore-log.sh}"
+tmux_restore_rotate_log
+tmux_restore_log_event helper_invoked "tty=$(tty 2>/dev/null || printf none)"
+
 LOCK_FILE="${TMUX_ATTACH_LOCK_FILE:-/tmp/tmux-attach-or-new.lock}"
 LOCK_TIMEOUT="${TMUX_ATTACH_LOCK_TIMEOUT:-30}"
+lock_held=0
+reserved_target=""
+
+unlock_startup() {
+  if [ "$lock_held" = "1" ]; then
+    flock -u 9 || true
+    lock_held=0
+    tmux_restore_log_event lock_released
+  fi
+}
+
+fallback_shell() {
+  local reason shell status
+
+  reason="$1"
+  unlock_startup
+  tmux_restore_log_event fallback_shell "reason=$reason"
+  printf '%s\n' "[tmux] Startup failed ($reason); run tmux-restore-debug-report for details." >&2
+  shell="${TMUX_ATTACH_FALLBACK_SHELL:-${SHELL:-/bin/zsh}}"
+  set +e
+  "$shell" -l
+  status=$?
+  set -e
+  exit "$status"
+}
+
+cleanup_reservation() {
+  local owner target
+
+  [ -n "$reserved_target" ] || return 0
+  target="$reserved_target"
+  reserved_target=""
+
+  if ! flock -w "$LOCK_TIMEOUT" 9; then
+    tmux_restore_log_event reservation_cleanup_failed "target=$target" "reason=lock_timeout"
+    return 0
+  fi
+  lock_held=1
+  owner="$(tmux show-options -qv -t "$target" @ghostty_attach_owner 2>/dev/null || true)"
+  if [ "$owner" = "$$" ]; then
+    tmux set-option -qu -t "$target" @ghostty_attach_owner 2>/dev/null || true
+    tmux_restore_log_event reservation_released "target=$target"
+  fi
+  unlock_startup
+}
+
 exec 9>"$LOCK_FILE"
-if flock -w "$LOCK_TIMEOUT" 9; then
-  debug_log "lock acquired"
+if flock -n 9; then
+  lock_held=1
+  tmux_restore_log_event lock_acquired "waited=0"
 else
-  debug_log "lock timeout after ${LOCK_TIMEOUT}s, proceeding without lock"
+  printf '%s\n' '[tmux] Waiting for saved sessions to restore...'
+  if ! flock -w "$LOCK_TIMEOUT" 9; then
+    fallback_shell lock_timeout
+  fi
+  lock_held=1
+  tmux_restore_log_event lock_acquired "waited=1"
 fi
 
-# Single list-sessions to determine both server presence and unattached set.
 sessions_output=""
 has_server=0
-if sessions_output="$(tmux list-sessions -F '#{session_attached}'$'\t''#{session_name}' 2>/dev/null)"; then
+if sessions_output="$(tmux list-sessions -F '#{session_id}'$'\t''#{session_name}'$'\t''#{session_attached}'$'\t''#{@ghostty_attach_owner}' 2>/dev/null)"; then
   has_server=1
-  debug_log "list-sessions OK; sessions: $(printf '%s' "$sessions_output" | tr '\n' '|')"
-else
-  debug_log "list-sessions FAILED (no server yet)"
 fi
 
+restored=0
 if [ "$has_server" = "0" ]; then
-  # First launch — boot the server with a placeholder session, then run
-  # tmux-resurrect's restore directly. Continuum's auto-restore is off
-  # (see tmux.conf) because its multi-tmux-process heuristic silently
-  # skips when several windows race to start the server.
-  debug_log "bootstrapping: tmux new-session -d -s __bootstrap__"
-  tmux new-session -d -s __bootstrap__
+  tmux new-session -d -s __bootstrap__ || fallback_shell bootstrap_create_failed
+  tmux set-option -gq @ghostty_restore_state running || fallback_shell restore_state_failed
 
-  resurrect="$HOME/.tmux/plugins/tmux-resurrect/scripts/restore.sh"
-  if [ -x "$resurrect" ]; then
-    # restore.sh derives the tmux socket from $TMUX (`echo $TMUX | cut
-    # -d',' -f1`). We're invoking it from a login shell outside tmux so
-    # $TMUX is unset — without this every internal
-    # `tmux -S "$(tmux_socket)" new-session ...` runs as `tmux -S ""`
-    # and fails with "error creating  (No such file or directory)",
-    # leaving only the __bootstrap__ placeholder.
-    socket_path="$(tmux display-message -p -t __bootstrap__ '#{socket_path}' 2>/dev/null || true)"
-    debug_log "running resurrect restore: $resurrect (socket=$socket_path)"
-    TMUX="${socket_path},$$,0" "$resurrect" >>"$DEBUG_LOG" 2>&1 \
-      || debug_log "resurrect restore exited non-zero"
+  socket_path="$(tmux display-message -p -t __bootstrap__ '#{socket_path}' 2>/dev/null || true)"
+  restore_wrapper="${TMUX_RESURRECT_RESTORE_WRAPPER:-$HOME/.local/bin/tmux-resurrect-restore-wrapper}"
+  if TMUX="${socket_path},$$,0" "$restore_wrapper"; then
+    tmux set-option -gq @ghostty_restore_state ok || fallback_shell restore_state_failed
+    restored=1
   else
-    debug_log "resurrect restore not found at $resurrect"
+    tmux set-option -gq @ghostty_restore_state failed 2>/dev/null || true
+    fallback_shell restore_failed
   fi
 
-  # If restore brought in additional sessions, drop the placeholder so
-  # we don't attach to it.
-  sessions_output="$(tmux list-sessions -F '#{session_attached}'$'\t''#{session_name}' 2>/dev/null || true)"
-  count="$(printf '%s\n' "$sessions_output" | grep -c . || true)"
-  if [ "${count:-0}" -gt 1 ]; then
-    debug_log "restore created ${count} sessions, killing __bootstrap__"
-    tmux kill-session -t __bootstrap__ 2>/dev/null || true
-    sessions_output="$(tmux list-sessions -F '#{session_attached}'$'\t''#{session_name}' 2>/dev/null || true)"
+  sessions_output="$(tmux list-sessions -F '#{session_id}'$'\t''#{session_name}'$'\t''#{session_attached}'$'\t''#{@ghostty_attach_owner}' 2>/dev/null)" \
+    || fallback_shell session_list_failed
+else
+  restore_state="$(tmux show-options -gqv @ghostty_restore_state 2>/dev/null || true)"
+  if [ "$restore_state" = "failed" ]; then
+    fallback_shell restore_failed
   fi
 fi
 
-reusable="$(printf '%s\n' "$sessions_output" | awk -F'\t' '$1 == "0" { print $2; exit }')"
+target=""
+tab="$(printf '\t')"
+while IFS="$tab" read -r session_id session_name attached owner; do
+  [ -n "$session_id" ] || continue
+  [ "$session_name" != "__bootstrap__" ] || continue
+  [ "$attached" = "0" ] || continue
 
-# Release the lock before exec'ing tmux. Without this the lock would be
-# held for the lifetime of the attached tmux client, blocking every
-# subsequent terminal window indefinitely.
-flock -u 9
-debug_log "lock released"
+  if [ -n "$owner" ]; then
+    if kill -0 "$owner" 2>/dev/null; then
+      continue
+    fi
+    tmux set-option -qu -t "$session_id" @ghostty_attach_owner 2>/dev/null || true
+    tmux_restore_log_event reservation_reclaimed "target=$session_id" "owner=$owner"
+  fi
 
-if [ -n "$reusable" ]; then
-  debug_log "ATTACHING to existing session: $reusable"
-  exec tmux attach -t "=$reusable"
+  target="$session_id"
+  break
+done <<EOF
+$sessions_output
+EOF
+
+if [ -z "$target" ]; then
+  target="$(tmux new-session -d -P -F '#{session_id}' 2>/dev/null)" \
+    || fallback_shell session_create_failed
 fi
 
-debug_log "CREATING new session"
-exec tmux new-session
+[ -n "$target" ] || fallback_shell session_create_failed
+tmux set-option -q -t "$target" @ghostty_attach_owner "$$" \
+  || fallback_shell reservation_failed
+reserved_target="$target"
+tmux_restore_log_event reservation_acquired "target=$target"
+
+if [ "$restored" = "1" ]; then
+  tmux kill-session -t __bootstrap__ 2>/dev/null || true
+fi
+
+unlock_startup
+trap cleanup_reservation EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+if tmux attach -t "$target"; then
+  cleanup_reservation
+  exit 0
+fi
+
+cleanup_reservation
+fallback_shell attach_failed
