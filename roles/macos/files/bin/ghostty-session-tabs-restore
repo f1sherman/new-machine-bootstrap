@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PATH="${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin"
+export PATH
+
+manifest="${TMUX_GHOSTTY_MANIFEST:-$HOME/.local/state/tmux/ghostty-session-manifest.json}"
+queue="${TMUX_GHOSTTY_RESTORE_QUEUE:-$HOME/.local/state/tmux/ghostty-restore-queue.json}"
+lock_file="${TMUX_GHOSTTY_TABS_RESTORE_LOCK:-$HOME/.local/state/tmux/ghostty-tabs-restore.lock}"
+max_polls="${TMUX_GHOSTTY_TABS_RESTORE_MAX_POLLS:-300}"
+poll_interval="${TMUX_GHOSTTY_TABS_RESTORE_POLL_INTERVAL:-0.1}"
+ghostty_pid="${TMUX_GHOSTTY_APP_PID:-}"
+
+restore_log_lib="${TMUX_RESTORE_LOG_LIB:-$HOME/.local/bin/tmux-restore-log.sh}"
+if [ -r "$restore_log_lib" ]; then
+  # shellcheck source=/dev/null
+  source "$restore_log_lib"
+else
+  tmux_restore_log_event() { :; }
+fi
+
+case "$ghostty_pid" in
+  ''|*[!0-9]*)
+    tmux_restore_log_event tab_builder_skipped "reason=invalid_pid"
+    exit 0
+    ;;
+esac
+case "$max_polls" in
+  ''|*[!0-9]*) max_polls=300 ;;
+esac
+
+ghostty_command="$(ps -o command= -p "$ghostty_pid" 2>/dev/null || true)"
+case "$ghostty_command" in
+  */Ghostty.app/Contents/MacOS/ghostty*) ;;
+  *)
+    tmux_restore_log_event tab_builder_skipped "reason=invalid_process" \
+      "ghostty_pid=$ghostty_pid"
+    exit 0
+    ;;
+esac
+
+queue_pending_count() {
+  jq -er --argjson ghostty_pid "$ghostty_pid" '
+    select(
+      .version == 1 and
+      .ghostty_pid == $ghostty_pid and
+      (.pending | type == "array") and
+      all(.pending[]; type == "string")
+    )
+    | .pending | length
+  ' "$queue" 2>/dev/null
+}
+
+mkdir -p "$(dirname "$lock_file")"
+exec 9>"$lock_file"
+if ! flock -n 9; then
+  tmux_restore_log_event tab_builder_skipped "reason=already_running" "ghostty_pid=$ghostty_pid"
+  exit 0
+fi
+
+queue_pid="$(jq -er '
+  select(
+    .version == 1 and
+    (.ghostty_pid | type == "number") and
+    (.pending | type == "array") and
+    all(.pending[]; type == "string")
+  )
+  | .ghostty_pid
+' "$queue" 2>/dev/null || true)"
+if [ "$queue_pid" != "$ghostty_pid" ]; then
+  tmux_restore_log_event tab_builder_skipped "reason=stale_queue" \
+    "ghostty_pid=$ghostty_pid" "queue_pid=${queue_pid:-invalid}"
+  exit 0
+fi
+
+pending_count="$(queue_pending_count 2>/dev/null || true)"
+case "$pending_count" in
+  ''|*[!0-9]*)
+    tmux_restore_log_event tab_builder_skipped "reason=stale_queue" \
+      "ghostty_pid=$ghostty_pid"
+    exit 0
+    ;;
+esac
+[ "$pending_count" -gt 0 ] || exit 0
+if ! kill -0 "$ghostty_pid" 2>/dev/null; then
+  tmux_restore_log_event tab_builder_skipped "reason=ghostty_exited" "ghostty_pid=$ghostty_pid"
+  exit 0
+fi
+
+window_id="$(osascript <<'APPLESCRIPT'
+tell application "Ghostty"
+  if (count of windows) = 0 then return ""
+  return id of front window
+end tell
+APPLESCRIPT
+)"
+case "$window_id" in
+  ''|*[!A-Za-z0-9-]*)
+    tmux_restore_log_event tab_builder_failed "reason=window_lookup" "ghostty_pid=$ghostty_pid"
+    exit 1
+    ;;
+esac
+
+selected_index="$(jq -er '.windows[0].selected_tab_index | select(type == "number")' "$manifest" 2>/dev/null || true)"
+case "$selected_index" in
+  ''|*[!0-9]*) selected_index=1 ;;
+esac
+
+tmux_restore_log_event tab_builder_start "ghostty_pid=$ghostty_pid" \
+  "pending=$pending_count" "window=$window_id"
+created=0
+while [ "$pending_count" -gt 0 ]; do
+  if ! kill -0 "$ghostty_pid" 2>/dev/null; then
+    tmux_restore_log_event tab_builder_failed "reason=ghostty_exited" "created=$created"
+    exit 1
+  fi
+
+  validated_count="$(queue_pending_count 2>/dev/null || true)"
+  if [ "$validated_count" != "$pending_count" ]; then
+    tmux_restore_log_event tab_builder_failed "reason=stale_queue" "created=$created"
+    exit 1
+  fi
+  session_name="$(jq -er --argjson ghostty_pid "$ghostty_pid" '
+    select(.version == 1 and .ghostty_pid == $ghostty_pid)
+    | .pending[0] | select(type == "string")
+  ' "$queue" 2>/dev/null || true)"
+  if [ -z "$session_name" ]; then
+    tmux_restore_log_event tab_builder_failed "reason=invalid_queue" "created=$created"
+    exit 1
+  fi
+
+  if ! osascript - "$window_id" <<'APPLESCRIPT'
+on run argv
+  set targetID to item 1 of argv
+  tell application "Ghostty"
+    set targetWindow to first window whose id is targetID
+    set createdTab to new tab in targetWindow
+    select tab createdTab
+  end tell
+end run
+APPLESCRIPT
+  then
+    tmux_restore_log_event tab_builder_failed "reason=applescript" \
+      "session=$session_name" "created=$created"
+    exit 1
+  fi
+  created=$((created + 1))
+  tmux_restore_log_event tab_builder_created "session=$session_name" "created=$created"
+
+  claimed=0
+  poll=0
+  expected_count=$((pending_count - 1))
+  while [ "$poll" -lt "$max_polls" ]; do
+    current_count="$(queue_pending_count 2>/dev/null || true)"
+    case "$current_count" in
+      ''|*[!0-9]*)
+        tmux_restore_log_event tab_builder_failed "reason=stale_queue" "created=$created"
+        exit 1
+        ;;
+    esac
+    if [ "$current_count" = "$expected_count" ]; then
+      claimed=1
+      pending_count="$current_count"
+      tmux_restore_log_event tab_builder_claimed "session=$session_name" \
+        "remaining=$pending_count"
+      break
+    elif [ "$current_count" != "$pending_count" ]; then
+      tmux_restore_log_event tab_builder_failed "reason=queue_transition" \
+        "session=$session_name" "expected=$expected_count" "actual=$current_count"
+      exit 1
+    fi
+    sleep "$poll_interval"
+    poll=$((poll + 1))
+  done
+  if [ "$claimed" != "1" ]; then
+    tmux_restore_log_event tab_builder_failed "reason=claim_timeout" \
+      "session=$session_name" "created=$created"
+    exit 1
+  fi
+done
+
+if ! osascript - "$window_id" <<APPLESCRIPT
+on run argv
+  set targetID to item 1 of argv
+  tell application "Ghostty"
+    set targetWindow to first window whose id is targetID
+    if (count of tabs of targetWindow) >= ${selected_index} then
+      select tab (tab ${selected_index} of targetWindow)
+    end if
+    activate window targetWindow
+  end tell
+end run
+APPLESCRIPT
+then
+  tmux_restore_log_event tab_builder_failed "reason=selection" "created=$created"
+  exit 1
+fi
+
+tmux_restore_log_event tab_builder_complete "ghostty_pid=$ghostty_pid" "created=$created"

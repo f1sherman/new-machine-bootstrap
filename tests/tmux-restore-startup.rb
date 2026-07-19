@@ -26,16 +26,50 @@ class TmuxRestoreStartupTest < Minitest::Test
     @lock_file = File.join(@tmpdir, "startup.lock")
     @manifest_path = File.join(@tmpdir, "ghostty-session-manifest.json")
     @queue_path = File.join(@tmpdir, "ghostty-restore-queue.json")
+    @builder_log = File.join(@tmpdir, "ghostty-tabs-builder.log")
+    @builder_path = File.join(@tmpdir, "ghostty-session-tabs-restore")
     write_json(@state_path, base_state)
     write_json(@attachments_path, [])
     write_fake_tmux
     write_restore_script
     write_fallback_shell
     write_log_library
+    write_tabs_builder
   end
 
   def teardown
     FileUtils.remove_entry(@tmpdir)
+  end
+
+  def test_queue_initializer_starts_tab_builder_after_unlock
+    set_sessions(%w[journal hnp])
+    write_manifest(pid: 100, sessions: %w[journal hnp])
+
+    env = helper_env(
+      "TMUX_GHOSTTY_APP_PID" => "200",
+      "FAKE_TMUX_ATTACH_DELAY" => "1"
+    )
+    _out, _err, status = Open3.capture3(env, HELPER)
+    50.times do
+      break if File.exist?(@builder_log)
+
+      sleep 0.02
+    end
+
+    assert status.success?
+    assert File.exist?(@builder_log), "queue initializer did not start tab builder"
+    invocation = File.read(@builder_log).strip.split("|")
+    assert_equal ["200", @manifest_path, @queue_path, "unlocked"], invocation
+  end
+
+  def test_same_process_manifest_does_not_start_tab_builder
+    set_sessions(%w[17 journal])
+    write_manifest(pid: 200, sessions: ["journal"])
+
+    _out, _err, status = Open3.capture3(helper_env("TMUX_GHOSTTY_APP_PID" => "200"), HELPER)
+
+    assert status.success?
+    refute File.exist?(@builder_log)
   end
 
   def test_new_ghostty_process_claims_exact_manifest_set
@@ -393,6 +427,8 @@ class TmuxRestoreStartupTest < Minitest::Test
       "TMUX_ATTACH_FALLBACK_SHELL" => File.join(@tmpdir, "fallback-shell"),
       "TMUX_GHOSTTY_MANIFEST" => @manifest_path,
       "TMUX_GHOSTTY_RESTORE_QUEUE" => @queue_path,
+      "TMUX_GHOSTTY_TABS_RESTORE" => @builder_path,
+      "FAKE_GHOSTTY_BUILDER_LOG" => @builder_log,
       "SHELL" => File.join(@tmpdir, "fallback-shell")
     }.merge(extra)
   end
@@ -652,6 +688,20 @@ class TmuxRestoreStartupTest < Minitest::Test
         exit 90
       end
     RUBY
+  end
+
+  def write_tabs_builder
+    write_executable(@builder_path, <<~'SH')
+      #!/usr/bin/env bash
+      if flock -n 8; then
+        lock_state=unlocked
+      else
+        lock_state=locked
+      fi 8> "$TMUX_ATTACH_LOCK_FILE"
+      printf '%s|%s|%s|%s\n' \
+        "$TMUX_GHOSTTY_APP_PID" "$TMUX_GHOSTTY_MANIFEST" \
+        "$TMUX_GHOSTTY_RESTORE_QUEUE" "$lock_state" >> "$FAKE_GHOSTTY_BUILDER_LOG"
+    SH
   end
 
   def write_restore_script

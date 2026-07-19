@@ -116,11 +116,14 @@ class GhosttySessionManifestTest < Minitest::Test
   def test_macos_provisions_native_save_state_and_manifest_launch_agent
     tasks = File.read(MACOS_TASKS)
 
-    assert_match(/line: 'window-save-state = always'/, tasks)
+    assert_match(/line: 'window-save-state = never'/, tasks)
+    refute_match(/line: 'window-save-state = always'/, tasks)
     refute_match(/Remove ghostty window-save-state setting/, tasks)
     assert_match(/com\.user\.ghostty-session-manifest-save\.plist/, tasks)
     assert File.exist?(File.join(REPO_ROOT,
       "roles/macos/templates/launchd/com.user.ghostty-session-manifest-save.plist"))
+    assert File.executable?(File.join(REPO_ROOT,
+      "roles/macos/files/bin/ghostty-session-tabs-restore"))
   end
 
   def test_applescript_uses_supported_tab_index_and_terminal_name
