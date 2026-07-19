@@ -431,6 +431,7 @@ function subjectChildFailureDetails(value) {
 }
 
 async function setSubjectFromSubagent(pi, prompt, cwd, signal) {
+  const framedPrompt = `Task: ${prompt}`;
   let result;
   try {
     result = await pi.exec("pi", [
@@ -447,7 +448,7 @@ async function setSubjectFromSubagent(pi, prompt, cwd, signal) {
       "--no-context-files",
       "--no-approve",
       "--system-prompt", SUBJECT_CHILD_SYSTEM_PROMPT,
-      prompt,
+      framedPrompt,
     ], { cwd, timeout: SUBJECT_CHILD_TIMEOUT_MS, signal });
   } catch (error) {
     console.warn("[managed-hooks] tmux subject child failed", subjectChildFailureDetails(error));
