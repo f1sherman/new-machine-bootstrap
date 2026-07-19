@@ -49,10 +49,13 @@ fallback_shell() {
   tmux_restore_log_event fallback_shell "reason=$reason"
   printf '%s\n' "[tmux] Startup failed ($reason); run tmux-restore-debug-report for details." >&2
   shell="${TMUX_ATTACH_FALLBACK_SHELL:-${SHELL:-/bin/zsh}}"
+  shopt -s execfail
   set +e
-  "$shell" -l
+  exec "$shell" -l
   status=$?
   set -e
+  tmux_restore_log_event fallback_exec_failed "reason=$reason" "shell=$shell" "status=$status"
+  printf '%s\n' "[tmux] Unable to start fallback shell $shell (status $status)." >&2
   exit "$status"
 }
 
@@ -91,7 +94,7 @@ fi
 
 sessions_output=""
 has_server=0
-if sessions_output="$(tmux list-sessions -F '#{session_id}'$'\t''#{session_name}'$'\t''#{session_attached}'$'\t''#{@ghostty_attach_owner}' 2>/dev/null)"; then
+if sessions_output="$(tmux list-sessions -F '#{session_id}'$'\t''#{session_attached}'$'\t''#{==:#{session_name},__bootstrap__}'$'\t''#{@ghostty_attach_owner}' 2>/dev/null)"; then
   has_server=1
 fi
 
@@ -110,7 +113,7 @@ if [ "$has_server" = "0" ]; then
     fallback_shell restore_failed
   fi
 
-  sessions_output="$(tmux list-sessions -F '#{session_id}'$'\t''#{session_name}'$'\t''#{session_attached}'$'\t''#{@ghostty_attach_owner}' 2>/dev/null)" \
+  sessions_output="$(tmux list-sessions -F '#{session_id}'$'\t''#{session_attached}'$'\t''#{==:#{session_name},__bootstrap__}'$'\t''#{@ghostty_attach_owner}' 2>/dev/null)" \
     || fallback_shell session_list_failed
 else
   restore_state="$(tmux show-options -gqv @ghostty_restore_state 2>/dev/null || true)"
@@ -121,9 +124,9 @@ fi
 
 target=""
 tab="$(printf '\t')"
-while IFS="$tab" read -r session_id session_name attached owner; do
+while IFS="$tab" read -r session_id attached bootstrap owner; do
   [ -n "$session_id" ] || continue
-  [ "$session_name" != "__bootstrap__" ] || continue
+  [ "$bootstrap" = "0" ] || continue
   [ "$attached" = "0" ] || continue
 
   if [ -n "$owner" ]; then
