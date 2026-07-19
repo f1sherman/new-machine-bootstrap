@@ -21,6 +21,7 @@ class TmuxRestoreStartupTest < Minitest::Test
     @attachments_path = File.join(@tmpdir, "attachments.json")
     @restore_marker = File.join(@tmpdir, "restore-in-progress")
     @fallback_log = File.join(@tmpdir, "fallback.log")
+    @events_path = File.join(@tmpdir, "events.log")
     @lock_file = File.join(@tmpdir, "startup.lock")
     write_json(@state_path, base_state)
     write_json(@attachments_path, [])
@@ -72,6 +73,7 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert_includes fallback_output, "tmux-restore-debug-report"
     assert_equal ["timed-out-waiter"], fallback_invocations.map { |entry| entry.fetch("label") },
       "the timed-out waiter must be the helper that invokes the fallback shell"
+    assert_event(/event=lock_failed\twait_seconds=\d+\treason=timeout/)
   end
 
   def test_dead_reservation_is_reclaimed_and_cleaned_up
@@ -136,6 +138,26 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert_equal ["attach-failure"], fallback_invocations.map { |entry| entry.fetch("label") }
     assert_equal helper_pid, fallback_invocations.first.fetch("pid"),
       "fallback shell must replace the helper process rather than run as its child"
+    assert_event(/event=attach_start\ttarget=\$1/)
+    assert_event(/event=attach_end\ttarget=\$1\telapsed_seconds=\d+\tstatus=42/)
+  end
+
+  def test_cleanup_lock_timeout_directly_clears_owned_reservation_before_fallback
+    set_sessions(["broken"])
+    env = helper_env(
+      "FAKE_HELPER_LABEL" => "cleanup-timeout",
+      "FAKE_TMUX_ATTACH_FAILURE" => "$1",
+      "FAKE_TMUX_CLEANUP_LOCK_DELAY" => "0.25",
+      "TMUX_ATTACH_LOCK_TIMEOUT" => "0.05"
+    )
+
+    _out, _err, status = Open3.capture3(env, HELPER)
+
+    assert status.success?
+    assert_nil session_named("broken").fetch("options").fetch("@ghostty_attach_owner", nil),
+      "fallback exec must not retain a live PID reservation after cleanup lock timeout"
+    assert_event(/event=reservation_cleanup_degraded\ttarget=\$1\treason=lock_timeout/)
+    assert_equal ["cleanup-timeout"], fallback_invocations.map { |entry| entry.fetch("label") }
   end
 
   def test_missing_fallback_shell_keeps_visible_failure_diagnostics
@@ -151,6 +173,22 @@ class TmuxRestoreStartupTest < Minitest::Test
     refute status.success?
     assert_includes out + err, "tmux-restore-debug-report"
     assert_includes out + err, "Unable to start fallback shell #{missing_shell}"
+  end
+
+  def test_existing_running_restore_state_is_treated_as_abandoned
+    set_sessions(["available"])
+    update_state { |state| state.fetch("global_options")["@ghostty_restore_state"] = "running" }
+
+    out, err, status = Open3.capture3(helper_env("FAKE_HELPER_LABEL" => "abandoned-restore"), HELPER)
+    state = read_state
+
+    assert status.success?
+    assert_equal [], read_attachments, "abandoned restore must not attach a normal session"
+    assert_equal ["available"], state.fetch("sessions").map { |session| session.fetch("name") },
+      "abandoned restore must not create a normal session"
+    assert_equal ["abandoned-restore"], fallback_invocations.map { |entry| entry.fetch("label") }
+    assert_includes out + err, "tmux-restore-debug-report"
+    assert_event(/event=fallback_shell\treason=restore_abandoned/)
   end
 
   def test_restore_failure_is_shared_and_opens_fallback_shell
@@ -178,6 +216,16 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert status.success?
     assert_equal 1, attachments.length
     refute_equal "__bootstrap__", attachments.first.fetch("session_name")
+    assert_event(/event=lock_attempt\ttimeout_seconds=1/)
+    assert_event(/event=lock_acquired\twait_seconds=\d+/)
+    assert_event(/event=server_snapshot\tphase=pre_decision\thas_server=0\trestore_state=unset\tsessions=none/)
+    assert_event(/event=bootstrap_start\tsession=__bootstrap__/)
+    assert_event(/event=bootstrap_end\tsession=__bootstrap__\telapsed_seconds=\d+\tstatus=0/)
+    assert_event(/event=restore_start\tsnapshot=none\twrapper=/)
+    assert_event(/event=restore_end\tsnapshot=none\telapsed_seconds=\d+\tstatus=0/)
+    assert_event(/event=server_snapshot\tphase=post_restore\thas_server=1\trestore_state=ok\tsessions=/)
+    assert_event(/event=attach_start\ttarget=\$\d+/)
+    assert_event(/event=attach_end\ttarget=\$\d+\telapsed_seconds=\d+\tstatus=0/)
   end
 
   private
@@ -200,6 +248,7 @@ class TmuxRestoreStartupTest < Minitest::Test
       "FAKE_TMUX_ATTACHMENTS" => @attachments_path,
       "FAKE_TMUX_RESTORE_MARKER" => @restore_marker,
       "FAKE_TMUX_FALLBACK_LOG" => @fallback_log,
+      "FAKE_TMUX_EVENTS" => @events_path,
       "TMUX_ATTACH_LOCK_FILE" => @lock_file,
       "TMUX_ATTACH_LOCK_TIMEOUT" => "1",
       "TMUX_RESTORE_LOG_LIB" => File.join(@tmpdir, "tmux-restore-log.sh"),
@@ -244,6 +293,11 @@ class TmuxRestoreStartupTest < Minitest::Test
 
   def read_attachments
     JSON.parse(File.read(@attachments_path))
+  end
+
+  def assert_event(pattern)
+    events = File.exist?(@events_path) ? File.read(@events_path) : ""
+    assert_match pattern, events, "expected recorded event matching #{pattern.inspect}; got:\n#{events}"
   end
 
   def write_json(path, value)
@@ -390,6 +444,23 @@ class TmuxRestoreStartupTest < Minitest::Test
         puts value
       when "attach"
         target = option_value(args, "-t")
+        cleanup_lock_delay = ENV.fetch("FAKE_TMUX_CLEANUP_LOCK_DELAY", "0").to_f
+        if cleanup_lock_delay.positive?
+          ready_reader, ready_writer = IO.pipe
+          fork do
+            ready_reader.close
+            File.open(ENV.fetch("TMUX_ATTACH_LOCK_FILE"), "w") do |lock|
+              lock.flock(File::LOCK_EX)
+              ready_writer.write("ready")
+              ready_writer.close
+              sleep cleanup_lock_delay
+            end
+            exit! 0
+          end
+          ready_writer.close
+          ready_reader.read
+          ready_reader.close
+        end
         sleep ENV.fetch("FAKE_TMUX_ATTACH_DELAY", "0").to_f
         session = locked_json(state_path) do |state|
           selected = find_session(state, target)
@@ -478,7 +549,18 @@ class TmuxRestoreStartupTest < Minitest::Test
 
   def write_log_library
     File.write(File.join(@tmpdir, "tmux-restore-log.sh"), <<~'SH')
-      tmux_restore_log_event() { :; }
+      tmux_restore_log_event() {
+        local event field
+        event="$1"
+        shift
+        {
+          printf 'event=%s' "$event"
+          for field in "$@"; do
+            printf '\t%s' "$field"
+          done
+          printf '\n'
+        } >> "$FAKE_TMUX_EVENTS"
+      }
       tmux_restore_rotate_log() { :; }
     SH
   end

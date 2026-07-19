@@ -33,6 +33,25 @@ LOCK_TIMEOUT="${TMUX_ATTACH_LOCK_TIMEOUT:-30}"
 lock_held=0
 reserved_target=""
 
+resurrect_snapshot() {
+  local resurrect_dir resurrect_link resurrect_target
+
+  resurrect_dir="${TMUX_RESURRECT_DIR:-$HOME/.local/share/tmux/resurrect}"
+  resurrect_link="$resurrect_dir/last"
+  if [ -L "$resurrect_link" ]; then
+    resurrect_target="$(readlink "$resurrect_link" 2>/dev/null || true)"
+    case "$resurrect_target" in
+      /*) ;;
+      *) resurrect_target="$(dirname "$resurrect_link")/$resurrect_target" ;;
+    esac
+    printf '%s\n' "${resurrect_target:-none}"
+  elif [ -e "$resurrect_link" ]; then
+    printf '%s\n' "$resurrect_link"
+  else
+    printf '%s\n' none
+  fi
+}
+
 unlock_startup() {
   if [ "$lock_held" = "1" ]; then
     flock -u 9 || true
@@ -60,52 +79,94 @@ fallback_shell() {
 }
 
 cleanup_reservation() {
-  local owner target
+  local owner owner_after target unset_status
 
   [ -n "$reserved_target" ] || return 0
   target="$reserved_target"
-  reserved_target=""
 
   if ! flock -w "$LOCK_TIMEOUT" 9; then
-    tmux_restore_log_event reservation_cleanup_failed "target=$target" "reason=lock_timeout"
+    owner="$(tmux show-options -qv -t "$target" @ghostty_attach_owner 2>/dev/null || true)"
+    unset_status=0
+    if [ "$owner" = "$$" ]; then
+      tmux set-option -qu -t "$target" @ghostty_attach_owner 2>/dev/null || unset_status=$?
+      owner_after="$(tmux show-options -qv -t "$target" @ghostty_attach_owner 2>/dev/null || true)"
+    else
+      owner_after="$owner"
+    fi
+    tmux_restore_log_event reservation_cleanup_degraded \
+      "target=$target" "reason=lock_timeout" "owner=${owner:-none}" "status=$unset_status"
+    if [ "$owner_after" != "$$" ]; then
+      reserved_target=""
+    fi
     return 0
   fi
   lock_held=1
   owner="$(tmux show-options -qv -t "$target" @ghostty_attach_owner 2>/dev/null || true)"
   if [ "$owner" = "$$" ]; then
-    tmux set-option -qu -t "$target" @ghostty_attach_owner 2>/dev/null || true
-    tmux_restore_log_event reservation_released "target=$target"
+    if tmux set-option -qu -t "$target" @ghostty_attach_owner 2>/dev/null; then
+      reserved_target=""
+      tmux_restore_log_event reservation_released "target=$target"
+    fi
+  else
+    reserved_target=""
   fi
   unlock_startup
 }
 
 exec 9>"$LOCK_FILE"
+lock_started=$SECONDS
+tmux_restore_log_event lock_attempt "timeout_seconds=$LOCK_TIMEOUT"
 if flock -n 9; then
   lock_held=1
-  tmux_restore_log_event lock_acquired "waited=0"
+  tmux_restore_log_event lock_acquired "wait_seconds=$((SECONDS - lock_started))"
 else
   printf '%s\n' '[tmux] Waiting for saved sessions to restore...'
   if ! flock -w "$LOCK_TIMEOUT" 9; then
+    tmux_restore_log_event lock_failed "wait_seconds=$((SECONDS - lock_started))" "reason=timeout"
     fallback_shell lock_timeout
   fi
   lock_held=1
-  tmux_restore_log_event lock_acquired "waited=1"
+  tmux_restore_log_event lock_acquired "wait_seconds=$((SECONDS - lock_started))"
 fi
 
 sessions_output=""
 has_server=0
-if sessions_output="$(tmux list-sessions -F '#{session_id}'$'\t''#{session_attached}'$'\t''#{==:#{session_name},__bootstrap__}'$'\t''#{@ghostty_attach_owner}' 2>/dev/null)"; then
+restore_state="unset"
+if sessions_output="$(tmux list-sessions -F '#{session_id}'$'\t''#{session_attached}'$'\t''#{==:#{session_name},__bootstrap__}'$'\t''#{@ghostty_attach_owner}'$'\t''#{session_name}' 2>/dev/null)"; then
   has_server=1
+  restore_state="$(tmux show-options -gqv @ghostty_restore_state 2>/dev/null || true)"
+  restore_state="${restore_state:-unset}"
 fi
+tmux_restore_log_event server_snapshot "phase=pre_decision" "has_server=$has_server" \
+  "restore_state=$restore_state" "sessions=${sessions_output:-none}"
 
 restored=0
 if [ "$has_server" = "0" ]; then
-  tmux new-session -d -s __bootstrap__ || fallback_shell bootstrap_create_failed
+  bootstrap_started=$SECONDS
+  tmux_restore_log_event bootstrap_start "session=__bootstrap__"
+  if tmux new-session -d -s __bootstrap__; then
+    bootstrap_status=0
+  else
+    bootstrap_status=$?
+  fi
+  tmux_restore_log_event bootstrap_end "session=__bootstrap__" \
+    "elapsed_seconds=$((SECONDS - bootstrap_started))" "status=$bootstrap_status"
+  [ "$bootstrap_status" = "0" ] || fallback_shell bootstrap_create_failed
   tmux set-option -gq @ghostty_restore_state running || fallback_shell restore_state_failed
 
   socket_path="$(tmux display-message -p -t __bootstrap__ '#{socket_path}' 2>/dev/null || true)"
   restore_wrapper="${TMUX_RESURRECT_RESTORE_WRAPPER:-$HOME/.local/bin/tmux-resurrect-restore-wrapper}"
+  restore_snapshot="$(resurrect_snapshot)"
+  restore_started=$SECONDS
+  tmux_restore_log_event restore_start "snapshot=$restore_snapshot" "wrapper=$restore_wrapper" "socket=${socket_path:-unknown}"
   if TMUX="${socket_path},$$,0" "$restore_wrapper"; then
+    restore_status=0
+  else
+    restore_status=$?
+  fi
+  tmux_restore_log_event restore_end "snapshot=$restore_snapshot" \
+    "elapsed_seconds=$((SECONDS - restore_started))" "status=$restore_status"
+  if [ "$restore_status" = "0" ]; then
     tmux set-option -gq @ghostty_restore_state ok || fallback_shell restore_state_failed
     restored=1
   else
@@ -113,18 +174,26 @@ if [ "$has_server" = "0" ]; then
     fallback_shell restore_failed
   fi
 
-  sessions_output="$(tmux list-sessions -F '#{session_id}'$'\t''#{session_attached}'$'\t''#{==:#{session_name},__bootstrap__}'$'\t''#{@ghostty_attach_owner}' 2>/dev/null)" \
+  sessions_output="$(tmux list-sessions -F '#{session_id}'$'\t''#{session_attached}'$'\t''#{==:#{session_name},__bootstrap__}'$'\t''#{@ghostty_attach_owner}'$'\t''#{session_name}' 2>/dev/null)" \
     || fallback_shell session_list_failed
+  tmux_restore_log_event server_snapshot "phase=post_restore" "has_server=1" \
+    "restore_state=ok" "sessions=${sessions_output:-none}"
 else
-  restore_state="$(tmux show-options -gqv @ghostty_restore_state 2>/dev/null || true)"
-  if [ "$restore_state" = "failed" ]; then
-    fallback_shell restore_failed
-  fi
+  case "$restore_state" in
+    failed)
+      fallback_shell restore_failed
+      ;;
+    running)
+      tmux set-option -gq @ghostty_restore_state failed 2>/dev/null || true
+      tmux_restore_log_event restore_abandoned "previous_state=running" "status=failed"
+      fallback_shell restore_abandoned
+      ;;
+  esac
 fi
 
 target=""
 tab="$(printf '\t')"
-while IFS="$tab" read -r session_id attached bootstrap owner; do
+while IFS="$tab" read -r session_id attached bootstrap owner _session_name; do
   [ -n "$session_id" ] || continue
   [ "$bootstrap" = "0" ] || continue
   [ "$attached" = "0" ] || continue
@@ -164,10 +233,16 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+attach_started=$SECONDS
+tmux_restore_log_event attach_start "target=$target"
 if tmux attach -t "$target"; then
-  cleanup_reservation
-  exit 0
+  attach_status=0
+else
+  attach_status=$?
 fi
+tmux_restore_log_event attach_end "target=$target" \
+  "elapsed_seconds=$((SECONDS - attach_started))" "status=$attach_status"
 
 cleanup_reservation
+[ "$attach_status" = "0" ] && exit 0
 fallback_shell attach_failed
