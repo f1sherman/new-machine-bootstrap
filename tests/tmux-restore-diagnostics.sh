@@ -333,4 +333,19 @@ assert_contains "$wrapper_events" "snapshot=$resurrect_dir/tmux_resurrect_wrappe
 assert_contains "$wrapper_events" 'elapsed_seconds='
 assert_contains "$wrapper_events" 'status=23'
 
+missing_log_restore_marker="$tmpdir/missing-log-restore-ran"
+cat > "$restore_script" <<'SH'
+#!/usr/bin/env bash
+: > "$MISSING_LOG_RESTORE_MARKER"
+SH
+chmod +x "$restore_script"
+MISSING_LOG_RESTORE_MARKER="$missing_log_restore_marker" \
+TMUX_RESTORE_LOG_LIB="$tmpdir/missing-log-library" \
+TMUX_RESURRECT_DIR="$resurrect_dir" \
+TMUX_RESURRECT_RESTORE_SCRIPT="$restore_script" \
+  "$repo_root/roles/common/files/bin/tmux-resurrect-restore-wrapper" ||
+  fail "restore wrapper treated its diagnostics library as mandatory"
+[ -f "$missing_log_restore_marker" ] ||
+  fail "restore wrapper did not invoke restore when diagnostics were unavailable"
+
 printf 'PASS  bounded tmux restore diagnostics\n'
