@@ -200,7 +200,11 @@ def attach(session, term):
 
 def detach(client):
     tmux("detach-client", "-t", client["tty"])
-    client["process"].wait(timeout=3)
+    deadline = time.monotonic() + 3
+    while client["process"].poll() is None and time.monotonic() < deadline:
+        drain_clients()
+        time.sleep(0.01)
+    client["process"].wait(timeout=0)
     clients.remove(client)
     os.close(client["master"])
 
