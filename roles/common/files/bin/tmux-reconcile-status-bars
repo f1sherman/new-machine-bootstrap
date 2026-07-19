@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -u
+
+[ "$(tmux show-options -gv @managed-bars 2>/dev/null || true)" != "off" ] || exit 0
+
+tmux list-sessions -F '#{session_id}' 2>/dev/null | while IFS= read -r session_id; do
+  [ -n "$session_id" ] || continue
+  client_terms="$(tmux list-clients -t "$session_id" -F '#{client_termname}' 2>/dev/null)" || continue
+
+  status=on
+  if [ -n "$client_terms" ]; then
+    status=off
+    while IFS= read -r client_term; do
+      case "$client_term" in
+        tmux*|screen*) ;;
+        *) status=on; break ;;
+      esac
+    done <<EOF
+$client_terms
+EOF
+  fi
+
+  tmux set-option -q -t "$session_id" status "$status" 2>/dev/null || true
+done
