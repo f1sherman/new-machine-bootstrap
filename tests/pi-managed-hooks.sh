@@ -40,6 +40,9 @@ let taskStatus = "";
 
 const ok = (stdout = "") => ({ stdout, stderr: "", code: 0, killed: false });
 const fail = () => ({ stdout: "", stderr: "", code: 1, killed: false });
+let subjectChildResult = ok("improve tmux labels\n");
+let subjectChildError;
+let subjectApplyResult = ok();
 
 const pi = {
   on(event, handler) {
@@ -63,6 +66,11 @@ const pi = {
       return ok();
     }
     if (command === "tmux") return fail();
+    if (command === "pi") {
+      if (subjectChildError) throw subjectChildError;
+      return subjectChildResult;
+    }
+    if (command === "tmux-agent-subject") return subjectApplyResult;
     if (command === "git" && args.includes("rev-parse")) {
       if (args.some((arg) => String(arg).startsWith("/missing"))) return fail();
       return ok(args.some((arg) => String(arg).startsWith(worktreeRoot)) ? `${worktreeRoot}\n` : "/repo\n");
@@ -151,30 +159,103 @@ for (const workflow of ["z-fix", "z-spec-first", "z-quick-pr"]) {
 
 branch = "feature";
 taskStatus = "";
-const subjectReminder = await handlers.get("before_agent_start")({
-  prompt: "improve tmux labels",
+calls.length = 0;
+const automaticSubject = await handlers.get("before_agent_start")({
+  prompt: "improve tmux labels; printf injected",
   systemPrompt: "",
   systemPromptOptions: { cwd: "/repo" },
 }, { cwd: "/repo" });
-assert.match(subjectReminder.message.content, /tmux-agent-subject set/, "ordinary prompt with no task gets subject reminder");
+assert.equal(automaticSubject, undefined, "valid child subject adds no main-context reminder");
+const childCall = calls.find((call) => call.command === "pi");
+assert.ok(childCall, "missing task invokes isolated Pi child");
+assert.deepEqual(childCall.args.slice(0, -1), [
+  "--mode", "text",
+  "--print",
+  "--no-session",
+  "--model", "openai-codex/gpt-5.3-codex-spark",
+  "--thinking", "off",
+  "--no-tools",
+  "--no-extensions",
+  "--no-skills",
+  "--no-prompt-templates",
+  "--no-themes",
+  "--no-context-files",
+  "--no-approve",
+  "--system-prompt", "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.",
+], "subject child disables context-bearing resources");
+assert.equal(childCall.args.at(-1), "improve tmux labels; printf injected", "prompt is passed as one argv value");
+assert.deepEqual(calls.find((call) => call.command === "tmux-agent-subject"), {
+  command: "tmux-agent-subject",
+  args: ["set", "improve tmux labels"],
+}, "parent applies the validated child subject");
 
+subjectChildResult = ok("start another task\n");
 taskStatus = "completed\tbranch\told-task\n";
-const completedReminder = await handlers.get("before_agent_start")({
+calls.length = 0;
+const completedAutomaticSubject = await handlers.get("before_agent_start")({
   prompt: "start another task",
   systemPrompt: "",
   systemPromptOptions: { cwd: "/repo" },
 }, { cwd: "/repo" });
-assert.match(completedReminder.message.content, /tmux-agent-subject set/, "completed task gets next-subject reminder");
+assert.equal(completedAutomaticSubject, undefined, "completed task is automatically relabeled");
+assert.ok(calls.some((call) => call.command === "pi"), "completed task invokes isolated Pi child");
 
 for (const state of ["provisional\tagent\tshort subject\n", "active\tbranch\tfeature/current\n"]) {
   taskStatus = state;
+  calls.length = 0;
   const currentTaskResult = await handlers.get("before_agent_start")({
     prompt: "continue current work",
     systemPrompt: "",
     systemPromptOptions: { cwd: "/repo" },
   }, { cwd: "/repo" });
   assert.equal(currentTaskResult, undefined, `${state.split("\t")[0]} task skips subject reminder`);
+  assert.equal(calls.some((call) => call.command === "pi"), false, `${state.split("\t")[0]} task skips subject child`);
 }
+
+taskStatus = "";
+for (const [name, result] of [
+  ["empty", ok("\n")],
+  ["multiline", ok("first line\nsecond line\n")],
+  ["oversized", ok(`${"x".repeat(513)}\n`)],
+  ["failed", fail()],
+  ["timed out", { stdout: "", stderr: "", code: 1, killed: true }],
+]) {
+  subjectChildResult = result;
+  subjectChildError = undefined;
+  calls.length = 0;
+  const fallback = await handlers.get("before_agent_start")({
+    prompt: `fallback ${name}`,
+    systemPrompt: "",
+    systemPromptOptions: { cwd: "/repo" },
+  }, { cwd: "/repo" });
+  assert.match(fallback.message.content, /tmux-agent-subject set/, `${name} child result preserves reminder fallback`);
+  assert.equal(calls.some((call) => call.command === "tmux-agent-subject"), false, `${name} child result is not applied`);
+}
+
+subjectChildResult = ok("valid subject\n");
+subjectApplyResult = fail();
+taskStatus = "";
+calls.length = 0;
+const applyFallback = await handlers.get("before_agent_start")({
+  prompt: "fallback apply failure",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, { cwd: "/repo" });
+assert.match(applyFallback.message.content, /tmux-agent-subject set/, "subject apply failure preserves reminder fallback");
+subjectApplyResult = ok();
+
+subjectChildResult = ok("unused\n");
+subjectChildError = new Error("child unavailable");
+taskStatus = "";
+calls.length = 0;
+const thrownFallback = await handlers.get("before_agent_start")({
+  prompt: "fallback thrown error",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, { cwd: "/repo" });
+assert.match(thrownFallback.message.content, /tmux-agent-subject set/, "thrown child error preserves reminder fallback");
+subjectChildError = undefined;
+
 taskStatus = "";
 branch = "main";
 
