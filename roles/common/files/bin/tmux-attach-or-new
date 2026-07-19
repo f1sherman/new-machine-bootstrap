@@ -132,7 +132,7 @@ fi
 sessions_output=""
 has_server=0
 restore_state="unset"
-if sessions_output="$(tmux list-sessions -F '#{session_id}'$'\t''#{session_attached}'$'\t''#{==:#{session_name},__bootstrap__}'$'\t''#{@ghostty_attach_owner}'$'\t''#{session_name}' 2>/dev/null)"; then
+if sessions_output="$(tmux list-sessions -F '#{session_id}'$'\t''#{session_attached}'$'\t''#{==:#{session_name},__bootstrap__}'$'\t''owner=#{@ghostty_attach_owner}'$'\t''#{session_name}' 2>/dev/null)"; then
   has_server=1
   restore_state="$(tmux show-options -gqv @ghostty_restore_state 2>/dev/null || true)"
   restore_state="${restore_state:-unset}"
@@ -174,7 +174,7 @@ if [ "$has_server" = "0" ]; then
     fallback_shell restore_failed
   fi
 
-  sessions_output="$(tmux list-sessions -F '#{session_id}'$'\t''#{session_attached}'$'\t''#{==:#{session_name},__bootstrap__}'$'\t''#{@ghostty_attach_owner}'$'\t''#{session_name}' 2>/dev/null)" \
+  sessions_output="$(tmux list-sessions -F '#{session_id}'$'\t''#{session_attached}'$'\t''#{==:#{session_name},__bootstrap__}'$'\t''owner=#{@ghostty_attach_owner}'$'\t''#{session_name}' 2>/dev/null)" \
     || fallback_shell session_list_failed
   tmux_restore_log_event server_snapshot "phase=post_restore" "has_server=1" \
     "restore_state=ok" "sessions=${sessions_output:-none}"
@@ -193,11 +193,12 @@ fi
 
 target=""
 tab="$(printf '\t')"
-while IFS="$tab" read -r session_id attached bootstrap owner _session_name; do
+while IFS="$tab" read -r session_id attached bootstrap owner_field _session_name; do
   [ -n "$session_id" ] || continue
   [ "$bootstrap" = "0" ] || continue
   [ "$attached" = "0" ] || continue
 
+  owner="${owner_field#owner=}"
   if [ -n "$owner" ]; then
     if kill -0 "$owner" 2>/dev/null; then
       continue
