@@ -5,6 +5,7 @@ require "fileutils"
 require "json"
 require "minitest/autorun"
 require "open3"
+require "rbconfig"
 require "tmpdir"
 
 REPO_ROOT = File.expand_path("..", __dir__)
@@ -45,6 +46,7 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert_equal 4, attachments.length
     assert_equal 4, attachments.map { |entry| entry.fetch("session_id") }.uniq.length,
       "concurrent helpers selected duplicate targets: #{attachments.inspect}"
+    attachments.each { |entry| assert_helper_owned_reservation(entry) }
     results.each { |_out, _err, status| assert status.success? }
   end
 
@@ -55,9 +57,9 @@ class TmuxRestoreStartupTest < Minitest::Test
       "TMUX_ATTACH_LOCK_TIMEOUT" => "0.1"
     )
 
-    first = Thread.new { Open3.capture3(env, HELPER) }
+    first = Thread.new { Open3.capture3(env.merge("FAKE_HELPER_LABEL" => "restorer"), HELPER) }
     wait_until { File.exist?(@restore_marker) }
-    second = Open3.capture3(env, HELPER)
+    second = Open3.capture3(env.merge("FAKE_HELPER_LABEL" => "timed-out-waiter"), HELPER)
     results = [first.value, second]
     state = read_state
     restore_invocations = state.fetch("restore_invocations")
@@ -68,10 +70,14 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert_equal [], unlocked_bootstrap_attempts,
       "waiter ran tmux while restore held the startup lock: #{unlocked_bootstrap_attempts.inspect}"
     assert_includes fallback_output, "tmux-restore-debug-report"
+    assert_equal ["timed-out-waiter"], fallback_invocations.map { |entry| entry.fetch("label") },
+      "the timed-out waiter must be the helper that invokes the fallback shell"
   end
 
   def test_dead_reservation_is_reclaimed_and_cleaned_up
-    set_sessions(["stale", "available"], owners: { "stale" => "999999" })
+    dead_pid = Process.spawn(RbConfig.ruby, "-e", "exit")
+    Process.wait(dead_pid)
+    set_sessions(["stale", "available"], owners: { "stale" => dead_pid.to_s })
 
     _out, _err, status = Open3.capture3(helper_env, HELPER)
     attachments = read_attachments
@@ -79,6 +85,7 @@ class TmuxRestoreStartupTest < Minitest::Test
 
     assert status.success?
     assert_equal "$1", attachments.first.fetch("session_id")
+    assert_helper_owned_reservation(attachments.first)
     assert_nil session_options.fetch("@ghostty_attach_owner", nil)
   end
 
@@ -90,23 +97,33 @@ class TmuxRestoreStartupTest < Minitest::Test
 
     assert status.success?
     assert_equal "$2", attachments.first.fetch("session_id")
+    assert_helper_owned_reservation(attachments.first)
   end
 
   def test_attach_failure_clears_reservation_and_opens_fallback_shell
     set_sessions(["broken"])
-    env = helper_env("FAKE_TMUX_ATTACH_FAILURE" => "$1")
+    env = helper_env(
+      "FAKE_HELPER_LABEL" => "attach-failure",
+      "FAKE_TMUX_ATTACH_FAILURE" => "$1"
+    )
 
     out, err, status = Open3.capture3(env, HELPER)
-    session_options = session_named("broken").fetch("options")
+    failed_session = session_named("broken")
+    session_options = failed_session.fetch("options")
     fallback_output = out + err
 
     assert status.success?, "fallback shell should remain usable after attach failure"
+    assert_equal 0, failed_session.fetch("attached"), "failed attach must not mark the session attached"
     assert_nil session_options.fetch("@ghostty_attach_owner", nil)
     assert_includes fallback_output, "tmux-restore-debug-report"
+    assert_equal ["attach-failure"], fallback_invocations.map { |entry| entry.fetch("label") }
   end
 
   def test_restore_failure_is_shared_and_opens_fallback_shell
-    env = helper_env("FAKE_RESTORE_STATUS" => "23")
+    env = helper_env(
+      "FAKE_HELPER_LABEL" => "restore-failure",
+      "FAKE_RESTORE_STATUS" => "23"
+    )
 
     out, err, status = Open3.capture3(env, HELPER)
     state = read_state
@@ -115,6 +132,7 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert_equal 1, state.fetch("restore_invocations")
     assert_equal "failed", state.fetch("global_options").fetch("@ghostty_restore_state", nil)
     assert_includes out + err, "tmux-restore-debug-report"
+    assert_equal ["restore-failure"], fallback_invocations.map { |entry| entry.fetch("label") }
   end
 
   def test_empty_restore_creates_and_attaches_normal_session
@@ -170,6 +188,20 @@ class TmuxRestoreStartupTest < Minitest::Test
 
   def session_named(name)
     read_state.fetch("sessions").find { |session| session.fetch("name") == name }
+  end
+
+  def assert_helper_owned_reservation(attachment)
+    assert_equal attachment.fetch("tmux_parent_pid").to_s, attachment.fetch("reservation_owner"),
+      "selected session reservation must contain the attaching helper PID"
+  end
+
+  def fallback_invocations
+    return [] unless File.exist?(@fallback_log)
+
+    File.readlines(@fallback_log, chomp: true).map do |line|
+      pid, label, arguments = line.split("\t", 3)
+      { "pid" => Integer(pid), "label" => label, "arguments" => arguments }
+    end
   end
 
   def read_state
@@ -327,13 +359,24 @@ class TmuxRestoreStartupTest < Minitest::Test
         session = locked_json(state_path) do |state|
           selected = find_session(state, target)
           exit 1 unless selected
+          selected.dup
+        end
+        exit 42 if [session.fetch("id"), session.fetch("name"), "all"].include?(ENV["FAKE_TMUX_ATTACH_FAILURE"])
+
+        session = locked_json(state_path) do |state|
+          selected = find_session(state, target)
+          exit 1 unless selected
           selected["attached"] += 1
           selected.dup
         end
         locked_json(attachments_path) do |attachments|
-          attachments << { "session_id" => session.fetch("id"), "session_name" => session.fetch("name") }
+          attachments << {
+            "session_id" => session.fetch("id"),
+            "session_name" => session.fetch("name"),
+            "reservation_owner" => session.fetch("options").fetch("@ghostty_attach_owner", nil),
+            "tmux_parent_pid" => Process.ppid
+          }
         end
-        exit 42 if [session.fetch("id"), session.fetch("name"), "all"].include?(ENV["FAKE_TMUX_ATTACH_FAILURE"])
       else
         warn "unexpected fake tmux command: #{([command] + args).inspect}"
         exit 90
@@ -394,7 +437,7 @@ class TmuxRestoreStartupTest < Minitest::Test
     write_executable(File.join(@tmpdir, "fallback-shell"), <<~'SH')
       #!/bin/sh
       printf '%s\n' '[tmux] Startup failed; run tmux-restore-debug-report for details.'
-      printf '%s\n' "$*" >> "$FAKE_TMUX_FALLBACK_LOG"
+      printf '%s\t%s\t%s\n' "$$" "${FAKE_HELPER_LABEL:-unlabeled}" "$*" >> "$FAKE_TMUX_FALLBACK_LOG"
     SH
   end
 
