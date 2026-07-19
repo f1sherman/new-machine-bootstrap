@@ -15,7 +15,15 @@ IFS=$'\t' read -r window_id pane_active window_name pane_tty pane_current_path p
 [ "$pane_active" = "1" ] || exit 0
 
 cached_window_label="$(tmux show-options -qv -p -t "$pane_id" "@window-label" 2>/dev/null || true)"
-label="$cached_window_label"
+task_state="$(tmux show-options -qv -p -t "$pane_id" "@task_state" 2>/dev/null || true)"
+task_source="$(tmux show-options -qv -p -t "$pane_id" "@task_source" 2>/dev/null || true)"
+task_label="$(tmux show-options -qv -p -t "$pane_id" "@task_label" 2>/dev/null || true)"
+label=""
+if [ -n "$task_state" ] && [ -n "$task_source" ] && [ -n "$task_label" ]; then
+  label="$cached_window_label"
+else
+  cached_window_label=""
+fi
 task_label_resolved=""
 
 is_remote_candidate_command() {
