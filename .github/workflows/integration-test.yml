@@ -30,6 +30,9 @@ jobs:
       - name: Verify Ghostty session manifest
         run: ruby tests/ghostty-session-manifest.rb
 
+      - name: Verify Ghostty session tab builder
+        run: ruby tests/ghostty-session-tabs-restore.rb
+
       - name: Verify tmux restore diagnostics
         run: bash tests/tmux-restore-diagnostics.sh
 

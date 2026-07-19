@@ -164,11 +164,11 @@
     line: 'command = {{ ansible_facts["user_dir"] }}/.local/bin/tmux-attach-or-new'
     create: yes
     mode: 0644
-- name: Configure ghostty native window state restoration
+- name: Disable ghostty native window state restoration
   lineinfile:
     path: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty/config'
     regexp: '^window-save-state\s*='
-    line: 'window-save-state = always'
+    line: 'window-save-state = never'
     create: yes
     mode: 0644
 - name: Create .vimtmp directory

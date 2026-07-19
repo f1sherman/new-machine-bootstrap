@@ -40,6 +40,7 @@ GHOSTTY_MANIFEST="${TMUX_GHOSTTY_MANIFEST:-$HOME/.local/state/tmux/ghostty-sessi
 GHOSTTY_RESTORE_QUEUE="${TMUX_GHOSTTY_RESTORE_QUEUE:-$HOME/.local/state/tmux/ghostty-restore-queue.json}"
 lock_held=0
 reserved_target=""
+tabs_restore_initialized=0
 
 resurrect_snapshot() {
   local resurrect_dir resurrect_link resurrect_target
@@ -266,6 +267,7 @@ if [ -n "$ghostty_app_pid" ]; then
           "ghostty_pid=$ghostty_app_pid" "reason=invalid_manifest"
       elif printf '%s\n' "$queue_json" | replace_restore_queue; then
         pending_count="$(jq '.pending | length' "$GHOSTTY_RESTORE_QUEUE")"
+        tabs_restore_initialized=1
         tmux_restore_log_event restore_queue_initialized \
           "ghostty_pid=$ghostty_app_pid" "sessions=$pending_count"
       else
@@ -381,6 +383,20 @@ if [ "$restored" = "1" ]; then
 fi
 
 unlock_startup
+
+if [ "$tabs_restore_initialized" = "1" ] &&
+  [ "$(jq -r '.pending | length' "$GHOSTTY_RESTORE_QUEUE" 2>/dev/null || printf 0)" -gt 0 ]; then
+  tabs_restorer="${TMUX_GHOSTTY_TABS_RESTORE:-$HOME/.local/bin/ghostty-session-tabs-restore}"
+  if [ -x "$tabs_restorer" ]; then
+    TMUX_GHOSTTY_APP_PID="$ghostty_app_pid" \
+      TMUX_GHOSTTY_MANIFEST="$GHOSTTY_MANIFEST" \
+      TMUX_GHOSTTY_RESTORE_QUEUE="$GHOSTTY_RESTORE_QUEUE" \
+      "$tabs_restorer" </dev/null >/dev/null 2>&1 &
+  else
+    tmux_restore_log_event tab_builder_skipped "reason=missing_helper" "path=$tabs_restorer"
+  fi
+fi
+
 trap cleanup_reservation EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
