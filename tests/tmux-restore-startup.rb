@@ -10,6 +10,7 @@ require "tmpdir"
 
 REPO_ROOT = File.expand_path("..", __dir__)
 HELPER = File.join(REPO_ROOT, "roles/common/files/bin/tmux-attach-or-new")
+DEV_HOST_TASKS = File.join(REPO_ROOT, "roles/dev_host/tasks/main.yml")
 
 class TmuxRestoreStartupTest < Minitest::Test
   def setup
@@ -138,6 +139,8 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert_equal ["attach-failure"], fallback_invocations.map { |entry| entry.fetch("label") }
     assert_equal helper_pid, fallback_invocations.first.fetch("pid"),
       "fallback shell must replace the helper process rather than run as its child"
+    assert_equal "1", fallback_invocations.first.fetch("fallback"),
+      "fallback shell replacement must suppress managed login-shell handoffs"
     assert_event(/event=attach_start\ttarget=\$1/)
     assert_event(/event=attach_end\ttarget=\$1\telapsed_seconds=\d+\tstatus=42/)
   end
@@ -222,6 +225,15 @@ class TmuxRestoreStartupTest < Minitest::Test
       "helper must not create a new session when the restored session is available"
   end
 
+  def test_managed_login_shell_handoffs_skip_tmux_fallbacks
+    tasks = File.read(DEV_HOST_TASKS)
+    fallback_guard = '[ -z "${TMUX_ATTACH_FALLBACK:-}" ]'
+
+    assert_match(/Configure tmux auto-launch in \.zprofile.*?#{Regexp.escape(fallback_guard)}.*?tmux-attach-or-new/m, tasks)
+    assert_match(/Configure zsh exec in \.bashrc.*?#{Regexp.escape(fallback_guard)}.*?exec \/usr\/bin\/zsh -l/m, tasks)
+    assert_equal 2, tasks.scan(fallback_guard).length
+  end
+
   def test_empty_restore_creates_and_attaches_normal_session
     env = helper_env("FAKE_RESTORE_SESSIONS" => "")
 
@@ -297,8 +309,8 @@ class TmuxRestoreStartupTest < Minitest::Test
     return [] unless File.exist?(@fallback_log)
 
     File.readlines(@fallback_log, chomp: true).map do |line|
-      pid, label, arguments = line.split("\t", 3)
-      { "pid" => Integer(pid), "label" => label, "arguments" => arguments }
+      pid, label, arguments, fallback = line.split("\t", 4)
+      { "pid" => Integer(pid), "label" => label, "arguments" => arguments, "fallback" => fallback }
     end
   end
 
@@ -558,7 +570,9 @@ class TmuxRestoreStartupTest < Minitest::Test
     write_executable(File.join(@tmpdir, "fallback-shell"), <<~'SH')
       #!/bin/sh
       printf '%s\n' '[tmux] Startup failed; run tmux-restore-debug-report for details.'
-      printf '%s\t%s\t%s\n' "$$" "${FAKE_HELPER_LABEL:-unlabeled}" "$*" >> "$FAKE_TMUX_FALLBACK_LOG"
+      printf '%s\t%s\t%s\t%s\n' \
+        "$$" "${FAKE_HELPER_LABEL:-unlabeled}" "$*" "${TMUX_ATTACH_FALLBACK:-unset}" \
+        >> "$FAKE_TMUX_FALLBACK_LOG"
     SH
   end
 
