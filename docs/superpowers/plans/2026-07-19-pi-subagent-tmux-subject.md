@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Pi only; Claude and Codex behavior remains unchanged.
-- Child model: `openai/gpt-5.4-nano` with thinking disabled.
+- Child model: `openai-codex/gpt-5.3-codex-spark` with thinking disabled.
 - Child timeout: 15 seconds.
 - Child has no tools, extensions, skills, prompt templates, themes, context files, or saved session.
 - Accept exactly one non-empty line of at most 512 characters.
@@ -69,7 +69,7 @@ assert.deepEqual(childCall.args.slice(0, -1), [
   "--mode", "text",
   "--print",
   "--no-session",
-  "--model", "openai/gpt-5.4-nano",
+  "--model", "openai-codex/gpt-5.3-codex-spark",
   "--thinking", "off",
   "--no-tools",
   "--no-extensions",
@@ -166,7 +166,7 @@ Add constants near the top of `managed-hooks.ts`:
 
 ```ts
 const SUBJECT_CHILD_TIMEOUT_MS = 15000;
-const SUBJECT_CHILD_MODEL = "openai/gpt-5.4-nano";
+const SUBJECT_CHILD_MODEL = "openai-codex/gpt-5.3-codex-spark";
 const SUBJECT_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.";
 const SUBJECT_MAX_LENGTH = 512;
 ```
