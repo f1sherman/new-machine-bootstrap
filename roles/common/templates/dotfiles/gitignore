@@ -12,7 +12,7 @@ CLAUDE.local.md
 .codex/
 
 # Remote Pi per-repository runtime state
-.pi/remote-pi/
+**/.pi/remote-pi/
 
 .bg-shell/
 .repo.yml
