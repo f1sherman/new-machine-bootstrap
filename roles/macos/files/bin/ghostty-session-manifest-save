@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PATH="${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin"
+export PATH
+
+manifest="${TMUX_GHOSTTY_MANIFEST:-${TMUX_GHOSTTY_STATE_DIR:-$HOME/.local/state/tmux}/ghostty-session-manifest.json}"
+state_dir="$(dirname "$manifest")"
+mkdir -p "$state_dir"
+
+if [ -r "$HOME/.local/bin/tmux-restore-log.sh" ]; then
+  # shellcheck source=/dev/null
+  source "$HOME/.local/bin/tmux-restore-log.sh"
+else
+  tmux_restore_log_event() { :; }
+fi
+
+ghostty_pid="${GHOSTTY_APP_PID:-$(pgrep -nf '/Ghostty.app/Contents/MacOS/ghostty$' 2>/dev/null || true)}"
+case "$ghostty_pid" in
+  ''|*[!0-9]*) exit 0 ;;
+esac
+
+if ! rows="$(osascript <<'APPLESCRIPT'
+set fieldSeparator to ASCII character 9
+tell application "Ghostty"
+  if (count of windows) = 0 then return ""
+  set output to ""
+  set windowOrdinal to 0
+  repeat with w in windows
+    set windowOrdinal to windowOrdinal + 1
+    set selectedIndex to index of selected tab of w
+    repeat with t in tabs of w
+      set sessionName to name of focused terminal of t
+      set output to output & windowOrdinal & fieldSeparator & selectedIndex & fieldSeparator & (index of t) & fieldSeparator & sessionName & linefeed
+    end repeat
+  end repeat
+  return output
+end tell
+APPLESCRIPT
+)"; then
+  tmux_restore_log_event manifest_rejected "reason=applescript_failed"
+  exit 0
+fi
+
+[ -n "$rows" ] || exit 0
+
+candidate="$(mktemp "$state_dir/ghostty-session-manifest.XXXXXX")"
+trap 'rm -f "$candidate"' EXIT
+
+if ! printf '%s\n' "$rows" | jq -eRn --argjson ghostty_pid "$ghostty_pid" '
+  [
+    inputs
+    | select(length > 0)
+    | split("\t")
+    | if length == 4 then . else error("invalid field count") end
+    | {
+        window_ordinal: (.[0] | tonumber),
+        selected_tab_index: (.[1] | tonumber),
+        tab_index: (.[2] | tonumber),
+        session_name: .[3]
+      }
+  ]
+  | if length > 0 then . else error("empty manifest") end
+  | sort_by(.window_ordinal, .tab_index)
+  | {
+      version: 1,
+      ghostty_pid: $ghostty_pid,
+      saved_at: (now | floor),
+      windows: (
+        group_by(.window_ordinal)
+        | map({
+            window_ordinal: .[0].window_ordinal,
+            selected_tab_index: .[0].selected_tab_index,
+            tabs: map({tab_index, session_name})
+          })
+      )
+    }
+  | select(
+      all(.windows[];
+        (.window_ordinal > 0) and
+        (.selected_tab_index > 0) and
+        (.tabs | length > 0) and
+        all(.tabs[]; (.tab_index > 0) and (.session_name | length > 0))
+      )
+    )
+' >"$candidate"; then
+  tmux_restore_log_event manifest_rejected "reason=invalid_rows"
+  exit 1
+fi
+
+if ! jq -e '
+  [.windows[].tabs[].session_name] as $names
+  | ($names | length) > 0 and (($names | unique | length) == ($names | length))
+' "$candidate" >/dev/null; then
+  tmux_restore_log_event manifest_rejected "reason=duplicate_sessions"
+  exit 1
+fi
+
+while IFS= read -r session_name; do
+  if ! tmux has-session -t "=$session_name" 2>/dev/null; then
+    tmux_restore_log_event manifest_rejected "reason=missing_session" "session=$session_name"
+    exit 1
+  fi
+done < <(jq -r '.windows[].tabs[].session_name' "$candidate")
+
+chmod 0600 "$candidate"
+mv "$candidate" "$manifest"
+trap - EXIT
+session_count="$(jq '[.windows[].tabs[]] | length' "$manifest")"
+tmux_restore_log_event manifest_saved "ghostty_pid=$ghostty_pid" "sessions=$session_count"
