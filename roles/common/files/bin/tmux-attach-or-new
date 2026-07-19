@@ -70,6 +70,7 @@ fallback_shell() {
   shell="${TMUX_ATTACH_FALLBACK_SHELL:-${SHELL:-/bin/zsh}}"
   shopt -s execfail
   set +e
+  export TMUX_ATTACH_FALLBACK=1
   exec "$shell" -l
   status=$?
   set -e
