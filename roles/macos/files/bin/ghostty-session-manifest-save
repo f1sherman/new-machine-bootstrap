@@ -103,6 +103,19 @@ while IFS= read -r session_name; do
   fi
 done < <(jq -r '.windows[].tabs[].session_name' "$candidate")
 
+if [ -f "$manifest" ]; then
+  previous_pid="$(jq -er 'select(.version == 1) | .ghostty_pid | select(type == "number")' "$manifest" 2>/dev/null || true)"
+  if [ -n "$previous_pid" ] && [ "$previous_pid" != "$ghostty_pid" ]; then
+    previous_names="$(jq -c '[.windows[].tabs[].session_name] | sort' "$manifest" 2>/dev/null || true)"
+    candidate_names="$(jq -c '[.windows[].tabs[].session_name] | sort' "$candidate")"
+    if [ -n "$previous_names" ] && [ "$previous_names" != "$candidate_names" ]; then
+      tmux_restore_log_event manifest_rejected "reason=new_process_session_mismatch" \
+        "previous_pid=$previous_pid" "ghostty_pid=$ghostty_pid"
+      exit 1
+    fi
+  fi
+fi
+
 chmod 0600 "$candidate"
 mv "$candidate" "$manifest"
 trap - EXIT

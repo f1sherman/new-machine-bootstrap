@@ -52,6 +52,30 @@ class GhosttySessionManifestTest < Minitest::Test
     assert_equal "100600", format("%o", File.stat(@manifest).mode)
   end
 
+  def test_new_ghostty_process_cannot_replace_last_good_with_different_session_set
+    require_saver
+    FileUtils.mkdir_p(File.dirname(@manifest))
+    previous = {
+      "version" => 1,
+      "ghostty_pid" => 100,
+      "saved_at" => 1,
+      "windows" => [{
+        "window_ordinal" => 1,
+        "selected_tab_index" => 1,
+        "tabs" => %w[journal hnp nmb command-proxy misc].each_with_index.map do |name, index|
+          { "tab_index" => index + 1, "session_name" => name }
+        end
+      }]
+    }
+    File.write(@manifest, JSON.generate(previous))
+    original = File.read(@manifest)
+
+    _out, _err, status = run_saver(rows: [[1, 1, 1, "17"]], sessions: %w[17 journal hnp nmb command-proxy misc], ghostty_pid: 200)
+
+    refute status.success?
+    assert_equal original, File.read(@manifest)
+  end
+
   def test_rejects_unknown_session_without_replacing_last_good
     require_saver
     FileUtils.mkdir_p(File.dirname(@manifest))
