@@ -60,14 +60,11 @@ assert_file_contains "$RECONCILER" \
 
 for config in "$LINUX_TMUX_CONF" "$MACOS_TMUX_CONF"; do
   platform="$(basename "$(dirname "$(dirname "$(dirname "$config")")")")"
-  for event in client-attached client-session-changed; do
+  for event in client-attached client-detached client-session-changed; do
     assert_file_contains "$config" \
-      "set-hook -ag ${event} .*tmux-reconcile-status-bars" \
-      "$platform config reconciles status on $event"
+      "set-hook -g ${event}\\[90\\] .*tmux-reconcile-status-bars" \
+      "$platform config owns indexed status reconciliation on $event"
   done
-  assert_file_contains "$config" \
-    'set-hook -g client-detached .*tmux-reconcile-status-bars' \
-    "$platform config owns status reconciliation on client-detached"
   assert_file_contains "$config" \
     '^run-shell -b .*tmux-reconcile-status-bars' \
     "$platform config reconciles status at load time"
@@ -97,6 +94,8 @@ assert_equals "$(tmux -L "$SOCK" show-window-options -v -t s pane-border-status)
 # config's global default alone cannot overwrite this session-local value.
 tmux -L "$SOCK" set -gu @managed-bars
 tmux -L "$SOCK" set-option -t "$sid" status off
+tmux -L "$SOCK" set-hook -g 'client-detached[40]' \
+  'set-option -g @unrelated-detach-hook-seen yes'
 HOME="$TEST_HOME" tmux -L "$SOCK" source-file "$LINUX_TMUX_CONF"
 HOME="$TEST_HOME" tmux -L "$SOCK" source-file "$LINUX_TMUX_CONF"
 HOME="$TEST_HOME" tmux -L "$SOCK" source-file "$LINUX_TMUX_CONF"
@@ -106,11 +105,32 @@ detach_reconcilers="$(
 )"
 assert_equals "$detach_reconcilers" "1" \
   "repeated config sourcing keeps one client-detached reconciler"
+unrelated_detach_hooks="$(
+  tmux -L "$SOCK" show-hooks -g client-detached 2>/dev/null |
+    grep -c '@unrelated-detach-hook-seen' || true
+)"
+assert_equals "$unrelated_detach_hooks" "1" \
+  "repeated config sourcing preserves one unrelated client-detached hook"
+attach_hooks="$(tmux -L "$SOCK" show-hooks -g client-attached 2>/dev/null)"
+assert_equals "$(grep -c 'tmux-client-attached' <<<"$attach_hooks" || true)" "1" \
+  "repeated config sourcing preserves one base client-attached hook"
+assert_equals "$(grep -c 'tmux-reconcile-status-bars' <<<"$attach_hooks" || true)" "1" \
+  "repeated config sourcing keeps one indexed client-attached reconciler"
+session_change_hooks="$(
+  tmux -L "$SOCK" show-hooks -g client-session-changed 2>/dev/null
+)"
+assert_equals "$(grep -c 'tmux-remote-title publish' <<<"$session_change_hooks" || true)" "1" \
+  "repeated config sourcing preserves one base client-session-changed hook"
+assert_equals "$(grep -c 'tmux-reconcile-status-bars' <<<"$session_change_hooks" || true)" "1" \
+  "repeated config sourcing keeps one indexed client-session-changed reconciler"
 
 python3 - "$SOCK" "$TEST_HOME" "$RECONCILE_LOCK" "$LINUX_TMUX_CONF" <<'PY'
 import fcntl
 import os
+import pathlib
 import pty
+import shlex
+import shutil
 import signal
 import struct
 import subprocess
@@ -123,6 +143,36 @@ base_env = os.environ.copy()
 base_env["HOME"] = test_home
 base_env.pop("TMUX", None)
 clients = []
+runtime_dir = pathlib.Path(test_home) / "reconciler-contract"
+runtime_dir.mkdir()
+test_bin = runtime_dir / "bin"
+test_bin.mkdir()
+real_tmux = shutil.which("tmux")
+tmux_wrapper = test_bin / "tmux"
+tmux_wrapper.write_text(
+    f'''#!/usr/bin/env bash
+if [ "$1" = wait-for ] && [ "${{2-}}" = -L ] && [ -n "${{RECONCILE_WAIT_READY:-}}" ]; then
+  : > "$RECONCILE_WAIT_READY"
+fi
+if [ "$1" = show-options ] && [ -n "${{RECONCILE_BLOCK_READY:-}}" ]; then
+  : > "$RECONCILE_BLOCK_READY"
+  while [ ! -e "$RECONCILE_BLOCK_RELEASE" ]; do
+    sleep 0.01
+  done
+fi
+exec {shlex.quote(real_tmux)} "$@"
+'''
+)
+tmux_wrapper.chmod(0o755)
+launcher = runtime_dir / "launch-reconciler"
+launcher.write_text(
+    '''#!/usr/bin/env bash
+printf '%s\\n' "$$" > "$PID_FILE"
+exec "$RECONCILER"
+'''
+)
+launcher.chmod(0o755)
+reconciler = pathlib.Path(test_home) / ".local/bin/tmux-reconcile-status-bars"
 
 
 def tmux(*args, check=True):
@@ -139,6 +189,14 @@ def tmux(*args, check=True):
 
 def status(session):
     return tmux("show-options", "-v", "-t", session, "status")
+
+
+def process_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
 
 
 def drain_clients():
@@ -190,6 +248,36 @@ def assert_statuses_stay(expected_statuses, name, timeout=3.0):
 def client_ttys():
     output = tmux("list-clients", "-F", "#{client_tty}")
     return output.splitlines() if output else []
+
+
+def start_reconciler(label, wait_ready=None, block_ready=None, block_release=None):
+    pid_file = runtime_dir / f"{label}.pid"
+    command = (
+        f'PATH={shlex.quote(str(test_bin))}:"$PATH" '
+        f'PID_FILE={shlex.quote(str(pid_file))} '
+        f'RECONCILER={shlex.quote(str(reconciler))} '
+    )
+    if wait_ready is not None:
+        command += f'RECONCILE_WAIT_READY={shlex.quote(str(wait_ready))} '
+    if block_ready is not None:
+        command += f'RECONCILE_BLOCK_READY={shlex.quote(str(block_ready))} '
+        command += f'RECONCILE_BLOCK_RELEASE={shlex.quote(str(block_release))} '
+    command += shlex.quote(str(launcher))
+    tmux("run-shell", "-b", command)
+    wait_until(
+        pid_file.exists,
+        f"{label} reconciler starts",
+        f"PID file {pid_file} was not created",
+    )
+    return int(pid_file.read_text().strip())
+
+
+def wait_for_process_exit(pid, name):
+    wait_until(
+        lambda: not process_alive(pid),
+        name,
+        f"process {pid} did not exit",
+    )
 
 
 def start_attach(session, term):
@@ -256,6 +344,11 @@ try:
     detach(direct)
     assert_status("s", "on", "direct client's last detach restores status on")
     assert_status("unrelated", "on", "detach reconciles an unrelated session")
+    wait_until(
+        lambda: tmux("show-options", "-gv", "@unrelated-detach-hook-seen") == "yes",
+        "unrelated client-detached hook still runs",
+        "unrelated detach hook did not set its marker",
+    )
 
     nested = attach("s", "screen-256color")
     assert_status("s", "off", "screen client makes a nested-only session status off")
@@ -304,26 +397,71 @@ try:
     assert_status("switch-destination", "on", "switched client's detach restores status")
 
     for event in ("client-attached", "client-detached", "client-session-changed"):
-        tmux("set-hook", "-gu", event)
+        tmux("set-hook", "-gu", f"{event}[90]")
     direct = attach("s", "xterm-256color")
     tmux("wait-for", "-L", reconcile_lock)
     tmux("set-option", "-t", "s", "status", "off")
-    tmux("run-shell", "-b", f"{test_home}/.local/bin/tmux-reconcile-status-bars")
+    queued_ready = runtime_dir / "queued.ready"
+    queued_pid = start_reconciler("queued", wait_ready=queued_ready)
+    wait_until(
+        queued_ready.exists,
+        "queued reconciler reaches the held server lock",
+        "queued reconciler did not attempt lock acquisition",
+    )
+    os.kill(queued_pid, signal.SIGTERM)
     assert_statuses_stay(
         {"s": "off"},
-        "queued reconciliation waits for the server lock",
+        "signalled queued reconciliation remains behind the server lock",
         timeout=0.5,
     )
+    if not process_alive(queued_pid):
+        raise AssertionError("signalled queued reconciler exited before acquiring")
+    print("PASS  signalled queued reconciler remains alive until lock acquisition")
     detach(direct)
     nested = attach("s", "tmux-256color")
     tmux("set-option", "-t", "s", "status", "on")
     tmux("wait-for", "-U", reconcile_lock)
+    wait_for_process_exit(
+        queued_pid,
+        "signalled queued reconciler acquires, reconciles, and exits",
+    )
     assert_status(
         "s",
         "off",
-        "queued reconciliation snapshots clients only after locking",
+        "signalled queued reconciler snapshots clients only after locking",
     )
     detach(nested)
+
+    owner_ready = runtime_dir / "owner.ready"
+    owner_release = runtime_dir / "owner.release"
+    owner_pid = start_reconciler(
+        "owner",
+        block_ready=owner_ready,
+        block_release=owner_release,
+    )
+    wait_until(
+        owner_ready.exists,
+        "lock-owning reconciler reaches managed-state inspection",
+        "lock owner did not advance beyond acquisition",
+    )
+    os.kill(owner_pid, signal.SIGTERM)
+    owner_release.touch()
+    wait_for_process_exit(
+        owner_pid,
+        "signalled lock owner exits through cleanup",
+    )
+    tmux("set-option", "-t", "s", "status", "off")
+    successor_pid = start_reconciler("successor")
+    wait_for_process_exit(
+        successor_pid,
+        "subsequent reconciler acquires after signalled owner",
+    )
+    assert_status(
+        "s",
+        "on",
+        "subsequent reconciler converges after signalled owner",
+    )
+
     tmux("set-option", "-t", "unrelated", "status", "off")
     tmux("source-file", linux_tmux_conf)
     assert_status(
