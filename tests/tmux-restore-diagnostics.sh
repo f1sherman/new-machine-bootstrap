@@ -33,7 +33,7 @@ assert_not_contains() {
 export HOME="$tmpdir/home"
 export TMUX_RESTORE_STATE_DIR="$tmpdir/state"
 export TMUX_RESTORE_LOG="$TMUX_RESTORE_STATE_DIR/restore.log"
-export TMUX_RESTORE_LOG_LIMIT=100
+export TMUX_RESTORE_LOG_LIMIT=512
 mkdir -p "$HOME/.local/bin" "$HOME/.local/share/tmux/resurrect" "$tmpdir/bin"
 
 [ -f "$log_lib" ] || fail "missing logging library: $log_lib"
@@ -67,6 +67,80 @@ printf '%s\n' 'caller-fd-preserved' >&9
 exec 9>&-
 assert_contains "$(cat "$tmpdir/caller-fd")" 'caller-fd-preserved'
 
+assert_returns_promptly() {
+  description="$1"
+  shift
+  "$@" &
+  command_pid=$!
+  attempts=0
+  while kill -0 "$command_pid" 2>/dev/null && [ "$attempts" -lt 50 ]; do
+    sleep 0.02
+    attempts=$((attempts + 1))
+  done
+  if kill -0 "$command_pid" 2>/dev/null; then
+    kill "$command_pid" 2>/dev/null || true
+    wait "$command_pid" 2>/dev/null || true
+    fail "$description blocked on the diagnostics lock"
+  fi
+  wait "$command_pid" || fail "$description failed while the diagnostics lock was busy"
+}
+
+TMUX_RESTORE_LOG_LIMIT=100
+printf '%0200d\n' 0 > "$TMUX_RESTORE_LOG"
+rm -f "$TMUX_RESTORE_LOG.previous"
+lock_marker="$tmpdir/restore-lock-held"
+lock_release="$tmpdir/release-restore-lock"
+(
+  flock -x 8
+  : > "$lock_marker"
+  while [ ! -e "$lock_release" ]; do :; done
+) 8> "$TMUX_RESTORE_STATE_DIR/restore.lock" &
+lock_holder_pid=$!
+attempts=0
+while [ ! -e "$lock_marker" ] && [ "$attempts" -lt 100 ]; do
+  sleep 0.02
+  attempts=$((attempts + 1))
+done
+[ -e "$lock_marker" ] || fail "lock holder did not acquire the diagnostics lock"
+locked_log_contents="$(cat "$TMUX_RESTORE_LOG")"
+assert_returns_promptly "explicit rotation" tmux_restore_rotate_log
+assert_returns_promptly "event logging" tmux_restore_log_event lock_busy
+[ "$(cat "$TMUX_RESTORE_LOG")" = "$locked_log_contents" ] ||
+  fail "busy diagnostics lock allowed the current log to change"
+[ ! -e "$TMUX_RESTORE_LOG.previous" ] ||
+  fail "busy diagnostics lock allowed log rotation"
+: > "$lock_release"
+wait "$lock_holder_pid"
+
+TMUX_RESTORE_LOG_LIMIT=180
+rm -f "$TMUX_RESTORE_LOG" "$TMUX_RESTORE_LOG.previous"
+oversized_padding="$(printf '%0400d' 0)"
+tmux_restore_log_event oversized_event "padding=$oversized_padding"
+tmux_restore_log_event threshold_crossing "detail=retained"
+for bounded_log in "$TMUX_RESTORE_LOG" "$TMUX_RESTORE_LOG.previous"; do
+  [ -f "$bounded_log" ] || fail "bounded append did not create $bounded_log"
+  [ "$(wc -c < "$bounded_log" | tr -d ' ')" -le "$TMUX_RESTORE_LOG_LIMIT" ] ||
+    fail "$bounded_log exceeded the configured byte limit"
+  [ "$(wc -l < "$bounded_log" | tr -d ' ')" = 1 ] ||
+    fail "$bounded_log did not retain a single-line event"
+done
+assert_contains "$(cat "$TMUX_RESTORE_LOG.previous")" 'event=oversized_event'
+assert_contains "$(cat "$TMUX_RESTORE_LOG")" 'event=threshold_crossing'
+
+TMUX_RESTORE_LOG_LIMIT=1
+rm -f "$TMUX_RESTORE_LOG" "$TMUX_RESTORE_LOG.previous"
+tmux_restore_log_event tiny_limit_one
+tmux_restore_log_event tiny_limit_two
+[ "$(wc -c < "$TMUX_RESTORE_LOG" | tr -d ' ')" -le 1 ] ||
+  fail "current log exceeded a one-byte limit"
+[ "$(wc -c < "$TMUX_RESTORE_LOG.previous" | tr -d ' ')" -le 1 ] ||
+  fail "previous log exceeded a one-byte limit"
+TMUX_RESTORE_LOG_LIMIT=invalid
+rm -f "$TMUX_RESTORE_LOG" "$TMUX_RESTORE_LOG.previous"
+tmux_restore_log_event invalid_limit
+assert_contains "$(cat "$TMUX_RESTORE_LOG")" 'event=invalid_limit'
+
+TMUX_RESTORE_LOG_LIMIT=100
 for number in 1 2 3 4; do
   tmux_restore_log_event rotation_test "number=$number" "padding=abcdefghijklmnopqrstuvwxyz"
 done
@@ -98,7 +172,17 @@ cat > "$tmpdir/concurrent-writer" <<'SH'
 set -e
 # shellcheck source=/dev/null
 source "$TMUX_RESTORE_TEST_LOG_LIB"
-tmux_restore_log_event concurrent_writer "writer=$1" "padding=abcdefghijklmnopqrstuvwxyz"
+attempt=1
+while [ "$attempt" -le 200 ]; do
+  tmux_restore_log_event concurrent_writer "writer=$1" "padding=abcdefghijklmnopqrstuvwxyz"
+  if cat "$TMUX_RESTORE_LOG.previous" "$TMUX_RESTORE_LOG" 2>/dev/null |
+    grep -q "writer=$1$(printf '\t')padding="; then
+    exit 0
+  fi
+  sleep 0.01
+  attempt=$((attempt + 1))
+done
+exit 1
 SH
 chmod +x "$tmpdir/concurrent-writer"
 : > "$TMUX_RESTORE_LOG"
@@ -111,9 +195,11 @@ done
 export TMUX_RESTORE_TEST_ACTIVE="$monitor_dir/active"
 export TMUX_RESTORE_TEST_OVERLAP="$monitor_dir/overlap"
 export TMUX_RESTORE_TEST_LOG_LIB="$log_lib"
+seed_size="$(wc -c < "$TMUX_RESTORE_LOG" | tr -d ' ')"
+concurrent_limit=$((seed_size + 32))
 writer=1
 while [ "$writer" -le 12 ]; do
-  PATH="$tmpdir/concurrent-bin:$PATH" TMUX_RESTORE_LOG_LIMIT=1500 \
+  PATH="$tmpdir/concurrent-bin:$PATH" TMUX_RESTORE_LOG_LIMIT="$concurrent_limit" \
     "$tmpdir/concurrent-writer" "$writer" &
   writer=$((writer + 1))
 done
@@ -122,6 +208,10 @@ wait
 [ -f "$TMUX_RESTORE_STATE_DIR/restore.lock" ] || fail "dedicated restore lock was not created"
 [ "$(find "$TMUX_RESTORE_STATE_DIR" -type f -name 'restore.log*' | wc -l | tr -d ' ')" = 2 ] ||
   fail "lock file was counted as a retained log"
+[ "$(wc -c < "$TMUX_RESTORE_LOG" | tr -d ' ')" -le "$concurrent_limit" ] ||
+  fail "concurrent current log exceeded the configured byte limit"
+[ "$(wc -c < "$TMUX_RESTORE_LOG.previous" | tr -d ' ')" -le "$concurrent_limit" ] ||
+  fail "concurrent previous log exceeded the configured byte limit"
 concurrent_events="$(cat "$TMUX_RESTORE_LOG.previous" "$TMUX_RESTORE_LOG" | grep -c 'event=concurrent_writer' || true)"
 [ "$concurrent_events" = 12 ] || fail "concurrent rotation lost or corrupted events"
 [ "$(grep -c '^timestamp=.*event=concurrent_writer' "$TMUX_RESTORE_LOG" || true)" = 12 ] ||
@@ -207,6 +297,7 @@ report_without_snapshot="$(PATH="$tmpdir/bin:$PATH" "$report")"
 assert_contains "$report_without_snapshot" 'Latest resurrect snapshot'
 assert_contains "$report_without_snapshot" '(none)'
 
+TMUX_RESTORE_LOG_LIMIT=512
 restore_script="$tmpdir/restore.sh"
 cat > "$restore_script" <<'SH'
 #!/usr/bin/env bash
