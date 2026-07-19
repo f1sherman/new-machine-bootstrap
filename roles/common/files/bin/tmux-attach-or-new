@@ -23,8 +23,14 @@ pathprepend "$HOME/.local/bin"
 pathprepend "${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
 export PATH
 
-# shellcheck source=/dev/null
-source "${TMUX_RESTORE_LOG_LIB:-$HOME/.local/bin/tmux-restore-log.sh}"
+restore_log_lib="${TMUX_RESTORE_LOG_LIB:-$HOME/.local/bin/tmux-restore-log.sh}"
+if [ -r "$restore_log_lib" ]; then
+  # shellcheck source=/dev/null
+  source "$restore_log_lib"
+else
+  tmux_restore_rotate_log() { :; }
+  tmux_restore_log_event() { :; }
+fi
 tmux_restore_rotate_log
 tmux_restore_log_event helper_invoked "tty=$(tty 2>/dev/null || printf none)"
 
@@ -59,7 +65,7 @@ replace_restore_queue() {
 
   queue_dir="$(dirname "$GHOSTTY_RESTORE_QUEUE")"
   mkdir -p "$queue_dir" 2>/dev/null || return 1
-  tmp="$(mktemp "$queue_dir/ghostty-restore-queue.XXXXXX")" || return 1
+  tmp="$(mktemp "$queue_dir/ghostty-restore-queue.XXXXXX" 2>/dev/null)" || return 1
   if ! cat >"$tmp" || ! chmod 0600 "$tmp" || ! mv "$tmp" "$GHOSTTY_RESTORE_QUEUE"; then
     rm -f "$tmp"
     return 1
@@ -67,13 +73,18 @@ replace_restore_queue() {
 }
 
 resolve_ghostty_app_pid() {
-  local login_pid app_pid
+  local login_pid app_pid app_command
 
   if [ -n "${TMUX_GHOSTTY_APP_PID:-}" ]; then
     app_pid="$TMUX_GHOSTTY_APP_PID"
   else
     login_pid="$(ps -o ppid= -p "$$" 2>/dev/null | tr -d '[:space:]')"
     app_pid="$(ps -o ppid= -p "$login_pid" 2>/dev/null | tr -d '[:space:]')"
+    app_command="$(ps -o command= -p "$app_pid" 2>/dev/null || true)"
+    case "$app_command" in
+      */Ghostty.app/Contents/MacOS/ghostty*) ;;
+      *) return 1 ;;
+    esac
   fi
   case "$app_pid" in
     ''|*[!0-9]*) return 1 ;;
@@ -229,21 +240,37 @@ if [ -f "$GHOSTTY_MANIFEST" ]; then
 fi
 
 if [ -n "$ghostty_app_pid" ]; then
-  queue_pid="$(jq -er '.ghostty_pid | select(type == "number")' "$GHOSTTY_RESTORE_QUEUE" 2>/dev/null || true)"
+  queue_pid="$(jq -er '
+    select(
+      .version == 1 and
+      (.ghostty_pid | type == "number") and
+      (.pending | type == "array") and
+      all(.pending[]; type == "string")
+    )
+    | .ghostty_pid
+  ' "$GHOSTTY_RESTORE_QUEUE" 2>/dev/null || true)"
   if [ "$queue_pid" != "$ghostty_app_pid" ]; then
     manifest_pid="$(jq -er '.ghostty_pid | select(type == "number")' "$GHOSTTY_MANIFEST" 2>/dev/null || true)"
     if [ -n "$manifest_pid" ] && [ "$manifest_pid" != "$ghostty_app_pid" ]; then
-      if jq -e --argjson ghostty_pid "$ghostty_app_pid" '
+      queue_json="$(jq -e --argjson ghostty_pid "$ghostty_app_pid" '
         [.windows[].tabs[].session_name] as $pending
-        | select(.version == 1 and ($pending | length) > 0)
+        | select(
+            .version == 1 and
+            ($pending | length) > 0 and
+            all($pending[]; type == "string")
+          )
         | {version: 1, ghostty_pid: $ghostty_pid, pending: $pending}
-      ' "$GHOSTTY_MANIFEST" 2>/dev/null | replace_restore_queue; then
+      ' "$GHOSTTY_MANIFEST" 2>/dev/null || true)"
+      if [ -z "$queue_json" ]; then
+        tmux_restore_log_event restore_queue_skipped \
+          "ghostty_pid=$ghostty_app_pid" "reason=invalid_manifest"
+      elif printf '%s\n' "$queue_json" | replace_restore_queue; then
         pending_count="$(jq '.pending | length' "$GHOSTTY_RESTORE_QUEUE")"
         tmux_restore_log_event restore_queue_initialized \
           "ghostty_pid=$ghostty_app_pid" "sessions=$pending_count"
       else
         tmux_restore_log_event restore_queue_skipped \
-          "ghostty_pid=$ghostty_app_pid" "reason=invalid_manifest"
+          "ghostty_pid=$ghostty_app_pid" "reason=queue_write_failed"
       fi
     else
       if jq -n --argjson ghostty_pid "$ghostty_app_pid" \

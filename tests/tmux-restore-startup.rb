@@ -62,6 +62,55 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert_event(/event=restore_queue_initialized\tghostty_pid=200\tsessions=5/)
   end
 
+  def test_invalid_matching_restore_queue_is_rebuilt_from_manifest
+    set_sessions(%w[17 journal])
+    write_manifest(pid: 100, sessions: ["journal"])
+    write_json(@queue_path, { "version" => 999, "ghostty_pid" => 200, "pending" => ["17"] })
+
+    _out, _err, status = Open3.capture3(helper_env("TMUX_GHOSTTY_APP_PID" => "200"), HELPER)
+
+    assert status.success?
+    assert_equal ["journal"], read_attachments.map { |entry| entry.fetch("session_name") }
+  end
+
+  def test_non_ghostty_invocation_ignores_stale_manifest
+    set_sessions(%w[17 journal])
+    write_manifest(pid: 100, sessions: ["journal"])
+
+    _out, _err, status = Open3.capture3(helper_env, HELPER)
+
+    assert status.success?
+    assert_equal ["17"], read_attachments.map { |entry| entry.fetch("session_name") }
+  end
+
+  def test_missing_diagnostics_library_does_not_abort_startup
+    set_sessions(["17"])
+    missing_log_library = File.join(@tmpdir, "missing-log-library")
+
+    _out, _err, status = Open3.capture3(helper_env("TMUX_RESTORE_LOG_LIB" => missing_log_library), HELPER)
+
+    assert status.success?
+    assert_equal ["17"], read_attachments.map { |entry| entry.fetch("session_name") }
+  end
+
+  def test_queue_write_failure_uses_normal_selection_and_clear_diagnostic
+    set_sessions(%w[17 journal])
+    write_manifest(pid: 100, sessions: ["journal"])
+    blocked_parent = File.join(@tmpdir, "blocked-parent")
+    File.write(blocked_parent, "not a directory")
+    env = helper_env(
+      "TMUX_GHOSTTY_APP_PID" => "200",
+      "TMUX_GHOSTTY_RESTORE_QUEUE" => File.join(blocked_parent, "queue.json")
+    )
+
+    _out, err, status = Open3.capture3(env, HELPER)
+
+    assert status.success?
+    assert_equal ["17"], read_attachments.map { |entry| entry.fetch("session_name") }
+    assert_event(/event=restore_queue_skipped\tghostty_pid=200\treason=queue_write_failed/)
+    refute_match(/Not a directory|Permission denied/, err)
+  end
+
   def test_restore_queue_skips_missing_saved_session
     set_sessions(%w[17 journal])
     write_manifest(pid: 100, sessions: %w[missing journal])
