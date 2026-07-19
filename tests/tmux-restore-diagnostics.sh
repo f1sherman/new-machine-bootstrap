@@ -139,8 +139,21 @@ cat > "$tmpdir/bin/tmux" <<'SH'
 #!/usr/bin/env bash
 case "$1" in
   list-sessions)
-    printf '$1\tdiagnostics\tattached=0\towner=%s\n' "$FAKE_LIVE_PID"
-    printf '$2\tstale\tattached=0\towner=99999999\n'
+    tab="$(printf '\t')"
+    case "${3:-}" in
+      *"$tab"*session_name*)
+        printf '$1\tdiagnostics\tattached=0\towner=%s\n' "$FAKE_LIVE_PID"
+        printf '$2\tstale\tattached=0\towner=99999999\n'
+        ;;
+      *"$tab"*)
+        printf '$1\t%s\n' "$FAKE_LIVE_PID"
+        printf '$2\t99999999\n'
+        ;;
+      *)
+        printf '%s\n' "\$1\\tdiagnostics\\tattached=0\\towner=$FAKE_LIVE_PID"
+        printf '%s\n' '$2\tstale\tattached=0\towner=99999999'
+        ;;
+    esac
     ;;
   list-clients)
     printf '/dev/ttys001\t$1\tdiagnostics\n'
