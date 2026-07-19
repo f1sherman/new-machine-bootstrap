@@ -24,6 +24,9 @@ jobs:
       - name: Verify CI test inventory
         run: bash tests/ci-test-inventory.sh
 
+      - name: Verify tmux restore startup coordination
+        run: ruby tests/tmux-restore-startup.rb
+
       - name: Verify Ghostty quick-terminal shortcut
         run: bash tests/ghostty-quick-terminal.sh
 
