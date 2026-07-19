@@ -148,17 +148,22 @@ def assert_status(session, expected, name):
     )
 
 
-def assert_status_stays(session, expected, name, duration=0.5):
-    deadline = time.monotonic() + duration
+def assert_statuses_stay(expected_statuses, name, timeout=3.0):
+    deadline = time.monotonic() + timeout
+    samples = 0
     while time.monotonic() < deadline:
         drain_clients()
-        actual = status(session)
-        if actual != expected:
-            raise AssertionError(
-                f"{name}: expected status to remain '{expected}', got '{actual}'"
-            )
+        for session, expected in expected_statuses.items():
+            actual = status(session)
+            if actual != expected:
+                raise AssertionError(
+                    f"{name}: {session} changed from '{expected}' to '{actual}'"
+                )
+        samples += 1
         time.sleep(0.05)
-    print(f"PASS  {name}")
+    if samples < 2:
+        raise AssertionError(f"{name}: insufficient stabilization samples")
+    print(f"PASS  {name} ({samples} stable samples over {timeout:.1f}s)")
 
 
 def client_ttys():
@@ -202,13 +207,20 @@ def detach(client):
 
 try:
     assert_status("s", "on", "no clients defaults status on after config load")
+    tmux("new-session", "-d", "-s", "unrelated", "sleep", "300")
 
+    tmux("set-option", "-t", "unrelated", "status", "off")
     direct = attach("s", "xterm-256color")
     assert_status("s", "on", "direct-only session keeps status on")
-    detach(direct)
+    assert_status("unrelated", "on", "attach reconciles an unrelated session")
 
-    nested = attach("s", "tmux-256color")
-    assert_status("s", "off", "nested-only session sets status off")
+    tmux("set-option", "-t", "unrelated", "status", "off")
+    detach(direct)
+    assert_status("s", "on", "direct client's last detach restores status on")
+    assert_status("unrelated", "on", "detach reconciles an unrelated session")
+
+    nested = attach("s", "screen-256color")
+    assert_status("s", "off", "screen client makes a nested-only session status off")
 
     direct = attach("s", "xterm-256color")
     assert_status("s", "on", "direct client wins in a mixed-client session")
@@ -223,26 +235,50 @@ try:
     assert_status("s", "off", "direct detach reconciles the remaining nested client")
 
     detach(nested)
-    assert_status("s", "on", "last client detach restores status on")
+    assert_status("s", "on", "last nested client detach restores status on")
 
     tmux("new-session", "-d", "-s", "switch-source", "sleep", "300")
     tmux("new-session", "-d", "-s", "switch-destination", "sleep", "300")
     switcher = attach("switch-source", "tmux-256color")
     assert_status("switch-source", "off", "switch source starts nested-only")
     tmux("set-option", "-t", "switch-destination", "status", "on")
+    tmux("set-option", "-t", "unrelated", "status", "off")
     tmux("switch-client", "-c", switcher["tty"], "-t", "switch-destination")
     assert_status("switch-source", "on", "session switch reconciles the source")
     assert_status("switch-destination", "off", "session switch reconciles the destination")
+    assert_status("unrelated", "on", "session switch reconciles an unrelated session")
     detach(switcher)
     assert_status("switch-destination", "on", "switched client's detach restores status")
 
+    tmux("new-session", "-d", "-s", "opt-source", "sleep", "300")
+    tmux("new-session", "-d", "-s", "opt-destination", "sleep", "300")
     tmux("set-option", "-g", "@managed-bars", "off")
-    tmux("set-option", "-t", "s", "status", "off")
-    direct = attach("s", "xterm-256color")
-    assert_status_stays(
-        "s", "off", "@managed-bars=off preserves status during client transitions"
+    tmux("set-option", "-t", "opt-source", "status", "off")
+    tmux("set-option", "-t", "opt-destination", "status", "on")
+    tmux("set-option", "-t", "unrelated", "status", "off")
+
+    direct = attach("opt-source", "xterm-256color")
+    assert_statuses_stay(
+        {"opt-source": "off", "opt-destination": "on", "unrelated": "off"},
+        "@managed-bars=off preserves chosen values after attach",
     )
     detach(direct)
+    assert_statuses_stay(
+        {"opt-source": "off", "opt-destination": "on", "unrelated": "off"},
+        "@managed-bars=off preserves chosen values after detach",
+    )
+
+    switcher = attach("opt-source", "screen-256color")
+    assert_statuses_stay(
+        {"opt-source": "off", "opt-destination": "on", "unrelated": "off"},
+        "@managed-bars=off preserves chosen values before session change",
+    )
+    tmux("switch-client", "-c", switcher["tty"], "-t", "opt-destination")
+    assert_statuses_stay(
+        {"opt-source": "off", "opt-destination": "on", "unrelated": "off"},
+        "@managed-bars=off preserves chosen values after session change",
+    )
+    detach(switcher)
 finally:
     for client in list(clients):
         process = client["process"]
@@ -260,9 +296,14 @@ tmux -L "$SOCK" set -g @managed-bars off
 tmux -L "$SOCK" set-option -q -t "$sid" status off
 tmux -L "$SOCK" set-window-option -q -t s pane-border-status off
 HOME="$TEST_HOME" tmux -L "$SOCK" source-file "$LINUX_TMUX_CONF"
-sleep 0.5
-assert_equals "$(tmux -L "$SOCK" show-options -v -t "$sid" status)" "off" \
-  "managed tmux.conf preserves status when @managed-bars off"
+for ((sample = 0; sample < 60; sample++)); do
+  actual="$(tmux -L "$SOCK" show-options -v -t "$sid" status)"
+  [ "$actual" = "off" ] || fail_case \
+    "managed tmux.conf preserves status when @managed-bars off" \
+    "status changed from 'off' to '$actual' during stabilization"
+  sleep 0.05
+done
+pass_case "managed tmux.conf preserves status when @managed-bars off (60 stable samples over 3s)"
 assert_equals "$(tmux -L "$SOCK" show-window-options -v -t s pane-border-status)" "off" \
   "managed tmux.conf preserves pane-border-status when @managed-bars off"
 
