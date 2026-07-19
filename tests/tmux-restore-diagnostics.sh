@@ -38,6 +38,19 @@ mkdir -p "$HOME/.local/bin" "$HOME/.local/share/tmux/resurrect" "$tmpdir/bin"
 
 [ -f "$log_lib" ] || fail "missing logging library: $log_lib"
 [ -x "$report" ] || fail "missing report command: $report"
+
+for tmux_config in \
+  "$repo_root/roles/macos/templates/dotfiles/tmux.conf" \
+  "$repo_root/roles/linux/files/dotfiles/tmux.conf"; do
+  [ -f "$tmux_config" ] || fail "missing managed tmux config: $tmux_config"
+  config_contents="$(cat "$tmux_config")"
+  assert_contains "$config_contents" 'set -g @resurrect-restore-script-path "$HOME/.local/bin/tmux-resurrect-restore-wrapper"'
+  assert_not_contains "$config_contents" 'tmux-debug.log'
+  assert_not_contains "$config_contents" '/bin/ps -axo'
+  assert_not_contains "$config_contents" 'session-created:'
+  assert_not_contains "$config_contents" 'client-attached: client='
+done
+
 # shellcheck source=/dev/null
 source "$log_lib"
 
