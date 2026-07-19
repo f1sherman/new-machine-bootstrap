@@ -384,6 +384,9 @@ case "$1" in
   show-options)
     case "${*: -1}" in
       @window-label) printf '%s' "${TMUX_TEST_WINDOW_LABEL:-}" ;;
+      @task_state) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'active' ;;
+      @task_source) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'branch' ;;
+      @task_label) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'feature/durable-label' ;;
     esac
     ;;
   rename-window)
@@ -437,7 +440,7 @@ done
 assert_equals "$($TASK_LABEL extract-remote '(feature/a)b) project | remote-host')" 'feature/a)b' "remote parser preserves branch closing parenthesis"
 
 : > "$window_log"
-TMUX_TEST_COMMAND=zsh TMUX_TEST_WINDOW_LABEL='feature/durable-label' \
+TMUX_TEST_COMMAND=zsh TMUX_TEST_WINDOW_LABEL='feature/durable-label' TMUX_TEST_LOCAL_TASK=1 \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
 assert_file_contains "$window_log" "rename-window -t @1 feature/durable-label" "local window uses task-only cached label unchanged"
 
@@ -621,11 +624,15 @@ cat >"$remote_window_label_tmux_dir/tmux" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
   display-message)
-    printf '@5\t1\t(feature/remote-window) remote-repo | remote-host\t/dev/null\t/tmp/current\tssh\t(feature/remote-title) remote-repo | remote-host\t%%5\n'
+    printf '@5\t1\told-window\t/dev/null\t/tmp/current\tssh\t%s\t%%5\n' \
+      "${TMUX_TEST_TITLE:-~ remote task · remote-repo | remote-host}"
     ;;
   show-options)
     case "${*: -1}" in
       @window-label) printf 'codex: tmux subject labels' ;;
+      @task_state) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'provisional' ;;
+      @task_source) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'agent' ;;
+      @task_label) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'tmux subject labels' ;;
       @agent_worktree_path) printf '' ;;
       @pane-label) printf '(feature/label) label-repo | host-a' ;;
     esac
@@ -638,7 +645,15 @@ STUB
 chmod +x "$remote_window_label_tmux_dir/tmux"
 
 TMUX_WINDOW_LABEL_LOG="$remote_window_label_log" PATH="$remote_window_label_tmux_dir:$PATH" "$WINDOW_LABEL" "%5"
-assert_file_contains "$remote_window_label_log" "rename-window -t @5 codex: tmux subject labels" "window labels prefer @window-label over structured remote label"
+assert_file_contains "$remote_window_label_log" "rename-window -t @5 ~ remote task" "structured provisional task overrides stale cached window label"
+
+: > "$remote_window_label_log"
+TMUX_TEST_LOCAL_TASK=1 TMUX_WINDOW_LABEL_LOG="$remote_window_label_log" PATH="$remote_window_label_tmux_dir:$PATH" "$WINDOW_LABEL" "%5"
+assert_file_contains "$remote_window_label_log" "rename-window -t @5 codex: tmux subject labels" "valid local task keeps cached window label precedence"
+
+: > "$remote_window_label_log"
+TMUX_TEST_TITLE=plain TMUX_WINDOW_LABEL_LOG="$remote_window_label_log" PATH="$remote_window_label_tmux_dir:$PATH" "$WINDOW_LABEL" "%5"
+assert_equals "$(cat "$remote_window_label_log")" "rename-window -t @5 current" "unowned stale window cache does not suppress host suffix stripping"
 
 cached_tmux_dir="$TMPROOT/fake-tmux-bin-cached"
 cached_log="$TMPROOT/window-label-cached.log"
@@ -689,6 +704,9 @@ case "$1" in
   show-options)
     case "${*: -1}" in
       @window-label) printf 'codex: tmux subject labels' ;;
+      @task_state) printf 'provisional' ;;
+      @task_source) printf 'agent' ;;
+      @task_label) printf 'tmux subject labels' ;;
       @agent_worktree_path) printf '' ;;
       @pane-label) printf '(feature/label) label-repo | host-a' ;;
     esac
