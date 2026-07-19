@@ -4,6 +4,7 @@ set -u
 TMUX_RESTORE_STATE_DIR="${TMUX_RESTORE_STATE_DIR:-$HOME/.local/state/tmux}"
 TMUX_RESTORE_LOG="${TMUX_RESTORE_LOG:-$TMUX_RESTORE_STATE_DIR/restore.log}"
 TMUX_RESURRECT_DIR="${TMUX_RESURRECT_DIR:-$HOME/.local/share/tmux/resurrect}"
+tab="$(printf '\t')"
 
 heading() {
   printf '\n%s\n' "$1"
@@ -20,7 +21,7 @@ for restore_log in "$TMUX_RESTORE_LOG.previous" "$TMUX_RESTORE_LOG"; do
   fi
 done
 
-sessions="$(tmux list-sessions -F '#{session_id}\t#{session_name}\tattached=#{session_attached}\towner=#{@ghostty_attach_owner}' 2>/dev/null || true)"
+sessions="$(tmux list-sessions -F "#{session_id}${tab}#{session_name}${tab}attached=#{session_attached}${tab}owner=#{@ghostty_attach_owner}" 2>/dev/null || true)"
 heading 'Current sessions'
 if [ -n "$sessions" ]; then
   printf '%s\n' "$sessions"
@@ -29,13 +30,13 @@ else
 fi
 
 heading 'Current clients'
-tmux list-clients -F '#{client_tty}\t#{session_id}\t#{session_name}' 2>/dev/null ||
+tmux list-clients -F "#{client_tty}${tab}#{session_id}${tab}#{session_name}" 2>/dev/null ||
   printf '%s\n' '(none or tmux unavailable)'
 
 heading 'Reservations'
 reservation_count=0
-while IFS="$(printf '\t')" read -r session_id session_name attached owner; do
-  owner="${owner#owner=}"
+reservations="$(tmux list-sessions -F "#{session_id}${tab}#{@ghostty_attach_owner}" 2>/dev/null || true)"
+while IFS="$tab" read -r session_id owner; do
   [ -n "$owner" ] || continue
   reservation_count=$((reservation_count + 1))
   alive=no
@@ -43,9 +44,9 @@ while IFS="$(printf '\t')" read -r session_id session_name attached owner; do
     *[!0-9]*|'') ;;
     *) kill -0 "$owner" 2>/dev/null && alive=yes ;;
   esac
-  printf '%s\t%s\towner=%s\talive=%s\n' "$session_id" "$session_name" "$owner" "$alive"
+  printf '%s\towner=%s\talive=%s\n' "$session_id" "$owner" "$alive"
 done <<EOF
-$sessions
+$reservations
 EOF
 [ "$reservation_count" -gt 0 ] || printf '%s\n' '(none)'
 
