@@ -10,6 +10,10 @@ require "tmpdir"
 REPO_ROOT = File.expand_path("..", __dir__)
 SAVER = File.join(REPO_ROOT, "roles/macos/files/bin/ghostty-session-manifest-save")
 MACOS_TASKS = File.join(REPO_ROOT, "roles/macos/tasks/main.yml")
+MACOS_TMUX_CONFIG = File.join(REPO_ROOT, "roles/macos/templates/dotfiles/tmux.conf")
+LINUX_TMUX_CONFIG = File.join(REPO_ROOT, "roles/linux/files/dotfiles/tmux.conf")
+MANIFEST_PLIST = File.join(REPO_ROOT,
+  "roles/macos/templates/launchd/com.user.ghostty-session-manifest-save.plist")
 
 class GhosttySessionManifestTest < Minitest::Test
   def setup
@@ -181,17 +185,32 @@ class GhosttySessionManifestTest < Minitest::Test
     refute File.exist?(marker), "lock timeout must happen before AppleScript"
   end
 
-  def test_macos_provisions_native_save_state_and_manifest_launch_agent
+  def test_macos_provisions_native_save_state_without_manifest_launch_agent
     tasks = File.read(MACOS_TASKS)
 
     assert_match(/line: 'window-save-state = never'/, tasks)
     refute_match(/line: 'window-save-state = always'/, tasks)
     refute_match(/Remove ghostty window-save-state setting/, tasks)
-    assert_match(/com\.user\.ghostty-session-manifest-save\.plist/, tasks)
-    assert File.exist?(File.join(REPO_ROOT,
-      "roles/macos/templates/launchd/com.user.ghostty-session-manifest-save.plist"))
+    assert_match(/Stat obsolete Ghostty session manifest LaunchAgent plist/, tasks)
+    assert_match(/Unload obsolete Ghostty session manifest launchd job/, tasks)
+    assert_match(/Remove obsolete Ghostty session manifest LaunchAgent plist/, tasks)
+    refute_match(/Install Ghostty session manifest LaunchAgent plist/, tasks)
+    refute_match(/Load Ghostty session manifest launchd job/, tasks)
+    refute File.exist?(MANIFEST_PLIST)
     assert File.executable?(File.join(REPO_ROOT,
       "roles/macos/files/bin/ghostty-session-tabs-restore"))
+  end
+
+  def test_macos_tmux_hooks_save_manifest_after_client_events
+    macos_config = File.read(MACOS_TMUX_CONFIG)
+    linux_config = File.read(LINUX_TMUX_CONFIG)
+    command = 'run-shell -b "sleep 0.2; $HOME/.local/bin/ghostty-session-manifest-save"'
+
+    %w[client-attached client-detached client-session-changed client-focus-in].each do |event|
+      pattern = /^set-hook -g #{Regexp.escape(event)}\[95\] '#{Regexp.escape(command)}'$/
+      assert_equal 1, macos_config.scan(pattern).length, "missing unique #{event}[95] manifest hook"
+    end
+    refute_includes linux_config, "ghostty-session-manifest-save"
   end
 
   def test_applescript_uses_supported_tab_index_and_terminal_name

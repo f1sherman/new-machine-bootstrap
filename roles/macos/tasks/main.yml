@@ -372,23 +372,21 @@
     - ghostty-layout-save
     - ghostty-layout-reconcile
 
-- name: Install Ghostty session manifest LaunchAgent plist
-  template:
-    src: launchd/com.user.ghostty-session-manifest-save.plist
-    dest: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-session-manifest-save.plist'
-    mode: '0644'
+- name: Stat obsolete Ghostty session manifest LaunchAgent plist
+  stat:
+    path: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-session-manifest-save.plist'
   register: ghostty_session_manifest_plist
 
-- name: Unload Ghostty session manifest launchd job if changed
+- name: Unload obsolete Ghostty session manifest launchd job
   command: launchctl unload {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-session-manifest-save.plist
-  when: ghostty_session_manifest_plist.changed
+  when: ghostty_session_manifest_plist.stat.exists
   changed_when: false
   failed_when: false
 
-- name: Load Ghostty session manifest launchd job
-  command: launchctl load {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-session-manifest-save.plist
-  changed_when: false
-  failed_when: false
+- name: Remove obsolete Ghostty session manifest LaunchAgent plist
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-session-manifest-save.plist'
+    state: absent
 
 - name: Install tmux pipe-pane rotate LaunchAgent plist
   template:
