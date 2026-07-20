@@ -17,7 +17,7 @@ The child receives:
 - a narrow system prompt asking for one concise noun phrase
 - the current user prompt
 - no repository context, skills, or tools
-- the explicit lightweight model `openai-codex/gpt-5.3-codex-spark`
+- the explicit lightweight model `openai-codex/gpt-5.4-mini`
 
 The child returns only the proposed subject. The hook trims surrounding whitespace, accepts only a single non-empty line of at most 512 characters (matching `tmux-agent-state`), and rejects malformed output. The hook then runs:
 

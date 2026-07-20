@@ -3,7 +3,7 @@ import path from "node:path";
 
 const COMMAND_TIMEOUT_MS = 5000;
 const SUBJECT_CHILD_TIMEOUT_MS = 15000;
-const SUBJECT_CHILD_MODEL = "openai-codex/gpt-5.3-codex-spark";
+const SUBJECT_CHILD_MODEL = "openai-codex/gpt-5.4-mini";
 const SUBJECT_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.";
 const SUBJECT_MAX_LENGTH = 512;
 const MANAGED_PI_SESSION_NAME_OPTION = "@pi_managed_session_name";

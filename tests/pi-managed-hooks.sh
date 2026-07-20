@@ -183,7 +183,7 @@ for (const prompt of subjectChildPrompts) {
     "--mode", "text",
     "--print",
     "--no-session",
-    "--model", "openai-codex/gpt-5.3-codex-spark",
+    "--model", "openai-codex/gpt-5.4-mini",
     "--thinking", "off",
     "--no-tools",
     "--no-extensions",
