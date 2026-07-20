@@ -147,6 +147,12 @@ if [ "$1" = show-options ] && [ -n "${{RECONCILE_BLOCK_READY:-}}" ]; then
     sleep 0.01
   done
 fi
+if [ "$1" = set-option ] && [ "${{4-}}" = "${{RECONCILE_BLOCK_SET_TARGET:-}}" ]; then
+  printf '%s\\n' "$$" > "$RECONCILE_BLOCK_SET_READY"
+  while [ ! -e "$RECONCILE_BLOCK_SET_RELEASE" ]; do
+    sleep 0.01
+  done
+fi
 exec {shlex.quote(real_tmux)} "$@"
 '''
 )
@@ -237,7 +243,14 @@ def client_ttys():
     return output.splitlines() if output else []
 
 
-def start_reconciler(label, block_ready=None, block_release=None):
+def start_reconciler(
+    label,
+    block_ready=None,
+    block_release=None,
+    block_set_target=None,
+    block_set_ready=None,
+    block_set_release=None,
+):
     pid_file = runtime_dir / f"{label}.pid"
     command = (
         f'PATH={shlex.quote(str(test_bin))}:"$PATH" '
@@ -247,6 +260,10 @@ def start_reconciler(label, block_ready=None, block_release=None):
     if block_ready is not None:
         command += f'RECONCILE_BLOCK_READY={shlex.quote(str(block_ready))} '
         command += f'RECONCILE_BLOCK_RELEASE={shlex.quote(str(block_release))} '
+    if block_set_target is not None:
+        command += f'RECONCILE_BLOCK_SET_TARGET={shlex.quote(block_set_target)} '
+        command += f'RECONCILE_BLOCK_SET_READY={shlex.quote(str(block_set_ready))} '
+        command += f'RECONCILE_BLOCK_SET_RELEASE={shlex.quote(str(block_set_release))} '
     command += shlex.quote(str(launcher))
     tmux("run-shell", "-b", command)
     wait_until(
@@ -429,6 +446,71 @@ try:
         "on",
         "subsequent reconciler converges after owner SIGKILL",
     )
+
+    direct = attach("s", "xterm-256color")
+    target_sid = tmux("display-message", "-p", "-t", "s", "#{session_id}")
+    tmux("set-option", "-t", "s", "status", "off")
+    mutation_ready = runtime_dir / "mutation.ready"
+    mutation_release = runtime_dir / "mutation.release"
+    mutation_owner_pid = start_reconciler(
+        "mutation-owner",
+        block_set_target=target_sid,
+        block_set_ready=mutation_ready,
+        block_set_release=mutation_release,
+    )
+    wait_until(
+        mutation_ready.exists,
+        "lock owner reaches an in-flight status mutation",
+        "set-option child did not block after the owner snapshot",
+    )
+    mutation_child_pid = int(mutation_ready.read_text().strip())
+    os.kill(mutation_owner_pid, signal.SIGKILL)
+    wait_for_process_exit(
+        mutation_owner_pid,
+        "in-flight mutation owner exits on SIGKILL",
+    )
+    detach(direct)
+    nested = attach("s", "tmux-256color")
+    mutation_queued_pid = start_reconciler("queued-behind-mutation")
+    assert_statuses_stay(
+        {"s": "off"},
+        "queued reconciliation waits behind the in-flight mutation child",
+        timeout=0.5,
+    )
+    queued_behind_mutation = process_alive(mutation_queued_pid)
+    mutation_release.touch()
+    wait_for_process_exit(
+        mutation_child_pid,
+        "orphaned status mutation child exits",
+    )
+    wait_for_process_exit(
+        mutation_queued_pid,
+        "queued reconciler finishes after mutation child",
+    )
+    if not queued_behind_mutation:
+        raise AssertionError(
+            "queued reconciler was not serialized with the in-flight "
+            f"mutation child; final status is {status('s')}"
+        )
+    print("PASS  queued reconciler remains behind the in-flight mutation child")
+    assert_status(
+        "s",
+        "off",
+        "queued reconciler repairs stale mutation after owner SIGKILL",
+    )
+
+    tmux("set-option", "-t", "s", "status", "on")
+    mutation_successor_pid = start_reconciler("post-mutation-successor")
+    wait_for_process_exit(
+        mutation_successor_pid,
+        "fresh successor acquires after mutation child",
+    )
+    assert_status(
+        "s",
+        "off",
+        "fresh successor converges after mutation child",
+    )
+    detach(nested)
 
     tmux("set-option", "-t", "unrelated", "status", "off")
     tmux("source-file", linux_tmux_conf)

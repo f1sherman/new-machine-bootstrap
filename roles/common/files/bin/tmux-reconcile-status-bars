@@ -7,7 +7,8 @@ import tempfile
 from pathlib import Path
 
 
-def tmux(*args):
+def tmux(*args, lock_fd=None):
+    pass_fds = () if lock_fd is None else (lock_fd,)
     try:
         return subprocess.run(
             ["tmux", *args],
@@ -15,17 +16,28 @@ def tmux(*args):
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=True,
+            pass_fds=pass_fds,
         )
     except OSError:
         return None
 
 
-def reconcile():
-    managed_bars = tmux("show-options", "-gv", "@managed-bars")
+def reconcile(lock_fd):
+    managed_bars = tmux(
+        "show-options",
+        "-gv",
+        "@managed-bars",
+        lock_fd=lock_fd,
+    )
     if managed_bars is not None and managed_bars.stdout.strip() == "off":
         return
 
-    sessions = tmux("list-sessions", "-F", "#{session_id}")
+    sessions = tmux(
+        "list-sessions",
+        "-F",
+        "#{session_id}",
+        lock_fd=lock_fd,
+    )
     if sessions is None:
         return
 
@@ -39,6 +51,7 @@ def reconcile():
             session_id,
             "-F",
             "#{client_termname}",
+            lock_fd=lock_fd,
         )
         if clients is None or clients.returncode != 0:
             continue
@@ -48,7 +61,15 @@ def reconcile():
             term.startswith(("tmux", "screen")) for term in client_terms
         )
         status = "off" if nested_only else "on"
-        tmux("set-option", "-q", "-t", session_id, "status", status)
+        tmux(
+            "set-option",
+            "-q",
+            "-t",
+            session_id,
+            "status",
+            status,
+            lock_fd=lock_fd,
+        )
 
 
 def main():
@@ -77,7 +98,7 @@ def main():
             fcntl.flock(lock_file, fcntl.LOCK_EX)
         except OSError:
             return 0
-        reconcile()
+        reconcile(lock_file.fileno())
 
     return 0
 
