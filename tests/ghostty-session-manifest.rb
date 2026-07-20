@@ -17,6 +17,7 @@ class GhosttySessionManifestTest < Minitest::Test
     @home = File.join(@tmpdir, "home")
     @bin = File.join(@tmpdir, "bin")
     @manifest = File.join(@home, ".local", "state", "tmux", "ghostty-session-manifest.json")
+    @manifest_lock = File.join(@tmpdir, "ghostty-session-manifest.lock")
     @sessions = File.join(@tmpdir, "sessions")
     FileUtils.mkdir_p(@bin)
     write_fake_osascript
@@ -113,6 +114,73 @@ class GhosttySessionManifestTest < Minitest::Test
     refute File.exist?(@manifest)
   end
 
+  def test_concurrent_saves_are_serialized
+    require_saver
+    File.write(@sessions, "journal\nhnp\n")
+    marker = File.join(@tmpdir, "first-osascript-started")
+    first_env = saver_env(rows: [[1, 1, 1, "journal"]], ghostty_pid: 4321).merge(
+      "FAKE_OSASCRIPT_MARKER" => marker,
+      "FAKE_OSASCRIPT_SLEEP" => "0.4"
+    )
+    second_env = saver_env(rows: [[1, 1, 1, "hnp"]], ghostty_pid: 4321)
+
+    first = Open3.popen3(first_env, SAVER)
+    first[0].close
+    100.times do
+      break if File.exist?(marker)
+
+      sleep 0.01
+    end
+    assert File.exist?(marker), "first saver did not reach AppleScript"
+
+    second = Open3.popen3(second_env, SAVER)
+    second[0].close
+    first_err = first[2].read
+    second_err = second[2].read
+    first_status = first[3].value
+    second_status = second[3].value
+
+    assert first_status.success?, first_err
+    assert second_status.success?, second_err
+    assert_equal "hnp", JSON.parse(File.read(@manifest)).dig("windows", 0, "tabs", 0, "session_name")
+  end
+
+  def test_lock_timeout_preserves_last_good_manifest
+    require_saver
+    FileUtils.mkdir_p(File.dirname(@manifest))
+    previous = {
+      "version" => 1,
+      "ghostty_pid" => 4321,
+      "saved_at" => 1,
+      "windows" => [{
+        "window_ordinal" => 1,
+        "selected_tab_index" => 1,
+        "tabs" => [{ "tab_index" => 1, "session_name" => "journal" }]
+      }]
+    }
+    File.write(@manifest, JSON.generate(previous))
+    original = File.read(@manifest)
+    marker = File.join(@tmpdir, "osascript-started")
+
+    File.open(@manifest_lock, File::RDWR | File::CREAT, 0o600) do |lock|
+      assert lock.flock(File::LOCK_EX | File::LOCK_NB)
+      _out, err, status = run_saver(
+        rows: [[1, 1, 1, "hnp"]],
+        sessions: %w[journal hnp],
+        ghostty_pid: 4321,
+        extra_env: {
+          "FAKE_OSASCRIPT_MARKER" => marker,
+          "TMUX_GHOSTTY_MANIFEST_LOCK_TIMEOUT" => "0"
+        }
+      )
+
+      assert status.success?, err
+    end
+
+    assert_equal original, File.read(@manifest)
+    refute File.exist?(marker), "lock timeout must happen before AppleScript"
+  end
+
   def test_macos_provisions_native_save_state_and_manifest_launch_agent
     tasks = File.read(MACOS_TASKS)
 
@@ -141,17 +209,21 @@ class GhosttySessionManifestTest < Minitest::Test
     assert File.executable?(SAVER), "missing executable #{SAVER}"
   end
 
-  def run_saver(rows:, sessions:, ghostty_pid:)
+  def run_saver(rows:, sessions:, ghostty_pid:, extra_env: {})
     File.write(@sessions, sessions.join("\n") + "\n")
-    env = {
+    Open3.capture3(saver_env(rows:, ghostty_pid:).merge(extra_env), SAVER)
+  end
+
+  def saver_env(rows:, ghostty_pid:)
+    {
       "HOME" => @home,
       "PATH" => "#{@bin}:#{ENV.fetch("PATH")}",
       "FAKE_GHOSTTY_ROWS" => rows.map { |row| row.join("\t") }.join("\n"),
       "FAKE_GHOSTTY_PID" => ghostty_pid.to_s,
       "FAKE_TMUX_SESSIONS" => @sessions,
-      "TMUX_GHOSTTY_MANIFEST" => @manifest
+      "TMUX_GHOSTTY_MANIFEST" => @manifest,
+      "TMUX_GHOSTTY_MANIFEST_LOCK" => @manifest_lock
     }
-    Open3.capture3(env, SAVER)
   end
 
   def write_executable(name, content)
@@ -163,6 +235,8 @@ class GhosttySessionManifestTest < Minitest::Test
   def write_fake_osascript
     write_executable("osascript", <<~'BASH')
       #!/usr/bin/env bash
+      [ -z "${FAKE_OSASCRIPT_MARKER:-}" ] || : >"$FAKE_OSASCRIPT_MARKER"
+      [ -z "${FAKE_OSASCRIPT_SLEEP:-}" ] || sleep "$FAKE_OSASCRIPT_SLEEP"
       printf '%s\n' "${FAKE_GHOSTTY_ROWS:-}"
     BASH
   end
