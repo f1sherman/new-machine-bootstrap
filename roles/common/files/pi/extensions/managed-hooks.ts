@@ -2,6 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 const COMMAND_TIMEOUT_MS = 5000;
+const SUBJECT_CHILD_TIMEOUT_MS = 15000;
+const SUBJECT_CHILD_MODEL = "openai-codex/gpt-5.4-mini";
+const SUBJECT_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.";
+const SUBJECT_MAX_LENGTH = 512;
 const MANAGED_PI_SESSION_NAME_OPTION = "@pi_managed_session_name";
 const REPO_START_TRIGGERS = /(^|\s)(?:z-fix|z-spec-first|z-quick-pr|superpowers:systematic-debugging|superpowers:brainstorming)(?=\s|$)/i;
 const SHELL_TOKEN = "[^\\s;&|()]+";
@@ -402,6 +406,70 @@ async function needsSubjectReminder(pi) {
   return !currentTask || currentTask.startsWith("completed\t");
 }
 
+function normalizeGeneratedSubject(output) {
+  const subject = output.trim();
+  if (!subject || subject.length > SUBJECT_MAX_LENGTH || subject.includes("\n") || subject.includes("\r")) return "";
+  return subject;
+}
+
+function subjectChildFailureDetails(value) {
+  if (value instanceof Error) {
+    return {
+      name: value.name || "Error",
+      code: value.code,
+      exitCode: value.exitCode,
+      killed: value.killed,
+    };
+  }
+
+  return {
+    name: "SubjectChildResult",
+    code: value?.code,
+    exitCode: value?.exitCode,
+    killed: value?.killed,
+  };
+}
+
+async function setSubjectFromSubagent(pi, prompt, cwd, signal) {
+  const framedPrompt = `Task: ${prompt}`;
+  let result;
+  try {
+    result = await pi.exec("pi", [
+      "--mode", "text",
+      "--print",
+      "--no-session",
+      "--model", SUBJECT_CHILD_MODEL,
+      "--thinking", "off",
+      "--no-tools",
+      "--no-extensions",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--no-context-files",
+      "--no-approve",
+      "--system-prompt", SUBJECT_CHILD_SYSTEM_PROMPT,
+      framedPrompt,
+    ], { cwd, timeout: SUBJECT_CHILD_TIMEOUT_MS, signal });
+  } catch (error) {
+    console.warn("[managed-hooks] tmux subject child failed", subjectChildFailureDetails(error));
+    return false;
+  }
+
+  if (result.code !== 0 || result.killed) {
+    console.warn("[managed-hooks] tmux subject child failed", subjectChildFailureDetails(result));
+    return false;
+  }
+
+  const subject = normalizeGeneratedSubject(result.stdout);
+  if (!subject) {
+    warn("tmux subject child returned an invalid subject", "empty, multiline, or over 512 characters");
+    return false;
+  }
+
+  const applied = await exec(pi, "tmux-agent-subject", ["set", subject]);
+  return applied.code === 0;
+}
+
 function normalizeSuperpowersSpecPath(candidatePath, cwd, repoRoot, resolveFrom = cwd) {
   if (!candidatePath) return "";
   const unquoted = candidatePath.replace(/^['\"`]+|['\"`.,:;]+$/g, "");
@@ -470,7 +538,7 @@ export default function managedHooks(pi) {
       notes.push("You are on main. Before changing files, run `repo-start <branch>` and continue from the created worktree.");
     }
 
-    if (await needsSubjectReminder(pi)) {
+    if (await needsSubjectReminder(pi) && !await setSubjectFromSubagent(pi, event.prompt, cwd, ctx.signal)) {
       notes.push("Choose a concise task subject, then run `tmux-agent-subject set \"<short subject>\"` before continuing. The provisional label will be replaced by the feature branch.");
     }
 

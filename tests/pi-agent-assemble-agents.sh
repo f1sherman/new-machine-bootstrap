@@ -50,4 +50,10 @@ if rg -n 'HNP|home-network|Forgejo|GitHub PR routing|pull-request' \
 fi
 printf 'PASS  Pi base fragment stays downstream-neutral\n'
 
+if rg -n 'tmux-agent-subject|Tmux task label' \
+  "$REPO_ROOT/roles/common/files/pi/AGENTS.md.d/00-base.md"; then
+  fail "Pi base fragment should leave tmux subject selection to managed hooks"
+fi
+printf 'PASS  Pi base fragment omits main-agent tmux subject guidance\n'
+
 printf 'pi AGENTS assembly checks complete\n'

@@ -299,6 +299,7 @@
     - tmux-task-label
     - tmux-window-label
     - tmux-sync-pane-border-status
+    - tmux-reconcile-status-bars
     - tmux-pane-title-changed
     - tmux-hook-run
     - report-pane-error
