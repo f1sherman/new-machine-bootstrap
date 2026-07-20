@@ -27,6 +27,7 @@ class GhosttySessionManifestTest < Minitest::Test
     write_fake_osascript
     write_fake_pgrep
     write_fake_tmux
+    write_fake_restore_logger
   end
 
   def teardown
@@ -165,6 +166,7 @@ class GhosttySessionManifestTest < Minitest::Test
     File.write(@manifest, JSON.generate(previous))
     original = File.read(@manifest)
     marker = File.join(@tmpdir, "osascript-started")
+    restore_log = File.join(@tmpdir, "restore.log")
 
     File.open(@manifest_lock, File::RDWR | File::CREAT, 0o600) do |lock|
       assert lock.flock(File::LOCK_EX | File::LOCK_NB)
@@ -174,6 +176,7 @@ class GhosttySessionManifestTest < Minitest::Test
         ghostty_pid: 4321,
         extra_env: {
           "FAKE_OSASCRIPT_MARKER" => marker,
+          "FAKE_RESTORE_LOG" => restore_log,
           "TMUX_GHOSTTY_MANIFEST_LOCK_TIMEOUT" => "0"
         }
       )
@@ -183,6 +186,7 @@ class GhosttySessionManifestTest < Minitest::Test
 
     assert_equal original, File.read(@manifest)
     refute File.exist?(marker), "lock timeout must happen before AppleScript"
+    assert_includes File.read(restore_log), "manifest_rejected reason=lock_timeout"
   end
 
   def test_macos_provisions_native_save_state_without_manifest_launch_agent
@@ -192,8 +196,17 @@ class GhosttySessionManifestTest < Minitest::Test
     refute_match(/line: 'window-save-state = always'/, tasks)
     refute_match(/Remove ghostty window-save-state setting/, tasks)
     assert_match(/Stat obsolete Ghostty session manifest LaunchAgent plist/, tasks)
-    assert_match(/Unload obsolete Ghostty session manifest launchd job/, tasks)
-    assert_match(/Remove obsolete Ghostty session manifest LaunchAgent plist/, tasks)
+    loaded_task = task_body(tasks, "Check whether Ghostty session manifest launchd job is loaded")
+    assert_includes loaded_task, "launchctl print gui/"
+    assert_includes loaded_task, "failed_when: false"
+    unload_task = task_body(tasks, "Unload obsolete Ghostty session manifest launchd job")
+    assert_includes unload_task, "when: ghostty_session_manifest_job.rc == 0"
+    refute_includes unload_task, "failed_when: false"
+    verify_task = task_body(tasks, "Verify Ghostty session manifest launchd job is unloaded")
+    assert_includes verify_task, "launchctl print gui/"
+    assert_includes verify_task, "failed_when: ghostty_session_manifest_job_after.rc == 0"
+    remove_task = task_body(tasks, "Remove obsolete Ghostty session manifest LaunchAgent plist")
+    assert_includes remove_task, "state: absent"
     refute_match(/Install Ghostty session manifest LaunchAgent plist/, tasks)
     refute_match(/Load Ghostty session manifest launchd job/, tasks)
     refute File.exist?(MANIFEST_PLIST)
@@ -245,6 +258,12 @@ class GhosttySessionManifestTest < Minitest::Test
     }
   end
 
+  def task_body(tasks, name)
+    match = tasks.match(/^- name: #{Regexp.escape(name)}\n(?<body>(?:^(?!- name: ).*\n?)*)/)
+    refute_nil match, "missing Ansible task: #{name}"
+    match[:body]
+  end
+
   def write_executable(name, content)
     path = File.join(@bin, name)
     File.write(path, content)
@@ -277,6 +296,16 @@ class GhosttySessionManifestTest < Minitest::Test
         exit
       fi
       exit 64
+    BASH
+  end
+
+  def write_fake_restore_logger
+    logger = File.join(@home, ".local", "bin", "tmux-restore-log.sh")
+    FileUtils.mkdir_p(File.dirname(logger))
+    File.write(logger, <<~'BASH')
+      tmux_restore_log_event() {
+        [ -z "${FAKE_RESTORE_LOG:-}" ] || printf '%s\n' "$*" >>"$FAKE_RESTORE_LOG"
+      }
     BASH
   end
 end

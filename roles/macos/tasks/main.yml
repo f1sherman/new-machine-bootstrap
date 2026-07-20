@@ -377,11 +377,22 @@
     path: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-session-manifest-save.plist'
   register: ghostty_session_manifest_plist
 
-- name: Unload obsolete Ghostty session manifest launchd job
-  command: launchctl unload {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-session-manifest-save.plist
-  when: ghostty_session_manifest_plist.stat.exists
+- name: Check whether Ghostty session manifest launchd job is loaded
+  command: launchctl print gui/{{ ansible_facts["user_uid"] }}/com.user.ghostty-session-manifest-save
+  register: ghostty_session_manifest_job
   changed_when: false
   failed_when: false
+
+- name: Unload obsolete Ghostty session manifest launchd job
+  command: launchctl bootout gui/{{ ansible_facts["user_uid"] }}/com.user.ghostty-session-manifest-save
+  when: ghostty_session_manifest_job.rc == 0
+  changed_when: true
+
+- name: Verify Ghostty session manifest launchd job is unloaded
+  command: launchctl print gui/{{ ansible_facts["user_uid"] }}/com.user.ghostty-session-manifest-save
+  register: ghostty_session_manifest_job_after
+  changed_when: false
+  failed_when: ghostty_session_manifest_job_after.rc == 0
 
 - name: Remove obsolete Ghostty session manifest LaunchAgent plist
   file:
