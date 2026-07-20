@@ -5,14 +5,25 @@ PATH="${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}:$HOME/.local/bin:/opt/homebrew/bin:
 export PATH
 
 manifest="${TMUX_GHOSTTY_MANIFEST:-${TMUX_GHOSTTY_STATE_DIR:-$HOME/.local/state/tmux}/ghostty-session-manifest.json}"
+manifest_lock="${TMUX_GHOSTTY_MANIFEST_LOCK:-${manifest}.lock}"
+manifest_lock_timeout="${TMUX_GHOSTTY_MANIFEST_LOCK_TIMEOUT:-5}"
 state_dir="$(dirname "$manifest")"
-mkdir -p "$state_dir"
+mkdir -p "$state_dir" "$(dirname "$manifest_lock")"
 
 if [ -r "$HOME/.local/bin/tmux-restore-log.sh" ]; then
   # shellcheck source=/dev/null
   source "$HOME/.local/bin/tmux-restore-log.sh"
 else
   tmux_restore_log_event() { :; }
+fi
+
+case "$manifest_lock_timeout" in
+  ''|*[!0-9]*) manifest_lock_timeout=5 ;;
+esac
+exec 8>"$manifest_lock"
+if ! flock -w "$manifest_lock_timeout" 8; then
+  tmux_restore_log_event manifest_rejected "reason=lock_timeout"
+  exit 0
 fi
 
 ghostty_pid="${GHOSTTY_APP_PID:-$(pgrep -nf '/Ghostty.app/Contents/MacOS/ghostty$' 2>/dev/null || true)}"
