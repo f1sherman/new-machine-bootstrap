@@ -160,6 +160,11 @@ if [ "$1" = show-options ] && [ -n "${{RECONCILE_BLOCK_READY:-}}" ]; then
     sleep 0.01
   done
 fi
+if [ "$1" = wait-for ] && [ "${{2-}}" = -U ] && [ -n "${{RECONCILE_UNLOCK_SIGNAL:-}}" ]; then
+  : > "$RECONCILE_UNLOCK_SIGNAL"
+  kill -TERM "$PPID"
+  kill -TERM "$$"
+fi
 exec {shlex.quote(real_tmux)} "$@"
 '''
 )
@@ -250,7 +255,13 @@ def client_ttys():
     return output.splitlines() if output else []
 
 
-def start_reconciler(label, wait_ready=None, block_ready=None, block_release=None):
+def start_reconciler(
+    label,
+    wait_ready=None,
+    block_ready=None,
+    block_release=None,
+    unlock_signal=None,
+):
     pid_file = runtime_dir / f"{label}.pid"
     command = (
         f'PATH={shlex.quote(str(test_bin))}:"$PATH" '
@@ -262,6 +273,8 @@ def start_reconciler(label, wait_ready=None, block_ready=None, block_release=Non
     if block_ready is not None:
         command += f'RECONCILE_BLOCK_READY={shlex.quote(str(block_ready))} '
         command += f'RECONCILE_BLOCK_RELEASE={shlex.quote(str(block_release))} '
+    if unlock_signal is not None:
+        command += f'RECONCILE_UNLOCK_SIGNAL={shlex.quote(str(unlock_signal))} '
     command += shlex.quote(str(launcher))
     tmux("run-shell", "-b", command)
     wait_until(
@@ -460,6 +473,32 @@ try:
         "s",
         "on",
         "subsequent reconciler converges after signalled owner",
+    )
+
+    cleanup_signal = runtime_dir / "cleanup.signal"
+    cleanup_pid = start_reconciler(
+        "cleanup-signal",
+        unlock_signal=cleanup_signal,
+    )
+    wait_until(
+        cleanup_signal.exists,
+        "reconciler reaches signalled unlock cleanup",
+        "unlock shim did not signal during cleanup",
+    )
+    wait_for_process_exit(
+        cleanup_pid,
+        "reconciler exits after cleanup-phase signal",
+    )
+    tmux("set-option", "-t", "s", "status", "off")
+    cleanup_successor_pid = start_reconciler("cleanup-successor")
+    wait_for_process_exit(
+        cleanup_successor_pid,
+        "successor acquires after cleanup-phase signal",
+    )
+    assert_status(
+        "s",
+        "on",
+        "successor converges after cleanup-phase signal",
     )
 
     tmux("set-option", "-t", "unrelated", "status", "off")

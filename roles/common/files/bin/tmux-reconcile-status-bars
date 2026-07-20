@@ -5,9 +5,10 @@ lock_name=tmux-reconcile-status-bars
 lock_held=false
 
 release_lock() {
+  trap '' HUP INT TERM
   [ "$lock_held" = true ] || return
-  lock_held=false
   tmux wait-for -U "$lock_name" 2>/dev/null || true
+  lock_held=false
 }
 
 trap release_lock EXIT
