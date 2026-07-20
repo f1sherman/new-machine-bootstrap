@@ -217,7 +217,7 @@ class GhosttySessionManifestTest < Minitest::Test
   def test_macos_tmux_hooks_save_manifest_after_client_events
     macos_config = File.read(MACOS_TMUX_CONFIG)
     linux_config = File.read(LINUX_TMUX_CONFIG)
-    command = 'run-shell -b "sleep 0.2; $HOME/.local/bin/ghostty-session-manifest-save"'
+    command = 'run-shell -b "sleep 0.2; $HOME/.local/bin/ghostty-session-manifest-save || :"'
 
     %w[client-attached client-detached client-session-changed client-focus-in].each do |event|
       pattern = /^set-hook -g #{Regexp.escape(event)}\[95\] '#{Regexp.escape(command)}'$/
