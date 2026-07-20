@@ -1,45 +1,86 @@
-#!/usr/bin/env bash
-set -u
+#!/usr/bin/env python3
 
-lock_name=tmux-reconcile-status-bars
-lock_held=false
+import fcntl
+import os
+import subprocess
+import tempfile
+from pathlib import Path
 
-release_lock() {
-  trap '' HUP INT TERM
-  [ "$lock_held" = true ] || return
-  tmux wait-for -U "$lock_name" 2>/dev/null || true
-  lock_held=false
-}
 
-trap release_lock EXIT
-trap '' HUP INT TERM
-if ! tmux wait-for -L "$lock_name" 2>/dev/null; then
-  trap - HUP INT TERM
-  exit 0
-fi
-lock_held=true
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
+def tmux(*args):
+    try:
+        return subprocess.run(
+            ["tmux", *args],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except OSError:
+        return None
 
-[ "$(tmux show-options -gv @managed-bars 2>/dev/null || true)" != "off" ] || exit 0
 
-tmux list-sessions -F '#{session_id}' 2>/dev/null | while IFS= read -r session_id; do
-  [ -n "$session_id" ] || continue
-  client_terms="$(tmux list-clients -t "$session_id" -F '#{client_termname}' 2>/dev/null)" || continue
+def reconcile():
+    managed_bars = tmux("show-options", "-gv", "@managed-bars")
+    if managed_bars is not None and managed_bars.stdout.strip() == "off":
+        return
 
-  status=on
-  if [ -n "$client_terms" ]; then
-    status=off
-    while IFS= read -r client_term; do
-      case "$client_term" in
-        tmux*|screen*) ;;
-        *) status=on; break ;;
-      esac
-    done <<EOF
-$client_terms
-EOF
-  fi
+    sessions = tmux("list-sessions", "-F", "#{session_id}")
+    if sessions is None:
+        return
 
-  tmux set-option -q -t "$session_id" status "$status" 2>/dev/null || true
-done
+    for session_id in sessions.stdout.splitlines():
+        if not session_id:
+            continue
+
+        clients = tmux(
+            "list-clients",
+            "-t",
+            session_id,
+            "-F",
+            "#{client_termname}",
+        )
+        if clients is None or clients.returncode != 0:
+            continue
+
+        client_terms = clients.stdout.splitlines()
+        nested_only = bool(client_terms) and all(
+            term.startswith(("tmux", "screen")) for term in client_terms
+        )
+        status = "off" if nested_only else "on"
+        tmux("set-option", "-q", "-t", session_id, "status", status)
+
+
+def main():
+    server = tmux("display-message", "-p", "#{pid}")
+    if server is None or server.returncode != 0:
+        return 0
+
+    server_pid = server.stdout.strip()
+    if not server_pid.isdecimal():
+        return 0
+
+    lock_path = Path(tempfile.gettempdir()) / (
+        f"tmux-reconcile-status-bars-{os.getuid()}-{server_pid}.lock"
+    )
+    flags = os.O_CREAT | os.O_RDWR | os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+
+    try:
+        lock_fd = os.open(lock_path, flags, 0o600)
+    except OSError:
+        return 0
+
+    with os.fdopen(lock_fd, "w") as lock_file:
+        try:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+        except OSError:
+            return 0
+        reconcile()
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
