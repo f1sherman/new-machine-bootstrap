@@ -10,6 +10,21 @@
 
 set -eo pipefail
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "$SCRIPT_DIR/provision-lock"
+
+LOGFILE_PATH=""
+cleanup() {
+  provision_lock_release
+  if [[ -n "$LOGFILE_PATH" ]]; then
+    echo ""
+    echo "==> Provisioning log: $LOGFILE_PATH"
+    echo "==> Or: cat /tmp/provision-latest.log"
+  fi
+}
+trap cleanup EXIT
+
+provision_lock_acquire "$@"
 PROVISIONING_START=$(date +%s)
 LOGFILE_PATH="/tmp/provision-$(date +%Y%m%d-%H%M%S).log"
 
@@ -19,9 +34,6 @@ ln -sf "$LOGFILE_PATH" /tmp/provision-latest.log
 echo "==> Provisioning log: $LOGFILE_PATH"
 echo "==> (Also available at: /tmp/provision-latest.log)"
 echo ""
-
-# Always show log location on exit (success or failure)
-trap 'echo ""; echo "==> Provisioning log: $LOGFILE_PATH"; echo "==> Or: cat /tmp/provision-latest.log"' EXIT
 
 timestamp() {
   date -Iseconds

@@ -1,0 +1,167 @@
+#!/bin/bash
+set -euo pipefail
+
+REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+HELPER="$REPO_ROOT/bin/provision-lock"
+TMP_ROOT=$(mktemp -d)
+OWNER_PID=""
+WAITER_PID=""
+cleanup_process() {
+  local pid=$1
+  [[ -n "$pid" ]] || return 0
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+}
+cleanup() {
+  cleanup_process "$WAITER_PID"
+  cleanup_process "$OWNER_PID"
+  rm -rf "$TMP_ROOT"
+}
+trap cleanup EXIT
+
+pass_count=0
+fail_count=0
+pass() { printf 'PASS  %s\n' "$1"; pass_count=$((pass_count + 1)); }
+fail() { printf 'FAIL  %s\n' "$1" >&2; fail_count=$((fail_count + 1)); }
+wait_for_file() {
+  local path=$1 attempt=0
+  while [[ ! -e "$path" && $attempt -lt 100 ]]; do sleep 0.05; attempt=$((attempt + 1)); done
+  [[ -e "$path" ]]
+}
+wait_for_match() {
+  local path=$1 expected=$2 attempt=0
+  while [[ $attempt -lt 100 ]]; do
+    [[ -f "$path" ]] && grep -Fq "$expected" "$path" && return 0
+    sleep 0.05
+    attempt=$((attempt + 1))
+  done
+  return 1
+}
+
+run_owner() {
+  PROVISION_LOCK_DIR="$TMP_ROOT/lock" OWNER_READY="$TMP_ROOT/owner-ready" RELEASE_OWNER="$TMP_ROOT/release-owner" \
+    exec bash -c 'source "$1"; trap provision_lock_release EXIT; provision_lock_acquire; touch "$OWNER_READY"; while [[ ! -e "$RELEASE_OWNER" ]]; do sleep 0.05; done' _ "$HELPER"
+}
+run_waiter() {
+  PROVISION_LOCK_DIR="$TMP_ROOT/lock" WAITER_READY="$TMP_ROOT/waiter-ready" WAITER_STARTED="$TMP_ROOT/waiter-started" \
+    exec bash -c 'printf "%s\n" "$$" > "$WAITER_STARTED"; source "$1"; trap provision_lock_release EXIT; provision_lock_acquire; touch "$WAITER_READY"' _ "$HELPER"
+}
+
+OWNER_PID=""
+WAITER_PID=""
+run_owner >"$TMP_ROOT/owner.out" 2>&1 &
+OWNER_PID=$!
+wait_for_file "$TMP_ROOT/owner-ready" && pass "owner acquires the lock" || fail "owner acquires the lock"
+wait_for_file "$TMP_ROOT/lock" && pass "owner creates the lock directory" || fail "owner creates the lock directory"
+owner_metadata_pid=$(awk -F= '$1 == "pid" { print $2; exit }' "$TMP_ROOT/lock/owner")
+[[ "$owner_metadata_pid" == "$OWNER_PID" ]] && pass "owner helper PID identifies the lock-owning process" || fail "owner helper PID identifies the lock-owning process"
+
+run_waiter >"$TMP_ROOT/waiter.out" 2>&1 &
+WAITER_PID=$!
+wait_for_match "$TMP_ROOT/waiter.out" "Another provision is running" && pass "waiter reports the existing provision run" || fail "waiter reports the existing provision run"
+[[ ! -e "$TMP_ROOT/waiter-ready" ]] && pass "waiter stays blocked while owner holds the lock" || fail "waiter stays blocked while owner holds the lock"
+
+touch "$TMP_ROOT/release-owner"
+wait "$OWNER_PID"
+OWNER_PID=""
+wait_for_file "$TMP_ROOT/waiter-ready" && pass "waiter acquires after owner releases" || fail "waiter acquires after owner releases"
+wait "$WAITER_PID"
+WAITER_PID=""
+pass "owner and waiter exit cleanly"
+
+rm -rf "$TMP_ROOT/lock" "$TMP_ROOT/owner-ready" "$TMP_ROOT/waiter-ready" "$TMP_ROOT/waiter-started" "$TMP_ROOT/release-owner" "$TMP_ROOT/owner.out" "$TMP_ROOT/waiter.out"
+mkdir -p "$TMP_ROOT/lock"
+cat >"$TMP_ROOT/lock/owner" <<'EOF'
+pid=999999
+process_start=Mon Jan  1 00:00:00 2001
+started_at=2001-01-01T00:00:00+00:00
+working_directory=/stale
+command=stale
+EOF
+PROVISION_LOCK_DIR="$TMP_ROOT/lock" STALE_READY="$TMP_ROOT/stale-ready" RELEASE_STALE="$TMP_ROOT/release-stale" \
+  bash -c 'source "$1"; trap provision_lock_release EXIT; provision_lock_acquire; touch "$STALE_READY"; while [[ ! -e "$RELEASE_STALE" ]]; do sleep 0.05; done' _ "$HELPER" >"$TMP_ROOT/stale.out" 2>&1 &
+OWNER_PID=$!
+wait_for_file "$TMP_ROOT/stale-ready" && pass "stale lock is replaced" || fail "stale lock is replaced"
+if [[ -f "$TMP_ROOT/lock/owner" ]] && ! grep -Fq 'pid=999999' "$TMP_ROOT/lock/owner"; then
+  pass "stale owner metadata is replaced"
+else
+  fail "stale owner metadata is replaced"
+fi
+touch "$TMP_ROOT/release-stale"
+wait "$OWNER_PID"
+OWNER_PID=""
+
+rm -rf "$TMP_ROOT/lock" "$TMP_ROOT/owner-ready" "$TMP_ROOT/waiter-ready" "$TMP_ROOT/waiter-started" "$TMP_ROOT/release-owner" "$TMP_ROOT/owner.out" "$TMP_ROOT/waiter.out"
+run_owner >"$TMP_ROOT/owner.out" 2>&1 &
+OWNER_PID=$!
+wait_for_file "$TMP_ROOT/owner-ready" || true
+run_waiter >"$TMP_ROOT/waiter.out" 2>&1 &
+WAITER_PID=$!
+wait_for_file "$TMP_ROOT/waiter-started" || true
+waiter_child_pid=$(cat "$TMP_ROOT/waiter-started" 2>/dev/null || true)
+[[ "$waiter_child_pid" == "$WAITER_PID" ]] && pass "waiter helper PID identifies the waiting process" || fail "waiter helper PID identifies the waiting process"
+wait_for_match "$TMP_ROOT/waiter.out" "Another provision is running" || true
+kill "$WAITER_PID" 2>/dev/null || true
+if wait "$WAITER_PID"; then
+  waiter_status=0
+else
+  waiter_status=$?
+fi
+WAITER_PID=""
+[[ -d "$TMP_ROOT/lock" ]] && [[ $waiter_status -ne 0 ]] && pass "killed waiter leaves owner lock intact" || fail "killed waiter leaves owner lock intact"
+touch "$TMP_ROOT/release-owner"
+wait "$OWNER_PID"
+OWNER_PID=""
+
+rm -rf "$TMP_ROOT/lock"
+if PROVISION_LOCK_DIR="$TMP_ROOT/lock" bash -c 'source "$1"; trap provision_lock_release EXIT; provision_lock_acquire; exit 7' _ "$HELPER"; then
+  fail "nonzero owner exits with failure status"
+else
+  status=$?
+  [[ $status -eq 7 ]] && pass "nonzero owner exits with failure status" || fail "nonzero owner exits with failure status"
+fi
+[[ ! -e "$TMP_ROOT/lock" ]] && pass "nonzero owner releases its lock on EXIT" || fail "nonzero owner releases its lock on EXIT"
+
+rm -rf "$TMP_ROOT/lock"
+if PROVISION_LOCK_DIR="$TMP_ROOT/lock" bash -c '
+  source "$1"
+  provision_lock_acquire
+  grep -v "^pid=" "$PROVISION_LOCK_DIR/owner" > "$PROVISION_LOCK_DIR/owner.tmp"
+  mv "$PROVISION_LOCK_DIR/owner.tmp" "$PROVISION_LOCK_DIR/owner"
+  provision_lock_release
+  [[ -d "$PROVISION_LOCK_DIR" ]]
+' _ "$HELPER"; then
+  pass "release preserves a lock whose owner PID cannot be verified"
+else
+  fail "release preserves a lock whose owner PID cannot be verified"
+fi
+rm -rf "$TMP_ROOT/lock"
+
+mkdir -p "$TMP_ROOT/path-a" "$TMP_ROOT/path-b" "$TMP_ROOT/shared-tmp"
+path_a=$(TMPDIR="$TMP_ROOT/shared-tmp" bash -c 'cd "$2"; source "$1"; provision_lock_path' _ "$HELPER" "$TMP_ROOT/path-a")
+path_b=$(TMPDIR="$TMP_ROOT/shared-tmp" bash -c 'cd "$2"; source "$1"; provision_lock_path' _ "$HELPER" "$TMP_ROOT/path-b")
+[[ "$path_a" == "$path_b" ]] && pass "default lock path is shared across working directories" || fail "default lock path is shared across working directories"
+
+provision_file="$REPO_ROOT/bin/provision"
+source_line=$(grep -nF 'source "$SCRIPT_DIR/provision-lock"' "$provision_file" | cut -d: -f1)
+acquire_line=$(grep -nF 'provision_lock_acquire "$@"' "$provision_file" | cut -d: -f1)
+latest_log_line=$(grep -nF 'ln -sf "$LOGFILE_PATH" /tmp/provision-latest.log' "$provision_file" | cut -d: -f1)
+cleanup_line=$(grep -n '^cleanup()' "$provision_file" | cut -d: -f1)
+release_line=$(grep -nF '  provision_lock_release' "$provision_file" | cut -d: -f1)
+trap_count=$(grep -c '^trap .* EXIT$' "$provision_file")
+[[ -n "$source_line" ]] && pass "bin/provision sources the lock helper" || fail "bin/provision sources the lock helper"
+if [[ -n "$acquire_line" && -n "$latest_log_line" && $acquire_line -lt $latest_log_line ]]; then
+  pass "bin/provision acquires the lock before publishing the latest log symlink"
+else
+  fail "bin/provision acquires the lock before publishing the latest log symlink"
+fi
+if [[ -n "$cleanup_line" && -n "$release_line" && $cleanup_line -lt $release_line && $trap_count -eq 1 ]] && \
+  grep -Fq '==> Provisioning log: $LOGFILE_PATH' "$provision_file" && \
+  grep -Fq '==> Or: cat /tmp/provision-latest.log' "$provision_file"; then
+  pass "bin/provision has one cleanup path that releases the lock and prints final log help"
+else
+  fail "bin/provision has one cleanup path that releases the lock and prints final log help"
+fi
+
+printf '\n%d passed, %d failed\n' "$pass_count" "$fail_count"
+[[ $fail_count -eq 0 ]]
