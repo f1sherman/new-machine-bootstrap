@@ -1,0 +1,154 @@
+#!/bin/bash
+
+PROVISION_LOCK_OWNED=false
+PROVISION_LOCK_WAIT_STARTED=""
+
+provision_lock_path() {
+  printf '%s\n' "${PROVISION_LOCK_DIR:-${TMPDIR:-/tmp}/new-machine-bootstrap-provision-$(id -u).lock}"
+}
+
+provision_lock_process_start() {
+  ps -p "$1" -o lstart= 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
+provision_lock_owner_value() {
+  local key=$1 lock_dir=$2
+  [[ -f "$lock_dir/owner" ]] || return 1
+  awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$lock_dir/owner"
+}
+
+provision_lock_owner_is_alive() {
+  local lock_dir=$1 pid expected_start actual_start
+  pid=$(provision_lock_owner_value pid "$lock_dir") || return 1
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  kill -0 "$pid" 2>/dev/null || return 1
+  expected_start=$(provision_lock_owner_value process_start "$lock_dir") || return 1
+  actual_start=$(provision_lock_process_start "$pid")
+  [[ -n "$actual_start" && "$actual_start" == "$expected_start" ]]
+}
+
+provision_lock_write_owner() {
+  local lock_dir=$1 owner_tmp="$lock_dir/owner.$$"
+  shift || true
+  {
+    printf 'pid=%s\n' "$$"
+    printf 'process_start=%s\n' "$(provision_lock_process_start "$$")"
+    printf 'started_at=%s\n' "$(date -Iseconds)"
+    printf 'working_directory=%s\n' "$PWD"
+    printf 'command=%s\n' "$0${*:+ }$*"
+  } > "$owner_tmp"
+  mv "$owner_tmp" "$lock_dir/owner"
+}
+
+provision_lock_metadata_complete() {
+  local lock_dir=$1 pid process_start started_at working_directory command
+  pid=$(provision_lock_owner_value pid "$lock_dir") || return 1
+  process_start=$(provision_lock_owner_value process_start "$lock_dir") || return 1
+  started_at=$(provision_lock_owner_value started_at "$lock_dir") || return 1
+  working_directory=$(provision_lock_owner_value working_directory "$lock_dir") || return 1
+  command=$(provision_lock_owner_value command "$lock_dir") || return 1
+  [[ -n "$pid" && -n "$process_start" && -n "$started_at" && -n "$working_directory" && -n "$command" ]]
+}
+
+provision_lock_report_blocked() {
+  local lock_dir=$1 prefix=$2 owner_pid owner_dir owner_command
+  owner_pid=$(provision_lock_owner_value pid "$lock_dir" 2>/dev/null || true)
+  owner_dir=$(provision_lock_owner_value working_directory "$lock_dir" 2>/dev/null || true)
+  owner_command=$(provision_lock_owner_value command "$lock_dir" 2>/dev/null || true)
+
+  echo "$prefix" >&2
+  echo "Owner PID: ${owner_pid:-unknown}" >&2
+  echo "Working directory: ${owner_dir:-unknown}" >&2
+  echo "Command: ${owner_command:-unknown}" >&2
+}
+
+provision_lock_quarantine_stale() {
+  local lock_dir=$1 stale_dir="$lock_dir.stale.$$"
+  mv "$lock_dir" "$stale_dir" 2>/dev/null || return 1
+  rm -rf "$stale_dir"
+}
+
+provision_lock_acquire() {
+  local lock_dir blocked_reported=false last_notice=0 incomplete_since="" now elapsed
+  lock_dir=$(provision_lock_path)
+  PROVISION_LOCK_WAIT_STARTED=""
+
+  while true; do
+    if mkdir "$lock_dir" 2>/dev/null; then
+      PROVISION_LOCK_OWNED=true
+      provision_lock_write_owner "$lock_dir" "$@"
+      if [[ -n "$PROVISION_LOCK_WAIT_STARTED" ]]; then
+        elapsed=$(($(date +%s) - PROVISION_LOCK_WAIT_STARTED))
+        echo "Waited ${elapsed}s for provision lock." >&2
+      fi
+      return 0
+    fi
+
+    now=$(date +%s)
+    if [[ -z "$PROVISION_LOCK_WAIT_STARTED" ]]; then
+      PROVISION_LOCK_WAIT_STARTED=$now
+    fi
+
+    if provision_lock_metadata_complete "$lock_dir"; then
+      incomplete_since=""
+      if provision_lock_owner_is_alive "$lock_dir"; then
+        if ! $blocked_reported; then
+          provision_lock_report_blocked "$lock_dir" "Another provision is running. Waiting for lock: $lock_dir"
+          blocked_reported=true
+          last_notice=$now
+        elif [[ $((now - last_notice)) -ge 30 ]]; then
+          provision_lock_report_blocked "$lock_dir" "Still waiting for provision lock after $((now - PROVISION_LOCK_WAIT_STARTED))s: $lock_dir"
+          last_notice=$now
+        fi
+        sleep 2
+        continue
+      fi
+
+      if provision_lock_quarantine_stale "$lock_dir"; then
+        continue
+      fi
+    else
+      if [[ -z "$incomplete_since" ]]; then
+        incomplete_since=$now
+      fi
+
+      if [[ $((now - incomplete_since)) -lt 5 ]]; then
+        if ! $blocked_reported; then
+          provision_lock_report_blocked "$lock_dir" "Another provision is running. Waiting for lock: $lock_dir"
+          blocked_reported=true
+          last_notice=$now
+        elif [[ $((now - last_notice)) -ge 30 ]]; then
+          provision_lock_report_blocked "$lock_dir" "Still waiting for provision lock after $((now - PROVISION_LOCK_WAIT_STARTED))s: $lock_dir"
+          last_notice=$now
+        fi
+        sleep 2
+        continue
+      fi
+
+      if provision_lock_quarantine_stale "$lock_dir"; then
+        incomplete_since=""
+        continue
+      fi
+    fi
+
+    sleep 2
+  done
+}
+
+provision_lock_release() {
+  local lock_dir owner_pid
+  [[ "$PROVISION_LOCK_OWNED" == true ]] || return 0
+
+  lock_dir=$(provision_lock_path)
+  if [[ -f "$lock_dir/owner" ]]; then
+    owner_pid=$(provision_lock_owner_value pid "$lock_dir" 2>/dev/null || true)
+    if [[ "$owner_pid" != "$$" ]]; then
+      PROVISION_LOCK_OWNED=false
+      return 0
+    fi
+  fi
+
+  rm -rf "$lock_dir"
+  PROVISION_LOCK_OWNED=false
+  PROVISION_LOCK_WAIT_STARTED=""
+}
