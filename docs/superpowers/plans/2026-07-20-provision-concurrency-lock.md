@@ -30,7 +30,7 @@
 
 **Interfaces:**
 - Produces: `provision_lock_path`, `provision_lock_acquire`, and `provision_lock_release` Bash functions.
-- Consumes: optional `PROVISION_LOCK_DIR` for isolated testing; otherwise `${TMPDIR:-/tmp}/new-machine-bootstrap-provision-$(id -u).lock`.
+- Consumes: optional `PROVISION_LOCK_DIR` for isolated testing; otherwise `/tmp/new-machine-bootstrap-provision-$(id -u).lock`.
 - Maintains: `PROVISION_LOCK_OWNED`, true only after this process creates the lock directory.
 
 - [ ] **Step 1: Write the failing concurrency regression**
@@ -76,7 +76,7 @@ Complete the test with assertions that:
 - a directory whose `owner` file contains a non-live PID is quarantined and replaced;
 - terminating a waiting process leaves the owner's lock intact;
 - a process exiting nonzero after acquisition removes its own lock through the `EXIT` trap;
-- two different working directories calculate the same default lock path when `TMPDIR` and UID are the same;
+- different working directories and `TMPDIR` values calculate the same default lock path for the same UID;
 - `bin/provision` sources the helper, acquires before creating `/tmp/provision-latest.log`, and has one cleanup path that releases the lock and retains the final log-location messages.
 
 Finish with:
@@ -109,7 +109,7 @@ PROVISION_LOCK_OWNED=false
 PROVISION_LOCK_WAIT_STARTED=""
 
 provision_lock_path() {
-  printf '%s\n' "${PROVISION_LOCK_DIR:-${TMPDIR:-/tmp}/new-machine-bootstrap-provision-$(id -u).lock}"
+  printf '%s\n' "${PROVISION_LOCK_DIR:-/tmp/new-machine-bootstrap-provision-$(id -u).lock}"
 }
 
 provision_lock_process_start() {
