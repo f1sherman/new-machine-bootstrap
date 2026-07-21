@@ -13,13 +13,13 @@ case "$activity" in
 esac
 
 case "$pr_state" in
-  draft) out+="⚪" ;;
-  checks-failing) out+="🔴" ;;
-  changes-requested) out+="🟡" ;;
-  ready-for-review) out+="🔵" ;;
-  approved) out+="🟢" ;;
-  merged) out+="🟣" ;;
-  closed) out+="⚫" ;;
+  draft) out+='#[fg=#808080]●' ;;
+  checks-failing) out+='#[fg=#cc6666]●' ;;
+  changes-requested) out+='#[fg=#ffff00]●' ;;
+  ready-for-review) out+='#[fg=#8abeb7]●' ;;
+  approved) out+='#[fg=#b5bd68]●' ;;
+  merged) out+='#[fg=#8957e5]●' ;;
+  closed) out+='#[fg=#cf4f4f,dim]●' ;;
 esac
 
 if [ -n "$out" ]; then

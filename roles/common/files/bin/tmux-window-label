@@ -152,9 +152,14 @@ if [ -z "$activity" ] && [ -z "$pr_state" ]; then
   activity="$ind_activity"
   pr_state="$ind_pr_state"
 fi
+glyphs=""
 if { [ -n "$activity" ] || [ -n "$pr_state" ]; } && [ -x "$glyphs_helper" ]; then
   glyphs="$("$glyphs_helper" "$activity" "$pr_state" 2>/dev/null || true)"
-  label="${glyphs}${label}"
+fi
+if [ -n "$glyphs" ]; then
+  tmux set-option -wq -t "$window_id" @window-indicators "$glyphs" 2>/dev/null || true
+else
+  tmux set-option -wqu -t "$window_id" @window-indicators 2>/dev/null || true
 fi
 
 [ "$label" != "$window_name" ] || exit 0
