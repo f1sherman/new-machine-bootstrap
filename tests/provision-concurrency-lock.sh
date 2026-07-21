@@ -109,6 +109,23 @@ touch "$TMP_ROOT/release-stale"
 wait "$OWNER_PID"
 OWNER_PID=""
 
+rm -rf "$TMP_ROOT/lock" "$TMP_ROOT/waiter-ready" "$TMP_ROOT/waiter-started" "$TMP_ROOT/waiter.out"
+live_owner_checksum=$(bash -c 'source "$1"; provision_lock_process_start_checksum "$2"' _ "$HELPER" "$$")
+live_owner_dir="$TMP_ROOT/lock/owner-$$-$live_owner_checksum-live-1"
+mkdir -p "$live_owner_dir"
+run_waiter >"$TMP_ROOT/waiter.out" 2>&1 &
+WAITER_PID=$!
+wait_for_match "$TMP_ROOT/waiter.out" "Another provision is running"
+sleep 7
+if [[ -d "$live_owner_dir" && ! -e "$TMP_ROOT/waiter-ready" ]]; then
+  pass "live owner with incomplete metadata is not reclaimed"
+else
+  fail "live owner with incomplete metadata is not reclaimed"
+fi
+cleanup_process "$WAITER_PID"
+WAITER_PID=""
+rm -rf "$TMP_ROOT/lock"
+
 rm -rf "$TMP_ROOT/lock" "$TMP_ROOT/stale-cleaner-paused" "$TMP_ROOT/release-stale-cleaner" \
   "$TMP_ROOT/stale-cleaner-continued" "$TMP_ROOT/stale-cleaner-acquired" \
   "$TMP_ROOT/successor-ready" "$TMP_ROOT/release-successor"
