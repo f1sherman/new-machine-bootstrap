@@ -12,6 +12,24 @@ provision_lock_process_start() {
   ps -p "$1" -o lstart= 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
 }
 
+provision_lock_process_start_checksum() {
+  provision_lock_process_start "$1" | cksum | awk '{ print $1 }'
+}
+
+provision_lock_owner_token_is_alive() {
+  local owner_dir=$1 token identity pid expected_checksum actual_checksum
+  token=$(basename "$owner_dir")
+  identity=${token#owner-}
+  [[ "$identity" != "$token" ]] || return 1
+  pid=${identity%%-*}
+  identity=${identity#*-}
+  expected_checksum=${identity%%-*}
+  [[ "$pid" =~ ^[0-9]+$ && "$expected_checksum" =~ ^[0-9]+$ ]] || return 1
+  kill -0 "$pid" 2>/dev/null || return 1
+  actual_checksum=$(provision_lock_process_start_checksum "$pid")
+  [[ -n "$actual_checksum" && "$actual_checksum" == "$expected_checksum" ]]
+}
+
 provision_lock_current_owner_dir() {
   local lock_dir=$1 owner_dir
   for owner_dir in "$lock_dir"/owner-*; do
@@ -98,7 +116,7 @@ provision_lock_acquire() {
 
   while true; do
     if mkdir "$lock_dir" 2>/dev/null; then
-      owner_token="owner-$$-$(date +%s)-$RANDOM"
+      owner_token="owner-$$-$(provision_lock_process_start_checksum "$$")-$(date +%s)-$RANDOM"
       owner_dir="$lock_dir/$owner_token"
       if ! mkdir "$owner_dir" 2>/dev/null; then
         rmdir "$lock_dir" 2>/dev/null || true
@@ -139,6 +157,18 @@ provision_lock_acquire() {
         continue
       fi
     else
+      if [[ -n "$owner_dir" ]] && provision_lock_owner_token_is_alive "$owner_dir"; then
+        incomplete_since=""
+        if ! $blocked_reported; then
+          provision_lock_report_wait "$owner_dir" "Another provision is running. Waiting for lock: $lock_dir" "$now"
+          blocked_reported=true
+        elif [[ $((now - PROVISION_LOCK_LAST_NOTICE)) -ge 30 ]]; then
+          provision_lock_report_wait "$owner_dir" "Still waiting for provision lock after $((now - PROVISION_LOCK_WAIT_STARTED))s: $lock_dir" "$now"
+        fi
+        sleep 2
+        continue
+      fi
+
       if [[ -z "$incomplete_since" ]]; then
         incomplete_since=$now
       fi
