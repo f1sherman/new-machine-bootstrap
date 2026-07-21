@@ -1,6 +1,7 @@
 #!/bin/bash
 
 PROVISION_LOCK_OWNED=false
+PROVISION_LOCK_OWNER_DIR=""
 PROVISION_LOCK_WAIT_STARTED=""
 
 provision_lock_path() {
@@ -11,24 +12,34 @@ provision_lock_process_start() {
   ps -p "$1" -o lstart= 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
 }
 
+provision_lock_current_owner_dir() {
+  local lock_dir=$1 owner_dir
+  for owner_dir in "$lock_dir"/owner-*; do
+    [[ -d "$owner_dir" ]] || continue
+    printf '%s\n' "$owner_dir"
+    return 0
+  done
+  return 1
+}
+
 provision_lock_owner_value() {
-  local key=$1 lock_dir=$2
-  [[ -f "$lock_dir/owner" ]] || return 1
-  awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$lock_dir/owner"
+  local key=$1 owner_dir=$2
+  [[ -f "$owner_dir/owner" ]] || return 1
+  awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$owner_dir/owner"
 }
 
 provision_lock_owner_is_alive() {
-  local lock_dir=$1 pid expected_start actual_start
-  pid=$(provision_lock_owner_value pid "$lock_dir") || return 1
+  local owner_dir=$1 pid expected_start actual_start
+  pid=$(provision_lock_owner_value pid "$owner_dir") || return 1
   [[ "$pid" =~ ^[0-9]+$ ]] || return 1
   kill -0 "$pid" 2>/dev/null || return 1
-  expected_start=$(provision_lock_owner_value process_start "$lock_dir") || return 1
+  expected_start=$(provision_lock_owner_value process_start "$owner_dir") || return 1
   actual_start=$(provision_lock_process_start "$pid")
   [[ -n "$actual_start" && "$actual_start" == "$expected_start" ]]
 }
 
 provision_lock_write_owner() {
-  local lock_dir=$1 owner_tmp="$lock_dir/owner.$$"
+  local owner_dir=$1
   shift || true
   {
     printf 'pid=%s\n' "$$"
@@ -36,47 +47,68 @@ provision_lock_write_owner() {
     printf 'started_at=%s\n' "$(date -Iseconds)"
     printf 'working_directory=%s\n' "$PWD"
     printf 'command=%s\n' "$0${*:+ }$*"
-  } > "$owner_tmp"
-  mv "$owner_tmp" "$lock_dir/owner"
+  } > "$owner_dir/owner"
 }
 
 provision_lock_metadata_complete() {
-  local lock_dir=$1 pid process_start started_at working_directory command
-  pid=$(provision_lock_owner_value pid "$lock_dir") || return 1
-  process_start=$(provision_lock_owner_value process_start "$lock_dir") || return 1
-  started_at=$(provision_lock_owner_value started_at "$lock_dir") || return 1
-  working_directory=$(provision_lock_owner_value working_directory "$lock_dir") || return 1
-  command=$(provision_lock_owner_value command "$lock_dir") || return 1
+  local owner_dir=$1 pid process_start started_at working_directory command
+  pid=$(provision_lock_owner_value pid "$owner_dir") || return 1
+  process_start=$(provision_lock_owner_value process_start "$owner_dir") || return 1
+  started_at=$(provision_lock_owner_value started_at "$owner_dir") || return 1
+  working_directory=$(provision_lock_owner_value working_directory "$owner_dir") || return 1
+  command=$(provision_lock_owner_value command "$owner_dir") || return 1
   [[ -n "$pid" && -n "$process_start" && -n "$started_at" && -n "$working_directory" && -n "$command" ]]
 }
 
 provision_lock_report_blocked() {
-  local lock_dir=$1 prefix=$2 owner_pid owner_dir owner_command
-  owner_pid=$(provision_lock_owner_value pid "$lock_dir" 2>/dev/null || true)
-  owner_dir=$(provision_lock_owner_value working_directory "$lock_dir" 2>/dev/null || true)
-  owner_command=$(provision_lock_owner_value command "$lock_dir" 2>/dev/null || true)
+  local owner_dir=$1 prefix=$2 owner_pid working_directory owner_command
+  owner_pid=$(provision_lock_owner_value pid "$owner_dir" 2>/dev/null || true)
+  working_directory=$(provision_lock_owner_value working_directory "$owner_dir" 2>/dev/null || true)
+  owner_command=$(provision_lock_owner_value command "$owner_dir" 2>/dev/null || true)
 
   echo "$prefix" >&2
   echo "Owner PID: ${owner_pid:-unknown}" >&2
-  echo "Working directory: ${owner_dir:-unknown}" >&2
+  echo "Working directory: ${working_directory:-unknown}" >&2
   echo "Command: ${owner_command:-unknown}" >&2
 }
 
-provision_lock_quarantine_stale() {
-  local lock_dir=$1 stale_dir="$lock_dir.stale.$$"
-  mv "$lock_dir" "$stale_dir" 2>/dev/null || return 1
-  rm -rf "$stale_dir"
+provision_lock_remove_stale_owner() {
+  local lock_dir=$1 owner_dir=$2
+  case "$owner_dir" in
+    "$lock_dir"/owner-*) ;;
+    *) return 1 ;;
+  esac
+  [[ -d "$owner_dir" ]] || return 1
+  rm -f "$owner_dir/owner"
+  rmdir "$owner_dir" 2>/dev/null || return 1
+  rmdir "$lock_dir" 2>/dev/null || return 1
+}
+
+provision_lock_report_wait() {
+  local owner_dir=$1 message=$2 now=$3
+  provision_lock_report_blocked "$owner_dir" "$message"
+  PROVISION_LOCK_LAST_NOTICE=$now
 }
 
 provision_lock_acquire() {
-  local lock_dir blocked_reported=false last_notice=0 incomplete_since="" now elapsed
+  local lock_dir owner_dir owner_token blocked_reported=false incomplete_since="" now elapsed
   lock_dir=$(provision_lock_path)
   PROVISION_LOCK_WAIT_STARTED=""
+  PROVISION_LOCK_LAST_NOTICE=0
 
   while true; do
     if mkdir "$lock_dir" 2>/dev/null; then
+      owner_token="owner-$$-$(date +%s)-$RANDOM"
+      owner_dir="$lock_dir/$owner_token"
+      if ! mkdir "$owner_dir" 2>/dev/null; then
+        rmdir "$lock_dir" 2>/dev/null || true
+        sleep 2
+        continue
+      fi
+
       PROVISION_LOCK_OWNED=true
-      provision_lock_write_owner "$lock_dir" "$@"
+      PROVISION_LOCK_OWNER_DIR=$owner_dir
+      provision_lock_write_owner "$owner_dir" "$@"
       if [[ -n "$PROVISION_LOCK_WAIT_STARTED" ]]; then
         elapsed=$(($(date +%s) - PROVISION_LOCK_WAIT_STARTED))
         echo "Waited ${elapsed}s for provision lock." >&2
@@ -88,23 +120,22 @@ provision_lock_acquire() {
     if [[ -z "$PROVISION_LOCK_WAIT_STARTED" ]]; then
       PROVISION_LOCK_WAIT_STARTED=$now
     fi
+    owner_dir=$(provision_lock_current_owner_dir "$lock_dir" 2>/dev/null || true)
 
-    if provision_lock_metadata_complete "$lock_dir"; then
+    if [[ -n "$owner_dir" ]] && provision_lock_metadata_complete "$owner_dir"; then
       incomplete_since=""
-      if provision_lock_owner_is_alive "$lock_dir"; then
+      if provision_lock_owner_is_alive "$owner_dir"; then
         if ! $blocked_reported; then
-          provision_lock_report_blocked "$lock_dir" "Another provision is running. Waiting for lock: $lock_dir"
+          provision_lock_report_wait "$owner_dir" "Another provision is running. Waiting for lock: $lock_dir" "$now"
           blocked_reported=true
-          last_notice=$now
-        elif [[ $((now - last_notice)) -ge 30 ]]; then
-          provision_lock_report_blocked "$lock_dir" "Still waiting for provision lock after $((now - PROVISION_LOCK_WAIT_STARTED))s: $lock_dir"
-          last_notice=$now
+        elif [[ $((now - PROVISION_LOCK_LAST_NOTICE)) -ge 30 ]]; then
+          provision_lock_report_wait "$owner_dir" "Still waiting for provision lock after $((now - PROVISION_LOCK_WAIT_STARTED))s: $lock_dir" "$now"
         fi
         sleep 2
         continue
       fi
 
-      if provision_lock_quarantine_stale "$lock_dir"; then
+      if provision_lock_remove_stale_owner "$lock_dir" "$owner_dir"; then
         continue
       fi
     else
@@ -114,21 +145,22 @@ provision_lock_acquire() {
 
       if [[ $((now - incomplete_since)) -lt 5 ]]; then
         if ! $blocked_reported; then
-          provision_lock_report_blocked "$lock_dir" "Another provision is running. Waiting for lock: $lock_dir"
+          provision_lock_report_wait "${owner_dir:-$lock_dir}" "Another provision is running. Waiting for lock: $lock_dir" "$now"
           blocked_reported=true
-          last_notice=$now
-        elif [[ $((now - last_notice)) -ge 30 ]]; then
-          provision_lock_report_blocked "$lock_dir" "Still waiting for provision lock after $((now - PROVISION_LOCK_WAIT_STARTED))s: $lock_dir"
-          last_notice=$now
+        elif [[ $((now - PROVISION_LOCK_LAST_NOTICE)) -ge 30 ]]; then
+          provision_lock_report_wait "${owner_dir:-$lock_dir}" "Still waiting for provision lock after $((now - PROVISION_LOCK_WAIT_STARTED))s: $lock_dir" "$now"
         fi
         sleep 2
         continue
       fi
 
-      if provision_lock_quarantine_stale "$lock_dir"; then
-        incomplete_since=""
-        continue
+      if [[ -n "$owner_dir" ]]; then
+        provision_lock_remove_stale_owner "$lock_dir" "$owner_dir" || true
+      else
+        rmdir "$lock_dir" 2>/dev/null || true
       fi
+      incomplete_since=""
+      continue
     fi
 
     sleep 2
@@ -138,17 +170,20 @@ provision_lock_acquire() {
 provision_lock_release() {
   local lock_dir owner_pid
   [[ "$PROVISION_LOCK_OWNED" == true ]] || return 0
+  [[ -n "$PROVISION_LOCK_OWNER_DIR" ]] || return 0
 
   lock_dir=$(provision_lock_path)
-  if [[ -f "$lock_dir/owner" ]]; then
-    owner_pid=$(provision_lock_owner_value pid "$lock_dir" 2>/dev/null || true)
-    if [[ "$owner_pid" != "$$" ]]; then
-      PROVISION_LOCK_OWNED=false
-      return 0
-    fi
+  owner_pid=$(provision_lock_owner_value pid "$PROVISION_LOCK_OWNER_DIR" 2>/dev/null || true)
+  if [[ "$owner_pid" != "$$" ]]; then
+    PROVISION_LOCK_OWNED=false
+    PROVISION_LOCK_OWNER_DIR=""
+    return 0
   fi
 
-  rm -rf "$lock_dir"
+  rm -f "$PROVISION_LOCK_OWNER_DIR/owner"
+  rmdir "$PROVISION_LOCK_OWNER_DIR" 2>/dev/null || return 1
+  rmdir "$lock_dir" 2>/dev/null || return 1
   PROVISION_LOCK_OWNED=false
+  PROVISION_LOCK_OWNER_DIR=""
   PROVISION_LOCK_WAIT_STARTED=""
 }
