@@ -68,6 +68,14 @@ wait_for_file "$TMP_ROOT/owner-ready" && pass "owner acquires the lock" || fail 
 wait_for_file "$TMP_ROOT/lock" && pass "owner creates the lock directory" || fail "owner creates the lock directory"
 owner_metadata_pid=$(lock_owner_pid "$TMP_ROOT/lock")
 [[ "$owner_metadata_pid" == "$OWNER_PID" ]] && pass "owner helper PID identifies the lock-owning process" || fail "owner helper PID identifies the lock-owning process"
+owner_dir=$(dirname "$(find "$TMP_ROOT/lock" -name owner -type f -print -quit)")
+if [[ -n "$(find "$TMP_ROOT/lock" -prune -perm 0700 -print)" && \
+  -n "$(find "$owner_dir" -prune -perm 0700 -print)" && \
+  -n "$(find "$owner_dir/owner" -prune -perm 0600 -print)" ]]; then
+  pass "owner metadata is private despite the caller umask"
+else
+  fail "owner metadata is private despite the caller umask"
+fi
 
 run_waiter >"$TMP_ROOT/waiter.out" 2>&1 &
 WAITER_PID=$!
