@@ -103,7 +103,7 @@ install_deb() {
     return
   }
 
-  sudo apt-get install -y "$deb"
+  sudo apt-get -o DPkg::Lock::Timeout=300 install -y "$deb"
   record_status "$name" "$version" changed
 }
 
