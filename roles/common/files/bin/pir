@@ -2,8 +2,9 @@
 # pir — resume the Pi session bound to this tmux pane.
 #
 # Reads the pane option @persist_pi_session_file (set by the managed-hooks
-# Pi extension on session_start). If absent or stale, falls back to
-# `pi --continue` (most recent session in cwd).
+# Pi extension on session_start). Errors out if the pane has no bound
+# session — falling back to `pi --continue` could silently resume the
+# wrong session when several run from the same directory.
 set -u
 
 session_file=""
@@ -11,8 +12,14 @@ if [ -n "${TMUX_PANE:-}" ]; then
   session_file=$(tmux show-options -pqv -t "$TMUX_PANE" @persist_pi_session_file 2>/dev/null || true)
 fi
 
-if [ -n "$session_file" ] && [ -f "$session_file" ]; then
-  exec pi --session "$session_file" "$@"
+if [ -z "$session_file" ]; then
+  echo "pir: no Pi session bound to this pane (@persist_pi_session_file unset)" >&2
+  exit 1
 fi
 
-exec pi --continue "$@"
+if [ ! -f "$session_file" ]; then
+  echo "pir: bound Pi session file not found: $session_file" >&2
+  exit 1
+fi
+
+exec pi --session "$session_file" "$@"

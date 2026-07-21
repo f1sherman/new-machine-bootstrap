@@ -19,8 +19,10 @@ to its Pi session.
   clobber the pane binding — analogous to `tmux-claude-session-start`'s
   nested-hook guard. Ephemeral sessions (`--no-session`) are skipped.
 - `roles/common/files/bin/pir`: reads `@persist_pi_session_file`; when set
-  and the file exists, `exec pi --session <file>`. Otherwise falls back to
-  `pi --continue` (most recent session in cwd), same as `cldr`'s fallback.
+  and the file exists, `exec pi --session <file>`. When the pane has no
+  bound session (or the file is gone), `pir` errors out instead of falling
+  back to `pi --continue` — with several sessions running from the same
+  directory, a most-recent fallback silently resumes the wrong session.
 - `roles/common/files/bin/tmux-restore-handler-pi_session_file`: after a
   tmux-resurrect restore, relaunches `pi --session <file>` in the restored
   pane. The `@persist_` prefix means tmux-resurrect-save-extra captures the
