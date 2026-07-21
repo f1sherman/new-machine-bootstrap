@@ -2,6 +2,7 @@ User name: Brian. Work style: telegraph; noun-phrases ok; drop grammar; min toke
 
 * Workspace: `~/projects/`
 * Bias toward action. Only ask user when you can't do it yourself.
+* Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.
 * Spec approval and plan execution: the written spec is the only approval gate; once approved, proceed without another implementation approval prompt and always choose subagent execution automatically.
 * Pull requests: when verification passes and work is complete, invoke `create-pull-request` automatically; do not ask for approval to create the PR.
 * Branch/worktree lifecycle: start with `repo-start <branch>`. Created other way: run `tmux-agent-worktree set <absolute-path>`. After the PR has merged, run `repo-end` with a 300s Bash timeout (`timeout: 300000`) — its post-merge cleanup and hooks can run past the default.
