@@ -5,7 +5,7 @@ PROVISION_LOCK_OWNER_DIR=""
 PROVISION_LOCK_WAIT_STARTED=""
 
 provision_lock_path() {
-  printf '%s\n' "${PROVISION_LOCK_DIR:-${TMPDIR:-/tmp}/new-machine-bootstrap-provision-$(id -u).lock}"
+  printf '%s\n' "${PROVISION_LOCK_DIR:-/tmp/new-machine-bootstrap-provision-$(id -u).lock}"
 }
 
 provision_lock_process_start() {

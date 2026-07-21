@@ -24,7 +24,7 @@ Remote-pi relay, mesh-name, and generic inbound-message behavior is out of scope
 
 `bin/provision` will acquire a per-user, host-local lock before creating or replacing shared provisioning log links and before performing prerequisite or package checks.
 
-The lock will use an atomic directory under `${TMPDIR:-/tmp}` with the numeric user ID in its name. Atomic `mkdir` works with the stock Bash and userland available on both macOS and Debian; unlike `flock`, it requires no provisioned dependency.
+The lock will use an atomic directory under `/tmp` with the numeric user ID in its name. Ignoring process-specific `TMPDIR` values gives every session on the host one canonical lock path. Atomic `mkdir` works with the stock Bash and userland available on both macOS and Debian; unlike `flock`, it requires no provisioned dependency.
 
 After acquisition, the owner writes diagnostic metadata containing its PID, start time, working directory, and command. An `EXIT` trap removes only the lock owned by the current process while preserving the existing final log-location output.
 

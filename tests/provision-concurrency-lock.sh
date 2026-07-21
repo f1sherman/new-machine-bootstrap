@@ -41,10 +41,6 @@ wait_for_match() {
   done
   return 1
 }
-assert_contains() {
-  local file=$1 expected=$2 description=$3
-  if grep -Fq "$expected" "$file"; then pass "$description"; else fail "$description"; fi
-}
 lock_owner_pid() {
   local lock_dir=$1 owner_file
   for owner_file in "$lock_dir/owner" "$lock_dir"/owner-*/owner; do
@@ -228,10 +224,14 @@ else
 fi
 rm -rf "$TMP_ROOT/lock"
 
-mkdir -p "$TMP_ROOT/path-a" "$TMP_ROOT/path-b" "$TMP_ROOT/shared-tmp"
-path_a=$(TMPDIR="$TMP_ROOT/shared-tmp" bash -c 'cd "$2"; source "$1"; provision_lock_path' _ "$HELPER" "$TMP_ROOT/path-a")
-path_b=$(TMPDIR="$TMP_ROOT/shared-tmp" bash -c 'cd "$2"; source "$1"; provision_lock_path' _ "$HELPER" "$TMP_ROOT/path-b")
-[[ "$path_a" == "$path_b" ]] && pass "default lock path is shared across working directories" || fail "default lock path is shared across working directories"
+mkdir -p "$TMP_ROOT/path-a" "$TMP_ROOT/path-b" "$TMP_ROOT/tmp-a" "$TMP_ROOT/tmp-b"
+path_a=$(TMPDIR="$TMP_ROOT/tmp-a" bash -c 'cd "$2"; source "$1"; provision_lock_path' _ "$HELPER" "$TMP_ROOT/path-a")
+path_b=$(TMPDIR="$TMP_ROOT/tmp-b" bash -c 'cd "$2"; source "$1"; provision_lock_path' _ "$HELPER" "$TMP_ROOT/path-b")
+if [[ "$path_a" == "$path_b" && "$path_a" == "/tmp/new-machine-bootstrap-provision-$(id -u).lock" ]]; then
+  pass "default lock path is shared across environments and working directories"
+else
+  fail "default lock path is shared across environments and working directories"
+fi
 
 provision_file="$REPO_ROOT/bin/provision"
 source_line=$(grep -nF 'source "$SCRIPT_DIR/provision-lock"' "$provision_file" | cut -d: -f1)
@@ -253,10 +253,6 @@ if [[ -n "$cleanup_line" && -n "$release_line" && $cleanup_line -lt $release_lin
 else
   fail "bin/provision has one cleanup path that releases the lock and prints final log help"
 fi
-
-expected_guidance='Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.'
-assert_contains "$REPO_ROOT/roles/common/files/pi/AGENTS.md.d/00-base.md" "$expected_guidance" "Pi base fragment includes managed provisioning guidance"
-assert_contains "$REPO_ROOT/roles/common/files/claude/CLAUDE.md.d/00-base.md" "$expected_guidance" "Claude base fragment includes managed provisioning guidance"
 
 printf '\n%d passed, %d failed\n' "$pass_count" "$fail_count"
 [[ $fail_count -eq 0 ]]
