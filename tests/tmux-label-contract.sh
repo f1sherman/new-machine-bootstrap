@@ -821,8 +821,8 @@ for config in \
   "$REPO_ROOT/roles/macos/templates/dotfiles/tmux.conf" \
   "$REPO_ROOT/roles/linux/files/dotfiles/tmux.conf"; do
   assert_file_contains "$config" '#{@pane-label}' "$config bottom bar consumes cached pane label"
-  assert_file_contains "$config" '#{E:@window-indicators}#[fg=colour252]#{window_name}' "$config inactive window expands indicators and restores text color"
-  assert_file_contains "$config" '#{E:@window-indicators}#[fg=black]#{window_name}' "$config current window expands indicators and restores text color"
+  assert_file_contains "$config" '#{E:@window-indicators}#[fg=colour252,nodim]#{window_name}' "$config inactive window expands indicators and restores text color and intensity"
+  assert_file_contains "$config" '#{E:@window-indicators}#[fg=black,nodim]#{window_name}' "$config current window expands indicators and restores text color and intensity"
 done
 assert_file_contains "$REPO_ROOT/roles/common/tasks/main.yml" '- tmux-task-label' "shared task label helper is provisioned"
 
