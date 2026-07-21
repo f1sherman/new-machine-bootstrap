@@ -14,6 +14,7 @@
   apt:
     update_cache: yes
     cache_valid_time: 3600
+    lock_timeout: 300
   become: yes
   retries: 3
   delay: 30
@@ -40,6 +41,7 @@
       - yamllint
       - zsh
     state: present
+    lock_timeout: 300
   become: yes
 
 - name: Create ~/.local/bin directory
@@ -52,6 +54,7 @@
   apt:
     name: fzf
     state: absent
+    lock_timeout: 300
   become: yes
 
 - name: Install pinned GitHub release binaries in parallel
@@ -109,6 +112,7 @@
   apt:
     name: neovim
     state: absent
+    lock_timeout: 300
   become: yes
 
 - name: Check for existing mise binary
