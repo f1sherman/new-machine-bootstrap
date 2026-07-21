@@ -172,9 +172,15 @@ repo_path="$(create_repo label-repo)"
 fallback_repo_label="$(TMUX_PANE_LABEL_HOST_TAG=host-a "$PANE_LABEL" /dev/null "$repo_path" zsh)"
 assert_equals "$fallback_repo_label" "label-repo | host-a" "fallback pane label does not infer repo branch"
 
-assert_equals "$("$GLYPHS" working approved)" "🤖🟢 " "indicator glyphs render working+approved"
+assert_equals "$("$GLYPHS" working approved)" '🤖#[fg=#b5bd68]● ' "indicator glyphs render working+approved"
 assert_equals "$("$GLYPHS" waiting "")" "⏳ " "indicator glyphs render waiting only"
-assert_equals "$("$GLYPHS" "" checks-failing)" "🔴 " "indicator glyphs render pr state only"
+assert_equals "$("$GLYPHS" "" draft)" '#[fg=#808080]● ' "draft indicator matches Pi muted"
+assert_equals "$("$GLYPHS" "" checks-failing)" '#[fg=#cc6666]● ' "checks-failing indicator matches Pi error"
+assert_equals "$("$GLYPHS" "" changes-requested)" '#[fg=#ffff00]● ' "changes-requested indicator matches Pi warning"
+assert_equals "$("$GLYPHS" "" ready-for-review)" '#[fg=#8abeb7]● ' "ready indicator matches Pi accent"
+assert_equals "$("$GLYPHS" "" approved)" '#[fg=#b5bd68]● ' "approved indicator matches Pi success"
+assert_equals "$("$GLYPHS" "" merged)" '#[fg=#8957e5]● ' "merged indicator matches Pi purple"
+assert_equals "$("$GLYPHS" "" closed)" '#[fg=#cf4f4f,dim]● ' "closed indicator matches Pi dim red"
 assert_equals "$("$GLYPHS" "" "")" "" "indicator glyphs render nothing when empty"
 assert_equals "$("$GLYPHS" bogus nonsense)" "" "indicator glyphs ignore unknown values"
 
@@ -404,6 +410,9 @@ case "$1" in
       @pr_state) printf '%s' "${TMUX_TEST_PR_STATE:-}" ;;
     esac
     ;;
+  set-option)
+    printf '%s\n' "$*" >> "$TMUX_WINDOW_LABEL_LOG"
+    ;;
   rename-window)
     printf '%s\n' "$*" >> "$TMUX_WINDOW_LABEL_LOG"
     ;;
@@ -458,17 +467,25 @@ assert_equals "$($TASK_LABEL extract-remote '(feature/x) project | remote-host [
 : > "$window_log"
 TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=working,draft] [nmb-edge=hjl]' \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
-assert_file_contains "$window_log" "rename-window -t @1 🤖⚪ feature/remote" "outer window prefixes glyphs from remote indicator marker"
+assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators 🤖#[fg=#808080]● " "remote marker stores formatted indicators"
+assert_file_contains "$window_log" "rename-window -t @1 feature/remote" "remote marker keeps window name plain"
 
 : > "$window_log"
 TMUX_TEST_TITLE='(feature/remote) project | remote-host' TMUX_TEST_ACTIVITY=waiting TMUX_TEST_PR_STATE=approved \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
-assert_file_contains "$window_log" "rename-window -t @1 ⏳🟢 feature/remote" "outer window prefixes glyphs from local pane options"
+assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators ⏳#[fg=#b5bd68]● " "local pane state stores formatted indicators"
+assert_file_contains "$window_log" "rename-window -t @1 feature/remote" "local pane state keeps window name plain"
 
 : > "$window_log"
 TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=working,draft]' TMUX_TEST_ACTIVITY=waiting \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
-assert_file_contains "$window_log" "rename-window -t @1 ⏳ feature/remote" "local pane options take precedence over remote indicator marker"
+assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators ⏳ " "local pane state wins over remote marker"
+assert_file_contains "$window_log" "rename-window -t @1 feature/remote" "local precedence keeps window name plain"
+
+: > "$window_log"
+TMUX_TEST_TITLE='(feature/remote) project | remote-host' \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" "set-option -wqu -t @1 @window-indicators" "missing state clears formatted indicators"
 
 : > "$window_log"
 TMUX_TEST_COMMAND=zsh TMUX_TEST_WINDOW_LABEL='feature/durable-label' TMUX_TEST_LOCAL_TASK=1 \
@@ -804,7 +821,8 @@ for config in \
   "$REPO_ROOT/roles/macos/templates/dotfiles/tmux.conf" \
   "$REPO_ROOT/roles/linux/files/dotfiles/tmux.conf"; do
   assert_file_contains "$config" '#{@pane-label}' "$config bottom bar consumes cached pane label"
-  assert_file_contains "$config" '#{window_name}' "$config top bar consumes native window name"
+  assert_file_contains "$config" '#{E:@window-indicators}#[fg=colour252]#{window_name}' "$config inactive window expands indicators and restores text color"
+  assert_file_contains "$config" '#{E:@window-indicators}#[fg=black]#{window_name}' "$config current window expands indicators and restores text color"
 done
 assert_file_contains "$REPO_ROOT/roles/common/tasks/main.yml" '- tmux-task-label' "shared task label helper is provisioned"
 
