@@ -6,6 +6,8 @@ HELPER="$REPO_ROOT/bin/provision-lock"
 TMP_ROOT=$(mktemp -d)
 OWNER_PID=""
 WAITER_PID=""
+STALE_CLEANER_PID=""
+SUCCESSOR_PID=""
 cleanup_process() {
   local pid=$1
   [[ -n "$pid" ]] || return 0
@@ -13,6 +15,8 @@ cleanup_process() {
   wait "$pid" 2>/dev/null || true
 }
 cleanup() {
+  cleanup_process "$STALE_CLEANER_PID"
+  cleanup_process "$SUCCESSOR_PID"
   cleanup_process "$WAITER_PID"
   cleanup_process "$OWNER_PID"
   rm -rf "$TMP_ROOT"
@@ -37,6 +41,15 @@ wait_for_match() {
   done
   return 1
 }
+lock_owner_pid() {
+  local lock_dir=$1 owner_file
+  for owner_file in "$lock_dir/owner" "$lock_dir"/owner-*/owner; do
+    [[ -f "$owner_file" ]] || continue
+    awk -F= '$1 == "pid" { print $2; exit }' "$owner_file"
+    return 0
+  done
+  return 1
+}
 
 run_owner() {
   PROVISION_LOCK_DIR="$TMP_ROOT/lock" OWNER_READY="$TMP_ROOT/owner-ready" RELEASE_OWNER="$TMP_ROOT/release-owner" \
@@ -53,7 +66,7 @@ run_owner >"$TMP_ROOT/owner.out" 2>&1 &
 OWNER_PID=$!
 wait_for_file "$TMP_ROOT/owner-ready" && pass "owner acquires the lock" || fail "owner acquires the lock"
 wait_for_file "$TMP_ROOT/lock" && pass "owner creates the lock directory" || fail "owner creates the lock directory"
-owner_metadata_pid=$(awk -F= '$1 == "pid" { print $2; exit }' "$TMP_ROOT/lock/owner")
+owner_metadata_pid=$(lock_owner_pid "$TMP_ROOT/lock")
 [[ "$owner_metadata_pid" == "$OWNER_PID" ]] && pass "owner helper PID identifies the lock-owning process" || fail "owner helper PID identifies the lock-owning process"
 
 run_waiter >"$TMP_ROOT/waiter.out" 2>&1 &
@@ -70,8 +83,8 @@ WAITER_PID=""
 pass "owner and waiter exit cleanly"
 
 rm -rf "$TMP_ROOT/lock" "$TMP_ROOT/owner-ready" "$TMP_ROOT/waiter-ready" "$TMP_ROOT/waiter-started" "$TMP_ROOT/release-owner" "$TMP_ROOT/owner.out" "$TMP_ROOT/waiter.out"
-mkdir -p "$TMP_ROOT/lock"
-cat >"$TMP_ROOT/lock/owner" <<'EOF'
+mkdir -p "$TMP_ROOT/lock/owner-stale-static"
+cat >"$TMP_ROOT/lock/owner-stale-static/owner" <<'EOF'
 pid=999999
 process_start=Mon Jan  1 00:00:00 2001
 started_at=2001-01-01T00:00:00+00:00
@@ -82,7 +95,8 @@ PROVISION_LOCK_DIR="$TMP_ROOT/lock" STALE_READY="$TMP_ROOT/stale-ready" RELEASE_
   bash -c 'source "$1"; trap provision_lock_release EXIT; provision_lock_acquire; touch "$STALE_READY"; while [[ ! -e "$RELEASE_STALE" ]]; do sleep 0.05; done' _ "$HELPER" >"$TMP_ROOT/stale.out" 2>&1 &
 OWNER_PID=$!
 wait_for_file "$TMP_ROOT/stale-ready" && pass "stale lock is replaced" || fail "stale lock is replaced"
-if [[ -f "$TMP_ROOT/lock/owner" ]] && ! grep -Fq 'pid=999999' "$TMP_ROOT/lock/owner"; then
+replacement_pid=$(lock_owner_pid "$TMP_ROOT/lock" 2>/dev/null || true)
+if [[ -n "$replacement_pid" && "$replacement_pid" != 999999 ]]; then
   pass "stale owner metadata is replaced"
 else
   fail "stale owner metadata is replaced"
@@ -90,6 +104,63 @@ fi
 touch "$TMP_ROOT/release-stale"
 wait "$OWNER_PID"
 OWNER_PID=""
+
+rm -rf "$TMP_ROOT/lock" "$TMP_ROOT/stale-cleaner-paused" "$TMP_ROOT/release-stale-cleaner" \
+  "$TMP_ROOT/stale-cleaner-continued" "$TMP_ROOT/stale-cleaner-acquired" \
+  "$TMP_ROOT/successor-ready" "$TMP_ROOT/release-successor"
+mkdir -p "$TMP_ROOT/lock/owner-stale-fixture"
+cat >"$TMP_ROOT/lock/owner-stale-fixture/owner" <<'EOF'
+pid=999999
+process_start=Mon Jan  1 00:00:00 2001
+started_at=2001-01-01T00:00:00+00:00
+working_directory=/stale-race
+command=stale-race
+EOF
+PROVISION_LOCK_DIR="$TMP_ROOT/lock" CLEANER_PAUSED="$TMP_ROOT/stale-cleaner-paused" \
+  RELEASE_CLEANER="$TMP_ROOT/release-stale-cleaner" CLEANER_CONTINUED="$TMP_ROOT/stale-cleaner-continued" \
+  CLEANER_ACQUIRED="$TMP_ROOT/stale-cleaner-acquired" bash -c '
+    source "$1"
+    provision_lock_owner_is_alive() {
+      touch "$CLEANER_PAUSED"
+      while [[ ! -e "$RELEASE_CLEANER" ]]; do sleep 0.01; done
+      touch "$CLEANER_CONTINUED"
+      return 1
+    }
+    trap provision_lock_release EXIT
+    provision_lock_acquire
+    touch "$CLEANER_ACQUIRED"
+    while true; do sleep 1; done
+  ' _ "$HELPER" >"$TMP_ROOT/stale-cleaner.out" 2>&1 &
+STALE_CLEANER_PID=$!
+wait_for_file "$TMP_ROOT/stale-cleaner-paused" || true
+rm -rf "$TMP_ROOT/lock"
+PROVISION_LOCK_DIR="$TMP_ROOT/lock" SUCCESSOR_READY="$TMP_ROOT/successor-ready" \
+  RELEASE_SUCCESSOR="$TMP_ROOT/release-successor" bash -c '
+    source "$1"
+    trap provision_lock_release EXIT
+    provision_lock_acquire
+    touch "$SUCCESSOR_READY"
+    while [[ ! -e "$RELEASE_SUCCESSOR" ]]; do sleep 0.01; done
+  ' _ "$HELPER" >"$TMP_ROOT/successor.out" 2>&1 &
+SUCCESSOR_PID=$!
+wait_for_file "$TMP_ROOT/successor-ready" || true
+touch "$TMP_ROOT/release-stale-cleaner"
+wait_for_file "$TMP_ROOT/stale-cleaner-continued" || true
+for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  [[ -e "$TMP_ROOT/stale-cleaner-acquired" ]] && break
+  sleep 0.05
+done
+replacement_pid=$(lock_owner_pid "$TMP_ROOT/lock" 2>/dev/null || true)
+if [[ "$replacement_pid" == "$SUCCESSOR_PID" && ! -e "$TMP_ROOT/stale-cleaner-acquired" ]]; then
+  pass "stale cleaner cannot remove a concurrently installed successor lock"
+else
+  fail "stale cleaner cannot remove a concurrently installed successor lock"
+fi
+cleanup_process "$STALE_CLEANER_PID"
+STALE_CLEANER_PID=""
+touch "$TMP_ROOT/release-successor"
+wait "$SUCCESSOR_PID"
+SUCCESSOR_PID=""
 
 rm -rf "$TMP_ROOT/lock" "$TMP_ROOT/owner-ready" "$TMP_ROOT/waiter-ready" "$TMP_ROOT/waiter-started" "$TMP_ROOT/release-owner" "$TMP_ROOT/owner.out" "$TMP_ROOT/waiter.out"
 run_owner >"$TMP_ROOT/owner.out" 2>&1 &
@@ -126,8 +197,8 @@ rm -rf "$TMP_ROOT/lock"
 if PROVISION_LOCK_DIR="$TMP_ROOT/lock" bash -c '
   source "$1"
   provision_lock_acquire
-  grep -v "^pid=" "$PROVISION_LOCK_DIR/owner" > "$PROVISION_LOCK_DIR/owner.tmp"
-  mv "$PROVISION_LOCK_DIR/owner.tmp" "$PROVISION_LOCK_DIR/owner"
+  grep -v "^pid=" "$PROVISION_LOCK_OWNER_DIR/owner" > "$PROVISION_LOCK_OWNER_DIR/owner.tmp"
+  mv "$PROVISION_LOCK_OWNER_DIR/owner.tmp" "$PROVISION_LOCK_OWNER_DIR/owner"
   provision_lock_release
   [[ -d "$PROVISION_LOCK_DIR" ]]
 ' _ "$HELPER"; then
