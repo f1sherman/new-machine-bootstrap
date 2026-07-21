@@ -297,6 +297,7 @@
     - tmux-agent-state
     - tmux-agent-subject
     - tmux-task-label
+    - tmux-indicator-glyphs
     - tmux-window-label
     - tmux-sync-pane-border-status
     - tmux-reconcile-status-bars

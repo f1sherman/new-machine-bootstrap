@@ -81,9 +81,14 @@ strip_edge_marker() {
   printf '%s\n' "${1% \[nmb-edge=*]}"
 }
 
+strip_ind_marker() {
+  printf '%s\n' "$1" | sed -E 's/ \[nmb-ind=[^]]*\]//'
+}
+
 structured_remote_label() {
   local title nested_title prefix
   title="$(strip_edge_marker "$1")"
+  title="$(strip_ind_marker "$title")"
   case "$title" in
     *" | "*) ;;
     *) return 1 ;;

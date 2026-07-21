@@ -14,6 +14,7 @@ REMOTE_TITLE="$BIN_DIR/tmux-remote-title"
 SYNC_REMOTE_TITLE="$BIN_DIR/tmux-sync-remote-title"
 UPDATE_PANE_LABEL="$BIN_DIR/tmux-update-pane-label"
 TASK_LABEL="$BIN_DIR/tmux-task-label"
+GLYPHS="$BIN_DIR/tmux-indicator-glyphs"
 
 TMPROOT="$(mktemp -d)"
 
@@ -171,6 +172,12 @@ repo_path="$(create_repo label-repo)"
 fallback_repo_label="$(TMUX_PANE_LABEL_HOST_TAG=host-a "$PANE_LABEL" /dev/null "$repo_path" zsh)"
 assert_equals "$fallback_repo_label" "label-repo | host-a" "fallback pane label does not infer repo branch"
 
+assert_equals "$("$GLYPHS" working approved)" "🤖🟢 " "indicator glyphs render working+approved"
+assert_equals "$("$GLYPHS" waiting "")" "⏳ " "indicator glyphs render waiting only"
+assert_equals "$("$GLYPHS" "" checks-failing)" "🔴 " "indicator glyphs render pr state only"
+assert_equals "$("$GLYPHS" "" "")" "" "indicator glyphs render nothing when empty"
+assert_equals "$("$GLYPHS" bogus nonsense)" "" "indicator glyphs ignore unknown values"
+
 remote_edge_title="$(TMUX_PANE= TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=tmux TMUX_REMOTE_TITLE_EDGE_FLAGS=hj "$REMOTE_TITLE" print)"
 assert_equals "$remote_edge_title" "label-repo | remote-host [nmb-edge=hj]" "remote title publishes tmux edge marker"
 
@@ -179,6 +186,12 @@ assert_equals "$remote_vim_title" "label-repo | remote-host" "remote title suppr
 
 remote_suppressed_title="$(TMUX_PANE= TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=zsh TMUX_REMOTE_TITLE_EDGE_FLAGS=hj TMUX_REMOTE_TITLE_SUPPRESS_EDGE=1 "$REMOTE_TITLE" print)"
 assert_equals "$remote_suppressed_title" "label-repo | remote-host" "remote title can suppress stale edge marker while commands run"
+
+remote_ind_title="$(TMUX_PANE= TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=zsh TMUX_REMOTE_TITLE_ACTIVITY=working TMUX_REMOTE_TITLE_PR_STATE=draft "$REMOTE_TITLE" print)"
+assert_equals "$remote_ind_title" "label-repo | remote-host [nmb-ind=working,draft]" "remote title publishes indicator marker"
+
+remote_ind_edge_title="$(TMUX_PANE= TMUX_REMOTE_TITLE_PANE_PATH="$repo_path" TMUX_REMOTE_TITLE_CLIENT_TTY=/dev/null TMUX_REMOTE_TITLE_PANE_TTY=/dev/null TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_REMOTE_TITLE_PANE_COMMAND=tmux TMUX_REMOTE_TITLE_EDGE_FLAGS=hj TMUX_REMOTE_TITLE_ACTIVITY=waiting "$REMOTE_TITLE" print)"
+assert_equals "$remote_ind_edge_title" "label-repo | remote-host [nmb-ind=waiting,] [nmb-edge=hj]" "indicator marker precedes edge marker"
 
 remote_task_tmux_dir="$TMPROOT/remote-task-tmux-bin"
 mkdir -p "$remote_task_tmux_dir"
@@ -387,6 +400,8 @@ case "$1" in
       @task_state) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'active' ;;
       @task_source) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'branch' ;;
       @task_label) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'feature/durable-label' ;;
+      @agent_activity) printf '%s' "${TMUX_TEST_ACTIVITY:-}" ;;
+      @pr_state) printf '%s' "${TMUX_TEST_PR_STATE:-}" ;;
     esac
     ;;
   rename-window)
@@ -438,6 +453,22 @@ for remote_case in \
   assert_file_contains "$window_log" "rename-window -t @1 $expected" "outer window applies exact remote task contract: $expected"
 done
 assert_equals "$($TASK_LABEL extract-remote '(feature/a)b) project | remote-host')" 'feature/a)b' "remote parser preserves branch closing parenthesis"
+assert_equals "$($TASK_LABEL extract-remote '(feature/x) project | remote-host [nmb-ind=working,draft] [nmb-edge=hj]')" 'feature/x' "remote parser strips indicator marker"
+
+: > "$window_log"
+TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=working,draft] [nmb-edge=hjl]' \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" "rename-window -t @1 🤖⚪ feature/remote" "outer window prefixes glyphs from remote indicator marker"
+
+: > "$window_log"
+TMUX_TEST_TITLE='(feature/remote) project | remote-host' TMUX_TEST_ACTIVITY=waiting TMUX_TEST_PR_STATE=approved \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" "rename-window -t @1 ⏳🟢 feature/remote" "outer window prefixes glyphs from local pane options"
+
+: > "$window_log"
+TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=working,draft]' TMUX_TEST_ACTIVITY=waiting \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" "rename-window -t @1 ⏳ feature/remote" "local pane options take precedence over remote indicator marker"
 
 : > "$window_log"
 TMUX_TEST_COMMAND=zsh TMUX_TEST_WINDOW_LABEL='feature/durable-label' TMUX_TEST_LOCAL_TASK=1 \
