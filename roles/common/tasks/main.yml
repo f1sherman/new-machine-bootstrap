@@ -257,6 +257,13 @@
     src: '{{ playbook_dir }}/roles/common/files/bin/cdxr'
     mode: 0755
 
+- name: Install pir script
+  copy:
+    backup: yes
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/pir'
+    src: '{{ playbook_dir }}/roles/common/files/bin/pir'
+    mode: 0755
+
 - name: Install hnp script
   copy:
     backup: yes
