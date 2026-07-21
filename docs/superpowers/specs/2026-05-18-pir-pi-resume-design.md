@@ -5,19 +5,31 @@
 Add a `pir` command mirroring `cldr` (Claude) and `cdxr` (Codex) that resumes
 the most recent Pi session for the current directory.
 
+Multiple Pi sessions often run from the same directory, so `pi --continue`
+alone would resume the wrong session. Like `cldr`, `pir` binds each tmux pane
+to its Pi session.
+
 ## Design
 
-- `roles/common/files/bin/pir`: thin bash wrapper, `exec pi --continue "$@"`.
-  Pi's `--continue` flag resumes the previous session scoped to the project
-  directory, so no session-id lookup is needed.
-- Unlike `cldr`/`cdxr`, there is no tmux pane session binding for Pi yet, so
-  `pir` has no pane-option branch. If Pi pane binding lands later, `pir` can
-  grow a `--session <id>` path the same way `cldr` uses
-  `@persist_claude_session_id`.
-- Deployed via the common role (`Install pir script` task) to
-  `~/.local/bin/pir`, same pattern as `cldr`/`cdxr`.
+- `roles/common/files/pi/extensions/managed-hooks.ts`: on `session_start`
+  (startup, `/new`, `/resume`, fork), set the pane option
+  `@persist_pi_session_file` to `ctx.sessionManager.getSessionFile()`.
+  Guarded by `process.stdout.isTTY` so nested / non-interactive pi
+  invocations (subagent children, `pi -p`) that inherit `TMUX_PANE` do not
+  clobber the pane binding — analogous to `tmux-claude-session-start`'s
+  nested-hook guard. Ephemeral sessions (`--no-session`) are skipped.
+- `roles/common/files/bin/pir`: reads `@persist_pi_session_file`; when set
+  and the file exists, `exec pi --session <file>`. Otherwise falls back to
+  `pi --continue` (most recent session in cwd), same as `cldr`'s fallback.
+- `roles/common/files/bin/tmux-restore-handler-pi_session_file`: after a
+  tmux-resurrect restore, relaunches `pi --session <file>` in the restored
+  pane. The `@persist_` prefix means tmux-resurrect-save-extra captures the
+  option automatically; the handler mirrors
+  `tmux-restore-handler-claude_session_id`.
+- Deployed via the common role (`Install pir script` task + scripts list)
+  to `~/.local/bin`, same pattern as `cldr`/`cdxr`.
 
 ## Out of scope
 
-- tmux pane binding / session-id persistence for Pi.
-- Worktree cwd resolution (cdxr-style); `pi --continue` already keys off cwd.
+- Worktree cwd resolution (cdxr-style); the pane binding covers the
+  multi-session-per-directory case and `pi --continue` covers the rest.

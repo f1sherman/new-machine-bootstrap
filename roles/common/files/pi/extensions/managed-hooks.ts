@@ -98,6 +98,17 @@ async function syncSessionNameFromTmux(pi, ctx) {
   }
 }
 
+async function bindPaneSessionFile(pi, ctx) {
+  if (!inTmux()) return;
+  // Nested / non-interactive pi invocations (subagent children, `pi -p`)
+  // inherit TMUX_PANE but run without a TTY; they must not clobber the
+  // pane's session binding used by `pir`.
+  if (!process.stdout.isTTY) return;
+  const sessionFile = ctx?.sessionManager?.getSessionFile?.() || "";
+  if (!sessionFile) return;
+  await exec(pi, "tmux", ["set-option", "-p", "-t", process.env.TMUX_PANE, "@persist_pi_session_file", sessionFile]);
+}
+
 async function boundWorktreePath(pi, fallbackCwd) {
   const statePath = readState("@agent_worktree_path");
   if (statePath) return statePath;
@@ -527,6 +538,7 @@ export default function managedHooks(pi) {
     if (!inTmux()) return;
     await refreshTmuxLabels(pi);
     await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);
+    await bindPaneSessionFile(pi, ctx);
     await syncSessionNameFromTmux(pi, ctx);
   });
 

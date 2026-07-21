@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -u
+
+pane="${1:-}"
+session_file="${2:-}"
+[ -n "$pane" ] && [ -n "$session_file" ] || exit 0
+[ -f "$session_file" ] || exit 0
+
+# Verify target pane is alive; if it has been killed between save and
+# restore, exit silently rather than spamming an error.
+live="$(tmux display-message -p -t "$pane" '#{pane_id}' 2>/dev/null || true)"
+[ -n "$live" ] || exit 0
+
+tmux send-keys -t "$pane" "pi --session $(printf '%q' "$session_file")" Enter
