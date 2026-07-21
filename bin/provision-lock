@@ -59,13 +59,16 @@ provision_lock_owner_is_alive() {
 provision_lock_write_owner() {
   local owner_dir=$1
   shift || true
-  {
-    printf 'pid=%s\n' "$$"
-    printf 'process_start=%s\n' "$(provision_lock_process_start "$$")"
-    printf 'started_at=%s\n' "$(date -Iseconds)"
-    printf 'working_directory=%s\n' "$PWD"
-    printf 'command=%s\n' "$0${*:+ }$*"
-  } > "$owner_dir/owner"
+  (
+    umask 077
+    {
+      printf 'pid=%s\n' "$$"
+      printf 'process_start=%s\n' "$(provision_lock_process_start "$$")"
+      printf 'started_at=%s\n' "$(date -Iseconds)"
+      printf 'working_directory=%s\n' "$PWD"
+      printf 'command=%s\n' "$0${*:+ }$*"
+    } > "$owner_dir/owner"
+  )
 }
 
 provision_lock_metadata_complete() {
@@ -115,10 +118,10 @@ provision_lock_acquire() {
   PROVISION_LOCK_LAST_NOTICE=0
 
   while true; do
-    if mkdir "$lock_dir" 2>/dev/null; then
+    if (umask 077 && mkdir "$lock_dir") 2>/dev/null; then
       owner_token="owner-$$-$(provision_lock_process_start_checksum "$$")-$(date +%s)-$RANDOM"
       owner_dir="$lock_dir/$owner_token"
-      if ! mkdir "$owner_dir" 2>/dev/null; then
+      if ! (umask 077 && mkdir "$owner_dir") 2>/dev/null; then
         rmdir "$lock_dir" 2>/dev/null || true
         sleep 2
         continue
