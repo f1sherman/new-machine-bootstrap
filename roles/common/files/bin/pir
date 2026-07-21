@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# pir — resume the most recent Pi session for the current directory.
+#
+# Mirrors cldr/cdxr for Pi. Pi has no tmux pane session binding yet, so
+# this simply continues the last session in cwd via `pi --continue`.
+set -u
+
+exec pi --continue "$@"
