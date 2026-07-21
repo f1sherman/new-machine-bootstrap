@@ -171,6 +171,7 @@
 - name: "{{ binary_name }} | Install .deb package"
   apt:
     deb: "{{ _gh_deb_tempfile.path }}"
+    lock_timeout: 300
   become: yes
   when: _gh_needs_update and (download_type | default('binary')) == 'deb' and _gh_deb_depcheck.rc | default(0) == 0
 

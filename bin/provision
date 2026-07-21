@@ -92,7 +92,9 @@ install_ansible() {
     execute_command "brew install ansible"
   elif command_exists apt-get; then
     log_info "Installing Ansible via apt-get..."
-    execute_command "sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ansible"
+    # DPkg::Lock::Timeout makes apt wait for the dpkg lock instead of failing
+    # when another apt process (e.g. devcontainer lifecycle hooks) holds it.
+    execute_command "sudo apt-get -o DPkg::Lock::Timeout=300 update && sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300 install -y ansible"
   else
     log_error "Unsupported platform for automatic Ansible installation"
     exit 1
