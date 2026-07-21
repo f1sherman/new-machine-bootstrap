@@ -41,6 +41,10 @@ wait_for_match() {
   done
   return 1
 }
+assert_contains() {
+  local file=$1 expected=$2 description=$3
+  if grep -Fq "$expected" "$file"; then pass "$description"; else fail "$description"; fi
+}
 lock_owner_pid() {
   local lock_dir=$1 owner_file
   for owner_file in "$lock_dir/owner" "$lock_dir"/owner-*/owner; do
@@ -232,6 +236,10 @@ if [[ -n "$cleanup_line" && -n "$release_line" && $cleanup_line -lt $release_lin
 else
   fail "bin/provision has one cleanup path that releases the lock and prints final log help"
 fi
+
+expected_guidance='Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.'
+assert_contains "$REPO_ROOT/roles/common/files/pi/AGENTS.md.d/00-base.md" "$expected_guidance" "Pi base fragment includes managed provisioning guidance"
+assert_contains "$REPO_ROOT/roles/common/files/claude/CLAUDE.md.d/00-base.md" "$expected_guidance" "Claude base fragment includes managed provisioning guidance"
 
 printf '\n%d passed, %d failed\n' "$pass_count" "$fail_count"
 [[ $fail_count -eq 0 ]]
