@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
-# pir — resume the most recent Pi session for the current directory.
+# pir — resume the Pi session bound to this tmux pane.
 #
-# Mirrors cldr/cdxr for Pi. Pi has no tmux pane session binding yet, so
-# this simply continues the last session in cwd via `pi --continue`.
+# Reads the pane option @persist_pi_session_file (set by the managed-hooks
+# Pi extension on session_start). If absent or stale, falls back to
+# `pi --continue` (most recent session in cwd).
 set -u
+
+session_file=""
+if [ -n "${TMUX_PANE:-}" ]; then
+  session_file=$(tmux show-options -pqv -t "$TMUX_PANE" @persist_pi_session_file 2>/dev/null || true)
+fi
+
+if [ -n "$session_file" ] && [ -f "$session_file" ]; then
+  exec pi --session "$session_file" "$@"
+fi
 
 exec pi --continue "$@"
