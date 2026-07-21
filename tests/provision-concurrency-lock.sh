@@ -132,8 +132,7 @@ PROVISION_LOCK_DIR="$TMP_ROOT/lock" CLEANER_PAUSED="$TMP_ROOT/stale-cleaner-paus
     while true; do sleep 1; done
   ' _ "$HELPER" >"$TMP_ROOT/stale-cleaner.out" 2>&1 &
 STALE_CLEANER_PID=$!
-wait_for_file "$TMP_ROOT/stale-cleaner-paused" || true
-rm -rf "$TMP_ROOT/lock"
+wait_for_file "$TMP_ROOT/stale-cleaner-paused"
 PROVISION_LOCK_DIR="$TMP_ROOT/lock" SUCCESSOR_READY="$TMP_ROOT/successor-ready" \
   RELEASE_SUCCESSOR="$TMP_ROOT/release-successor" bash -c '
     source "$1"
@@ -143,9 +142,9 @@ PROVISION_LOCK_DIR="$TMP_ROOT/lock" SUCCESSOR_READY="$TMP_ROOT/successor-ready" 
     while [[ ! -e "$RELEASE_SUCCESSOR" ]]; do sleep 0.01; done
   ' _ "$HELPER" >"$TMP_ROOT/successor.out" 2>&1 &
 SUCCESSOR_PID=$!
-wait_for_file "$TMP_ROOT/successor-ready" || true
+wait_for_file "$TMP_ROOT/successor-ready"
 touch "$TMP_ROOT/release-stale-cleaner"
-wait_for_file "$TMP_ROOT/stale-cleaner-continued" || true
+wait_for_file "$TMP_ROOT/stale-cleaner-continued"
 for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
   [[ -e "$TMP_ROOT/stale-cleaner-acquired" ]] && break
   sleep 0.05
