@@ -81,11 +81,11 @@ assert_file_contains "$window_log" "set-option -wqu -t @1 @window-indicators" "m
 For each tmux config, require these exact format fragments:
 
 ```bash
-'#{E:@window-indicators}#[fg=colour252]#{window_name}'
-'#{E:@window-indicators}#[fg=black]#{window_name}'
+'#{E:@window-indicators}#[fg=colour252,nodim]#{window_name}'
+'#{E:@window-indicators}#[fg=black,nodim]#{window_name}'
 ```
 
-Inactive format restores `colour252`; current format restores `black`.
+Inactive format restores `colour252`; current format restores `black`. Both restore `nodim` to reset closed-state intensity before the plain label and bell marker.
 
 - [ ] **Step 4: Run the contract test and verify the new assertions fail**
 
@@ -134,11 +134,11 @@ Leave `label` plain. Perform option management before the existing rename equali
 Use these exact lines in both platform files:
 
 ```tmux
-set -g window-status-format ' #{E:@window-indicators}#[fg=colour252]#{window_name}#{?window_bell_flag,!,} '
-set -g window-status-current-format ' #{E:@window-indicators}#[fg=black]#{window_name}#{?window_bell_flag,!,} '
+set -g window-status-format ' #{E:@window-indicators}#[fg=colour252,nodim]#{window_name}#{?window_bell_flag,!,} '
+set -g window-status-current-format ' #{E:@window-indicators}#[fg=black,nodim]#{window_name}#{?window_bell_flag,!,} '
 ```
 
-Foreground restoration occurs after indicator expansion and before the plain name, preserving each tab's existing background and bold style.
+Foreground and `nodim` restoration occurs after indicator expansion and before the plain name, preserving each tab's existing background and bold style while resetting closed-state intensity before the label and bell marker.
 
 - [ ] **Step 8: Run the full contract test**
 
@@ -197,7 +197,7 @@ Expected: both commands exit zero.
 
 ```bash
 tmux show-options -wqv -t "$TMUX_PANE" @window-indicators
-tmux display-message -p -t "$TMUX_PANE" '#{E:@window-indicators}#[fg=black]#{window_name}'
+tmux display-message -p -t "$TMUX_PANE" '#{E:@window-indicators}#[fg=black,nodim]#{window_name}'
 ```
 
 Expected: when this pane has PR state, the option contains an activity emoji and/or `#[fg=#RRGGBB]● ` while `#{window_name}` stays plain. Tmux expands the option in the tab rather than displaying raw syntax.

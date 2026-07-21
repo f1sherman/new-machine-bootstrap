@@ -483,9 +483,10 @@ assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators ⏳ 
 assert_file_contains "$window_log" "rename-window -t @1 feature/remote" "local precedence keeps window name plain"
 
 : > "$window_log"
-TMUX_TEST_TITLE='(feature/remote) project | remote-host' \
+TMUX_TEST_WINDOW_NAME='feature/remote' TMUX_TEST_TITLE='(feature/remote) project | remote-host' \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
-assert_file_contains "$window_log" "set-option -wqu -t @1 @window-indicators" "missing state clears formatted indicators"
+assert_file_contains "$window_log" "set-option -wqu -t @1 @window-indicators" "missing state clears formatted indicators when plain label is unchanged"
+assert_file_not_contains "$window_log" "rename-window" "unchanged plain label does not trigger a rename"
 
 : > "$window_log"
 TMUX_TEST_COMMAND=zsh TMUX_TEST_WINDOW_LABEL='feature/durable-label' TMUX_TEST_LOCAL_TASK=1 \
