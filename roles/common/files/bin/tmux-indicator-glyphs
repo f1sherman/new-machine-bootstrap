@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Maps agent-activity and PR-state names to tmux tab glyphs. Prints the glyph
+# prefix (with trailing space) or nothing when neither value maps.
+activity="${1:-}"
+pr_state="${2:-}"
+out=""
+
+case "$activity" in
+  working) out+="🤖" ;;
+  waiting) out+="⏳" ;;
+esac
+
+case "$pr_state" in
+  draft) out+="⚪" ;;
+  checks-failing) out+="🔴" ;;
+  changes-requested) out+="🟡" ;;
+  ready-for-review) out+="🔵" ;;
+  approved) out+="🟢" ;;
+  merged) out+="🟣" ;;
+  closed) out+="⚫" ;;
+esac
+
+if [ -n "$out" ]; then
+  printf '%s ' "$out"
+fi
+exit 0

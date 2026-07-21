@@ -6,6 +6,8 @@ pane_id="${1:-${TMUX_PANE:-}}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 task_label_helper="${TMUX_TASK_LABEL_BIN:-$script_dir/tmux-task-label}"
 [ -x "$task_label_helper" ] || task_label_helper="${HOME:-}/.local/bin/tmux-task-label"
+glyphs_helper="${TMUX_INDICATOR_GLYPHS_BIN:-$script_dir/tmux-indicator-glyphs}"
+[ -x "$glyphs_helper" ] || glyphs_helper="${HOME:-}/.local/bin/tmux-indicator-glyphs"
 
 pane_info="$(tmux display-message -p -t "$pane_id" '#{window_id}	#{pane_active}	#{window_name}	#{pane_tty}	#{pane_current_path}	#{pane_current_command}	#{pane_title}	#{pane_id}' 2>/dev/null || true)"
 [ -n "$pane_info" ] || exit 0
@@ -13,6 +15,28 @@ pane_info="$(tmux display-message -p -t "$pane_id" '#{window_id}	#{pane_active}	
 IFS=$'\t' read -r window_id pane_active window_name pane_tty pane_current_path pane_current_command pane_title pane_id <<< "$pane_info"
 [ -n "$window_id" ] || exit 0
 [ "$pane_active" = "1" ] || exit 0
+
+strip_ind_marker() {
+  printf '%s\n' "${1:-}" | sed -E 's/ \[nmb-ind=[^]]*\]//'
+}
+
+ind_activity=""
+ind_pr_state=""
+capture_ind_marker() {
+  local title="${1:-}" values
+  case "$title" in
+    *"[nmb-ind="*"]"*) ;;
+    *) return 0 ;;
+  esac
+  values="${title##*\[nmb-ind=}"
+  values="${values%%]*}"
+  ind_activity="${values%%,*}"
+  ind_pr_state="${values#*,}"
+}
+capture_ind_marker "$pane_title"
+[ -n "$ind_activity$ind_pr_state" ] || capture_ind_marker "$window_name"
+pane_title="$(strip_ind_marker "$pane_title")"
+window_name="$(strip_ind_marker "$window_name")"
 
 cached_window_label="$(tmux show-options -qv -p -t "$pane_id" "@window-label" 2>/dev/null || true)"
 task_state="$(tmux show-options -qv -p -t "$pane_id" "@task_state" 2>/dev/null || true)"
@@ -93,6 +117,7 @@ if [ -z "$label" ] && is_remote_candidate_command "$pane_current_command"; then
   if [ -z "$label" ]; then
     structured_marker="$(tmux show-options -qv -p -t "$pane_id" "@pane-title-structured" 2>/dev/null || true)"
     cached_pane_label="$(tmux show-options -qv -p -t "$pane_id" "@pane-label" 2>/dev/null || true)"
+    cached_pane_label="$(strip_ind_marker "$cached_pane_label")"
     if [ -n "$structured_marker" ] && is_structured_remote_label "$cached_pane_label"; then
       label="$(task_from_remote_label "$cached_pane_label" 2>/dev/null || true)"
       [ -z "$label" ] || task_label_resolved="1"
@@ -120,6 +145,18 @@ if [ -z "$cached_window_label" ] && [ -z "$task_label_resolved" ]; then
   label="$(strip_host_suffix "$label")"
 fi
 [ -n "$label" ] || exit 0
+
+activity="$(tmux show-options -qv -p -t "$pane_id" "@agent_activity" 2>/dev/null || true)"
+pr_state="$(tmux show-options -qv -p -t "$pane_id" "@pr_state" 2>/dev/null || true)"
+if [ -z "$activity" ] && [ -z "$pr_state" ]; then
+  activity="$ind_activity"
+  pr_state="$ind_pr_state"
+fi
+if { [ -n "$activity" ] || [ -n "$pr_state" ]; } && [ -x "$glyphs_helper" ]; then
+  glyphs="$("$glyphs_helper" "$activity" "$pr_state" 2>/dev/null || true)"
+  label="${glyphs}${label}"
+fi
+
 [ "$label" != "$window_name" ] || exit 0
 
 tmux rename-window -t "$window_id" "$label" 2>/dev/null || true
