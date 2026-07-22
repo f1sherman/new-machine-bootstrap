@@ -58,8 +58,10 @@ Dir.mktmpdir("pi-managed-aube-contract") do |dir|
     abort "FAIL  rendered mise config must pin Pi #{pi_version.inspect} with an aube dependency, got #{parsed_pi_config.inspect}"
   end
 
-  package_manager_output, package_manager_status = Open3.capture2e(env, mise_bin, "-C", dir, "config", "get", "settings.npm.package_manager")
-  abort "FAIL  mise could not parse npm package manager setting:\n#{package_manager_output}" unless package_manager_status.success?
+  package_manager_output, package_manager_error, package_manager_status = Open3.capture3(
+    env, mise_bin, "-C", dir, "config", "get", "settings.npm.package_manager"
+  )
+  abort "FAIL  mise could not parse npm package manager setting:\n#{package_manager_output}#{package_manager_error}" unless package_manager_status.success?
   abort "FAIL  mise npm package manager must be aube" unless package_manager_output.strip == "aube"
 
   zdotdir = File.join(dir, "zdotdir")
