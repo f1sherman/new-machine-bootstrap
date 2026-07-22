@@ -5,7 +5,7 @@ REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TMP_ROOT=$(mktemp -d)
 cleanup() { rm -rf "$TMP_ROOT"; }
 trap cleanup EXIT
-mkdir -p "$TMP_ROOT/bin" "$TMP_ROOT/home" "$TMP_ROOT/logs" "$TMP_ROOT/state"
+mkdir -p "$TMP_ROOT/bin" "$TMP_ROOT/home" "$TMP_ROOT/logs" "$TMP_ROOT/state" "$TMP_ROOT/no-git-bin" "$TMP_ROOT/no-git-logs" "$TMP_ROOT/no-git-state"
 
 cat > "$TMP_ROOT/bin/ansible-playbook" <<'EOF'
 #!/bin/bash
@@ -24,7 +24,11 @@ cat > "$TMP_ROOT/bin/say" <<'EOF'
 #!/bin/bash
 exit 0
 EOF
-chmod +x "$TMP_ROOT/bin/"*
+cat > "$TMP_ROOT/no-git-bin/git" <<'EOF'
+#!/bin/bash
+exit 1
+EOF
+chmod +x "$TMP_ROOT/bin/"* "$TMP_ROOT/no-git-bin/git"
 
 expected_root=$(cd "$REPO_ROOT" && pwd -P)
 expected_branch=$(git -C "$REPO_ROOT" symbolic-ref --short -q HEAD || printf 'detached')
@@ -42,7 +46,7 @@ fi
   XDG_STATE_HOME="$TMP_ROOT/state" \
   PROVISION_LOG_DIR="$TMP_ROOT/logs" \
   PROVISION_LOCK_DIR="$TMP_ROOT/lock" \
-  bin/provision --check
+  bin/provision --check --extra-vars ansible_become_pass=unique-secret --tags provenance
 ) > "$TMP_ROOT/output" 2>&1
 
 log_path=$(readlink "$TMP_ROOT/logs/provision-latest.log")
@@ -51,7 +55,27 @@ grep -Fq "Provision source worktree: $expected_root" "$log_path"
 grep -Fq "Provision source branch: $expected_branch" "$log_path"
 grep -Fq "Provision source commit: $expected_commit" "$log_path"
 grep -Fq "Provision source repository state: $expected_state" "$log_path"
-grep -Fq 'Provision invocation arguments: --check' "$log_path"
+grep -Fq 'Provision invocation arguments: --check --extra-vars ansible_become_pass=[REDACTED] --tags provenance' "$log_path"
+grep -Fq 'Executing command: ansible-playbook --inventory localhost, --connection local playbook.yml --check --extra-vars ansible_become_pass=[REDACTED] --tags provenance' "$log_path"
+! grep -Fq 'unique-secret' "$log_path"
 grep -Eq 'Provision started at: [0-9]{4}-[0-9]{2}-[0-9]{2}T' "$log_path"
 grep -Fq 'localhost                  : ok=1 changed=0 unreachable=0 failed=0' "$log_path"
-printf 'PASS  provision log records source provenance and Ansible result\n'
+printf 'PASS  provision log records source provenance, redacts secrets, and keeps later args visible\n'
+
+(
+  cd "$REPO_ROOT"
+  PATH="$TMP_ROOT/no-git-bin:$TMP_ROOT/bin:$PATH" \
+  HOME="$TMP_ROOT/home" \
+  XDG_STATE_HOME="$TMP_ROOT/no-git-state" \
+  PROVISION_LOG_DIR="$TMP_ROOT/no-git-logs" \
+  PROVISION_LOCK_DIR="$TMP_ROOT/no-git-lock" \
+  bin/provision --check
+) > "$TMP_ROOT/no-git-output" 2>&1
+
+no_git_log_path=$(readlink "$TMP_ROOT/no-git-logs/provision-latest.log")
+[[ -f "$no_git_log_path" ]]
+grep -Fq 'Provision source worktree: unknown' "$no_git_log_path"
+grep -Fq 'Provision source branch: unknown' "$no_git_log_path"
+grep -Fq 'Provision source commit: unknown' "$no_git_log_path"
+grep -Fq 'Provision source repository state: unknown' "$no_git_log_path"
+printf 'PASS  provision log falls back to unknown provenance when git is unavailable\n'
