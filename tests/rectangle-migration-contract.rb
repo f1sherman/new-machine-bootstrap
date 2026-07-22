@@ -67,10 +67,12 @@ shortcut_command = shortcut_task&.fetch("command", "")&.split&.join(" ")
 expected_command = "defaults write com.knollsoft.Rectangle {{ item.action }} -dict keyCode -int {{ item.key_code }} modifierFlags -int {{ item.modifier_flags }}"
 abort "FAIL  Rectangle shortcut writer differs" unless shortcut_command == expected_command
 abort "FAIL  Rectangle shortcut writer has wrong loop" unless shortcut_task["loop"] == "{{ rectangle_shortcuts }}"
+abort "FAIL  Rectangle shortcut writer is not idempotent" unless shortcut_task["changed_when"] == false
 
 cleanup_task = default_tasks.find { |task| task["name"] == "Remove SizeUp preferences" }
 abort "FAIL  missing SizeUp defaults cleanup" unless cleanup_task
 abort "FAIL  wrong SizeUp defaults cleanup command" unless cleanup_task["command"] == "defaults delete com.irradiatedsoftware.SizeUp"
-abort "FAIL  SizeUp cleanup is not idempotent" unless cleanup_task["changed_when"] == "sizeup_preferences_removed.rc == 0" && cleanup_task["failed_when"] == "sizeup_preferences_removed.rc not in [0, 1]"
+abort "FAIL  SizeUp cleanup is not idempotent" unless cleanup_task["changed_when"] == "sizeup_preferences_removed.rc == 0"
+abort "FAIL  SizeUp cleanup accepts unexpected errors" unless cleanup_task["failed_when"] == "sizeup_preferences_removed.rc != 0 and 'does not exist' not in sizeup_preferences_removed.stderr"
 
 puts "PASS  SizeUp to Rectangle migration contract"

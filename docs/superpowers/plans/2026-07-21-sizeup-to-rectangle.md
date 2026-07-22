@@ -47,15 +47,34 @@ main_tasks = YAML.safe_load_file(File.join(repo_root, "roles/macos/tasks/main.ym
 default_tasks = YAML.safe_load_file(File.join(repo_root, "roles/macos/tasks/defaults.yml"))
 default_vars = YAML.safe_load_file(File.join(repo_root, "roles/macos/vars/defaults.yml"))
 
+stop_sizeup = main_tasks.find { |task| task["name"] == "Stop SizeUp before removal" }
+abort "FAIL  missing SizeUp stop task" unless stop_sizeup
+abort "FAIL  wrong SizeUp stop command" unless stop_sizeup["command"] == "pkill -x SizeUp"
+abort "FAIL  SizeUp stop result is not registered" unless stop_sizeup["register"] == "sizeup_stopped"
+abort "FAIL  SizeUp stop is not idempotent" unless stop_sizeup["changed_when"] == "sizeup_stopped.rc == 0" && stop_sizeup["failed_when"] == "sizeup_stopped.rc not in [0, 1]"
+
 remove_sizeup = main_tasks.find { |task| task["name"] == "Remove SizeUp cask" }
 abort "FAIL  missing SizeUp cask removal" unless remove_sizeup&.dig("homebrew_cask") == {
   "name" => "sizeup",
   "state" => "absent"
 }
 
+install_rectangle = main_tasks.find { |task| task["name"] == "Install Rectangle cask" }
+abort "FAIL  missing dedicated Rectangle cask installation" unless install_rectangle&.dig("homebrew_cask") == {
+  "name" => "rectangle",
+  "state" => "present"
+}
+
+stop_index = main_tasks.index(stop_sizeup)
+remove_index = main_tasks.index(remove_sizeup)
+rectangle_index = main_tasks.index(install_rectangle)
 install_casks = main_tasks.find { |task| task["name"] == "Install Brew casks" }
+install_casks_index = main_tasks.index(install_casks)
+abort "FAIL  SizeUp is not stopped before cask removal" unless stop_index < remove_index
+abort "FAIL  Rectangle dedicated install is ordered incorrectly" unless remove_index < rectangle_index && rectangle_index < install_casks_index
+
 managed_casks = install_casks&.dig("homebrew_cask", "name") || []
-abort "FAIL  Rectangle cask is not installed" unless managed_casks.include?("rectangle")
+abort "FAIL  Rectangle remains in general cask installation" if managed_casks.include?("rectangle")
 abort "FAIL  SizeUp remains in installed casks" if managed_casks.include?("sizeup")
 
 macos_defaults = default_vars.fetch("macos_defaults")
@@ -87,11 +106,13 @@ shortcut_command = shortcut_task&.fetch("command", "")&.split&.join(" ")
 expected_command = "defaults write com.knollsoft.Rectangle {{ item.action }} -dict keyCode -int {{ item.key_code }} modifierFlags -int {{ item.modifier_flags }}"
 abort "FAIL  Rectangle shortcut writer differs" unless shortcut_command == expected_command
 abort "FAIL  Rectangle shortcut writer has wrong loop" unless shortcut_task["loop"] == "{{ rectangle_shortcuts }}"
+abort "FAIL  Rectangle shortcut writer is not idempotent" unless shortcut_task["changed_when"] == false
 
 cleanup_task = default_tasks.find { |task| task["name"] == "Remove SizeUp preferences" }
 abort "FAIL  missing SizeUp defaults cleanup" unless cleanup_task
 abort "FAIL  wrong SizeUp defaults cleanup command" unless cleanup_task["command"] == "defaults delete com.irradiatedsoftware.SizeUp"
-abort "FAIL  SizeUp cleanup is not idempotent" unless cleanup_task["changed_when"] == "sizeup_preferences_removed.rc == 0" && cleanup_task["failed_when"] == "sizeup_preferences_removed.rc not in [0, 1]"
+abort "FAIL  SizeUp cleanup is not idempotent" unless cleanup_task["changed_when"] == "sizeup_preferences_removed.rc == 0"
+abort "FAIL  SizeUp cleanup accepts unexpected errors" unless cleanup_task["failed_when"] == "sizeup_preferences_removed.rc != 0 and 'does not exist' not in sizeup_preferences_removed.stderr"
 
 puts "PASS  SizeUp to Rectangle migration contract"
 ```
@@ -111,30 +132,31 @@ Run:
 ruby tests/rectangle-migration-contract.rb
 ```
 
-Expected: exits nonzero with `FAIL  missing SizeUp cask removal`.
+Expected: exits nonzero with `FAIL  missing SizeUp stop task`.
 
 - [ ] **Step 3: Implement package replacement**
 
 In `roles/macos/tasks/main.yml`, add before `Install Brew casks`:
 
 ```yaml
+- name: Stop SizeUp before removal
+  command: pkill -x SizeUp
+  register: sizeup_stopped
+  changed_when: sizeup_stopped.rc == 0
+  failed_when: sizeup_stopped.rc not in [0, 1]
+
 - name: Remove SizeUp cask
   homebrew_cask:
     name: sizeup
     state: absent
+
+- name: Install Rectangle cask
+  homebrew_cask:
+    name: rectangle
+    state: present
 ```
 
-In the existing cask list, replace:
-
-```yaml
-      'sizeup',
-```
-
-with:
-
-```yaml
-      'rectangle',
-```
+Remove `sizeup` from the existing aggregate cask list. Keep both `sizeup` and `rectangle` out of that list.
 
 - [ ] **Step 4: Implement Rectangle settings and SizeUp preference cleanup**
 
@@ -176,7 +198,9 @@ In `roles/macos/tasks/defaults.yml`, add immediately after the scalar defaults l
   command: defaults delete com.irradiatedsoftware.SizeUp
   register: sizeup_preferences_removed
   changed_when: sizeup_preferences_removed.rc == 0
-  failed_when: sizeup_preferences_removed.rc not in [0, 1]
+  failed_when: >-
+    sizeup_preferences_removed.rc != 0 and
+    'does not exist' not in sizeup_preferences_removed.stderr
 ```
 
 - [ ] **Step 5: Run focused tests and syntax checks**
