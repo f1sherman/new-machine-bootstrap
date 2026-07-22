@@ -94,6 +94,7 @@ const blockedCommands = [
   ["python writable open", `python3 -c "open('${path.join(primary, "tracked")}', 'w').write('changed')"`],
   ["ruby write", `ruby -e "File.write('${path.join(primary, "tracked")}', 'changed')"`],
   ["node write", `node -e "require('fs').writeFileSync('${path.join(primary, "tracked")}', 'changed')"`],
+  ["shell-wrapped remove", `bash -c 'rm ${path.join(primary, "tracked")}'`],
 ];
 
 for (const [label, command] of blockedCommands) {
