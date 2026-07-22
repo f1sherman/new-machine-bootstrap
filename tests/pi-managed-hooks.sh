@@ -40,9 +40,29 @@ let windowLabel = "pi main-repo";
 let agentWorktreePath = "/repo/main-repo";
 let managedPiSessionName = "";
 let taskStatus = "";
+const goalChildCalls = [];
+let goalChildResults = [];
+let goalChildDeferred;
 
 const ok = (stdout = "") => ({ stdout, stderr: "", code: 0, killed: false });
 const fail = () => ({ stdout: "", stderr: "", code: 1, killed: false });
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+async function flushAsyncWork() {
+  for (let index = 0; index < 8; index += 1) await new Promise((resolve) => setImmediate(resolve));
+}
+
+function isGoalChildArgs(args) {
+  const systemPromptIndex = args.indexOf("--system-prompt");
+  const systemPrompt = systemPromptIndex === -1 ? "" : args[systemPromptIndex + 1];
+  return systemPrompt.includes("session's broad goal");
+}
+
 let subjectChildResult = ok("improve tmux labels\n");
 let subjectChildError;
 let subjectChildExecOptions;
@@ -74,6 +94,11 @@ const pi = {
     }
     if (command === "tmux") return fail();
     if (command === "pi") {
+      if (isGoalChildArgs(args)) {
+        goalChildCalls.push({ args, options });
+        if (goalChildDeferred) return goalChildDeferred.promise;
+        return goalChildResults.shift() ?? ok("KEEP\n");
+      }
       subjectChildExecOptions = options;
       if (subjectChildError) throw subjectChildError;
       return subjectChildResult;
@@ -215,7 +240,7 @@ for (const prompt of subjectChildPrompts) {
     systemPromptOptions: { cwd: "/repo" },
   }, { cwd: "/repo", signal: subjectSignal });
   assert.equal(automaticSubject, undefined, `${prompt} prompt adds no main-context reminder`);
-  const childCall = calls.find((call) => call.command === "pi");
+  const childCall = calls.find((call) => call.command === "pi" && !isGoalChildArgs(call.args));
   assert.ok(childCall, `${prompt} invokes isolated Pi child`);
   assert.deepEqual(childCall.args.slice(0, -1), [
     "--mode", "text",
@@ -294,7 +319,7 @@ const completedAutomaticSubject = await handlers.get("before_agent_start")({
   systemPromptOptions: { cwd: "/repo" },
 }, { cwd: "/repo" });
 assert.equal(completedAutomaticSubject, undefined, "completed task is automatically relabeled");
-assert.ok(calls.some((call) => call.command === "pi"), "completed task invokes isolated Pi child");
+assert.ok(calls.some((call) => call.command === "pi" && !isGoalChildArgs(call.args)), "completed task invokes isolated Pi child");
 
 for (const state of ["provisional\tagent\tshort subject\n", "active\tbranch\tfeature/current\n"]) {
   taskStatus = state;
@@ -305,8 +330,98 @@ for (const state of ["provisional\tagent\tshort subject\n", "active\tbranch\tfea
     systemPromptOptions: { cwd: "/repo" },
   }, { cwd: "/repo" });
   assert.equal(currentTaskResult, undefined, `${state.split("\t")[0]} task skips subject reminder`);
-  assert.equal(calls.some((call) => call.command === "pi"), false, `${state.split("\t")[0]} task skips subject child`);
+  assert.equal(calls.some((call) => call.command === "pi" && !isGoalChildArgs(call.args)), false, `${state.split("\t")[0]} task skips subject child`);
 }
+
+taskStatus = "active\tbranch\tfeature/current\n";
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "persistent Pi session goals" } },
+];
+await handlers.get("session_start")({ reason: "resume" }, ctx);
+
+goalChildCalls.length = 0;
+goalChildDeferred = deferred();
+const nonblocking = handlers.get("before_agent_start")({
+  prompt: "also cover lifecycle failures",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+assert.equal(await Promise.race([
+  nonblocking.then(() => "returned"),
+  new Promise((resolve) => setTimeout(() => resolve("blocked"), 25)),
+]), "returned", "goal evaluation does not block before_agent_start");
+assert.equal(goalChildCalls.length, 1, "every expanded prompt starts goal evaluation");
+assert.match(goalChildCalls[0].args.at(-1), /Current goal: persistent Pi session goals/);
+assert.match(goalChildCalls[0].args.at(-1), /New user prompt: also cover lifecycle failures/);
+
+goalChildDeferred.resolve(ok("durable Pi goal lifecycle\n"));
+goalChildDeferred = undefined;
+await flushAsyncWork();
+assert.deepEqual(customEntries.at(-1), {
+  customType: "session-goal",
+  data: { subject: "durable Pi goal lifecycle" },
+}, "changed goal is persisted as a custom entry");
+assert.deepEqual(statuses.at(-1), {
+  key: "session-goal",
+  value: "goal: durable Pi goal lifecycle",
+}, "changed goal updates the status bar");
+
+const entriesAfterChange = customEntries.length;
+goalChildResults.push(ok("KEEP\n"));
+await handlers.get("before_agent_start")({
+  prompt: "continue",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.equal(customEntries.length, entriesAfterChange, "KEEP does not append duplicate state");
+
+for (const invalidOutput of [
+  "\n",
+  "first\nsecond\n",
+  "goal: prefixed\n",
+  "\"quoted subject\"\n",
+  `${"x".repeat(81)}\n`,
+  "control\u0007subject\n",
+]) {
+  goalChildResults.push(ok(invalidOutput));
+  await handlers.get("before_agent_start")({
+    prompt: "invalid output case",
+    systemPrompt: "",
+    systemPromptOptions: { cwd: "/repo" },
+  }, ctx);
+  await flushAsyncWork();
+}
+assert.equal(customEntries.length, entriesAfterChange, "invalid goal outputs are never persisted");
+
+goalChildCalls.length = 0;
+customEntries.length = 0;
+goalChildDeferred = deferred();
+await handlers.get("before_agent_start")({
+  prompt: "first redirect",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await handlers.get("before_agent_start")({
+  prompt: "second redirect",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await handlers.get("before_agent_start")({
+  prompt: "final redirect",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+assert.equal(goalChildCalls.length, 1, "only one goal child runs concurrently");
+
+goalChildResults.push(ok("final session theme\n"));
+goalChildDeferred.resolve(ok("stale session theme\n"));
+goalChildDeferred = undefined;
+await flushAsyncWork();
+assert.equal(goalChildCalls.length, 2, "rapid prompts collapse to one pending evaluation");
+assert.match(goalChildCalls[1].args.at(-1), /New user prompt: final redirect/);
+assert.equal(customEntries.some((entry) => entry.data.subject === "stale session theme"), false, "stale running output is discarded");
+assert.equal(customEntries.at(-1).data.subject, "final session theme", "newest pending output applies");
 
 taskStatus = "";
 for (const [name, result] of [

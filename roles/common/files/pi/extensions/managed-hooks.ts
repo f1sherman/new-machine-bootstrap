@@ -6,6 +6,13 @@ const SUBJECT_CHILD_TIMEOUT_MS = 15000;
 const SUBJECT_CHILD_MODEL = "openai-codex/gpt-5.4-mini";
 const SUBJECT_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.";
 const SUBJECT_MAX_LENGTH = 512;
+const SESSION_GOAL_CHILD_SYSTEM_PROMPT = [
+  "Track the session's broad goal.",
+  "Given the current goal and newest user prompt, return KEEP when the broad goal is unchanged.",
+  "Otherwise return one concise noun phrase of at most 80 characters.",
+  "Output only KEEP or the phrase on one line, without quotes, a goal: prefix, or explanation.",
+].join(" ");
+const SESSION_GOAL_MAX_LENGTH = 80;
 const SESSION_GOAL_ENTRY_TYPE = "session-goal";
 const SESSION_GOAL_STATUS_KEY = "session-goal";
 const SESSION_GOAL_PLACEHOLDER = "determining…";
@@ -559,8 +566,112 @@ function renderSessionGoal(ctx) {
   );
 }
 
+function normalizeGoalChildOutput(output, hasCurrentGoal) {
+  if (typeof output !== "string" || output.includes("\n") || output.includes("\r")) return undefined;
+  const value = output.trim().replace(/ +/g, " ");
+  if (value === "KEEP") return hasCurrentGoal ? { kind: "keep" } : undefined;
+  if (!value || value.length > SESSION_GOAL_MAX_LENGTH) return undefined;
+  if (/\p{Cc}/u.test(value) || /^goal\s*:/i.test(value)) return undefined;
+  if (/^["'`]|["'`]$/.test(value)) return undefined;
+  return { kind: "subject", subject: value };
+}
+
+async function evaluateSessionGoal(pi, request, signal) {
+  const current = request.currentGoal || "(none)";
+  const framedPrompt = `Current goal: ${current}\nNew user prompt: ${request.prompt}`;
+  return pi.exec("pi", [
+    "--mode", "text",
+    "--print",
+    "--no-session",
+    "--model", SUBJECT_CHILD_MODEL,
+    "--thinking", "off",
+    "--no-tools",
+    "--no-extensions",
+    "--no-skills",
+    "--no-prompt-templates",
+    "--no-themes",
+    "--no-context-files",
+    "--no-approve",
+    "--system-prompt", SESSION_GOAL_CHILD_SYSTEM_PROMPT,
+    framedPrompt,
+  ], { cwd: request.cwd, timeout: SUBJECT_CHILD_TIMEOUT_MS, signal });
+}
+
 export default function managedHooks(pi) {
+  let sessionGoalGeneration = 0;
+  let sessionGoalSequence = 0;
+  let sessionGoalRunning = false;
+  let pendingSessionGoalRequest;
+  let sessionGoalAbortController;
+
+  function requestIsCurrent(request, ctx) {
+    const sessionFile = ctx?.sessionManager?.getSessionFile?.() || "";
+    return request.generation === sessionGoalGeneration && request.sessionFile === sessionFile;
+  }
+
+  function applySessionGoal(pi, ctx, subject) {
+    if (subject === currentSessionGoal) return;
+    pi.appendEntry(SESSION_GOAL_ENTRY_TYPE, { subject });
+    currentSessionGoal = subject;
+    renderSessionGoal(ctx);
+  }
+
+  async function drainSessionGoalQueue(pi) {
+    if (sessionGoalRunning) return;
+    const drainGeneration = sessionGoalGeneration;
+    sessionGoalRunning = true;
+    try {
+      while (drainGeneration === sessionGoalGeneration && pendingSessionGoalRequest) {
+        const request = pendingSessionGoalRequest;
+        pendingSessionGoalRequest = undefined;
+        sessionGoalAbortController = new AbortController();
+
+        let result;
+        try {
+          result = await evaluateSessionGoal(pi, request, sessionGoalAbortController.signal);
+        } catch (error) {
+          result = { code: 1, killed: false, error };
+        }
+
+        if (pendingSessionGoalRequest?.sequence > request.sequence) continue;
+        if (!requestIsCurrent(request, request.ctx)) continue;
+        if (result.code !== 0 || result.killed) continue;
+
+        const normalized = normalizeGoalChildOutput(result.stdout.trimEnd(), Boolean(currentSessionGoal));
+        if (!normalized || normalized.kind === "keep") continue;
+        try {
+          applySessionGoal(pi, request.ctx, normalized.subject);
+        } catch (error) {
+          warn("persist session goal failed", error);
+        }
+      }
+    } finally {
+      if (drainGeneration !== sessionGoalGeneration) return;
+      sessionGoalAbortController = undefined;
+      sessionGoalRunning = false;
+      if (pendingSessionGoalRequest) void drainSessionGoalQueue(pi);
+    }
+  }
+
+  function queueSessionGoalEvaluation(pi, prompt, cwd, ctx) {
+    pendingSessionGoalRequest = {
+      sequence: ++sessionGoalSequence,
+      generation: sessionGoalGeneration,
+      sessionFile: ctx?.sessionManager?.getSessionFile?.() || "",
+      currentGoal: currentSessionGoal,
+      prompt,
+      cwd,
+      ctx,
+    };
+    void drainSessionGoalQueue(pi);
+  }
+
   pi.on("session_start", async (_event, ctx) => {
+    sessionGoalGeneration += 1;
+    pendingSessionGoalRequest = undefined;
+    sessionGoalAbortController?.abort();
+    sessionGoalAbortController = undefined;
+    sessionGoalRunning = false;
     currentSessionGoal = restoreSessionGoal(ctx);
     renderSessionGoal(ctx);
     if (!inTmux()) return;
@@ -573,6 +684,7 @@ export default function managedHooks(pi) {
   pi.on("before_agent_start", async (event, ctx) => {
     const notes = [];
     const cwd = await boundWorktreePath(pi, event.systemPromptOptions.cwd || ctx.cwd);
+    queueSessionGoalEvaluation(pi, event.prompt, cwd, ctx);
 
     if (REPO_START_TRIGGERS.test(event.prompt) && await onMainBranch(pi, cwd)) {
       notes.push("You are on main. Before changing files, run `repo-start <branch>` and continue from the created worktree.");
