@@ -431,12 +431,12 @@ function worktreeCommandBlockReason(command) {
   return "";
 }
 
-async function activeBranchTask(pi) {
-  if (!inTmux()) return false;
+async function goalMayNameSession(pi) {
+  if (!inTmux()) return true;
   const result = await exec(pi, "tmux-agent-state", ["status"]);
   if (result.code !== 0) return false;
   const [state, source] = result.stdout.trim().split("\t");
-  return state === "active" && source === "branch";
+  return state !== "active" || source !== "branch";
 }
 
 async function needsSubjectReminder(pi) {
@@ -563,10 +563,17 @@ async function updateCurrentSpecFromBash(pi, event, ctx) {
   await setCurrentSpec(pi, specPaths[0]);
 }
 
+function normalizeSessionGoalSubject(value) {
+  if (typeof value !== "string" || value.includes("\n") || value.includes("\r")) return "";
+  const subject = value.trim().replace(/ +/g, " ");
+  if (!subject || subject === "KEEP" || subject.length > SESSION_GOAL_MAX_LENGTH) return "";
+  if (/\p{Cc}/u.test(subject) || /^goal\s*:/i.test(subject) || /["'`]/.test(subject)) return "";
+  return subject;
+}
+
 function storedSessionGoal(entry) {
   if (entry?.type !== "custom" || entry.customType !== SESSION_GOAL_ENTRY_TYPE) return "";
-  const subject = entry.data?.subject;
-  return typeof subject === "string" ? subject : "";
+  return normalizeSessionGoalSubject(entry.data?.subject);
 }
 
 function restoreSessionGoal(ctx) {
@@ -589,10 +596,8 @@ function normalizeGoalChildOutput(output, hasCurrentGoal) {
   if (typeof output !== "string" || output.includes("\n") || output.includes("\r")) return undefined;
   const value = output.trim().replace(/ +/g, " ");
   if (value === "KEEP") return hasCurrentGoal ? { kind: "keep" } : undefined;
-  if (!value || value.length > SESSION_GOAL_MAX_LENGTH) return undefined;
-  if (/\p{Cc}/u.test(value) || /^goal\s*:/i.test(value)) return undefined;
-  if (/["'`]/.test(value)) return undefined;
-  return { kind: "subject", subject: value };
+  const subject = normalizeSessionGoalSubject(value);
+  return subject ? { kind: "subject", subject } : undefined;
 }
 
 function sessionGoalFailureDetails(value) {
@@ -710,7 +715,7 @@ export default function managedHooks(pi) {
           continue;
         }
         recordSessionGoalSuccess();
-        if (changed && !await activeBranchTask(pi)) {
+        if (changed && await goalMayNameSession(pi)) {
           try {
             await setManagedPiSessionName(pi, request.ctx, normalized.subject);
           } catch (error) {
@@ -738,13 +743,17 @@ export default function managedHooks(pi) {
     void drainSessionGoalQueue(pi);
   }
 
-  pi.on("session_start", async (_event, ctx) => {
+  function resetSessionGoalLifecycle(ctx) {
     sessionGoalGeneration += 1;
     pendingSessionGoalRequest = undefined;
     sessionGoalAbortController?.abort();
     consecutiveSessionGoalFailures = 0;
     currentSessionGoal = restoreSessionGoal(ctx);
     renderSessionGoal(ctx);
+  }
+
+  pi.on("session_start", async (_event, ctx) => {
+    resetSessionGoalLifecycle(ctx);
     if (!inTmux()) return;
     await refreshTmuxLabels(pi);
     await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);
@@ -756,6 +765,10 @@ export default function managedHooks(pi) {
     sessionGoalGeneration += 1;
     pendingSessionGoalRequest = undefined;
     sessionGoalAbortController?.abort();
+  });
+
+  pi.on("session_tree", async (_event, ctx) => {
+    resetSessionGoalLifecycle(ctx);
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
