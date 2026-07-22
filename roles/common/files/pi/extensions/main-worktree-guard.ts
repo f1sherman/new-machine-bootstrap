@@ -247,6 +247,7 @@ function redirectionTargets(segment) {
       continue;
     }
     if (character !== ">") continue;
+    const duplicatesDescriptor = segment[index + 1] === "&";
     if ([">", "|", "&"].includes(segment[index + 1])) index += 1;
     while (/\s/.test(segment[index + 1] || "")) index += 1;
     const delimiter = segment[index + 1];
@@ -267,7 +268,7 @@ function redirectionTargets(segment) {
       }
       index -= 1;
     }
-    if (target) targets.push(target);
+    if (target && !(duplicatesDescriptor && /^\d+-?$|^-$/.test(target))) targets.push(target);
   }
   return targets;
 }
