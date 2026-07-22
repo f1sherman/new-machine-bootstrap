@@ -162,6 +162,8 @@ for (const command of allowedCommands) {
   assert.equal(await call("bash", { command }, feature), undefined, `allows: ${command}`);
 }
 
+assert.equal(await call("bash", { command: "git status 2>&1" }, primary), undefined, "allows descriptor duplication from primary main");
+
 assert.equal(fs.readFileSync(path.join(primary, "tracked"), "utf8"), "", "guard inspection never mutates primary fixture");
 console.log("pi main worktree guard checks complete");
 NODE
