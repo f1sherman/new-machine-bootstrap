@@ -27,13 +27,13 @@ assert_contains() {
   pass_case "$name"
 }
 assert_task_order() {
-  local file="$1" name="$2"
-  if ! awk '
-    /- name: Install tmux plugins via tpm/ { seen_install = 1 }
-    seen_install && /- name: Install tmux-resurrect Neovim restore strategy/ { found_after = 1 }
-    END { exit !(seen_install && found_after) }
+  local file="$1" before="$2" after="$3" name="$4"
+  if ! awk -v before="$before" -v after="$after" '
+    index($0, before) { seen_before = 1 }
+    seen_before && index($0, after) { found_after = 1 }
+    END { exit !(seen_before && found_after) }
   ' "$file"; then
-    fail_case "$name" "strategy install task missing after tpm task in $file"
+    fail_case "$name" "expected '$after' after '$before' in $file"
   fi
   pass_case "$name"
 }
@@ -65,13 +65,13 @@ else
   fail_case 'CI invokes tmux-resurrect Neovim space-path test' 'missing workflow step'
 fi
 
-assert_task_order "$MACOS_TASKS" 'macOS installs strategy after tpm'
+assert_task_order "$MACOS_TASKS" 'Recover any wiped tmux-resurrect scripts from git' 'Install tmux-resurrect Neovim restore strategy' 'macOS installs strategy after recovery'
 assert_contains "$MACOS_TASKS" "    src: '{{ playbook_dir }}/roles/common/files/tmux-resurrect-strategies/nvim_nmb.sh'" 'macOS copies shared strategy source'
 assert_contains "$MACOS_TASKS" "    dest: '{{ ansible_facts[\"user_dir\"] }}/.tmux/plugins/tmux-resurrect/strategies/nvim_nmb.sh'" 'macOS copies strategy into tmux-resurrect'
 assert_contains "$MACOS_TASKS" "    mode: '0755'" 'macOS strategy copy is executable'
 assert_contains "$MACOS_TMUX_CONF" "set -g @resurrect-strategy-nvim 'nmb'" 'macOS tmux config selects nmb strategy'
 
-assert_task_order "$LINUX_TASKS" 'Linux installs strategy after tpm'
+assert_task_order "$LINUX_TASKS" 'Install tmux plugins via tpm' 'Install tmux-resurrect Neovim restore strategy' 'Linux installs strategy after tpm'
 assert_contains "$LINUX_TASKS" "    src: '{{ playbook_dir }}/roles/common/files/tmux-resurrect-strategies/nvim_nmb.sh'" 'Linux copies shared strategy source'
 assert_contains "$LINUX_TASKS" "    dest: '{{ ansible_facts[\"user_dir\"] }}/.tmux/plugins/tmux-resurrect/strategies/nvim_nmb.sh'" 'Linux copies strategy into tmux-resurrect'
 assert_contains "$LINUX_TASKS" "    mode: '0755'" 'Linux strategy copy is executable'

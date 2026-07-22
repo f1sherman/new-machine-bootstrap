@@ -221,12 +221,6 @@
     executable: /bin/bash
     creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
 
-- name: Install tmux-resurrect Neovim restore strategy
-  copy:
-    src: '{{ playbook_dir }}/roles/common/files/tmux-resurrect-strategies/nvim_nmb.sh'
-    dest: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect/strategies/nvim_nmb.sh'
-    mode: '0755'
-
 # Recover any deleted files in the tmux-resurrect plugin. The plugin's
 # entrypoint `resurrect.tmux` sets `@resurrect-save-script-path` via
 # `set_script_path_options`; if the file goes missing, continuum's auto-save
@@ -238,6 +232,12 @@
   register: resurrect_git_restore
   changed_when: resurrect_git_restore.stdout != "" or resurrect_git_restore.stderr != ""
   failed_when: false
+
+- name: Install tmux-resurrect Neovim restore strategy
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/tmux-resurrect-strategies/nvim_nmb.sh'
+    dest: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect/strategies/nvim_nmb.sh'
+    mode: '0755'
 
 # tmux-continuum ships an auto-start-at-login feature for macOS that we
 # don't use. The upstream osx_enable.sh / osx_disable.sh scripts run on
