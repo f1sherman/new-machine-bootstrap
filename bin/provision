@@ -59,13 +59,14 @@ log_error() {
 }
 
 redact_logged_arguments() {
-  local arg
+  local arg prefix
   local -a redacted=()
 
   for arg in "$@"; do
     case "$arg" in
-      ansible_become_pass=*)
-        redacted+=("ansible_become_pass=[REDACTED]")
+      *ansible_become_pass=*)
+        prefix=${arg%%ansible_become_pass=*}
+        redacted+=("${prefix}ansible_become_pass=[REDACTED]")
         ;;
       *)
         redacted+=("$arg")

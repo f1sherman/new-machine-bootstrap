@@ -46,7 +46,9 @@ fi
   XDG_STATE_HOME="$TMP_ROOT/state" \
   PROVISION_LOG_DIR="$TMP_ROOT/logs" \
   PROVISION_LOCK_DIR="$TMP_ROOT/lock" \
-  bin/provision --check --extra-vars ansible_become_pass=unique-secret --tags provenance
+  bin/provision --check --extra-vars ansible_become_pass=unique-secret \
+    --extra-vars=ansible_become_pass=equals-secret \
+    -eansible_become_pass=compact-secret --tags provenance
 ) > "$TMP_ROOT/output" 2>&1
 
 log_path=$(readlink "$TMP_ROOT/logs/provision-latest.log")
@@ -55,9 +57,9 @@ grep -Fq "Provision source worktree: $expected_root" "$log_path"
 grep -Fq "Provision source branch: $expected_branch" "$log_path"
 grep -Fq "Provision source commit: $expected_commit" "$log_path"
 grep -Fq "Provision source repository state: $expected_state" "$log_path"
-grep -Fq 'Provision invocation arguments: --check --extra-vars ansible_become_pass=[REDACTED] --tags provenance' "$log_path"
-grep -Fq 'Executing command: ansible-playbook --inventory localhost, --connection local playbook.yml --check --extra-vars ansible_become_pass=[REDACTED] --tags provenance' "$log_path"
-! grep -Fq 'unique-secret' "$log_path"
+grep -Fq 'Provision invocation arguments: --check --extra-vars ansible_become_pass=[REDACTED] --extra-vars=ansible_become_pass=[REDACTED] -eansible_become_pass=[REDACTED] --tags provenance' "$log_path"
+grep -Fq 'Executing command: ansible-playbook --inventory localhost, --connection local playbook.yml --check --extra-vars ansible_become_pass=[REDACTED] --extra-vars=ansible_become_pass=[REDACTED] -eansible_become_pass=[REDACTED] --tags provenance' "$log_path"
+! grep -Eq 'unique-secret|equals-secret|compact-secret' "$log_path"
 grep -Eq 'Provision started at: [0-9]{4}-[0-9]{2}-[0-9]{2}T' "$log_path"
 grep -Fq 'localhost                  : ok=1 changed=0 unreachable=0 failed=0' "$log_path"
 printf 'PASS  provision log records source provenance, redacts secrets, and keeps later args visible\n'
