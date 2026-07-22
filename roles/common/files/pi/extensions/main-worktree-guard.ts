@@ -7,6 +7,7 @@ const FILE_MUTATORS = new Set([
   "truncate", "patch", "chmod", "chown",
 ]);
 const DESTINATION_ONLY_MUTATORS = new Set(["cp", "install", "ln"]);
+const TARGET_DIRECTORY_MUTATORS = new Set(["cp", "install", "ln", "mv"]);
 const GIT_WORKTREE_MUTATORS = new Set([
   "restore", "clean", "reset", "checkout", "switch", "apply",
 ]);
@@ -21,8 +22,9 @@ function expandHome(filePath) {
   return filePath;
 }
 
-function probeDirs(filePath, fallbackCwd) {
+function probeDirs(filePath, fallbackCwd, followFinalSymlink = true) {
   const expanded = expandHome(filePath || fallbackCwd);
+  const absolute = path.isAbsolute(expanded) ? expanded : path.resolve(fallbackCwd, expanded);
   let probe = path.isAbsolute(expanded) ? expanded : path.resolve(fallbackCwd, expanded);
   let lexical = "";
   while (probe !== path.dirname(probe)) {
@@ -37,10 +39,11 @@ function probeDirs(filePath, fallbackCwd) {
   }
   if (!lexical) lexical = fs.existsSync(probe) ? probe : fallbackCwd;
 
-  probe = path.isAbsolute(expanded) ? expanded : path.resolve(fallbackCwd, expanded);
+  probe = absolute;
+  const finalIsSymlink = fs.existsSync(absolute) && fs.lstatSync(absolute).isSymbolicLink();
   while (!fs.existsSync(probe) && probe !== path.dirname(probe)) probe = path.dirname(probe);
   let resolved = "";
-  if (fs.existsSync(probe)) {
+  if (fs.existsSync(probe) && (followFinalSymlink || !finalIsSymlink)) {
     const real = fs.realpathSync(probe);
     resolved = fs.statSync(real).isDirectory() ? real : path.dirname(real);
   }
@@ -56,8 +59,8 @@ function absoluteGitPath(value, cwd) {
   return path.resolve(cwd, value);
 }
 
-async function protectedMainWorktree(pi, candidate, fallbackCwd) {
-  for (const cwd of probeDirs(candidate, fallbackCwd)) {
+async function protectedMainWorktree(pi, candidate, fallbackCwd, options = {}) {
+  for (const cwd of probeDirs(candidate, fallbackCwd, options.followFinalSymlink !== false)) {
     const root = await gitValue(pi, cwd, ["rev-parse", "--show-toplevel"]);
     if (!root) continue;
     const branch = await gitValue(pi, root, ["branch", "--show-current"]);
@@ -337,7 +340,30 @@ function gitMutationCwd(tokens, fallbackCwd) {
 }
 
 function mutationTargets(commandName, tokens, start, cwd) {
-  if (commandName === "chmod" || commandName === "chown") {
+  if (commandName === "chmod") {
+    const operands = [];
+    let usesReference = false;
+    let optionsDone = false;
+    const flags = new Set(["-R", "--recursive", "-f", "--silent", "--quiet", "-v", "--verbose", "-c", "--changes", "--preserve-root", "--no-preserve-root"]);
+    for (let index = start; index < tokens.length; index += 1) {
+      const token = tokens[index];
+      if (!optionsDone && token === "--") {
+        optionsDone = true;
+      } else if (!optionsDone && token === "--reference" && tokens[index + 1]) {
+        usesReference = true;
+        index += 1;
+      } else if (!optionsDone && token.startsWith("--reference=")) {
+        usesReference = true;
+      } else if (!optionsDone && flags.has(token)) {
+        continue;
+      } else {
+        operands.push(token);
+      }
+    }
+    if (!usesReference) operands.shift();
+    return operands;
+  }
+  if (commandName === "chown") {
     const referenceOptions = new Set(["--reference"]);
     const usesReference = tokens.slice(start).some((token) => token === "--reference" || token.startsWith("--reference="));
     const operands = optionAwareOperands(tokens, start, referenceOptions);
@@ -356,7 +382,9 @@ function mutationTargets(commandName, tokens, start, cwd) {
       if (tokens[index].startsWith("--directory=")) return [tokens[index].slice("--directory=".length)];
       if (tokens[index].startsWith("--output=")) return [tokens[index].slice("--output=".length)];
     }
-    return [cwd];
+    const valueOptions = new Set(["-d", "--directory", "-o", "--output", "-i", "--input", "-r", "--reject-file", "-B", "--prefix", "-Y", "--basename-prefix", "-z", "--suffix"]);
+    const operands = optionAwareOperands(tokens, start, valueOptions);
+    return operands.length > 0 ? [operands[0]] : [cwd];
   }
   return positionalOperands(tokens, start);
 }
@@ -380,9 +408,9 @@ function blockReason(category, root) {
   return `Blocked ${category} targeting primary main worktree ${root}. Start or use a linked feature worktree.`;
 }
 
-async function firstProtectedRoot(pi, candidates, cwd) {
+async function firstProtectedRoot(pi, candidates, cwd, options = {}) {
   for (const candidate of candidates) {
-    const root = await protectedMainWorktree(pi, resolveCandidate(candidate, cwd), cwd);
+    const root = await protectedMainWorktree(pi, resolveCandidate(candidate, cwd), cwd, options);
     if (root) return root;
   }
   return "";
@@ -466,13 +494,18 @@ async function bashMutationBlockReason(pi, command, initialCwd) {
 
     if (FILE_MUTATORS.has(commandName)) {
       let operands = mutationTargets(commandName, tokens, executable + 1, cwd);
-      const targetDirectory = targetDirectoryOperand(tokens, executable + 1);
+      const targetDirectory = TARGET_DIRECTORY_MUTATORS.has(commandName) ? targetDirectoryOperand(tokens, executable + 1) : "";
       if (targetDirectory) {
         operands = commandName === "mv" ? [...operands, targetDirectory] : [targetDirectory];
       } else if (DESTINATION_ONLY_MUTATORS.has(commandName) && operands.length > 0) {
         operands = [operands.at(-1)];
       }
-      const root = await firstProtectedRoot(pi, operands.length > 0 ? operands : [cwd], cwd);
+      const root = await firstProtectedRoot(
+        pi,
+        operands.length > 0 ? operands : [cwd],
+        cwd,
+        { followFinalSymlink: commandName !== "rm" },
+      );
       if (root) return blockReason(`${commandName} mutation`, root);
     }
 
