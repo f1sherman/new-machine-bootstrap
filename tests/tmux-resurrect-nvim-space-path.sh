@@ -51,8 +51,10 @@ pane_dir="$TMPROOT/pane dir"
 escaped_pane_dir="${pane_dir// /\\ }"
 mkdir -p "$pane_dir/Relative Dir"
 absolute_space_path="$TMPROOT/absolute dir/file"
-mkdir -p "$(dirname "$absolute_space_path")"
+absolute_dash_s_path="$TMPROOT/absolute -S dir/file"
+mkdir -p "$(dirname "$absolute_space_path")" "$(dirname "$absolute_dash_s_path")"
 : > "$absolute_space_path"
+: > "$absolute_dash_s_path"
 : > "$pane_dir/Relative Dir/file"
 : > "$pane_dir/looks like multiple args"
 mkfifo "$pane_dir/fifo target"
@@ -79,6 +81,8 @@ assert_contains "$LINUX_TASKS" "    mode: '0755'" 'Linux strategy copy is execut
 assert_contains "$LINUX_TMUX_CONF" "set -g @resurrect-strategy-nvim 'nmb'" 'Linux tmux config selects nmb strategy'
 
 expect_output "nvim $absolute_space_path" "$pane_dir" "nvim ${absolute_space_path// /\\ }"
+printf -v absolute_dash_s_expected 'nvim %q' "$absolute_dash_s_path"
+expect_output "nvim $absolute_dash_s_path" "$pane_dir" "$absolute_dash_s_expected"
 expect_output "nvim Relative Dir" "$pane_dir" 'nvim Relative\ Dir'
 expect_output "nvim Relative Dir/file" "$pane_dir" 'nvim Relative\ Dir/file'
 expect_output "nvim Relative Dir/file" "$escaped_pane_dir" 'nvim Relative\ Dir/file'
