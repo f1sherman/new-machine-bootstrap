@@ -6,6 +6,9 @@ const SUBJECT_CHILD_TIMEOUT_MS = 15000;
 const SUBJECT_CHILD_MODEL = "openai-codex/gpt-5.4-mini";
 const SUBJECT_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.";
 const SUBJECT_MAX_LENGTH = 512;
+const SESSION_GOAL_ENTRY_TYPE = "session-goal";
+const SESSION_GOAL_STATUS_KEY = "session-goal";
+const SESSION_GOAL_PLACEHOLDER = "determining…";
 const MANAGED_PI_SESSION_NAME_OPTION = "@pi_managed_session_name";
 const REPO_START_TRIGGERS = /(^|\s)(?:z-fix|z-spec-first|z-quick-pr|superpowers:systematic-debugging|superpowers:brainstorming)(?=\s|$)/i;
 const SHELL_TOKEN = "[^\\s;&|()]+";
@@ -62,6 +65,7 @@ function piSessionNameFromTmuxLabel(label, cwd) {
 }
 
 let lastManagedSessionName = "";
+let currentSessionGoal = "";
 
 async function refreshTmuxLabels(pi) {
   if (!inTmux()) return;
@@ -533,8 +537,32 @@ async function updateCurrentSpecFromBash(pi, event, ctx) {
   await setCurrentSpec(pi, specPaths[0]);
 }
 
+function storedSessionGoal(entry) {
+  if (entry?.type !== "custom" || entry.customType !== SESSION_GOAL_ENTRY_TYPE) return "";
+  const subject = entry.data?.subject;
+  return typeof subject === "string" ? subject : "";
+}
+
+function restoreSessionGoal(ctx) {
+  const entries = ctx?.sessionManager?.getBranch?.() || [];
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const subject = storedSessionGoal(entries[index]);
+    if (subject) return subject;
+  }
+  return "";
+}
+
+function renderSessionGoal(ctx) {
+  ctx?.ui?.setStatus?.(
+    SESSION_GOAL_STATUS_KEY,
+    `goal: ${currentSessionGoal || SESSION_GOAL_PLACEHOLDER}`,
+  );
+}
+
 export default function managedHooks(pi) {
   pi.on("session_start", async (_event, ctx) => {
+    currentSessionGoal = restoreSessionGoal(ctx);
+    renderSessionGoal(ctx);
     if (!inTmux()) return;
     await refreshTmuxLabels(pi);
     await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);

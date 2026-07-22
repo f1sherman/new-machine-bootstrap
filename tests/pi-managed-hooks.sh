@@ -31,7 +31,10 @@ const { default: install } = await import(pathToFileURL(extensionPath));
 const handlers = new Map();
 const calls = [];
 const sessionNames = [];
+const statuses = [];
+const customEntries = [];
 let branch = "main";
+let branchEntries = [];
 let currentSessionName = "";
 let windowLabel = "pi main-repo";
 let agentWorktreePath = "/repo/main-repo";
@@ -52,6 +55,9 @@ const pi = {
   setSessionName(name) {
     currentSessionName = name;
     sessionNames.push(name);
+  },
+  appendEntry(customType, data) {
+    customEntries.push({ customType, data });
   },
   async exec(command, args, options = {}) {
     calls.push({ command, args });
@@ -88,9 +94,21 @@ const subjectSignal = new AbortController().signal;
 const ctx = {
   cwd: "/repo/main-repo/src",
   signal: subjectSignal,
+  ui: {
+    setStatus(key, value) {
+      statuses.push({ key, value });
+    },
+    notify() {},
+  },
   sessionManager: {
     getSessionName() {
       return currentSessionName;
+    },
+    getSessionFile() {
+      return "/sessions/current.jsonl";
+    },
+    getBranch() {
+      return branchEntries;
     },
   },
 };
@@ -104,6 +122,26 @@ assert.equal(typeof handlers.get("tool_result"), "function", "registers tool_res
 process.env.TMUX = "1";
 process.env.TMUX_PANE = "%1";
 delete process.env.TMUX_AGENT_STATE_DIR;
+
+statuses.length = 0;
+branchEntries = [];
+await handlers.get("session_start")({ reason: "startup" }, ctx);
+assert.deepEqual(statuses.at(-1), {
+  key: "session-goal",
+  value: "goal: determining…",
+}, "new sessions show the determining goal placeholder");
+
+statuses.length = 0;
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "old goal" } },
+  { type: "custom", customType: "other-extension", data: { subject: "ignore me" } },
+  { type: "custom", customType: "session-goal", data: { subject: "persistent Pi session goals" } },
+];
+await handlers.get("session_start")({ reason: "resume" }, ctx);
+assert.deepEqual(statuses.at(-1), {
+  key: "session-goal",
+  value: "goal: persistent Pi session goals",
+}, "resume restores the latest goal from the active branch");
 
 currentSessionName = "feature-work";
 windowLabel = "pi main-repo feature-work";
