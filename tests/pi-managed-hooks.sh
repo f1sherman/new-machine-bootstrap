@@ -381,6 +381,7 @@ for (const invalidOutput of [
   "first\nsecond\n",
   "goal: prefixed\n",
   "\"quoted subject\"\n",
+  "support \"dry run\" mode\n",
   `${"x".repeat(81)}\n`,
   "control\u0007subject\n",
 ]) {
