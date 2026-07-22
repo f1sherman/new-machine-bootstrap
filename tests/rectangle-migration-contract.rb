@@ -68,12 +68,16 @@ remove_unmanaged_index = main_tasks.index(remove_unmanaged_sizeup)
 rectangle_index = main_tasks.index(install_rectangle)
 onboarding_check_index = main_tasks.index(onboarding_check)
 onboarding_launch_index = main_tasks.index(onboarding_launch)
-onboarding_wait_index = main_tasks.index(onboarding_wait)
+wait_index = main_tasks.index(onboarding_wait)
 install_casks = main_tasks.find { |task| task["name"] == "Install Brew casks" }
 install_casks_index = main_tasks.index(install_casks)
+configure_defaults = main_tasks.find { |task| task["name"] == "Configure macOS defaults" }
+configure_defaults_index = main_tasks.index(configure_defaults)
 abort "FAIL  SizeUp cleanup tasks are ordered incorrectly" unless stop_index < remove_index && remove_index < remove_unmanaged_index
 abort "FAIL  Rectangle install is not after SizeUp cleanup" unless remove_unmanaged_index < rectangle_index
-abort "FAIL  Rectangle onboarding tasks are ordered incorrectly" unless rectangle_index < onboarding_check_index && onboarding_check_index < onboarding_launch_index && onboarding_launch_index < onboarding_wait_index && onboarding_wait_index < install_casks_index
+abort "FAIL  Rectangle onboarding tasks are ordered incorrectly" unless rectangle_index < onboarding_check_index && onboarding_check_index < onboarding_launch_index && onboarding_launch_index < wait_index && wait_index < install_casks_index
+abort "FAIL  missing managed defaults include" unless configure_defaults
+abort "FAIL  Rectangle onboarding does not precede managed defaults" unless wait_index < configure_defaults_index
 
 managed_casks = install_casks&.dig("homebrew_cask", "name") || []
 abort "FAIL  Rectangle remains in general cask installation" if managed_casks.include?("rectangle")
