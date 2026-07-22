@@ -16,6 +16,7 @@ if [ -f "$pane_dir/Session.vim" ]; then
 fi
 
 case "$argument" in
+  -S) printf '%s\n' 'nvim'; exit 0 ;;
   '') printf '%s\n' 'nvim'; exit 0 ;;
   -*) printf '%s\n' "$original_command"; exit 0 ;;
 esac

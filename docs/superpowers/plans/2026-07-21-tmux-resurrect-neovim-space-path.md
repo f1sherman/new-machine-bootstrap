@@ -10,9 +10,9 @@
 
 ## Global Constraints
 
-- Preserve existing Neovim `Session.vim` behavior without changing other processes.
+- Preserve existing Neovim `Session.vim` behavior, including the stale `nvim -S` fallback to plain `nvim` when no local `Session.vim` exists, without changing other processes.
 - Treat the entire flat text after `nvim ` as one path candidate; when it exists, that single-path interpretation wins even if the text could theoretically represent multiple arguments.
-- Leave flags, flat text that does not resolve as one existing path (including unresolved ambiguous/multiple arguments), nonexistent paths, and other processes unchanged.
+- Leave other flags, flat text that does not resolve as one existing path (including unresolved ambiguous/multiple arguments), nonexistent paths, and other processes unchanged.
 - Manage deployed files only through this repository and `bin/provision`.
 - Install the same strategy on macOS and Linux.
 
@@ -41,6 +41,7 @@ expect_output "nvim looks like multiple args" "$pane_dir" 'nvim looks\ like\ mul
 expect_output "nvim ordinary" "$pane_dir" 'nvim ordinary'
 expect_output "nvim -u NONE file" "$pane_dir" 'nvim -u NONE file'
 expect_output "nvim missing path" "$pane_dir" 'nvim missing path'
+expect_output "nvim -S" "$pane_dir" 'nvim'
 touch "$pane_dir/Session.vim"
 expect_output "nvim anything" "$pane_dir" 'nvim -S'
 expect_output "vim foo" "$pane_dir" 'vim foo'
@@ -76,7 +77,9 @@ if [ -f "$pane_dir/Session.vim" ]; then
 fi
 
 case "$argument" in
-  ''|-*) printf '%s\n' "$original_command"; exit 0 ;;
+  -S) printf '%s\n' 'nvim'; exit 0 ;;
+  '') printf '%s\n' 'nvim'; exit 0 ;;
+  -*) printf '%s\n' "$original_command"; exit 0 ;;
 esac
 
 if [[ "$argument" = /* ]]; then

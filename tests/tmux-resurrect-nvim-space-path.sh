@@ -86,6 +86,7 @@ expect_output "nvim looks like multiple args" "$pane_dir" 'nvim looks\ like\ mul
 expect_output "nvim ordinary" "$pane_dir" 'nvim ordinary'
 expect_output "nvim -u NONE file" "$pane_dir" 'nvim -u NONE file'
 expect_output "nvim missing path" "$pane_dir" 'nvim missing path'
+expect_output "nvim -S" "$pane_dir" 'nvim'
 expect_output "nvim fifo target" "$pane_dir" 'nvim fifo target'
 expect_output "nvim" "$pane_dir" 'nvim'
 touch "$pane_dir/Session.vim"
