@@ -5,6 +5,7 @@ original_command="${1:-}"
 pane_dir="${2:-}"
 
 case "$original_command" in
+  nvim) argument='' ;;
   nvim\ *) argument=${original_command#nvim } ;;
   *) printf '%s\n' "$original_command"; exit 0 ;;
 esac
@@ -15,7 +16,8 @@ if [ -f "$pane_dir/Session.vim" ]; then
 fi
 
 case "$argument" in
-  ''|-*) printf '%s\n' "$original_command"; exit 0 ;;
+  '') printf '%s\n' 'nvim'; exit 0 ;;
+  -*) printf '%s\n' "$original_command"; exit 0 ;;
 esac
 
 if [[ "$argument" = /* ]]; then
@@ -24,7 +26,7 @@ else
   candidate="$pane_dir/$argument"
 fi
 
-if [ -e "$candidate" ]; then
+if [ -f "$candidate" ] || [ -d "$candidate" ]; then
   printf 'nvim %q\n' "$argument"
 else
   printf '%s\n' "$original_command"
