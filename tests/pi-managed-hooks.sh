@@ -32,7 +32,9 @@ const handlers = new Map();
 const calls = [];
 const sessionNames = [];
 const statuses = [];
+const notifications = [];
 const customEntries = [];
+const appendEntryErrors = [];
 let branch = "main";
 let branchEntries = [];
 let currentSessionName = "";
@@ -42,6 +44,7 @@ let managedPiSessionName = "";
 let taskStatus = "";
 const goalChildCalls = [];
 let goalChildResults = [];
+let goalChildErrors = [];
 let goalChildDeferred;
 
 const ok = (stdout = "") => ({ stdout, stderr: "", code: 0, killed: false });
@@ -51,6 +54,18 @@ function deferred() {
   let resolve;
   const promise = new Promise((done) => { resolve = done; });
   return { promise, resolve };
+}
+
+function abortableGoalResult(promise, signal) {
+  if (signal?.aborted) return Promise.resolve({ stdout: "", stderr: "", code: 1, killed: true });
+  return new Promise((resolve) => {
+    const abort = () => resolve({ stdout: "", stderr: "", code: 1, killed: true });
+    signal?.addEventListener("abort", abort, { once: true });
+    promise.then((result) => {
+      signal?.removeEventListener("abort", abort);
+      resolve(result);
+    });
+  });
 }
 
 async function flushAsyncWork() {
@@ -77,6 +92,7 @@ const pi = {
     sessionNames.push(name);
   },
   appendEntry(customType, data) {
+    if (appendEntryErrors.length > 0) throw appendEntryErrors.shift();
     customEntries.push({ customType, data });
   },
   async exec(command, args, options = {}) {
@@ -96,7 +112,8 @@ const pi = {
     if (command === "pi") {
       if (isGoalChildArgs(args)) {
         goalChildCalls.push({ args, options });
-        if (goalChildDeferred) return goalChildDeferred.promise;
+        if (goalChildErrors.length > 0) throw goalChildErrors.shift();
+        if (goalChildDeferred) return abortableGoalResult(goalChildDeferred.promise, options.signal);
         return goalChildResults.shift() ?? ok("KEEP\n");
       }
       subjectChildExecOptions = options;
@@ -123,7 +140,9 @@ const ctx = {
     setStatus(key, value) {
       statuses.push({ key, value });
     },
-    notify() {},
+    notify(message, level) {
+      notifications.push({ message, level });
+    },
   },
   sessionManager: {
     getSessionName() {
@@ -140,6 +159,7 @@ const ctx = {
 
 install(pi);
 assert.equal(typeof handlers.get("session_start"), "function", "registers session_start hook");
+assert.equal(typeof handlers.get("session_shutdown"), "function", "registers session_shutdown hook");
 assert.equal(typeof handlers.get("before_agent_start"), "function", "registers before_agent_start hook");
 assert.equal(typeof handlers.get("tool_call"), "function", "registers tool_call hook");
 assert.equal(typeof handlers.get("tool_result"), "function", "registers tool_result hook");
@@ -423,6 +443,159 @@ assert.equal(goalChildCalls.length, 2, "rapid prompts collapse to one pending ev
 assert.match(goalChildCalls[1].args.at(-1), /New user prompt: final redirect/);
 assert.equal(customEntries.some((entry) => entry.data.subject === "stale session theme"), false, "stale running output is discarded");
 assert.equal(customEntries.at(-1).data.subject, "final session theme", "newest pending output applies");
+
+taskStatus = "provisional\tagent\tstarting goal\n";
+currentSessionName = "";
+managedPiSessionName = "";
+goalChildResults.push(ok("persistent session goal\n"));
+await handlers.get("before_agent_start")({
+  prompt: "build persistent session goal",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.equal(currentSessionName, "persistent session goal", "goal names a managed session before branch creation");
+
+currentSessionName = "manual investigation name";
+managedPiSessionName = "persistent session goal";
+goalChildResults.push(ok("revised persistent goal\n"));
+await handlers.get("before_agent_start")({
+  prompt: "revise the persistent goal",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.equal(currentSessionName, "manual investigation name", "manual name blocks automatic goal rename");
+assert.equal(statuses.at(-1).value, "goal: revised persistent goal", "manual name does not block goal status updates");
+
+currentSessionName = "persistent session goal";
+managedPiSessionName = "persistent session goal";
+taskStatus = "provisional\tagent\tstarting goal\n";
+goalChildDeferred = deferred();
+await handlers.get("before_agent_start")({
+  prompt: "race with branch creation",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+taskStatus = "active\tbranch\tfeature/session-goal\n";
+currentSessionName = "feature/session-goal";
+managedPiSessionName = "feature/session-goal";
+goalChildDeferred.resolve(ok("goal after branch\n"));
+goalChildDeferred = undefined;
+await flushAsyncWork();
+assert.equal(currentSessionName, "feature/session-goal", "active branch wins a late goal naming race");
+assert.equal(statuses.at(-1).value, "goal: goal after branch", "late goal still updates status after branch creation");
+
+await handlers.get("session_start")({ reason: "failure reset" }, ctx);
+notifications.length = 0;
+for (let failure = 1; failure <= 13; failure += 1) {
+  goalChildResults.push(fail());
+  await handlers.get("before_agent_start")({
+    prompt: `failure ${failure}`,
+    systemPrompt: "",
+    systemPromptOptions: { cwd: "/repo" },
+  }, ctx);
+  await flushAsyncWork();
+}
+assert.deepEqual(notifications.map((item) => item.message), [
+  "Session goal updates are failing; keeping the previous goal.",
+  "Session goal updates are failing; keeping the previous goal.",
+], "repeated failures notify only at 3 and 13");
+
+notifications.length = 0;
+goalChildResults.push(ok("KEEP\n"), fail(), fail(), fail());
+for (const prompt of ["recover", "again 1", "again 2", "again 3"]) {
+  await handlers.get("before_agent_start")({
+    prompt,
+    systemPrompt: "",
+    systemPromptOptions: { cwd: "/repo" },
+  }, ctx);
+  await flushAsyncWork();
+}
+assert.equal(notifications.length, 1, "successful KEEP resets the consecutive failure counter");
+
+const goalPromptSentinel = "goal-prompt-sentinel-71b72b";
+const goalStdoutSentinel = "goal-stdout-sentinel-0c23ff";
+const goalWarnings = [];
+const originalGoalWarn = console.warn;
+console.warn = (...args) => goalWarnings.push(args);
+try {
+  goalChildErrors.push(Object.assign(new TypeError(`child unavailable ${goalPromptSentinel}`), {
+    code: "ERR_INVALID_ARG_VALUE",
+    exitCode: 1,
+    killed: false,
+  }));
+  await handlers.get("before_agent_start")({
+    prompt: goalPromptSentinel,
+    systemPrompt: "",
+    systemPromptOptions: { cwd: "/repo" },
+  }, ctx);
+  await flushAsyncWork();
+  goalChildResults.push({ stdout: goalStdoutSentinel, stderr: "raw stderr", code: 1, killed: false });
+  await handlers.get("before_agent_start")({
+    prompt: "failed child result",
+    systemPrompt: "",
+    systemPromptOptions: { cwd: "/repo" },
+  }, ctx);
+  await flushAsyncWork();
+} finally {
+  console.warn = originalGoalWarn;
+}
+assert.deepEqual(goalWarnings, [
+  ["[managed-hooks] session goal child failed", {
+    name: "TypeError",
+    code: "ERR_INVALID_ARG_VALUE",
+    exitCode: 1,
+    killed: false,
+  }],
+  ["[managed-hooks] session goal child failed", {
+    name: "SessionGoalChildResult",
+    code: 1,
+    exitCode: undefined,
+    killed: false,
+  }],
+], "goal child diagnostics contain only a fixed message and safe metadata");
+const goalWarningText = goalWarnings.flatMap((args) => args.map((arg) => (
+  typeof arg === "string" ? arg : JSON.stringify(arg)
+))).join("\n");
+assert.equal(goalWarningText.includes(goalPromptSentinel), false, "goal diagnostics do not echo the prompt");
+assert.equal(goalWarningText.includes(goalStdoutSentinel), false, "goal diagnostics do not echo raw stdout");
+
+goalChildDeferred = deferred();
+await handlers.get("before_agent_start")({
+  prompt: "old session prompt",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await handlers.get("session_shutdown")({ reason: "resume" }, ctx);
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "destination goal" } },
+];
+await handlers.get("session_start")({ reason: "resume" }, ctx);
+goalChildDeferred.resolve(ok("stale old goal\n"));
+goalChildDeferred = undefined;
+await flushAsyncWork();
+assert.equal(statuses.at(-1).value, "goal: destination goal", "shutdown prevents stale goal application");
+
+notifications.length = 0;
+const entriesBeforePersistenceFailures = customEntries.length;
+appendEntryErrors.push(
+  new Error("persistence unavailable"),
+  new Error("persistence unavailable"),
+  new Error("persistence unavailable"),
+);
+for (const subject of ["unpersisted goal one", "unpersisted goal two", "unpersisted goal three"]) {
+  goalChildResults.push(ok(`${subject}\n`));
+  await handlers.get("before_agent_start")({
+    prompt: `try ${subject}`,
+    systemPrompt: "",
+    systemPromptOptions: { cwd: "/repo" },
+  }, ctx);
+  await flushAsyncWork();
+}
+assert.equal(customEntries.length, entriesBeforePersistenceFailures, "persistence failures do not append partial goal entries");
+assert.equal(statuses.at(-1).value, "goal: destination goal", "persistence failures preserve the previous in-memory goal");
+assert.equal(notifications.length, 1, "repeated persistence failures use goal failure warnings");
 
 taskStatus = "";
 for (const [name, result] of [
