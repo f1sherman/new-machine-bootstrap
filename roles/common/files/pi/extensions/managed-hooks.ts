@@ -81,16 +81,17 @@ async function refreshTmuxLabels(pi) {
   await exec(pi, "tmux-window-label", [process.env.TMUX_PANE]);
 }
 
-async function setManagedPiSessionName(pi, ctx, sessionName) {
+async function setManagedPiSessionName(pi, ctx, sessionName, maySet = () => true) {
   if (!sessionName || typeof pi.setSessionName !== "function") return false;
-  const currentName = ctx?.sessionManager?.getSessionName?.() || "";
-  if (currentName === sessionName) {
-    if (await tmuxOption(pi, MANAGED_PI_SESSION_NAME_OPTION) === sessionName) {
-      lastManagedSessionName = sessionName;
-    }
-    return true;
+  let currentName = ctx?.sessionManager?.getSessionName?.() || "";
+  if (currentName) {
+    const marker = await tmuxOption(pi, MANAGED_PI_SESSION_NAME_OPTION);
+    currentName = ctx?.sessionManager?.getSessionName?.() || "";
+    if (marker === currentName) lastManagedSessionName = currentName;
   }
+  if (currentName === sessionName) return true;
   if (currentName && currentName !== lastManagedSessionName) return false;
+  if (!maySet()) return false;
 
   pi.setSessionName(sessionName);
   lastManagedSessionName = sessionName;
@@ -431,12 +432,21 @@ function worktreeCommandBlockReason(command) {
   return "";
 }
 
-async function goalMayNameSession(pi) {
-  if (!inTmux()) return true;
+async function canonicalSessionNameStatus(pi) {
+  if (!inTmux()) return { kind: "non-branch" };
   const result = await exec(pi, "tmux-agent-state", ["status"]);
-  if (result.code !== 0) return false;
-  const [state, source] = result.stdout.trim().split("\t");
-  return state !== "active" || source !== "branch";
+  if (result.code !== 0) return { kind: "unavailable" };
+
+  const output = result.stdout.trim();
+  if (!output) return { kind: "non-branch" };
+  const fields = output.split("\t");
+  const [state, source, subject] = fields;
+  if (fields.length !== 3 || !subject || !["provisional", "active", "completed"].includes(state)
+    || !["agent", "branch"].includes(source)) {
+    return { kind: "unavailable" };
+  }
+  if (state === "active" && source === "branch") return { kind: "branch", subject };
+  return { kind: "non-branch" };
 }
 
 async function needsSubjectReminder(pi) {
@@ -715,11 +725,19 @@ export default function managedHooks(pi) {
           continue;
         }
         recordSessionGoalSuccess();
-        if (changed && await goalMayNameSession(pi)) {
-          try {
-            await setManagedPiSessionName(pi, request.ctx, normalized.subject);
-          } catch (error) {
-            warn("set Pi session name from session goal failed", error);
+        if (changed) {
+          const namingStatus = await canonicalSessionNameStatus(pi);
+          if (namingStatus.kind === "non-branch" && requestIsCurrent(request, request.ctx)) {
+            try {
+              await setManagedPiSessionName(
+                pi,
+                request.ctx,
+                normalized.subject,
+                () => requestIsCurrent(request, request.ctx),
+              );
+            } catch (error) {
+              warn("set Pi session name from session goal failed", error);
+            }
           }
         }
       }
@@ -758,7 +776,14 @@ export default function managedHooks(pi) {
     await refreshTmuxLabels(pi);
     await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);
     await bindPaneSessionFile(pi, ctx);
-    await syncSessionNameFromTmux(pi, ctx);
+    const namingStatus = await canonicalSessionNameStatus(pi);
+    if (namingStatus.kind === "branch") {
+      await setManagedPiSessionName(pi, ctx, namingStatus.subject);
+    } else if (namingStatus.kind === "non-branch" && currentSessionGoal) {
+      await setManagedPiSessionName(pi, ctx, currentSessionGoal);
+    } else if (namingStatus.kind === "non-branch") {
+      await syncSessionNameFromTmux(pi, ctx);
+    }
   });
 
   pi.on("session_shutdown", async () => {

@@ -43,6 +43,7 @@ let agentWorktreePath = "/repo/main-repo";
 let managedPiSessionName = "";
 let taskStatus = "";
 let taskStatusFails = false;
+let taskStatusDeferred;
 const goalChildCalls = [];
 let goalChildResults = [];
 let goalChildErrors = [];
@@ -101,7 +102,10 @@ const pi = {
   },
   async exec(command, args, options = {}) {
     calls.push({ command, args });
-    if (command === "tmux-agent-state" && args[0] === "status") return taskStatusFails ? fail() : ok(taskStatus);
+    if (command === "tmux-agent-state" && args[0] === "status") {
+      if (taskStatusDeferred) return taskStatusDeferred.promise;
+      return taskStatusFails ? fail() : ok(taskStatus);
+    }
     if (command === "tmux-agent-state") return ok();
     if (command === "tmux-update-pane-label") return ok();
     if (command === "tmux-window-label") return ok();
@@ -253,15 +257,17 @@ assert.deepEqual(sessionNames, [], "manual compact-name preservation does not ca
 
 currentSessionName = "";
 windowLabel = "pi main-repo";
+branchEntries = [];
 calls.length = 0;
 await handlers.get("session_start")({}, ctx);
-assert.deepEqual(calls.slice(-5), [
+assert.deepEqual(calls.slice(-6), [
   { command: "tmux-update-pane-label", args: ["%1"] },
   { command: "tmux-window-label", args: ["%1"] },
   { command: "tmux-agent-state", args: ["set-kind", "pi"] },
+  { command: "tmux-agent-state", args: ["status"] },
   { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@window-label"] },
   { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@agent_worktree_path"] },
-], "session_start refreshes pane labels before rendering pi window label and naming the session");
+], "session_start verifies canonical task status before using the rendered tmux label");
 assert.deepEqual(sessionNames, [], "directory-only pi labels do not set redundant Pi session names");
 assert.equal(typeof handlers.get("tool_result"), "function", "registers tool_result hook");
 
@@ -342,6 +348,7 @@ for (const prompt of subjectChildPrompts) {
   }, `${prompt} keeps the validated child subject`);
 }
 
+await flushAsyncWork();
 const subjectPromptSentinel = "prompt-sentinel-7f3c7b7f";
 for (const [label, failureResult, failureError, expectedMetadata] of [
   [
@@ -365,6 +372,7 @@ for (const [label, failureResult, failureError, expectedMetadata] of [
   subjectChildError = failureError;
   taskStatus = "";
   branch = "feature";
+  goalChildResults.push(ok("subject failure test goal\n"));
   calls.length = 0;
   const warnings = [];
   const originalWarn = console.warn;
@@ -560,6 +568,7 @@ assert.equal(statuses.at(-1).value, "goal: goal after branch", "late goal still 
 currentSessionName = "feature/existing";
 managedPiSessionName = "feature/existing";
 windowLabel = "pi main-repo feature/existing";
+taskStatus = "active\tbranch\tfeature/existing\n";
 branchEntries = [
   { type: "custom", customType: "session-goal", data: { subject: "branch goal" } },
 ];
@@ -574,6 +583,59 @@ await handlers.get("before_agent_start")({
 await flushAsyncWork();
 assert.equal(currentSessionName, "feature/existing", "tmux status failure preserves an existing managed branch name");
 assert.equal(statuses.at(-1).value, "goal: goal during status failure", "tmux status failure does not block goal status updates");
+taskStatusFails = false;
+taskStatus = "active\tbranch\tfeature/existing\n";
+
+const freshHandlers = new Map();
+const freshPi = {
+  ...pi,
+  on(event, handler) {
+    freshHandlers.set(event, handler);
+  },
+};
+const freshModuleUrl = `${pathToFileURL(extensionPath).href}?fresh-managed-name-recovery`;
+const { default: installFresh } = await import(freshModuleUrl);
+installFresh(freshPi);
+
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "evolved goal G" } },
+];
+currentSessionName = "evolved goal G";
+managedPiSessionName = "evolved goal G";
+windowLabel = "pi main-repo provisional goal P";
+taskStatus = "provisional\tagent\tprovisional goal P\n";
+sessionNames.length = 0;
+await freshHandlers.get("session_start")({ reason: "fresh resume" }, ctx);
+assert.equal(currentSessionName, "evolved goal G", "fresh resume keeps the restored evolving goal over a stale provisional tmux label");
+assert.deepEqual(sessionNames, [], "fresh resume recognizes the marker-matched current goal without renaming it");
+goalChildResults.push(ok("new goal H\n"));
+await freshHandlers.get("before_agent_start")({
+  prompt: "redirect to a new goal",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.equal(currentSessionName, "new goal H", "fresh instances recover marker ownership and automatically rename an evolved goal again");
+
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "restored goal G" } },
+];
+currentSessionName = "restored goal G";
+managedPiSessionName = "restored goal G";
+windowLabel = "pi main-repo provisional goal P";
+taskStatus = "active\tbranch\tfeature/canonical-branch\n";
+sessionNames.length = 0;
+await freshHandlers.get("session_start")({ reason: "branch resume" }, ctx);
+assert.equal(currentSessionName, "feature/canonical-branch", "verified active branch wins startup naming over restored goal and stale provisional label");
+assert.deepEqual(sessionNames, ["feature/canonical-branch"], "startup names directly from canonical active branch status");
+
+currentSessionName = "";
+managedPiSessionName = "restored goal G";
+taskStatusFails = true;
+sessionNames.length = 0;
+await freshHandlers.get("session_start")({ reason: "status failure resume" }, ctx);
+assert.equal(currentSessionName, "", "startup status failure fails closed instead of naming from the restored goal");
+assert.deepEqual(sessionNames, [], "startup status failure performs no speculative session-name side effect");
 taskStatusFails = false;
 taskStatus = "active\tbranch\tfeature/existing\n";
 
@@ -726,6 +788,27 @@ assert.equal(treeCallsBeforeOldSettlement, treeGoalCallStart + 1, "destination e
 assert.equal(goalChildCalls.length, treeGoalCallStart + 2, "destination evaluator starts after old branch settlement");
 assert.equal(customEntries.some((entry) => entry.data.subject === "stale source branch goal"), false, "tree navigation discards stale old-branch output");
 assert.equal(statuses.at(-1).value, "goal: destination branch evaluated goal", "destination branch evaluation applies after old settlement");
+
+currentSessionName = "";
+managedPiSessionName = "";
+taskStatusDeferred = deferred();
+goalChildResults.push(ok("stale pre-navigation goal\n"));
+const preNavigationHook = handlers.get("before_agent_start")({
+  prompt: "rename before navigation",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "post-navigation destination goal" } },
+];
+await handlers.get("session_tree")({ reason: "navigate during status" }, ctx);
+taskStatusDeferred.resolve(ok("provisional\tagent\tstarting goal\n"));
+await preNavigationHook;
+taskStatusDeferred = undefined;
+await flushAsyncWork();
+assert.equal(currentSessionName, "", "a request invalidated while canonical status is pending cannot rename the destination session");
+assert.equal(statuses.at(-1).value, "goal: post-navigation destination goal", "status-query race preserves the destination branch goal");
 
 notifications.length = 0;
 const entriesBeforePersistenceFailures = customEntries.length;
