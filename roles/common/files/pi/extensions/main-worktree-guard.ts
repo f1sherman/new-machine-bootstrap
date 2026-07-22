@@ -354,7 +354,7 @@ function mutationTargets(commandName, tokens, start, cwd) {
         index += 1;
       } else if (!optionsDone && token.startsWith("--reference=")) {
         usesReference = true;
-      } else if (!optionsDone && flags.has(token)) {
+      } else if (!optionsDone && (flags.has(token) || /^-[Rfvc]+$/.test(token))) {
         continue;
       } else {
         operands.push(token);

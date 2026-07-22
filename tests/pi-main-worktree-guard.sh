@@ -132,6 +132,7 @@ const allowedCommands = [
   `echo "Path('${path.join(primary, "tracked")}').write_text('changed')"`,
   `ruby -e "File.open('${path.join(primary, "tracked")}') { |file| file.read }"`,
   `cd ${primary} && chmod 600 ${path.join(feature, "tracked")}`,
+  `cd ${primary} && chmod -Rv 600 ${path.join(feature, "tracked")}`,
   `touch -r ${path.join(primary, "tracked")} ${path.join(feature, "tracked")}`,
   `rm ${path.join(feature, "primary-link")}`,
   `printf changed > ${path.join(feature, "tracked")}`,
