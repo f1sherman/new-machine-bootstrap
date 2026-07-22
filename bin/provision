@@ -78,8 +78,24 @@ redact_logged_arguments() {
   printf '%s' "${redacted[*]}"
 }
 
+provision_source_porcelain_status() {
+  local source_root status_output line
+  source_root=$1
+  status_output=$(git -C "$source_root" status --porcelain --untracked-files=normal 2>/dev/null) || return 1
+
+  while IFS= read -r line; do
+    case "$line" in
+      '?? .pi/'|'?? .pi-subagents/'|'?? .repo.yml')
+        ;;
+      *)
+        printf '%s\n' "$line"
+        ;;
+    esac
+  done <<< "$status_output"
+}
+
 provision_source_context() {
-  local source_root branch commit repository_state
+  local source_root branch commit repository_state filtered_status
   source_root=$(git -C "$SCRIPT_DIR/.." rev-parse --show-toplevel 2>/dev/null || true)
   if [[ -z "$source_root" ]]; then
     printf '%s\n' 'unknown' 'unknown' 'unknown' 'unknown'
@@ -88,8 +104,8 @@ provision_source_context() {
   source_root=$(cd "$source_root" 2>/dev/null && pwd -P || printf 'unknown')
   branch=$(git -C "$source_root" symbolic-ref --short -q HEAD 2>/dev/null || printf 'detached')
   commit=$(git -C "$source_root" rev-parse HEAD 2>/dev/null || printf 'unknown')
-  if git -C "$source_root" status --porcelain --untracked-files=normal >/dev/null 2>&1; then
-    if [[ -n "$(git -C "$source_root" status --porcelain --untracked-files=normal 2>/dev/null)" ]]; then
+  if filtered_status=$(provision_source_porcelain_status "$source_root"); then
+    if [[ -n "$filtered_status" ]]; then
       repository_state=dirty
     else
       repository_state=clean
