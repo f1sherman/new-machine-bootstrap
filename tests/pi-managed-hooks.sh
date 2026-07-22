@@ -433,7 +433,7 @@ for (const prompt of subjectChildPrompts) {
     "--mode", "text",
     "--print",
     "--no-session",
-    "--model", "openai-codex/gpt-5.4-mini",
+    "--model", "openai/gpt-5.4-mini",
     "--thinking", "off",
     "--no-tools",
     "--no-extensions",
@@ -544,7 +544,7 @@ assert.deepEqual(goalChildCalls[0].args.slice(0, -1), [
   "--mode", "text",
   "--print",
   "--no-session",
-  "--model", "openai-codex/gpt-5.4-mini",
+  "--model", "openai/gpt-5.4-mini",
   "--thinking", "off",
   "--no-tools",
   "--no-extensions",
@@ -555,8 +555,11 @@ assert.deepEqual(goalChildCalls[0].args.slice(0, -1), [
   "--no-approve",
   "--system-prompt", "Track the session's broad goal. Given the current goal and newest user prompt, return KEEP when the broad goal is unchanged. Otherwise return one concise noun phrase of at most 80 characters. Output only KEEP or the phrase on one line, without quotes, a goal: prefix, or explanation.",
 ], "goal child uses the exact isolated model and context arguments");
-assert.match(goalChildCalls[0].args.at(-1), /Current goal: persistent Pi session goals/);
-assert.match(goalChildCalls[0].args.at(-1), /New user prompt: also cover lifecycle failures/);
+assert.equal(
+  goalChildCalls[0].args.at(-1),
+  "Current goal: persistent Pi session goals\nNew user prompt: also cover lifecycle failures",
+  "goal child receives only the framed current goal and newest prompt",
+);
 assert.equal(goalChildCalls[0].options.timeout, 15000, "goal child uses the bounded timeout");
 
 goalChildDeferred.resolve(ok("durable Pi goal lifecycle\n"));
