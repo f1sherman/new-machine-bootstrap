@@ -121,6 +121,8 @@ const blockedCommands = [
   ["ruby write", `ruby -e "File.write('${path.join(primary, "tracked")}', 'changed')"`],
   ["node write", `node -e "require('fs').writeFileSync('${path.join(primary, "tracked")}', 'changed')"`],
   ["shell-wrapped remove", `bash -c 'rm ${path.join(primary, "tracked")}'`],
+  ["sudo user remove", `sudo -u root rm ${path.join(primary, "tracked")}`],
+  ["env chdir remove", `env -C ${primary} rm tracked`],
   ["primary symlink removal", `rm ${path.join(primary, "linked-dir")}`],
   ["feature symlink into primary removal", `rm ${path.join(feature, "primary-link", "tracked")}`],
   ["chmod target", `chmod 600 ${path.join(primary, "tracked")}`],
