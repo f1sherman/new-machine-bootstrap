@@ -79,6 +79,20 @@ async function flushAsyncWork() {
   for (let index = 0; index < 8; index += 1) await new Promise((resolve) => setImmediate(resolve));
 }
 
+async function withStdoutTTY(isTTY, callback) {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
+  Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: isTTY });
+  try {
+    return await callback();
+  } finally {
+    if (originalDescriptor) {
+      Object.defineProperty(process.stdout, "isTTY", originalDescriptor);
+    } else {
+      delete process.stdout.isTTY;
+    }
+  }
+}
+
 function isGoalChildArgs(args) {
   const systemPromptIndex = args.indexOf("--system-prompt");
   const systemPrompt = systemPromptIndex === -1 ? "" : args[systemPromptIndex + 1];
@@ -280,12 +294,25 @@ activeSessionFile = "/sessions/current.jsonl";
 currentSessionName = "Investigate mount probe flapping";
 branchEntries = [];
 calls.length = 0;
-await handlers.get("session_start")({ reason: "tmux subject sync" }, ctx);
-assert.deepEqual(calls.slice(0, 3), [
+await withStdoutTTY(false, async () => {
+  await handlers.get("session_start")({ reason: "non-interactive tmux subject sync" }, ctx);
+});
+assert.equal(calls.some((call) => call.command === "tmux-agent-subject"), false, "non-TTY changed session_start does not update the interactive pane subject");
+
+boundPiSessionFile = "/sessions/previous.jsonl";
+calls.length = 0;
+await withStdoutTTY(true, async () => {
+  await handlers.get("session_start")({ reason: "interactive tmux subject sync" }, ctx);
+});
+assert.deepEqual(calls.slice(0, 6), [
   { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@persist_pi_session_file"] },
   { command: "tmux-agent-subject", args: ["set", "Investigate mount probe flapping"] },
   { command: "tmux-update-pane-label", args: ["%1"] },
-], "changed session binding updates the subject before tmux labels");
+  { command: "tmux-window-label", args: ["%1"] },
+  { command: "tmux-agent-state", args: ["set-kind", "pi"] },
+  { command: "tmux", args: ["set-option", "-p", "-t", "%1", "@persist_pi_session_file", "/sessions/current.jsonl"] },
+], "interactive changed session syncs the subject before labels and rebinds the pane session file");
+assert.equal(boundPiSessionFile, "/sessions/current.jsonl", "interactive changed session stores the active session binding");
 
 for (const [name, nextBoundPiSessionFile, nextCurrentSessionName] of [
   ["same binding", "/sessions/current.jsonl", "Investigate mount probe flapping"],
@@ -297,7 +324,9 @@ for (const [name, nextBoundPiSessionFile, nextCurrentSessionName] of [
   currentSessionName = nextCurrentSessionName;
   branchEntries = [];
   calls.length = 0;
-  await handlers.get("session_start")({ reason: name }, ctx);
+  await withStdoutTTY(true, async () => {
+    await handlers.get("session_start")({ reason: name }, ctx);
+  });
   assert.equal(calls.some((call) => call.command === "tmux-agent-subject"), false, `${name} does not invoke tmux-agent-subject`);
 }
 
@@ -308,11 +337,41 @@ currentSessionName = "";
 assert.equal(typeof handlers.get("tool_result"), "function", "registers tool_result hook");
 
 calls.length = 0;
-await handlers.get("session_info_changed")({ name: "Updated conversation" }, ctx);
+await withStdoutTTY(false, async () => {
+  await handlers.get("session_info_changed")({ name: "Background conversation" }, ctx);
+});
+assert.equal(calls.some((call) => call.command === "tmux-agent-subject"), false, "non-TTY session_info_changed does not update the interactive pane subject");
+
+calls.length = 0;
+await withStdoutTTY(true, async () => {
+  await handlers.get("session_info_changed")({ name: "Updated conversation" }, ctx);
+});
 assert.deepEqual(calls.at(-1), {
   command: "tmux-agent-subject",
   args: ["set", "Updated conversation"],
-}, "session_info_changed renames the subject");
+}, "interactive session_info_changed renames the subject");
+
+subjectApplyResult = fail();
+const subjectApplyWarnings = [];
+const originalSubjectApplyWarn = console.warn;
+let subjectApplyTimeout;
+console.warn = (...args) => subjectApplyWarnings.push(args);
+try {
+  const result = await Promise.race([
+    withStdoutTTY(true, () => handlers.get("session_info_changed")({ name: "Failed update" }, ctx)).then(() => "returned"),
+    new Promise((resolve) => {
+      subjectApplyTimeout = setTimeout(() => resolve("blocked"), 100);
+    }),
+  ]);
+  assert.equal(result, "returned", "nonzero tmux-agent-subject does not throw or block session_info_changed");
+} finally {
+  clearTimeout(subjectApplyTimeout);
+  console.warn = originalSubjectApplyWarn;
+  subjectApplyResult = ok();
+}
+assert.deepEqual(subjectApplyWarnings, [
+  ["[managed-hooks] tmux-agent-subject set failed", { code: 1, killed: false }],
+], "nonzero tmux-agent-subject emits safe diagnostics");
 
 calls.length = 0;
 await handlers.get("session_info_changed")({ name: undefined }, ctx);
