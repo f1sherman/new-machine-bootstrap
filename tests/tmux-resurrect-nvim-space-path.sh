@@ -54,6 +54,7 @@ mkdir -p "$(dirname "$absolute_space_path")"
 : > "$absolute_space_path"
 : > "$pane_dir/Relative Dir/file"
 : > "$pane_dir/looks like multiple args"
+mkfifo "$pane_dir/fifo target"
 
 [ -x "$STRATEGY" ] || fail_case "strategy exists" "missing or non-executable: $STRATEGY"
 
@@ -77,6 +78,7 @@ assert_contains "$LINUX_TASKS" "    mode: '0755'" 'Linux strategy copy is execut
 assert_contains "$LINUX_TMUX_CONF" "set -g @resurrect-strategy-nvim 'nmb'" 'Linux tmux config selects nmb strategy'
 
 expect_output "nvim $absolute_space_path" "$pane_dir" "nvim ${absolute_space_path// /\\ }"
+expect_output "nvim Relative Dir" "$pane_dir" 'nvim Relative\ Dir'
 expect_output "nvim Relative Dir/file" "$pane_dir" 'nvim Relative\ Dir/file'
 # An existing path interpretation wins even when the flat text could represent
 # multiple shell arguments.
@@ -84,8 +86,11 @@ expect_output "nvim looks like multiple args" "$pane_dir" 'nvim looks\ like\ mul
 expect_output "nvim ordinary" "$pane_dir" 'nvim ordinary'
 expect_output "nvim -u NONE file" "$pane_dir" 'nvim -u NONE file'
 expect_output "nvim missing path" "$pane_dir" 'nvim missing path'
+expect_output "nvim fifo target" "$pane_dir" 'nvim fifo target'
+expect_output "nvim" "$pane_dir" 'nvim'
 touch "$pane_dir/Session.vim"
 expect_output "nvim anything" "$pane_dir" 'nvim -S'
+expect_output "nvim" "$pane_dir" 'nvim -S'
 expect_output "vim foo" "$pane_dir" 'vim foo'
 
 printf '\nAll tmux-resurrect Neovim space-path checks passed\n'
