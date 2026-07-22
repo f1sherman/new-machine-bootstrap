@@ -1,0 +1,49 @@
+---
+- name: Check if Pi settings.json exists
+  stat:
+    path: "{{ pi_agent_dir }}/settings.json"
+  register: pi_settings_stat
+
+- name: Read existing Pi settings.json if it exists
+  slurp:
+    src: "{{ pi_agent_dir }}/settings.json"
+  register: pi_settings_content
+  when: pi_settings_stat.stat.exists
+
+- name: Parse existing Pi settings or use empty object
+  set_fact:
+    pi_settings: "{{ (pi_settings_content.content | b64decode | from_json) if pi_settings_stat.stat.exists else {} }}"
+
+- name: Build Pi subagent main worktree guard overrides
+  vars:
+    guard_extension: "{{ pi_agent_dir }}/extensions/main-worktree-guard.ts"
+    existing_overrides: "{{ pi_settings.get('subagents', {}).get('agentOverrides', {}) }}"
+  set_fact:
+    pi_subagent_main_worktree_guard_overrides:
+      worker:
+        subagentOnlyExtensions: "{{ (existing_overrides.get('worker', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+      reviewer:
+        subagentOnlyExtensions: "{{ (existing_overrides.get('reviewer', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+      delegate:
+        subagentOnlyExtensions: "{{ (existing_overrides.get('delegate', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+      planner:
+        subagentOnlyExtensions: "{{ (existing_overrides.get('planner', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+      oracle:
+        subagentOnlyExtensions: "{{ (existing_overrides.get('oracle', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+      scout:
+        subagentOnlyExtensions: "{{ (existing_overrides.get('scout', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+      context-builder:
+        subagentOnlyExtensions: "{{ (existing_overrides.get('context-builder', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+      researcher:
+        subagentOnlyExtensions: "{{ (existing_overrides.get('researcher', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+
+- name: Merge Pi subagent main worktree guard settings
+  set_fact:
+    pi_merged_settings: "{{ pi_settings | combine({'subagents': {'agentOverrides': pi_subagent_main_worktree_guard_overrides}}, recursive=True) }}"
+
+- name: Write merged Pi settings.json
+  copy:
+    content: "{{ pi_merged_settings | to_nice_json }}"
+    dest: "{{ pi_agent_dir }}/settings.json"
+    mode: '0600'
+    backup: yes
