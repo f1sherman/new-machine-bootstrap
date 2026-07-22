@@ -42,6 +42,7 @@ let windowLabel = "pi main-repo";
 let agentWorktreePath = "/repo/main-repo";
 let managedPiSessionName = "";
 let taskStatus = "";
+let taskStatusFails = false;
 const goalChildCalls = [];
 let goalChildResults = [];
 let goalChildErrors = [];
@@ -100,7 +101,7 @@ const pi = {
   },
   async exec(command, args, options = {}) {
     calls.push({ command, args });
-    if (command === "tmux-agent-state" && args[0] === "status") return ok(taskStatus);
+    if (command === "tmux-agent-state" && args[0] === "status") return taskStatusFails ? fail() : ok(taskStatus);
     if (command === "tmux-agent-state") return ok();
     if (command === "tmux-update-pane-label") return ok();
     if (command === "tmux-window-label") return ok();
@@ -175,6 +176,7 @@ const ctx = {
 install(pi);
 assert.equal(typeof handlers.get("session_start"), "function", "registers session_start hook");
 assert.equal(typeof handlers.get("session_shutdown"), "function", "registers session_shutdown hook");
+assert.equal(typeof handlers.get("session_tree"), "function", "registers session_tree hook");
 assert.equal(typeof handlers.get("before_agent_start"), "function", "registers before_agent_start hook");
 assert.equal(typeof handlers.get("tool_call"), "function", "registers tool_call hook");
 assert.equal(typeof handlers.get("tool_result"), "function", "registers tool_result hook");
@@ -195,14 +197,52 @@ statuses.length = 0;
 branchEntries = [
   { type: "custom", customType: "session-goal", data: { subject: "old goal" } },
   { type: "custom", customType: "other-extension", data: { subject: "ignore me" } },
-  { type: "custom", customType: "session-goal", data: { subject: "persistent Pi session goals" } },
+  { type: "custom", customType: "session-goal", data: { subject: "  persistent   Pi session goals  " } },
+  { type: "custom", customType: "session-goal", data: { subject: "first\nsecond" } },
+  { type: "custom", customType: "session-goal", data: { subject: "control\u0007subject" } },
+  { type: "custom", customType: "session-goal", data: { subject: "goal: prefixed" } },
+  { type: "custom", customType: "session-goal", data: { subject: "KEEP" } },
+  { type: "custom", customType: "session-goal", data: { subject: "\"quoted subject\"" } },
+  { type: "custom", customType: "session-goal", data: { subject: "x".repeat(81) } },
 ];
 await handlers.get("session_start")({ reason: "resume" }, ctx);
 assert.deepEqual(statuses.at(-1), {
   key: "session-goal",
   value: "goal: persistent Pi session goals",
-}, "resume restores the latest goal from the active branch");
+}, "resume skips malformed newest entries and restores the latest valid normalized goal");
 
+const outsideTmuxEntries = customEntries.length;
+delete process.env.TMUX;
+delete process.env.TMUX_PANE;
+branchEntries = [];
+currentSessionName = "";
+managedPiSessionName = "";
+statuses.length = 0;
+calls.length = 0;
+await handlers.get("session_start")({ reason: "outside tmux" }, ctx);
+assert.equal(statuses.at(-1).value, "goal: determining…", "outside tmux renders goal status");
+goalChildResults.push(ok("outside tmux goal\n"));
+await handlers.get("before_agent_start")({
+  prompt: "set a goal outside tmux",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.deepEqual(customEntries.at(-1), {
+  customType: "session-goal",
+  data: { subject: "outside tmux goal" },
+}, "outside tmux persists changed goals");
+assert.equal(customEntries.length, outsideTmuxEntries + 1, "outside tmux appends one goal entry");
+assert.equal(statuses.at(-1).value, "goal: outside tmux goal", "outside tmux updates goal status");
+assert.equal(currentSessionName, "outside tmux goal", "outside tmux names the session from its goal");
+assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args[0] === "status"), false, "outside tmux goal naming does not query tmux task state");
+
+process.env.TMUX = "1";
+process.env.TMUX_PANE = "%1";
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "persistent Pi session goals" } },
+];
+sessionNames.length = 0;
 currentSessionName = "feature-work";
 windowLabel = "pi main-repo feature-work";
 await handlers.get("session_start")({}, ctx);
@@ -386,8 +426,24 @@ assert.equal(await Promise.race([
   new Promise((resolve) => setTimeout(() => resolve("blocked"), 25)),
 ]), "returned", "goal evaluation does not block before_agent_start");
 assert.equal(goalChildCalls.length, 1, "every expanded prompt starts goal evaluation");
+assert.deepEqual(goalChildCalls[0].args.slice(0, -1), [
+  "--mode", "text",
+  "--print",
+  "--no-session",
+  "--model", "openai-codex/gpt-5.4-mini",
+  "--thinking", "off",
+  "--no-tools",
+  "--no-extensions",
+  "--no-skills",
+  "--no-prompt-templates",
+  "--no-themes",
+  "--no-context-files",
+  "--no-approve",
+  "--system-prompt", "Track the session's broad goal. Given the current goal and newest user prompt, return KEEP when the broad goal is unchanged. Otherwise return one concise noun phrase of at most 80 characters. Output only KEEP or the phrase on one line, without quotes, a goal: prefix, or explanation.",
+], "goal child uses the exact isolated model and context arguments");
 assert.match(goalChildCalls[0].args.at(-1), /Current goal: persistent Pi session goals/);
 assert.match(goalChildCalls[0].args.at(-1), /New user prompt: also cover lifecycle failures/);
+assert.equal(goalChildCalls[0].options.timeout, 15000, "goal child uses the bounded timeout");
 
 goalChildDeferred.resolve(ok("durable Pi goal lifecycle\n"));
 goalChildDeferred = undefined;
@@ -500,6 +556,26 @@ goalChildDeferred = undefined;
 await flushAsyncWork();
 assert.equal(currentSessionName, "feature/session-goal", "active branch wins a late goal naming race");
 assert.equal(statuses.at(-1).value, "goal: goal after branch", "late goal still updates status after branch creation");
+
+currentSessionName = "feature/existing";
+managedPiSessionName = "feature/existing";
+windowLabel = "pi main-repo feature/existing";
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "branch goal" } },
+];
+await handlers.get("session_start")({ reason: "managed branch" }, ctx);
+taskStatusFails = true;
+goalChildResults.push(ok("goal during status failure\n"));
+await handlers.get("before_agent_start")({
+  prompt: "update goal while status is unavailable",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.equal(currentSessionName, "feature/existing", "tmux status failure preserves an existing managed branch name");
+assert.equal(statuses.at(-1).value, "goal: goal during status failure", "tmux status failure does not block goal status updates");
+taskStatusFails = false;
+taskStatus = "active\tbranch\tfeature/existing\n";
 
 await handlers.get("session_start")({ reason: "failure reset" }, ctx);
 notifications.length = 0;
@@ -615,8 +691,45 @@ assert.equal(customEntries.some((entry) => entry.data.subject === "stale old goa
 assert.equal(statuses.at(-1).value, "goal: replacement session goal", "replacement request applies after old settlement");
 assert.equal(lifecycleWarnings.some((args) => args[0] === "[managed-hooks] session goal child failed"), false, "shutdown abort emits no goal failure warning");
 
+const treeGoalCallStart = goalChildCalls.length;
+maxActiveGoalChildren = activeGoalChildren;
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "source branch goal" } },
+];
+await handlers.get("session_tree")({ reason: "navigate" }, ctx);
+goalChildIgnoresAbort = true;
+goalChildDeferred = deferred();
+const sourceBranchDeferred = goalChildDeferred;
+await handlers.get("before_agent_start")({
+  prompt: "source branch pending prompt",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+goalChildDeferred = undefined;
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "destination branch goal" } },
+];
+await handlers.get("session_tree")({ reason: "navigate" }, ctx);
+assert.equal(statuses.at(-1).value, "goal: destination branch goal", "tree navigation immediately restores the destination branch goal");
+goalChildResults.push(ok("destination branch evaluated goal\n"));
+await handlers.get("before_agent_start")({
+  prompt: "destination branch prompt",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+const treeCallsBeforeOldSettlement = goalChildCalls.length;
+goalChildIgnoresAbort = false;
+sourceBranchDeferred.resolve(ok("stale source branch goal\n"));
+await flushAsyncWork();
+assert.equal(maxActiveGoalChildren, 1, "tree navigation never overlaps the settling old evaluator");
+assert.equal(treeCallsBeforeOldSettlement, treeGoalCallStart + 1, "destination evaluator waits for the old branch child to settle");
+assert.equal(goalChildCalls.length, treeGoalCallStart + 2, "destination evaluator starts after old branch settlement");
+assert.equal(customEntries.some((entry) => entry.data.subject === "stale source branch goal"), false, "tree navigation discards stale old-branch output");
+assert.equal(statuses.at(-1).value, "goal: destination branch evaluated goal", "destination branch evaluation applies after old settlement");
+
 notifications.length = 0;
 const entriesBeforePersistenceFailures = customEntries.length;
+const goalBeforePersistenceFailures = statuses.at(-1).value;
 appendEntryErrors.push(
   new Error("persistence unavailable"),
   new Error("persistence unavailable"),
@@ -632,7 +745,7 @@ for (const subject of ["unpersisted goal one", "unpersisted goal two", "unpersis
   await flushAsyncWork();
 }
 assert.equal(customEntries.length, entriesBeforePersistenceFailures, "persistence failures do not append partial goal entries");
-assert.equal(statuses.at(-1).value, "goal: replacement session goal", "persistence failures preserve the previous in-memory goal");
+assert.equal(statuses.at(-1).value, goalBeforePersistenceFailures, "persistence failures preserve the previous in-memory goal");
 assert.equal(notifications.length, 1, "repeated persistence failures use goal failure warnings");
 
 taskStatus = "";
