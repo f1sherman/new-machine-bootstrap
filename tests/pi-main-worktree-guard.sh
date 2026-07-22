@@ -18,6 +18,7 @@ git -C "$tmp_root/primary" commit -qm initial
 git -C "$tmp_root/primary" branch -M main
 git -C "$tmp_root/primary" worktree add -qb feature "$tmp_root/feature"
 ln -s "$tmp_root/feature" "$tmp_root/primary/linked-dir"
+ln -s "$tmp_root/primary" "$tmp_root/feature/primary-link"
 
 cat > "$tmp_root/check.mjs" <<'NODE'
 import assert from "node:assert/strict";
@@ -72,6 +73,9 @@ for (const toolName of ["edit", "write"]) {
 
   const linked = await call(toolName, { path: path.join(feature, "tracked") }, primary);
   assert.equal(linked, undefined, `${toolName} allows linked feature-worktree target`);
+
+  const linkedIntoPrimary = await call(toolName, { path: path.join(feature, "primary-link", "tracked") }, feature);
+  assert.equal(linkedIntoPrimary?.block, true, `${toolName} blocks feature symlink resolving into primary main`);
 }
 
 const blockedCommands = [
@@ -107,6 +111,7 @@ const blockedCommands = [
   ["node write", `node -e "require('fs').writeFileSync('${path.join(primary, "tracked")}', 'changed')"`],
   ["shell-wrapped remove", `bash -c 'rm ${path.join(primary, "tracked")}'`],
   ["primary symlink removal", `rm ${path.join(primary, "linked-dir")}`],
+  ["feature symlink into primary removal", `rm ${path.join(feature, "primary-link", "tracked")}`],
   ["chmod target", `chmod 600 ${path.join(primary, "tracked")}`],
   ["chown target", `chown test ${path.join(primary, "tracked")}`],
 ];

@@ -21,21 +21,21 @@
   set_fact:
     pi_subagent_main_worktree_guard_overrides:
       worker:
-        subagentOnlyExtensions: "{{ (existing_overrides.get('worker', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+        subagentOnlyExtensions: "{{ ((existing_overrides.get('worker', {}).get('subagentOnlyExtensions', []) | default([], true)) + [guard_extension]) | unique }}"
       reviewer:
-        subagentOnlyExtensions: "{{ (existing_overrides.get('reviewer', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+        subagentOnlyExtensions: "{{ ((existing_overrides.get('reviewer', {}).get('subagentOnlyExtensions', []) | default([], true)) + [guard_extension]) | unique }}"
       delegate:
-        subagentOnlyExtensions: "{{ (existing_overrides.get('delegate', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+        subagentOnlyExtensions: "{{ ((existing_overrides.get('delegate', {}).get('subagentOnlyExtensions', []) | default([], true)) + [guard_extension]) | unique }}"
       planner:
-        subagentOnlyExtensions: "{{ (existing_overrides.get('planner', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+        subagentOnlyExtensions: "{{ ((existing_overrides.get('planner', {}).get('subagentOnlyExtensions', []) | default([], true)) + [guard_extension]) | unique }}"
       oracle:
-        subagentOnlyExtensions: "{{ (existing_overrides.get('oracle', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+        subagentOnlyExtensions: "{{ ((existing_overrides.get('oracle', {}).get('subagentOnlyExtensions', []) | default([], true)) + [guard_extension]) | unique }}"
       scout:
-        subagentOnlyExtensions: "{{ (existing_overrides.get('scout', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+        subagentOnlyExtensions: "{{ ((existing_overrides.get('scout', {}).get('subagentOnlyExtensions', []) | default([], true)) + [guard_extension]) | unique }}"
       context-builder:
-        subagentOnlyExtensions: "{{ (existing_overrides.get('context-builder', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+        subagentOnlyExtensions: "{{ ((existing_overrides.get('context-builder', {}).get('subagentOnlyExtensions', []) | default([], true)) + [guard_extension]) | unique }}"
       researcher:
-        subagentOnlyExtensions: "{{ (existing_overrides.get('researcher', {}).get('subagentOnlyExtensions', []) + [guard_extension]) | unique }}"
+        subagentOnlyExtensions: "{{ ((existing_overrides.get('researcher', {}).get('subagentOnlyExtensions', []) | default([], true)) + [guard_extension]) | unique }}"
 
 - name: Merge Pi subagent main worktree guard settings
   set_fact:

@@ -21,17 +21,30 @@ function expandHome(filePath) {
   return filePath;
 }
 
-function probeDir(filePath, fallbackCwd) {
+function probeDirs(filePath, fallbackCwd) {
   const expanded = expandHome(filePath || fallbackCwd);
   let probe = path.isAbsolute(expanded) ? expanded : path.resolve(fallbackCwd, expanded);
+  let lexical = "";
   while (probe !== path.dirname(probe)) {
     if (fs.existsSync(probe)) {
       const entry = fs.lstatSync(probe);
-      if (entry.isDirectory() && !entry.isSymbolicLink()) return probe;
+      if (entry.isDirectory() && !entry.isSymbolicLink()) {
+        lexical = probe;
+        break;
+      }
     }
     probe = path.dirname(probe);
   }
-  return fs.existsSync(probe) ? probe : fallbackCwd;
+  if (!lexical) lexical = fs.existsSync(probe) ? probe : fallbackCwd;
+
+  probe = path.isAbsolute(expanded) ? expanded : path.resolve(fallbackCwd, expanded);
+  while (!fs.existsSync(probe) && probe !== path.dirname(probe)) probe = path.dirname(probe);
+  let resolved = "";
+  if (fs.existsSync(probe)) {
+    const real = fs.realpathSync(probe);
+    resolved = fs.statSync(real).isDirectory() ? real : path.dirname(real);
+  }
+  return [...new Set([lexical, resolved].filter(Boolean))];
 }
 
 async function gitValue(pi, cwd, args) {
@@ -44,15 +57,17 @@ function absoluteGitPath(value, cwd) {
 }
 
 async function protectedMainWorktree(pi, candidate, fallbackCwd) {
-  const cwd = probeDir(candidate, fallbackCwd);
-  const root = await gitValue(pi, cwd, ["rev-parse", "--show-toplevel"]);
-  if (!root) return "";
-  const branch = await gitValue(pi, root, ["branch", "--show-current"]);
-  if (branch !== "main") return "";
-  const gitDir = await gitValue(pi, root, ["rev-parse", "--git-dir"]);
-  const commonDir = await gitValue(pi, root, ["rev-parse", "--git-common-dir"]);
-  if (!gitDir || !commonDir) return "";
-  return absoluteGitPath(gitDir, root) === absoluteGitPath(commonDir, root) ? root : "";
+  for (const cwd of probeDirs(candidate, fallbackCwd)) {
+    const root = await gitValue(pi, cwd, ["rev-parse", "--show-toplevel"]);
+    if (!root) continue;
+    const branch = await gitValue(pi, root, ["branch", "--show-current"]);
+    if (branch !== "main") continue;
+    const gitDir = await gitValue(pi, root, ["rev-parse", "--git-dir"]);
+    const commonDir = await gitValue(pi, root, ["rev-parse", "--git-common-dir"]);
+    if (!gitDir || !commonDir) continue;
+    if (absoluteGitPath(gitDir, root) === absoluteGitPath(commonDir, root)) return root;
+  }
+  return "";
 }
 
 function shellWrappedPayload(segment) {

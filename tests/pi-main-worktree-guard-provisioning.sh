@@ -43,7 +43,10 @@ cat > "$tmp_root/pi-agent/settings.json" <<'JSON'
     "agentOverrides": {
       "worker": {
         "model": "existing-worker-model",
-        "subagentOnlyExtensions": ["/existing/worker-extension.ts"]
+        "subagentOnlyExtensions": false
+      },
+      "reviewer": {
+        "subagentOnlyExtensions": ["/existing/reviewer-extension.ts"]
       },
       "custom-agent": {
         "thinking": "high"
@@ -76,7 +79,7 @@ guard="$tmp_root/pi-agent/extensions/main-worktree-guard.ts"
 for agent in worker reviewer delegate planner oracle scout context-builder researcher; do
   jq -e --arg agent "$agent" --arg guard "$guard" '.subagents.agentOverrides[$agent].subagentOnlyExtensions | index($guard) != null' "$settings" >/dev/null
 done
-jq -e '.subagents.agentOverrides.worker.subagentOnlyExtensions | index("/existing/worker-extension.ts") != null' "$settings" >/dev/null
+jq -e '.subagents.agentOverrides.reviewer.subagentOnlyExtensions | index("/existing/reviewer-extension.ts") != null' "$settings" >/dev/null
 
 ansible-playbook "$tmp_root/playbook.yml" >/tmp/pi-main-worktree-guard-idempotence.log
 rg -F 'changed=0' /tmp/pi-main-worktree-guard-idempotence.log >/dev/null
