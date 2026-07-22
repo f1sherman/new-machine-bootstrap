@@ -169,13 +169,30 @@ function executableIndex(tokens) {
   }
   if (tokens[index] === "sudo") {
     index += 1;
-    while (index < tokens.length && tokens[index].startsWith("-")) index += 1;
+    const valueOptions = new Set(["-u", "--user", "-g", "--group", "-h", "--host", "-p", "--prompt", "-C", "--close-from", "-R", "--chroot", "-T", "--command-timeout", "-D", "--chdir"]);
+    while (index < tokens.length && tokens[index].startsWith("-")) {
+      if (valueOptions.has(tokens[index])) index += 1;
+      index += 1;
+    }
   }
   if (tokens[index] === "time") {
     index += 1;
     while (index < tokens.length && tokens[index].startsWith("-")) index += 1;
   }
   return index;
+}
+
+function environmentCwd(tokens, cwd) {
+  let index = 0;
+  while (index < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[index])) index += 1;
+  if (tokens[index] === "command") index += 1;
+  if (tokens[index] !== "env") return cwd;
+  for (index += 1; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if ((token === "-C" || token === "--chdir") && tokens[index + 1]) return resolveCandidate(tokens[index + 1], cwd);
+    if (token.startsWith("--chdir=")) return resolveCandidate(token.slice("--chdir=".length), cwd);
+  }
+  return cwd;
 }
 
 function changedDirectory(segment, cwd) {
@@ -480,9 +497,11 @@ async function bashMutationBlockReason(pi, command, initialCwd) {
       cwd = cwdStack.pop() || cwd;
       continue;
     }
+    const tokens = shellTokens(segment);
+    const commandCwd = environmentCwd(tokens, cwd);
     const payload = shellWrappedPayload(segment);
     if (payload) {
-      const nestedReason = await bashMutationBlockReason(pi, payload, cwd);
+      const nestedReason = await bashMutationBlockReason(pi, payload, commandCwd);
       if (nestedReason) return nestedReason;
       continue;
     }
@@ -499,8 +518,7 @@ async function bashMutationBlockReason(pi, command, initialCwd) {
       if (root) return blockReason("shell redirection", root);
     }
 
-    const tokens = shellTokens(segment);
-    const gitCwd = gitMutationCwd(tokens, cwd);
+    const gitCwd = gitMutationCwd(tokens, commandCwd);
     if (gitCwd) {
       const root = await protectedMainWorktree(pi, gitCwd, cwd);
       if (root) return blockReason("Git working-tree mutation", root);
@@ -510,29 +528,29 @@ async function bashMutationBlockReason(pi, command, initialCwd) {
     const commandName = path.basename(tokens[executable] || "");
     if (/^(?:python(?:\d+(?:\.\d+)*)?|ruby|node|nodejs)$/.test(commandName)) {
       const interpreterTargets = interpreterWriteTargets(segment);
-      const root = await firstProtectedRoot(pi, interpreterTargets, cwd);
+      const root = await firstProtectedRoot(pi, interpreterTargets, commandCwd);
       if (root) return blockReason("interpreter file write", root);
     }
 
     if (commandName === "tee") {
-      const root = await firstProtectedRoot(pi, positionalOperands(tokens, executable + 1), cwd);
+      const root = await firstProtectedRoot(pi, positionalOperands(tokens, executable + 1), commandCwd);
       if (root) return blockReason("tee output", root);
     }
 
     if (FILE_MUTATORS.has(commandName)) {
-      let operands = mutationTargets(commandName, tokens, executable + 1, cwd);
+      let operands = mutationTargets(commandName, tokens, executable + 1, commandCwd);
       const targetDirectory = TARGET_DIRECTORY_MUTATORS.has(commandName) ? targetDirectoryOperand(tokens, executable + 1) : "";
       if (targetDirectory) {
         operands = commandName === "mv" ? [...operands, targetDirectory] : [targetDirectory];
       } else if (commandName === "ln" && operands.length === 1) {
-        operands = [path.resolve(cwd, path.basename(operands[0]))];
+        operands = [path.resolve(commandCwd, path.basename(operands[0]))];
       } else if (DESTINATION_ONLY_MUTATORS.has(commandName) && operands.length > 0) {
         operands = [operands.at(-1)];
       }
       const root = await firstProtectedRoot(
         pi,
-        operands.length > 0 ? operands : [cwd],
-        cwd,
+        operands.length > 0 ? operands : [commandCwd],
+        commandCwd,
         { followFinalSymlink: commandName !== "rm" },
       );
       if (root) return blockReason(`${commandName} mutation`, root);
@@ -540,7 +558,7 @@ async function bashMutationBlockReason(pi, command, initialCwd) {
 
     if ((commandName === "sed" || commandName === "perl") && tokens.slice(executable + 1).some((token) => /^-[^-]*i/.test(token) || token === "--in-place" || token.startsWith("--in-place="))) {
       const targets = inPlaceTargets(tokens, executable + 1);
-      const root = await firstProtectedRoot(pi, targets.length > 0 ? targets : [cwd], cwd);
+      const root = await firstProtectedRoot(pi, targets.length > 0 ? targets : [commandCwd], commandCwd);
       if (root) return blockReason("in-place edit", root);
     }
   }
