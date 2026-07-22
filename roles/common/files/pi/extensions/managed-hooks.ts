@@ -827,14 +827,6 @@ export default function managedHooks(pi) {
     }
 
     if (event.toolName === "edit" || event.toolName === "write") {
-      const targetPath = event.input.path || event.input.file_path || "";
-      const cwd = targetPath ? probeDir(targetPath, ctx.cwd) : ctx.cwd;
-      if (await onMainBranch(pi, cwd)) {
-        return {
-          block: true,
-          reason: "File edit blocked on main. Start a non-main branch with repo-start <branch>, then retry.",
-        };
-      }
       await updateCurrentSpec(pi, event, ctx);
     }
   });
