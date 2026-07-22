@@ -10,6 +10,8 @@ case "$original_command" in
   *) printf '%s\n' "$original_command"; exit 0 ;;
 esac
 
+pane_dir=${pane_dir//\\ / }
+
 if [ -f "$pane_dir/Session.vim" ]; then
   printf '%s\n' 'nvim -S'
   exit 0
