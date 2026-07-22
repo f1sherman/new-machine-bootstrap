@@ -719,7 +719,6 @@ export default function managedHooks(pi) {
         }
       }
     } finally {
-      if (drainGeneration !== sessionGoalGeneration) return;
       sessionGoalAbortController = undefined;
       sessionGoalRunning = false;
       if (pendingSessionGoalRequest) void drainSessionGoalQueue(pi);
@@ -743,8 +742,6 @@ export default function managedHooks(pi) {
     sessionGoalGeneration += 1;
     pendingSessionGoalRequest = undefined;
     sessionGoalAbortController?.abort();
-    sessionGoalAbortController = undefined;
-    sessionGoalRunning = false;
     consecutiveSessionGoalFailures = 0;
     currentSessionGoal = restoreSessionGoal(ctx);
     renderSessionGoal(ctx);
