@@ -10,9 +10,9 @@
 
 ## Global Constraints
 
-- Preserve existing `Session.vim` behavior.
-- Rewrite only a single existing file or directory path.
-- Leave flags, ambiguous/multiple arguments, nonexistent paths, and other processes unchanged.
+- Preserve existing Neovim `Session.vim` behavior without changing other processes.
+- Treat the entire flat text after `nvim ` as one path candidate; when it exists, that single-path interpretation wins even if the text could theoretically represent multiple arguments.
+- Leave flags, flat text that does not resolve as one existing path (including unresolved ambiguous/multiple arguments), nonexistent paths, and other processes unchanged.
 - Manage deployed files only through this repository and `bin/provision`.
 - Install the same strategy on macOS and Linux.
 
@@ -36,11 +36,14 @@ Create a temporary directory tree and invoke the strategy as a standalone progra
 ```bash
 expect_output "nvim $absolute_space_path" "$pane_dir" "nvim ${absolute_space_path// /\\ }"
 expect_output "nvim Relative Dir/file" "$pane_dir" 'nvim Relative\ Dir/file'
+touch "$pane_dir/looks like multiple args"
+expect_output "nvim looks like multiple args" "$pane_dir" 'nvim looks\ like\ multiple\ args'
 expect_output "nvim ordinary" "$pane_dir" 'nvim ordinary'
 expect_output "nvim -u NONE file" "$pane_dir" 'nvim -u NONE file'
 expect_output "nvim missing path" "$pane_dir" 'nvim missing path'
 touch "$pane_dir/Session.vim"
 expect_output "nvim anything" "$pane_dir" 'nvim -S'
+expect_output "vim foo" "$pane_dir" 'vim foo'
 ```
 
 Also assert CI invokes this test. Platform configuration and provisioning assertions are added in Task 2.
@@ -62,15 +65,15 @@ set -euo pipefail
 original_command="${1:-}"
 pane_dir="${2:-}"
 
-if [ -f "$pane_dir/Session.vim" ]; then
-  printf '%s\n' 'nvim -S'
-  exit 0
-fi
-
 case "$original_command" in
   nvim\ *) argument=${original_command#nvim } ;;
   *) printf '%s\n' "$original_command"; exit 0 ;;
 esac
+
+if [ -f "$pane_dir/Session.vim" ]; then
+  printf '%s\n' 'nvim -S'
+  exit 0
+fi
 
 case "$argument" in
   ''|-*) printf '%s\n' "$original_command"; exit 0 ;;

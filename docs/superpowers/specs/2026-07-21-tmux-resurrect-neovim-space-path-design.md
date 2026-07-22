@@ -17,9 +17,12 @@ Fix Neovim restoration when the original command contains exactly one existing f
 Do not change restoration for:
 
 - other processes;
-- Neovim commands with flags or multiple arguments;
+- Neovim commands with flags;
+- flat argument text that does not resolve as one existing path, including unresolved ambiguous or multiple arguments;
 - nonexistent paths;
-- commands already using a local `Session.vim` file.
+- Neovim commands already using a local `Session.vim` file.
+
+When the entire flat text after `nvim ` resolves as one existing path, that path interpretation takes precedence even if the same text could theoretically represent multiple shell arguments.
 
 ## Design
 
@@ -27,17 +30,18 @@ Add a repository-managed tmux-resurrect Neovim strategy. Configure both macOS an
 
 The strategy receives the original flat command and pane working directory from tmux-resurrect. It will:
 
-1. Return `nvim -S` when `Session.vim` exists in the pane working directory, preserving current behavior.
-2. Separate the leading `nvim` token from the remaining flat argument text.
-3. Resolve the remaining text as one path, relative to the pane working directory when necessary.
-4. When that complete path exists, return `nvim` plus a shell-escaped form of the original path text.
-5. Otherwise return the original command unchanged.
+1. Return non-`nvim` commands unchanged.
+2. Return `nvim -S` when `Session.vim` exists in the pane working directory, preserving current Neovim behavior.
+3. Separate the leading `nvim` token from the remaining flat argument text.
+4. Resolve the entire remaining text as one path, relative to the pane working directory when necessary.
+5. When that complete path exists, prefer the single-path interpretation and return `nvim` plus a shell-escaped form of the original path text.
+6. Otherwise return the original command unchanged.
 
 The strategy will live in repository-managed files and be copied into tmux-resurrect's `strategies` directory after TPM has installed the plugin. Provisioning will manage the same strategy on macOS and Linux.
 
 ## Error Handling
 
-The strategy is conservative. Empty arguments, flags, multiple arguments that do not form one existing path, and failed path checks fall back to the original command. It will not infer or rewrite ambiguous commands.
+The strategy is conservative. Empty arguments, flags, multiple arguments that do not form one existing path, and failed path checks fall back to the original command. An existing path formed by the entire flat argument text is not treated as ambiguous: that single-path interpretation explicitly wins and is escaped.
 
 The output remains a shell command because that is tmux-resurrect's strategy interface. Shell escaping will use Bash's `%q` formatting so the reconstructed single argument survives tmux `send-keys` and shell parsing.
 
@@ -49,8 +53,10 @@ Add a standalone contract test for the strategy covering:
 - a relative directory path containing spaces;
 - an ordinary path without spaces;
 - a pane directory containing `Session.vim`;
+- an existing spaced path whose flat text could theoretically represent multiple arguments, proving the single-path interpretation wins;
 - flags or multiple arguments that do not resolve to one path;
-- a nonexistent path.
+- a nonexistent path;
+- a non-Neovim command when `Session.vim` exists.
 
 Add configuration assertions that macOS and Linux select the managed strategy, and provisioning inventory assertions that both platform roles install it after tmux-resurrect exists.
 
@@ -61,5 +67,5 @@ After saving and restoring a tmux pane running Neovim with one existing space-co
 - the restored shell command passes the full path as one argument;
 - Neovim opens the intended file or directory;
 - existing `Session.vim` restoration remains unchanged;
-- unrelated or ambiguous Neovim commands remain unchanged;
+- unrelated commands and ambiguous Neovim commands that do not resolve as one existing path remain unchanged;
 - macOS and Linux provisioning install the strategy idempotently.
