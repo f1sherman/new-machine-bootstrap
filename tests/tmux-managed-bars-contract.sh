@@ -58,6 +58,9 @@ for config in "$LINUX_TMUX_CONF" "$MACOS_TMUX_CONF"; do
   assert_file_contains "$config" \
     '^run-shell -b .*tmux-reconcile-status-bars' \
     "$platform config reconciles status at load time"
+  assert_file_contains "$config" \
+    '^set-hook -g client-attached .*tmux-client-attached.*tmux-remote-title publish' \
+    "$platform config base client-attached hook republishes the structured title"
   assert_file_not_contains "$config" \
     'client_termname.*set status|set status.*client_termname' \
     "$platform config removes per-client status toggles"
@@ -104,6 +107,8 @@ assert_equals "$unrelated_detach_hooks" "1" \
 attach_hooks="$(tmux -L "$SOCK" show-hooks -g client-attached 2>/dev/null)"
 assert_equals "$(grep -c 'tmux-client-attached' <<<"$attach_hooks" || true)" "1" \
   "repeated config sourcing preserves one base client-attached hook"
+assert_equals "$(grep -c 'tmux-remote-title publish' <<<"$attach_hooks" || true)" "1" \
+  "repeated config sourcing preserves one client-attached title publisher"
 assert_equals "$(grep -c 'tmux-reconcile-status-bars' <<<"$attach_hooks" || true)" "1" \
   "repeated config sourcing keeps one indexed client-attached reconciler"
 session_change_hooks="$(
