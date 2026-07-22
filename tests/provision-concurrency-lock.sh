@@ -244,7 +244,7 @@ fi
 provision_file="$REPO_ROOT/bin/provision"
 source_line=$(grep -nF 'source "$SCRIPT_DIR/provision-lock"' "$provision_file" | cut -d: -f1)
 acquire_line=$(grep -nF 'provision_lock_acquire "$@"' "$provision_file" | cut -d: -f1)
-latest_log_line=$(grep -nF 'ln -sf "$LOGFILE_PATH" /tmp/provision-latest.log' "$provision_file" | cut -d: -f1)
+latest_log_line=$(grep -nF 'ln -sf "$LOGFILE_PATH" "$PROVISION_LOG_DIR_PATH/provision-latest.log"' "$provision_file" | cut -d: -f1)
 cleanup_line=$(grep -n '^cleanup()' "$provision_file" | cut -d: -f1)
 release_line=$(grep -nF '  provision_lock_release' "$provision_file" | cut -d: -f1)
 trap_count=$(grep -c '^trap .* EXIT$' "$provision_file")
@@ -256,7 +256,7 @@ else
 fi
 if [[ -n "$cleanup_line" && -n "$release_line" && $cleanup_line -lt $release_line && $trap_count -eq 1 ]] && \
   grep -Fq '==> Provisioning log: $LOGFILE_PATH' "$provision_file" && \
-  grep -Fq '==> Or: cat /tmp/provision-latest.log' "$provision_file"; then
+  grep -Fq '==> Or: cat $PROVISION_LOG_DIR_PATH/provision-latest.log' "$provision_file"; then
   pass "bin/provision has one cleanup path that releases the lock and prints final log help"
 else
   fail "bin/provision has one cleanup path that releases the lock and prints final log help"

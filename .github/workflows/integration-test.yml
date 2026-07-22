@@ -27,6 +27,9 @@ jobs:
       - name: Verify provision concurrency lock
         run: bash tests/provision-concurrency-lock.sh
 
+      - name: Test provision log provenance
+        run: bash tests/provision-log-provenance.sh
+
       - name: Verify Rectangle migration
         run: ruby tests/rectangle-migration-contract.rb
 

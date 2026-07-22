@@ -14,25 +14,32 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/provision-lock"
 
 LOGFILE_PATH=""
+PROVISION_LOG_DIR_PATH=""
 cleanup() {
   provision_lock_release
   if [[ -n "$LOGFILE_PATH" ]]; then
     echo ""
     echo "==> Provisioning log: $LOGFILE_PATH"
-    echo "==> Or: cat /tmp/provision-latest.log"
+    echo "==> Or: cat $PROVISION_LOG_DIR_PATH/provision-latest.log"
   fi
 }
 trap cleanup EXIT
 
+provision_log_dir() {
+  printf '%s\n' "${PROVISION_LOG_DIR:-/tmp}"
+}
+
 provision_lock_acquire "$@"
 PROVISIONING_START=$(date +%s)
-LOGFILE_PATH="/tmp/provision-$(date +%Y%m%d-%H%M%S).log"
+PROVISION_LOG_DIR_PATH=$(provision_log_dir)
+mkdir -p "$PROVISION_LOG_DIR_PATH"
+LOGFILE_PATH="$PROVISION_LOG_DIR_PATH/provision-$(date +%Y%m%d-%H%M%S).log"
 
 # Create a symlink to the latest log for easy access
-ln -sf "$LOGFILE_PATH" /tmp/provision-latest.log
+ln -sf "$LOGFILE_PATH" "$PROVISION_LOG_DIR_PATH/provision-latest.log"
 
 echo "==> Provisioning log: $LOGFILE_PATH"
-echo "==> (Also available at: /tmp/provision-latest.log)"
+echo "==> (Also available at: $PROVISION_LOG_DIR_PATH/provision-latest.log)"
 echo ""
 
 timestamp() {
@@ -51,6 +58,45 @@ log_error() {
   echo "$line" >> "$LOGFILE_PATH"
 }
 
+provision_source_context() {
+  local source_root branch commit repository_state
+  source_root=$(git -C "$SCRIPT_DIR/.." rev-parse --show-toplevel 2>/dev/null || true)
+  if [[ -z "$source_root" ]]; then
+    printf '%s\n' 'unknown' 'unknown' 'unknown' 'unknown'
+    return 0
+  fi
+  source_root=$(cd "$source_root" 2>/dev/null && pwd -P || printf 'unknown')
+  branch=$(git -C "$source_root" symbolic-ref --short -q HEAD 2>/dev/null || printf 'detached')
+  commit=$(git -C "$source_root" rev-parse HEAD 2>/dev/null || printf 'unknown')
+  if git -C "$source_root" status --porcelain --untracked-files=normal >/dev/null 2>&1; then
+    if [[ -n "$(git -C "$source_root" status --porcelain --untracked-files=normal 2>/dev/null)" ]]; then
+      repository_state=dirty
+    else
+      repository_state=clean
+    fi
+  else
+    repository_state=unknown
+  fi
+  printf '%s\n' "$source_root" "$branch" "$commit" "$repository_state"
+}
+
+log_provision_context() {
+  local context source_root branch commit repository_state invocation_arguments
+  context=$(provision_source_context)
+  source_root=$(printf '%s\n' "$context" | sed -n '1p')
+  branch=$(printf '%s\n' "$context" | sed -n '2p')
+  commit=$(printf '%s\n' "$context" | sed -n '3p')
+  repository_state=$(printf '%s\n' "$context" | sed -n '4p')
+  invocation_arguments="$*"
+  [[ -n "$invocation_arguments" ]] || invocation_arguments='(none)'
+  log_info "Provision started at: $(timestamp)"
+  log_info "Provision source worktree: $source_root"
+  log_info "Provision source branch: $branch"
+  log_info "Provision source commit: $commit"
+  log_info "Provision source repository state: $repository_state"
+  log_info "Provision invocation arguments: $invocation_arguments"
+}
+
 command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
@@ -62,6 +108,8 @@ args_include_diff() {
   done
   return 1
 }
+
+log_provision_context "$@"
 
 mac_os() {
   [[ "$OSTYPE" == "darwin"* ]]
