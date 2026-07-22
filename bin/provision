@@ -58,6 +58,25 @@ log_error() {
   echo "$line" >> "$LOGFILE_PATH"
 }
 
+redact_logged_arguments() {
+  local arg
+  local -a redacted=()
+
+  for arg in "$@"; do
+    case "$arg" in
+      ansible_become_pass=*)
+        redacted+=("ansible_become_pass=[REDACTED]")
+        ;;
+      *)
+        redacted+=("$arg")
+        ;;
+    esac
+  done
+
+  local IFS=' '
+  printf '%s' "${redacted[*]}"
+}
+
 provision_source_context() {
   local source_root branch commit repository_state
   source_root=$(git -C "$SCRIPT_DIR/.." rev-parse --show-toplevel 2>/dev/null || true)
@@ -87,7 +106,7 @@ log_provision_context() {
   branch=$(printf '%s\n' "$context" | sed -n '2p')
   commit=$(printf '%s\n' "$context" | sed -n '3p')
   repository_state=$(printf '%s\n' "$context" | sed -n '4p')
-  invocation_arguments="$*"
+  invocation_arguments=$(redact_logged_arguments "$@")
   [[ -n "$invocation_arguments" ]] || invocation_arguments='(none)'
   log_info "Provision started at: $(timestamp)"
   log_info "Provision source worktree: $source_root"
@@ -328,13 +347,13 @@ if [[ -n "${ANSIBLE_BECOME_PASS:-}" ]]; then
 fi
 cmd_parts+=("$@")
 
-cmd="${cmd_parts[*]}"
-log_info "Executing command: ${cmd//ansible_become_pass=*/ansible_become_pass=[REDACTED]}"
+cmd=$(redact_logged_arguments "${cmd_parts[@]}")
+log_info "Executing command: $cmd"
 log_info "Gathering facts (this may take a moment)..."
 
 output=$(mktemp)
 if ! "${cmd_parts[@]}" 2>&1 | tee -a "$LOGFILE_PATH" | tee "$output"; then
-  log_error "Command failed: ${cmd//ansible_become_pass=*/ansible_become_pass=[REDACTED]}"
+  log_error "Command failed: $cmd"
   say_message "provisioning failed"
   rm -f "$output"
   exit 1

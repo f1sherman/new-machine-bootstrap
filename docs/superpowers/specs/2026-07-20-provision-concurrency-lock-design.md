@@ -61,4 +61,4 @@ Add a shell regression test around an isolated copy or test hook for the lock be
 - lock identity is shared across different repository worktrees;
 - existing provisioning exit logging remains intact.
 
-Update relevant managed-instruction tests to verify the assembled Pi guidance and the Claude source fragment. Run shell syntax checks, focused regressions, the CI test inventory, and `bin/provision --check` after implementation. Because the lock intentionally serializes live provisioning, an end-to-end contention smoke test should use non-destructive test hooks rather than overlapping real Ansible runs.
+Update relevant managed-instruction tests to verify managed fragment assembly and repository policy checks without exact-prose guidance assertions. Run shell syntax checks, focused regressions, the CI test inventory, and `bin/provision --check` after implementation. Because the lock intentionally serializes live provisioning, an end-to-end contention smoke test should use non-destructive test hooks rather than overlapping real Ansible runs.
