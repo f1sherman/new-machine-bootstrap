@@ -120,6 +120,8 @@ cleanup_task = default_tasks.find { |task| task["name"] == "Remove SizeUp prefer
 abort "FAIL  missing SizeUp defaults cleanup" unless cleanup_task
 abort "FAIL  wrong SizeUp defaults cleanup command" unless cleanup_task["command"] == "defaults delete com.irradiatedsoftware.SizeUp"
 abort "FAIL  SizeUp cleanup is not conditional" unless cleanup_task["when"] == "sizeup_preferences_check.rc == 0"
+abort "FAIL  SizeUp cleanup overrides default failure handling" if cleanup_task.key?("failed_when")
+abort "FAIL  SizeUp cleanup ignores deletion failures" if cleanup_task["ignore_errors"] == true
 
 puts "PASS  SizeUp to Rectangle migration contract"
 ```
