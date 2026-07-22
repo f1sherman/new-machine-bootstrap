@@ -9,7 +9,7 @@ const FILE_MUTATORS = new Set([
 const DESTINATION_ONLY_MUTATORS = new Set(["cp", "install", "ln"]);
 const TARGET_DIRECTORY_MUTATORS = new Set(["cp", "install", "ln", "mv"]);
 const GIT_WORKTREE_MUTATORS = new Set([
-  "restore", "clean", "reset", "checkout", "switch", "apply",
+  "restore", "clean", "reset", "checkout", "switch", "apply", "rm", "mv",
 ]);
 
 async function exec(pi, command, args, options = {}) {
@@ -47,7 +47,7 @@ function probeDirs(filePath, fallbackCwd, followFinalSymlink = true) {
     const real = fs.realpathSync(probe);
     resolved = fs.statSync(real).isDirectory() ? real : path.dirname(real);
   }
-  return [...new Set([lexical, resolved].filter(Boolean))];
+  return resolved ? [resolved] : [lexical];
 }
 
 async function gitValue(pi, cwd, args) {
@@ -428,6 +428,7 @@ async function firstProtectedRoot(pi, candidates, cwd, options = {}) {
 async function interpreterHeredocBlockReason(pi, command, initialCwd) {
   let cwd = initialCwd;
   let heredoc;
+  const cwdStack = [];
   for (const line of command.split(/\r?\n/)) {
     if (heredoc) {
       if (line.trim() === heredoc.marker) {
@@ -439,7 +440,6 @@ async function interpreterHeredocBlockReason(pi, command, initialCwd) {
       }
       continue;
     }
-    const cwdStack = [];
     for (const segment of splitShellSegments(line)) {
       if (segment === "(") {
         cwdStack.push(cwd);
