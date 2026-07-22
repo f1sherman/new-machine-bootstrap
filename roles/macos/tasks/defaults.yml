@@ -12,6 +12,22 @@
   loop_control:
     label: "{{ item.domain }} {{ item.key }}"
 
+- name: "Rectangle: Configure window shortcuts"
+  command: >-
+    defaults write com.knollsoft.Rectangle {{ item.action }}
+    -dict keyCode -int {{ item.key_code }}
+    modifierFlags -int {{ item.modifier_flags }}
+  changed_when: false
+  loop: "{{ rectangle_shortcuts }}"
+  loop_control:
+    label: "{{ item.action }}"
+
+- name: Remove SizeUp preferences
+  command: defaults delete com.irradiatedsoftware.SizeUp
+  register: sizeup_preferences_removed
+  changed_when: sizeup_preferences_removed.rc == 0
+  failed_when: sizeup_preferences_removed.rc not in [0, 1]
+
 # Special cases that don't fit the { domain, key, type, value } pattern
 
 - name: "Terminal: Only use UTF-8"

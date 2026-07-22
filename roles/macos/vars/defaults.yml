@@ -117,11 +117,20 @@ macos_defaults:
   - { domain: com.google.Chrome, key: PMPrintingExpandedStateForPrint2, type: bool, value: true }
   - { domain: com.google.Chrome.canary, key: PMPrintingExpandedStateForPrint2, type: bool, value: true }
 
-  # ── SizeUp ──
-  - { domain: com.irradiatedsoftware.SizeUp, key: StartAtLogin, type: bool, value: true }
-  - { domain: com.irradiatedsoftware.SizeUp, key: ShowPrefsOnNextStart, type: bool, value: false }
+  # ── Rectangle ──
+  - { domain: com.knollsoft.Rectangle, key: launchOnLogin, type: bool, value: true }
+  - { domain: com.knollsoft.Rectangle, key: subsequentExecutionMode, type: int, value: 2 }
 
   # ── Activity Monitor ──
   - { domain: com.apple.ActivityMonitor, key: OpenMainWindow, type: bool, value: true }
   - { domain: com.apple.ActivityMonitor, key: IconType, type: int, value: 5 }
   - { domain: com.apple.ActivityMonitor, key: ShowCategory, type: int, value: 0 }
+
+rectangle_shortcuts:
+  - { action: leftHalf, key_code: 123, modifier_flags: 1835008 }
+  - { action: rightHalf, key_code: 124, modifier_flags: 1835008 }
+  - { action: topHalf, key_code: 126, modifier_flags: 1835008 }
+  - { action: bottomHalf, key_code: 125, modifier_flags: 1835008 }
+  - { action: maximize, key_code: 46, modifier_flags: 1835008 }
+  - { action: previousDisplay, key_code: 123, modifier_flags: 786432 }
+  - { action: nextDisplay, key_code: 124, modifier_flags: 786432 }
