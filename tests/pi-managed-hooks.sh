@@ -40,6 +40,8 @@ let branchEntries = [];
 let currentSessionName = "";
 let windowLabel = "pi main-repo";
 let agentWorktreePath = "/repo/main-repo";
+let boundPiSessionFile = "/sessions/previous.jsonl";
+let activeSessionFile = "/sessions/current.jsonl";
 let managedPiSessionName = "";
 let taskStatus = "";
 let taskStatusFails = false;
@@ -111,8 +113,10 @@ const pi = {
     if (command === "tmux-window-label") return ok();
     if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@window-label") return ok(`${windowLabel}\n`);
     if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@agent_worktree_path") return agentWorktreePath ? ok(`${agentWorktreePath}\n`) : fail();
+    if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@persist_pi_session_file") return boundPiSessionFile ? ok(`${boundPiSessionFile}\n`) : fail();
     if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@pi_managed_session_name") return managedPiSessionName ? ok(`${managedPiSessionName}\n`) : fail();
     if (command === "tmux" && args[0] === "set-option") {
+      if (args.includes("@persist_pi_session_file")) boundPiSessionFile = args.at(-1);
       if (args.includes("@pi_managed_session_name")) managedPiSessionName = args.at(-1);
       return ok();
     }
@@ -169,7 +173,7 @@ const ctx = {
       return currentSessionName;
     },
     getSessionFile() {
-      return "/sessions/current.jsonl";
+      return activeSessionFile;
     },
     getBranch() {
       return branchEntries;
@@ -269,7 +273,50 @@ assert.deepEqual(calls.slice(-6), [
   { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@agent_worktree_path"] },
 ], "session_start verifies canonical task status before using the rendered tmux label");
 assert.deepEqual(sessionNames, [], "directory-only pi labels do not set redundant Pi session names");
+assert.equal(typeof handlers.get("session_info_changed"), "function", "registers session_info_changed hook");
+
+boundPiSessionFile = "/sessions/previous.jsonl";
+activeSessionFile = "/sessions/current.jsonl";
+currentSessionName = "Investigate mount probe flapping";
+branchEntries = [];
+calls.length = 0;
+await handlers.get("session_start")({ reason: "tmux subject sync" }, ctx);
+assert.deepEqual(calls.slice(0, 3), [
+  { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@persist_pi_session_file"] },
+  { command: "tmux-agent-subject", args: ["set", "Investigate mount probe flapping"] },
+  { command: "tmux-update-pane-label", args: ["%1"] },
+], "changed session binding updates the subject before tmux labels");
+
+for (const [name, nextBoundPiSessionFile, nextCurrentSessionName] of [
+  ["same binding", "/sessions/current.jsonl", "Investigate mount probe flapping"],
+  ["absent previous binding", "", "Investigate mount probe flapping"],
+  ["empty current name", "/sessions/previous.jsonl", "   "],
+]) {
+  boundPiSessionFile = nextBoundPiSessionFile;
+  activeSessionFile = "/sessions/current.jsonl";
+  currentSessionName = nextCurrentSessionName;
+  branchEntries = [];
+  calls.length = 0;
+  await handlers.get("session_start")({ reason: name }, ctx);
+  assert.equal(calls.some((call) => call.command === "tmux-agent-subject"), false, `${name} does not invoke tmux-agent-subject`);
+}
+
+boundPiSessionFile = "/sessions/previous.jsonl";
+activeSessionFile = "/sessions/current.jsonl";
+currentSessionName = "";
+
 assert.equal(typeof handlers.get("tool_result"), "function", "registers tool_result hook");
+
+calls.length = 0;
+await handlers.get("session_info_changed")({ name: "Updated conversation" }, ctx);
+assert.deepEqual(calls.at(-1), {
+  command: "tmux-agent-subject",
+  args: ["set", "Updated conversation"],
+}, "session_info_changed renames the subject");
+
+calls.length = 0;
+await handlers.get("session_info_changed")({ name: undefined }, ctx);
+assert.equal(calls.some((call) => call.command === "tmux-agent-subject"), false, "missing session_info_changed name does not rename the subject");
 
 windowLabel = "pi main-repo feature-work";
 await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
