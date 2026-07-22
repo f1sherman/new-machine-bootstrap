@@ -100,12 +100,15 @@ const blockedCommands = [
   ["git apply", `git -C ${primary} apply change.patch`],
   ["python Path.write_text", `python3 - <<'PY'\nfrom pathlib import Path\nPath('${path.join(primary, "tracked")}').write_text('changed')\nPY`],
   ["python relative Path.write_text", `python3 -c "from pathlib import Path; Path('../primary/tracked').write_text('changed')"`],
+  ["python relative write after cd", `cd ${primary} && python3 -c "from pathlib import Path; Path('tracked').write_text('changed')"`],
   ["python writable open", `python3 -c "open('${path.join(primary, "tracked")}', 'w').write('changed')"`],
   ["python update open", `python3 -c "open('${path.join(primary, "tracked")}', 'r+').write('changed')"`],
   ["ruby write", `ruby -e "File.write('${path.join(primary, "tracked")}', 'changed')"`],
   ["node write", `node -e "require('fs').writeFileSync('${path.join(primary, "tracked")}', 'changed')"`],
   ["shell-wrapped remove", `bash -c 'rm ${path.join(primary, "tracked")}'`],
   ["primary symlink removal", `rm ${path.join(primary, "linked-dir")}`],
+  ["chmod target", `chmod 600 ${path.join(primary, "tracked")}`],
+  ["chown target", `chown test ${path.join(primary, "tracked")}`],
 ];
 
 for (const [label, command] of blockedCommands) {
@@ -118,7 +121,10 @@ const allowedCommands = [
   "git status --short",
   "python3 -c 'print(42)'",
   `echo rm ${path.join(primary, "tracked")}`,
+  `echo "Path('${path.join(primary, "tracked")}').write_text('changed')"`,
   `ruby -e "File.open('${path.join(primary, "tracked")}') { |file| file.read }"`,
+  `cd ${primary} && chmod 600 ${path.join(feature, "tracked")}`,
+  `touch -r ${path.join(primary, "tracked")} ${path.join(feature, "tracked")}`,
   `printf changed > ${path.join(feature, "tracked")}`,
   `touch ${path.join(feature, "new")}`,
   `git -C ${feature} restore tracked`,

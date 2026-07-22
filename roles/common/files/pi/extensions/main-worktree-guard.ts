@@ -190,9 +190,62 @@ function positionalOperands(tokens, start) {
 
 function redirectionTargets(segment) {
   const targets = [];
-  const pattern = /(?:^|[^>])>(?:>|\|)?\s*(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))/g;
-  for (const match of segment.matchAll(pattern)) targets.push(match[1] || match[2] || match[3]);
+  let quote = "";
+  let escaped = false;
+  for (let index = 0; index < segment.length; index += 1) {
+    const character = segment[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (character === "\\" && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (character === quote) quote = "";
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      continue;
+    }
+    if (character !== ">") continue;
+    if (segment[index + 1] === ">" || segment[index + 1] === "|") index += 1;
+    while (/\s/.test(segment[index + 1] || "")) index += 1;
+    const delimiter = segment[index + 1];
+    let target = "";
+    if (delimiter === "'" || delimiter === '"') {
+      index += 2;
+      while (index < segment.length && segment[index] !== delimiter) target += segment[index++];
+    } else {
+      index += 1;
+      while (index < segment.length && !/[\s;&|()<>]/.test(segment[index])) target += segment[index++];
+      index -= 1;
+    }
+    if (target) targets.push(target);
+  }
   return targets;
+}
+
+function optionAwareOperands(tokens, start, valueOptions) {
+  const operands = [];
+  let optionsDone = false;
+  for (let index = start; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (!optionsDone && token === "--") {
+      optionsDone = true;
+      continue;
+    }
+    if (!optionsDone && valueOptions.has(token)) {
+      index += 1;
+      continue;
+    }
+    if (!optionsDone && [...valueOptions].some((option) => option.startsWith("--") && token.startsWith(`${option}=`))) continue;
+    if (!optionsDone && token.startsWith("-")) continue;
+    operands.push(token);
+  }
+  return operands;
 }
 
 function targetDirectoryOperand(tokens, start) {
@@ -268,6 +321,31 @@ function gitMutationCwd(tokens, fallbackCwd) {
   return GIT_WORKTREE_MUTATORS.has(subcommand) ? (workTree || cwd) : undefined;
 }
 
+function mutationTargets(commandName, tokens, start, cwd) {
+  if (commandName === "chmod" || commandName === "chown") {
+    const referenceOptions = new Set(["--reference"]);
+    const usesReference = tokens.slice(start).some((token) => token === "--reference" || token.startsWith("--reference="));
+    const operands = optionAwareOperands(tokens, start, referenceOptions);
+    if (!usesReference) operands.shift();
+    return operands;
+  }
+  if (commandName === "touch") {
+    return optionAwareOperands(tokens, start, new Set(["-r", "--reference", "-d", "--date", "-t"]));
+  }
+  if (commandName === "truncate") {
+    return optionAwareOperands(tokens, start, new Set(["-s", "--size", "-r", "--reference"]));
+  }
+  if (commandName === "patch") {
+    for (let index = start; index < tokens.length; index += 1) {
+      if (["-d", "--directory", "-o", "--output"].includes(tokens[index]) && tokens[index + 1]) return [tokens[index + 1]];
+      if (tokens[index].startsWith("--directory=")) return [tokens[index].slice("--directory=".length)];
+      if (tokens[index].startsWith("--output=")) return [tokens[index].slice("--output=".length)];
+    }
+    return [cwd];
+  }
+  return positionalOperands(tokens, start);
+}
+
 function interpreterWriteTargets(command) {
   const targets = [];
   const addMatches = (pattern, modeIndex) => {
@@ -295,12 +373,40 @@ async function firstProtectedRoot(pi, candidates, cwd) {
   return "";
 }
 
-async function bashMutationBlockReason(pi, command, initialCwd) {
-  const interpreterTargets = interpreterWriteTargets(command);
-  if (interpreterTargets.length > 0) {
-    const root = await firstProtectedRoot(pi, interpreterTargets, initialCwd);
-    if (root) return blockReason("interpreter file write", root);
+async function interpreterHeredocBlockReason(pi, command, initialCwd) {
+  let cwd = initialCwd;
+  let heredoc;
+  for (const line of command.split(/\r?\n/)) {
+    if (heredoc) {
+      if (line.trim() === heredoc.marker) {
+        const root = await firstProtectedRoot(pi, interpreterWriteTargets(heredoc.body.join("\n")), heredoc.cwd);
+        if (root) return blockReason("interpreter file write", root);
+        heredoc = undefined;
+      } else {
+        heredoc.body.push(line);
+      }
+      continue;
+    }
+    for (const segment of splitShellSegments(line)) {
+      const nextCwd = changedDirectory(segment, cwd);
+      if (nextCwd) {
+        cwd = nextCwd;
+        continue;
+      }
+      const tokens = shellTokens(segment);
+      const executable = executableIndex(tokens);
+      const commandName = path.basename(tokens[executable] || "");
+      if (!/^(?:python(?:\d+(?:\.\d+)*)?|ruby|node|nodejs)$/.test(commandName)) continue;
+      const match = segment.match(/<<-?\s*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?/);
+      if (match) heredoc = { marker: match[1], cwd, body: [] };
+    }
   }
+  return "";
+}
+
+async function bashMutationBlockReason(pi, command, initialCwd) {
+  const heredocReason = await interpreterHeredocBlockReason(pi, command, initialCwd);
+  if (heredocReason) return heredocReason;
 
   let cwd = initialCwd;
   for (const segment of splitShellSegments(command)) {
@@ -332,13 +438,19 @@ async function bashMutationBlockReason(pi, command, initialCwd) {
 
     const executable = executableIndex(tokens);
     const commandName = path.basename(tokens[executable] || "");
+    if (/^(?:python(?:\d+(?:\.\d+)*)?|ruby|node|nodejs)$/.test(commandName)) {
+      const interpreterTargets = interpreterWriteTargets(segment);
+      const root = await firstProtectedRoot(pi, interpreterTargets, cwd);
+      if (root) return blockReason("interpreter file write", root);
+    }
+
     if (commandName === "tee") {
       const root = await firstProtectedRoot(pi, positionalOperands(tokens, executable + 1), cwd);
       if (root) return blockReason("tee output", root);
     }
 
     if (FILE_MUTATORS.has(commandName)) {
-      let operands = positionalOperands(tokens, executable + 1);
+      let operands = mutationTargets(commandName, tokens, executable + 1, cwd);
       const targetDirectory = targetDirectoryOperand(tokens, executable + 1);
       if (targetDirectory) {
         operands = commandName === "mv" ? [...operands, targetDirectory] : [targetDirectory];
