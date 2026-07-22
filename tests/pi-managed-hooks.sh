@@ -1227,23 +1227,11 @@ const normalAdd = await handlers.get("tool_call")({
 assert.equal(normalAdd, undefined, "allows non-force superpowers docs adds");
 
 branch = "main";
-const editBlock = await handlers.get("tool_call")({
-  toolName: "edit",
-  input: { path: "file", edits: [] },
-}, { cwd: "/repo" });
-assert.equal(editBlock.block, true, "blocks edit/write tools on main");
-
 const worktreeWrite = await handlers.get("tool_call")({
   toolName: "write",
   input: { path: path.join(worktreeRoot, "tests", "new-contract.rb"), content: "ok" },
 }, { cwd: "/repo" });
-assert.equal(worktreeWrite, undefined, "allows write tools for absolute paths in a feature worktree even when session cwd is main");
-
-const mainWrite = await handlers.get("tool_call")({
-  toolName: "write",
-  input: { path: "/repo/main-contract.rb", content: "no" },
-}, { cwd: worktreeRoot });
-assert.equal(mainWrite.block, true, "blocks write tools for absolute paths in main even when session cwd is a feature worktree");
+assert.equal(worktreeWrite, undefined, "tracks feature-worktree writes even when session cwd is main");
 
 branch = "feature";
 const featureEdit = await handlers.get("tool_call")({

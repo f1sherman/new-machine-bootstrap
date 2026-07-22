@@ -93,6 +93,9 @@ jobs:
       - name: Verify completed tmux agent labels
         run: bash tests/tmux-agent-state-completed-subject.sh
 
+      - name: Verify Pi main worktree mutation guard
+        run: bash tests/pi-main-worktree-guard.sh
+
       - name: Verify pi managed hooks
         run: bash tests/pi-managed-hooks.sh
 
