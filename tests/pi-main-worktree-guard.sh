@@ -19,6 +19,7 @@ git -C "$tmp_root/primary" branch -M main
 git -C "$tmp_root/primary" worktree add -qb feature "$tmp_root/feature"
 ln -s "$tmp_root/feature" "$tmp_root/primary/linked-dir"
 ln -s "$tmp_root/primary" "$tmp_root/feature/primary-link"
+ln -s "$tmp_root/primary" "$tmp_root/primary space"
 
 cat > "$tmp_root/check.mjs" <<'NODE'
 import assert from "node:assert/strict";
@@ -29,7 +30,7 @@ import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 
 const execFileAsync = promisify(execFile);
-const [extensionPath, primary, feature] = process.argv.slice(2);
+const [extensionPath, primary, feature, spacedPrimaryLink] = process.argv.slice(2);
 const handlers = new Map();
 const pi = {
   on(event, handler) {
@@ -82,6 +83,8 @@ const blockedCommands = [
   ["redirection", `printf changed > ${path.join(primary, "tracked")}`],
   ["append redirection", `printf changed >> ${path.join(primary, "tracked")}`],
   ["clobber redirection", `printf changed >| ${path.join(primary, "tracked")}`],
+  ["combined redirection", `printf changed >& ${path.join(primary, "tracked")}`],
+  ["escaped-space redirection", `printf changed > ${path.join(spacedPrimaryLink, "tracked").replaceAll(" ", "\\ ")}`],
   ["tee", `printf changed | tee ${path.join(primary, "tracked")}`],
   ["remove", `rm ${path.join(primary, "tracked")}`],
   ["copy destination", `cp ${path.join(feature, "tracked")} ${path.join(primary, "copy")}`],
@@ -93,6 +96,7 @@ const blockedCommands = [
   ["touch timestamp", `touch -t 202401010000 ${path.join(primary, "tracked")}`],
   ["mkdir", `mkdir ${path.join(primary, "new-dir")}`],
   ["link", `ln -s ${path.join(feature, "tracked")} ${path.join(primary, "link")}`],
+  ["single-operand link", `cd ${primary} && ln -s ${path.join(feature, "tracked")}`],
   ["truncate", `truncate -s 0 ${path.join(primary, "tracked")}`],
   ["in-place sed", `sed -i '' s/a/b/ ${path.join(primary, "tracked")}`],
   ["multi-file in-place sed", `sed -i.bak s/a/b/ ${path.join(primary, "tracked")} ${path.join(feature, "tracked")}`],
@@ -133,6 +137,7 @@ const allowedCommands = [
   `ruby -e "File.open('${path.join(primary, "tracked")}') { |file| file.read }"`,
   `cd ${primary} && chmod 600 ${path.join(feature, "tracked")}`,
   `cd ${primary} && chmod -Rv 600 ${path.join(feature, "tracked")}`,
+  `(cd ${primary} && git status); touch new-file`,
   `touch -r ${path.join(primary, "tracked")} ${path.join(feature, "tracked")}`,
   `rm ${path.join(feature, "primary-link")}`,
   `printf changed > ${path.join(feature, "tracked")}`,
@@ -150,4 +155,4 @@ assert.equal(fs.readFileSync(path.join(primary, "tracked"), "utf8"), "", "guard 
 console.log("pi main worktree guard checks complete");
 NODE
 
-node "$tmp_root/check.mjs" "$tmp_root/main-worktree-guard.mjs" "$tmp_root/primary" "$tmp_root/feature"
+node "$tmp_root/check.mjs" "$tmp_root/main-worktree-guard.mjs" "$tmp_root/primary" "$tmp_root/feature" "$tmp_root/primary space"

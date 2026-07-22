@@ -105,13 +105,14 @@ function splitShellSegments(command) {
       quote = character;
       continue;
     }
-    if (character === "|" && current.endsWith(">")) {
+    if ((character === "|" || character === "&") && current.endsWith(">")) {
       current += character;
       continue;
     }
     if (";&|()\n\r".includes(character)) {
       if (current.trim()) segments.push(current.trim());
       current = "";
+      if (character === "(" || character === ")") segments.push(character);
       if ((character === "&" || character === "|") && command[index + 1] === character) index += 1;
       continue;
     }
@@ -229,7 +230,7 @@ function redirectionTargets(segment) {
       continue;
     }
     if (character !== ">") continue;
-    if (segment[index + 1] === ">" || segment[index + 1] === "|") index += 1;
+    if ([">", "|", "&"].includes(segment[index + 1])) index += 1;
     while (/\s/.test(segment[index + 1] || "")) index += 1;
     const delimiter = segment[index + 1];
     let target = "";
@@ -238,7 +239,15 @@ function redirectionTargets(segment) {
       while (index < segment.length && segment[index] !== delimiter) target += segment[index++];
     } else {
       index += 1;
-      while (index < segment.length && !/[\s;&|()<>]/.test(segment[index])) target += segment[index++];
+      while (index < segment.length) {
+        if (segment[index] === "\\" && index + 1 < segment.length) {
+          target += segment[index + 1];
+          index += 2;
+          continue;
+        }
+        if (/[\s;&|()<>]/.test(segment[index])) break;
+        target += segment[index++];
+      }
       index -= 1;
     }
     if (target) targets.push(target);
@@ -430,7 +439,16 @@ async function interpreterHeredocBlockReason(pi, command, initialCwd) {
       }
       continue;
     }
+    const cwdStack = [];
     for (const segment of splitShellSegments(line)) {
+      if (segment === "(") {
+        cwdStack.push(cwd);
+        continue;
+      }
+      if (segment === ")") {
+        cwd = cwdStack.pop() || cwd;
+        continue;
+      }
       const nextCwd = changedDirectory(segment, cwd);
       if (nextCwd) {
         cwd = nextCwd;
@@ -452,7 +470,16 @@ async function bashMutationBlockReason(pi, command, initialCwd) {
   if (heredocReason) return heredocReason;
 
   let cwd = initialCwd;
+  const cwdStack = [];
   for (const segment of splitShellSegments(command)) {
+    if (segment === "(") {
+      cwdStack.push(cwd);
+      continue;
+    }
+    if (segment === ")") {
+      cwd = cwdStack.pop() || cwd;
+      continue;
+    }
     const payload = shellWrappedPayload(segment);
     if (payload) {
       const nestedReason = await bashMutationBlockReason(pi, payload, cwd);
@@ -497,6 +524,8 @@ async function bashMutationBlockReason(pi, command, initialCwd) {
       const targetDirectory = TARGET_DIRECTORY_MUTATORS.has(commandName) ? targetDirectoryOperand(tokens, executable + 1) : "";
       if (targetDirectory) {
         operands = commandName === "mv" ? [...operands, targetDirectory] : [targetDirectory];
+      } else if (commandName === "ln" && operands.length === 1) {
+        operands = [path.resolve(cwd, path.basename(operands[0]))];
       } else if (DESTINATION_ONLY_MUTATORS.has(commandName) && operands.length > 0) {
         operands = [operands.at(-1)];
       }
