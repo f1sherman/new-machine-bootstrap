@@ -108,11 +108,18 @@ abort "FAIL  Rectangle shortcut writer differs" unless shortcut_command == expec
 abort "FAIL  Rectangle shortcut writer has wrong loop" unless shortcut_task["loop"] == "{{ rectangle_shortcuts }}"
 abort "FAIL  Rectangle shortcut writer is not idempotent" unless shortcut_task["changed_when"] == false
 
+preferences_check = default_tasks.find { |task| task["name"] == "Check for SizeUp preferences" }
+abort "FAIL  missing SizeUp preferences check" unless preferences_check
+abort "FAIL  wrong SizeUp preferences check command" unless preferences_check["command"] == "defaults read com.irradiatedsoftware.SizeUp"
+abort "FAIL  SizeUp preferences check result is not registered" unless preferences_check["register"] == "sizeup_preferences_check"
+abort "FAIL  SizeUp preferences check reports changes" unless preferences_check["changed_when"] == false
+expected_check_failure = "sizeup_preferences_check.rc != 0 and (sizeup_preferences_check.stderr_lines | last) != 'Domain com.irradiatedsoftware.SizeUp does not exist'"
+abort "FAIL  SizeUp preferences check accepts unexpected errors" unless preferences_check["failed_when"] == expected_check_failure
+
 cleanup_task = default_tasks.find { |task| task["name"] == "Remove SizeUp preferences" }
 abort "FAIL  missing SizeUp defaults cleanup" unless cleanup_task
 abort "FAIL  wrong SizeUp defaults cleanup command" unless cleanup_task["command"] == "defaults delete com.irradiatedsoftware.SizeUp"
-abort "FAIL  SizeUp cleanup is not idempotent" unless cleanup_task["changed_when"] == "sizeup_preferences_removed.rc == 0"
-abort "FAIL  SizeUp cleanup accepts unexpected errors" unless cleanup_task["failed_when"] == "sizeup_preferences_removed.rc != 0 and 'Domain (com.irradiatedsoftware.SizeUp) not found.' not in sizeup_preferences_removed.stderr"
+abort "FAIL  SizeUp cleanup is not conditional" unless cleanup_task["when"] == "sizeup_preferences_check.rc == 0"
 
 puts "PASS  SizeUp to Rectangle migration contract"
 ```
@@ -194,14 +201,18 @@ In `roles/macos/tasks/defaults.yml`, add immediately after the scalar defaults l
   loop_control:
     label: "{{ item.action }}"
 
+- name: Check for SizeUp preferences
+  command: defaults read com.irradiatedsoftware.SizeUp
+  register: sizeup_preferences_check
+  changed_when: false
+  failed_when: >-
+    sizeup_preferences_check.rc != 0 and
+    (sizeup_preferences_check.stderr_lines | last) !=
+    'Domain com.irradiatedsoftware.SizeUp does not exist'
+
 - name: Remove SizeUp preferences
   command: defaults delete com.irradiatedsoftware.SizeUp
-  register: sizeup_preferences_removed
-  changed_when: sizeup_preferences_removed.rc == 0
-  failed_when: >-
-    sizeup_preferences_removed.rc != 0 and
-    'Domain (com.irradiatedsoftware.SizeUp) not found.' not in
-    sizeup_preferences_removed.stderr
+  when: sizeup_preferences_check.rc == 0
 ```
 
 - [ ] **Step 5: Run focused tests and syntax checks**

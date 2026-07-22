@@ -22,14 +22,18 @@
   loop_control:
     label: "{{ item.action }}"
 
+- name: Check for SizeUp preferences
+  command: defaults read com.irradiatedsoftware.SizeUp
+  register: sizeup_preferences_check
+  changed_when: false
+  failed_when: >-
+    sizeup_preferences_check.rc != 0 and
+    (sizeup_preferences_check.stderr_lines | last) !=
+    'Domain com.irradiatedsoftware.SizeUp does not exist'
+
 - name: Remove SizeUp preferences
   command: defaults delete com.irradiatedsoftware.SizeUp
-  register: sizeup_preferences_removed
-  changed_when: sizeup_preferences_removed.rc == 0
-  failed_when: >-
-    sizeup_preferences_removed.rc != 0 and
-    'Domain (com.irradiatedsoftware.SizeUp) not found.' not in
-    sizeup_preferences_removed.stderr
+  when: sizeup_preferences_check.rc == 0
 
 # Special cases that don't fit the { domain, key, type, value } pattern
 
