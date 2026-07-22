@@ -24,8 +24,13 @@ function expandHome(filePath) {
 function probeDir(filePath, fallbackCwd) {
   const expanded = expandHome(filePath || fallbackCwd);
   let probe = path.isAbsolute(expanded) ? expanded : path.resolve(fallbackCwd, expanded);
-  if (!fs.existsSync(probe) || !fs.statSync(probe).isDirectory()) probe = path.dirname(probe);
-  while (!fs.existsSync(probe) && probe !== path.dirname(probe)) probe = path.dirname(probe);
+  while (probe !== path.dirname(probe)) {
+    if (fs.existsSync(probe)) {
+      const entry = fs.lstatSync(probe);
+      if (entry.isDirectory() && !entry.isSymbolicLink()) return probe;
+    }
+    probe = path.dirname(probe);
+  }
   return fs.existsSync(probe) ? probe : fallbackCwd;
 }
 
@@ -82,6 +87,10 @@ function splitShellSegments(command) {
       quote = character;
       continue;
     }
+    if (character === "|" && current.endsWith(">")) {
+      current += character;
+      continue;
+    }
     if (";&|()\n\r".includes(character)) {
       if (current.trim()) segments.push(current.trim());
       current = "";
@@ -121,17 +130,40 @@ function shellTokens(segment) {
   return tokens;
 }
 
-function commandIndex(tokens, commands) {
-  for (let index = 0; index < tokens.length; index += 1) {
-    if (commands.has(path.basename(tokens[index]))) return index;
+function executableIndex(tokens) {
+  let index = 0;
+  while (index < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[index])) index += 1;
+  if (tokens[index] === "command") index += 1;
+  if (tokens[index] === "env") {
+    index += 1;
+    while (index < tokens.length) {
+      if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[index])) {
+        index += 1;
+      } else if (["-u", "--unset", "-C", "--chdir", "-S", "--split-string"].includes(tokens[index])) {
+        index += 2;
+      } else if (tokens[index].startsWith("-")) {
+        index += 1;
+      } else {
+        break;
+      }
+    }
   }
-  return -1;
+  if (tokens[index] === "sudo") {
+    index += 1;
+    while (index < tokens.length && tokens[index].startsWith("-")) index += 1;
+  }
+  if (tokens[index] === "time") {
+    index += 1;
+    while (index < tokens.length && tokens[index].startsWith("-")) index += 1;
+  }
+  return index;
 }
 
 function changedDirectory(segment, cwd) {
   const tokens = shellTokens(segment);
-  if (tokens[0] !== "cd" || !tokens[1]) return "";
-  const target = expandHome(tokens[1] === "--" ? tokens[2] : tokens[1]);
+  const index = executableIndex(tokens);
+  if (path.basename(tokens[index] || "") !== "cd" || !tokens[index + 1]) return "";
+  const target = expandHome(tokens[index + 1] === "--" ? tokens[index + 2] : tokens[index + 1]);
   if (!target) return "";
   return path.isAbsolute(target) ? target : path.resolve(cwd, target);
 }
@@ -158,22 +190,52 @@ function positionalOperands(tokens, start) {
 
 function redirectionTargets(segment) {
   const targets = [];
-  const pattern = /(?:^|[^>])>>?\s*(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))/g;
+  const pattern = /(?:^|[^>])>(?:>|\|)?\s*(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))/g;
   for (const match of segment.matchAll(pattern)) targets.push(match[1] || match[2] || match[3]);
   return targets;
 }
 
-function explicitPaths(command) {
-  const paths = [];
-  const pattern = /["'](\/[^"']+)["']|(?:^|[\s(=])(\/[^\s;&|()<>"']+)/g;
-  for (const match of command.matchAll(pattern)) paths.push(match[1] || match[2]);
-  return paths;
+function targetDirectoryOperand(tokens, start) {
+  for (let index = start; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if ((token === "-t" || token === "--target-directory") && tokens[index + 1]) return tokens[index + 1];
+    if (token.startsWith("--target-directory=")) return token.slice("--target-directory=".length);
+    if (token.startsWith("-t") && token.length > 2) return token.slice(2);
+  }
+  return "";
+}
+
+function inPlaceTargets(tokens, start) {
+  const operands = [];
+  let scriptProvidedByOption = false;
+  let optionsDone = false;
+  for (let index = start; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (!optionsDone && token === "--") {
+      optionsDone = true;
+      continue;
+    }
+    if (!optionsDone && ["-e", "--expression", "-f", "--file"].includes(token)) {
+      scriptProvidedByOption = true;
+      index += 1;
+      continue;
+    }
+    if (!optionsDone && (token.startsWith("--expression=") || token.startsWith("--file="))) {
+      scriptProvidedByOption = true;
+      continue;
+    }
+    if (!optionsDone && token.startsWith("-")) continue;
+    operands.push(token);
+  }
+  if (!scriptProvidedByOption) operands.shift();
+  return operands;
 }
 
 function gitMutationCwd(tokens, fallbackCwd) {
-  const gitIndex = commandIndex(tokens, new Set(["git"]));
-  if (gitIndex === -1) return undefined;
+  const gitIndex = executableIndex(tokens);
+  if (path.basename(tokens[gitIndex] || "") !== "git") return undefined;
   let cwd = fallbackCwd;
+  let workTree = "";
   let subcommand = "";
   for (let index = gitIndex + 1; index < tokens.length; index += 1) {
     const token = tokens[index];
@@ -185,16 +247,40 @@ function gitMutationCwd(tokens, fallbackCwd) {
       cwd = resolveCandidate(token.slice(2), cwd);
       continue;
     }
+    if (token === "--work-tree" && tokens[index + 1]) {
+      workTree = resolveCandidate(tokens[++index], cwd);
+      continue;
+    }
+    if (token.startsWith("--work-tree=")) {
+      workTree = resolveCandidate(token.slice("--work-tree=".length), cwd);
+      continue;
+    }
+    if (["-c", "--config-env", "--git-dir", "--namespace", "--exec-path"].includes(token)) {
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("--git-dir=") || token.startsWith("--namespace=") || token.startsWith("--config-env=") || token.startsWith("--exec-path=")) continue;
     if (!token.startsWith("-")) {
       subcommand = token;
       break;
     }
   }
-  return GIT_WORKTREE_MUTATORS.has(subcommand) ? cwd : undefined;
+  return GIT_WORKTREE_MUTATORS.has(subcommand) ? (workTree || cwd) : undefined;
 }
 
-function interpreterWrites(command) {
-  return /\.(?:write_text|write_bytes)\s*\(|\bopen\s*\([^)]*,\s*["'][wax+]|\bFile\.(?:write|binwrite|open)\s*\(|\b(?:writeFile|writeFileSync|appendFile|appendFileSync)\s*\(/s.test(command);
+function interpreterWriteTargets(command) {
+  const targets = [];
+  const addMatches = (pattern, modeIndex) => {
+    for (const match of command.matchAll(pattern)) {
+      if (modeIndex === undefined || /[wax+]/.test(match[modeIndex])) targets.push(match[2]);
+    }
+  };
+  addMatches(/\bPath\s*\(\s*(["'])(.*?)\1\s*\)\s*\.\s*(?:write_text|write_bytes)\s*\(/gs);
+  addMatches(/\bopen\s*\(\s*(["'])(.*?)\1\s*,\s*(["'])(.*?)\3/gs, 4);
+  addMatches(/\bFile\.(?:write|binwrite)\s*\(\s*(["'])(.*?)\1/gs);
+  addMatches(/\bFile\.open\s*\(\s*(["'])(.*?)\1\s*,\s*(["'])(.*?)\3/gs, 4);
+  addMatches(/\b(?:writeFile|writeFileSync|appendFile|appendFileSync)\s*\(\s*(["'])(.*?)\1/gs);
+  return targets;
 }
 
 function blockReason(category, root) {
@@ -210,10 +296,9 @@ async function firstProtectedRoot(pi, candidates, cwd) {
 }
 
 async function bashMutationBlockReason(pi, command, initialCwd) {
-  if (interpreterWrites(command)) {
-    const candidates = explicitPaths(command);
-    if (candidates.length === 0) candidates.push(initialCwd);
-    const root = await firstProtectedRoot(pi, candidates, initialCwd);
+  const interpreterTargets = interpreterWriteTargets(command);
+  if (interpreterTargets.length > 0) {
+    const root = await firstProtectedRoot(pi, interpreterTargets, initialCwd);
     if (root) return blockReason("interpreter file write", root);
   }
 
@@ -245,25 +330,28 @@ async function bashMutationBlockReason(pi, command, initialCwd) {
       if (root) return blockReason("Git working-tree mutation", root);
     }
 
-    const teeIndex = commandIndex(tokens, new Set(["tee"]));
-    if (teeIndex !== -1) {
-      const root = await firstProtectedRoot(pi, positionalOperands(tokens, teeIndex + 1), cwd);
+    const executable = executableIndex(tokens);
+    const commandName = path.basename(tokens[executable] || "");
+    if (commandName === "tee") {
+      const root = await firstProtectedRoot(pi, positionalOperands(tokens, executable + 1), cwd);
       if (root) return blockReason("tee output", root);
     }
 
-    const mutatorIndex = commandIndex(tokens, FILE_MUTATORS);
-    if (mutatorIndex !== -1) {
-      const mutator = path.basename(tokens[mutatorIndex]);
-      let operands = positionalOperands(tokens, mutatorIndex + 1);
-      if (DESTINATION_ONLY_MUTATORS.has(mutator) && operands.length > 0) operands = [operands.at(-1)];
+    if (FILE_MUTATORS.has(commandName)) {
+      let operands = positionalOperands(tokens, executable + 1);
+      const targetDirectory = targetDirectoryOperand(tokens, executable + 1);
+      if (targetDirectory) {
+        operands = commandName === "mv" ? [...operands, targetDirectory] : [targetDirectory];
+      } else if (DESTINATION_ONLY_MUTATORS.has(commandName) && operands.length > 0) {
+        operands = [operands.at(-1)];
+      }
       const root = await firstProtectedRoot(pi, operands.length > 0 ? operands : [cwd], cwd);
-      if (root) return blockReason(`${mutator} mutation`, root);
+      if (root) return blockReason(`${commandName} mutation`, root);
     }
 
-    const sedIndex = commandIndex(tokens, new Set(["sed", "perl"]));
-    if (sedIndex !== -1 && tokens.slice(sedIndex + 1).some((token) => /^-[^-]*i/.test(token) || token === "--in-place" || token.startsWith("--in-place="))) {
-      const operands = positionalOperands(tokens, sedIndex + 1);
-      const root = await firstProtectedRoot(pi, operands.length > 0 ? [operands.at(-1)] : [cwd], cwd);
+    if ((commandName === "sed" || commandName === "perl") && tokens.slice(executable + 1).some((token) => /^-[^-]*i/.test(token) || token === "--in-place" || token.startsWith("--in-place="))) {
+      const targets = inPlaceTargets(tokens, executable + 1);
+      const root = await firstProtectedRoot(pi, targets.length > 0 ? targets : [cwd], cwd);
       if (root) return blockReason("in-place edit", root);
     }
   }

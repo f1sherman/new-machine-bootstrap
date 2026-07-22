@@ -17,6 +17,7 @@ git -C "$tmp_root/primary" add tracked
 git -C "$tmp_root/primary" commit -qm initial
 git -C "$tmp_root/primary" branch -M main
 git -C "$tmp_root/primary" worktree add -qb feature "$tmp_root/feature"
+ln -s "$tmp_root/feature" "$tmp_root/primary/linked-dir"
 
 cat > "$tmp_root/check.mjs" <<'NODE'
 import assert from "node:assert/strict";
@@ -76,25 +77,35 @@ for (const toolName of ["edit", "write"]) {
 const blockedCommands = [
   ["redirection", `printf changed > ${path.join(primary, "tracked")}`],
   ["append redirection", `printf changed >> ${path.join(primary, "tracked")}`],
+  ["clobber redirection", `printf changed >| ${path.join(primary, "tracked")}`],
   ["tee", `printf changed | tee ${path.join(primary, "tracked")}`],
   ["remove", `rm ${path.join(primary, "tracked")}`],
   ["copy destination", `cp ${path.join(feature, "tracked")} ${path.join(primary, "copy")}`],
+  ["copy target option", `cp -t ${primary} ${path.join(feature, "tracked")}`],
+  ["copy long target option", `cp --target-directory=${primary} ${path.join(feature, "tracked")}`],
+  ["install target option", `install -t ${primary} ${path.join(feature, "tracked")}`],
   ["move destination", `mv ${path.join(feature, "tracked")} ${path.join(primary, "moved")}`],
   ["touch", `touch ${path.join(primary, "new")}`],
   ["mkdir", `mkdir ${path.join(primary, "new-dir")}`],
   ["link", `ln -s ${path.join(feature, "tracked")} ${path.join(primary, "link")}`],
   ["truncate", `truncate -s 0 ${path.join(primary, "tracked")}`],
   ["in-place sed", `sed -i '' s/a/b/ ${path.join(primary, "tracked")}`],
+  ["multi-file in-place sed", `sed -i.bak s/a/b/ ${path.join(primary, "tracked")} ${path.join(feature, "tracked")}`],
   ["in-place perl", `perl -pi -e 's/a/b/' ${path.join(primary, "tracked")}`],
   ["git restore", `git -C ${primary} restore tracked`],
+  ["git config-option restore", `git -C ${primary} -c color.ui=false restore tracked`],
+  ["git explicit work tree", `git --work-tree=${primary} restore tracked`],
   ["git clean", `git -C ${primary} clean -fd`],
   ["git reset", `cd ${primary} && git reset --hard`],
   ["git apply", `git -C ${primary} apply change.patch`],
   ["python Path.write_text", `python3 - <<'PY'\nfrom pathlib import Path\nPath('${path.join(primary, "tracked")}').write_text('changed')\nPY`],
+  ["python relative Path.write_text", `python3 -c "from pathlib import Path; Path('../primary/tracked').write_text('changed')"`],
   ["python writable open", `python3 -c "open('${path.join(primary, "tracked")}', 'w').write('changed')"`],
+  ["python update open", `python3 -c "open('${path.join(primary, "tracked")}', 'r+').write('changed')"`],
   ["ruby write", `ruby -e "File.write('${path.join(primary, "tracked")}', 'changed')"`],
   ["node write", `node -e "require('fs').writeFileSync('${path.join(primary, "tracked")}', 'changed')"`],
   ["shell-wrapped remove", `bash -c 'rm ${path.join(primary, "tracked")}'`],
+  ["primary symlink removal", `rm ${path.join(primary, "linked-dir")}`],
 ];
 
 for (const [label, command] of blockedCommands) {
@@ -106,6 +117,8 @@ for (const [label, command] of blockedCommands) {
 const allowedCommands = [
   "git status --short",
   "python3 -c 'print(42)'",
+  `echo rm ${path.join(primary, "tracked")}`,
+  `ruby -e "File.open('${path.join(primary, "tracked")}') { |file| file.read }"`,
   `printf changed > ${path.join(feature, "tracked")}`,
   `touch ${path.join(feature, "new")}`,
   `git -C ${feature} restore tracked`,
