@@ -112,7 +112,7 @@ cleanup_task = default_tasks.find { |task| task["name"] == "Remove SizeUp prefer
 abort "FAIL  missing SizeUp defaults cleanup" unless cleanup_task
 abort "FAIL  wrong SizeUp defaults cleanup command" unless cleanup_task["command"] == "defaults delete com.irradiatedsoftware.SizeUp"
 abort "FAIL  SizeUp cleanup is not idempotent" unless cleanup_task["changed_when"] == "sizeup_preferences_removed.rc == 0"
-abort "FAIL  SizeUp cleanup accepts unexpected errors" unless cleanup_task["failed_when"] == "sizeup_preferences_removed.rc != 0 and 'does not exist' not in sizeup_preferences_removed.stderr"
+abort "FAIL  SizeUp cleanup accepts unexpected errors" unless cleanup_task["failed_when"] == "sizeup_preferences_removed.rc != 0 and 'Domain (com.irradiatedsoftware.SizeUp) not found.' not in sizeup_preferences_removed.stderr"
 
 puts "PASS  SizeUp to Rectangle migration contract"
 ```
@@ -200,7 +200,8 @@ In `roles/macos/tasks/defaults.yml`, add immediately after the scalar defaults l
   changed_when: sizeup_preferences_removed.rc == 0
   failed_when: >-
     sizeup_preferences_removed.rc != 0 and
-    'does not exist' not in sizeup_preferences_removed.stderr
+    'Domain (com.irradiatedsoftware.SizeUp) not found.' not in
+    sizeup_preferences_removed.stderr
 ```
 
 - [ ] **Step 5: Run focused tests and syntax checks**

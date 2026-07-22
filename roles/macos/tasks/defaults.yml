@@ -28,7 +28,8 @@
   changed_when: sizeup_preferences_removed.rc == 0
   failed_when: >-
     sizeup_preferences_removed.rc != 0 and
-    'does not exist' not in sizeup_preferences_removed.stderr
+    'Domain (com.irradiatedsoftware.SizeUp) not found.' not in
+    sizeup_preferences_removed.stderr
 
 # Special cases that don't fit the { domain, key, type, value } pattern
 
