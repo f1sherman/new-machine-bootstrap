@@ -43,7 +43,7 @@ touch "$pane_dir/Session.vim"
 expect_output "nvim anything" "$pane_dir" 'nvim -S'
 ```
 
-Also assert both tmux configuration files select `nmb`, both platform roles copy the strategy after TPM installation, and CI invokes this test.
+Also assert CI invokes this test. Platform configuration and provisioning assertions are added in Task 2.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
