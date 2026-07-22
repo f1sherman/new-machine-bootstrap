@@ -6,6 +6,7 @@ TMP_ROOT=$(mktemp -d)
 cleanup() { rm -rf "$TMP_ROOT"; }
 trap cleanup EXIT
 mkdir -p "$TMP_ROOT/bin" "$TMP_ROOT/home" "$TMP_ROOT/logs" "$TMP_ROOT/state" "$TMP_ROOT/no-git-bin" "$TMP_ROOT/no-git-logs" "$TMP_ROOT/no-git-state"
+real_git=$(command -v git)
 
 cat > "$TMP_ROOT/bin/ansible-playbook" <<'EOF'
 #!/bin/bash
@@ -23,6 +24,26 @@ EOF
 cat > "$TMP_ROOT/bin/say" <<'EOF'
 #!/bin/bash
 exit 0
+EOF
+cat > "$TMP_ROOT/bin/git" <<EOF
+#!/bin/bash
+real_git='$real_git'
+saw_status=false
+saw_porcelain=false
+saw_untracked_normal=false
+for arg in "\$@"; do
+  [[ "\$arg" == "status" ]] && saw_status=true
+  [[ "\$arg" == "--porcelain" ]] && saw_porcelain=true
+  [[ "\$arg" == "--untracked-files=normal" ]] && saw_untracked_normal=true
+done
+if \$saw_status && \$saw_porcelain && \$saw_untracked_normal; then
+  "\$real_git" "\$@"
+  status=\$?
+  [[ \$status -eq 0 ]] || exit \$status
+  printf '?? .pi/\n?? .pi-subagents/\n?? .repo.yml\n'
+else
+  exec "\$real_git" "\$@"
+fi
 EOF
 cat > "$TMP_ROOT/no-git-bin/git" <<'EOF'
 #!/bin/bash
