@@ -1,0 +1,57 @@
+#!/bin/bash
+set -euo pipefail
+
+REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+TMP_ROOT=$(mktemp -d)
+cleanup() { rm -rf "$TMP_ROOT"; }
+trap cleanup EXIT
+mkdir -p "$TMP_ROOT/bin" "$TMP_ROOT/home" "$TMP_ROOT/logs" "$TMP_ROOT/state"
+
+cat > "$TMP_ROOT/bin/ansible-playbook" <<'EOF'
+#!/bin/bash
+printf 'PLAY RECAP *********************************************************************\n'
+printf 'localhost                  : ok=1 changed=0 unreachable=0 failed=0 skipped=0 rescued=0 ignored=0\n'
+EOF
+cat > "$TMP_ROOT/bin/brew" <<EOF
+#!/bin/bash
+[[ "\${1:-}" == --prefix ]] && printf '%s\n' '$TMP_ROOT/homebrew'
+EOF
+cat > "$TMP_ROOT/bin/dscl" <<EOF
+#!/bin/bash
+printf 'UserShell: %s\n' '$TMP_ROOT/homebrew/bin/zsh'
+EOF
+cat > "$TMP_ROOT/bin/say" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+chmod +x "$TMP_ROOT/bin/"*
+
+expected_root=$(cd "$REPO_ROOT" && pwd -P)
+expected_branch=$(git -C "$REPO_ROOT" symbolic-ref --short -q HEAD || printf 'detached')
+expected_commit=$(git -C "$REPO_ROOT" rev-parse HEAD)
+if [[ -n "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=normal)" ]]; then
+  expected_state=dirty
+else
+  expected_state=clean
+fi
+
+(
+  cd "$REPO_ROOT"
+  PATH="$TMP_ROOT/bin:$PATH" \
+  HOME="$TMP_ROOT/home" \
+  XDG_STATE_HOME="$TMP_ROOT/state" \
+  PROVISION_LOG_DIR="$TMP_ROOT/logs" \
+  PROVISION_LOCK_DIR="$TMP_ROOT/lock" \
+  bin/provision --check
+) > "$TMP_ROOT/output" 2>&1
+
+log_path=$(readlink "$TMP_ROOT/logs/provision-latest.log")
+[[ -f "$log_path" ]]
+grep -Fq "Provision source worktree: $expected_root" "$log_path"
+grep -Fq "Provision source branch: $expected_branch" "$log_path"
+grep -Fq "Provision source commit: $expected_commit" "$log_path"
+grep -Fq "Provision source repository state: $expected_state" "$log_path"
+grep -Fq 'Provision invocation arguments: --check' "$log_path"
+grep -Eq 'Provision started at: [0-9]{4}-[0-9]{2}-[0-9]{2}T' "$log_path"
+grep -Fq 'localhost                  : ok=1 changed=0 unreachable=0 failed=0' "$log_path"
+printf 'PASS  provision log records source provenance and Ansible result\n'
