@@ -4,7 +4,7 @@
 
 **Goal:** Replace SizeUp with Rectangle while preserving Brian's seven existing window-management shortcuts.
 
-**Architecture:** Keep package ownership in the macOS role and settings ownership in its existing defaults configuration. Add a small data table for Rectangle shortcuts, one generic Ansible loop that writes Rectangle shortcut dictionaries, and explicit idempotent cleanup for the retired SizeUp cask and defaults domain.
+**Architecture:** Keep package ownership and first-run onboarding in the macOS role and settings ownership in its existing defaults configuration. Add a small data table for Rectangle shortcuts, one generic Ansible loop that writes Rectangle shortcut dictionaries, explicit idempotent cleanup for managed and unmanaged SizeUp installations, and marker-driven Rectangle onboarding before managed defaults.
 
 **Tech Stack:** Ansible YAML, macOS `defaults`, Homebrew casks, Ruby contract tests, GitHub Actions
 
@@ -16,6 +16,8 @@
 - Half-screen shortcuts use modifier flags `1835008`; display shortcuts use `786432`.
 - Set Rectangle `subsequentExecutionMode` to `2` so repeated actions do not cycle sizes.
 - macOS Accessibility permission remains a manual one-time authorization.
+- Rectangle onboarding uses only the explicit `alternateDefaultShortcuts` marker and waits at most 120 seconds.
+- Existing unmanaged Rectangle applications satisfy the dedicated cask installation.
 
 ---
 
@@ -30,7 +32,7 @@
 
 **Interfaces:**
 - Consumes: Ansible's `homebrew_cask` module, the existing `macos_defaults` scalar loop, and macOS `defaults write/delete`.
-- Produces: `rectangle_shortcuts`, an array of hashes with `action`, `key_code`, and `modifier_flags`; an Ansible shortcut-writing task that consumes that array; explicit SizeUp cleanup tasks.
+- Produces: `rectangle_shortcuts`, an array of hashes with `action`, `key_code`, and `modifier_flags`; an Ansible shortcut-writing task that consumes that array; explicit managed and unmanaged SizeUp cleanup tasks; first-run Rectangle onboarding that completes before managed defaults.
 
 - [ ] **Step 1: Write the failing contract test**
 
@@ -59,19 +61,60 @@ abort "FAIL  missing SizeUp cask removal" unless remove_sizeup&.dig("homebrew_ca
   "state" => "absent"
 }
 
+remove_unmanaged_sizeup = main_tasks.find { |task| task["name"] == "Remove unmanaged SizeUp application" }
+abort "FAIL  missing unmanaged SizeUp cleanup" unless remove_unmanaged_sizeup&.dig("file") == {
+  "path" => "/Applications/SizeUp.app",
+  "state" => "absent"
+}
+
 install_rectangle = main_tasks.find { |task| task["name"] == "Install Rectangle cask" }
 abort "FAIL  missing dedicated Rectangle cask installation" unless install_rectangle&.dig("homebrew_cask") == {
   "name" => "rectangle",
-  "state" => "present"
+  "state" => "present",
+  "accept_external_apps" => true
+}
+
+onboarding_check = main_tasks.find { |task| task["name"] == "Check whether Rectangle onboarding is complete" }
+abort "FAIL  missing or incorrect Rectangle onboarding check" unless onboarding_check == {
+  "name" => "Check whether Rectangle onboarding is complete",
+  "command" => "defaults read com.knollsoft.Rectangle alternateDefaultShortcuts",
+  "register" => "rectangle_onboarding_check",
+  "changed_when" => false,
+  "failed_when" => false
+}
+
+onboarding_launch = main_tasks.find { |task| task["name"] == "Launch Rectangle for first-run onboarding" }
+abort "FAIL  missing or incorrect Rectangle onboarding launch" unless onboarding_launch == {
+  "name" => "Launch Rectangle for first-run onboarding",
+  "command" => "open -a Rectangle",
+  "changed_when" => false,
+  "when" => "rectangle_onboarding_check.rc != 0"
+}
+
+onboarding_wait = main_tasks.find { |task| task["name"] == "Wait for Rectangle first-run onboarding" }
+abort "FAIL  missing or incorrect Rectangle onboarding wait" unless onboarding_wait == {
+  "name" => "Wait for Rectangle first-run onboarding",
+  "command" => "defaults read com.knollsoft.Rectangle alternateDefaultShortcuts",
+  "register" => "rectangle_onboarding_result",
+  "changed_when" => false,
+  "until" => "rectangle_onboarding_result.rc == 0",
+  "retries" => 120,
+  "delay" => 1,
+  "when" => "rectangle_onboarding_check.rc != 0"
 }
 
 stop_index = main_tasks.index(stop_sizeup)
 remove_index = main_tasks.index(remove_sizeup)
+remove_unmanaged_index = main_tasks.index(remove_unmanaged_sizeup)
 rectangle_index = main_tasks.index(install_rectangle)
+onboarding_check_index = main_tasks.index(onboarding_check)
+onboarding_launch_index = main_tasks.index(onboarding_launch)
+onboarding_wait_index = main_tasks.index(onboarding_wait)
 install_casks = main_tasks.find { |task| task["name"] == "Install Brew casks" }
 install_casks_index = main_tasks.index(install_casks)
-abort "FAIL  SizeUp is not stopped before cask removal" unless stop_index < remove_index
-abort "FAIL  Rectangle dedicated install is ordered incorrectly" unless remove_index < rectangle_index && rectangle_index < install_casks_index
+abort "FAIL  SizeUp cleanup tasks are ordered incorrectly" unless stop_index < remove_index && remove_index < remove_unmanaged_index
+abort "FAIL  Rectangle install is not after SizeUp cleanup" unless remove_unmanaged_index < rectangle_index
+abort "FAIL  Rectangle onboarding tasks are ordered incorrectly" unless rectangle_index < onboarding_check_index && onboarding_check_index < onboarding_launch_index && onboarding_launch_index < onboarding_wait_index && onboarding_wait_index < install_casks_index
 
 managed_casks = install_casks&.dig("homebrew_cask", "name") || []
 abort "FAIL  Rectangle remains in general cask installation" if managed_casks.include?("rectangle")
@@ -141,7 +184,7 @@ Run:
 ruby tests/rectangle-migration-contract.rb
 ```
 
-Expected: exits nonzero with `FAIL  missing SizeUp stop task`.
+Expected: exits nonzero with `FAIL  missing unmanaged SizeUp cleanup`.
 
 - [ ] **Step 3: Implement package replacement**
 
@@ -159,13 +202,39 @@ In `roles/macos/tasks/main.yml`, add before `Install Brew casks`:
     name: sizeup
     state: absent
 
+- name: Remove unmanaged SizeUp application
+  file:
+    path: /Applications/SizeUp.app
+    state: absent
+
 - name: Install Rectangle cask
   homebrew_cask:
     name: rectangle
     state: present
+    accept_external_apps: true
+
+- name: Check whether Rectangle onboarding is complete
+  command: defaults read com.knollsoft.Rectangle alternateDefaultShortcuts
+  register: rectangle_onboarding_check
+  changed_when: false
+  failed_when: false
+
+- name: Launch Rectangle for first-run onboarding
+  command: open -a Rectangle
+  changed_when: false
+  when: rectangle_onboarding_check.rc != 0
+
+- name: Wait for Rectangle first-run onboarding
+  command: defaults read com.knollsoft.Rectangle alternateDefaultShortcuts
+  register: rectangle_onboarding_result
+  changed_when: false
+  until: rectangle_onboarding_result.rc == 0
+  retries: 120
+  delay: 1
+  when: rectangle_onboarding_check.rc != 0
 ```
 
-Remove `sizeup` from the existing aggregate cask list. Keep both `sizeup` and `rectangle` out of that list.
+Remove `sizeup` from the existing aggregate cask list. Keep both `sizeup` and `rectangle` out of that list. The onboarding tasks must remain between the dedicated Rectangle install and aggregate cask install so the later defaults tasks overwrite onboarding's shortcut choices.
 
 - [ ] **Step 4: Implement Rectangle settings and SizeUp preference cleanup**
 
@@ -258,7 +327,7 @@ Run:
 bin/provision
 ```
 
-Expected: exits zero, removes the SizeUp cask, installs Rectangle, writes Rectangle defaults, and removes the SizeUp defaults domain.
+Expected: exits zero, removes managed and unmanaged SizeUp applications, accepts an existing unmanaged Rectangle application or installs its cask, waits up to 120 seconds for fresh-install onboarding, writes Rectangle defaults, and removes the SizeUp defaults domain.
 
 - [ ] **Step 2: Verify installed applications and preferences**
 
@@ -292,4 +361,4 @@ Expected: exits zero without a SizeUp cleanup error. Any check-mode changes caus
 
 - [ ] **Step 4: Exercise GUI shortcuts**
 
-Grant Rectangle Accessibility access if macOS prompts. Using a normal application window, exercise all seven actions and verify half-screen placement, maximize, and previous/next display movement match the table in the design spec.
+On a fresh install, grant Rectangle Accessibility access and complete the welcome dialog before the 120-second wait expires. Using a normal application window, exercise all seven actions and verify half-screen placement, maximize, and previous/next display movement match the table in the design spec.
