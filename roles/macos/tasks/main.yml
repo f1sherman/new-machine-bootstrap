@@ -52,10 +52,21 @@
   changed_when: false
   when: ansible_facts["architecture"] in ["arm64", "aarch64"]
 
+- name: Stop SizeUp before removal
+  command: pkill -x SizeUp
+  register: sizeup_stopped
+  changed_when: sizeup_stopped.rc == 0
+  failed_when: sizeup_stopped.rc not in [0, 1]
+
 - name: Remove SizeUp cask
   homebrew_cask:
     name: sizeup
     state: absent
+
+- name: Install Rectangle cask
+  homebrew_cask:
+    name: rectangle
+    state: present
 
 - name: 'Install Brew casks'
   homebrew_cask:
@@ -70,7 +81,6 @@
       'iterm2',
       'popclip',
       'rocket-typist',
-      'rectangle',
       'slack',
       'snagit'
     ]
