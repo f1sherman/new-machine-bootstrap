@@ -572,7 +572,7 @@ function normalizeGoalChildOutput(output, hasCurrentGoal) {
   if (value === "KEEP") return hasCurrentGoal ? { kind: "keep" } : undefined;
   if (!value || value.length > SESSION_GOAL_MAX_LENGTH) return undefined;
   if (/\p{Cc}/u.test(value) || /^goal\s*:/i.test(value)) return undefined;
-  if (/^["'`]|["'`]$/.test(value)) return undefined;
+  if (/["'`]/.test(value)) return undefined;
   return { kind: "subject", subject: value };
 }
 
