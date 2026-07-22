@@ -36,6 +36,9 @@ jobs:
       - name: Verify tmux restore diagnostics
         run: bash tests/tmux-restore-diagnostics.sh
 
+      - name: Verify tmux-resurrect Neovim space paths
+        run: bash tests/tmux-resurrect-nvim-space-path.sh
+
       - name: Verify Ghostty quick-terminal shortcut
         run: bash tests/ghostty-quick-terminal.sh
 
