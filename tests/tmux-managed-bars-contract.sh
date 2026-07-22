@@ -58,9 +58,15 @@ for config in "$LINUX_TMUX_CONF" "$MACOS_TMUX_CONF"; do
   assert_file_contains "$config" \
     '^run-shell -b .*tmux-reconcile-status-bars' \
     "$platform config reconciles status at load time"
-  assert_file_contains "$config" \
-    '^set-hook -g client-attached .*tmux-client-attached.*tmux-remote-title publish' \
-    "$platform config base client-attached hook republishes the structured title"
+  base_attach_hook="$(grep -E '^set-hook -g client-attached ' "$config")"
+  assert_equals "$(grep -o 'run-shell -b' <<<"$base_attach_hook" | wc -l | tr -d ' ')" "1" \
+    "$platform config base client-attached hook uses one background shell"
+  assert_equals "$(grep -Ec 'tmux-client-attached.*&&.*\$HOME/\.local/bin/tmux-hook-run \$HOME/\.local/bin/tmux-remote-title publish' <<<"$base_attach_hook" || true)" "1" \
+    "$platform config orders attach maintenance before absolute title publication"
+  assert_equals "$(grep -Fc 'PATH=\"$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\"' <<<"$base_attach_hook" || true)" "1" \
+    "$platform config gives title publication a portable execution PATH"
+  assert_equals "$(grep -Fc 'TMUX_HOOK_PANE_ID=#{pane_id}' <<<"$base_attach_hook" || true)" "1" \
+    "$platform config preserves the triggering pane ID for title publication"
   assert_file_not_contains "$config" \
     'client_termname.*set status|set status.*client_termname' \
     "$platform config removes per-client status toggles"
