@@ -29,31 +29,44 @@ behavior.
 
 The macOS role will:
 
-1. Remove the `sizeup` Homebrew cask when present.
-2. Install the `rectangle` Homebrew cask with the other managed applications.
-3. Delete the `com.irradiatedsoftware.SizeUp` defaults domain when present.
-4. Write Rectangle's scalar settings to `com.knollsoft.Rectangle`.
-5. Write shortcut dictionaries for `leftHalf`, `rightHalf`, `topHalf`,
+1. Stop SizeUp, remove the `sizeup` Homebrew cask when present, and remove an
+   unmanaged `/Applications/SizeUp.app` left by an installation outside Homebrew.
+2. Install the `rectangle` Homebrew cask, accepting an existing unmanaged
+   `/Applications/Rectangle.app` as satisfying the install.
+3. Check Rectangle's `alternateDefaultShortcuts` onboarding marker. If it is
+   absent, launch Rectangle and wait up to 120 seconds for the user to grant
+   Accessibility access and complete the welcome dialog by choosing a default
+   shortcut set.
+4. Delete the `com.irradiatedsoftware.SizeUp` defaults domain when present.
+5. Write Rectangle's scalar settings to `com.knollsoft.Rectangle`.
+6. Write shortcut dictionaries for `leftHalf`, `rightHalf`, `topHalf`,
    `bottomHalf`, `maximize`, `previousDisplay`, and `nextDisplay` using the
    key codes and modifier flags above.
 
 The SizeUp cleanup remains an idempotent provisioning task so machines that have
 not provisioned recently are migrated when they next run the playbook. Missing
 SizeUp preferences are treated as already clean rather than as an error.
+Existing onboarded Rectangle installations skip the launch and wait. On fresh
+installations, provisioning waits for the explicit onboarding marker before the
+managed defaults overwrite the welcome dialog's execution mode and shortcuts.
 
 ## Verification
 
 A focused contract test will inspect the macOS role files and assert:
 
-- Rectangle is installed and SizeUp is explicitly removed.
+- Rectangle installation tolerates an unmanaged app and both managed and
+  unmanaged SizeUp installations are explicitly removed.
+- Fresh Rectangle installations complete marker-driven onboarding before the
+  aggregate cask and managed-defaults tasks; onboarded installations skip it.
 - All seven shortcut actions have the expected key codes and modifiers.
 - Rectangle starts at login and repeated-command cycling is disabled.
 - The obsolete SizeUp defaults domain is deleted.
 - The old SizeUp defaults are no longer present in the managed defaults list.
 
 Run the focused test, the CI test inventory, Ansible syntax checking, and local
-macOS provisioning. After provisioning, verify the Rectangle defaults domain,
-confirm SizeUp is absent and Rectangle is installed, then exercise each shortcut
-against a normal application window. Rectangle may still require one-time macOS
-Accessibility permission because that authorization is controlled by macOS and
-is not safely provisioned here.
+macOS provisioning. During a fresh install, grant Rectangle Accessibility
+access and complete its welcome dialog within the 120-second wait. After
+provisioning, verify the Rectangle defaults domain, confirm SizeUp is absent and
+Rectangle is installed, then exercise each shortcut against a normal application
+window. Accessibility authorization remains a manual one-time action because it
+is controlled by macOS and is not safely provisioned here.

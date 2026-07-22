@@ -63,10 +63,36 @@
     name: sizeup
     state: absent
 
+- name: Remove unmanaged SizeUp application
+  file:
+    path: /Applications/SizeUp.app
+    state: absent
+
 - name: Install Rectangle cask
   homebrew_cask:
     name: rectangle
     state: present
+    accept_external_apps: true
+
+- name: Check whether Rectangle onboarding is complete
+  command: defaults read com.knollsoft.Rectangle alternateDefaultShortcuts
+  register: rectangle_onboarding_check
+  changed_when: false
+  failed_when: false
+
+- name: Launch Rectangle for first-run onboarding
+  command: open -a Rectangle
+  changed_when: false
+  when: rectangle_onboarding_check.rc != 0
+
+- name: Wait for Rectangle first-run onboarding
+  command: defaults read com.knollsoft.Rectangle alternateDefaultShortcuts
+  register: rectangle_onboarding_result
+  changed_when: false
+  until: rectangle_onboarding_result.rc == 0
+  retries: 120
+  delay: 1
+  when: rectangle_onboarding_check.rc != 0
 
 - name: 'Install Brew casks'
   homebrew_cask:

@@ -20,19 +20,60 @@ abort "FAIL  missing SizeUp cask removal" unless remove_sizeup&.dig("homebrew_ca
   "state" => "absent"
 }
 
+remove_unmanaged_sizeup = main_tasks.find { |task| task["name"] == "Remove unmanaged SizeUp application" }
+abort "FAIL  missing unmanaged SizeUp cleanup" unless remove_unmanaged_sizeup&.dig("file") == {
+  "path" => "/Applications/SizeUp.app",
+  "state" => "absent"
+}
+
 install_rectangle = main_tasks.find { |task| task["name"] == "Install Rectangle cask" }
 abort "FAIL  missing dedicated Rectangle cask installation" unless install_rectangle&.dig("homebrew_cask") == {
   "name" => "rectangle",
-  "state" => "present"
+  "state" => "present",
+  "accept_external_apps" => true
+}
+
+onboarding_check = main_tasks.find { |task| task["name"] == "Check whether Rectangle onboarding is complete" }
+abort "FAIL  missing or incorrect Rectangle onboarding check" unless onboarding_check == {
+  "name" => "Check whether Rectangle onboarding is complete",
+  "command" => "defaults read com.knollsoft.Rectangle alternateDefaultShortcuts",
+  "register" => "rectangle_onboarding_check",
+  "changed_when" => false,
+  "failed_when" => false
+}
+
+onboarding_launch = main_tasks.find { |task| task["name"] == "Launch Rectangle for first-run onboarding" }
+abort "FAIL  missing or incorrect Rectangle onboarding launch" unless onboarding_launch == {
+  "name" => "Launch Rectangle for first-run onboarding",
+  "command" => "open -a Rectangle",
+  "changed_when" => false,
+  "when" => "rectangle_onboarding_check.rc != 0"
+}
+
+onboarding_wait = main_tasks.find { |task| task["name"] == "Wait for Rectangle first-run onboarding" }
+abort "FAIL  missing or incorrect Rectangle onboarding wait" unless onboarding_wait == {
+  "name" => "Wait for Rectangle first-run onboarding",
+  "command" => "defaults read com.knollsoft.Rectangle alternateDefaultShortcuts",
+  "register" => "rectangle_onboarding_result",
+  "changed_when" => false,
+  "until" => "rectangle_onboarding_result.rc == 0",
+  "retries" => 120,
+  "delay" => 1,
+  "when" => "rectangle_onboarding_check.rc != 0"
 }
 
 stop_index = main_tasks.index(stop_sizeup)
 remove_index = main_tasks.index(remove_sizeup)
+remove_unmanaged_index = main_tasks.index(remove_unmanaged_sizeup)
 rectangle_index = main_tasks.index(install_rectangle)
+onboarding_check_index = main_tasks.index(onboarding_check)
+onboarding_launch_index = main_tasks.index(onboarding_launch)
+onboarding_wait_index = main_tasks.index(onboarding_wait)
 install_casks = main_tasks.find { |task| task["name"] == "Install Brew casks" }
 install_casks_index = main_tasks.index(install_casks)
-abort "FAIL  SizeUp is not stopped before cask removal" unless stop_index < remove_index
-abort "FAIL  Rectangle dedicated install is ordered incorrectly" unless remove_index < rectangle_index && rectangle_index < install_casks_index
+abort "FAIL  SizeUp cleanup tasks are ordered incorrectly" unless stop_index < remove_index && remove_index < remove_unmanaged_index
+abort "FAIL  Rectangle install is not after SizeUp cleanup" unless remove_unmanaged_index < rectangle_index
+abort "FAIL  Rectangle onboarding tasks are ordered incorrectly" unless rectangle_index < onboarding_check_index && onboarding_check_index < onboarding_launch_index && onboarding_launch_index < onboarding_wait_index && onboarding_wait_index < install_casks_index
 
 managed_casks = install_casks&.dig("homebrew_cask", "name") || []
 abort "FAIL  Rectangle remains in general cask installation" if managed_casks.include?("rectangle")
