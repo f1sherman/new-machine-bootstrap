@@ -39,6 +39,10 @@ function inTmux() {
   return Boolean(process.env.TMUX && process.env.TMUX_PANE);
 }
 
+function ownsTmuxPane() {
+  return inTmux() && Boolean(process.stdout.isTTY);
+}
+
 function stateFile(key) {
   if (!process.env.TMUX_AGENT_STATE_DIR || !process.env.TMUX_PANE) return undefined;
   return path.join(process.env.TMUX_AGENT_STATE_DIR, `${process.env.TMUX_PANE}.${key}`);
@@ -121,8 +125,20 @@ async function syncSessionNameFromTmux(pi, ctx) {
   }
 }
 
+async function applyTmuxSubject(pi, subject) {
+  const result = await exec(pi, "tmux-agent-subject", ["set", subject]);
+  if (result.code !== 0 || result.killed) {
+    console.warn("[managed-hooks] tmux-agent-subject set failed", {
+      code: result.code,
+      killed: result.killed,
+    });
+    return false;
+  }
+  return true;
+}
+
 async function syncTmuxSubjectFromSession(pi, ctx) {
-  if (!inTmux()) return;
+  if (!ownsTmuxPane()) return;
   const sessionFile = ctx?.sessionManager?.getSessionFile?.() || "";
   const sessionName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
   if (!sessionFile || !sessionName) return;
@@ -130,15 +146,14 @@ async function syncTmuxSubjectFromSession(pi, ctx) {
   const boundSessionFile = await tmuxOption(pi, "@persist_pi_session_file");
   if (!boundSessionFile || boundSessionFile === sessionFile) return;
 
-  await exec(pi, "tmux-agent-subject", ["set", sessionName]);
+  await applyTmuxSubject(pi, sessionName);
 }
 
 async function bindPaneSessionFile(pi, ctx) {
-  if (!inTmux()) return;
   // Nested / non-interactive pi invocations (subagent children, `pi -p`)
   // inherit TMUX_PANE but run without a TTY; they must not clobber the
   // pane's session binding used by `pir`.
-  if (!process.stdout.isTTY) return;
+  if (!ownsTmuxPane()) return;
   const sessionFile = ctx?.sessionManager?.getSessionFile?.() || "";
   if (!sessionFile) return;
   await exec(pi, "tmux", ["set-option", "-p", "-t", process.env.TMUX_PANE, "@persist_pi_session_file", sessionFile]);
@@ -529,8 +544,7 @@ async function setSubjectFromSubagent(pi, prompt, cwd, signal) {
     return false;
   }
 
-  const applied = await exec(pi, "tmux-agent-subject", ["set", subject]);
-  return applied.code === 0;
+  return applyTmuxSubject(pi, subject);
 }
 
 function normalizeSuperpowersSpecPath(candidatePath, cwd, repoRoot, resolveFrom = cwd) {
@@ -801,8 +815,8 @@ export default function managedHooks(pi) {
 
   pi.on("session_info_changed", async (event) => {
     const sessionName = event.name?.trim() || "";
-    if (!sessionName || !inTmux()) return;
-    await exec(pi, "tmux-agent-subject", ["set", sessionName]);
+    if (!sessionName || !ownsTmuxPane()) return;
+    await applyTmuxSubject(pi, sessionName);
   });
 
   pi.on("session_shutdown", async () => {
