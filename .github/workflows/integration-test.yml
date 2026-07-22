@@ -96,6 +96,9 @@ jobs:
       - name: Verify Pi main worktree mutation guard
         run: bash tests/pi-main-worktree-guard.sh
 
+      - name: Verify Pi main worktree guard provisioning
+        run: bash tests/pi-main-worktree-guard-provisioning.sh
+
       - name: Verify pi managed hooks
         run: bash tests/pi-managed-hooks.sh
 
