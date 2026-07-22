@@ -4,15 +4,15 @@ set -euo pipefail
 original_command="${1:-}"
 pane_dir="${2:-}"
 
-if [ -f "$pane_dir/Session.vim" ]; then
-  printf '%s\n' 'nvim -S'
-  exit 0
-fi
-
 case "$original_command" in
   nvim\ *) argument=${original_command#nvim } ;;
   *) printf '%s\n' "$original_command"; exit 0 ;;
 esac
+
+if [ -f "$pane_dir/Session.vim" ]; then
+  printf '%s\n' 'nvim -S'
+  exit 0
+fi
 
 case "$argument" in
   ''|-*) printf '%s\n' "$original_command"; exit 0 ;;
