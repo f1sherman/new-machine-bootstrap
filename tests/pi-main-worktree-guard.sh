@@ -90,6 +90,7 @@ const blockedCommands = [
   ["install target option", `install -t ${primary} ${path.join(feature, "tracked")}`],
   ["move destination", `mv ${path.join(feature, "tracked")} ${path.join(primary, "moved")}`],
   ["touch", `touch ${path.join(primary, "new")}`],
+  ["touch timestamp", `touch -t 202401010000 ${path.join(primary, "tracked")}`],
   ["mkdir", `mkdir ${path.join(primary, "new-dir")}`],
   ["link", `ln -s ${path.join(feature, "tracked")} ${path.join(primary, "link")}`],
   ["truncate", `truncate -s 0 ${path.join(primary, "tracked")}`],
@@ -102,6 +103,7 @@ const blockedCommands = [
   ["git clean", `git -C ${primary} clean -fd`],
   ["git reset", `cd ${primary} && git reset --hard`],
   ["git apply", `git -C ${primary} apply change.patch`],
+  ["positional patch", `patch ${path.join(primary, "tracked")} change.patch`],
   ["python Path.write_text", `python3 - <<'PY'\nfrom pathlib import Path\nPath('${path.join(primary, "tracked")}').write_text('changed')\nPY`],
   ["python relative Path.write_text", `python3 -c "from pathlib import Path; Path('../primary/tracked').write_text('changed')"`],
   ["python relative write after cd", `cd ${primary} && python3 -c "from pathlib import Path; Path('tracked').write_text('changed')"`],
@@ -113,6 +115,7 @@ const blockedCommands = [
   ["primary symlink removal", `rm ${path.join(primary, "linked-dir")}`],
   ["feature symlink into primary removal", `rm ${path.join(feature, "primary-link", "tracked")}`],
   ["chmod target", `chmod 600 ${path.join(primary, "tracked")}`],
+  ["chmod symbolic target", `chmod -w ${path.join(primary, "tracked")}`],
   ["chown target", `chown test ${path.join(primary, "tracked")}`],
 ];
 
@@ -130,6 +133,7 @@ const allowedCommands = [
   `ruby -e "File.open('${path.join(primary, "tracked")}') { |file| file.read }"`,
   `cd ${primary} && chmod 600 ${path.join(feature, "tracked")}`,
   `touch -r ${path.join(primary, "tracked")} ${path.join(feature, "tracked")}`,
+  `rm ${path.join(feature, "primary-link")}`,
   `printf changed > ${path.join(feature, "tracked")}`,
   `touch ${path.join(feature, "new")}`,
   `git -C ${feature} restore tracked`,
