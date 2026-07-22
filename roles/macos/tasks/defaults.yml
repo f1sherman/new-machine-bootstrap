@@ -35,6 +35,16 @@
   command: defaults delete com.irradiatedsoftware.SizeUp
   when: sizeup_preferences_check.rc == 0
 
+- name: Stop Rectangle to reload managed settings
+  command: pkill -x Rectangle
+  register: rectangle_stopped
+  changed_when: rectangle_stopped.rc == 0
+  failed_when: rectangle_stopped.rc not in [0, 1]
+
+- name: Relaunch Rectangle with managed settings
+  command: open -a Rectangle
+  changed_when: false
+
 # Special cases that don't fit the { domain, key, type, value } pattern
 
 - name: "Terminal: Only use UTF-8"

@@ -4,7 +4,7 @@
 
 **Goal:** Replace SizeUp with Rectangle while preserving Brian's seven existing window-management shortcuts.
 
-**Architecture:** Keep package ownership and first-run onboarding in the macOS role and settings ownership in its existing defaults configuration. Add a small data table for Rectangle shortcuts, one generic Ansible loop that writes Rectangle shortcut dictionaries, explicit idempotent cleanup for managed and unmanaged SizeUp installations, and marker-driven Rectangle onboarding before managed defaults.
+**Architecture:** Keep package ownership and first-run onboarding in the macOS role and settings ownership in its existing defaults configuration. Add a small data table for Rectangle shortcuts, one generic Ansible loop that writes Rectangle shortcut dictionaries, explicit idempotent cleanup for managed and unmanaged SizeUp installations, marker-driven Rectangle onboarding before managed defaults, and an unconditional post-configuration Rectangle restart so runtime settings and native login registration match those defaults.
 
 **Tech Stack:** Ansible YAML, macOS `defaults`, Homebrew casks, Ruby contract tests, GitHub Actions
 
@@ -32,7 +32,7 @@
 
 **Interfaces:**
 - Consumes: Ansible's `homebrew_cask` module, the existing `macos_defaults` scalar loop, and macOS `defaults write/delete`.
-- Produces: `rectangle_shortcuts`, an array of hashes with `action`, `key_code`, and `modifier_flags`; an Ansible shortcut-writing task that consumes that array; explicit managed and unmanaged SizeUp cleanup tasks; first-run Rectangle onboarding that completes before managed defaults.
+- Produces: `rectangle_shortcuts`, an array of hashes with `action`, `key_code`, and `modifier_flags`; an Ansible shortcut-writing task that consumes that array; explicit managed and unmanaged SizeUp cleanup tasks; first-run Rectangle onboarding that completes before managed defaults; a post-configuration stop and relaunch that loads managed runtime bindings and reconciles Rectangle's native login item.
 
 - [ ] **Step 1: Write the failing contract test**
 
@@ -170,6 +170,30 @@ abort "FAIL  SizeUp cleanup is not conditional" unless cleanup_task["when"] == "
 abort "FAIL  SizeUp cleanup overrides default failure handling" if cleanup_task.key?("failed_when")
 abort "FAIL  SizeUp cleanup ignores deletion failures" if cleanup_task["ignore_errors"] == true
 
+rectangle_stop = default_tasks.find { |task| task["name"] == "Stop Rectangle to reload managed settings" }
+abort "FAIL  missing or incorrect Rectangle stop task" unless rectangle_stop == {
+  "name" => "Stop Rectangle to reload managed settings",
+  "command" => "pkill -x Rectangle",
+  "register" => "rectangle_stopped",
+  "changed_when" => "rectangle_stopped.rc == 0",
+  "failed_when" => "rectangle_stopped.rc not in [0, 1]"
+}
+
+rectangle_relaunch = default_tasks.find { |task| task["name"] == "Relaunch Rectangle with managed settings" }
+abort "FAIL  missing or incorrect Rectangle relaunch task" unless rectangle_relaunch == {
+  "name" => "Relaunch Rectangle with managed settings",
+  "command" => "open -a Rectangle",
+  "changed_when" => false
+}
+
+shortcut_index = default_tasks.index(shortcut_task)
+cleanup_index = default_tasks.index(cleanup_task)
+rectangle_stop_index = default_tasks.index(rectangle_stop)
+rectangle_relaunch_index = default_tasks.index(rectangle_relaunch)
+abort "FAIL  Rectangle reload does not follow managed shortcut writes" unless shortcut_index < rectangle_stop_index
+abort "FAIL  Rectangle reload does not follow SizeUp preference cleanup" unless cleanup_index < rectangle_stop_index
+abort "FAIL  Rectangle reload tasks are ordered incorrectly" unless rectangle_stop_index < rectangle_relaunch_index
+
 puts "PASS  SizeUp to Rectangle migration contract"
 ```
 
@@ -288,7 +312,21 @@ In `roles/macos/tasks/defaults.yml`, add immediately after the scalar defaults l
 - name: Remove SizeUp preferences
   command: defaults delete com.irradiatedsoftware.SizeUp
   when: sizeup_preferences_check.rc == 0
+
+- name: Stop Rectangle to reload managed settings
+  command: pkill -x Rectangle
+  register: rectangle_stopped
+  changed_when: rectangle_stopped.rc == 0
+  failed_when: rectangle_stopped.rc not in [0, 1]
+
+- name: Relaunch Rectangle with managed settings
+  command: open -a Rectangle
+  changed_when: false
 ```
+
+The restart runs on every macOS provision after settings and SizeUp preference
+cleanup. It makes Rectangle load the managed runtime bindings and execution mode
+and reconcile its native login item from `launchOnLogin = true`.
 
 - [ ] **Step 5: Run focused tests and syntax checks**
 
@@ -331,7 +369,7 @@ Run:
 bin/provision
 ```
 
-Expected: exits zero, removes managed and unmanaged SizeUp applications, accepts an existing unmanaged Rectangle application or installs its cask, waits up to 120 seconds for fresh-install onboarding, writes Rectangle defaults, and removes the SizeUp defaults domain.
+Expected: exits zero, removes managed and unmanaged SizeUp applications, accepts an existing unmanaged Rectangle application or installs its cask, waits up to 120 seconds for fresh-install onboarding, writes Rectangle defaults, removes the SizeUp defaults domain, and restarts Rectangle so runtime bindings and native login registration match the managed settings.
 
 - [ ] **Step 2: Verify installed applications and preferences**
 

@@ -129,4 +129,28 @@ abort "FAIL  SizeUp cleanup is not conditional" unless cleanup_task["when"] == "
 abort "FAIL  SizeUp cleanup overrides default failure handling" if cleanup_task.key?("failed_when")
 abort "FAIL  SizeUp cleanup ignores deletion failures" if cleanup_task["ignore_errors"] == true
 
+rectangle_stop = default_tasks.find { |task| task["name"] == "Stop Rectangle to reload managed settings" }
+abort "FAIL  missing or incorrect Rectangle stop task" unless rectangle_stop == {
+  "name" => "Stop Rectangle to reload managed settings",
+  "command" => "pkill -x Rectangle",
+  "register" => "rectangle_stopped",
+  "changed_when" => "rectangle_stopped.rc == 0",
+  "failed_when" => "rectangle_stopped.rc not in [0, 1]"
+}
+
+rectangle_relaunch = default_tasks.find { |task| task["name"] == "Relaunch Rectangle with managed settings" }
+abort "FAIL  missing or incorrect Rectangle relaunch task" unless rectangle_relaunch == {
+  "name" => "Relaunch Rectangle with managed settings",
+  "command" => "open -a Rectangle",
+  "changed_when" => false
+}
+
+shortcut_index = default_tasks.index(shortcut_task)
+cleanup_index = default_tasks.index(cleanup_task)
+rectangle_stop_index = default_tasks.index(rectangle_stop)
+rectangle_relaunch_index = default_tasks.index(rectangle_relaunch)
+abort "FAIL  Rectangle reload does not follow managed shortcut writes" unless shortcut_index < rectangle_stop_index
+abort "FAIL  Rectangle reload does not follow SizeUp preference cleanup" unless cleanup_index < rectangle_stop_index
+abort "FAIL  Rectangle reload tasks are ordered incorrectly" unless rectangle_stop_index < rectangle_relaunch_index
+
 puts "PASS  SizeUp to Rectangle migration contract"

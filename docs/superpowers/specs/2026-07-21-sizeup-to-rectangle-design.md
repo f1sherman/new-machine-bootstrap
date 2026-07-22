@@ -42,13 +42,18 @@ The macOS role will:
 6. Write shortcut dictionaries for `leftHalf`, `rightHalf`, `topHalf`,
    `bottomHalf`, `maximize`, `previousDisplay`, and `nextDisplay` using the
    key codes and modifier flags above.
+7. Stop and relaunch Rectangle after SizeUp preference cleanup so its runtime
+   bindings and native login registration match the managed defaults.
 
 The SizeUp cleanup remains an idempotent provisioning task so machines that have
 not provisioned recently are migrated when they next run the playbook. Missing
 SizeUp preferences are treated as already clean rather than as an error.
-Existing onboarded Rectangle installations skip the launch and wait. On fresh
-installations, provisioning waits for the explicit onboarding marker before the
-managed defaults overwrite the welcome dialog's execution mode and shortcuts.
+Existing onboarded Rectangle installations skip the onboarding launch and wait.
+On fresh installations, provisioning waits for the explicit onboarding marker
+before the managed defaults overwrite the welcome dialog's execution mode and
+shortcuts. Every provisioning run then restarts Rectangle after writing settings,
+which applies the exact shortcuts and `subsequentExecutionMode = 2` at runtime
+and lets `launchOnLogin = true` reconcile Rectangle's native login item.
 
 ## Verification
 
@@ -61,6 +66,8 @@ A focused contract test will inspect the macOS role files and assert:
 - All seven shortcut actions have the expected key codes and modifiers.
 - Rectangle starts at login and repeated-command cycling is disabled.
 - The obsolete SizeUp defaults domain is deleted.
+- Rectangle is stopped after shortcut writing and SizeUp preference cleanup,
+  then relaunched with managed settings.
 - The old SizeUp defaults are no longer present in the managed defaults list.
 
 Run the focused test, the CI test inventory, Ansible syntax checking, and local
