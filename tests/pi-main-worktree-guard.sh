@@ -77,6 +77,9 @@ for (const toolName of ["edit", "write"]) {
 
   const linkedIntoPrimary = await call(toolName, { path: path.join(feature, "primary-link", "tracked") }, feature);
   assert.equal(linkedIntoPrimary?.block, true, `${toolName} blocks feature symlink resolving into primary main`);
+
+  const primaryLinkIntoFeature = await call(toolName, { path: path.join(primary, "linked-dir", "tracked") }, primary);
+  assert.equal(primaryLinkIntoFeature, undefined, `${toolName} allows primary symlink resolving into linked feature worktree`);
 }
 
 const blockedCommands = [
@@ -105,6 +108,8 @@ const blockedCommands = [
   ["git config-option restore", `git -C ${primary} -c color.ui=false restore tracked`],
   ["git explicit work tree", `git --work-tree=${primary} restore tracked`],
   ["git clean", `git -C ${primary} clean -fd`],
+  ["git rm", `git -C ${primary} rm tracked`],
+  ["git mv", `git -C ${primary} mv tracked renamed`],
   ["git reset", `cd ${primary} && git reset --hard`],
   ["git apply", `git -C ${primary} apply change.patch`],
   ["positional patch", `patch ${path.join(primary, "tracked")} change.patch`],
@@ -128,6 +133,10 @@ for (const [label, command] of blockedCommands) {
   assert.equal(result?.block, true, `blocks ${label} against primary main`);
   assert.match(result.reason, /primary main worktree/, `${label} identifies protected worktree`);
 }
+
+const multilineSubshellHeredoc = `(cd ${feature}\n)\npython3 - <<'PY'\nfrom pathlib import Path\nPath('tracked').write_text('changed')\nPY`;
+const multilineResult = await call("bash", { command: multilineSubshellHeredoc }, primary);
+assert.equal(multilineResult?.block, true, "restores primary cwd after multiline subshell before heredoc");
 
 const allowedCommands = [
   "git status --short",
