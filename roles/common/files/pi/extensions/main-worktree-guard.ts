@@ -50,6 +50,11 @@ async function protectedMainWorktree(pi, candidate, fallbackCwd) {
   return absoluteGitPath(gitDir, root) === absoluteGitPath(commonDir, root) ? root : "";
 }
 
+function shellWrappedPayload(segment) {
+  const match = segment.match(/^(?:command\s+|env\s+(?:\S+\s+)*|sudo(?:\s+-\S+)*\s+|time(?:\s+-\S+)*\s+)*(?:\S+\/)?(?:bash|sh|zsh)(?:\s+-\S+)*\s+-[A-Za-z]*c[A-Za-z]*(?:\s+\S+)*\s+(['"])([\s\S]*)\1(?:\s+.*)?$/);
+  return match ? match[2] : "";
+}
+
 function splitShellSegments(command) {
   const segments = [];
   let current = "";
@@ -214,6 +219,13 @@ async function bashMutationBlockReason(pi, command, initialCwd) {
 
   let cwd = initialCwd;
   for (const segment of splitShellSegments(command)) {
+    const payload = shellWrappedPayload(segment);
+    if (payload) {
+      const nestedReason = await bashMutationBlockReason(pi, payload, cwd);
+      if (nestedReason) return nestedReason;
+      continue;
+    }
+
     const nextCwd = changedDirectory(segment, cwd);
     if (nextCwd) {
       cwd = nextCwd;
