@@ -46,6 +46,9 @@ const goalChildCalls = [];
 let goalChildResults = [];
 let goalChildErrors = [];
 let goalChildDeferred;
+let goalChildIgnoresAbort = false;
+let activeGoalChildren = 0;
+let maxActiveGoalChildren = 0;
 
 const ok = (stdout = "") => ({ stdout, stderr: "", code: 0, killed: false });
 const fail = () => ({ stdout: "", stderr: "", code: 1, killed: false });
@@ -112,9 +115,21 @@ const pi = {
     if (command === "pi") {
       if (isGoalChildArgs(args)) {
         goalChildCalls.push({ args, options });
-        if (goalChildErrors.length > 0) throw goalChildErrors.shift();
-        if (goalChildDeferred) return abortableGoalResult(goalChildDeferred.promise, options.signal);
-        return goalChildResults.shift() ?? ok("KEEP\n");
+        activeGoalChildren += 1;
+        maxActiveGoalChildren = Math.max(maxActiveGoalChildren, activeGoalChildren);
+        const deferredResult = goalChildDeferred;
+        try {
+          if (goalChildErrors.length > 0) throw goalChildErrors.shift();
+          if (deferredResult) {
+            const result = goalChildIgnoresAbort
+              ? deferredResult.promise
+              : abortableGoalResult(deferredResult.promise, options.signal);
+            return await result;
+          }
+          return goalChildResults.shift() ?? ok("KEEP\n");
+        } finally {
+          activeGoalChildren -= 1;
+        }
       }
       subjectChildExecOptions = options;
       if (subjectChildError) throw subjectChildError;
@@ -561,21 +576,44 @@ const goalWarningText = goalWarnings.flatMap((args) => args.map((arg) => (
 assert.equal(goalWarningText.includes(goalPromptSentinel), false, "goal diagnostics do not echo the prompt");
 assert.equal(goalWarningText.includes(goalStdoutSentinel), false, "goal diagnostics do not echo raw stdout");
 
+const lifecycleGoalCallStart = goalChildCalls.length;
+maxActiveGoalChildren = activeGoalChildren;
+goalChildIgnoresAbort = true;
 goalChildDeferred = deferred();
+const oldSessionGoalDeferred = goalChildDeferred;
+const lifecycleWarnings = [];
+const originalLifecycleWarn = console.warn;
+console.warn = (...args) => lifecycleWarnings.push(args);
 await handlers.get("before_agent_start")({
   prompt: "old session prompt",
   systemPrompt: "",
   systemPromptOptions: { cwd: "/repo" },
 }, ctx);
+goalChildDeferred = undefined;
 await handlers.get("session_shutdown")({ reason: "resume" }, ctx);
 branchEntries = [
   { type: "custom", customType: "session-goal", data: { subject: "destination goal" } },
 ];
 await handlers.get("session_start")({ reason: "resume" }, ctx);
-goalChildDeferred.resolve(ok("stale old goal\n"));
-goalChildDeferred = undefined;
+assert.equal(statuses.at(-1).value, "goal: destination goal", "replacement session restores its durable goal before new evaluation");
+goalChildResults.push(ok("replacement session goal\n"));
+await handlers.get("before_agent_start")({
+  prompt: "replacement session prompt",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+const goalCallsBeforeOldSettlement = goalChildCalls.length;
+goalChildIgnoresAbort = false;
+oldSessionGoalDeferred.resolve({ stdout: "stale old goal\n", stderr: "", code: 1, killed: true });
 await flushAsyncWork();
-assert.equal(statuses.at(-1).value, "goal: destination goal", "shutdown prevents stale goal application");
+console.warn = originalLifecycleWarn;
+assert.equal(maxActiveGoalChildren, 1, "replacement session never overlaps the settling aborted goal child");
+assert.equal(goalCallsBeforeOldSettlement, lifecycleGoalCallStart + 1, "replacement goal waits for the old child to settle");
+assert.equal(goalChildCalls.length, lifecycleGoalCallStart + 2, "newest replacement request runs after old settlement");
+assert.match(goalChildCalls.at(-1).args.at(-1), /New user prompt: replacement session prompt/);
+assert.equal(customEntries.some((entry) => entry.data.subject === "stale old goal"), false, "shutdown prevents stale goal application");
+assert.equal(statuses.at(-1).value, "goal: replacement session goal", "replacement request applies after old settlement");
+assert.equal(lifecycleWarnings.some((args) => args[0] === "[managed-hooks] session goal child failed"), false, "shutdown abort emits no goal failure warning");
 
 notifications.length = 0;
 const entriesBeforePersistenceFailures = customEntries.length;
@@ -594,7 +632,7 @@ for (const subject of ["unpersisted goal one", "unpersisted goal two", "unpersis
   await flushAsyncWork();
 }
 assert.equal(customEntries.length, entriesBeforePersistenceFailures, "persistence failures do not append partial goal entries");
-assert.equal(statuses.at(-1).value, "goal: destination goal", "persistence failures preserve the previous in-memory goal");
+assert.equal(statuses.at(-1).value, "goal: replacement session goal", "persistence failures preserve the previous in-memory goal");
 assert.equal(notifications.length, 1, "repeated persistence failures use goal failure warnings");
 
 taskStatus = "";
