@@ -27,6 +27,12 @@
     executable: /bin/bash
     creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
 
+- name: Install tmux-resurrect Neovim restore strategy
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/tmux-resurrect-strategies/nvim_nmb.sh'
+    dest: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect/strategies/nvim_nmb.sh'
+    mode: '0755'
+
 - name: Check if fzf shell directory exists
   stat:
     path: '{{ ansible_facts["user_dir"] }}/.fzf/shell'
