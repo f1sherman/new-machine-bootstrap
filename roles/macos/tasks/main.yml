@@ -221,6 +221,12 @@
     executable: /bin/bash
     creates: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect'
 
+- name: Install tmux-resurrect Neovim restore strategy
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/tmux-resurrect-strategies/nvim_nmb.sh'
+    dest: '{{ ansible_facts["user_dir"] }}/.tmux/plugins/tmux-resurrect/strategies/nvim_nmb.sh'
+    mode: '0755'
+
 # Recover any deleted files in the tmux-resurrect plugin. The plugin's
 # entrypoint `resurrect.tmux` sets `@resurrect-save-script-path` via
 # `set_script_path_options`; if the file goes missing, continuum's auto-save
