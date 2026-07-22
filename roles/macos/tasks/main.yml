@@ -52,6 +52,11 @@
   changed_when: false
   when: ansible_facts["architecture"] in ["arm64", "aarch64"]
 
+- name: Remove SizeUp cask
+  homebrew_cask:
+    name: sizeup
+    state: absent
+
 - name: 'Install Brew casks'
   homebrew_cask:
     name: [
@@ -65,7 +70,7 @@
       'iterm2',
       'popclip',
       'rocket-typist',
-      'sizeup',
+      'rectangle',
       'slack',
       'snagit'
     ]
