@@ -121,6 +121,18 @@ async function syncSessionNameFromTmux(pi, ctx) {
   }
 }
 
+async function syncTmuxSubjectFromSession(pi, ctx) {
+  if (!inTmux()) return;
+  const sessionFile = ctx?.sessionManager?.getSessionFile?.() || "";
+  const sessionName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
+  if (!sessionFile || !sessionName) return;
+
+  const boundSessionFile = await tmuxOption(pi, "@persist_pi_session_file");
+  if (!boundSessionFile || boundSessionFile === sessionFile) return;
+
+  await exec(pi, "tmux-agent-subject", ["set", sessionName]);
+}
+
 async function bindPaneSessionFile(pi, ctx) {
   if (!inTmux()) return;
   // Nested / non-interactive pi invocations (subagent children, `pi -p`)
@@ -773,6 +785,7 @@ export default function managedHooks(pi) {
   pi.on("session_start", async (_event, ctx) => {
     resetSessionGoalLifecycle(ctx);
     if (!inTmux()) return;
+    await syncTmuxSubjectFromSession(pi, ctx);
     await refreshTmuxLabels(pi);
     await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);
     await bindPaneSessionFile(pi, ctx);
@@ -784,6 +797,12 @@ export default function managedHooks(pi) {
     } else if (namingStatus.kind === "non-branch") {
       await syncSessionNameFromTmux(pi, ctx);
     }
+  });
+
+  pi.on("session_info_changed", async (event) => {
+    const sessionName = event.name?.trim() || "";
+    if (!sessionName || !inTmux()) return;
+    await exec(pi, "tmux-agent-subject", ["set", sessionName]);
   });
 
   pi.on("session_shutdown", async () => {
