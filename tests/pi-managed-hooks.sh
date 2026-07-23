@@ -27,12 +27,15 @@ const extensionPath = process.argv[2];
 const worktreeRoot = process.env.PI_HOOK_TEST_WORKTREE;
 const originalHome = process.env.HOME;
 const originalManagedChildModelOverride = process.env.PI_MANAGED_CHILD_MODEL;
+const originalCodingAgentDir = process.env.PI_CODING_AGENT_DIR;
 process.env.HOME = worktreeRoot;
 delete process.env.PI_MANAGED_CHILD_MODEL;
 fs.mkdirSync(path.join(worktreeRoot, "tests"), { recursive: true });
 
 const managedChildAuthDir = path.join(worktreeRoot, ".pi", "agent");
 const managedChildAuthPath = path.join(managedChildAuthDir, "auth.json");
+const managedChildOverrideAuthDir = path.join(worktreeRoot, ".pi-override", "agent");
+const managedChildOverrideAuthPath = path.join(managedChildOverrideAuthDir, "auth.json");
 const completeCodexOAuth = {
   "openai-codex": {
     type: "oauth",
@@ -42,6 +45,7 @@ const completeCodexOAuth = {
   },
 };
 let authReadCount = 0;
+let overrideAuthReadCount = 0;
 let failManagedChildAuthRead = false;
 const originalReadFileSync = fs.readFileSync;
 
@@ -65,9 +69,13 @@ function chmodManagedChildAuth(mode) {
 }
 
 fs.readFileSync = function managedChildAuthRead(filePath, ...args) {
-  if (path.resolve(String(filePath)) === managedChildAuthPath) {
+  const resolvedPath = path.resolve(String(filePath));
+  if (resolvedPath === managedChildAuthPath) {
     authReadCount += 1;
     if (failManagedChildAuthRead) throw new Error("managed child auth read failure");
+  }
+  if (resolvedPath === managedChildOverrideAuthPath) {
+    overrideAuthReadCount += 1;
   }
   return originalReadFileSync.call(this, filePath, ...args);
 };
@@ -78,6 +86,8 @@ function restoreManagedChildTestState() {
   else process.env.HOME = originalHome;
   if (originalManagedChildModelOverride === undefined) delete process.env.PI_MANAGED_CHILD_MODEL;
   else process.env.PI_MANAGED_CHILD_MODEL = originalManagedChildModelOverride;
+  if (originalCodingAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+  else process.env.PI_CODING_AGENT_DIR = originalCodingAgentDir;
 }
 
 process.once("exit", restoreManagedChildTestState);
@@ -648,6 +658,26 @@ async function callGoalChildForManagedModel(prompt) {
   }, ctx);
   await flushAsyncWork();
   return goalChildCalls.at(-1);
+}
+
+const originalHomeAuthReads = authReadCount;
+const originalOverrideAuthReads = overrideAuthReadCount;
+const originalCodingAgentDirSetting = process.env.PI_CODING_AGENT_DIR;
+try {
+  replaceManagedChildAuth({
+    "openai-codex": { type: "api_key", key: "home-key" },
+  });
+  fs.mkdirSync(managedChildOverrideAuthDir, { recursive: true });
+  fs.writeFileSync(managedChildOverrideAuthPath, JSON.stringify(completeCodexOAuth));
+  process.env.PI_CODING_AGENT_DIR = managedChildOverrideAuthDir;
+  const callWithConfigDirOverride = await callGoalChildForManagedModel("config dir override");
+  assert.equal(modelArg(callWithConfigDirOverride), "openai-codex/gpt-5.4-mini");
+  assert.equal(authReadCount, originalHomeAuthReads, "HOME auth is not inspected when PI_CODING_AGENT_DIR is set");
+  assert.equal(overrideAuthReadCount, originalOverrideAuthReads + 1, "config-dir auth is inspected when PI_CODING_AGENT_DIR is set");
+} finally {
+  if (originalCodingAgentDirSetting === undefined) delete process.env.PI_CODING_AGENT_DIR;
+  else process.env.PI_CODING_AGENT_DIR = originalCodingAgentDirSetting;
+  replaceManagedChildAuth(completeCodexOAuth);
 }
 
 removeManagedChildAuth();

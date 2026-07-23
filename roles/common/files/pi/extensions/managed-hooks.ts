@@ -31,6 +31,8 @@ function warn(message, error) {
 }
 
 function managedChildAuthPath() {
+  const codingAgentDir = process.env.PI_CODING_AGENT_DIR?.trim();
+  if (codingAgentDir) return path.join(codingAgentDir, "auth.json");
   return path.join(process.env.HOME || "", ".pi", "agent", "auth.json");
 }
 
