@@ -4,7 +4,7 @@ tool_versions:
     # renovate: datasource=github-releases depName=junegunn/fzf
     fzf: v0.74.0
     # renovate: datasource=github-releases depName=BurntSushi/ripgrep
-    ripgrep: 15.1.0
+    ripgrep: 15.2.0
     # renovate: datasource=github-releases depName=dandavison/delta
     delta: 0.19.2
     # renovate: datasource=github-releases depName=tmux/tmux-builds
