@@ -38,6 +38,7 @@ const managedChildOverrideAuthDir = path.join(worktreeRoot, ".pi-override", "age
 const managedChildOverrideAuthPath = path.join(managedChildOverrideAuthDir, "auth.json");
 const managedChildTildeAuthDir = path.join(worktreeRoot, ".pi-tilde", "agent");
 const managedChildTildeAuthPath = path.join(managedChildTildeAuthDir, "auth.json");
+const managedChildExactTildeAuthPath = path.join(worktreeRoot, "auth.json");
 const completeCodexOAuth = {
   "openai-codex": {
     type: "oauth",
@@ -49,6 +50,7 @@ const completeCodexOAuth = {
 let authReadCount = 0;
 let overrideAuthReadCount = 0;
 let tildeAuthReadCount = 0;
+let exactTildeAuthReadCount = 0;
 let failManagedChildAuthRead = false;
 const originalReadFileSync = fs.readFileSync;
 
@@ -82,6 +84,9 @@ fs.readFileSync = function managedChildAuthRead(filePath, ...args) {
   }
   if (resolvedPath === managedChildTildeAuthPath) {
     tildeAuthReadCount += 1;
+  }
+  if (resolvedPath === managedChildExactTildeAuthPath) {
+    exactTildeAuthReadCount += 1;
   }
   return originalReadFileSync.call(this, filePath, ...args);
 };
@@ -669,6 +674,7 @@ async function callGoalChildForManagedModel(prompt) {
 const originalHomeAuthReads = authReadCount;
 const originalOverrideAuthReads = overrideAuthReadCount;
 const originalTildeAuthReads = tildeAuthReadCount;
+const originalExactTildeAuthReads = exactTildeAuthReadCount;
 const originalCodingAgentDirSetting = process.env.PI_CODING_AGENT_DIR;
 try {
   replaceManagedChildAuth({
@@ -692,6 +698,16 @@ try {
   assert.equal(modelArg(callWithTildeConfigDirOverride), "openai-codex/gpt-5.4-mini");
   assert.equal(authReadCount, originalHomeAuthReads, "HOME auth is not inspected when PI_CODING_AGENT_DIR uses a tilde path");
   assert.equal(tildeAuthReadCount, originalTildeAuthReads + 1, "tilde-expanded auth is inspected when PI_CODING_AGENT_DIR uses a tilde path");
+
+  replaceManagedChildAuth({
+    "openai-codex": { type: "api_key", key: "home-key" },
+  });
+  fs.writeFileSync(managedChildExactTildeAuthPath, JSON.stringify(completeCodexOAuth));
+  process.env.PI_CODING_AGENT_DIR = "~";
+  const callWithExactTildeConfigDirOverride = await callGoalChildForManagedModel("config dir exact tilde override");
+  assert.equal(modelArg(callWithExactTildeConfigDirOverride), "openai-codex/gpt-5.4-mini");
+  assert.equal(authReadCount, originalHomeAuthReads, "HOME auth is not inspected when PI_CODING_AGENT_DIR is exactly tilde");
+  assert.equal(exactTildeAuthReadCount, originalExactTildeAuthReads + 1, "HOME auth.json is inspected when PI_CODING_AGENT_DIR is exactly tilde");
 } finally {
   if (originalCodingAgentDirSetting === undefined) delete process.env.PI_CODING_AGENT_DIR;
   else process.env.PI_CODING_AGENT_DIR = originalCodingAgentDirSetting;
