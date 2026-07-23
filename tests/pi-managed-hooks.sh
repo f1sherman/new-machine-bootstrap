@@ -659,9 +659,22 @@ branchEntries = [
 await handlers.get("session_start")({ reason: "resume" }, ctx);
 
 const assistantPrefix = "x".repeat(900);
-const expectedAssistantTail = `${assistantPrefix}\nChoose one:\nA. Keep it\nB. Pause\nC. Continue`.slice(-800);
+const latestAssistantText = "Choose one:\nA. Keep it\nB. Pause\nC. Continue";
+const expectedAssistantTail = `${assistantPrefix}\n${latestAssistantText}`.slice(-800);
 branchEntries = [
   { type: "custom", customType: "session-goal", data: { subject: "persistent Pi session goals" } },
+  {
+    type: "message",
+    message: {
+      role: "assistant",
+      content: [{ type: "text", text: "older assistant text" }],
+    },
+  },
+  {
+    type: "tool_result",
+    toolName: "bash",
+    content: "tool-result content",
+  },
   {
     type: "message",
     message: {
@@ -670,7 +683,8 @@ branchEntries = [
         { type: "text", text: assistantPrefix },
         { type: "thinking", thinking: "private reasoning" },
         { type: "toolCall", id: "call-1", name: "read", arguments: {} },
-        { type: "text", text: "Choose one:\nA. Keep it\nB. Pause\nC. Continue" },
+        { type: "image", image: "image data" },
+        { type: "text", text: latestAssistantText },
       ],
     },
   },
@@ -711,6 +725,9 @@ assert.equal(
   `Current goal: persistent Pi session goals\nPreceding assistant context: ${expectedAssistantTail}\nNew user prompt: C`,
   "goal child receives bounded preceding assistant context for a choice reply",
 );
+assert.equal(goalChildCalls[0].args.at(-1).includes("older assistant text"), false, "goal context excludes older assistant text");
+assert.equal(goalChildCalls[0].args.at(-1).includes("tool-result content"), false, "goal context excludes tool-result content");
+assert.equal(goalChildCalls[0].args.at(-1).includes("image data"), false, "goal context excludes image data");
 assert.equal(goalChildCalls[0].args.at(-1).includes("private reasoning"), false, "goal context excludes thinking blocks");
 assert.equal(goalChildCalls[0].args.at(-1).includes("call-1"), false, "goal context excludes tool-call blocks");
 assert.equal(goalChildCalls[0].options.timeout, 15000, "goal child uses the bounded timeout");
@@ -754,6 +771,27 @@ assert.equal(
   "Current goal: persistent Pi session goals\nPreceding assistant context: (none)\nNew user prompt: whitespace task",
   "whitespace-only assistant text collapses to no context",
 );
+
+branchEntries = [{
+  type: "message",
+  message: { role: "assistant", content: [{ type: "text", text: "Should I proceed?" }] },
+}];
+const entriesBeforeApproval = customEntries.length;
+const namesBeforeApproval = sessionNames.length;
+goalChildResults.push(ok("KEEP\n"));
+await handlers.get("before_agent_start")({
+  prompt: "yes",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.equal(
+  goalChildCalls.at(-1).args.at(-1),
+  "Current goal: persistent Pi session goals\nPreceding assistant context: Should I proceed?\nNew user prompt: yes",
+  "approval reply is framed against the preceding assistant question",
+);
+assert.equal(customEntries.length, entriesBeforeApproval, "approval reply keeps the existing broad goal");
+assert.equal(sessionNames.length, namesBeforeApproval, "approval reply does not rename the managed session");
 
 branchEntries = [{
   type: "message",
