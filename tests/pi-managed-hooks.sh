@@ -27,103 +27,38 @@ const extensionPath = process.argv[2];
 const worktreeRoot = process.env.PI_HOOK_TEST_WORKTREE;
 const originalHome = process.env.HOME;
 const originalManagedChildModelOverride = process.env.PI_MANAGED_CHILD_MODEL;
-const originalCodingAgentDir = process.env.PI_CODING_AGENT_DIR;
 process.env.HOME = worktreeRoot;
 delete process.env.PI_MANAGED_CHILD_MODEL;
 fs.mkdirSync(path.join(worktreeRoot, "tests"), { recursive: true });
 
 const managedChildAuthDir = path.join(worktreeRoot, ".pi", "agent");
-const managedChildAuthPath = path.join(managedChildAuthDir, "auth.json");
-const managedChildOverrideAuthDir = path.join(worktreeRoot, ".pi-override", "agent");
-const managedChildOverrideAuthPath = path.join(managedChildOverrideAuthDir, "auth.json");
-const managedChildTildeAuthDir = path.join(worktreeRoot, ".pi-tilde", "agent");
-const managedChildTildeAuthPath = path.join(managedChildTildeAuthDir, "auth.json");
-const managedChildExactTildeAuthPath = path.join(worktreeRoot, "auth.json");
-const completeCodexOAuth = {
+fs.mkdirSync(managedChildAuthDir, { recursive: true });
+fs.writeFileSync(path.join(managedChildAuthDir, "auth.json"), JSON.stringify({
   "openai-codex": {
     type: "oauth",
     access: "test-access",
     refresh: "test-refresh",
     expires: 0,
   },
-};
-let authReadCount = 0;
-let overrideAuthReadCount = 0;
-let tildeAuthReadCount = 0;
-let exactTildeAuthReadCount = 0;
-let failManagedChildAuthRead = false;
-let useMatchingAuthMetadata = false;
-const originalReadFileSync = fs.readFileSync;
-const originalStatSync = fs.statSync;
-
-function writeManagedChildAuth(contents) {
-  fs.mkdirSync(managedChildAuthDir, { recursive: true });
-  fs.writeFileSync(managedChildAuthPath, typeof contents === "string" ? contents : JSON.stringify(contents));
-}
-
-function replaceManagedChildAuth(contents) {
-  const replacementPath = `${managedChildAuthPath}.replacement`;
-  fs.writeFileSync(replacementPath, typeof contents === "string" ? contents : JSON.stringify(contents));
-  fs.renameSync(replacementPath, managedChildAuthPath);
-}
-
-function removeManagedChildAuth() {
-  fs.rmSync(managedChildAuthPath, { force: true });
-}
-
-function chmodManagedChildAuth(mode) {
-  fs.chmodSync(managedChildAuthPath, mode);
-}
-
-fs.readFileSync = function managedChildAuthRead(filePath, ...args) {
-  const resolvedPath = path.resolve(String(filePath));
-  if (resolvedPath === managedChildAuthPath) {
-    authReadCount += 1;
-    if (failManagedChildAuthRead) throw new Error("managed child auth read failure");
-  }
-  if (resolvedPath === managedChildOverrideAuthPath) {
-    overrideAuthReadCount += 1;
-  }
-  if (resolvedPath === managedChildTildeAuthPath) {
-    tildeAuthReadCount += 1;
-  }
-  if (resolvedPath === managedChildExactTildeAuthPath) {
-    exactTildeAuthReadCount += 1;
-  }
-  return originalReadFileSync.call(this, filePath, ...args);
-};
-
-fs.statSync = function managedChildAuthStat(filePath, ...args) {
-  const resolvedPath = path.resolve(String(filePath));
-  if (useMatchingAuthMetadata && [managedChildOverrideAuthPath, managedChildTildeAuthPath].includes(resolvedPath)) {
-    return { dev: 1, ino: 1, size: 1, mtimeMs: 1, ctimeMs: 1 };
-  }
-  return originalStatSync.call(this, filePath, ...args);
-};
+}));
+fs.chmodSync(path.join(managedChildAuthDir, "auth.json"), 0o600);
 
 function restoreManagedChildTestState() {
-  fs.readFileSync = originalReadFileSync;
-  fs.statSync = originalStatSync;
   if (originalHome === undefined) delete process.env.HOME;
   else process.env.HOME = originalHome;
   if (originalManagedChildModelOverride === undefined) delete process.env.PI_MANAGED_CHILD_MODEL;
   else process.env.PI_MANAGED_CHILD_MODEL = originalManagedChildModelOverride;
-  if (originalCodingAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
-  else process.env.PI_CODING_AGENT_DIR = originalCodingAgentDir;
 }
 
 process.once("exit", restoreManagedChildTestState);
-writeManagedChildAuth(completeCodexOAuth);
-chmodManagedChildAuth(0o600);
 const { default: install } = await import(pathToFileURL(extensionPath));
 
 const handlers = new Map();
 const calls = [];
 const sessionNames = [];
 const statuses = [];
-const notifications = [];
 const customEntries = [];
-const appendEntryErrors = [];
+let sessionGoalTool;
 let branch = "main";
 let branchEntries = [];
 let currentSessionName = "";
@@ -133,15 +68,10 @@ let boundPiSessionFile = "/sessions/previous.jsonl";
 let activeSessionFile = "/sessions/current.jsonl";
 let managedPiSessionName = "";
 let taskStatus = "";
-let taskStatusFails = false;
-let taskStatusDeferred;
 const goalChildCalls = [];
 let goalChildResults = [];
-let goalChildErrors = [];
 let goalChildDeferred;
 let goalChildIgnoresAbort = false;
-let activeGoalChildren = 0;
-let maxActiveGoalChildren = 0;
 
 const ok = (stdout = "") => ({ stdout, stderr: "", code: 0, killed: false });
 const fail = () => ({ stdout: "", stderr: "", code: 1, killed: false });
@@ -202,20 +132,19 @@ const pi = {
   on(event, handler) {
     handlers.set(event, handler);
   },
+  registerTool(definition) {
+    if (definition.name === "set_session_goal") sessionGoalTool = definition;
+  },
   setSessionName(name) {
     currentSessionName = name;
     sessionNames.push(name);
   },
   appendEntry(customType, data) {
-    if (appendEntryErrors.length > 0) throw appendEntryErrors.shift();
     customEntries.push({ customType, data });
   },
   async exec(command, args, options = {}) {
     calls.push({ command, args });
-    if (command === "tmux-agent-state" && args[0] === "status") {
-      if (taskStatusDeferred) return taskStatusDeferred.promise;
-      return taskStatusFails ? fail() : ok(taskStatus);
-    }
+    if (command === "tmux-agent-state" && args[0] === "status") return ok(taskStatus);
     if (command === "tmux-agent-state") return ok();
     if (command === "tmux-update-pane-label") return ok();
     if (command === "tmux-window-label") return ok();
@@ -232,21 +161,14 @@ const pi = {
     if (command === "pi") {
       if (isGoalChildArgs(args)) {
         goalChildCalls.push({ args, options });
-        activeGoalChildren += 1;
-        maxActiveGoalChildren = Math.max(maxActiveGoalChildren, activeGoalChildren);
         const deferredResult = goalChildDeferred;
-        try {
-          if (goalChildErrors.length > 0) throw goalChildErrors.shift();
-          if (deferredResult) {
-            const result = goalChildIgnoresAbort
-              ? deferredResult.promise
-              : abortableGoalResult(deferredResult.promise, options.signal);
-            return await result;
-          }
-          return goalChildResults.shift() ?? ok("KEEP\n");
-        } finally {
-          activeGoalChildren -= 1;
+        if (deferredResult) {
+          const result = goalChildIgnoresAbort
+            ? deferredResult.promise
+            : abortableGoalResult(deferredResult.promise, options.signal);
+          return await result;
         }
+        return goalChildResults.shift() ?? ok("early harness goal\n");
       }
       subjectChildExecOptions = options;
       if (subjectChildError) throw subjectChildError;
@@ -272,9 +194,6 @@ const ctx = {
     setStatus(key, value) {
       statuses.push({ key, value });
     },
-    notify(message, level) {
-      notifications.push({ message, level });
-    },
   },
   sessionManager: {
     getSessionName() {
@@ -296,6 +215,8 @@ assert.equal(typeof handlers.get("session_tree"), "function", "registers session
 assert.equal(typeof handlers.get("before_agent_start"), "function", "registers before_agent_start hook");
 assert.equal(typeof handlers.get("tool_call"), "function", "registers tool_call hook");
 assert.equal(typeof handlers.get("tool_result"), "function", "registers tool_result hook");
+assert.equal(sessionGoalTool.name, "set_session_goal", "registers explicit session goal tool");
+assert.deepEqual(sessionGoalTool.parameters.required, ["goal"], "goal tool requires goal text");
 
 process.env.TMUX = "1";
 process.env.TMUX_PANE = "%1";
@@ -317,7 +238,6 @@ branchEntries = [
   { type: "custom", customType: "session-goal", data: { subject: "first\nsecond" } },
   { type: "custom", customType: "session-goal", data: { subject: "control\u0007subject" } },
   { type: "custom", customType: "session-goal", data: { subject: "goal: prefixed" } },
-  { type: "custom", customType: "session-goal", data: { subject: "KEEP" } },
   { type: "custom", customType: "session-goal", data: { subject: "\"quoted subject\"" } },
   { type: "custom", customType: "session-goal", data: { subject: "x".repeat(81) } },
 ];
@@ -372,11 +292,12 @@ windowLabel = "pi main-repo";
 branchEntries = [];
 calls.length = 0;
 await handlers.get("session_start")({}, ctx);
-assert.deepEqual(calls.slice(-7), [
+assert.deepEqual(calls.slice(-8), [
   { command: "tmux-update-pane-label", args: ["%1"] },
   { command: "tmux-window-label", args: ["%1"] },
   { command: "tmux-agent-state", args: ["set-kind", "pi"] },
   { command: "tmux-agent-state", args: ["status"] },
+  { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@pi_managed_session_name"] },
   { command: "tmux-agent-state", args: ["status"] },
   { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@window-label"] },
   { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@agent_worktree_path"] },
@@ -435,42 +356,20 @@ calls.length = 0;
 await withStdoutTTY(false, async () => {
   await handlers.get("session_info_changed")({ name: "Background conversation" }, ctx);
 });
-assert.equal(calls.some((call) => call.command === "tmux-agent-subject"), false, "non-TTY session_info_changed does not update the interactive pane subject");
+assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args[0] === "set-identity"), false, "non-TTY session_info_changed does not update interactive identity");
 
 calls.length = 0;
 await withStdoutTTY(true, async () => {
   await handlers.get("session_info_changed")({ name: "Updated conversation" }, ctx);
 });
 assert.deepEqual(calls.at(-1), {
-  command: "tmux-agent-subject",
-  args: ["set", "Updated conversation"],
-}, "interactive session_info_changed renames the subject");
-
-subjectApplyResult = fail();
-const subjectApplyWarnings = [];
-const originalSubjectApplyWarn = console.warn;
-let subjectApplyTimeout;
-console.warn = (...args) => subjectApplyWarnings.push(args);
-try {
-  const result = await Promise.race([
-    withStdoutTTY(true, () => handlers.get("session_info_changed")({ name: "Failed update" }, ctx)).then(() => "returned"),
-    new Promise((resolve) => {
-      subjectApplyTimeout = setTimeout(() => resolve("blocked"), 100);
-    }),
-  ]);
-  assert.equal(result, "returned", "nonzero tmux-agent-subject does not throw or block session_info_changed");
-} finally {
-  clearTimeout(subjectApplyTimeout);
-  console.warn = originalSubjectApplyWarn;
-  subjectApplyResult = ok();
-}
-assert.deepEqual(subjectApplyWarnings, [
-  ["[managed-hooks] tmux-agent-subject set failed", { code: 1, killed: false }],
-], "nonzero tmux-agent-subject emits safe diagnostics");
+  command: "tmux-agent-state",
+  args: ["set-identity", "manual", "Updated conversation"],
+}, "interactive user session name publishes manual identity");
 
 calls.length = 0;
 await handlers.get("session_info_changed")({ name: undefined }, ctx);
-assert.equal(calls.some((call) => call.command === "tmux-agent-subject"), false, "missing session_info_changed name does not rename the subject");
+assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args[0] === "set-identity"), false, "missing session_info_changed name does not publish identity");
 
 taskStatus = "provisional\tagent\tInvestigate reviewer failures\n";
 currentSessionName = "";
@@ -652,70 +551,28 @@ for (const state of ["provisional\tagent\tshort subject\n", "active\tbranch\tfea
   assert.equal(calls.some((call) => call.command === "pi" && !isGoalChildArgs(call.args)), false, `${state.split("\t")[0]} task skips subject child`);
 }
 
-taskStatus = "active\tbranch\tfeature/current\n";
-branchEntries = [
-  { type: "custom", customType: "session-goal", data: { subject: "persistent Pi session goals" } },
-];
-await handlers.get("session_start")({ reason: "resume" }, ctx);
-
-const assistantPrefix = "x".repeat(900);
-const latestAssistantText = "Choose one:\nA. Keep it\nB. Pause\nC. Continue";
-const expectedAssistantTail = `${assistantPrefix}\n${latestAssistantText}`.slice(-800);
-branchEntries = [
-  { type: "custom", customType: "session-goal", data: { subject: "persistent Pi session goals" } },
-  {
-    type: "message",
-    message: {
-      role: "assistant",
-      content: [{ type: "text", text: "older assistant text" }],
-    },
-  },
-  {
-    type: "message",
-    message: {
-      role: "assistant",
-      content: [
-        { type: "text", text: assistantPrefix },
-        { type: "thinking", thinking: "private reasoning" },
-        { type: "toolCall", id: "call-1", name: "read", arguments: {} },
-        { type: "text", text: latestAssistantText },
-      ],
-    },
-  },
-  {
-    type: "message",
-    message: {
-      role: "toolResult",
-      toolCallId: "call-result",
-      toolName: "read",
-      content: [{ type: "text", text: "tool result secret" }],
-      isError: false,
-    },
-  },
-  {
-    type: "message",
-    message: {
-      role: "user",
-      content: [{ type: "image", data: "image secret", mimeType: "image/png" }],
-    },
-  },
-];
+taskStatus = "active\tgoal\tstarting goal\n";
+branchEntries = [];
+currentSessionName = "";
+managedPiSessionName = "";
+await handlers.get("session_tree")({ reason: "initial goal" }, ctx);
 goalChildCalls.length = 0;
-goalChildDeferred = deferred();
-const entriesBeforeChoice = customEntries.length;
-const namesBeforeChoice = sessionNames.length;
-const nonblocking = handlers.get("before_agent_start")({
-  prompt: "C",
+goalChildResults.length = 0;
+branchEntries = [];
+goalChildResults.push(ok("stable session identity\n"));
+const initialGoalEntries = customEntries.length;
+const initialGoalHook = handlers.get("before_agent_start")({
+  prompt: "make session goals stable",
   systemPrompt: "",
   systemPromptOptions: { cwd: "/repo" },
 }, ctx);
 assert.equal(await Promise.race([
-  nonblocking.then(() => "returned"),
+  initialGoalHook.then(() => "returned"),
   new Promise((resolve) => setTimeout(() => resolve("blocked"), 25)),
-]), "returned", "goal evaluation does not block before_agent_start");
-assert.equal(goalChildCalls.length, 1, "every expanded prompt starts goal evaluation");
-assert.equal(modelArg(goalChildCalls.at(-1)), "openai-codex/gpt-5.4-mini");
-assert.equal(authReadCount, 1, "unchanged auth metadata reuses parsed selection");
+]), "returned", "initial goal evaluation does not block before_agent_start");
+await flushAsyncWork();
+assert.equal(goalChildCalls.length, 1, "first prompt evaluates initial goal once");
+assert.equal(goalChildCalls[0].args.at(-1), "New session prompt: make session goals stable", "initial child receives only first prompt");
 assert.deepEqual(goalChildCalls[0].args.slice(0, -1), [
   "--mode", "text",
   "--print",
@@ -729,562 +586,245 @@ assert.deepEqual(goalChildCalls[0].args.slice(0, -1), [
   "--no-themes",
   "--no-context-files",
   "--no-approve",
-  "--system-prompt", "Track the session's broad goal. Use the preceding assistant context to interpret the newest user prompt. Replies that answer, select from, approve, or continue the preceding assistant message should return KEEP when they remain within the current broad goal. Given the current goal and newest user prompt, return KEEP when the broad goal is unchanged. Otherwise return one concise noun phrase of at most 80 characters. Output only KEEP or the phrase on one line, without quotes, a goal: prefix, or explanation.",
-], "goal child uses the exact isolated model and context arguments");
-assert.equal(
-  goalChildCalls[0].args.at(-1),
-  `Current goal: persistent Pi session goals\nPreceding assistant context: ${expectedAssistantTail}\nNew user prompt: C`,
-  "goal child receives bounded preceding assistant context for a choice reply",
-);
-assert.equal(goalChildCalls[0].args.at(-1).includes("older assistant text"), false, "goal context excludes older assistant text");
-assert.equal(goalChildCalls[0].args.at(-1).includes("tool result secret"), false, "goal context excludes tool-result text");
-assert.equal(goalChildCalls[0].args.at(-1).includes("image secret"), false, "goal context excludes image data");
-assert.equal(goalChildCalls[0].args.at(-1).includes("private reasoning"), false, "goal context excludes thinking blocks");
-assert.equal(goalChildCalls[0].args.at(-1).includes("call-1"), false, "goal context excludes tool-call blocks");
-assert.equal(goalChildCalls[0].options.timeout, 15000, "goal child uses the bounded timeout");
+  "--system-prompt", "Return one concise noun phrase of at most 80 characters describing the new session's broad goal. Output only the phrase on one line, without quotes, a goal: prefix, or explanation.",
+], "initial goal child uses isolated one-time framing");
+assert.equal(goalChildCalls[0].options.timeout, 15000, "initial goal child uses the bounded timeout");
+assert.equal(customEntries.length, initialGoalEntries + 1, "initial goal appends durable state once");
+assert.equal(customEntries.at(-1).data.subject, "stable session identity", "initial goal persists");
 
-goalChildDeferred.resolve(ok("KEEP\n"));
-goalChildDeferred = undefined;
+await handlers.get("before_agent_start")({
+  prompt: "C",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
 await flushAsyncWork();
-assert.equal(customEntries.length, entriesBeforeChoice, "choice reply keeps the existing broad goal");
-assert.equal(sessionNames.length, namesBeforeChoice, "choice reply does not rename the managed session");
+assert.equal(goalChildCalls.length, 1, "later prompts do not reevaluate a durable goal");
+
+const entriesBeforeTool = customEntries.length;
+calls.length = 0;
+const toolResult = await withStdoutTTY(true, () => sessionGoalTool.execute(
+  "goal-call-1",
+  { goal: "cross branch theme" },
+  subjectSignal,
+  undefined,
+  ctx,
+));
+assert.equal(customEntries.length, entriesBeforeTool + 1, "explicit tool persists changed goal");
+assert.equal(customEntries.at(-1).data.subject, "cross branch theme", "explicit tool stores requested goal");
+assert.equal(statuses.at(-1).value, "goal: cross branch theme", "explicit tool rerenders goal status");
+assert.match(toolResult.content[0].text, /cross branch theme/, "explicit tool reports applied goal");
+assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity goal cross branch theme"), "explicit tool publishes goal identity");
+
+const duplicateEntries = customEntries.length;
+const duplicateNames = sessionNames.length;
+calls.length = 0;
+await withStdoutTTY(true, () => sessionGoalTool.execute(
+  "goal-call-duplicate",
+  { goal: "  cross   branch theme  " },
+  subjectSignal,
+  undefined,
+  ctx,
+));
+assert.equal(customEntries.length, duplicateEntries, "same normalized explicit goal does not append duplicate state");
+assert.equal(sessionNames.length, duplicateNames, "same normalized explicit goal does not rename again");
+assert.equal(calls.length, 0, "same normalized explicit goal does not republish identity");
+
+for (const invalidGoal of [
+  "first\nsecond",
+  "\"quoted subject\"",
+  "goal: prefixed",
+  "control\u0007subject",
+  "",
+  "x".repeat(81),
+]) {
+  const invalidEntries = customEntries.length;
+  const invalidNames = sessionNames.length;
+  const invalidStatuses = statuses.length;
+  calls.length = 0;
+  await assert.rejects(
+    sessionGoalTool.execute("invalid-goal", { goal: invalidGoal }, subjectSignal, undefined, ctx),
+    /one line, unquoted, and at most 80 characters/,
+    `rejects invalid explicit goal ${JSON.stringify(invalidGoal)}`,
+  );
+  assert.equal(customEntries.length, invalidEntries, "invalid explicit goal does not append state");
+  assert.equal(sessionNames.length, invalidNames, "invalid explicit goal does not rename the session");
+  assert.equal(statuses.length, invalidStatuses, "invalid explicit goal does not rerender status");
+  assert.equal(calls.length, 0, "invalid explicit goal does not call tmux");
+}
 
 branchEntries = [];
-goalChildResults.push(ok("KEEP\n"));
-await handlers.get("before_agent_start")({
-  prompt: "initial task",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-await flushAsyncWork();
-assert.match(goalChildCalls.at(-1).args.at(-1), /Preceding assistant context: \(none\)/, "missing assistant context is explicit");
-
-branchEntries = [{
-  type: "message",
-  message: {
-    role: "assistant",
-    content: [
-      { type: "text", text: "   " },
-      { type: "text", text: "" },
-      { type: "text", text: "\n\t" },
-    ],
-  },
-}];
-goalChildResults.push(ok("KEEP\n"));
-await handlers.get("before_agent_start")({
-  prompt: "whitespace task",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-await flushAsyncWork();
-assert.equal(
-  goalChildCalls.at(-1).args.at(-1),
-  "Current goal: persistent Pi session goals\nPreceding assistant context: (none)\nNew user prompt: whitespace task",
-  "whitespace-only assistant text collapses to no context",
-);
-
-branchEntries = [{
-  type: "message",
-  message: { role: "assistant", content: [{ type: "text", text: "Should I proceed?" }] },
-}];
-const entriesBeforeApproval = customEntries.length;
-const namesBeforeApproval = sessionNames.length;
-goalChildResults.push(ok("KEEP\n"));
-await handlers.get("before_agent_start")({
-  prompt: "yes",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-await flushAsyncWork();
-assert.equal(
-  goalChildCalls.at(-1).args.at(-1),
-  "Current goal: persistent Pi session goals\nPreceding assistant context: Should I proceed?\nNew user prompt: yes",
-  "approval reply is framed against the preceding assistant question",
-);
-assert.equal(customEntries.length, entriesBeforeApproval, "approval reply keeps the existing broad goal");
-assert.equal(sessionNames.length, namesBeforeApproval, "approval reply does not rename the managed session");
-
-branchEntries = [{
-  type: "message",
-  message: { role: "assistant", content: [{ type: "text", text: "Should I proceed?" }] },
-}];
-goalChildResults.push(ok("renamed broad goal\n"));
-await handlers.get("before_agent_start")({
-  prompt: "Actually, switch to a different broad goal",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-await flushAsyncWork();
-assert.equal(customEntries.at(-1).data.subject, "renamed broad goal", "explicit redirect still updates the goal");
-
-async function callGoalChildForManagedModel(prompt) {
-  goalChildResults.push(ok("KEEP\n"));
-  await handlers.get("before_agent_start")({
-    prompt,
-    systemPrompt: "",
-    systemPromptOptions: { cwd: "/repo" },
-  }, ctx);
-  await flushAsyncWork();
-  return goalChildCalls.at(-1);
-}
-
-const originalHomeAuthReads = authReadCount;
-const originalOverrideAuthReads = overrideAuthReadCount;
-const originalTildeAuthReads = tildeAuthReadCount;
-const originalExactTildeAuthReads = exactTildeAuthReadCount;
-const originalCodingAgentDirSetting = process.env.PI_CODING_AGENT_DIR;
-try {
-  replaceManagedChildAuth({
-    "openai-codex": { type: "api_key", key: "home-key" },
-  });
-  fs.mkdirSync(managedChildOverrideAuthDir, { recursive: true });
-  fs.writeFileSync(managedChildOverrideAuthPath, JSON.stringify(completeCodexOAuth));
-  process.env.PI_CODING_AGENT_DIR = managedChildOverrideAuthDir;
-  const callWithConfigDirOverride = await callGoalChildForManagedModel("config dir override");
-  assert.equal(modelArg(callWithConfigDirOverride), "openai-codex/gpt-5.4-mini");
-  assert.equal(authReadCount, originalHomeAuthReads, "HOME auth is not inspected when PI_CODING_AGENT_DIR is set");
-  assert.equal(overrideAuthReadCount, originalOverrideAuthReads + 1, "config-dir auth is inspected when PI_CODING_AGENT_DIR is set");
-
-  replaceManagedChildAuth({
-    "openai-codex": { type: "api_key", key: "home-key" },
-  });
-  fs.mkdirSync(managedChildTildeAuthDir, { recursive: true });
-  fs.writeFileSync(managedChildTildeAuthPath, JSON.stringify(completeCodexOAuth));
-  process.env.PI_CODING_AGENT_DIR = "~/.pi-tilde/agent";
-  const callWithTildeConfigDirOverride = await callGoalChildForManagedModel("config dir tilde override");
-  assert.equal(modelArg(callWithTildeConfigDirOverride), "openai-codex/gpt-5.4-mini");
-  assert.equal(authReadCount, originalHomeAuthReads, "HOME auth is not inspected when PI_CODING_AGENT_DIR uses a tilde path");
-  assert.equal(tildeAuthReadCount, originalTildeAuthReads + 1, "tilde-expanded auth is inspected when PI_CODING_AGENT_DIR uses a tilde path");
-
-  replaceManagedChildAuth({
-    "openai-codex": { type: "api_key", key: "home-key" },
-  });
-  fs.writeFileSync(managedChildExactTildeAuthPath, JSON.stringify(completeCodexOAuth));
-  process.env.PI_CODING_AGENT_DIR = "~";
-  const callWithExactTildeConfigDirOverride = await callGoalChildForManagedModel("config dir exact tilde override");
-  assert.equal(modelArg(callWithExactTildeConfigDirOverride), "openai-codex/gpt-5.4-mini");
-  assert.equal(authReadCount, originalHomeAuthReads, "HOME auth is not inspected when PI_CODING_AGENT_DIR is exactly tilde");
-  assert.equal(exactTildeAuthReadCount, originalExactTildeAuthReads + 1, "HOME auth.json is inspected when PI_CODING_AGENT_DIR is exactly tilde");
-
-  fs.writeFileSync(managedChildOverrideAuthPath, JSON.stringify(completeCodexOAuth));
-  fs.writeFileSync(managedChildTildeAuthPath, JSON.stringify({
-    "openai-codex": { type: "api_key", key: "other-config-key" },
-  }));
-  useMatchingAuthMetadata = true;
-  process.env.PI_CODING_AGENT_DIR = managedChildOverrideAuthDir;
-  const callFromFirstMatchingMetadataPath = await callGoalChildForManagedModel("first matching metadata path");
-  assert.equal(modelArg(callFromFirstMatchingMetadataPath), "openai-codex/gpt-5.4-mini");
-  process.env.PI_CODING_AGENT_DIR = "~/.pi-tilde/agent";
-  const callFromSecondMatchingMetadataPath = await callGoalChildForManagedModel("second matching metadata path");
-  assert.equal(modelArg(callFromSecondMatchingMetadataPath), "openai/gpt-4.1-mini", "auth path participates in the cache key");
-} finally {
-  useMatchingAuthMetadata = false;
-  if (originalCodingAgentDirSetting === undefined) delete process.env.PI_CODING_AGENT_DIR;
-  else process.env.PI_CODING_AGENT_DIR = originalCodingAgentDirSetting;
-  replaceManagedChildAuth(completeCodexOAuth);
-}
-
-removeManagedChildAuth();
-const callAfterAuthRemoval = await callGoalChildForManagedModel("auth removed");
-assert.equal(modelArg(callAfterAuthRemoval), "openai/gpt-4.1-mini");
-
-writeManagedChildAuth(completeCodexOAuth);
-chmodManagedChildAuth(0o600);
-failManagedChildAuthRead = true;
-const callAfterUnreadableAuth = await callGoalChildForManagedModel("auth unreadable");
-failManagedChildAuthRead = false;
-assert.equal(modelArg(callAfterUnreadableAuth), "openai/gpt-4.1-mini");
-
-replaceManagedChildAuth("{malformed");
-const callAfterMalformedAuth = await callGoalChildForManagedModel("auth malformed");
-assert.equal(modelArg(callAfterMalformedAuth), "openai/gpt-4.1-mini");
-
-replaceManagedChildAuth({
-  "openai-codex": { type: "oauth", access: "test-access" },
-});
-const callAfterIncompleteOAuth = await callGoalChildForManagedModel("oauth incomplete");
-assert.equal(modelArg(callAfterIncompleteOAuth), "openai/gpt-4.1-mini");
-
-replaceManagedChildAuth({
-  "openai-codex": { type: "api_key", key: "test-key" },
-});
-const callAfterNonOAuthAuth = await callGoalChildForManagedModel("auth is not oauth");
-assert.equal(modelArg(callAfterNonOAuthAuth), "openai/gpt-4.1-mini");
-
-replaceManagedChildAuth(completeCodexOAuth);
-const callAfterAtomicReplacement = await callGoalChildForManagedModel("auth atomically replaced");
-assert.equal(modelArg(callAfterAtomicReplacement), "openai-codex/gpt-5.4-mini");
-
-process.env.PI_MANAGED_CHILD_MODEL = "custom-provider/custom-model";
-const callWithOverride = await callGoalChildForManagedModel("model override");
-assert.equal(modelArg(callWithOverride), "custom-provider/custom-model");
-delete process.env.PI_MANAGED_CHILD_MODEL;
-
-const entriesAfterChange = customEntries.length;
-goalChildResults.push(ok("KEEP\n"));
-await handlers.get("before_agent_start")({
-  prompt: "continue",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-await flushAsyncWork();
-assert.equal(customEntries.length, entriesAfterChange, "KEEP does not append duplicate state");
-
-for (const invalidOutput of [
-  "\n",
-  "first\nsecond\n",
-  "goal: prefixed\n",
-  "\"quoted subject\"\n",
-  "support \"dry run\" mode\n",
-  `${"x".repeat(81)}\n`,
-  "control\u0007subject\n",
-]) {
-  goalChildResults.push(ok(invalidOutput));
-  await handlers.get("before_agent_start")({
-    prompt: "invalid output case",
-    systemPrompt: "",
-    systemPromptOptions: { cwd: "/repo" },
-  }, ctx);
-  await flushAsyncWork();
-}
-assert.equal(customEntries.length, entriesAfterChange, "invalid goal outputs are never persisted");
-
-goalChildCalls.length = 0;
-customEntries.length = 0;
-goalChildDeferred = deferred();
-await handlers.get("before_agent_start")({
-  prompt: "first redirect",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-await handlers.get("before_agent_start")({
-  prompt: "second redirect",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-await handlers.get("before_agent_start")({
-  prompt: "final redirect",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-assert.equal(goalChildCalls.length, 1, "only one goal child runs concurrently");
-
-goalChildResults.push(ok("final session theme\n"));
-goalChildDeferred.resolve(ok("stale session theme\n"));
-goalChildDeferred = undefined;
-await flushAsyncWork();
-assert.equal(goalChildCalls.length, 2, "rapid prompts collapse to one pending evaluation");
-assert.match(goalChildCalls[1].args.at(-1), /New user prompt: final redirect/);
-assert.equal(customEntries.some((entry) => entry.data.subject === "stale session theme"), false, "stale running output is discarded");
-assert.equal(customEntries.at(-1).data.subject, "final session theme", "newest pending output applies");
-
-taskStatus = "provisional\tagent\tstarting goal\n";
 currentSessionName = "";
 managedPiSessionName = "";
-goalChildResults.push(ok("persistent session goal\n"));
-await handlers.get("before_agent_start")({
-  prompt: "build persistent session goal",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-await flushAsyncWork();
-assert.equal(currentSessionName, "persistent session goal", "goal names a managed session before branch creation");
-
-currentSessionName = "manual investigation name";
-managedPiSessionName = "persistent session goal";
-goalChildResults.push(ok("revised persistent goal\n"));
-await handlers.get("before_agent_start")({
-  prompt: "revise the persistent goal",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-await flushAsyncWork();
-assert.equal(currentSessionName, "manual investigation name", "manual name blocks automatic goal rename");
-assert.equal(statuses.at(-1).value, "goal: revised persistent goal", "manual name does not block goal status updates");
-
-currentSessionName = "persistent session goal";
-managedPiSessionName = "persistent session goal";
-taskStatus = "provisional\tagent\tstarting goal\n";
-goalChildDeferred = deferred();
-await handlers.get("before_agent_start")({
-  prompt: "race with branch creation",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-taskStatus = "active\tbranch\tfeature/session-goal\n";
-currentSessionName = "feature/session-goal";
-managedPiSessionName = "feature/session-goal";
-goalChildDeferred.resolve(ok("goal after branch\n"));
-goalChildDeferred = undefined;
-await flushAsyncWork();
-assert.equal(currentSessionName, "feature/session-goal", "active branch wins a late goal naming race");
-assert.equal(statuses.at(-1).value, "goal: goal after branch", "late goal still updates status after branch creation");
-
-currentSessionName = "feature/existing";
-managedPiSessionName = "feature/existing";
-windowLabel = "pi main-repo feature/existing";
-taskStatus = "active\tbranch\tfeature/existing\n";
-branchEntries = [
-  { type: "custom", customType: "session-goal", data: { subject: "branch goal" } },
-];
-await handlers.get("session_start")({ reason: "managed branch" }, ctx);
-taskStatusFails = true;
-goalChildResults.push(ok("goal during status failure\n"));
-await handlers.get("before_agent_start")({
-  prompt: "update goal while status is unavailable",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-await flushAsyncWork();
-assert.equal(currentSessionName, "feature/existing", "tmux status failure preserves an existing managed branch name");
-assert.equal(statuses.at(-1).value, "goal: goal during status failure", "tmux status failure does not block goal status updates");
-taskStatusFails = false;
-taskStatus = "active\tbranch\tfeature/existing\n";
-
-const freshHandlers = new Map();
-const freshPi = {
-  ...pi,
-  on(event, handler) {
-    freshHandlers.set(event, handler);
-  },
-};
-const freshModuleUrl = `${pathToFileURL(extensionPath).href}?fresh-managed-name-recovery`;
-const { default: installFresh } = await import(freshModuleUrl);
-installFresh(freshPi);
-
-branchEntries = [
-  { type: "custom", customType: "session-goal", data: { subject: "evolved goal G" } },
-];
-currentSessionName = "evolved goal G";
-managedPiSessionName = "evolved goal G";
-windowLabel = "pi main-repo provisional goal P";
-taskStatus = "provisional\tagent\tprovisional goal P\n";
-sessionNames.length = 0;
-await freshHandlers.get("session_start")({ reason: "fresh resume" }, ctx);
-assert.equal(currentSessionName, "evolved goal G", "fresh resume keeps the restored evolving goal over a stale provisional tmux label");
-assert.deepEqual(sessionNames, [], "fresh resume recognizes the marker-matched current goal without renaming it");
-goalChildResults.push(ok("new goal H\n"));
-await freshHandlers.get("before_agent_start")({
-  prompt: "redirect to a new goal",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-await flushAsyncWork();
-assert.equal(currentSessionName, "new goal H", "fresh instances recover marker ownership and automatically rename an evolved goal again");
-
-branchEntries = [
-  { type: "custom", customType: "session-goal", data: { subject: "restored goal G" } },
-];
-currentSessionName = "restored goal G";
-managedPiSessionName = "restored goal G";
-windowLabel = "pi main-repo provisional goal P";
-taskStatus = "active\tbranch\tfeature/canonical-branch\n";
-sessionNames.length = 0;
-await freshHandlers.get("session_start")({ reason: "branch resume" }, ctx);
-assert.equal(currentSessionName, "feature/canonical-branch", "verified active branch wins startup naming over restored goal and stale provisional label");
-assert.deepEqual(sessionNames, ["feature/canonical-branch"], "startup names directly from canonical active branch status");
-
-currentSessionName = "";
-managedPiSessionName = "restored goal G";
-taskStatusFails = true;
-sessionNames.length = 0;
-await freshHandlers.get("session_start")({ reason: "status failure resume" }, ctx);
-assert.equal(currentSessionName, "", "startup status failure fails closed instead of naming from the restored goal");
-assert.deepEqual(sessionNames, [], "startup status failure performs no speculative session-name side effect");
-taskStatusFails = false;
-taskStatus = "active\tbranch\tfeature/existing\n";
-
-await handlers.get("session_start")({ reason: "failure reset" }, ctx);
-notifications.length = 0;
-for (let failure = 1; failure <= 13; failure += 1) {
-  goalChildResults.push(fail());
-  await handlers.get("before_agent_start")({
-    prompt: `failure ${failure}`,
-    systemPrompt: "",
-    systemPromptOptions: { cwd: "/repo" },
-  }, ctx);
-  await flushAsyncWork();
-}
-assert.deepEqual(notifications.map((item) => item.message), [
-  "Session goal updates are failing; keeping the previous goal.",
-  "Session goal updates are failing; keeping the previous goal.",
-], "repeated failures notify only at 3 and 13");
-
-notifications.length = 0;
-goalChildResults.push(ok("KEEP\n"), fail(), fail(), fail());
-for (const prompt of ["recover", "again 1", "again 2", "again 3"]) {
-  await handlers.get("before_agent_start")({
-    prompt,
-    systemPrompt: "",
-    systemPromptOptions: { cwd: "/repo" },
-  }, ctx);
-  await flushAsyncWork();
-}
-assert.equal(notifications.length, 1, "successful KEEP resets the consecutive failure counter");
-
-const goalPromptSentinel = "goal-prompt-sentinel-71b72b";
-const goalStdoutSentinel = "goal-stdout-sentinel-0c23ff";
-const goalWarnings = [];
-const originalGoalWarn = console.warn;
-console.warn = (...args) => goalWarnings.push(args);
-try {
-  goalChildErrors.push(Object.assign(new TypeError(`child unavailable ${goalPromptSentinel}`), {
-    code: "ERR_INVALID_ARG_VALUE",
-    exitCode: 1,
-    killed: false,
-  }));
-  await handlers.get("before_agent_start")({
-    prompt: goalPromptSentinel,
-    systemPrompt: "",
-    systemPromptOptions: { cwd: "/repo" },
-  }, ctx);
-  await flushAsyncWork();
-  goalChildResults.push({ stdout: goalStdoutSentinel, stderr: "raw stderr", code: 1, killed: false });
-  await handlers.get("before_agent_start")({
-    prompt: "failed child result",
-    systemPrompt: "",
-    systemPromptOptions: { cwd: "/repo" },
-  }, ctx);
-  await flushAsyncWork();
-} finally {
-  console.warn = originalGoalWarn;
-}
-assert.deepEqual(goalWarnings, [
-  ["[managed-hooks] session goal child failed", {
-    name: "TypeError",
-    code: "ERR_INVALID_ARG_VALUE",
-    exitCode: 1,
-    killed: false,
-  }],
-  ["[managed-hooks] session goal child failed", {
-    name: "SessionGoalChildResult",
-    code: 1,
-    exitCode: undefined,
-    killed: false,
-  }],
-], "goal child diagnostics contain only a fixed message and safe metadata");
-const goalWarningText = goalWarnings.flatMap((args) => args.map((arg) => (
-  typeof arg === "string" ? arg : JSON.stringify(arg)
-))).join("\n");
-assert.equal(goalWarningText.includes(goalPromptSentinel), false, "goal diagnostics do not echo the prompt");
-assert.equal(goalWarningText.includes(goalStdoutSentinel), false, "goal diagnostics do not echo raw stdout");
-
-const lifecycleGoalCallStart = goalChildCalls.length;
-maxActiveGoalChildren = activeGoalChildren;
+await handlers.get("session_tree")({ reason: "explicit goal race" }, ctx);
+goalChildCalls.length = 0;
 goalChildIgnoresAbort = true;
 goalChildDeferred = deferred();
-const oldSessionGoalDeferred = goalChildDeferred;
-const lifecycleWarnings = [];
-const originalLifecycleWarn = console.warn;
-console.warn = (...args) => lifecycleWarnings.push(args);
+const staleInitialGoal = goalChildDeferred;
 await handlers.get("before_agent_start")({
-  prompt: "old session prompt",
+  prompt: "initial evaluator prompt",
   systemPrompt: "",
   systemPromptOptions: { cwd: "/repo" },
 }, ctx);
+await handlers.get("before_agent_start")({
+  prompt: "ignored while evaluator runs",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+assert.equal(goalChildCalls.length, 1, "only one initial goal child runs concurrently");
+await withStdoutTTY(true, () => sessionGoalTool.execute(
+  "goal-race-tool",
+  { goal: "explicit race winner" },
+  subjectSignal,
+  undefined,
+  ctx,
+));
 goalChildDeferred = undefined;
-await handlers.get("session_shutdown")({ reason: "resume" }, ctx);
+staleInitialGoal.resolve(ok("stale generated goal\n"));
+goalChildIgnoresAbort = false;
+await flushAsyncWork();
+assert.equal(statuses.at(-1).value, "goal: explicit race winner", "explicit tool wins a pending evaluator race");
+assert.equal(customEntries.some((entry) => entry.data.subject === "stale generated goal"), false, "stale initial output is discarded after explicit goal");
+
+branchEntries = [];
+currentSessionName = "";
+managedPiSessionName = "";
+await handlers.get("session_tree")({ reason: "retry failed initial goal" }, ctx);
+goalChildCalls.length = 0;
+goalChildResults.push(fail(), ok("retry succeeds\n"));
+await handlers.get("before_agent_start")({
+  prompt: "first attempt fails",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.equal(goalChildCalls.length, 1, "failed initial evaluation runs once");
+assert.equal(statuses.at(-1).value, "goal: determining…", "failed initial evaluation leaves goal unset");
+await handlers.get("before_agent_start")({
+  prompt: "retry initial goal",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.equal(goalChildCalls.length, 2, "next prompt retries while initial goal remains unset");
+assert.equal(customEntries.at(-1).data.subject, "retry succeeds", "successful retry persists initial goal");
+
 branchEntries = [
-  { type: "custom", customType: "session-goal", data: { subject: "destination goal" } },
+  { type: "custom", customType: "session-goal", data: { subject: "restored durable goal" } },
 ];
-await handlers.get("session_start")({ reason: "resume" }, ctx);
-assert.equal(statuses.at(-1).value, "goal: destination goal", "replacement session restores its durable goal before new evaluation");
-goalChildResults.push(ok("replacement session goal\n"));
+await handlers.get("session_tree")({ reason: "restored goal" }, ctx);
+const restoredCallCount = goalChildCalls.length;
+await handlers.get("before_agent_start")({
+  prompt: "continue restored work",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.equal(goalChildCalls.length, restoredCallCount, "restored durable goal suppresses initial evaluation");
+
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "manual-safe durable goal" } },
+];
+currentSessionName = "manual investigation name";
+managedPiSessionName = "older managed goal";
+taskStatus = "active\tmanual\tmanual investigation name\n";
+sessionNames.length = 0;
+calls.length = 0;
+await withStdoutTTY(true, () => handlers.get("session_start")({ reason: "manual name resume" }, ctx));
+assert.equal(currentSessionName, "manual investigation name", "startup preserves a manual Pi name over restored goal");
+assert.deepEqual(sessionNames, [], "startup does not rename a manual Pi name");
+assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity manual manual investigation name"), "startup republishes manual identity");
+
+calls.length = 0;
+await withStdoutTTY(true, () => handlers.get("session_info_changed")({ name: "renamed manual investigation" }, ctx));
+assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity manual renamed manual investigation"), "manual session_info_changed publishes manual identity");
+currentSessionName = "renamed manual investigation";
+const manualToolEntries = customEntries.length;
+calls.length = 0;
+await withStdoutTTY(true, () => sessionGoalTool.execute(
+  "manual-name-goal",
+  { goal: "updated durable theme" },
+  subjectSignal,
+  undefined,
+  ctx,
+));
+assert.equal(customEntries.length, manualToolEntries + 1, "goal tool still persists under a manual visible name");
+assert.equal(statuses.at(-1).value, "goal: updated durable theme", "goal tool updates durable status under a manual visible name");
+assert.equal(currentSessionName, "renamed manual investigation", "goal tool preserves manual visible Pi name");
+assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args[1] === "goal"), false, "goal tool preserves manual tmux identity when automatic naming is blocked");
+
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "extension managed goal" } },
+];
+currentSessionName = "";
+managedPiSessionName = "";
+taskStatus = "active\tgoal\textension managed goal\n";
+await withStdoutTTY(true, () => handlers.get("session_start")({ reason: "managed goal resume" }, ctx));
+assert.equal(currentSessionName, "extension managed goal", "startup restores extension-managed goal name");
+calls.length = 0;
+await withStdoutTTY(true, () => handlers.get("session_info_changed")({ name: "extension managed goal" }, ctx));
+assert.deepEqual(calls.at(-2), {
+  command: "tmux",
+  args: ["show-options", "-qv", "-p", "-t", "%1", "@pi_managed_session_name"],
+}, "managed-name event checks the durable ownership marker");
+assert.deepEqual(calls.at(-1), {
+  command: "tmux-agent-state",
+  args: ["set-identity", "goal", "extension managed goal"],
+}, "extension-managed goal name event publishes goal identity");
+
+branchEntries = [];
+currentSessionName = "";
+managedPiSessionName = "";
+taskStatus = "active\tgoal\tlifecycle goal\n";
+await handlers.get("session_tree")({ reason: "lifecycle source" }, ctx);
+goalChildIgnoresAbort = true;
+goalChildDeferred = deferred();
+const lifecycleDeferred = goalChildDeferred;
+const lifecycleEntries = customEntries.length;
+await handlers.get("before_agent_start")({
+  prompt: "source session initial prompt",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "destination restored goal" } },
+];
+await handlers.get("session_tree")({ reason: "navigate" }, ctx);
+goalChildDeferred = undefined;
+lifecycleDeferred.resolve(ok("stale lifecycle goal\n"));
+goalChildIgnoresAbort = false;
+await flushAsyncWork();
+assert.equal(customEntries.length, lifecycleEntries, "tree navigation invalidates pending initial persistence");
+assert.equal(statuses.at(-1).value, "goal: destination restored goal", "tree navigation preserves destination durable goal");
+
+branchEntries = [];
+await handlers.get("session_tree")({ reason: "shutdown source" }, ctx);
+goalChildIgnoresAbort = true;
+goalChildDeferred = deferred();
+const shutdownDeferred = goalChildDeferred;
+await handlers.get("before_agent_start")({
+  prompt: "shutdown session initial prompt",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await handlers.get("session_shutdown")({ reason: "close" }, ctx);
+goalChildDeferred = undefined;
+shutdownDeferred.resolve(ok("stale shutdown goal\n"));
+goalChildIgnoresAbort = false;
+await flushAsyncWork();
+assert.equal(customEntries.some((entry) => entry.data.subject === "stale shutdown goal"), false, "shutdown invalidates pending initial persistence");
+
+branchEntries = [];
+currentSessionName = "";
+managedPiSessionName = "";
+await handlers.get("session_start")({ reason: "replacement session" }, ctx);
+goalChildResults.push(ok("replacement initial goal\n"));
 await handlers.get("before_agent_start")({
   prompt: "replacement session prompt",
   systemPrompt: "",
   systemPromptOptions: { cwd: "/repo" },
 }, ctx);
-const goalCallsBeforeOldSettlement = goalChildCalls.length;
-goalChildIgnoresAbort = false;
-oldSessionGoalDeferred.resolve({ stdout: "stale old goal\n", stderr: "", code: 1, killed: true });
 await flushAsyncWork();
-console.warn = originalLifecycleWarn;
-assert.equal(maxActiveGoalChildren, 1, "replacement session never overlaps the settling aborted goal child");
-assert.equal(goalCallsBeforeOldSettlement, lifecycleGoalCallStart + 1, "replacement goal waits for the old child to settle");
-assert.equal(goalChildCalls.length, lifecycleGoalCallStart + 2, "newest replacement request runs after old settlement");
-assert.match(goalChildCalls.at(-1).args.at(-1), /New user prompt: replacement session prompt/);
-assert.equal(customEntries.some((entry) => entry.data.subject === "stale old goal"), false, "shutdown prevents stale goal application");
-assert.equal(statuses.at(-1).value, "goal: replacement session goal", "replacement request applies after old settlement");
-assert.equal(lifecycleWarnings.some((args) => args[0] === "[managed-hooks] session goal child failed"), false, "shutdown abort emits no goal failure warning");
-
-const treeGoalCallStart = goalChildCalls.length;
-maxActiveGoalChildren = activeGoalChildren;
-branchEntries = [
-  { type: "custom", customType: "session-goal", data: { subject: "source branch goal" } },
-];
-await handlers.get("session_tree")({ reason: "navigate" }, ctx);
-goalChildIgnoresAbort = true;
-goalChildDeferred = deferred();
-const sourceBranchDeferred = goalChildDeferred;
-await handlers.get("before_agent_start")({
-  prompt: "source branch pending prompt",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-goalChildDeferred = undefined;
-branchEntries = [
-  { type: "custom", customType: "session-goal", data: { subject: "destination branch goal" } },
-];
-await handlers.get("session_tree")({ reason: "navigate" }, ctx);
-assert.equal(statuses.at(-1).value, "goal: destination branch goal", "tree navigation immediately restores the destination branch goal");
-goalChildResults.push(ok("destination branch evaluated goal\n"));
-await handlers.get("before_agent_start")({
-  prompt: "destination branch prompt",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-const treeCallsBeforeOldSettlement = goalChildCalls.length;
-goalChildIgnoresAbort = false;
-sourceBranchDeferred.resolve(ok("stale source branch goal\n"));
-await flushAsyncWork();
-assert.equal(maxActiveGoalChildren, 1, "tree navigation never overlaps the settling old evaluator");
-assert.equal(treeCallsBeforeOldSettlement, treeGoalCallStart + 1, "destination evaluator waits for the old branch child to settle");
-assert.equal(goalChildCalls.length, treeGoalCallStart + 2, "destination evaluator starts after old branch settlement");
-assert.equal(customEntries.some((entry) => entry.data.subject === "stale source branch goal"), false, "tree navigation discards stale old-branch output");
-assert.equal(statuses.at(-1).value, "goal: destination branch evaluated goal", "destination branch evaluation applies after old settlement");
-
-currentSessionName = "";
-managedPiSessionName = "";
-taskStatusDeferred = deferred();
-goalChildResults.push(ok("stale pre-navigation goal\n"));
-const preNavigationHook = handlers.get("before_agent_start")({
-  prompt: "rename before navigation",
-  systemPrompt: "",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-await flushAsyncWork();
-branchEntries = [
-  { type: "custom", customType: "session-goal", data: { subject: "post-navigation destination goal" } },
-];
-await handlers.get("session_tree")({ reason: "navigate during status" }, ctx);
-taskStatusDeferred.resolve(ok("provisional\tagent\tstarting goal\n"));
-await preNavigationHook;
-taskStatusDeferred = undefined;
-await flushAsyncWork();
-assert.equal(currentSessionName, "", "a request invalidated while canonical status is pending cannot rename the destination session");
-assert.equal(statuses.at(-1).value, "goal: post-navigation destination goal", "status-query race preserves the destination branch goal");
-
-notifications.length = 0;
-const entriesBeforePersistenceFailures = customEntries.length;
-const goalBeforePersistenceFailures = statuses.at(-1).value;
-appendEntryErrors.push(
-  new Error("persistence unavailable"),
-  new Error("persistence unavailable"),
-  new Error("persistence unavailable"),
-);
-for (const subject of ["unpersisted goal one", "unpersisted goal two", "unpersisted goal three"]) {
-  goalChildResults.push(ok(`${subject}\n`));
-  await handlers.get("before_agent_start")({
-    prompt: `try ${subject}`,
-    systemPrompt: "",
-    systemPromptOptions: { cwd: "/repo" },
-  }, ctx);
-  await flushAsyncWork();
-}
-assert.equal(customEntries.length, entriesBeforePersistenceFailures, "persistence failures do not append partial goal entries");
-assert.equal(statuses.at(-1).value, goalBeforePersistenceFailures, "persistence failures preserve the previous in-memory goal");
-assert.equal(notifications.length, 1, "repeated persistence failures use goal failure warnings");
+assert.equal(customEntries.at(-1).data.subject, "replacement initial goal", "replacement session can generate after shutdown settles");
 
 taskStatus = "";
 for (const [name, result] of [
