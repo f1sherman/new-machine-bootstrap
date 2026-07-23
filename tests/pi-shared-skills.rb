@@ -10,12 +10,13 @@ pi_root = File.join(skills_root, "pi")
 source_skill_dirs = Dir.chdir(skills_root) do
   Dir.glob("{common,claude,codex}/*").select { |path| File.directory?(path) }
 end
-expected_pi_names = source_skill_dirs.map do |path|
+pi_only_names = ["z-update-session-goal"]
+expected_pi_names = (source_skill_dirs.map do |path|
   "z-#{File.basename(path).sub(/^_/, "")}"
-end.uniq.sort
+end + pi_only_names).uniq.sort
 actual_pi_names = Dir.children(pi_root).select { |name| File.directory?(File.join(pi_root, name)) }.sort
 
-legacy_pi_names = expected_pi_names.map { |name| name.delete_prefix("z-") }.reject { |name| name == "quick-pr" }
+legacy_pi_names = (expected_pi_names - pi_only_names).map { |name| name.delete_prefix("z-") }.reject { |name| name == "quick-pr" }
 tasks_file = File.read(File.join(repo_root, "roles/common/tasks/main.yml"))
 claude_cleanup_block = tasks_file[/^- name: Remove deleted managed Claude skills\n.*?(?=^- name:)/m]
 codex_cleanup_block = tasks_file[/^- name: Remove deleted managed Codex skills\n.*?(?=^- name:)/m]
@@ -46,6 +47,15 @@ actual_pi_names.each do |name|
   abort "Frontmatter name for #{name} must equal directory name, got #{metadata["name"].inspect}" unless metadata["name"] == name
   abort "Pi skill frontmatter name must start with z-: #{name}" unless metadata["name"].start_with?("z-")
 end
+
+update_goal_file = File.join(pi_root, "z-update-session-goal", "SKILL.md")
+update_goal_contents = File.read(update_goal_file)
+abort "Pi goal skill must be user-invoked only" unless update_goal_contents.include?("disable-model-invocation: true")
+abort "Pi goal skill must use the canonical tool" unless update_goal_contents.include?("`set_session_goal`")
+abort "Pi goal skill must support supplied wording" unless update_goal_contents.include?("arguments were supplied")
+abort "Pi goal skill must support inference" unless update_goal_contents.include?("no arguments were supplied")
+abort "Pi goal skill must call the tool exactly once" unless update_goal_contents.include?("exactly once")
+abort "Pi goal skill must not mutate session files" unless update_goal_contents.include?("Do not edit Pi session files")
 
 quick_pr_file = File.join(pi_root, "z-quick-pr", "SKILL.md")
 quick_pr_contents = File.read(quick_pr_file)
