@@ -105,6 +105,9 @@ jobs:
       - name: Verify pi managed hooks
         run: bash tests/pi-managed-hooks.sh
 
+      - name: Verify legacy pi purge
+        run: bash tests/purge-legacy-pi-coding-agent.sh
+
       - name: Verify Pi spec shortcut
         run: bash tests/pi-spec-shortcut.sh
 

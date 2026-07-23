@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Remove the pre-rename @mariozechner/pi-coding-agent left behind by older
+# provisioning that installed pi into per-Node global prefixes.
+#
+# pi now ships as @earendil-works/pi-coding-agent and is managed through mise.
+# The provisioning that switched scopes never removed the old global install, so
+# a stale @mariozechner `pi` can sit ahead of the managed one on PATH (e.g. a
+# Node global bin outranks the mise-managed bin) and silently run an outdated
+# pi. That breaks extensions built against the newer pi runtime.
+#
+# Idempotent: prints "changed" if it removed anything, "unchanged" otherwise, so
+# a provisioning caller can map the exit output to a changed state.
+set -euo pipefail
+
+legacy_pkg="${PI_LEGACY_PACKAGE:-@mariozechner/pi-coding-agent}"
+scope="${legacy_pkg%%/*}"
+
+# Space-separated glob patterns of Node "prefix" dirs. Each prefix is expected
+# to hold lib/node_modules/<pkg> and bin/pi (the layout npm -g and Homebrew's
+# node both use). Overridable so the test can point at a scratch tree.
+default_globs="${HOME}/.local/share/mise/installs/node/* /opt/homebrew /usr/local"
+prefix_globs="${PI_LEGACY_PREFIX_GLOBS:-$default_globs}"
+
+changed=0
+
+# shellcheck disable=SC2086 # intentional word-splitting of the glob list
+for prefix in $prefix_globs; do
+  [ -d "$prefix" ] || continue
+
+  pkg_dir="$prefix/lib/node_modules/$legacy_pkg"
+  if [ -e "$pkg_dir" ]; then
+    rm -rf "$pkg_dir"
+    changed=1
+
+    # Drop the now-empty scope dir (e.g. @mariozechner) only if nothing else
+    # lives under it, so an unrelated package in the same scope is preserved.
+    scope_dir="$prefix/lib/node_modules/$scope"
+    if [ -d "$scope_dir" ] && [ -z "$(ls -A "$scope_dir")" ]; then
+      rmdir "$scope_dir"
+    fi
+  fi
+
+  # Only remove a `pi` bin symlink when it points into the legacy package, so a
+  # correctly-managed pi is never touched.
+  pi_bin="$prefix/bin/pi"
+  if [ -L "$pi_bin" ]; then
+    case "$(readlink "$pi_bin")" in
+      *"$legacy_pkg"*)
+        rm -f "$pi_bin"
+        changed=1
+        ;;
+    esac
+  fi
+done
+
+if [ "$changed" -eq 1 ]; then
+  echo changed
+else
+  echo unchanged
+fi
