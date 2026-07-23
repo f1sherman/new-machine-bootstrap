@@ -10,8 +10,11 @@ let cachedManagedChildAuthSignature;
 let cachedManagedChildModel = OPENAI_MANAGED_CHILD_MODEL;
 const SUBJECT_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.";
 const SUBJECT_MAX_LENGTH = 512;
+const SESSION_GOAL_ASSISTANT_CONTEXT_MAX_LENGTH = 800;
 const SESSION_GOAL_CHILD_SYSTEM_PROMPT = [
   "Track the session's broad goal.",
+  "Use the preceding assistant context to interpret the newest user prompt.",
+  "Replies that answer, select from, approve, or continue the preceding assistant message should return KEEP when they remain within the current broad goal.",
   "Given the current goal and newest user prompt, return KEEP when the broad goal is unchanged.",
   "Otherwise return one concise noun phrase of at most 80 characters.",
   "Output only KEEP or the phrase on one line, without quotes, a goal: prefix, or explanation.",
@@ -713,9 +716,29 @@ function recordSessionGoalSuccess() {
   consecutiveSessionGoalFailures = 0;
 }
 
+function precedingAssistantContext(ctx) {
+  try {
+    const entries = ctx?.sessionManager?.getBranch?.() || [];
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index];
+      if (entry?.type !== "message" || entry.message?.role !== "assistant") continue;
+      if (!Array.isArray(entry.message.content)) return "";
+      const text = entry.message.content
+        .filter((block) => block?.type === "text" && typeof block.text === "string")
+        .map((block) => block.text)
+        .join("\n");
+      return text.slice(-SESSION_GOAL_ASSISTANT_CONTEXT_MAX_LENGTH);
+    }
+  } catch {
+    return "";
+  }
+  return "";
+}
+
 async function evaluateSessionGoal(pi, request, signal) {
   const current = request.currentGoal || "(none)";
-  const framedPrompt = `Current goal: ${current}\nNew user prompt: ${request.prompt}`;
+  const assistantContext = request.assistantContext || "(none)";
+  const framedPrompt = `Current goal: ${current}\nPreceding assistant context: ${assistantContext}\nNew user prompt: ${request.prompt}`;
   const model = managedChildModel();
   return pi.exec("pi", [
     "--mode", "text",
@@ -832,6 +855,7 @@ export default function managedHooks(pi) {
       generation: sessionGoalGeneration,
       sessionFile: ctx?.sessionManager?.getSessionFile?.() || "",
       currentGoal: currentSessionGoal,
+      assistantContext: precedingAssistantContext(ctx),
       prompt,
       cwd,
       ctx,
