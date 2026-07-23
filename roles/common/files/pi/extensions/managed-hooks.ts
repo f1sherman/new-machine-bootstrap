@@ -10,15 +10,7 @@ let cachedManagedChildAuthSignature;
 let cachedManagedChildModel = OPENAI_MANAGED_CHILD_MODEL;
 const SUBJECT_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.";
 const SUBJECT_MAX_LENGTH = 512;
-const SESSION_GOAL_ASSISTANT_CONTEXT_MAX_LENGTH = 800;
-const SESSION_GOAL_CHILD_SYSTEM_PROMPT = [
-  "Track the session's broad goal.",
-  "Use the preceding assistant context to interpret the newest user prompt.",
-  "Replies that answer, select from, approve, or continue the preceding assistant message should return KEEP when they remain within the current broad goal.",
-  "Given the current goal and newest user prompt, return KEEP when the broad goal is unchanged.",
-  "Otherwise return one concise noun phrase of at most 80 characters.",
-  "Output only KEEP or the phrase on one line, without quotes, a goal: prefix, or explanation.",
-].join(" ");
+const SESSION_GOAL_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase of at most 80 characters describing the new session's broad goal. Output only the phrase on one line, without quotes, a goal: prefix, or explanation.";
 const SESSION_GOAL_MAX_LENGTH = 80;
 const SESSION_GOAL_ENTRY_TYPE = "session-goal";
 const SESSION_GOAL_STATUS_KEY = "session-goal";
@@ -126,7 +118,6 @@ function piSessionNameFromTmuxLabel(label, cwd) {
 
 let lastManagedSessionName = "";
 let currentSessionGoal = "";
-let consecutiveSessionGoalFailures = 0;
 
 async function refreshTmuxLabels(pi) {
   if (!inTmux()) return;
@@ -142,11 +133,10 @@ async function setManagedPiSessionName(pi, ctx, sessionName, maySet = () => true
     currentName = ctx?.sessionManager?.getSessionName?.() || "";
     if (marker === currentName) lastManagedSessionName = currentName;
   }
-  if (currentName === sessionName) return true;
+  if (currentName === sessionName) return !inTmux() || currentName === lastManagedSessionName;
   if (currentName && currentName !== lastManagedSessionName) return false;
   if (!maySet()) return false;
 
-  pi.setSessionName(sessionName);
   lastManagedSessionName = sessionName;
   if (inTmux()) {
     await exec(pi, "tmux", [
@@ -154,6 +144,7 @@ async function setManagedPiSessionName(pi, ctx, sessionName, maySet = () => true
       MANAGED_PI_SESSION_NAME_OPTION, sessionName,
     ]);
   }
+  pi.setSessionName(sessionName);
   return true;
 }
 
@@ -176,6 +167,12 @@ async function syncSessionNameFromTmux(pi, ctx) {
   } catch (error) {
     warn("set Pi session name from tmux label failed", error);
   }
+}
+
+async function publishTmuxIdentity(pi, source, subject) {
+  if (!ownsTmuxPane()) return false;
+  const result = await exec(pi, "tmux-agent-state", ["set-identity", source, subject]);
+  return result.code === 0 && !result.killed;
 }
 
 async function applyTmuxSubject(pi, subject) {
@@ -522,7 +519,7 @@ async function canonicalSessionNameStatus(pi) {
   const fields = output.split("\t");
   const [state, source, subject] = fields;
   if (fields.length !== 3 || !subject || !["provisional", "active", "completed"].includes(state)
-    || !["agent", "branch"].includes(source)) {
+    || !["agent", "branch", "goal", "manual"].includes(source)) {
     return { kind: "unavailable" };
   }
   if (state === "active" && source === "branch") return { kind: "branch", subject };
@@ -656,7 +653,7 @@ async function updateCurrentSpecFromBash(pi, event, ctx) {
 function normalizeSessionGoalSubject(value) {
   if (typeof value !== "string" || value.includes("\n") || value.includes("\r")) return "";
   const subject = value.trim().replace(/ +/g, " ");
-  if (!subject || subject === "KEEP" || subject.length > SESSION_GOAL_MAX_LENGTH) return "";
+  if (!subject || subject.length > SESSION_GOAL_MAX_LENGTH) return "";
   if (/\p{Cc}/u.test(subject) || /^goal\s*:/i.test(subject) || /["'`]/.test(subject)) return "";
   return subject;
 }
@@ -682,14 +679,6 @@ function renderSessionGoal(ctx) {
   );
 }
 
-function normalizeGoalChildOutput(output, hasCurrentGoal) {
-  if (typeof output !== "string" || output.includes("\n") || output.includes("\r")) return undefined;
-  const value = output.trim().replace(/ +/g, " ");
-  if (value === "KEEP") return hasCurrentGoal ? { kind: "keep" } : undefined;
-  const subject = normalizeSessionGoalSubject(value);
-  return subject ? { kind: "subject", subject } : undefined;
-}
-
 function sessionGoalFailureDetails(value) {
   return {
     name: value instanceof Error ? value.name || "Error" : "SessionGoalChildResult",
@@ -699,53 +688,16 @@ function sessionGoalFailureDetails(value) {
   };
 }
 
-function recordSessionGoalFailure(ctx, value) {
-  consecutiveSessionGoalFailures += 1;
+function recordSessionGoalFailure(value) {
   console.warn("[managed-hooks] session goal child failed", sessionGoalFailureDetails(value));
-  const shouldNotify = consecutiveSessionGoalFailures === 3
-    || (consecutiveSessionGoalFailures > 3 && (consecutiveSessionGoalFailures - 3) % 10 === 0);
-  if (shouldNotify) {
-    ctx?.ui?.notify?.(
-      "Session goal updates are failing; keeping the previous goal.",
-      "warning",
-    );
-  }
 }
 
-function recordSessionGoalSuccess() {
-  consecutiveSessionGoalFailures = 0;
-}
-
-function precedingAssistantContext(ctx) {
-  try {
-    const entries = ctx?.sessionManager?.getBranch?.() || [];
-    for (let index = entries.length - 1; index >= 0; index -= 1) {
-      const entry = entries[index];
-      if (entry?.type !== "message" || entry.message?.role !== "assistant") continue;
-      if (!Array.isArray(entry.message.content)) return "";
-      const text = entry.message.content
-        .filter((block) => block?.type === "text" && typeof block.text === "string")
-        .map((block) => block.text)
-        .join("\n")
-        .trim();
-      return text.slice(-SESSION_GOAL_ASSISTANT_CONTEXT_MAX_LENGTH);
-    }
-  } catch {
-    return "";
-  }
-  return "";
-}
-
-async function evaluateSessionGoal(pi, request, signal) {
-  const current = request.currentGoal || "(none)";
-  const assistantContext = request.assistantContext || "(none)";
-  const framedPrompt = `Current goal: ${current}\nPreceding assistant context: ${assistantContext}\nNew user prompt: ${request.prompt}`;
-  const model = managedChildModel();
+async function evaluateInitialSessionGoal(pi, request, signal) {
   return pi.exec("pi", [
     "--mode", "text",
     "--print",
     "--no-session",
-    "--model", model,
+    "--model", managedChildModel(),
     "--thinking", "off",
     "--no-tools",
     "--no-extensions",
@@ -755,15 +707,13 @@ async function evaluateSessionGoal(pi, request, signal) {
     "--no-context-files",
     "--no-approve",
     "--system-prompt", SESSION_GOAL_CHILD_SYSTEM_PROMPT,
-    framedPrompt,
+    `New session prompt: ${request.prompt}`,
   ], { cwd: request.cwd, timeout: SUBJECT_CHILD_TIMEOUT_MS, signal });
 }
 
 export default function managedHooks(pi) {
   let sessionGoalGeneration = 0;
-  let sessionGoalSequence = 0;
   let sessionGoalRunning = false;
-  let pendingSessionGoalRequest;
   let sessionGoalAbortController;
 
   function requestIsCurrent(request, ctx) {
@@ -771,107 +721,82 @@ export default function managedHooks(pi) {
     return request.generation === sessionGoalGeneration && request.sessionFile === sessionFile;
   }
 
-  function applySessionGoal(pi, ctx, subject) {
-    if (subject === currentSessionGoal) return false;
-    pi.appendEntry(SESSION_GOAL_ENTRY_TYPE, { subject });
-    currentSessionGoal = subject;
+  async function applySessionGoal(pi, ctx, subject) {
+    const normalized = normalizeSessionGoalSubject(subject);
+    if (!normalized) throw new Error("Session goal must be one line, unquoted, and at most 80 characters.");
+    if (normalized === currentSessionGoal) return normalized;
+
+    pi.appendEntry(SESSION_GOAL_ENTRY_TYPE, { subject: normalized });
+    currentSessionGoal = normalized;
     renderSessionGoal(ctx);
-    return true;
+    const named = await setManagedPiSessionName(pi, ctx, normalized);
+    if (named) await publishTmuxIdentity(pi, "goal", normalized);
+    return normalized;
   }
 
-  async function drainSessionGoalQueue(pi) {
-    if (sessionGoalRunning) return;
-    const drainGeneration = sessionGoalGeneration;
-    sessionGoalRunning = true;
-    try {
-      while (drainGeneration === sessionGoalGeneration && pendingSessionGoalRequest) {
-        const request = pendingSessionGoalRequest;
-        pendingSessionGoalRequest = undefined;
-        sessionGoalAbortController = new AbortController();
+  function startInitialSessionGoalEvaluation(pi, prompt, cwd, ctx) {
+    if (currentSessionGoal || sessionGoalRunning) return;
 
-        let result;
-        let evaluationError;
-        try {
-          result = await evaluateSessionGoal(pi, request, sessionGoalAbortController.signal);
-        } catch (error) {
-          evaluationError = error;
-        }
-
-        if (pendingSessionGoalRequest?.sequence > request.sequence) continue;
-        if (!requestIsCurrent(request, request.ctx)) continue;
-        if (evaluationError) {
-          recordSessionGoalFailure(request.ctx, evaluationError);
-          continue;
-        }
-        if (result.code !== 0 || result.killed) {
-          recordSessionGoalFailure(request.ctx, result);
-          continue;
-        }
-
-        const output = typeof result.stdout === "string" ? result.stdout.trimEnd() : result.stdout;
-        const normalized = normalizeGoalChildOutput(output, Boolean(currentSessionGoal));
-        if (!normalized) {
-          recordSessionGoalFailure(request.ctx, result);
-          continue;
-        }
-        if (normalized.kind === "keep") {
-          recordSessionGoalSuccess();
-          continue;
-        }
-
-        let changed;
-        try {
-          changed = applySessionGoal(pi, request.ctx, normalized.subject);
-        } catch (error) {
-          recordSessionGoalFailure(request.ctx, error);
-          continue;
-        }
-        recordSessionGoalSuccess();
-        if (changed) {
-          const namingStatus = await canonicalSessionNameStatus(pi);
-          if (namingStatus.kind === "non-branch" && requestIsCurrent(request, request.ctx)) {
-            try {
-              await setManagedPiSessionName(
-                pi,
-                request.ctx,
-                normalized.subject,
-                () => requestIsCurrent(request, request.ctx),
-              );
-            } catch (error) {
-              warn("set Pi session name from session goal failed", error);
-            }
-          }
-        }
-      }
-    } finally {
-      sessionGoalAbortController = undefined;
-      sessionGoalRunning = false;
-      if (pendingSessionGoalRequest) void drainSessionGoalQueue(pi);
-    }
-  }
-
-  function queueSessionGoalEvaluation(pi, prompt, cwd, ctx) {
-    pendingSessionGoalRequest = {
-      sequence: ++sessionGoalSequence,
+    const request = {
       generation: sessionGoalGeneration,
       sessionFile: ctx?.sessionManager?.getSessionFile?.() || "",
-      currentGoal: currentSessionGoal,
-      assistantContext: precedingAssistantContext(ctx),
       prompt,
       cwd,
       ctx,
     };
-    void drainSessionGoalQueue(pi);
+    sessionGoalRunning = true;
+    sessionGoalAbortController = new AbortController();
+    const controller = sessionGoalAbortController;
+
+    void (async () => {
+      try {
+        const result = await evaluateInitialSessionGoal(pi, request, controller.signal);
+        if (!requestIsCurrent(request, request.ctx) || currentSessionGoal) return;
+        if (result.code !== 0 || result.killed) {
+          recordSessionGoalFailure(result);
+          return;
+        }
+        const subject = normalizeSessionGoalSubject(
+          typeof result.stdout === "string" ? result.stdout.trimEnd() : result.stdout,
+        );
+        if (!subject) {
+          recordSessionGoalFailure(result);
+          return;
+        }
+        await applySessionGoal(pi, request.ctx, subject);
+      } catch (error) {
+        if (requestIsCurrent(request, request.ctx)) recordSessionGoalFailure(error);
+      } finally {
+        if (sessionGoalAbortController === controller) sessionGoalAbortController = undefined;
+        sessionGoalRunning = false;
+      }
+    })();
   }
 
   function resetSessionGoalLifecycle(ctx) {
     sessionGoalGeneration += 1;
-    pendingSessionGoalRequest = undefined;
     sessionGoalAbortController?.abort();
-    consecutiveSessionGoalFailures = 0;
     currentSessionGoal = restoreSessionGoal(ctx);
     renderSessionGoal(ctx);
   }
+
+  pi.registerTool({
+    name: "set_session_goal",
+    label: "Set Session Goal",
+    description: "Set the durable broad goal and automatic identity for the current Pi session",
+    parameters: {
+      type: "object",
+      properties: {
+        goal: { type: "string", description: "Concise broad session goal, at most 80 characters" },
+      },
+      required: ["goal"],
+      additionalProperties: false,
+    },
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const goal = await applySessionGoal(pi, ctx, params.goal);
+      return { content: [{ type: "text", text: `Session goal set to: ${goal}` }], details: { goal } };
+    },
+  });
 
   pi.on("session_start", async (_event, ctx) => {
     resetSessionGoalLifecycle(ctx);
@@ -880,11 +805,19 @@ export default function managedHooks(pi) {
     await refreshTmuxLabels(pi);
     await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);
     await bindPaneSessionFile(pi, ctx);
+
     const namingStatus = await canonicalSessionNameStatus(pi);
-    if (namingStatus.kind === "branch") {
+    const sessionName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
+    const marker = await tmuxOption(pi, MANAGED_PI_SESSION_NAME_OPTION);
+    lastManagedSessionName = marker === sessionName ? sessionName : "";
+    const manualSessionName = sessionName && sessionName !== lastManagedSessionName;
+    if (manualSessionName) {
+      await publishTmuxIdentity(pi, "manual", sessionName);
+    } else if (currentSessionGoal) {
+      const named = await setManagedPiSessionName(pi, ctx, currentSessionGoal);
+      if (named) await publishTmuxIdentity(pi, "goal", currentSessionGoal);
+    } else if (namingStatus.kind === "branch") {
       await setManagedPiSessionName(pi, ctx, namingStatus.subject);
-    } else if (namingStatus.kind === "non-branch" && currentSessionGoal) {
-      await setManagedPiSessionName(pi, ctx, currentSessionGoal);
     } else if (namingStatus.kind === "non-branch") {
       await syncSessionNameFromTmux(pi, ctx);
     }
@@ -893,12 +826,15 @@ export default function managedHooks(pi) {
   pi.on("session_info_changed", async (event) => {
     const sessionName = event.name?.trim() || "";
     if (!sessionName || !ownsTmuxPane()) return;
-    await applyTmuxSubject(pi, sessionName);
+    const marker = await tmuxOption(pi, MANAGED_PI_SESSION_NAME_OPTION);
+    const managedGoal = Boolean(currentSessionGoal)
+      && sessionName === currentSessionGoal
+      && (sessionName === lastManagedSessionName || sessionName === marker);
+    await publishTmuxIdentity(pi, managedGoal ? "goal" : "manual", sessionName);
   });
 
   pi.on("session_shutdown", async () => {
     sessionGoalGeneration += 1;
-    pendingSessionGoalRequest = undefined;
     sessionGoalAbortController?.abort();
   });
 
@@ -909,7 +845,7 @@ export default function managedHooks(pi) {
   pi.on("before_agent_start", async (event, ctx) => {
     const notes = [];
     const cwd = await boundWorktreePath(pi, event.systemPromptOptions.cwd || ctx.cwd);
-    queueSessionGoalEvaluation(pi, event.prompt, cwd, ctx);
+    if (!currentSessionGoal) startInitialSessionGoalEvaluation(pi, event.prompt, cwd, ctx);
 
     if (REPO_START_TRIGGERS.test(event.prompt) && await onMainBranch(pi, cwd)) {
       notes.push("You are on main. Before changing files, run `repo-start <branch>` and continue from the created worktree.");
