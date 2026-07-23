@@ -125,6 +125,26 @@ async function refreshTmuxLabels(pi) {
   await exec(pi, "tmux-window-label", [process.env.TMUX_PANE]);
 }
 
+async function managedWrite(pi, command, args, failureMessage) {
+  let result;
+  try {
+    result = await pi.exec(command, args, { timeout: COMMAND_TIMEOUT_MS });
+  } catch (error) {
+    console.warn(failureMessage, {
+      name: error instanceof Error ? error.name || "Error" : "Error",
+      code: error?.code,
+      exitCode: error?.exitCode,
+      killed: error?.killed,
+    });
+    return false;
+  }
+  if (result.code !== 0 || result.killed) {
+    console.warn(failureMessage, { code: result.code, killed: result.killed });
+    return false;
+  }
+  return true;
+}
+
 async function setManagedPiSessionName(pi, ctx, sessionName, maySet = () => true) {
   if (!sessionName || typeof pi.setSessionName !== "function") return false;
   let currentName = ctx?.sessionManager?.getSessionName?.() || "";
@@ -137,13 +157,14 @@ async function setManagedPiSessionName(pi, ctx, sessionName, maySet = () => true
   if (currentName && currentName !== lastManagedSessionName) return false;
   if (!maySet()) return false;
 
-  lastManagedSessionName = sessionName;
   if (inTmux()) {
-    await exec(pi, "tmux", [
+    const marked = await managedWrite(pi, "tmux", [
       "set-option", "-p", "-t", process.env.TMUX_PANE,
       MANAGED_PI_SESSION_NAME_OPTION, sessionName,
-    ]);
+    ], "[managed-hooks] tmux managed-name marker write failed");
+    if (!marked || !maySet()) return false;
   }
+  lastManagedSessionName = sessionName;
   pi.setSessionName(sessionName);
   return true;
 }
@@ -171,8 +192,12 @@ async function syncSessionNameFromTmux(pi, ctx) {
 
 async function publishTmuxIdentity(pi, source, subject) {
   if (!ownsTmuxPane()) return false;
-  const result = await exec(pi, "tmux-agent-state", ["set-identity", source, subject]);
-  return result.code === 0 && !result.killed;
+  return managedWrite(
+    pi,
+    "tmux-agent-state",
+    ["set-identity", source, subject],
+    "[managed-hooks] tmux identity write failed",
+  );
 }
 
 async function applyTmuxSubject(pi, subject) {
@@ -713,29 +738,43 @@ async function evaluateInitialSessionGoal(pi, request, signal) {
 
 export default function managedHooks(pi) {
   let sessionGoalGeneration = 0;
-  let sessionGoalRunning = false;
-  let sessionGoalAbortController;
+  let sessionGoalRunning;
+  let goalApplicationChain = Promise.resolve();
 
   function requestIsCurrent(request, ctx) {
     const sessionFile = ctx?.sessionManager?.getSessionFile?.() || "";
     return request.generation === sessionGoalGeneration && request.sessionFile === sessionFile;
   }
 
-  async function applySessionGoal(pi, ctx, subject) {
-    const normalized = normalizeSessionGoalSubject(subject);
-    if (!normalized) throw new Error("Session goal must be one line, unquoted, and at most 80 characters.");
-    if (normalized === currentSessionGoal) return normalized;
+  function serializeGoalOperation(operation) {
+    const result = goalApplicationChain.then(operation);
+    goalApplicationChain = result.catch(() => {});
+    return result;
+  }
 
-    pi.appendEntry(SESSION_GOAL_ENTRY_TYPE, { subject: normalized });
-    currentSessionGoal = normalized;
-    renderSessionGoal(ctx);
-    const named = await setManagedPiSessionName(pi, ctx, normalized);
-    if (named) await publishTmuxIdentity(pi, "goal", normalized);
-    return normalized;
+  function applySessionGoal(pi, ctx, subject, options = {}) {
+    return serializeGoalOperation(async () => {
+      const normalized = normalizeSessionGoalSubject(subject);
+      if (!normalized) throw new Error("Session goal must be one line, unquoted, and at most 80 characters.");
+      if (options.onlyIfUnset
+        && (!requestIsCurrent(options.request, ctx) || currentSessionGoal)) {
+        return currentSessionGoal;
+      }
+      if (normalized === currentSessionGoal) return normalized;
+
+      pi.appendEntry(SESSION_GOAL_ENTRY_TYPE, { subject: normalized });
+      currentSessionGoal = normalized;
+      renderSessionGoal(ctx);
+      const maySet = () => !options.onlyIfUnset
+        || (requestIsCurrent(options.request, ctx) && currentSessionGoal === normalized);
+      const named = await setManagedPiSessionName(pi, ctx, normalized, maySet);
+      if (named && maySet()) await publishTmuxIdentity(pi, "goal", normalized);
+      return normalized;
+    });
   }
 
   function startInitialSessionGoalEvaluation(pi, prompt, cwd, ctx) {
-    if (currentSessionGoal || sessionGoalRunning) return;
+    if (currentSessionGoal || sessionGoalRunning?.generation === sessionGoalGeneration) return;
 
     const request = {
       generation: sessionGoalGeneration,
@@ -744,40 +783,56 @@ export default function managedHooks(pi) {
       cwd,
       ctx,
     };
-    sessionGoalRunning = true;
-    sessionGoalAbortController = new AbortController();
-    const controller = sessionGoalAbortController;
+    const running = {
+      generation: sessionGoalGeneration,
+      controller: new AbortController(),
+    };
+    sessionGoalRunning = running;
 
     void (async () => {
       try {
-        const result = await evaluateInitialSessionGoal(pi, request, controller.signal);
-        if (!requestIsCurrent(request, request.ctx) || currentSessionGoal) return;
+        const result = await evaluateInitialSessionGoal(pi, request, running.controller.signal);
         if (result.code !== 0 || result.killed) {
-          recordSessionGoalFailure(result);
+          if (requestIsCurrent(request, request.ctx)) recordSessionGoalFailure(result);
           return;
         }
         const subject = normalizeSessionGoalSubject(
           typeof result.stdout === "string" ? result.stdout.trimEnd() : result.stdout,
         );
         if (!subject) {
-          recordSessionGoalFailure(result);
+          if (requestIsCurrent(request, request.ctx)) recordSessionGoalFailure(result);
           return;
         }
-        await applySessionGoal(pi, request.ctx, subject);
+        await applySessionGoal(pi, request.ctx, subject, { onlyIfUnset: true, request });
       } catch (error) {
         if (requestIsCurrent(request, request.ctx)) recordSessionGoalFailure(error);
       } finally {
-        if (sessionGoalAbortController === controller) sessionGoalAbortController = undefined;
-        sessionGoalRunning = false;
+        if (sessionGoalRunning === running) sessionGoalRunning = undefined;
       }
     })();
   }
 
   function resetSessionGoalLifecycle(ctx) {
     sessionGoalGeneration += 1;
-    sessionGoalAbortController?.abort();
+    sessionGoalRunning?.controller.abort();
     currentSessionGoal = restoreSessionGoal(ctx);
     renderSessionGoal(ctx);
+  }
+
+  async function applyRestoredVisibleIdentity(pi, ctx) {
+    const sessionName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
+    const marker = await tmuxOption(pi, MANAGED_PI_SESSION_NAME_OPTION);
+    lastManagedSessionName = marker === sessionName ? sessionName : "";
+    const manualSessionName = sessionName && sessionName !== lastManagedSessionName;
+    if (manualSessionName) {
+      await publishTmuxIdentity(pi, "manual", sessionName);
+      return true;
+    }
+    if (!currentSessionGoal) return false;
+
+    const named = await setManagedPiSessionName(pi, ctx, currentSessionGoal);
+    if (named) await publishTmuxIdentity(pi, "goal", currentSessionGoal);
+    return true;
   }
 
   pi.registerTool({
@@ -807,16 +862,11 @@ export default function managedHooks(pi) {
     await bindPaneSessionFile(pi, ctx);
 
     const namingStatus = await canonicalSessionNameStatus(pi);
-    const sessionName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
-    const marker = await tmuxOption(pi, MANAGED_PI_SESSION_NAME_OPTION);
-    lastManagedSessionName = marker === sessionName ? sessionName : "";
-    const manualSessionName = sessionName && sessionName !== lastManagedSessionName;
-    if (manualSessionName) {
-      await publishTmuxIdentity(pi, "manual", sessionName);
-    } else if (currentSessionGoal) {
-      const named = await setManagedPiSessionName(pi, ctx, currentSessionGoal);
-      if (named) await publishTmuxIdentity(pi, "goal", currentSessionGoal);
-    } else if (namingStatus.kind === "branch") {
+    const restoredIdentityApplied = await serializeGoalOperation(
+      () => applyRestoredVisibleIdentity(pi, ctx),
+    );
+    if (restoredIdentityApplied) return;
+    if (namingStatus.kind === "branch") {
       await setManagedPiSessionName(pi, ctx, namingStatus.subject);
     } else if (namingStatus.kind === "non-branch") {
       await syncSessionNameFromTmux(pi, ctx);
@@ -835,11 +885,13 @@ export default function managedHooks(pi) {
 
   pi.on("session_shutdown", async () => {
     sessionGoalGeneration += 1;
-    sessionGoalAbortController?.abort();
+    sessionGoalRunning?.controller.abort();
   });
 
   pi.on("session_tree", async (_event, ctx) => {
     resetSessionGoalLifecycle(ctx);
+    if (!inTmux()) return;
+    await serializeGoalOperation(() => applyRestoredVisibleIdentity(pi, ctx));
   });
 
   pi.on("before_agent_start", async (event, ctx) => {

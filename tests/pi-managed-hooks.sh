@@ -27,30 +27,94 @@ const extensionPath = process.argv[2];
 const worktreeRoot = process.env.PI_HOOK_TEST_WORKTREE;
 const originalHome = process.env.HOME;
 const originalManagedChildModelOverride = process.env.PI_MANAGED_CHILD_MODEL;
+const originalCodingAgentDir = process.env.PI_CODING_AGENT_DIR;
 process.env.HOME = worktreeRoot;
 delete process.env.PI_MANAGED_CHILD_MODEL;
 fs.mkdirSync(path.join(worktreeRoot, "tests"), { recursive: true });
 
 const managedChildAuthDir = path.join(worktreeRoot, ".pi", "agent");
-fs.mkdirSync(managedChildAuthDir, { recursive: true });
-fs.writeFileSync(path.join(managedChildAuthDir, "auth.json"), JSON.stringify({
+const managedChildAuthPath = path.join(managedChildAuthDir, "auth.json");
+const managedChildOverrideAuthDir = path.join(worktreeRoot, ".pi-override", "agent");
+const managedChildOverrideAuthPath = path.join(managedChildOverrideAuthDir, "auth.json");
+const managedChildTildeAuthDir = path.join(worktreeRoot, ".pi-tilde", "agent");
+const managedChildTildeAuthPath = path.join(managedChildTildeAuthDir, "auth.json");
+const managedChildExactTildeAuthPath = path.join(worktreeRoot, "auth.json");
+const completeCodexOAuth = {
   "openai-codex": {
     type: "oauth",
     access: "test-access",
     refresh: "test-refresh",
     expires: 0,
   },
-}));
-fs.chmodSync(path.join(managedChildAuthDir, "auth.json"), 0o600);
+};
+let authReadCount = 0;
+let overrideAuthReadCount = 0;
+let tildeAuthReadCount = 0;
+let exactTildeAuthReadCount = 0;
+let failManagedChildAuthRead = false;
+let useMatchingAuthMetadata = false;
+const originalReadFileSync = fs.readFileSync;
+const originalStatSync = fs.statSync;
+
+function writeManagedChildAuth(contents) {
+  fs.mkdirSync(managedChildAuthDir, { recursive: true });
+  fs.writeFileSync(managedChildAuthPath, typeof contents === "string" ? contents : JSON.stringify(contents));
+}
+
+function replaceManagedChildAuth(contents) {
+  const replacementPath = `${managedChildAuthPath}.replacement`;
+  fs.writeFileSync(replacementPath, typeof contents === "string" ? contents : JSON.stringify(contents));
+  fs.renameSync(replacementPath, managedChildAuthPath);
+}
+
+function removeManagedChildAuth() {
+  fs.rmSync(managedChildAuthPath, { force: true });
+}
+
+function chmodManagedChildAuth(mode) {
+  fs.chmodSync(managedChildAuthPath, mode);
+}
+
+fs.readFileSync = function managedChildAuthRead(filePath, ...args) {
+  const resolvedPath = path.resolve(String(filePath));
+  if (resolvedPath === managedChildAuthPath) {
+    authReadCount += 1;
+    if (failManagedChildAuthRead) throw new Error("managed child auth read failure");
+  }
+  if (resolvedPath === managedChildOverrideAuthPath) {
+    overrideAuthReadCount += 1;
+  }
+  if (resolvedPath === managedChildTildeAuthPath) {
+    tildeAuthReadCount += 1;
+  }
+  if (resolvedPath === managedChildExactTildeAuthPath) {
+    exactTildeAuthReadCount += 1;
+  }
+  return originalReadFileSync.call(this, filePath, ...args);
+};
+
+fs.statSync = function managedChildAuthStat(filePath, ...args) {
+  const resolvedPath = path.resolve(String(filePath));
+  if (useMatchingAuthMetadata && [managedChildOverrideAuthPath, managedChildTildeAuthPath].includes(resolvedPath)) {
+    return { dev: 1, ino: 1, size: 1, mtimeMs: 1, ctimeMs: 1 };
+  }
+  return originalStatSync.call(this, filePath, ...args);
+};
 
 function restoreManagedChildTestState() {
+  fs.readFileSync = originalReadFileSync;
+  fs.statSync = originalStatSync;
   if (originalHome === undefined) delete process.env.HOME;
   else process.env.HOME = originalHome;
   if (originalManagedChildModelOverride === undefined) delete process.env.PI_MANAGED_CHILD_MODEL;
   else process.env.PI_MANAGED_CHILD_MODEL = originalManagedChildModelOverride;
+  if (originalCodingAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+  else process.env.PI_CODING_AGENT_DIR = originalCodingAgentDir;
 }
 
 process.once("exit", restoreManagedChildTestState);
+writeManagedChildAuth(completeCodexOAuth);
+chmodManagedChildAuth(0o600);
 const { default: install } = await import(pathToFileURL(extensionPath));
 
 const handlers = new Map();
@@ -58,6 +122,7 @@ const calls = [];
 const sessionNames = [];
 const statuses = [];
 const customEntries = [];
+const appendEntryErrors = [];
 let sessionGoalTool;
 let branch = "main";
 let branchEntries = [];
@@ -68,6 +133,11 @@ let boundPiSessionFile = "/sessions/previous.jsonl";
 let activeSessionFile = "/sessions/current.jsonl";
 let managedPiSessionName = "";
 let taskStatus = "";
+let markerWriteResults = [];
+let markerWriteDeferred;
+let activeMarkerWrites = 0;
+let maxActiveMarkerWrites = 0;
+let identityWriteResults = [];
 const goalChildCalls = [];
 let goalChildResults = [];
 let goalChildDeferred;
@@ -140,11 +210,13 @@ const pi = {
     sessionNames.push(name);
   },
   appendEntry(customType, data) {
+    if (appendEntryErrors.length > 0) throw appendEntryErrors.shift();
     customEntries.push({ customType, data });
   },
   async exec(command, args, options = {}) {
     calls.push({ command, args });
     if (command === "tmux-agent-state" && args[0] === "status") return ok(taskStatus);
+    if (command === "tmux-agent-state" && args[0] === "set-identity") return identityWriteResults.shift() ?? ok();
     if (command === "tmux-agent-state") return ok();
     if (command === "tmux-update-pane-label") return ok();
     if (command === "tmux-window-label") return ok();
@@ -154,7 +226,19 @@ const pi = {
     if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@pi_managed_session_name") return managedPiSessionName ? ok(`${managedPiSessionName}\n`) : fail();
     if (command === "tmux" && args[0] === "set-option") {
       if (args.includes("@persist_pi_session_file")) boundPiSessionFile = args.at(-1);
-      if (args.includes("@pi_managed_session_name")) managedPiSessionName = args.at(-1);
+      if (args.includes("@pi_managed_session_name")) {
+        const deferredWrite = markerWriteDeferred;
+        activeMarkerWrites += 1;
+        maxActiveMarkerWrites = Math.max(maxActiveMarkerWrites, activeMarkerWrites);
+        try {
+          if (deferredWrite) await deferredWrite.promise;
+          const result = markerWriteResults.shift() ?? ok();
+          if (result.code === 0 && !result.killed) managedPiSessionName = args.at(-1);
+          return result;
+        } finally {
+          activeMarkerWrites -= 1;
+        }
+      }
       return ok();
     }
     if (command === "tmux") return fail();
@@ -600,6 +684,112 @@ await handlers.get("before_agent_start")({
 await flushAsyncWork();
 assert.equal(goalChildCalls.length, 1, "later prompts do not reevaluate a durable goal");
 
+async function callGoalChildForManagedModel(prompt) {
+  branchEntries = [];
+  await handlers.get("session_tree")({ reason: `model selection: ${prompt}` }, ctx);
+  goalChildResults.push(ok(`model selection ${goalChildCalls.length}\n`));
+  await handlers.get("before_agent_start")({
+    prompt,
+    systemPrompt: "",
+    systemPromptOptions: { cwd: "/repo" },
+  }, ctx);
+  await flushAsyncWork();
+  return goalChildCalls.at(-1);
+}
+
+assert.equal(authReadCount, 1, "unchanged auth metadata reuses parsed model selection");
+const originalHomeAuthReads = authReadCount;
+const originalOverrideAuthReads = overrideAuthReadCount;
+const originalTildeAuthReads = tildeAuthReadCount;
+const originalExactTildeAuthReads = exactTildeAuthReadCount;
+const originalCodingAgentDirSetting = process.env.PI_CODING_AGENT_DIR;
+try {
+  replaceManagedChildAuth({
+    "openai-codex": { type: "api_key", key: "home-key" },
+  });
+  fs.mkdirSync(managedChildOverrideAuthDir, { recursive: true });
+  fs.writeFileSync(managedChildOverrideAuthPath, JSON.stringify(completeCodexOAuth));
+  process.env.PI_CODING_AGENT_DIR = managedChildOverrideAuthDir;
+  const callWithConfigDirOverride = await callGoalChildForManagedModel("config dir override");
+  assert.equal(modelArg(callWithConfigDirOverride), "openai-codex/gpt-5.4-mini");
+  assert.equal(authReadCount, originalHomeAuthReads, "HOME auth is not inspected when PI_CODING_AGENT_DIR is set");
+  assert.equal(overrideAuthReadCount, originalOverrideAuthReads + 1, "config-dir auth is inspected when PI_CODING_AGENT_DIR is set");
+
+  replaceManagedChildAuth({
+    "openai-codex": { type: "api_key", key: "home-key" },
+  });
+  fs.mkdirSync(managedChildTildeAuthDir, { recursive: true });
+  fs.writeFileSync(managedChildTildeAuthPath, JSON.stringify(completeCodexOAuth));
+  process.env.PI_CODING_AGENT_DIR = "~/.pi-tilde/agent";
+  const callWithTildeConfigDirOverride = await callGoalChildForManagedModel("config dir tilde override");
+  assert.equal(modelArg(callWithTildeConfigDirOverride), "openai-codex/gpt-5.4-mini");
+  assert.equal(authReadCount, originalHomeAuthReads, "HOME auth is not inspected when PI_CODING_AGENT_DIR uses a tilde path");
+  assert.equal(tildeAuthReadCount, originalTildeAuthReads + 1, "tilde-expanded auth is inspected when PI_CODING_AGENT_DIR uses a tilde path");
+
+  replaceManagedChildAuth({
+    "openai-codex": { type: "api_key", key: "home-key" },
+  });
+  fs.writeFileSync(managedChildExactTildeAuthPath, JSON.stringify(completeCodexOAuth));
+  process.env.PI_CODING_AGENT_DIR = "~";
+  const callWithExactTildeConfigDirOverride = await callGoalChildForManagedModel("config dir exact tilde override");
+  assert.equal(modelArg(callWithExactTildeConfigDirOverride), "openai-codex/gpt-5.4-mini");
+  assert.equal(authReadCount, originalHomeAuthReads, "HOME auth is not inspected when PI_CODING_AGENT_DIR is exactly tilde");
+  assert.equal(exactTildeAuthReadCount, originalExactTildeAuthReads + 1, "HOME auth.json is inspected when PI_CODING_AGENT_DIR is exactly tilde");
+
+  fs.writeFileSync(managedChildOverrideAuthPath, JSON.stringify(completeCodexOAuth));
+  fs.writeFileSync(managedChildTildeAuthPath, JSON.stringify({
+    "openai-codex": { type: "api_key", key: "other-config-key" },
+  }));
+  useMatchingAuthMetadata = true;
+  process.env.PI_CODING_AGENT_DIR = managedChildOverrideAuthDir;
+  const callFromFirstMatchingMetadataPath = await callGoalChildForManagedModel("first matching metadata path");
+  assert.equal(modelArg(callFromFirstMatchingMetadataPath), "openai-codex/gpt-5.4-mini");
+  process.env.PI_CODING_AGENT_DIR = "~/.pi-tilde/agent";
+  const callFromSecondMatchingMetadataPath = await callGoalChildForManagedModel("second matching metadata path");
+  assert.equal(modelArg(callFromSecondMatchingMetadataPath), "openai/gpt-4.1-mini", "auth path participates in the cache key");
+} finally {
+  useMatchingAuthMetadata = false;
+  if (originalCodingAgentDirSetting === undefined) delete process.env.PI_CODING_AGENT_DIR;
+  else process.env.PI_CODING_AGENT_DIR = originalCodingAgentDirSetting;
+  replaceManagedChildAuth(completeCodexOAuth);
+}
+
+removeManagedChildAuth();
+const callAfterAuthRemoval = await callGoalChildForManagedModel("auth removed");
+assert.equal(modelArg(callAfterAuthRemoval), "openai/gpt-4.1-mini");
+
+writeManagedChildAuth(completeCodexOAuth);
+chmodManagedChildAuth(0o600);
+failManagedChildAuthRead = true;
+const callAfterUnreadableAuth = await callGoalChildForManagedModel("auth unreadable");
+failManagedChildAuthRead = false;
+assert.equal(modelArg(callAfterUnreadableAuth), "openai/gpt-4.1-mini");
+
+replaceManagedChildAuth("{malformed");
+const callAfterMalformedAuth = await callGoalChildForManagedModel("auth malformed");
+assert.equal(modelArg(callAfterMalformedAuth), "openai/gpt-4.1-mini");
+
+replaceManagedChildAuth({
+  "openai-codex": { type: "oauth", access: "test-access" },
+});
+const callAfterIncompleteOAuth = await callGoalChildForManagedModel("oauth incomplete");
+assert.equal(modelArg(callAfterIncompleteOAuth), "openai/gpt-4.1-mini");
+
+replaceManagedChildAuth({
+  "openai-codex": { type: "api_key", key: "test-key" },
+});
+const callAfterNonOAuthAuth = await callGoalChildForManagedModel("auth is not oauth");
+assert.equal(modelArg(callAfterNonOAuthAuth), "openai/gpt-4.1-mini");
+
+replaceManagedChildAuth(completeCodexOAuth);
+const callAfterAtomicReplacement = await callGoalChildForManagedModel("auth atomically replaced");
+assert.equal(modelArg(callAfterAtomicReplacement), "openai-codex/gpt-5.4-mini");
+
+process.env.PI_MANAGED_CHILD_MODEL = "custom-provider/custom-model";
+const callWithOverride = await callGoalChildForManagedModel("model override");
+assert.equal(modelArg(callWithOverride), "custom-provider/custom-model");
+delete process.env.PI_MANAGED_CHILD_MODEL;
+
 const entriesBeforeTool = customEntries.length;
 calls.length = 0;
 const toolResult = await withStdoutTTY(true, () => sessionGoalTool.execute(
@@ -652,6 +842,23 @@ for (const invalidGoal of [
   assert.equal(calls.length, 0, "invalid explicit goal does not call tmux");
 }
 
+const persistenceEntries = customEntries.length;
+const persistenceStatus = statuses.at(-1).value;
+const persistenceName = currentSessionName;
+const persistenceMarker = managedPiSessionName;
+appendEntryErrors.push(new Error("persistence unavailable"));
+calls.length = 0;
+await assert.rejects(
+  sessionGoalTool.execute("persistence-failure", { goal: "unpersisted explicit goal" }, subjectSignal, undefined, ctx),
+  /persistence unavailable/,
+  "explicit goal reports persistence failure",
+);
+assert.equal(customEntries.length, persistenceEntries, "persistence failure appends no partial entry");
+assert.equal(statuses.at(-1).value, persistenceStatus, "persistence failure preserves in-memory status");
+assert.equal(currentSessionName, persistenceName, "persistence failure preserves the Pi name");
+assert.equal(managedPiSessionName, persistenceMarker, "persistence failure preserves the managed-name marker");
+assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args[0] === "set-identity"), false, "persistence failure has no tmux identity side effect");
+
 branchEntries = [];
 currentSessionName = "";
 managedPiSessionName = "";
@@ -688,6 +895,40 @@ assert.equal(customEntries.some((entry) => entry.data.subject === "stale generat
 branchEntries = [];
 currentSessionName = "";
 managedPiSessionName = "";
+await handlers.get("session_tree")({ reason: "serialized application race" }, ctx);
+goalChildResults.push(ok("slow initial publication\n"));
+markerWriteDeferred = deferred();
+maxActiveMarkerWrites = activeMarkerWrites;
+await withStdoutTTY(true, () => handlers.get("before_agent_start")({
+  prompt: "start slow initial publication",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx));
+await flushAsyncWork();
+const serializedExplicit = withStdoutTTY(true, () => sessionGoalTool.execute(
+  "serialized-explicit",
+  { goal: "serialized explicit winner" },
+  subjectSignal,
+  undefined,
+  ctx,
+));
+await flushAsyncWork();
+assert.equal(maxActiveMarkerWrites, 1, "goal applications serialize managed marker publication");
+const blockedMarkerWrite = markerWriteDeferred;
+markerWriteDeferred = undefined;
+blockedMarkerWrite.resolve();
+await serializedExplicit;
+await flushAsyncWork();
+assert.equal(customEntries.at(-1).data.subject, "serialized explicit winner", "serialized explicit goal persists last");
+assert.equal(statuses.at(-1).value, "goal: serialized explicit winner", "serialized explicit goal remains in status");
+assert.equal(currentSessionName, "serialized explicit winner", "serialized explicit goal remains the Pi name");
+assert.equal(managedPiSessionName, "serialized explicit winner", "serialized explicit goal remains the managed marker");
+assert.deepEqual(calls.filter((call) => call.command === "tmux-agent-state" && call.args[0] === "set-identity").at(-1).args,
+  ["set-identity", "goal", "serialized explicit winner"], "serialized explicit goal remains tmux identity");
+
+branchEntries = [];
+currentSessionName = "";
+managedPiSessionName = "";
 await handlers.get("session_tree")({ reason: "retry failed initial goal" }, ctx);
 goalChildCalls.length = 0;
 goalChildResults.push(fail(), ok("retry succeeds\n"));
@@ -720,6 +961,32 @@ await handlers.get("before_agent_start")({
 }, ctx);
 await flushAsyncWork();
 assert.equal(goalChildCalls.length, restoredCallCount, "restored durable goal suppresses initial evaluation");
+
+currentSessionName = "source automatic goal";
+managedPiSessionName = "source automatic goal";
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "destination automatic goal" } },
+];
+sessionNames.length = 0;
+calls.length = 0;
+await withStdoutTTY(true, () => handlers.get("session_tree")({ reason: "automatic destination" }, ctx));
+assert.equal(statuses.at(-1).value, "goal: destination automatic goal", "tree navigation renders destination automatic goal");
+assert.equal(currentSessionName, "destination automatic goal", "tree navigation replaces the previous automatic Pi name");
+assert.deepEqual(sessionNames, ["destination automatic goal"], "tree navigation applies the restored automatic Pi name");
+assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity goal destination automatic goal"), "tree navigation publishes destination goal identity");
+
+currentSessionName = "manual tree name";
+managedPiSessionName = "destination automatic goal";
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "hidden destination goal" } },
+];
+sessionNames.length = 0;
+calls.length = 0;
+await withStdoutTTY(true, () => handlers.get("session_tree")({ reason: "manual destination" }, ctx));
+assert.equal(statuses.at(-1).value, "goal: hidden destination goal", "tree navigation renders goal beneath a manual name");
+assert.equal(currentSessionName, "manual tree name", "tree navigation preserves a manual Pi name");
+assert.deepEqual(sessionNames, [], "tree navigation does not overwrite a manual Pi name");
+assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity manual manual tree name"), "tree navigation republishes manual identity");
 
 branchEntries = [
   { type: "custom", customType: "session-goal", data: { subject: "manual-safe durable goal" } },
@@ -771,6 +1038,81 @@ assert.deepEqual(calls.at(-1), {
   args: ["set-identity", "goal", "extension managed goal"],
 }, "extension-managed goal name event publishes goal identity");
 
+const reloadHandlers = new Map();
+const reloadPi = {
+  ...pi,
+  on(event, handler) {
+    reloadHandlers.set(event, handler);
+  },
+};
+const reloadModuleUrl = `${pathToFileURL(extensionPath).href}?managed-marker-reload`;
+const { default: installReload } = await import(reloadModuleUrl);
+installReload(reloadPi);
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "reload owned goal" } },
+];
+currentSessionName = "reload owned goal";
+managedPiSessionName = "reload owned goal";
+sessionNames.length = 0;
+calls.length = 0;
+await withStdoutTTY(true, () => reloadHandlers.get("session_start")({ reason: "extension reload" }, ctx));
+assert.deepEqual(sessionNames, [], "reload recognizes marker ownership without renaming the Pi session");
+assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity goal reload owned goal"), "reload republishes marker-owned goal identity");
+
+for (const [label, markerResult] of [
+  ["nonzero", fail()],
+  ["killed", { stdout: "", stderr: "", code: 1, killed: true }],
+]) {
+  branchEntries = [];
+  currentSessionName = "";
+  managedPiSessionName = "";
+  await handlers.get("session_tree")({ reason: `${label} marker write` }, ctx);
+  markerWriteResults.push(markerResult);
+  calls.length = 0;
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  try {
+    await withStdoutTTY(true, () => sessionGoalTool.execute(
+      `${label}-marker-write`,
+      { goal: `${label} marker write goal` },
+      subjectSignal,
+      undefined,
+      ctx,
+    ));
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.equal(currentSessionName, "", `${label} marker failure does not set the Pi name`);
+  assert.equal(managedPiSessionName, "", `${label} marker failure does not claim managed ownership`);
+  assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args[0] === "set-identity"), false, `${label} marker failure does not publish goal identity`);
+  assert.deepEqual(warnings, [["[managed-hooks] tmux managed-name marker write failed", {
+    code: markerResult.code,
+    killed: markerResult.killed,
+  }]], `${label} marker failure emits safe metadata`);
+}
+
+for (const [label, identityResult] of [
+  ["identity-nonzero", fail()],
+  ["identity-killed", { stdout: "", stderr: "", code: 1, killed: true }],
+]) {
+  const identitySentinel = `${label}-private-name`;
+  identityWriteResults.push(identityResult);
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  try {
+    await withStdoutTTY(true, () => handlers.get("session_info_changed")({ name: identitySentinel }, ctx));
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.deepEqual(warnings, [["[managed-hooks] tmux identity write failed", {
+    code: identityResult.code,
+    killed: identityResult.killed,
+  }]], `${label} identity failure emits safe metadata`);
+  assert.equal(JSON.stringify(warnings).includes(identitySentinel), false, `${label} diagnostics omit identity content`);
+}
+
 branchEntries = [];
 currentSessionName = "";
 managedPiSessionName = "";
@@ -795,6 +1137,46 @@ goalChildIgnoresAbort = false;
 await flushAsyncWork();
 assert.equal(customEntries.length, lifecycleEntries, "tree navigation invalidates pending initial persistence");
 assert.equal(statuses.at(-1).value, "goal: destination restored goal", "tree navigation preserves destination durable goal");
+
+branchEntries = [];
+currentSessionName = "";
+managedPiSessionName = "";
+await handlers.get("session_tree")({ reason: "old generation source" }, ctx);
+goalChildCalls.length = 0;
+goalChildIgnoresAbort = true;
+goalChildDeferred = deferred();
+const oldGenerationDeferred = goalChildDeferred;
+await handlers.get("before_agent_start")({
+  prompt: "old generation prompt",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+branchEntries = [];
+activeSessionFile = "/sessions/destination.jsonl";
+await handlers.get("session_tree")({ reason: "new generation destination" }, ctx);
+goalChildDeferred = deferred();
+const newGenerationDeferred = goalChildDeferred;
+await handlers.get("before_agent_start")({
+  prompt: "destination first prompt",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+assert.equal(goalChildCalls.length, 2, "destination generation starts before the aborted old child settles");
+goalChildDeferred = undefined;
+oldGenerationDeferred.resolve(ok("stale old generation goal\n"));
+await flushAsyncWork();
+await handlers.get("before_agent_start")({
+  prompt: "destination prompt while its child runs",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+assert.equal(goalChildCalls.length, 2, "old child finally does not clear the destination running marker");
+newGenerationDeferred.resolve(ok("destination immediate goal\n"));
+goalChildIgnoresAbort = false;
+await flushAsyncWork();
+assert.equal(statuses.at(-1).value, "goal: destination immediate goal", "destination generation applies after old settlement");
+assert.equal(customEntries.some((entry) => entry.data.subject === "stale old generation goal"), false, "old generation settlement cannot apply stale output");
+activeSessionFile = "/sessions/current.jsonl";
 
 branchEntries = [];
 await handlers.get("session_tree")({ reason: "shutdown source" }, ctx);
