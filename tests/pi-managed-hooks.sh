@@ -372,10 +372,11 @@ windowLabel = "pi main-repo";
 branchEntries = [];
 calls.length = 0;
 await handlers.get("session_start")({}, ctx);
-assert.deepEqual(calls.slice(-6), [
+assert.deepEqual(calls.slice(-7), [
   { command: "tmux-update-pane-label", args: ["%1"] },
   { command: "tmux-window-label", args: ["%1"] },
   { command: "tmux-agent-state", args: ["set-kind", "pi"] },
+  { command: "tmux-agent-state", args: ["status"] },
   { command: "tmux-agent-state", args: ["status"] },
   { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@window-label"] },
   { command: "tmux", args: ["show-options", "-qv", "-p", "-t", "%1", "@agent_worktree_path"] },
@@ -470,6 +471,21 @@ assert.deepEqual(subjectApplyWarnings, [
 calls.length = 0;
 await handlers.get("session_info_changed")({ name: undefined }, ctx);
 assert.equal(calls.some((call) => call.command === "tmux-agent-subject"), false, "missing session_info_changed name does not rename the subject");
+
+taskStatus = "provisional\tagent\tInvestigate reviewer failures\n";
+currentSessionName = "";
+managedPiSessionName = "";
+windowLabel = "~ Investigate reviewer failures";
+sessionNames.length = 0;
+calls.length = 0;
+await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
+await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
+assert.deepEqual(sessionNames, [], "provisional rendered labels never become Pi session names");
+assert.equal(calls.filter((call) => (
+  call.command === "tmux" && call.args.at(-1) === "@window-label"
+)).length, 0, "provisional task sync never reads the decorated window label");
+
+taskStatus = "";
 
 windowLabel = "pi main-repo feature-work";
 await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
