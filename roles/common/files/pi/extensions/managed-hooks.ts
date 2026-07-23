@@ -3,7 +3,11 @@ import path from "node:path";
 
 const COMMAND_TIMEOUT_MS = 5000;
 const SUBJECT_CHILD_TIMEOUT_MS = 15000;
-const SUBJECT_CHILD_MODEL = "openai/gpt-5.4-mini";
+const CODEX_MANAGED_CHILD_MODEL = "openai-codex/gpt-5.4-mini";
+const OPENAI_MANAGED_CHILD_MODEL = "openai/gpt-4.1-mini";
+const MANAGED_CHILD_MODEL_OVERRIDE = "PI_MANAGED_CHILD_MODEL";
+let cachedManagedChildAuthSignature;
+let cachedManagedChildModel = OPENAI_MANAGED_CHILD_MODEL;
 const SUBJECT_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.";
 const SUBJECT_MAX_LENGTH = 512;
 const SESSION_GOAL_CHILD_SYSTEM_PROMPT = [
@@ -24,6 +28,46 @@ const GIT_PREAMBLE = "(^|[;&|()])\\s*(?:(?:(?:if|then|do|elif|while|until)\\s+|!
 function warn(message, error) {
   const detail = error instanceof Error ? error.message : String(error ?? "unknown error");
   console.warn(`[managed-hooks] ${message}: ${detail}`);
+}
+
+function managedChildAuthPath() {
+  return path.join(process.env.HOME || "", ".pi", "agent", "auth.json");
+}
+
+function managedChildAuthSignature(authPath) {
+  try {
+    const stat = fs.statSync(authPath);
+    return [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(":");
+  } catch {
+    return "missing";
+  }
+}
+
+function hasCodexOAuth(auth) {
+  const credential = auth?.["openai-codex"];
+  return credential?.type === "oauth"
+    && typeof credential.access === "string" && credential.access.length > 0
+    && typeof credential.refresh === "string" && credential.refresh.length > 0;
+}
+
+function managedChildModel() {
+  const override = process.env[MANAGED_CHILD_MODEL_OVERRIDE]?.trim();
+  if (override) return override;
+
+  const authPath = managedChildAuthPath();
+  const signature = managedChildAuthSignature(authPath);
+  if (signature === cachedManagedChildAuthSignature) return cachedManagedChildModel;
+
+  cachedManagedChildAuthSignature = signature;
+  try {
+    const auth = JSON.parse(fs.readFileSync(authPath, "utf8"));
+    cachedManagedChildModel = hasCodexOAuth(auth)
+      ? CODEX_MANAGED_CHILD_MODEL
+      : OPENAI_MANAGED_CHILD_MODEL;
+  } catch {
+    cachedManagedChildModel = OPENAI_MANAGED_CHILD_MODEL;
+  }
+  return cachedManagedChildModel;
 }
 
 async function exec(pi, command, args, options = {}) {
@@ -510,13 +554,14 @@ function subjectChildFailureDetails(value) {
 
 async function setSubjectFromSubagent(pi, prompt, cwd, signal) {
   const framedPrompt = `Task: ${prompt}`;
+  const model = managedChildModel();
   let result;
   try {
     result = await pi.exec("pi", [
       "--mode", "text",
       "--print",
       "--no-session",
-      "--model", SUBJECT_CHILD_MODEL,
+      "--model", model,
       "--thinking", "off",
       "--no-tools",
       "--no-extensions",
@@ -665,11 +710,12 @@ function recordSessionGoalSuccess() {
 async function evaluateSessionGoal(pi, request, signal) {
   const current = request.currentGoal || "(none)";
   const framedPrompt = `Current goal: ${current}\nNew user prompt: ${request.prompt}`;
+  const model = managedChildModel();
   return pi.exec("pi", [
     "--mode", "text",
     "--print",
     "--no-session",
-    "--model", SUBJECT_CHILD_MODEL,
+    "--model", model,
     "--thinking", "off",
     "--no-tools",
     "--no-extensions",
