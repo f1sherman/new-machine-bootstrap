@@ -671,11 +671,6 @@ branchEntries = [
     },
   },
   {
-    type: "tool_result",
-    toolName: "bash",
-    content: "tool-result content",
-  },
-  {
     type: "message",
     message: {
       role: "assistant",
@@ -683,9 +678,25 @@ branchEntries = [
         { type: "text", text: assistantPrefix },
         { type: "thinking", thinking: "private reasoning" },
         { type: "toolCall", id: "call-1", name: "read", arguments: {} },
-        { type: "image", image: "image data" },
         { type: "text", text: latestAssistantText },
       ],
+    },
+  },
+  {
+    type: "message",
+    message: {
+      role: "toolResult",
+      toolCallId: "call-result",
+      toolName: "read",
+      content: [{ type: "text", text: "tool result secret" }],
+      isError: false,
+    },
+  },
+  {
+    type: "message",
+    message: {
+      role: "user",
+      content: [{ type: "image", data: "image secret", mimeType: "image/png" }],
     },
   },
 ];
@@ -726,8 +737,8 @@ assert.equal(
   "goal child receives bounded preceding assistant context for a choice reply",
 );
 assert.equal(goalChildCalls[0].args.at(-1).includes("older assistant text"), false, "goal context excludes older assistant text");
-assert.equal(goalChildCalls[0].args.at(-1).includes("tool-result content"), false, "goal context excludes tool-result content");
-assert.equal(goalChildCalls[0].args.at(-1).includes("image data"), false, "goal context excludes image data");
+assert.equal(goalChildCalls[0].args.at(-1).includes("tool result secret"), false, "goal context excludes tool-result text");
+assert.equal(goalChildCalls[0].args.at(-1).includes("image secret"), false, "goal context excludes image data");
 assert.equal(goalChildCalls[0].args.at(-1).includes("private reasoning"), false, "goal context excludes thinking blocks");
 assert.equal(goalChildCalls[0].args.at(-1).includes("call-1"), false, "goal context excludes tool-call blocks");
 assert.equal(goalChildCalls[0].options.timeout, 15000, "goal child uses the bounded timeout");
