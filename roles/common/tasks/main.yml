@@ -1312,6 +1312,18 @@
     state: directory
     mode: '0755'
 
+- name: Create Pi subagent configuration directory
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/.pi/agent/extensions/subagent"
+    state: directory
+    mode: '0755'
+
+- name: Enable Pi scheduled subagent runs
+  copy:
+    src: pi/extensions/subagent/config.json
+    dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/extensions/subagent/config.json"
+    mode: '0644'
+
 - name: Create pi-coding-agent global AGENTS fragment directory
   file:
     path: "{{ ansible_facts['user_dir'] }}/.pi/agent/AGENTS.md.d"

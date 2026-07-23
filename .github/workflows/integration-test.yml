@@ -99,6 +99,9 @@ jobs:
       - name: Verify Pi main worktree guard provisioning
         run: bash tests/pi-main-worktree-guard-provisioning.sh
 
+      - name: Verify Pi scheduled subagent run provisioning
+        run: bash tests/pi-scheduled-subagent-runs.sh
+
       - name: Verify pi managed hooks
         run: bash tests/pi-managed-hooks.sh
 
