@@ -658,10 +658,29 @@ branchEntries = [
 ];
 await handlers.get("session_start")({ reason: "resume" }, ctx);
 
+const assistantPrefix = "x".repeat(900);
+const expectedAssistantTail = `${assistantPrefix}\nChoose one:\nA. Keep it\nB. Pause\nC. Continue`.slice(-800);
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "persistent Pi session goals" } },
+  {
+    type: "message",
+    message: {
+      role: "assistant",
+      content: [
+        { type: "text", text: assistantPrefix },
+        { type: "thinking", thinking: "private reasoning" },
+        { type: "toolCall", id: "call-1", name: "read", arguments: {} },
+        { type: "text", text: "Choose one:\nA. Keep it\nB. Pause\nC. Continue" },
+      ],
+    },
+  },
+];
 goalChildCalls.length = 0;
 goalChildDeferred = deferred();
+const entriesBeforeChoice = customEntries.length;
+const namesBeforeChoice = sessionNames.length;
 const nonblocking = handlers.get("before_agent_start")({
-  prompt: "also cover lifecycle failures",
+  prompt: "C",
   systemPrompt: "",
   systemPromptOptions: { cwd: "/repo" },
 }, ctx);
@@ -685,26 +704,45 @@ assert.deepEqual(goalChildCalls[0].args.slice(0, -1), [
   "--no-themes",
   "--no-context-files",
   "--no-approve",
-  "--system-prompt", "Track the session's broad goal. Given the current goal and newest user prompt, return KEEP when the broad goal is unchanged. Otherwise return one concise noun phrase of at most 80 characters. Output only KEEP or the phrase on one line, without quotes, a goal: prefix, or explanation.",
+  "--system-prompt", "Track the session's broad goal. Use the preceding assistant context to interpret the newest user prompt. Replies that answer, select from, approve, or continue the preceding assistant message should return KEEP when they remain within the current broad goal. Given the current goal and newest user prompt, return KEEP when the broad goal is unchanged. Otherwise return one concise noun phrase of at most 80 characters. Output only KEEP or the phrase on one line, without quotes, a goal: prefix, or explanation.",
 ], "goal child uses the exact isolated model and context arguments");
 assert.equal(
   goalChildCalls[0].args.at(-1),
-  "Current goal: persistent Pi session goals\nNew user prompt: also cover lifecycle failures",
-  "goal child receives only the framed current goal and newest prompt",
+  `Current goal: persistent Pi session goals\nPreceding assistant context: ${expectedAssistantTail}\nNew user prompt: C`,
+  "goal child receives bounded preceding assistant context for a choice reply",
 );
+assert.equal(goalChildCalls[0].args.at(-1).includes("private reasoning"), false, "goal context excludes thinking blocks");
+assert.equal(goalChildCalls[0].args.at(-1).includes("call-1"), false, "goal context excludes tool-call blocks");
 assert.equal(goalChildCalls[0].options.timeout, 15000, "goal child uses the bounded timeout");
 
-goalChildDeferred.resolve(ok("durable Pi goal lifecycle\n"));
+goalChildDeferred.resolve(ok("KEEP\n"));
 goalChildDeferred = undefined;
 await flushAsyncWork();
-assert.deepEqual(customEntries.at(-1), {
-  customType: "session-goal",
-  data: { subject: "durable Pi goal lifecycle" },
-}, "changed goal is persisted as a custom entry");
-assert.deepEqual(statuses.at(-1), {
-  key: "session-goal",
-  value: "goal: durable Pi goal lifecycle",
-}, "changed goal updates the status bar");
+assert.equal(customEntries.length, entriesBeforeChoice, "choice reply keeps the existing broad goal");
+assert.equal(sessionNames.length, namesBeforeChoice, "choice reply does not rename the managed session");
+
+branchEntries = [];
+goalChildResults.push(ok("KEEP\n"));
+await handlers.get("before_agent_start")({
+  prompt: "initial task",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.match(goalChildCalls.at(-1).args.at(-1), /Preceding assistant context: \(none\)/, "missing assistant context is explicit");
+
+branchEntries = [{
+  type: "message",
+  message: { role: "assistant", content: [{ type: "text", text: "Should I proceed?" }] },
+}];
+goalChildResults.push(ok("renamed broad goal\n"));
+await handlers.get("before_agent_start")({
+  prompt: "Actually, switch to a different broad goal",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.equal(customEntries.at(-1).data.subject, "renamed broad goal", "explicit redirect still updates the goal");
 
 async function callGoalChildForManagedModel(prompt) {
   goalChildResults.push(ok("KEEP\n"));
