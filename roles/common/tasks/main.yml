@@ -1256,6 +1256,16 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Darwin"
 
+# Older provisioning installed pi as @mariozechner/pi-coding-agent into per-Node
+# global prefixes. pi has since been renamed to @earendil-works/pi-coding-agent
+# and is managed through mise, but the stale global install was never removed and
+# can shadow the managed pi on PATH (a Node global bin outranks the mise-managed
+# bin), silently running an outdated pi. Purge it before wiring up managed tools.
+- name: Remove legacy @mariozechner/pi-coding-agent shadowing the managed pi
+  command: bash {{ playbook_dir }}/roles/common/files/bin/purge-legacy-pi-coding-agent
+  register: common_purge_legacy_pi
+  changed_when: common_purge_legacy_pi.stdout.strip() == 'changed'
+
 - name: Install managed mise npm tools through aube
   command: "{{ mise_bin }} --cd {{ ansible_facts['user_dir'] }} install --yes"
   environment:
@@ -1418,8 +1428,11 @@
   changed_when: common_pi_coding_agent_global_node_link.stdout.strip() == 'changed'
 
 # Symlink globally-installed Node package binaries into ~/.local/bin so they work
-# regardless of which Node version the current directory's mise.toml selects.
-- name: Create ~/.local/bin symlinks for managed npm tools (Linux)
+# regardless of which Node version the current directory's mise.toml selects, and
+# so the managed pi has a stable path that is not shadowed by a per-Node global
+# bin. Runs on macOS too — previously Linux-only, which left macOS without the
+# canonical symlink.
+- name: Create ~/.local/bin symlinks for managed npm tools
   shell: |
     set -euo pipefail
     codex_bin="$("{{ mise_bin }}" where 'npm:@openai/codex')/bin/codex"
@@ -1429,7 +1442,7 @@
   args:
     executable: /bin/bash
   changed_when: false
-  when: ansible_facts["os_family"] == "Debian"
+  when: ansible_facts["os_family"] in ["Debian", "Darwin"]
 
 - name: Set Codex CLI reasoning defaults in ~/.codex/config.toml
   shell: |
