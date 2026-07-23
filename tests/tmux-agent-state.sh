@@ -162,6 +162,56 @@ assert_file_eq "$state_dir/%1.@pane-label" "~ auth · billing · repo | host-a" 
 assert_file_eq "$state_dir/%1.@window-label" "~ auth | billing" "local provisional top preserves pipe separator"
 assert_file_eq "$state_dir/%1.@pane-label" "~ auth | billing · repo | host-a" "local provisional bottom preserves pipe separator"
 
+"$STATE" set-identity goal "stable session identity"
+assert_file_eq "$state_dir/%1.@task_label" "stable session identity" "goal stores stable label"
+assert_file_eq "$state_dir/%1.@task_source" "goal" "goal stores goal source"
+assert_file_eq "$state_dir/%1.@task_state" "active" "goal stores active state"
+assert_file_eq "$state_dir/%1.@window-label" "stable session identity" "goal renders stable top label"
+assert_eq $'active\tgoal\tstable session identity' "$("$STATE" status)" "goal status contract"
+
+"$SUBJECT" set "must not replace active goal"
+assert_file_eq "$state_dir/%1.@task_label" "stable session identity" "provisional cannot replace active goal"
+
+"$STATE" activate-branch "$repo"
+assert_file_eq "$state_dir/%1.@task_label" "stable session identity" "branch preserves goal label"
+assert_file_eq "$state_dir/%1.@task_source" "goal" "branch preserves goal source"
+assert_file_eq "$state_dir/%1.@agent_worktree_path" "$repo" "branch still binds goal worktree"
+assert_file_eq "$state_dir/%1.@window-label" "stable session identity" "branch keeps goal top label"
+assert_file_eq "$state_dir/%1.@pane-label" "(feature/durable-label) repo | host-a" "goal pane keeps branch context"
+
+"$STATE" complete-worktree
+assert_file_eq "$state_dir/%1.@task_state" "active" "worktree completion preserves active goal"
+assert_file_eq "$state_dir/%1.@window-label" "stable session identity" "worktree completion preserves goal label"
+
+"$STATE" clear-task
+"$STATE" set-identity manual "manual investigation"
+assert_eq $'active\tmanual\tmanual investigation' "$("$STATE" status)" "manual status contract"
+"$SUBJECT" set "must not replace manual identity"
+assert_file_eq "$state_dir/%1.@task_label" "manual investigation" "provisional cannot replace active manual identity"
+"$STATE" activate-branch "$repo"
+assert_file_eq "$state_dir/%1.@task_label" "manual investigation" "branch preserves manual label"
+assert_file_eq "$state_dir/%1.@task_source" "manual" "branch preserves manual source"
+"$STATE" complete-worktree
+assert_file_eq "$state_dir/%1.@task_state" "active" "worktree completion preserves manual identity"
+
+goal_max="$(printf 'g%.0s' {1..80})"
+goal_oversized="$(printf 'g%.0s' {1..81})"
+"$STATE" set-identity goal "$goal_max"
+assert_file_eq "$state_dir/%1.@task_label" "$goal_max" "80-character goal is accepted"
+"$STATE" set-identity goal "$goal_oversized"
+assert_file_eq "$state_dir/%1.@task_label" "$goal_max" "81-character goal is rejected"
+
+manual_max="$(printf 'm%.0s' {1..512})"
+manual_oversized="$(printf 'm%.0s' {1..513})"
+"$STATE" set-identity manual "$manual_max"
+assert_file_eq "$state_dir/%1.@task_label" "$manual_max" "512-character manual identity is accepted"
+"$STATE" set-identity manual "$manual_oversized"
+assert_file_eq "$state_dir/%1.@task_label" "$manual_max" "513-character manual identity is rejected"
+
+"$STATE" clear-task
+"$SUBJECT" set "branch replacement candidate"
+assert_file_eq "$state_dir/%1.@task_state" "provisional" "restores provisional task before branch replacement"
+
 "$STATE" activate-branch "$repo"
 assert_file_eq "$state_dir/%1.@task_label" "feature/durable-label" "captures branch"
 assert_file_eq "$state_dir/%1.@task_source" "branch" "stores branch source"

@@ -62,6 +62,13 @@ set_task() {
   clear_obsolete_options "$pane"
 }
 
+persistent_identity_source() {
+  case "$1" in
+    goal|manual) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 clear_task_options() {
   local pane="$1"
   clear_pane_option "$pane" @task_label
@@ -185,6 +192,20 @@ refresh() {
   command -v tmux-remote-title >/dev/null 2>&1 && tmux-remote-title publish >/dev/null 2>&1 || true
 }
 
+set_identity() {
+  local pane="$1" source="$2" subject="$3" max_length
+  case "$source" in
+    goal) max_length=80 ;;
+    manual) max_length=512 ;;
+    *) return 0 ;;
+  esac
+  subject="$(sanitize_subject "$subject")"
+  [[ -n "$subject" ]] || return 0
+  (( ${#subject} <= max_length )) || return 0
+  set_task "$pane" "$subject" "$source" active
+  refresh "$pane"
+}
+
 default_branch_for_path() {
   local path="$1" branch
   branch="$(git -C "$path" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
@@ -195,7 +216,7 @@ default_branch_for_path() {
 }
 
 activate_branch() {
-  local pane="$1" path="$2" branch default_branch
+  local pane="$1" path="$2" branch default_branch current_source current_state
   [[ "$path" = /* && -d "$path" ]] || return 0
   [[ "$(git -C "$path" rev-parse --is-inside-work-tree 2>/dev/null || true)" == "true" ]] || return 0
   branch="$(git -C "$path" branch --show-current 2>/dev/null || true)"
@@ -208,6 +229,12 @@ activate_branch() {
   fi
 
   set_pane_option "$pane" @agent_worktree_path "$path"
+  current_source="$(get_pane_option "$pane" @task_source 2>/dev/null || true)"
+  current_state="$(get_pane_option "$pane" @task_state 2>/dev/null || true)"
+  if [[ "$current_state" == "active" ]] && persistent_identity_source "$current_source"; then
+    refresh "$pane"
+    return 0
+  fi
   set_task "$pane" "$branch" branch active
   refresh "$pane"
 }
@@ -226,6 +253,7 @@ complete_task() {
   label="$(get_pane_option "$pane" @task_label 2>/dev/null || true)"
   source="$(get_pane_option "$pane" @task_source 2>/dev/null || true)"
   [[ -n "$label" && -n "$source" ]] || return 0
+  persistent_identity_source "$source" && return 0
   set_task "$pane" "$label" "$source" completed
 }
 
@@ -264,12 +292,19 @@ case "$cmd" in
     (( ${#subject} <= 512 )) || exit 0
     current_source="$(get_pane_option "$pane" @task_source 2>/dev/null || true)"
     current_state="$(get_pane_option "$pane" @task_state 2>/dev/null || true)"
-    [[ "$current_source" != "branch" || "$current_state" != "active" ]] || exit 0
+    if [[ "$current_state" == "active" ]]; then
+      case "$current_source" in branch|goal|manual) exit 0 ;; esac
+    fi
     if [[ -z "$current_state" || "$current_state" == "completed" ]]; then
       clear_pane_option "$pane" @task_context
     fi
     set_task "$pane" "$subject" agent provisional
     refresh "$pane"
+    ;;
+  set-identity)
+    source="${1:-}"
+    shift || true
+    set_identity "$pane" "$source" "$*"
     ;;
   activate-branch)
     activate_branch "$pane" "${1:-}"
