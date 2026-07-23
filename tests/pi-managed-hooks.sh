@@ -929,6 +929,40 @@ assert.deepEqual(calls.filter((call) => call.command === "tmux-agent-state" && c
 branchEntries = [];
 currentSessionName = "";
 managedPiSessionName = "";
+taskStatus = "provisional\tagent\tstarting fallback race\n";
+await handlers.get("session_tree")({ reason: "tmux fallback goal race" }, ctx);
+sessionNames.length = 0;
+calls.length = 0;
+markerWriteDeferred = deferred();
+const fallbackRaceGoal = withStdoutTTY(true, () => sessionGoalTool.execute(
+  "tmux-fallback-goal-race",
+  { goal: "durable fallback race goal" },
+  subjectSignal,
+  undefined,
+  ctx,
+));
+await flushAsyncWork();
+taskStatus = "active\tbranch\tfeature/race-branch\n";
+windowLabel = "pi main-repo feature/race-branch";
+const fallbackRaceBash = handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
+await flushAsyncWork();
+const fallbackRaceMarkerWrite = markerWriteDeferred;
+markerWriteDeferred = undefined;
+fallbackRaceMarkerWrite.resolve();
+await Promise.all([fallbackRaceGoal, fallbackRaceBash]);
+await flushAsyncWork();
+assert.equal(sessionNames.includes("feature/race-branch"), false, "branch label never becomes the Pi name while a durable goal is applying");
+assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity manual feature/race-branch"), false, "branch label never becomes manual tmux identity while a durable goal is applying");
+assert.equal(customEntries.at(-1).data.subject, "durable fallback race goal", "fallback race preserves the durable goal entry");
+assert.equal(statuses.at(-1).value, "goal: durable fallback race goal", "fallback race preserves visible goal status");
+assert.equal(currentSessionName, "durable fallback race goal", "fallback race leaves the goal as the visible Pi name");
+assert.equal(managedPiSessionName, "durable fallback race goal", "fallback race leaves the goal as managed tmux identity");
+assert.deepEqual(calls.filter((call) => call.command === "tmux-agent-state" && call.args[0] === "set-identity").at(-1).args,
+  ["set-identity", "goal", "durable fallback race goal"], "fallback race leaves the goal as published tmux identity");
+
+branchEntries = [];
+currentSessionName = "";
+managedPiSessionName = "";
 await handlers.get("session_tree")({ reason: "retry failed initial goal" }, ctx);
 goalChildCalls.length = 0;
 goalChildResults.push(fail(), ok("retry succeeds\n"));
