@@ -39,9 +39,9 @@ function managedChildAuthPath() {
 function managedChildAuthSignature(authPath) {
   try {
     const stat = fs.statSync(authPath);
-    return [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(":");
+    return [authPath, stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(":");
   } catch {
-    return "missing";
+    return `${authPath}:missing`;
   }
 }
 
