@@ -25,7 +25,64 @@ import { pathToFileURL } from "node:url";
 
 const extensionPath = process.argv[2];
 const worktreeRoot = process.env.PI_HOOK_TEST_WORKTREE;
+const originalHome = process.env.HOME;
+const originalManagedChildModelOverride = process.env.PI_MANAGED_CHILD_MODEL;
+process.env.HOME = worktreeRoot;
+delete process.env.PI_MANAGED_CHILD_MODEL;
 fs.mkdirSync(path.join(worktreeRoot, "tests"), { recursive: true });
+
+const managedChildAuthDir = path.join(worktreeRoot, ".pi", "agent");
+const managedChildAuthPath = path.join(managedChildAuthDir, "auth.json");
+const completeCodexOAuth = {
+  "openai-codex": {
+    type: "oauth",
+    access: "test-access",
+    refresh: "test-refresh",
+    expires: 0,
+  },
+};
+let authReadCount = 0;
+let failManagedChildAuthRead = false;
+const originalReadFileSync = fs.readFileSync;
+
+function writeManagedChildAuth(contents) {
+  fs.mkdirSync(managedChildAuthDir, { recursive: true });
+  fs.writeFileSync(managedChildAuthPath, typeof contents === "string" ? contents : JSON.stringify(contents));
+}
+
+function replaceManagedChildAuth(contents) {
+  const replacementPath = `${managedChildAuthPath}.replacement`;
+  fs.writeFileSync(replacementPath, typeof contents === "string" ? contents : JSON.stringify(contents));
+  fs.renameSync(replacementPath, managedChildAuthPath);
+}
+
+function removeManagedChildAuth() {
+  fs.rmSync(managedChildAuthPath, { force: true });
+}
+
+function chmodManagedChildAuth(mode) {
+  fs.chmodSync(managedChildAuthPath, mode);
+}
+
+fs.readFileSync = function managedChildAuthRead(filePath, ...args) {
+  if (path.resolve(String(filePath)) === managedChildAuthPath) {
+    authReadCount += 1;
+    if (failManagedChildAuthRead) throw new Error("managed child auth read failure");
+  }
+  return originalReadFileSync.call(this, filePath, ...args);
+};
+
+function restoreManagedChildTestState() {
+  fs.readFileSync = originalReadFileSync;
+  if (originalHome === undefined) delete process.env.HOME;
+  else process.env.HOME = originalHome;
+  if (originalManagedChildModelOverride === undefined) delete process.env.PI_MANAGED_CHILD_MODEL;
+  else process.env.PI_MANAGED_CHILD_MODEL = originalManagedChildModelOverride;
+}
+
+process.once("exit", restoreManagedChildTestState);
+writeManagedChildAuth(completeCodexOAuth);
+chmodManagedChildAuth(0o600);
 const { default: install } = await import(pathToFileURL(extensionPath));
 
 const handlers = new Map();
@@ -97,6 +154,11 @@ function isGoalChildArgs(args) {
   const systemPromptIndex = args.indexOf("--system-prompt");
   const systemPrompt = systemPromptIndex === -1 ? "" : args[systemPromptIndex + 1];
   return systemPrompt.includes("session's broad goal");
+}
+
+function modelArg(call) {
+  const modelIndex = call.args.indexOf("--model");
+  return modelIndex === -1 ? "" : call.args[modelIndex + 1];
 }
 
 let subjectChildResult = ok("improve tmux labels\n");
@@ -429,11 +491,12 @@ for (const prompt of subjectChildPrompts) {
   assert.equal(automaticSubject, undefined, `${prompt} prompt adds no main-context reminder`);
   const childCall = calls.find((call) => call.command === "pi" && !isGoalChildArgs(call.args));
   assert.ok(childCall, `${prompt} invokes isolated Pi child`);
+  assert.equal(modelArg(childCall), "openai-codex/gpt-5.4-mini");
   assert.deepEqual(childCall.args.slice(0, -1), [
     "--mode", "text",
     "--print",
     "--no-session",
-    "--model", "openai/gpt-5.4-mini",
+    "--model", "openai-codex/gpt-5.4-mini",
     "--thinking", "off",
     "--no-tools",
     "--no-extensions",
@@ -540,11 +603,13 @@ assert.equal(await Promise.race([
   new Promise((resolve) => setTimeout(() => resolve("blocked"), 25)),
 ]), "returned", "goal evaluation does not block before_agent_start");
 assert.equal(goalChildCalls.length, 1, "every expanded prompt starts goal evaluation");
+assert.equal(modelArg(goalChildCalls.at(-1)), "openai-codex/gpt-5.4-mini");
+assert.equal(authReadCount, 1, "unchanged auth metadata reuses parsed selection");
 assert.deepEqual(goalChildCalls[0].args.slice(0, -1), [
   "--mode", "text",
   "--print",
   "--no-session",
-  "--model", "openai/gpt-5.4-mini",
+  "--model", "openai-codex/gpt-5.4-mini",
   "--thinking", "off",
   "--no-tools",
   "--no-extensions",
@@ -573,6 +638,53 @@ assert.deepEqual(statuses.at(-1), {
   key: "session-goal",
   value: "goal: durable Pi goal lifecycle",
 }, "changed goal updates the status bar");
+
+async function callGoalChildForManagedModel(prompt) {
+  goalChildResults.push(ok("KEEP\n"));
+  await handlers.get("before_agent_start")({
+    prompt,
+    systemPrompt: "",
+    systemPromptOptions: { cwd: "/repo" },
+  }, ctx);
+  await flushAsyncWork();
+  return goalChildCalls.at(-1);
+}
+
+removeManagedChildAuth();
+const callAfterAuthRemoval = await callGoalChildForManagedModel("auth removed");
+assert.equal(modelArg(callAfterAuthRemoval), "openai/gpt-4.1-mini");
+
+writeManagedChildAuth(completeCodexOAuth);
+chmodManagedChildAuth(0o600);
+failManagedChildAuthRead = true;
+const callAfterUnreadableAuth = await callGoalChildForManagedModel("auth unreadable");
+failManagedChildAuthRead = false;
+assert.equal(modelArg(callAfterUnreadableAuth), "openai/gpt-4.1-mini");
+
+replaceManagedChildAuth("{malformed");
+const callAfterMalformedAuth = await callGoalChildForManagedModel("auth malformed");
+assert.equal(modelArg(callAfterMalformedAuth), "openai/gpt-4.1-mini");
+
+replaceManagedChildAuth({
+  "openai-codex": { type: "oauth", access: "test-access" },
+});
+const callAfterIncompleteOAuth = await callGoalChildForManagedModel("oauth incomplete");
+assert.equal(modelArg(callAfterIncompleteOAuth), "openai/gpt-4.1-mini");
+
+replaceManagedChildAuth({
+  "openai-codex": { type: "api_key", key: "test-key" },
+});
+const callAfterNonOAuthAuth = await callGoalChildForManagedModel("auth is not oauth");
+assert.equal(modelArg(callAfterNonOAuthAuth), "openai/gpt-4.1-mini");
+
+replaceManagedChildAuth(completeCodexOAuth);
+const callAfterAtomicReplacement = await callGoalChildForManagedModel("auth atomically replaced");
+assert.equal(modelArg(callAfterAtomicReplacement), "openai-codex/gpt-5.4-mini");
+
+process.env.PI_MANAGED_CHILD_MODEL = "custom-provider/custom-model";
+const callWithOverride = await callGoalChildForManagedModel("model override");
+assert.equal(modelArg(callWithOverride), "custom-provider/custom-model");
+delete process.env.PI_MANAGED_CHILD_MODEL;
 
 const entriesAfterChange = customEntries.length;
 goalChildResults.push(ok("KEEP\n"));
@@ -1397,6 +1509,8 @@ await handlers.get("tool_result")({
 }, { cwd: worktreeRoot });
 assert(calls.some((call) => call.command === "tmux" && JSON.stringify(call.args) === JSON.stringify(["set-option", "-p", "-t", "%1", "@agent_current_spec_path", bashSpecPath])), "tracks successful bash-created superpowers spec paths in tmux pane state");
 
+restoreManagedChildTestState();
+process.removeListener("exit", restoreManagedChildTestState);
 console.log("pi-managed-hooks checks complete");
 NODE
 
