@@ -726,7 +726,8 @@ function precedingAssistantContext(ctx) {
       const text = entry.message.content
         .filter((block) => block?.type === "text" && typeof block.text === "string")
         .map((block) => block.text)
-        .join("\n");
+        .join("\n")
+        .trim();
       return text.slice(-SESSION_GOAL_ASSISTANT_CONTEXT_MAX_LENGTH);
     }
   } catch {

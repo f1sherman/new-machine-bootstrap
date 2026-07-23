@@ -733,6 +733,30 @@ assert.match(goalChildCalls.at(-1).args.at(-1), /Preceding assistant context: \(
 
 branchEntries = [{
   type: "message",
+  message: {
+    role: "assistant",
+    content: [
+      { type: "text", text: "   " },
+      { type: "text", text: "" },
+      { type: "text", text: "\n\t" },
+    ],
+  },
+}];
+goalChildResults.push(ok("KEEP\n"));
+await handlers.get("before_agent_start")({
+  prompt: "whitespace task",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.equal(
+  goalChildCalls.at(-1).args.at(-1),
+  "Current goal: persistent Pi session goals\nPreceding assistant context: (none)\nNew user prompt: whitespace task",
+  "whitespace-only assistant text collapses to no context",
+);
+
+branchEntries = [{
+  type: "message",
   message: { role: "assistant", content: [{ type: "text", text: "Should I proceed?" }] },
 }];
 goalChildResults.push(ok("renamed broad goal\n"));
