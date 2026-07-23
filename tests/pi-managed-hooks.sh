@@ -135,9 +135,13 @@ let managedPiSessionName = "";
 let taskStatus = "";
 let markerWriteResults = [];
 let markerWriteDeferred;
+let markerReadDeferred;
 let activeMarkerWrites = 0;
+let activeMarkerReads = 0;
 let maxActiveMarkerWrites = 0;
 let identityWriteResults = [];
+let publishedIdentitySource = "";
+let publishedIdentitySubject = "";
 const goalChildCalls = [];
 let goalChildResults = [];
 let goalChildDeferred;
@@ -216,14 +220,33 @@ const pi = {
   async exec(command, args, options = {}) {
     calls.push({ command, args });
     if (command === "tmux-agent-state" && args[0] === "status") return ok(taskStatus);
-    if (command === "tmux-agent-state" && args[0] === "set-identity") return identityWriteResults.shift() ?? ok();
+    if (command === "tmux-agent-state" && args[0] === "set-identity") {
+      const result = identityWriteResults.shift() ?? ok();
+      if (result.code === 0 && !result.killed) {
+        publishedIdentitySource = args[1];
+        publishedIdentitySubject = args[2];
+      }
+      return result;
+    }
     if (command === "tmux-agent-state") return ok();
     if (command === "tmux-update-pane-label") return ok();
     if (command === "tmux-window-label") return ok();
     if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@window-label") return ok(`${windowLabel}\n`);
     if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@agent_worktree_path") return agentWorktreePath ? ok(`${agentWorktreePath}\n`) : fail();
     if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@persist_pi_session_file") return boundPiSessionFile ? ok(`${boundPiSessionFile}\n`) : fail();
-    if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@pi_managed_session_name") return managedPiSessionName ? ok(`${managedPiSessionName}\n`) : fail();
+    if (command === "tmux" && args[0] === "show-options" && args.at(-1) === "@pi_managed_session_name") {
+      const deferredRead = markerReadDeferred;
+      markerReadDeferred = undefined;
+      if (deferredRead) {
+        activeMarkerReads += 1;
+        try {
+          await deferredRead.promise;
+        } finally {
+          activeMarkerReads -= 1;
+        }
+      }
+      return managedPiSessionName ? ok(`${managedPiSessionName}\n`) : fail();
+    }
     if (command === "tmux" && args[0] === "set-option") {
       if (args.includes("@persist_pi_session_file")) boundPiSessionFile = args.at(-1);
       if (args.includes("@pi_managed_session_name")) {
@@ -481,6 +504,7 @@ await withStdoutTTY(false, async () => {
 assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args[0] === "set-identity"), false, "non-TTY session_info_changed does not update interactive identity");
 
 calls.length = 0;
+currentSessionName = "Updated conversation";
 await withStdoutTTY(true, async () => {
   await handlers.get("session_info_changed")({ name: "Updated conversation" }, ctx);
 });
@@ -1029,6 +1053,44 @@ assert.deepEqual(calls.filter((call) => call.command === "tmux-agent-state" && c
   ["set-identity", "manual", "manual name during marker write"], "manual rename race leaves manual tmux identity published");
 assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity goal durable manual race goal"), false, "manual rename race does not republish automatic goal identity");
 
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "queued automatic goal" } },
+];
+currentSessionName = "queued automatic goal";
+managedPiSessionName = "queued automatic goal";
+await handlers.get("session_tree")({ reason: "identity publication race setup" }, ctx);
+calls.length = 0;
+publishedIdentitySource = "";
+publishedIdentitySubject = "";
+markerReadDeferred = deferred();
+const pausedIdentityMarkerRead = markerReadDeferred;
+await withStdoutTTY(true, async () => {
+  const staleAutomaticPublication = handlers.get("session_info_changed")({ name: "queued automatic goal" }, ctx);
+  await flushAsyncWork();
+  assert.equal(activeMarkerReads, 1, "automatic identity publication pauses during marker classification");
+  currentSessionName = "new manual name";
+  const manualPublication = handlers.get("session_info_changed")({ name: "new manual name" }, ctx);
+  await flushAsyncWork();
+  pausedIdentityMarkerRead.resolve();
+  await Promise.all([staleAutomaticPublication, manualPublication]);
+});
+assert.equal(currentSessionName, "new manual name", "manual Pi name survives a paused stale automatic publication");
+assert.equal(publishedIdentitySource, "manual", "manual source remains final after stale automatic work resumes");
+assert.equal(publishedIdentitySubject, "new manual name", "manual subject remains final after stale automatic work resumes");
+assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity goal queued automatic goal"), false, "stale automatic work never publishes after the live name changes");
+
+calls.length = 0;
+publishedIdentitySource = "";
+publishedIdentitySubject = "";
+await withStdoutTTY(true, async () => {
+  const manualPublication = handlers.get("session_info_changed")({ name: "new manual name" }, ctx);
+  const staleAutomaticPublication = handlers.get("session_info_changed")({ name: "queued automatic goal" }, ctx);
+  await Promise.all([manualPublication, staleAutomaticPublication]);
+});
+assert.equal(publishedIdentitySource, "manual", "manual identity remains final when its event queues before a stale automatic event");
+assert.equal(publishedIdentitySubject, "new manual name", "manual subject remains final when its event queues before a stale automatic event");
+assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity goal queued automatic goal"), false, "later stale automatic event is rejected against the live manual name");
+
 branchEntries = [];
 currentSessionName = "";
 managedPiSessionName = "";
@@ -1105,9 +1167,9 @@ assert.deepEqual(sessionNames, [], "startup does not rename a manual Pi name");
 assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity manual manual investigation name"), "startup republishes manual identity");
 
 calls.length = 0;
+currentSessionName = "renamed manual investigation";
 await withStdoutTTY(true, () => handlers.get("session_info_changed")({ name: "renamed manual investigation" }, ctx));
 assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity manual renamed manual investigation"), "manual session_info_changed publishes manual identity");
-currentSessionName = "renamed manual investigation";
 const manualToolEntries = customEntries.length;
 calls.length = 0;
 await withStdoutTTY(true, () => sessionGoalTool.execute(
@@ -1200,6 +1262,7 @@ for (const [label, identityResult] of [
   ["identity-killed", { stdout: "", stderr: "", code: 1, killed: true }],
 ]) {
   const identitySentinel = `${label}-private-name`;
+  currentSessionName = identitySentinel;
   identityWriteResults.push(identityResult);
   const warnings = [];
   const originalWarn = console.warn;

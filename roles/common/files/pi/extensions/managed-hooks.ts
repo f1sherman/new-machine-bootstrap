@@ -194,8 +194,7 @@ async function syncSessionNameFromTmux(pi, ctx) {
   }
 }
 
-async function publishTmuxIdentity(pi, source, subject) {
-  if (!ownsTmuxPane()) return false;
+async function writeTmuxIdentity(pi, source, subject) {
   return managedWrite(
     pi,
     "tmux-agent-state",
@@ -744,6 +743,7 @@ export default function managedHooks(pi) {
   let sessionGoalGeneration = 0;
   let sessionGoalRunning;
   let goalApplicationChain = Promise.resolve();
+  let identityPublicationChain = Promise.resolve();
 
   function requestIsCurrent(request, ctx) {
     const sessionFile = ctx?.sessionManager?.getSessionFile?.() || "";
@@ -753,6 +753,33 @@ export default function managedHooks(pi) {
   function serializeGoalOperation(operation) {
     const result = goalApplicationChain.then(operation);
     goalApplicationChain = result.catch(() => {});
+    return result;
+  }
+
+  function publishSessionIdentity(pi, ctx, expectedName) {
+    const normalizedExpectedName = expectedName?.trim() || "";
+    const operation = async () => {
+      if (!normalizedExpectedName || !ownsTmuxPane()) return false;
+      const liveName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
+      if (liveName !== normalizedExpectedName) return false;
+
+      const marker = await tmuxOption(pi, MANAGED_PI_SESSION_NAME_OPTION);
+      const liveNameAfterMarker = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
+      if (liveNameAfterMarker !== normalizedExpectedName) return false;
+
+      const managedGoal = Boolean(currentSessionGoal)
+        && normalizedExpectedName === currentSessionGoal
+        && (normalizedExpectedName === lastManagedSessionName || normalizedExpectedName === marker);
+      const latestLiveName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
+      if (latestLiveName !== normalizedExpectedName) return false;
+      return writeTmuxIdentity(
+        pi,
+        managedGoal ? "goal" : "manual",
+        normalizedExpectedName,
+      );
+    };
+    const result = identityPublicationChain.then(operation);
+    identityPublicationChain = result.catch(() => {});
     return result;
   }
 
@@ -772,7 +799,7 @@ export default function managedHooks(pi) {
       const maySet = () => !options.onlyIfUnset
         || (requestIsCurrent(options.request, ctx) && currentSessionGoal === normalized);
       const named = await setManagedPiSessionName(pi, ctx, normalized, maySet);
-      if (named && maySet()) await publishTmuxIdentity(pi, "goal", normalized);
+      if (named && maySet()) await publishSessionIdentity(pi, ctx, normalized);
       return normalized;
     });
   }
@@ -831,13 +858,13 @@ export default function managedHooks(pi) {
     }
     const manualSessionName = sessionName && sessionName !== lastManagedSessionName;
     if (manualSessionName) {
-      await publishTmuxIdentity(pi, "manual", sessionName);
+      await publishSessionIdentity(pi, ctx, sessionName);
       return true;
     }
     if (!currentSessionGoal) return false;
 
     const named = await setManagedPiSessionName(pi, ctx, currentSessionGoal);
-    if (named) await publishTmuxIdentity(pi, "goal", currentSessionGoal);
+    if (named) await publishSessionIdentity(pi, ctx, currentSessionGoal);
     return true;
   }
 
@@ -882,14 +909,10 @@ export default function managedHooks(pi) {
     }
   });
 
-  pi.on("session_info_changed", async (event) => {
+  pi.on("session_info_changed", async (event, ctx) => {
     const sessionName = event.name?.trim() || "";
     if (!sessionName || !ownsTmuxPane()) return;
-    const marker = await tmuxOption(pi, MANAGED_PI_SESSION_NAME_OPTION);
-    const managedGoal = Boolean(currentSessionGoal)
-      && sessionName === currentSessionGoal
-      && (sessionName === lastManagedSessionName || sessionName === marker);
-    await publishTmuxIdentity(pi, managedGoal ? "goal" : "manual", sessionName);
+    await publishSessionIdentity(pi, ctx, sessionName);
   });
 
   pi.on("session_shutdown", async () => {
