@@ -170,7 +170,7 @@ async function setManagedPiSessionName(pi, ctx, sessionName, maySet = () => true
 }
 
 async function syncSessionNameFromTmux(pi, ctx) {
-  if (!inTmux()) return;
+  if (!inTmux() || currentSessionGoal) return;
 
   const namingStatus = await canonicalSessionNameStatus(pi);
   if (namingStatus.kind === "unavailable") return;
@@ -184,7 +184,7 @@ async function syncSessionNameFromTmux(pi, ctx) {
   if (!sessionName) return;
 
   try {
-    await setManagedPiSessionName(pi, ctx, sessionName);
+    await setManagedPiSessionName(pi, ctx, sessionName, () => !currentSessionGoal);
   } catch (error) {
     warn("set Pi session name from tmux label failed", error);
   }
