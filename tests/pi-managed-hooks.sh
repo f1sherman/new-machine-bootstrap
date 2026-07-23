@@ -387,17 +387,20 @@ calls.length = 0;
 const sessionInfoChanged = handlers.get("session_info_changed");
 const originalSetSessionName = pi.setSessionName;
 const provisionalSessionInfoChanges = [];
+const provisionalSessionInfoChangedCalls = [];
 pi.setSessionName = (name) => {
   provisionalSessionInfoChanges.push(name);
   originalSetSessionName(name);
-  queueMicrotask(() => {
-    void sessionInfoChanged({ name }, ctx);
-  });
+  provisionalSessionInfoChangedCalls.push(sessionInfoChanged({ name }, ctx));
 };
 try {
-  await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
-  await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
-  await flushAsyncWork();
+  await withStdoutTTY(true, async () => {
+    await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
+    await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
+    await flushAsyncWork();
+    await Promise.all(provisionalSessionInfoChangedCalls);
+    await flushAsyncWork();
+  });
   assert.deepEqual(provisionalSessionInfoChanges, [], "provisional rendered labels never become Pi session names");
   assert.equal(calls.some((call) => call.command === "tmux-agent-subject"), false, "provisional task sync never feeds back through session_info_changed");
   assert.equal(calls.filter((call) => (
