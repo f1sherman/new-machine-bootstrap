@@ -384,12 +384,28 @@ managedPiSessionName = "";
 windowLabel = "~ Investigate reviewer failures";
 sessionNames.length = 0;
 calls.length = 0;
-await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
-await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
-assert.deepEqual(sessionNames, [], "provisional rendered labels never become Pi session names");
-assert.equal(calls.filter((call) => (
-  call.command === "tmux" && call.args.at(-1) === "@window-label"
-)).length, 0, "provisional task sync never reads the decorated window label");
+const sessionInfoChanged = handlers.get("session_info_changed");
+const originalSetSessionName = pi.setSessionName;
+const provisionalSessionInfoChanges = [];
+pi.setSessionName = (name) => {
+  provisionalSessionInfoChanges.push(name);
+  originalSetSessionName(name);
+  queueMicrotask(() => {
+    void sessionInfoChanged({ name }, ctx);
+  });
+};
+try {
+  await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
+  await handlers.get("tool_result")({ toolName: "bash", isError: false }, ctx);
+  await flushAsyncWork();
+  assert.deepEqual(provisionalSessionInfoChanges, [], "provisional rendered labels never become Pi session names");
+  assert.equal(calls.some((call) => call.command === "tmux-agent-subject"), false, "provisional task sync never feeds back through session_info_changed");
+  assert.equal(calls.filter((call) => (
+    call.command === "tmux" && call.args.at(-1) === "@window-label"
+  )).length, 0, "provisional task sync never reads the decorated window label");
+} finally {
+  pi.setSessionName = originalSetSessionName;
+}
 
 taskStatus = "";
 
