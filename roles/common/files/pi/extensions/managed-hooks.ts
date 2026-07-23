@@ -111,6 +111,10 @@ async function setManagedPiSessionName(pi, ctx, sessionName, maySet = () => true
 async function syncSessionNameFromTmux(pi, ctx) {
   if (!inTmux()) return;
 
+  const namingStatus = await canonicalSessionNameStatus(pi);
+  if (namingStatus.kind === "unavailable") return;
+  if (namingStatus.state === "provisional" && namingStatus.source === "agent") return;
+
   const label = await tmuxOption(pi, "@window-label");
   if (!label) return;
 
@@ -473,7 +477,7 @@ async function canonicalSessionNameStatus(pi) {
     return { kind: "unavailable" };
   }
   if (state === "active" && source === "branch") return { kind: "branch", subject };
-  return { kind: "non-branch" };
+  return { kind: "non-branch", state, source };
 }
 
 async function needsSubjectReminder(pi) {
