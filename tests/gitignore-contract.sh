@@ -32,3 +32,19 @@ if git -c core.excludesFile="$template" -C "$tmp" check-ignore -q --no-index nes
 fi
 
 printf 'PASS  managed global ignore targets Remote Pi runtime state at any depth\n'
+
+# Pi subagents run artifacts are per-repository runtime state and must be
+# ignored at any depth, without hiding real .pi project configuration.
+mkdir -p "$tmp/.pi-subagents/artifacts" "$tmp/nested/.pi-subagents/artifacts"
+touch "$tmp/.pi-subagents/artifacts/run.md" "$tmp/nested/.pi-subagents/artifacts/run.md"
+
+sub_root="$(git -c core.excludesFile="$template" -C "$tmp" check-ignore -v --no-index .pi-subagents/artifacts/run.md || true)"
+sub_nested="$(git -c core.excludesFile="$template" -C "$tmp" check-ignore -v --no-index nested/.pi-subagents/artifacts/run.md || true)"
+[[ -n "$sub_root" ]] || fail "Pi subagents artifacts at repository root must be ignored"
+[[ -n "$sub_nested" ]] || fail "Pi subagents artifacts below a repository subdirectory must be ignored"
+
+if git -c core.excludesFile="$template" -C "$tmp" check-ignore -q --no-index nested/.pi/project-config.json; then
+  fail "the .pi-subagents rule must not hide .pi project configuration"
+fi
+
+printf 'PASS  managed global ignore targets Pi subagents run artifacts at any depth\n'
