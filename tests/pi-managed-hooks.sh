@@ -334,9 +334,47 @@ assert.deepEqual(statuses.at(-1), {
 const outsideTmuxEntries = customEntries.length;
 delete process.env.TMUX;
 delete process.env.TMUX_PANE;
-branchEntries = [];
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "outside restored goal" } },
+];
 currentSessionName = "";
 managedPiSessionName = "";
+sessionNames.length = 0;
+statuses.length = 0;
+calls.length = 0;
+await handlers.get("session_start")({ reason: "outside tmux restored goal" }, ctx);
+assert.equal(currentSessionName, "outside restored goal", "outside tmux startup names an empty session from its restored goal");
+assert.deepEqual(sessionNames, ["outside restored goal"], "outside tmux startup applies the restored goal name once");
+assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args[0] === "set-identity"), false, "outside tmux startup skips tmux identity publication");
+
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "hidden outside goal" } },
+];
+currentSessionName = "outside manual name";
+sessionNames.length = 0;
+calls.length = 0;
+await handlers.get("session_start")({ reason: "outside tmux manual resume" }, ctx);
+assert.equal(currentSessionName, "outside manual name", "outside tmux startup preserves a differing manual name");
+assert.deepEqual(sessionNames, [], "outside tmux manual resume does not call setSessionName");
+assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args[0] === "set-identity"), false, "outside tmux manual resume skips tmux identity publication");
+
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "outside managed goal A" } },
+];
+currentSessionName = "";
+sessionNames.length = 0;
+await handlers.get("session_start")({ reason: "outside tmux managed source" }, ctx);
+branchEntries = [
+  { type: "custom", customType: "session-goal", data: { subject: "outside durable goal B" } },
+];
+calls.length = 0;
+await handlers.get("session_tree")({ reason: "outside tmux managed destination" }, ctx);
+assert.equal(currentSessionName, "outside durable goal B", "outside tmux tree navigation replaces the same-runtime managed goal name");
+assert.deepEqual(sessionNames, ["outside managed goal A", "outside durable goal B"], "outside tmux tree navigation applies both restored managed names");
+assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args[0] === "set-identity"), false, "outside tmux tree navigation skips tmux identity publication");
+
+branchEntries = [];
+currentSessionName = "";
 statuses.length = 0;
 calls.length = 0;
 await handlers.get("session_start")({ reason: "outside tmux" }, ctx);
@@ -959,6 +997,37 @@ assert.equal(currentSessionName, "durable fallback race goal", "fallback race le
 assert.equal(managedPiSessionName, "durable fallback race goal", "fallback race leaves the goal as managed tmux identity");
 assert.deepEqual(calls.filter((call) => call.command === "tmux-agent-state" && call.args[0] === "set-identity").at(-1).args,
   ["set-identity", "goal", "durable fallback race goal"], "fallback race leaves the goal as published tmux identity");
+
+branchEntries = [];
+currentSessionName = "";
+managedPiSessionName = "";
+await handlers.get("session_tree")({ reason: "manual rename marker race" }, ctx);
+sessionNames.length = 0;
+calls.length = 0;
+markerWriteDeferred = deferred();
+const manualRenameRaceGoal = withStdoutTTY(true, () => sessionGoalTool.execute(
+  "manual-rename-marker-race",
+  { goal: "durable manual race goal" },
+  subjectSignal,
+  undefined,
+  ctx,
+));
+await flushAsyncWork();
+assert.equal(activeMarkerWrites, 1, "goal naming waits for deferred managed marker persistence");
+currentSessionName = "manual name during marker write";
+await handlers.get("session_info_changed")({ name: currentSessionName }, ctx);
+const manualRenameRaceMarkerWrite = markerWriteDeferred;
+markerWriteDeferred = undefined;
+manualRenameRaceMarkerWrite.resolve();
+await manualRenameRaceGoal;
+assert.equal(customEntries.at(-1).data.subject, "durable manual race goal", "manual rename race preserves the durable goal entry");
+assert.equal(statuses.at(-1).value, "goal: durable manual race goal", "manual rename race preserves visible goal status");
+assert.equal(currentSessionName, "manual name during marker write", "manual rename after marker write begins is not overwritten");
+assert.deepEqual(sessionNames, [], "manual rename race does not call setSessionName");
+assert.equal(managedPiSessionName, "durable manual race goal", "completed marker persistence records the durable automatic goal");
+assert.deepEqual(calls.filter((call) => call.command === "tmux-agent-state" && call.args[0] === "set-identity").at(-1).args,
+  ["set-identity", "manual", "manual name during marker write"], "manual rename race leaves manual tmux identity published");
+assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity goal durable manual race goal"), false, "manual rename race does not republish automatic goal identity");
 
 branchEntries = [];
 currentSessionName = "";

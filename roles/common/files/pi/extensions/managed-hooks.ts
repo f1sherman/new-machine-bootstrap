@@ -158,11 +158,15 @@ async function setManagedPiSessionName(pi, ctx, sessionName, maySet = () => true
   if (!maySet()) return false;
 
   if (inTmux()) {
+    const previouslyManagedName = currentName || lastManagedSessionName;
     const marked = await managedWrite(pi, "tmux", [
       "set-option", "-p", "-t", process.env.TMUX_PANE,
       MANAGED_PI_SESSION_NAME_OPTION, sessionName,
     ], "[managed-hooks] tmux managed-name marker write failed");
-    if (!marked || !maySet()) return false;
+    if (!marked) return false;
+    const latestName = ctx?.sessionManager?.getSessionName?.() || "";
+    if (latestName && latestName !== previouslyManagedName) return false;
+    if (!maySet()) return false;
   }
   lastManagedSessionName = sessionName;
   pi.setSessionName(sessionName);
@@ -821,8 +825,10 @@ export default function managedHooks(pi) {
 
   async function applyRestoredVisibleIdentity(pi, ctx) {
     const sessionName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
-    const marker = await tmuxOption(pi, MANAGED_PI_SESSION_NAME_OPTION);
-    lastManagedSessionName = marker === sessionName ? sessionName : "";
+    if (inTmux()) {
+      const marker = await tmuxOption(pi, MANAGED_PI_SESSION_NAME_OPTION);
+      lastManagedSessionName = marker === sessionName ? sessionName : "";
+    }
     const manualSessionName = sessionName && sessionName !== lastManagedSessionName;
     if (manualSessionName) {
       await publishTmuxIdentity(pi, "manual", sessionName);
@@ -855,7 +861,10 @@ export default function managedHooks(pi) {
 
   pi.on("session_start", async (_event, ctx) => {
     resetSessionGoalLifecycle(ctx);
-    if (!inTmux()) return;
+    if (!inTmux()) {
+      await serializeGoalOperation(() => applyRestoredVisibleIdentity(pi, ctx));
+      return;
+    }
     await syncTmuxSubjectFromSession(pi, ctx);
     await refreshTmuxLabels(pi);
     await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);
@@ -890,7 +899,6 @@ export default function managedHooks(pi) {
 
   pi.on("session_tree", async (_event, ctx) => {
     resetSessionGoalLifecycle(ctx);
-    if (!inTmux()) return;
     await serializeGoalOperation(() => applyRestoredVisibleIdentity(pi, ctx));
   });
 
