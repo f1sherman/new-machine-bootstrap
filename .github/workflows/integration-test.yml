@@ -30,6 +30,9 @@ jobs:
       - name: Test provision log provenance
         run: bash tests/provision-log-provenance.sh
 
+      - name: Verify pinned binary privilege boundary
+        run: bash tests/pinned-github-binary-privilege-boundary.sh
+
       - name: Verify Rectangle migration
         run: ruby tests/rectangle-migration-contract.rb
 

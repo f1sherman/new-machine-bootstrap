@@ -70,49 +70,11 @@ install_tarball() {
   record_status "$name" "$version" changed
 }
 
-install_deb() {
-  local name="$1" tag="$2" url="$3" binary_path="$4"
-  local version deb depcheck
-  version="$(version_without_v "$tag")"
-
-  if [ "$(manifest_version "$name")" = "$version" ] && [ -x "$binary_path" ]; then
-    record_status "$name" "$version" unchanged
-    return
-  fi
-
-  deb="$download_dir/$name.deb"
-  download "$url" "$deb"
-
-  depcheck="$(
-    dpkg-deb -f "$deb" Depends | tr ',' '\n' | while read -r dep; do
-      dep="$(echo "$dep" | xargs)"
-      [ -n "$dep" ] || continue
-      pkg="$(echo "$dep" | awk '{print $1}')"
-      ver_constraint="$(echo "$dep" | grep -oP '\(>=\s*\K[^)]+' || true)"
-      if [ -n "$ver_constraint" ]; then
-        installed="$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null || echo 0)"
-        if ! dpkg --compare-versions "$installed" '>=' "$ver_constraint"; then
-          printf '%s >= %s required (have: %s)\n' "$pkg" "$ver_constraint" "$installed"
-          exit 1
-        fi
-      fi
-    done
-  )" || {
-    printf 'Skipping %s v%s: dependencies not satisfiable: %s\n' "$name" "$version" "$depcheck" >&2
-    record_status "$name" "$version" unchanged
-    return
-  }
-
-  sudo apt-get -o DPkg::Lock::Timeout=300 install -y "$deb"
-  record_status "$name" "$version" changed
-}
-
 arch_for() {
   local name="$1"
   case "$name:$architecture" in
-    fzf:x86_64|rg:x86_64|yq:x86_64) printf 'amd64\n' ;;
+    fzf:x86_64|yq:x86_64) printf 'amd64\n' ;;
     fzf:aarch64|fzf:arm64|yq:aarch64|yq:arm64) printf 'arm64\n' ;;
-    rg:aarch64|rg:arm64) printf 'arm64\n' ;;
     delta:x86_64|tmux:x86_64|nvim:x86_64|zoxide:x86_64) printf 'x86_64\n' ;;
     delta:aarch64|delta:arm64|zoxide:aarch64|zoxide:arm64) printf 'aarch64\n' ;;
     tmux:aarch64|tmux:arm64|nvim:aarch64|nvim:arm64) printf 'arm64\n' ;;
@@ -126,14 +88,6 @@ install_fzf() {
   arch="$(arch_for fzf)"
   url="https://github.com/junegunn/fzf/releases/download/$tag/fzf-$version-linux_$arch.tar.gz"
   install_tarball fzf "$tag" "$url" "$local_bin" "$local_bin/fzf" fzf
-}
-
-install_rg() {
-  local tag="${NMB_RIPGREP_VERSION:?}" version arch url
-  version="$(version_without_v "$tag")"
-  arch="$(arch_for rg)"
-  url="https://github.com/BurntSushi/ripgrep/releases/download/$tag/ripgrep_${version}-1_${arch}.deb"
-  install_deb rg "$tag" "$url" /usr/bin/rg
 }
 
 install_delta() {
@@ -175,7 +129,7 @@ install_zoxide() {
 }
 
 pids=()
-for installer in install_fzf install_rg install_delta install_tmux install_nvim install_yq install_zoxide; do
+for installer in install_fzf install_delta install_tmux install_nvim install_yq install_zoxide; do
   "$installer" &
   pids+=("$!")
 done
