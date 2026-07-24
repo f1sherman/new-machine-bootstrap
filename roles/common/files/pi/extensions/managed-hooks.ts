@@ -10,7 +10,7 @@ let cachedManagedChildAuthSignature;
 let cachedManagedChildModel = OPENAI_MANAGED_CHILD_MODEL;
 const SUBJECT_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.";
 const SUBJECT_MAX_LENGTH = 512;
-const SESSION_GOAL_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase of at most 80 characters describing the new session's broad goal. Output only the phrase on one line, without quotes, a goal: prefix, or explanation.";
+const SESSION_GOAL_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase of at most 40 characters describing the new session's broad goal. Output only the phrase on one line, without quotes, a goal: prefix, or explanation.";
 const SESSION_GOAL_MAX_LENGTH = 80;
 const SESSION_GOAL_ENTRY_TYPE = "session-goal";
 const SESSION_GOAL_STATUS_KEY = "session-goal";
@@ -871,11 +871,11 @@ export default function managedHooks(pi) {
   pi.registerTool({
     name: "set_session_goal",
     label: "Set Session Goal",
-    description: "Set the durable broad goal and automatic identity for the current Pi session",
+    description: "Set the durable broad goal and automatic identity for the current Pi session; prefer at most 40 characters",
     parameters: {
       type: "object",
       properties: {
-        goal: { type: "string", description: "Concise broad session goal, at most 80 characters" },
+        goal: { type: "string", description: "Concise broad session goal; prefer at most 40 characters (maximum 80)" },
       },
       required: ["goal"],
       additionalProperties: false,

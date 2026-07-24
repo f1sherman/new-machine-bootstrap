@@ -323,6 +323,8 @@ assert.equal(typeof handlers.get("before_agent_start"), "function", "registers b
 assert.equal(typeof handlers.get("tool_call"), "function", "registers tool_call hook");
 assert.equal(typeof handlers.get("tool_result"), "function", "registers tool_result hook");
 assert.equal(sessionGoalTool.name, "set_session_goal", "registers explicit session goal tool");
+assert.match(sessionGoalTool.description, /at most 40 characters/, "goal tool guides concise 40-character identities");
+assert.match(sessionGoalTool.parameters.properties.goal.description, /at most 40 characters/, "goal argument guides concise 40-character identities");
 assert.deepEqual(sessionGoalTool.parameters.required, ["goal"], "goal tool requires goal text");
 
 process.env.TMUX = "1";
@@ -732,7 +734,7 @@ assert.deepEqual(goalChildCalls[0].args.slice(0, -1), [
   "--no-themes",
   "--no-context-files",
   "--no-approve",
-  "--system-prompt", "Return one concise noun phrase of at most 80 characters describing the new session's broad goal. Output only the phrase on one line, without quotes, a goal: prefix, or explanation.",
+  "--system-prompt", "Return one concise noun phrase of at most 40 characters describing the new session's broad goal. Output only the phrase on one line, without quotes, a goal: prefix, or explanation.",
 ], "initial goal child uses isolated one-time framing");
 assert.equal(goalChildCalls[0].options.timeout, 15000, "initial goal child uses the bounded timeout");
 assert.equal(customEntries.length, initialGoalEntries + 1, "initial goal appends durable state once");
@@ -1837,3 +1839,13 @@ console.log("pi-managed-hooks checks complete");
 NODE
 
 PI_HOOK_TEST_WORKTREE="$TMPROOT/worktree" "${node_cmd[@]}" "$TMPROOT/check.mjs" "$TMPROOT/managed-hooks.mjs"
+
+goal_skill="$REPO_ROOT/roles/common/files/config/skills/pi/z-update-session-goal/SKILL.md"
+grep -Fq 'targeting 40 characters or fewer' "$goal_skill" || {
+  echo "FAIL  session goal update skill targets 40-character identities" >&2
+  exit 1
+}
+grep -Fq 'Call `set_session_goal` exactly once' "$goal_skill" || {
+  echo "FAIL  session goal update skill delegates mutation to set_session_goal" >&2
+  exit 1
+}
