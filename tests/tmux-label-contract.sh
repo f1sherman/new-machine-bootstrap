@@ -205,7 +205,7 @@ cat >"$remote_task_tmux_dir/tmux" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
   display-message)
-    printf '/tmp/project\t/dev/null\t/dev/null\tzsh\t\n'
+    printf '/tmp/project\t/dev/null\tzsh\t\t\t\t1\n'
     ;;
   show-options)
     case "${*: -1}" in
@@ -229,6 +229,70 @@ assert_equals "$remote_dot_title" "~ auth · billing · project | remote-host" "
 
 remote_completed_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL=feature/durable-label TMUX_TEST_TASK_STATE=completed TMUX_TEST_TASK_CONTEXT=project TMUX_TEST_PANE_LABEL='✓ wrong rendered label | wrong-host' PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
 assert_equals "$remote_completed_title" "✓ (feature/durable-label) project | remote-host" "remote title builds completed label from canonical task fields"
+
+remote_publish_tmux_dir="$TMPROOT/remote-publish-tmux-bin"
+remote_publish_visible="$TMPROOT/remote-publish-visible"
+remote_publish_other="$TMPROOT/remote-publish-other"
+remote_publish_second="$TMPROOT/remote-publish-second"
+mkdir -p "$remote_publish_tmux_dir"
+: > "$remote_publish_visible"
+: > "$remote_publish_other"
+: > "$remote_publish_second"
+cat >"$remote_publish_tmux_dir/tmux" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  display-message)
+    printf '/tmp/project\t/dev/null\tzsh\t\t$source\t@source\t%s\n' "${TMUX_TEST_PANE_ACTIVE:-1}"
+    ;;
+  list-clients)
+    printf '%b' "$TMUX_TEST_CLIENTS"
+    ;;
+  show-options)
+    case "${*: -1}" in
+      @task_label) printf 'status check' ;;
+      @task_state) printf 'provisional' ;;
+      @task_context) printf 'project' ;;
+    esac
+    ;;
+esac
+STUB
+chmod +x "$remote_publish_tmux_dir/tmux"
+
+TMUX_PANE=%31 \
+TMUX_REMOTE_TITLE_HOST_TAG=remote-host \
+TMUX_TEST_CLIENTS="$remote_publish_visible\t\$source\t@source\n$remote_publish_other\t\$other\t@other\n" \
+PATH="$remote_publish_tmux_dir:$PATH" \
+  "$REMOTE_TITLE" publish
+assert_file_contains "$remote_publish_visible" '~ status check · project | remote-host' "remote title reaches client displaying source window"
+assert_equals "$(wc -c < "$remote_publish_other" | tr -d ' ')" "0" "remote title does not leak to another session"
+
+: > "$remote_publish_visible"
+TMUX_PANE=%31 \
+TMUX_REMOTE_TITLE_HOST_TAG=remote-host \
+TMUX_TEST_CLIENTS="$remote_publish_visible\t\$source\t@different\n$remote_publish_other\t\$source\t@other\n" \
+PATH="$remote_publish_tmux_dir:$PATH" \
+  "$REMOTE_TITLE" publish
+assert_equals "$(wc -c < "$remote_publish_visible" | tr -d ' ')" "0" "remote title skips client viewing another window"
+assert_equals "$(wc -c < "$remote_publish_other" | tr -d ' ')" "0" "remote title skips all nonmatching windows"
+
+: > "$remote_publish_visible"
+: > "$remote_publish_second"
+TMUX_PANE=%31 \
+TMUX_REMOTE_TITLE_HOST_TAG=remote-host \
+TMUX_TEST_CLIENTS="$remote_publish_visible\t\$source\t@source\n$remote_publish_second\t\$source\t@source\n" \
+PATH="$remote_publish_tmux_dir:$PATH" \
+  "$REMOTE_TITLE" publish
+assert_file_contains "$remote_publish_visible" '~ status check · project | remote-host' "remote title reaches first client viewing source window"
+assert_file_contains "$remote_publish_second" '~ status check · project | remote-host' "remote title reaches second client viewing source window"
+
+: > "$remote_publish_visible"
+TMUX_PANE=%31 \
+TMUX_REMOTE_TITLE_HOST_TAG=remote-host \
+TMUX_TEST_PANE_ACTIVE=0 \
+TMUX_TEST_CLIENTS="$remote_publish_visible\t\$source\t@source\n" \
+PATH="$remote_publish_tmux_dir:$PATH" \
+  "$REMOTE_TITLE" publish
+assert_equals "$(wc -c < "$remote_publish_visible" | tr -d ' ')" "0" "inactive source pane publishes no remote title"
 
 zsh_hook_home="$TMPROOT/zsh-hook-home"
 zsh_hook_log="$TMPROOT/zsh-hook.log"
