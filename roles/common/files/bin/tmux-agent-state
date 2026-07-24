@@ -192,6 +192,18 @@ refresh() {
   command -v tmux-remote-title >/dev/null 2>&1 && tmux-remote-title publish >/dev/null 2>&1 || true
 }
 
+adopt_remote_provisional() {
+  local pane="$1" subject="$2" current_source current_state
+  subject="$(sanitize_subject "$subject")"
+  [[ -n "$subject" ]] || return 0
+  (( ${#subject} <= 512 )) || return 0
+  current_source="$(get_pane_option "$pane" @task_source 2>/dev/null || true)"
+  current_state="$(get_pane_option "$pane" @task_state 2>/dev/null || true)"
+  [[ "$current_state" == "provisional" && "$current_source" == "agent" ]] || return 0
+  set_task "$pane" "$subject" agent provisional
+  refresh "$pane"
+}
+
 set_identity() {
   local pane="$1" source="$2" subject="$3" max_length
   case "$source" in
@@ -300,6 +312,11 @@ case "$cmd" in
     fi
     set_task "$pane" "$subject" agent provisional
     refresh "$pane"
+    ;;
+  adopt-remote-provisional)
+    subject="$(sanitize_subject "$*")"
+    [[ -n "$subject" ]] || exit 0
+    adopt_remote_provisional "$pane" "$subject"
     ;;
   set-identity)
     source="${1:-}"

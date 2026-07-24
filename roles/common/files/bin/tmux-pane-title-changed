@@ -28,12 +28,17 @@ case "$title" in
   *" | "*)
     tmux set-option -p -q -t "$pane_id" @pane-title-structured 1
     subject="$("$task_label_helper" extract-remote-provisional "$title" 2>/dev/null || true)"
-    if [ -n "$subject" ] && [ -x "$agent_state_helper" ]; then
-      TMUX_PANE="$pane_id" "$agent_state_helper" set-provisional "$subject" >/dev/null 2>&1 || true
+    task_state="$(tmux show-options -qv -p -t "$pane_id" @task_state 2>/dev/null || true)"
+    task_source="$(tmux show-options -qv -p -t "$pane_id" @task_source 2>/dev/null || true)"
+    if [ -n "$subject" ] && [ "$task_state" = "provisional" ] && [ "$task_source" = "agent" ]; then
+      if [ -x "$agent_state_helper" ]; then
+        TMUX_PANE="$pane_id" "$agent_state_helper" adopt-remote-provisional "$subject" >/dev/null 2>&1 || true
+      fi
       tmux-sync-pane-border-status "$pane_id"
-      tmux-window-label "$pane_id"
     else
-      tmux-sync-remote-title "$pane_id"
+      if [ -z "$task_state$task_source" ]; then
+        tmux-sync-remote-title "$pane_id"
+      fi
       tmux-sync-pane-border-status "$pane_id"
       tmux-update-pane-label "$pane_id"
     fi
