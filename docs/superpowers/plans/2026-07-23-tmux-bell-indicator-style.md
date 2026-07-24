@@ -80,7 +80,7 @@ tmux -L "$socket" kill-server
 Expected:
 
 ```text
-bg=colour51,fg=black,bold|#[fg=#8957e5]● 
+bg=colour51,fg=black,bold|#[fg=#8957e5]●<space>
 ```
 
 - [ ] **Step 5: Provision and verify live state**
