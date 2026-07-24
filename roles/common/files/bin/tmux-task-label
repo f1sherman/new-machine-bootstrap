@@ -77,69 +77,87 @@ PY
   fi
 }
 
-strip_edge_marker() {
-  printf '%s\n' "${1% \[nmb-edge=*]}"
+normalize_field() {
+  printf '%s' "$1" \
+    | tr '\r\n\t' '   ' \
+    | tr -d '\000-\010\013\014\016-\037\177' \
+    | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//'
 }
 
-strip_ind_marker() {
-  printf '%s\n' "$1" | sed -E 's/ \[nmb-ind=[^]]*\]//'
+strip_title_markers() {
+  local title="$1" marker
+
+  if [[ "$title" =~ ^(.*)\ \[nmb-edge=([^][]+)\]$ ]]; then
+    title="${BASH_REMATCH[1]}"
+  fi
+  if [[ "$title" =~ ^(.*)\ \[nmb-ind=([^][]*)\]$ ]]; then
+    marker="${BASH_REMATCH[2]}"
+    [[ "$marker" == *,* ]] || return 1
+    title="${BASH_REMATCH[1]}"
+  fi
+  [[ "$title" != *"[nmb-"* ]] || return 1
+  printf '%s\n' "$title"
 }
 
 structured_remote_label() {
-  local title nested_title prefix
-  title="$(strip_edge_marker "$1")"
-  title="$(strip_ind_marker "$title")"
+  local title nested_title host
+  title="$(strip_title_markers "$1")" || return 1
+
+  case "$title" in
+    "~ "*|"("*|"✓ ("*) ;;
+    *)
+      nested_title="${title#*: }"
+      if [[ "$nested_title" != "$title" ]]; then
+        case "$nested_title" in
+          "~ "*|"("*|"✓ ("*) title="$nested_title" ;;
+        esac
+      fi
+      ;;
+  esac
+
   case "$title" in
     *" | "*) ;;
     *) return 1 ;;
   esac
-
-  nested_title="${title#*: }"
-  prefix="${title%%: *}"
-  if [[ "$nested_title" != "$title" ]] && {
-    [[ "$prefix" =~ ^[0-9]+$ ]] ||
-      [[ "$nested_title" == \(* ]] ||
-      [[ "$nested_title" == "✓ ("* ]] ||
-      [[ "$nested_title" == "~ "* ]]
-  }; then
-    case "$nested_title" in
-      *" | "*) printf '%s\n' "$nested_title"; return 0 ;;
-    esac
-  fi
+  host="$(normalize_field "${title##* | }")"
+  [[ -n "$host" ]] || return 1
   printf '%s\n' "$title"
 }
 
-extract_remote_task() {
-  local label local_label marker="" branch
+extract_remote_provisional() {
+  local label local_label subject context
   label="$(structured_remote_label "$1")" || return 1
   local_label="${label% | *}"
+  [[ "$local_label" =~ ^~[[:space:]]+(.*)[[:space:]]·[[:space:]](.*)$ ]] || return 1
+  subject="$(normalize_field "${BASH_REMATCH[1]}")"
+  context="$(normalize_field "${BASH_REMATCH[2]}")"
+  [[ -n "$subject" && -n "$context" ]] || return 1
+  printf '%s\n' "$subject"
+}
 
-  if [[ "$local_label" =~ ^(~\ .*)\ ·\ (.+)$ ]]; then
-    truncate_label "${BASH_REMATCH[1]}"
+extract_remote_task() {
+  local label local_label marker="" branch context subject
+
+  subject="$(extract_remote_provisional "$1" 2>/dev/null || true)"
+  if [[ -n "$subject" ]]; then
+    truncate_label "~ $subject"
     return 0
   fi
 
+  label="$(structured_remote_label "$1")" || return 1
+  local_label="${label% | *}"
   case "$local_label" in
     "✓ "*) marker="✓ "; local_label="${local_label#✓ }" ;;
   esac
 
-  if [[ "$local_label" =~ ^\(([^[:space:]]*)\)\ (.+)$ ]]; then
-    branch="${BASH_REMATCH[1]}"
-    [[ -n "$branch" ]] || return 1
+  if [[ "$local_label" =~ ^\(([^[:space:]]*)\)[[:space:]]+(.*)$ ]]; then
+    branch="$(normalize_field "${BASH_REMATCH[1]}")"
+    context="$(normalize_field "${BASH_REMATCH[2]}")"
+    [[ -n "$branch" && -n "$context" ]] || return 1
     truncate_label "${marker}${branch}"
     return 0
   fi
   return 1
-}
-
-extract_remote_provisional() {
-  local label local_label subject
-  label="$(structured_remote_label "$1")" || return 1
-  local_label="${label% | *}"
-  [[ "$local_label" =~ ^~\ (.*)\ ·\ (.+)$ ]] || return 1
-  subject="${BASH_REMATCH[1]}"
-  [[ -n "$subject" ]] || return 1
-  printf '%s\n' "$subject"
 }
 
 case "${1:-}" in

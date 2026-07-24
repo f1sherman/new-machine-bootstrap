@@ -536,6 +536,26 @@ assert_equals \
   "$($TASK_LABEL extract-remote-provisional '~ auth · billing | migration · project | remote-host')" \
   'auth · billing | migration' \
   'remote parser preserves subject separators'
+assert_equals \
+  "$($TASK_LABEL extract-remote-provisional '~ preserve: ~ literal marker · project | remote-host')" \
+  'preserve: ~ literal marker' \
+  'remote parser preserves literal provisional syntax after subject colon'
+assert_equals \
+  "$($TASK_LABEL extract-remote-provisional '~ preserve: (literal) punctuation · project | remote-host')" \
+  'preserve: (literal) punctuation' \
+  'remote parser preserves literal branch syntax after subject colon'
+assert_equals \
+  "$($TASK_LABEL extract-remote-provisional '0: ~ nested task · project | remote-host')" \
+  'nested task' \
+  'remote parser normalizes numeric nested tmux prefix'
+assert_equals \
+  "$($TASK_LABEL extract-remote-provisional 'remote-session: ~ nested task · project | remote-host')" \
+  'nested task' \
+  'remote parser normalizes named nested tmux prefix'
+assert_equals \
+  "$($TASK_LABEL extract-remote 'remote-session: (feature/nested) project | remote-host')" \
+  'feature/nested' \
+  'remote parser normalizes named nested active title prefix'
 long_remote_subject="$(printf '界%.0s' {1..60})"
 assert_equals \
   "$($TASK_LABEL extract-remote-provisional "~ $long_remote_subject · project | remote-host")" \
@@ -545,6 +565,29 @@ if "$TASK_LABEL" extract-remote-provisional 'plain project | remote-host' >/dev/
   fail_case 'remote parser rejects non-provisional title' 'unexpected successful extraction'
 fi
 pass_case 'remote parser rejects non-provisional title'
+
+for malformed_provisional in \
+  '~  · project | remote-host' \
+  '~     · project | remote-host' \
+  '~ subject ·  | remote-host' \
+  '~ subject ·     | remote-host' \
+  '~ subject · project | ' \
+  '~ subject · project |     ' \
+  '~ subject | remote-host' \
+  '~ subject · project' \
+  '~ subject · project | remote-host [nmb-ind=waiting,' \
+  '~ subject · project | remote-host [nmb-edge=hj' \
+  '~ subject · project | remote-host [nmb-unknown=value]'; do
+  if "$TASK_LABEL" extract-remote-provisional "$malformed_provisional" >/dev/null 2>&1; then
+    fail_case "remote parser rejects malformed provisional: $malformed_provisional" 'unexpected successful extraction'
+  fi
+  pass_case "remote parser rejects malformed provisional: $malformed_provisional"
+done
+control_only="$(printf '\033\a\001')"
+if "$TASK_LABEL" extract-remote-provisional "~ $control_only · project | remote-host" >/dev/null 2>&1; then
+  fail_case 'remote parser rejects control-only provisional subject' 'unexpected successful extraction'
+fi
+pass_case 'remote parser rejects control-only provisional subject'
 
 : > "$window_log"
 TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=working,draft] [nmb-edge=hjl]' \

@@ -162,6 +162,40 @@ assert_file_eq "$state_dir/%1.@pane-label" "~ auth · billing · repo | host-a" 
 assert_file_eq "$state_dir/%1.@window-label" "~ auth | billing" "local provisional top preserves pipe separator"
 assert_file_eq "$state_dir/%1.@pane-label" "~ auth | billing · repo | host-a" "local provisional bottom preserves pipe separator"
 
+: >"$TMPROOT/window.log"
+"$STATE" adopt-remote-provisional "refined remote subject"
+assert_file_eq "$state_dir/%1.@task_label" "refined remote subject" "remote adoption replaces an existing provisional agent task"
+assert_file_eq "$state_dir/%1.@task_source" "agent" "remote adoption preserves agent ownership"
+assert_file_eq "$state_dir/%1.@task_state" "provisional" "remote adoption preserves provisional state"
+assert_file_eq "$state_dir/%1.@window-label" "~ refined remote subject" "remote adoption renders the refined canonical label"
+assert_eq "1" "$(wc -l <"$TMPROOT/window.log" | tr -d ' ')" "remote adoption invokes window rendering exactly once"
+
+for ineligible_case in \
+  'completed|agent|completed task' \
+  'provisional|manual|provisional non-agent task' \
+  'active|branch|active branch task' \
+  'active|goal|active goal task' \
+  'active|manual|active manual task'; do
+  ineligible_state="${ineligible_case%%|*}"
+  ineligible_remainder="${ineligible_case#*|}"
+  ineligible_source="${ineligible_remainder%%|*}"
+  ineligible_label="${ineligible_remainder#*|}"
+  printf '%s' "$ineligible_state" >"$state_dir/%1.@task_state"
+  printf '%s' "$ineligible_source" >"$state_dir/%1.@task_source"
+  printf '%s' "$ineligible_label" >"$state_dir/%1.@task_label"
+  : >"$TMPROOT/window.log"
+  "$STATE" adopt-remote-provisional "must not replace canonical task"
+  assert_file_eq "$state_dir/%1.@task_label" "$ineligible_label" "remote adoption preserves $ineligible_label"
+  assert_eq "0" "$(wc -l <"$TMPROOT/window.log" | tr -d ' ')" "ineligible $ineligible_label does not render"
+done
+
+rm -f "$state_dir/%1.@task_state" "$state_dir/%1.@task_source" "$state_dir/%1.@task_label"
+: >"$TMPROOT/window.log"
+"$STATE" adopt-remote-provisional "must not create a task"
+assert_no_file "$state_dir/%1.@task_label" "remote adoption does not create a task without prior state"
+assert_eq "0" "$(wc -l <"$TMPROOT/window.log" | tr -d ' ')" "missing prior task does not render"
+
+"$SUBJECT" set "refined remote subject"
 "$STATE" set-identity goal "stable session identity"
 assert_file_eq "$state_dir/%1.@task_label" "stable session identity" "goal stores stable label"
 assert_file_eq "$state_dir/%1.@task_source" "goal" "goal stores goal source"
