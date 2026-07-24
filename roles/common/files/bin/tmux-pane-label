@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck disable=SC2034
 pane_tty="${1:-}"
 pane_current_path="${2:-}"
 pane_current_command="${3:-}"
 pane_id="${4:-}"
+field_separator='__NMB_TMUX_FIELD__'
+parse_separator=$'\x1f'
 
 [ -n "$pane_current_path" ] || exit 0
 
@@ -69,9 +72,10 @@ remote_host_suffix() {
 }
 
 if [ -n "$pane_id" ] && is_remote_candidate_command "$pane_current_command"; then
-  remote_info="$(tmux display-message -p -t "$pane_id" '#{pane_title}	#{window_name}' 2>/dev/null || true)"
-  if [ -n "$remote_info" ]; then
-    IFS=$'\t' read -r pane_title window_name <<< "$remote_info"
+  pane_info="$(tmux display-message -p -t "$pane_id" "#{pane_title}${field_separator}#{window_name}" 2>/dev/null || true)"
+  if [ -n "$pane_info" ]; then
+    pane_info="${pane_info//$field_separator/$parse_separator}"
+    IFS="$parse_separator" read -r pane_title window_name <<< "$pane_info"
     remote_label="$(structured_label "$pane_title" 2>/dev/null || true)"
     if [ -n "$remote_label" ]; then
       printf '%s\n' "$remote_label"

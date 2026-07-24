@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 BIN_DIR="$REPO_ROOT/roles/common/files/bin"
 PANE_LABEL="$BIN_DIR/tmux-pane-label"
+PANE_TITLE_CHANGED="$BIN_DIR/tmux-pane-title-changed"
 AGENT_WORKTREE="$BIN_DIR/tmux-agent-worktree"
 WINDOW_LABEL="$BIN_DIR/tmux-window-label"
 PANE_LINK="$BIN_DIR/tmux-pane-link"
@@ -461,7 +462,7 @@ cat >"$fake_tmux_dir/tmux" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
   display-message)
-    printf '@1\t1\t%s\t/dev/null\t/tmp/project\t%s\t%s\t%%1\n' \
+    printf '@1__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__/tmp/project__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%%1\n' \
       "${TMUX_TEST_WINDOW_NAME:-old-window}" "${TMUX_TEST_COMMAND:-ssh}" "${TMUX_TEST_TITLE:-}"
     ;;
   show-options)
@@ -564,7 +565,7 @@ cat >"$sync_remote_tmux_dir/tmux" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
   display-message)
-    printf '@9\t1\tssh\t/dev/null\t%s\t%s\n' "$TMUX_TEST_TITLE" "${TMUX_TEST_WINDOW_NAME:-old-window}"
+    printf '@9__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__ssh__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%s\n' "$TMUX_TEST_TITLE" "${TMUX_TEST_WINDOW_NAME:-old-window}"
     ;;
   rename-window)
     printf '%s\n' "$*" >> "$TMUX_SYNC_REMOTE_LOG"
@@ -606,6 +607,70 @@ for remote_case in \
     PATH="$sync_remote_tmux_dir:$PATH" "$SYNC_REMOTE_TITLE" %9
   assert_file_contains "$sync_remote_log" "rename-window -t @9 $expected" "remote sync applies exact capped task contract: $expected"
 done
+
+tmux_37_dir="$TMPROOT/tmux-37-bin"
+tmux_37_hook_dir="$TMPROOT/tmux-37-hook-bin"
+hook_log="$TMPROOT/tmux-37-hook.log"
+sync_log="$TMPROOT/tmux-37-sync.log"
+window_log="$TMPROOT/tmux-37-window.log"
+mkdir -p "$tmux_37_dir" "$tmux_37_hook_dir"
+: > "$hook_log"
+: > "$sync_log"
+: > "$window_log"
+cat >"$tmux_37_dir/tmux" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  display-message)
+    output="${*: -1}"
+    output="${output//'#{window_id}'/@37}"
+    output="${output//'#{pane_active}'/1}"
+    output="${output//'#{window_name}'/}"
+    output="${output//'#{pane_tty}'//dev/null}"
+    output="${output//'#{pane_current_path}'//tmp/project}"
+    output="${output//'#{pane_current_command}'/ssh}"
+    output="${output//'#{pane_title}'/'(feature/tmux-37) project | remote-host'}"
+    output="${output//'#{pane_id}'/%37}"
+    output="${output//$'\t'/_}"
+    printf '%s\n' "$output"
+    ;;
+  show-options)
+    ;;
+  set-option)
+    ;;
+  rename-window)
+    printf '%s\n' "$*" >> "$TMUX_37_RENAME_LOG"
+    ;;
+esac
+STUB
+cat >"$tmux_37_hook_dir/tmux-sync-remote-title" <<'STUB'
+#!/usr/bin/env bash
+printf 'tmux-sync-remote-title %s\n' "$*" >> "$TMUX_37_HOOK_LOG"
+STUB
+cat >"$tmux_37_hook_dir/tmux-sync-pane-border-status" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+cat >"$tmux_37_hook_dir/tmux-update-pane-label" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+chmod +x "$tmux_37_dir/tmux" "$tmux_37_hook_dir/"*
+
+pane_label="$(PATH="$tmux_37_dir:$PATH" "$PANE_LABEL" /dev/null /tmp/project ssh %37)"
+assert_equals "$pane_label" '(feature/tmux-37) project | remote-host' \
+  'tmux 3.7 parsing preserves structured remote pane label'
+TMUX_37_HOOK_LOG="$hook_log" PATH="$tmux_37_dir:$tmux_37_hook_dir:$PATH" \
+  "$PANE_TITLE_CHANGED" %37
+assert_file_contains "$hook_log" 'tmux-sync-remote-title %37' \
+  'tmux 3.7 parsing dispatches structured pane title synchronization'
+TMUX_37_RENAME_LOG="$sync_log" PATH="$tmux_37_dir:$PATH" \
+  "$SYNC_REMOTE_TITLE" %37
+assert_file_contains "$sync_log" 'rename-window -t @37 feature/tmux-37' \
+  'tmux 3.7 parsing synchronizes remote window title'
+TMUX_37_RENAME_LOG="$window_log" PATH="$tmux_37_dir:$PATH" \
+  "$WINDOW_LABEL" %37
+assert_file_contains "$window_log" 'rename-window -t @37 feature/tmux-37' \
+  'tmux 3.7 parsing renders remote window label'
 
 task_focus_state="$TMPROOT/task-focus-state"
 task_focus_bin="$TMPROOT/task-focus-bin"
@@ -663,8 +728,8 @@ case "$1" in
   display-message)
     format="${*: -1}"
     case "$format" in
-      '#{window_id}'$'\t'*)
-        printf '@12\t1\t%s\t/dev/null\t/tmp/local-project\t%s\t%s\t%%12\n' \
+      '#{window_id}__NMB_TMUX_FIELD__'*)
+        printf '@12__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__/tmp/local-project__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%%12\n' \
           "$(cat "$state/window-name")" "$(cat "$state/pane-command")" "$(cat "$state/pane-title")"
         ;;
       '#{window_id}') printf '@12\n' ;;
@@ -676,7 +741,7 @@ case "$1" in
         printf '/dev/null|/tmp/local-project|%s\n' "$(cat "$state/pane-command")"
         ;;
       *pane_title*window_name*)
-        printf '%s\t%s\n' "$(cat "$state/pane-title")" "$(cat "$state/window-name")"
+        printf '%s__NMB_TMUX_FIELD__%s\n' "$(cat "$state/pane-title")" "$(cat "$state/window-name")"
         ;;
     esac
     ;;
@@ -737,7 +802,7 @@ cat >"$remote_window_label_tmux_dir/tmux" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
   display-message)
-    printf '@5\t1\told-window\t/dev/null\t/tmp/current\tssh\t%s\t%%5\n' \
+    printf '@5__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__old-window__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__/tmp/current__NMB_TMUX_FIELD__ssh__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%%5\n' \
       "${TMUX_TEST_TITLE:-~ remote task · remote-repo | remote-host}"
     ;;
   show-options)
@@ -775,7 +840,7 @@ cat >"$cached_tmux_dir/tmux" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
   display-message)
-    printf '@2\t1\told-window\t/dev/null\t/tmp/project\tzsh\t\t%%2\n'
+    printf '@2__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__old-window__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__/tmp/project__NMB_TMUX_FIELD__zsh__NMB_TMUX_FIELD____NMB_TMUX_FIELD__%%2\n'
     exit 0
     ;;
   show-options)
@@ -812,7 +877,7 @@ cat >"$window_label_tmux_dir/tmux" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
   display-message)
-    printf '@4\t1\told-name\t/dev/null\t/tmp/current\tzsh\tplain\t%%4\n'
+    printf '@4__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__old-name__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__/tmp/current__NMB_TMUX_FIELD__zsh__NMB_TMUX_FIELD__plain__NMB_TMUX_FIELD__%%4\n'
     ;;
   show-options)
     case "${*: -1}" in
@@ -841,7 +906,7 @@ cat >"$stale_tmux_dir/tmux" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
   display-message)
-    printf '@3\t1\told-window\t/dev/null\t/tmp/fresh-dir\tzsh\t\t%%3\n'
+    printf '@3__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__old-window__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__/tmp/fresh-dir__NMB_TMUX_FIELD__zsh__NMB_TMUX_FIELD____NMB_TMUX_FIELD__%%3\n'
     exit 0
     ;;
   show-options)
