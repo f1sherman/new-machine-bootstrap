@@ -917,7 +917,8 @@ TMUX_TEST_LOCAL_TASK=1 TMUX_WINDOW_LABEL_LOG="$remote_window_label_log" PATH="$r
 assert_file_contains "$remote_window_label_log" "rename-window -t @5 codex: tmux subject labels" "valid local task keeps cached window label precedence"
 
 : > "$remote_window_label_log"
-TMUX_TEST_TITLE=plain TMUX_WINDOW_LABEL_LOG="$remote_window_label_log" PATH="$remote_window_label_tmux_dir:$PATH" "$WINDOW_LABEL" "%5"
+TMUX_TEST_TITLE=plain TMUX_PANE_LABEL_BIN="$PANE_LABEL" TMUX_WINDOW_LABEL_LOG="$remote_window_label_log" \
+  PATH="$remote_window_label_tmux_dir:$PATH" "$WINDOW_LABEL" "%5"
 assert_equals "$(cat "$remote_window_label_log")" "rename-window -t @5 current" "unowned stale window cache does not suppress host suffix stripping"
 
 cached_tmux_dir="$TMPROOT/fake-tmux-bin-cached"
@@ -1019,7 +1020,8 @@ exit 0
 STUB
 chmod +x "$stale_tmux_dir/tmux"
 
-TMUX_PANE_LABEL_HOST_TAG=host-a TMUX_WINDOW_LABEL_LOG="$stale_log" PATH="$stale_tmux_dir:$PATH" "$WINDOW_LABEL" "%3"
+TMUX_PANE_LABEL_BIN="$PANE_LABEL" TMUX_PANE_LABEL_HOST_TAG=host-a TMUX_WINDOW_LABEL_LOG="$stale_log" \
+  PATH="$stale_tmux_dir:$PATH" "$WINDOW_LABEL" "%3"
 assert_file_contains "$stale_log" "rename-window -t @3 fresh-dir" "non-agent panes ignore @pane-label cache and re-derive from current path"
 
 zshrc_template="$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/50-personal-dev-shell.zsh"
