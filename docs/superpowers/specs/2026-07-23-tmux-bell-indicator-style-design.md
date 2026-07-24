@@ -7,17 +7,19 @@ Status: Approved
 
 Tmux PR-state dots use inline foreground colors. The default `window-status-bell-style` is `reverse`, so a bell-highlighted window swaps the dot's foreground and background. A merged-state purple dot therefore appears as a purple rectangular block. The trailing `!` in the affected tab confirms the bell state.
 
-PR #359 fixed the same interaction for activity-highlighted windows by replacing tmux's default reverse activity style, but bell highlighting is controlled by a separate option and remained unchanged.
+PR #359 fixed the same interaction for activity-highlighted windows by replacing tmux's default reverse activity style, but bell highlighting is controlled by a separate option and remained unchanged. The normal window format also restored black label text only for activity-highlighted windows; on an inactive bell-highlighted window it overrode the bell style with `fg=colour252`, producing low-contrast light text on cyan.
 
 ## Design
 
 Set `window-status-bell-style` explicitly to `bg=colour51,fg=black,bold` in both managed tmux configurations. This matches current-window and activity-highlight styles, preserves the visible bell highlight, and prevents inline dot foreground colors from being reversed.
 
+After rendering the indicators in the normal window format, restore `fg=black,nodim` when either `window_activity_flag` or `window_bell_flag` is set. Restore `fg=colour252,nodim` only for ordinary inactive windows. This keeps label contrast consistent with each highlight style without changing current-window rendering.
+
 Do not change glyph generation, bell detection, or the trailing `!` marker.
 
 ## Testing
 
-Extend `tests/tmux-label-contract.sh` to require the explicit non-reversing bell style in both macOS and Linux configurations. Verify the test fails before the configuration change and passes afterward. Use a temporary tmux server to confirm a bell-marked window retains the purple dot as a foreground style rather than inheriting `reverse`.
+Extend `tests/tmux-label-contract.sh` to require both the explicit non-reversing bell style and the activity-or-bell-aware label color restoration in the macOS and Linux configurations. Verify each contract fails before its configuration change and passes afterward. Use a temporary tmux server to confirm a bell-marked window retains the purple dot as a foreground style rather than inheriting `reverse`.
 
 ## Rollout
 
