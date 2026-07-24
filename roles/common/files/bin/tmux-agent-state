@@ -192,6 +192,37 @@ refresh() {
   command -v tmux-remote-title >/dev/null 2>&1 && tmux-remote-title publish >/dev/null 2>&1 || true
 }
 
+prepare_remote_provisional_render() {
+  local pane="$1" subject="$2" task_context structured existing live structured_context context
+  task_context="$(get_pane_option "$pane" @task_context 2>/dev/null || true)"
+  structured="$(get_pane_option "$pane" @pane-title-structured 2>/dev/null || true)"
+  existing="$(get_pane_option "$pane" @pane-label 2>/dev/null || true)"
+  live="$(live_path_label "$pane" 2>/dev/null || true)"
+  structured_context=""
+  if [[ -n "$structured" && "$existing" == *" | "* ]]; then
+    case "$existing" in
+      "~ $subject · "*) structured_context="$(context_suffix "$existing" "$subject" provisional)" ;;
+    esac
+  fi
+
+  if [[ -n "$live" ]]; then
+    context="$(context_suffix "$live" "$subject" provisional)"
+  elif [[ -n "$structured_context" ]]; then
+    context="$structured_context"
+  elif [[ -n "$task_context" ]]; then
+    context="$task_context"
+  elif [[ -n "$existing" ]]; then
+    context="$(context_suffix "$existing" "$subject" provisional)"
+  else
+    context="$(fallback_cwd_label "$pane")"
+  fi
+
+  remote_task_context="$context"
+  remote_pane_label="~ $subject · $context"
+  remote_window_label="$(truncate_top_label "~ $subject")" || return 1
+  [[ -n "$remote_window_label" ]]
+}
+
 adopt_remote_provisional() {
   local pane="$1" subject="$2" current_source current_state
   subject="$(sanitize_subject "$subject")"
@@ -200,8 +231,19 @@ adopt_remote_provisional() {
   current_source="$(get_pane_option "$pane" @task_source 2>/dev/null || true)"
   current_state="$(get_pane_option "$pane" @task_state 2>/dev/null || true)"
   [[ "$current_state" == "provisional" && "$current_source" == "agent" ]] || return 0
-  set_task "$pane" "$subject" agent provisional
-  refresh "$pane"
+
+  local remote_task_context remote_pane_label remote_window_label
+  prepare_remote_provisional_render "$pane" "$subject" || return 1
+
+  set_pane_option "$pane" @task_label "$subject"
+  set_pane_option "$pane" @task_source agent
+  set_pane_option "$pane" @task_state provisional
+  set_pane_option "$pane" @task_context "$remote_task_context"
+  set_pane_option "$pane" @pane-label "$remote_pane_label"
+  set_pane_option "$pane" @window-label "$remote_window_label"
+  clear_obsolete_options "$pane"
+  command -v tmux-window-label >/dev/null 2>&1 && tmux-window-label "$pane" >/dev/null 2>&1 || true
+  command -v tmux-remote-title >/dev/null 2>&1 && tmux-remote-title publish >/dev/null 2>&1 || true
 }
 
 set_identity() {
