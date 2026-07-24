@@ -74,7 +74,11 @@
   changed_when: linux_github_release_binary_install.stdout_lines[-1] | default('') == 'changed'
 
 - name: Install rg
-  include_tasks: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
+  include_tasks:
+    file: '{{ playbook_dir }}/roles/common/tasks/install_github_binary.yml'
+    apply:
+      tags:
+        - nmb_ripgrep
   vars:
     github_repo: BurntSushi/ripgrep
     binary_name: rg
@@ -82,10 +86,15 @@
     asset_pattern: "ripgrep_{version}-1_{arch}.deb"
     install_dest: /usr/bin/rg
     download_type: deb
+    manifest_path: >-
+      {{ nmb_ripgrep_manifest_path
+         | default(ansible_facts['user_dir'] + '/.local/share/github-releases.json') }}
     arch_map:
       x86_64: amd64
       aarch64: arm64
       arm64: arm64
+  tags:
+    - nmb_ripgrep
 
 - name: Clone fzf repo for shell integration files
   git:
