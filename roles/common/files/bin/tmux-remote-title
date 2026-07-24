@@ -313,7 +313,8 @@ publish_title() {
 
 main() {
   local pane_path pane_tty pane_command edge_flags source_session_id source_window_id pane_active
-  local host title worktree_path worktree_pid active_agent_pid info task_label task_state task_context
+  local host title worktree_path worktree_pid active_agent_pid info
+  local task_label task_state task_source task_context window_label
 
   info="$(pane_info)" || exit 0
   [ -n "$info" ] || exit 0
@@ -336,8 +337,15 @@ main() {
 
   task_label="$(read_pane_option "@task_label" 2>/dev/null || true)"
   task_state="$(read_pane_option "@task_state" 2>/dev/null || true)"
+  task_source="$(read_pane_option "@task_source" 2>/dev/null || true)"
   task_context="$(read_pane_option "@task_context" 2>/dev/null || true)"
-  if [ -n "$task_label" ] && [ -n "$task_state" ] && [ -n "$task_context" ]; then
+  window_label="$(read_pane_option "@window-label" 2>/dev/null || true)"
+  if [ "$task_state" = "active" ] && [ -n "$window_label" ]; then
+    case "$task_source" in
+      goal|manual) title="$window_label" ;;
+    esac
+  fi
+  if [ -z "${title:-}" ] && [ -n "$task_label" ] && [ -n "$task_state" ] && [ -n "$task_context" ]; then
     title="$(managed_task_title "$task_label" "$task_state" "$task_context" "$host" 2>/dev/null || true)"
   fi
 

@@ -212,15 +212,26 @@ case "$1" in
     case "${*: -1}" in
       @task_label) printf '%s' "$TMUX_TEST_TASK_LABEL" ;;
       @task_state) printf '%s' "$TMUX_TEST_TASK_STATE" ;;
+      @task_source) printf '%s' "${TMUX_TEST_TASK_SOURCE:-}" ;;
       @task_context) printf '%s' "$TMUX_TEST_TASK_CONTEXT" ;;
+      @window-label) printf '%s' "${TMUX_TEST_WINDOW_LABEL:-}" ;;
       @pane-label) printf '%s' "$TMUX_TEST_PANE_LABEL" ;;
     esac
     ;;
 esac
 STUB
 chmod +x "$remote_task_tmux_dir/tmux"
-remote_task_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL=feature/durable-label TMUX_TEST_TASK_STATE=active TMUX_TEST_TASK_CONTEXT=project TMUX_TEST_PANE_LABEL='(feature/durable-label fj#42) project | wrong-host' PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
+remote_task_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL=feature/durable-label TMUX_TEST_TASK_STATE=active TMUX_TEST_TASK_SOURCE=branch TMUX_TEST_TASK_CONTEXT=project TMUX_TEST_PANE_LABEL='(feature/durable-label fj#42) project | wrong-host' PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
 assert_equals "$remote_task_title" "(feature/durable-label) project | remote-host" "remote title builds active label from canonical task fields"
+
+remote_goal_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL='A durable goal that is intentionally longer than forty characters' TMUX_TEST_TASK_STATE=active TMUX_TEST_TASK_SOURCE=goal TMUX_TEST_TASK_CONTEXT=project TMUX_TEST_WINDOW_LABEL='A durable goal that is intentionally lo…' TMUX_TEST_PANE_LABEL='(A durable goal that is intentionally longer than forty characters) project | remote-host' TMUX_REMOTE_TITLE_ACTIVITY=waiting TMUX_REMOTE_TITLE_PR_STATE=merged PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
+assert_equals "$remote_goal_title" "A durable goal that is intentionally lo… [nmb-ind=waiting,merged]" "remote active goal title uses capped task-only window label"
+
+remote_manual_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL='Manual task identity' TMUX_TEST_TASK_STATE=active TMUX_TEST_TASK_SOURCE=manual TMUX_TEST_TASK_CONTEXT=project TMUX_TEST_WINDOW_LABEL='Manual task identity' TMUX_TEST_PANE_LABEL='(Manual task identity) project | remote-host' PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
+assert_equals "$remote_manual_title" "Manual task identity" "remote active manual title uses task-only window label"
+
+remote_goal_fallback_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL='Missing cached goal' TMUX_TEST_TASK_STATE=active TMUX_TEST_TASK_SOURCE=goal TMUX_TEST_TASK_CONTEXT=project TMUX_TEST_WINDOW_LABEL='' TMUX_TEST_PANE_LABEL='(Missing cached goal) project | remote-host' PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
+assert_equals "$remote_goal_fallback_title" "(Missing cached goal) project | remote-host" "remote active goal falls back when cached window label is absent"
 
 remote_pipe_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL='auth | billing' TMUX_TEST_TASK_STATE=provisional TMUX_TEST_TASK_CONTEXT=project TMUX_TEST_PANE_LABEL='~ wrong rendered label | wrong-host' PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
 assert_equals "$remote_pipe_title" "~ auth | billing · project | remote-host" "remote title preserves pipe in canonical provisional subject"
