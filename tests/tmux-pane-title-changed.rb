@@ -356,6 +356,13 @@ if File.exist?(HELPER) && File.executable?(HELPER)
     File.open(ENV.fetch("TMUX_BEHAVIOR_LOG"), "a") { |file| file.puts((["tmux-sync-pane-border-status"] + ARGV).join("\t")) }
   RUBY
   write_executable(File.join(behavior_bin, "tmux-remote-title"), "#!/usr/bin/env bash\nexit 0\n")
+  write_executable(File.join(behavior_bin, "failing-tmux-task-label"), <<~'BASH')
+    #!/usr/bin/env bash
+    if [[ "${1:-}" == "truncate" ]]; then
+      exit 73
+    fi
+    exec "$TMUX_REAL_TASK_LABEL_BIN" "$@"
+  BASH
 
   behavior_env = {
     "PATH" => "#{behavior_bin}:#{File.join(REPO_ROOT, "roles/common/files/bin")}:#{ENV.fetch("PATH")}",
@@ -366,6 +373,7 @@ if File.exist?(HELPER) && File.executable?(HELPER)
     "TMUX_AGENT_STATE_CURRENT_PATH" => "/tmp/outer-project",
     "TMUX_BEHAVIOR_STATE" => behavior_state,
     "TMUX_BEHAVIOR_LOG" => behavior_log,
+    "TMUX_REAL_TASK_LABEL_BIN" => File.join(REPO_ROOT, "roles/common/files/bin/tmux-task-label"),
     "TMUX_TEST_TITLE" => "~ refined remote task · remote-project | remote-host [nmb-ind=waiting,]"
   }
   malformed_env = behavior_env.merge("TMUX_TEST_TITLE" => "~ rejected remote task ·    | remote-host")
@@ -375,6 +383,26 @@ if File.exist?(HELPER) && File.executable?(HELPER)
     malformed_result[2].success? &&
       File.read(File.join(behavior_state, "#{pane}.@task_label")) == "stale outer task" &&
       !malformed_calls.include?("VISIBLE_RENAME")
+  end
+
+  preserved_paths = %w[@task_label @task_source @task_state @task_context @pane-label @window-label].to_h do |key|
+    [key, File.join(behavior_state, "#{pane}.#{key}")]
+  end
+  preserved_before = preserved_paths.transform_values { |path| File.read(path) }
+  visible_before = File.read(File.join(behavior_state, "window-name"))
+  File.write(behavior_log, "")
+  failure_env = behavior_env.merge(
+    "TMUX_TASK_LABEL_BIN" => File.join(behavior_bin, "failing-tmux-task-label")
+  )
+  failure_result = Open3.capture3(failure_env, HELPER, pane)
+  failure_calls = File.read(behavior_log)
+  assert("real state-helper render failure preserves every observable task option", failure_result[1]) do
+    failure_result[2].success? &&
+      preserved_paths.all? { |key, path| File.read(path) == preserved_before.fetch(key) }
+  end
+  assert("real state-helper render failure preserves the visible window name", failure_calls) do
+    File.read(File.join(behavior_state, "window-name")) == visible_before &&
+      !failure_calls.include?("VISIBLE_RENAME")
   end
 
   File.write(behavior_log, "")
