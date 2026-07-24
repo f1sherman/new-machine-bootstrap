@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -u
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+task_label_helper="${TMUX_TASK_LABEL_BIN:-$script_dir/tmux-task-label}"
+agent_state_helper="${TMUX_AGENT_STATE_BIN:-$script_dir/tmux-agent-state}"
+[ -x "$task_label_helper" ] || task_label_helper="${HOME:-}/.local/bin/tmux-task-label"
+[ -x "$agent_state_helper" ] || agent_state_helper="${HOME:-}/.local/bin/tmux-agent-state"
+
 pane_id=""
 for candidate in "$@"; do
   if [ -n "$candidate" ]; then
@@ -21,9 +27,16 @@ structured="$(tmux show-options -qv -p -t "$pane_id" @pane-title-structured 2>/d
 case "$title" in
   *" | "*)
     tmux set-option -p -q -t "$pane_id" @pane-title-structured 1
-    tmux-sync-remote-title "$pane_id"
-    tmux-sync-pane-border-status "$pane_id"
-    tmux-update-pane-label "$pane_id"
+    subject="$("$task_label_helper" extract-remote-provisional "$title" 2>/dev/null || true)"
+    if [ -n "$subject" ] && [ -x "$agent_state_helper" ]; then
+      TMUX_PANE="$pane_id" "$agent_state_helper" set-provisional "$subject" >/dev/null 2>&1 || true
+      tmux-sync-pane-border-status "$pane_id"
+      tmux-window-label "$pane_id"
+    else
+      tmux-sync-remote-title "$pane_id"
+      tmux-sync-pane-border-status "$pane_id"
+      tmux-update-pane-label "$pane_id"
+    fi
     ;;
   *)
     [ -n "$structured" ] || exit 0
