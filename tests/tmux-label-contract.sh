@@ -981,6 +981,7 @@ for config in \
   assert_file_contains "$config" '#{E:@window-indicators}#{?window_activity_flag,#[fg=black#,nodim],#[fg=colour252#,nodim]}#{window_name}' "$config inactive window restores activity-aware text color and intensity"
   assert_file_contains "$config" '#{E:@window-indicators}#[fg=black,nodim]#{window_name}' "$config current window expands indicators and restores text color and intensity"
   assert_file_contains "$config" "set -g window-status-activity-style 'bg=colour51,fg=black,bold'" "$config activity highlight preserves indicator foreground colors"
+  assert_file_contains "$config" "set -g window-status-bell-style 'bg=colour51,fg=black,bold'" "$config bell highlight preserves indicator foreground colors"
 done
 assert_file_contains "$REPO_ROOT/roles/common/tasks/main.yml" '- tmux-task-label' "shared task label helper is provisioned"
 
