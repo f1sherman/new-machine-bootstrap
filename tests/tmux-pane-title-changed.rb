@@ -86,8 +86,9 @@ if File.exist?(HELPER) && File.executable?(HELPER)
     args = ARGV
     File.open(ENV.fetch("TMUX_TEST_LOG"), "a") { |f| f.puts((["tmux"] + args).join("\t")) }
 
-    if args[0, 3] == ["display-message", "-p", "-t"] && args[4] == "\#{pane_title}\t\#{pane_current_command}"
-      puts "#{ENV.fetch("TMUX_TEST_TITLE")}\t#{ENV.fetch("TMUX_TEST_COMMAND")}"
+    field_separator = "__NMB_TMUX_FIELD__"
+    if args[0, 3] == ["display-message", "-p", "-t"] && args[4] == "\#{pane_title}#{field_separator}\#{pane_current_command}"
+      puts [ENV.fetch("TMUX_TEST_TITLE"), ENV.fetch("TMUX_TEST_COMMAND")].join(field_separator)
     elsif args[0, 4] == ["show-options", "-qv", "-p", "-t"] && args[5] == "@pane-title-structured"
       exit 1 unless ENV.fetch("TMUX_TEST_STRUCTURED") == "1"
       puts "1"
