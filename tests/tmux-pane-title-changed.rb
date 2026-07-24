@@ -39,13 +39,20 @@ def write_executable(path, body)
   FileUtils.chmod("+x", path)
 end
 
-def run_helper(tmpdir, *args, title:, command: "ssh", structured: false)
+def run_helper(tmpdir, *args, title:, command: "ssh", structured: false,
+               task_state: "", task_source: "", task_label: "")
+  bin = File.join(tmpdir, "bin")
   env = {
-    "PATH" => "#{File.join(tmpdir, "bin")}:#{ENV.fetch("PATH")}",
+    "PATH" => "#{bin}:#{ENV.fetch("PATH")}",
+    "TMUX_TASK_LABEL_BIN" => File.join(bin, "tmux-task-label"),
+    "TMUX_AGENT_STATE_BIN" => File.join(bin, "tmux-agent-state"),
     "TMUX_TEST_LOG" => File.join(tmpdir, "calls.log"),
     "TMUX_TEST_TITLE" => title,
     "TMUX_TEST_COMMAND" => command,
-    "TMUX_TEST_STRUCTURED" => structured ? "1" : "0"
+    "TMUX_TEST_STRUCTURED" => structured ? "1" : "0",
+    "TMUX_TEST_TASK_STATE" => task_state,
+    "TMUX_TEST_TASK_SOURCE" => task_source,
+    "TMUX_TEST_TASK_LABEL" => task_label
   }
   out, err, status = Open3.capture3(env, HELPER, *args)
   [out, err, status, File.read(env["TMUX_TEST_LOG"])]
@@ -107,16 +114,32 @@ if File.exist?(HELPER) && File.executable?(HELPER)
     RUBY
   end
 
+  write_executable(File.join(bin, "tmux-task-label"), <<~'RUBY')
+    #!/usr/bin/env ruby
+    File.open(ENV.fetch("TMUX_TEST_LOG"), "a") { |f| f.puts((["tmux-task-label"] + ARGV).join("\t")) }
+    exit 1 unless ARGV.first == "extract-remote-provisional"
+    title = ARGV.drop(1).join(" ")
+    match = title.match(/^~ (.*) · .* \| /)
+    exit 1 unless match
+    puts match[1]
+  RUBY
+
+  write_executable(File.join(bin, "tmux-agent-state"), <<~'RUBY')
+    #!/usr/bin/env ruby
+    File.open(ENV.fetch("TMUX_TEST_LOG"), "a") { |f| f.puts((["tmux-agent-state"] + ARGV).join("\t")) }
+  RUBY
+
   _out, err, status, log = run_helper(tmpdir, "", "", title: "ignored", structured: false)
   assert("empty pane targets are a quiet no-op", err) { status.success? && log.empty? }
 
   File.write(File.join(tmpdir, "calls.log"), "")
-  _out, err, status, log = run_helper(tmpdir, "%91", title: "repo | dev", structured: false)
+  _out, err, status, log = run_helper(tmpdir, "%91", title: "repo | remote-host", structured: false)
   assert("structured title marks pane structured", err) do
     status.success? && log.include?("tmux\tset-option\t-p\t-q\t-t\t%91\t@pane-title-structured\t1")
   end
-  assert("structured title refreshes remote title and labels", log) do
-    log.include?("tmux-sync-remote-title\t%91") &&
+  assert("structured non-provisional title refreshes remote title and labels", log) do
+    log.include?("tmux-task-label\textract-remote-provisional\trepo | remote-host") &&
+      log.include?("tmux-sync-remote-title\t%91") &&
       log.include?("tmux-sync-pane-border-status\t%91") &&
       log.include?("tmux-update-pane-label\t%91")
   end
@@ -151,6 +174,52 @@ if File.exist?(HELPER) && File.executable?(HELPER)
       log.include?("tmux-update-pane-label\t%94") &&
       log.include?("tmux-window-label\t%94") &&
       !log.include?("tmux-sync-remote-title\t%94")
+  end
+
+  File.write(File.join(tmpdir, "calls.log"), "")
+  provisional_results = 2.times.map do
+    run_helper(
+      tmpdir,
+      "%95",
+      title: "~ refined remote task · project | remote-host [nmb-ind=waiting,]",
+      structured: true
+    )
+  end
+  _out, err, status, log = provisional_results.last
+  calls = log.lines.map(&:chomp)
+  parser_call = calls.index { |call| call.start_with?("tmux-task-label\textract-remote-provisional") }
+  state_call = calls.index("tmux-agent-state\tset-provisional\trefined remote task")
+  render_call = calls.index("tmux-sync-pane-border-status\t%95")
+  assert("remote provisional title updates canonical state before rendering", err) do
+    provisional_results.all? { |result| result[2].success? } &&
+      log.scan(/^tmux-task-label\textract-remote-provisional/).length == 2 &&
+      log.scan(/^tmux-agent-state\tset-provisional\trefined remote task$/).length == 2 &&
+      !render_call.nil? && parser_call < state_call && state_call < render_call
+  end
+  assert("remote provisional title avoids intermediate direct rename", log) do
+    !log.include?("tmux-sync-remote-title\t%95")
+  end
+  assert("remote provisional title renders canonical pane and window labels", log) do
+    log.scan(/^tmux-sync-pane-border-status\t%95$/).length == 2 &&
+      log.scan(/^tmux-window-label\t%95$/).length == 2 &&
+      !log.include?("tmux-update-pane-label\t%95")
+  end
+
+  File.write(File.join(tmpdir, "calls.log"), "")
+  _out, err, status, log = run_helper(
+    tmpdir,
+    "%96",
+    title: "~ ignored remote task · project | remote-host [nmb-ind=waiting,]",
+    structured: true,
+    task_state: "active",
+    task_source: "branch",
+    task_label: "local-feature"
+  )
+  assert("active branch retains canonical state authority", err) do
+    status.success? &&
+      log.include?("tmux-agent-state\tset-provisional\tignored remote task") &&
+      !log.include?("tmux-sync-remote-title\t%96") &&
+      !log.include?("tmux-update-pane-label\t%96")
   end
   end
 end
