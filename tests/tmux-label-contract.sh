@@ -627,15 +627,24 @@ case "$1" in
     output="${output//'#{window_name}'/}"
     output="${output//'#{pane_tty}'//dev/null}"
     output="${output//'#{pane_current_path}'//tmp/project}"
-    output="${output//'#{pane_current_command}'/ssh}"
-    output="${output//'#{pane_title}'/'(feature/tmux-37) project | remote-host'}"
+    output="${output//'#{pane_current_command}'/${TMUX_37_COMMAND:-ssh}}"
+    output="${output//'#{pane_title}'/${TMUX_37_TITLE:-(feature/tmux-37) project | remote-host}}"
     output="${output//'#{pane_id}'/%37}"
     output="${output//$'\t'/_}"
     printf '%s\n' "$output"
     ;;
   show-options)
+    if [ "${*: -1}" = '@pane-title-structured' ] && [ -n "${TMUX_37_STRUCTURED_STATE:-}" ]; then
+      cat "$TMUX_37_STRUCTURED_STATE"
+    fi
     ;;
   set-option)
+    if [ -n "${TMUX_37_ACTIVITY_LOG:-}" ]; then
+      printf 'tmux %s\n' "$*" >> "$TMUX_37_ACTIVITY_LOG"
+    fi
+    if [[ "$*" = *' -u '* ]] && [ "${*: -1}" = '@pane-title-structured' ] && [ -n "${TMUX_37_STRUCTURED_STATE:-}" ]; then
+      rm -f "$TMUX_37_STRUCTURED_STATE"
+    fi
     ;;
   rename-window)
     printf '%s\n' "$*" >> "$TMUX_37_RENAME_LOG"
@@ -644,16 +653,21 @@ esac
 STUB
 cat >"$tmux_37_hook_dir/tmux-sync-remote-title" <<'STUB'
 #!/usr/bin/env bash
-printf 'tmux-sync-remote-title %s\n' "$*" >> "$TMUX_37_HOOK_LOG"
+if [ -n "${TMUX_37_HOOK_LOG:-}" ]; then
+  printf 'tmux-sync-remote-title %s\n' "$*" >> "$TMUX_37_HOOK_LOG"
+fi
+if [ -n "${TMUX_37_ACTIVITY_LOG:-}" ]; then
+  printf 'tmux-sync-remote-title %s\n' "$*" >> "$TMUX_37_ACTIVITY_LOG"
+fi
 STUB
-cat >"$tmux_37_hook_dir/tmux-sync-pane-border-status" <<'STUB'
+for helper in tmux-sync-pane-border-status tmux-update-pane-label tmux-window-label; do
+  cat >"$tmux_37_hook_dir/$helper" <<'STUB'
 #!/usr/bin/env bash
-exit 0
+if [ -n "${TMUX_37_ACTIVITY_LOG:-}" ]; then
+  printf '%s %s\n' "${0##*/}" "$*" >> "$TMUX_37_ACTIVITY_LOG"
+fi
 STUB
-cat >"$tmux_37_hook_dir/tmux-update-pane-label" <<'STUB'
-#!/usr/bin/env bash
-exit 0
-STUB
+done
 chmod +x "$tmux_37_dir/tmux" "$tmux_37_hook_dir/"*
 
 pane_label="$(PATH="$tmux_37_dir:$PATH" "$PANE_LABEL" /dev/null /tmp/project ssh %37)"
@@ -663,6 +677,19 @@ TMUX_37_HOOK_LOG="$hook_log" PATH="$tmux_37_dir:$tmux_37_hook_dir:$PATH" \
   "$PANE_TITLE_CHANGED" %37
 assert_file_contains "$hook_log" 'tmux-sync-remote-title %37' \
   'tmux 3.7 parsing dispatches structured pane title synchronization'
+
+sticky_state="$TMPROOT/tmux-37-sticky-structured"
+sticky_activity_log="$TMPROOT/tmux-37-sticky-activity.log"
+printf '1' > "$sticky_state"
+: > "$sticky_activity_log"
+TMUX_37_TITLE=remote-host TMUX_37_COMMAND=ssh \
+  TMUX_37_STRUCTURED_STATE="$sticky_state" TMUX_37_ACTIVITY_LOG="$sticky_activity_log" \
+  PATH="$tmux_37_dir:$tmux_37_hook_dir:$PATH" "$PANE_TITLE_CHANGED" %37
+assert_file_contains "$sticky_state" '1' \
+  'tmux 3.7 parsing keeps structured state for degraded remote title'
+assert_equals "$(cat "$sticky_activity_log")" '' \
+  'tmux 3.7 parsing exits sticky remote-title path before clear and update helpers'
+
 TMUX_37_RENAME_LOG="$sync_log" PATH="$tmux_37_dir:$PATH" \
   "$SYNC_REMOTE_TITLE" %37
 assert_file_contains "$sync_log" 'rename-window -t @37 feature/tmux-37' \
