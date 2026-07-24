@@ -9,18 +9,23 @@ devpod_name_helper="${TMUX_DEVPOD_NAME_BIN:-$script_dir/tmux-devpod-name}"
 [ -x "$devpod_name_helper" ] || devpod_name_helper="${HOME:-}/.local/bin/tmux-devpod-name"
 
 pane_info() {
-  if [ -n "${TMUX_REMOTE_TITLE_PANE_PATH:-}" ] || [ -n "${TMUX_REMOTE_TITLE_CLIENT_TTY:-}" ] || [ -n "${TMUX_REMOTE_TITLE_PANE_TTY:-}" ]; then
-    printf '%s\t%s\t%s\t%s\t%s\n' \
+  local format
+
+  if [ -n "${TMUX_REMOTE_TITLE_PANE_PATH:-}" ] || [ -n "${TMUX_REMOTE_TITLE_PANE_TTY:-}" ] || [ -n "${TMUX_REMOTE_TITLE_PANE_COMMAND:-}" ] || [ -n "${TMUX_REMOTE_TITLE_EDGE_FLAGS:-}" ] || [ -n "${TMUX_REMOTE_TITLE_SESSION_ID:-}" ] || [ -n "${TMUX_REMOTE_TITLE_WINDOW_ID:-}" ] || [ -n "${TMUX_REMOTE_TITLE_PANE_ACTIVE:-}" ]; then
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "${TMUX_REMOTE_TITLE_PANE_PATH:-}" \
-      "${TMUX_REMOTE_TITLE_CLIENT_TTY:-}" \
       "${TMUX_REMOTE_TITLE_PANE_TTY:-}" \
       "${TMUX_REMOTE_TITLE_PANE_COMMAND:-}" \
-      "${TMUX_REMOTE_TITLE_EDGE_FLAGS:-}"
+      "${TMUX_REMOTE_TITLE_EDGE_FLAGS:-}" \
+      "${TMUX_REMOTE_TITLE_SESSION_ID:-}" \
+      "${TMUX_REMOTE_TITLE_WINDOW_ID:-}" \
+      "${TMUX_REMOTE_TITLE_PANE_ACTIVE:-1}"
     return 0
   fi
 
   [ -n "$pane_id" ] || return 1
-  tmux display-message -p -t "$pane_id" '#{pane_current_path}	#{client_tty}	#{pane_tty}	#{pane_current_command}	#{?pane_at_left,h,}#{?pane_at_bottom,j,}#{?pane_at_top,k,}#{?pane_at_right,l,}' 2>/dev/null
+  printf -v format '#{pane_current_path}\t#{pane_tty}\t#{pane_current_command}\t#{?pane_at_left,h,}#{?pane_at_bottom,j,}#{?pane_at_top,k,}#{?pane_at_right,l,}\t#{session_id}\t#{window_id}\t#{pane_active}'
+  tmux display-message -p -t "$pane_id" "$format" 2>/dev/null
 }
 
 read_pane_option() {
@@ -278,13 +283,52 @@ managed_task_title() {
   esac
 }
 
+matching_client_ttys() {
+  local source_session_id="$1" source_window_id="$2"
+  local client_tty client_session_id client_window_id format
+
+  printf -v format '#{client_tty}\t#{session_id}\t#{window_id}'
+  tmux list-clients -F "$format" 2>/dev/null |
+    while IFS=$'\t' read -r client_tty client_session_id client_window_id; do
+      [ -n "$client_tty" ] || continue
+      [ "$client_session_id" = "$source_session_id" ] || continue
+      [ "$client_window_id" = "$source_window_id" ] || continue
+      printf '%s\n' "$client_tty"
+    done
+}
+
+publish_title() {
+  local title="$1" source_session_id="$2" source_window_id="$3" pane_active="$4"
+  local client_tty
+
+  [ "$pane_active" = "1" ] || return 0
+  [ -n "$source_session_id" ] || return 0
+  [ -n "$source_window_id" ] || return 0
+
+  while IFS= read -r client_tty; do
+    [ -n "$client_tty" ] || continue
+    printf '\033]2;%s\033\\' "$title" > "$client_tty" 2>/dev/null || true
+  done < <(matching_client_ttys "$source_session_id" "$source_window_id")
+}
+
 main() {
-  local pane_path client_tty pane_tty pane_command edge_flags host title worktree_path worktree_pid active_agent_pid
-  local info task_label task_state task_context
+  local pane_path pane_tty pane_command edge_flags source_session_id source_window_id pane_active
+  local host title worktree_path worktree_pid active_agent_pid info task_label task_state task_context
 
   info="$(pane_info)" || exit 0
   [ -n "$info" ] || exit 0
-  IFS=$'\t' read -r pane_path client_tty pane_tty pane_command edge_flags <<< "$info"
+  pane_path="${info%%$'\t'*}"
+  info="${info#*$'\t'}"
+  pane_tty="${info%%$'\t'*}"
+  info="${info#*$'\t'}"
+  pane_command="${info%%$'\t'*}"
+  info="${info#*$'\t'}"
+  edge_flags="${info%%$'\t'*}"
+  info="${info#*$'\t'}"
+  source_session_id="${info%%$'\t'*}"
+  info="${info#*$'\t'}"
+  source_window_id="${info%%$'\t'*}"
+  pane_active="${info#*$'\t'}"
   [ -n "$pane_path" ] || exit 0
 
   host="$(host_tag)"
@@ -322,8 +366,7 @@ main() {
       printf '%s\n' "$title"
       ;;
     publish)
-      [ -n "$client_tty" ] || exit 0
-      printf '\033]2;%s\033\\' "$title" > "$client_tty"
+      publish_title "$title" "$source_session_id" "$source_window_id" "$pane_active"
       ;;
     *)
       exit 0
