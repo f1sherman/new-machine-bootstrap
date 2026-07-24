@@ -3,16 +3,19 @@ set -euo pipefail
 
 pane_id="${1:-${TMUX_PANE:-}}"
 [ -n "$pane_id" ] || exit 0
+field_separator='__NMB_TMUX_FIELD__'
+parse_separator=$'\x1f'
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 task_label_helper="${TMUX_TASK_LABEL_BIN:-$script_dir/tmux-task-label}"
 [ -x "$task_label_helper" ] || task_label_helper="${HOME:-}/.local/bin/tmux-task-label"
 glyphs_helper="${TMUX_INDICATOR_GLYPHS_BIN:-$script_dir/tmux-indicator-glyphs}"
 [ -x "$glyphs_helper" ] || glyphs_helper="${HOME:-}/.local/bin/tmux-indicator-glyphs"
 
-pane_info="$(tmux display-message -p -t "$pane_id" '#{window_id}	#{pane_active}	#{window_name}	#{pane_tty}	#{pane_current_path}	#{pane_current_command}	#{pane_title}	#{pane_id}' 2>/dev/null || true)"
+pane_info="$(tmux display-message -p -t "$pane_id" "#{window_id}${field_separator}#{pane_active}${field_separator}#{window_name}${field_separator}#{pane_tty}${field_separator}#{pane_current_path}${field_separator}#{pane_current_command}${field_separator}#{pane_title}${field_separator}#{pane_id}" 2>/dev/null || true)"
 [ -n "$pane_info" ] || exit 0
 
-IFS=$'\t' read -r window_id pane_active window_name pane_tty pane_current_path pane_current_command pane_title pane_id <<< "$pane_info"
+pane_info="${pane_info//$field_separator/$parse_separator}"
+IFS="$parse_separator" read -r window_id pane_active window_name pane_tty pane_current_path pane_current_command pane_title pane_id <<< "$pane_info"
 [ -n "$window_id" ] || exit 0
 [ "$pane_active" = "1" ] || exit 0
 

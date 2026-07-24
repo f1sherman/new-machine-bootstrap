@@ -11,8 +11,11 @@ done
 
 [ -n "$pane_id" ] || exit 0
 
-pane_info="$(tmux display-message -p -t "$pane_id" '#{pane_title}	#{pane_current_command}' 2>/dev/null)" || exit 0
-IFS=$'\t' read -r title pane_current_command <<< "$pane_info"
+field_separator='__NMB_TMUX_FIELD__'
+parse_separator=$'\x1f'
+pane_info="$(tmux display-message -p -t "$pane_id" "#{pane_title}${field_separator}#{pane_current_command}" 2>/dev/null)" || exit 0
+pane_info="${pane_info//$field_separator/$parse_separator}"
+IFS="$parse_separator" read -r title pane_current_command <<< "$pane_info"
 structured="$(tmux show-options -qv -p -t "$pane_id" @pane-title-structured 2>/dev/null || true)"
 
 case "$title" in
