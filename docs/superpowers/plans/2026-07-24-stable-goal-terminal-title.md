@@ -207,13 +207,13 @@ bash tests/pi-managed-hooks.sh
 
 Expected: all suites complete with no failures.
 
-- [ ] **Step 2: Run the repository CI-safe lane**
+- [ ] **Step 2: Run the local CI inventory contract**
 
 ```bash
-bin/test ci
+bash tests/ci-test-inventory.sh
 ```
 
-Expected: exit 0 with no failed tests.
+Expected: `1 passed, 0 failed`. The full provision-backed integration workflow runs on GitHub after the PR is pushed.
 
 - [ ] **Step 3: Inspect final scope**
 
