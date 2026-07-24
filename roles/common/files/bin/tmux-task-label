@@ -132,6 +132,16 @@ extract_remote_task() {
   return 1
 }
 
+extract_remote_provisional() {
+  local label local_label subject
+  label="$(structured_remote_label "$1")" || return 1
+  local_label="${label% | *}"
+  [[ "$local_label" =~ ^~\ (.*)\ ·\ (.+)$ ]] || return 1
+  subject="${BASH_REMATCH[1]}"
+  [[ -n "$subject" ]] || return 1
+  printf '%s\n' "$subject"
+}
+
 case "${1:-}" in
   truncate)
     shift
@@ -141,8 +151,12 @@ case "${1:-}" in
     shift
     extract_remote_task "$*"
     ;;
+  extract-remote-provisional)
+    shift
+    extract_remote_provisional "$*"
+    ;;
   *)
-    printf 'Usage: tmux-task-label truncate <label>|extract-remote <structured-title>\n' >&2
+    printf 'Usage: tmux-task-label truncate <label>|extract-remote <structured-title>|extract-remote-provisional <structured-title>\n' >&2
     exit 2
     ;;
 esac
