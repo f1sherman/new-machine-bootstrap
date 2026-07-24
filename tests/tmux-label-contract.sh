@@ -1042,6 +1042,7 @@ for config in \
   assert_file_contains "$config" '#{@pane-label}' "$config bottom bar consumes cached pane label"
   assert_file_contains "$config" '#{E:@window-indicators}#{?#{||:#{window_activity_flag},#{window_bell_flag}},#[fg=black#,nodim],#[fg=colour252#,nodim]}#{window_name}' "$config inactive window restores activity-or-bell-aware text color and intensity"
   assert_file_contains "$config" '#{E:@window-indicators}#[fg=black,nodim]#{window_name}' "$config current window expands indicators and restores text color and intensity"
+  assert_file_contains "$config" "set -g window-status-current-style 'bg=colour51,fg=black,bold'" "$config current window keeps its cyan background"
   assert_file_contains "$config" "set -g window-status-activity-style 'bg=colour51,fg=black,bold'" "$config activity highlight preserves indicator foreground colors"
   assert_file_contains "$config" "set -g window-status-bell-style 'bg=white,fg=black,bold'" "$config bell highlight uses a distinct white background"
 done
