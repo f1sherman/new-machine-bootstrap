@@ -528,6 +528,23 @@ for remote_case in \
 done
 assert_equals "$($TASK_LABEL extract-remote '(feature/a)b) project | remote-host')" 'feature/a)b' "remote parser preserves branch closing parenthesis"
 assert_equals "$($TASK_LABEL extract-remote '(feature/x) project | remote-host [nmb-ind=working,draft] [nmb-edge=hj]')" 'feature/x' "remote parser strips indicator marker"
+assert_equals \
+  "$($TASK_LABEL extract-remote-provisional '~ investigate title race · project | remote-host [nmb-ind=waiting,] [nmb-edge=hj]')" \
+  'investigate title race' \
+  'remote parser extracts raw provisional subject'
+assert_equals \
+  "$($TASK_LABEL extract-remote-provisional '~ auth · billing | migration · project | remote-host')" \
+  'auth · billing | migration' \
+  'remote parser preserves subject separators'
+long_remote_subject="$(printf '界%.0s' {1..60})"
+assert_equals \
+  "$($TASK_LABEL extract-remote-provisional "~ $long_remote_subject · project | remote-host")" \
+  "$long_remote_subject" \
+  'remote parser keeps canonical subject untruncated'
+if "$TASK_LABEL" extract-remote-provisional 'plain project | remote-host' >/dev/null 2>&1; then
+  fail_case 'remote parser rejects non-provisional title' 'unexpected successful extraction'
+fi
+pass_case 'remote parser rejects non-provisional title'
 
 : > "$window_log"
 TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=working,draft] [nmb-edge=hjl]' \
