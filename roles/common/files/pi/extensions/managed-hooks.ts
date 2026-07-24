@@ -701,9 +701,11 @@ function restoreSessionGoal(ctx) {
 }
 
 function renderSessionGoal(ctx) {
+  const sessionName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
+  const duplicate = Boolean(currentSessionGoal) && sessionName === currentSessionGoal;
   ctx?.ui?.setStatus?.(
     SESSION_GOAL_STATUS_KEY,
-    `goal: ${currentSessionGoal || SESSION_GOAL_PLACEHOLDER}`,
+    duplicate ? undefined : `goal: ${currentSessionGoal || SESSION_GOAL_PLACEHOLDER}`,
   );
 }
 
@@ -799,6 +801,7 @@ export default function managedHooks(pi) {
       const maySet = () => !options.onlyIfUnset
         || (requestIsCurrent(options.request, ctx) && currentSessionGoal === normalized);
       const named = await setManagedPiSessionName(pi, ctx, normalized, maySet);
+      renderSessionGoal(ctx);
       if (named && maySet()) await publishSessionIdentity(pi, ctx, normalized);
       return normalized;
     });
@@ -910,6 +913,7 @@ export default function managedHooks(pi) {
   });
 
   pi.on("session_info_changed", async (event, ctx) => {
+    renderSessionGoal(ctx);
     const sessionName = event.name?.trim() || "";
     if (!sessionName || !ownsTmuxPane()) return;
     await publishSessionIdentity(pi, ctx, sessionName);

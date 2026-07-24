@@ -356,6 +356,14 @@ assert.deepEqual(statuses.at(-1), {
   value: "goal: persistent Pi session goals",
 }, "resume skips malformed newest entries and restores the latest valid normalized goal");
 
+statuses.length = 0;
+currentSessionName = "persistent Pi session goals";
+await handlers.get("session_start")({ reason: "matching managed goal resume" }, ctx);
+assert.deepEqual(statuses.at(-1), {
+  key: "session-goal",
+  value: undefined,
+}, "matching automatic session name suppresses duplicate goal status");
+
 const outsideTmuxEntries = customEntries.length;
 delete process.env.TMUX;
 delete process.env.TMUX_PANE;
@@ -416,7 +424,7 @@ assert.deepEqual(customEntries.at(-1), {
   data: { subject: "outside tmux goal" },
 }, "outside tmux persists changed goals");
 assert.equal(customEntries.length, outsideTmuxEntries + 1, "outside tmux appends one goal entry");
-assert.equal(statuses.at(-1).value, "goal: outside tmux goal", "outside tmux updates goal status");
+assert.equal(statuses.at(-1).value, undefined, "outside tmux suppresses the goal status after automatic naming");
 assert.equal(currentSessionName, "outside tmux goal", "outside tmux names the session from its goal");
 assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args[0] === "status"), false, "outside tmux goal naming does not query tmux task state");
 
@@ -865,7 +873,7 @@ const toolResult = await withStdoutTTY(true, () => sessionGoalTool.execute(
 ));
 assert.equal(customEntries.length, entriesBeforeTool + 1, "explicit tool persists changed goal");
 assert.equal(customEntries.at(-1).data.subject, "cross branch theme", "explicit tool stores requested goal");
-assert.equal(statuses.at(-1).value, "goal: cross branch theme", "explicit tool rerenders goal status");
+assert.equal(statuses.at(-1).value, undefined, "explicit tool suppresses goal status after automatic naming");
 assert.match(toolResult.content[0].text, /cross branch theme/, "explicit tool reports applied goal");
 assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity goal cross branch theme"), "explicit tool publishes goal identity");
 
@@ -953,7 +961,7 @@ goalChildDeferred = undefined;
 staleInitialGoal.resolve(ok("stale generated goal\n"));
 goalChildIgnoresAbort = false;
 await flushAsyncWork();
-assert.equal(statuses.at(-1).value, "goal: explicit race winner", "explicit tool wins a pending evaluator race");
+assert.equal(statuses.at(-1).value, undefined, "explicit tool race winner suppresses duplicate goal status");
 assert.equal(customEntries.some((entry) => entry.data.subject === "stale generated goal"), false, "stale initial output is discarded after explicit goal");
 
 branchEntries = [];
@@ -984,7 +992,7 @@ blockedMarkerWrite.resolve();
 await serializedExplicit;
 await flushAsyncWork();
 assert.equal(customEntries.at(-1).data.subject, "serialized explicit winner", "serialized explicit goal persists last");
-assert.equal(statuses.at(-1).value, "goal: serialized explicit winner", "serialized explicit goal remains in status");
+assert.equal(statuses.at(-1).value, undefined, "serialized explicit goal suppresses duplicate status");
 assert.equal(currentSessionName, "serialized explicit winner", "serialized explicit goal remains the Pi name");
 assert.equal(managedPiSessionName, "serialized explicit winner", "serialized explicit goal remains the managed marker");
 assert.deepEqual(calls.filter((call) => call.command === "tmux-agent-state" && call.args[0] === "set-identity").at(-1).args,
@@ -1018,7 +1026,7 @@ await flushAsyncWork();
 assert.equal(sessionNames.includes("feature/race-branch"), false, "branch label never becomes the Pi name while a durable goal is applying");
 assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity manual feature/race-branch"), false, "branch label never becomes manual tmux identity while a durable goal is applying");
 assert.equal(customEntries.at(-1).data.subject, "durable fallback race goal", "fallback race preserves the durable goal entry");
-assert.equal(statuses.at(-1).value, "goal: durable fallback race goal", "fallback race preserves visible goal status");
+assert.equal(statuses.at(-1).value, undefined, "fallback race suppresses duplicate goal status");
 assert.equal(currentSessionName, "durable fallback race goal", "fallback race leaves the goal as the visible Pi name");
 assert.equal(managedPiSessionName, "durable fallback race goal", "fallback race leaves the goal as managed tmux identity");
 assert.deepEqual(calls.filter((call) => call.command === "tmux-agent-state" && call.args[0] === "set-identity").at(-1).args,
@@ -1169,9 +1177,14 @@ assert.deepEqual(sessionNames, [], "startup does not rename a manual Pi name");
 assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity manual manual investigation name"), "startup republishes manual identity");
 
 calls.length = 0;
+statuses.length = 0;
 currentSessionName = "renamed manual investigation";
 await withStdoutTTY(true, () => handlers.get("session_info_changed")({ name: "renamed manual investigation" }, ctx));
 assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity manual renamed manual investigation"), "manual session_info_changed publishes manual identity");
+assert.deepEqual(statuses.at(-1), {
+  key: "session-goal",
+  value: "goal: manual-safe durable goal",
+}, "manual session rename keeps a distinct durable goal visible");
 const manualToolEntries = customEntries.length;
 calls.length = 0;
 await withStdoutTTY(true, () => sessionGoalTool.execute(
@@ -1195,7 +1208,12 @@ taskStatus = "active\tgoal\textension managed goal\n";
 await withStdoutTTY(true, () => handlers.get("session_start")({ reason: "managed goal resume" }, ctx));
 assert.equal(currentSessionName, "extension managed goal", "startup restores extension-managed goal name");
 calls.length = 0;
+statuses.length = 0;
 await withStdoutTTY(true, () => handlers.get("session_info_changed")({ name: "extension managed goal" }, ctx));
+assert.deepEqual(statuses.at(-1), {
+  key: "session-goal",
+  value: undefined,
+}, "managed session name event suppresses duplicate durable goal status");
 assert.deepEqual(calls.at(-2), {
   command: "tmux",
   args: ["show-options", "-qv", "-p", "-t", "%1", "@pi_managed_session_name"],
@@ -1342,7 +1360,7 @@ assert.equal(goalChildCalls.length, 2, "old child finally does not clear the des
 newGenerationDeferred.resolve(ok("destination immediate goal\n"));
 goalChildIgnoresAbort = false;
 await flushAsyncWork();
-assert.equal(statuses.at(-1).value, "goal: destination immediate goal", "destination generation applies after old settlement");
+assert.equal(statuses.at(-1).value, undefined, "destination generation suppresses duplicate goal status after old settlement");
 assert.equal(customEntries.some((entry) => entry.data.subject === "stale old generation goal"), false, "old generation settlement cannot apply stale output");
 activeSessionFile = "/sessions/current.jsonl";
 
