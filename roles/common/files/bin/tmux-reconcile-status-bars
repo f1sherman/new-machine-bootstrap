@@ -56,11 +56,23 @@ def reconcile(lock_fd):
         if clients is None or clients.returncode != 0:
             continue
 
+        windows = tmux(
+            "list-windows",
+            "-t",
+            session_id,
+            "-F",
+            "#{window_id}",
+            lock_fd=lock_fd,
+        )
+        if windows is None or windows.returncode != 0:
+            continue
+
         client_terms = clients.stdout.splitlines()
         nested_only = bool(client_terms) and all(
             term.startswith(("tmux", "screen")) for term in client_terms
         )
         status = "off" if nested_only else "on"
+        pane_border_status = "off" if nested_only else "bottom"
         tmux(
             "set-option",
             "-q",
@@ -70,6 +82,24 @@ def reconcile(lock_fd):
             status,
             lock_fd=lock_fd,
         )
+        marker_args = (
+            ("set-option", "-q", "-t", session_id, "@nested-client-only", "1")
+            if nested_only
+            else ("set-option", "-q", "-u", "-t", session_id, "@nested-client-only")
+        )
+        tmux(*marker_args, lock_fd=lock_fd)
+        for window_id in windows.stdout.splitlines():
+            if not window_id:
+                continue
+            tmux(
+                "set-window-option",
+                "-q",
+                "-t",
+                window_id,
+                "pane-border-status",
+                pane_border_status,
+                lock_fd=lock_fd,
+            )
 
 
 def main():

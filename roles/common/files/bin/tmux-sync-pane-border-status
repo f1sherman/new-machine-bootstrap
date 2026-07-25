@@ -10,8 +10,16 @@ fi
 pane_id="${1:-${TMUX_PANE:-}}"
 [ -n "$pane_id" ] || exit 0
 
-window_id="$(tmux display-message -p -t "$pane_id" '#{window_id}' 2>/dev/null || true)"
-[ -n "$window_id" ] || exit 0
+target="$(tmux display-message -p -t "$pane_id" '#{session_id} #{window_id}' 2>/dev/null || true)"
+session_id="${target%% *}"
+window_id="${target#* }"
+[ -n "$session_id" ] && [ -n "$window_id" ] && [ "$session_id" != "$window_id" ] || exit 0
 
-tmux set-window-option -q -t "$window_id" pane-border-status bottom 2>/dev/null || true
+nested_client_only="$(
+  tmux show-options -v -t "$session_id" @nested-client-only 2>/dev/null || true
+)"
+pane_border_status=bottom
+[ "$nested_client_only" = "1" ] && pane_border_status=off
+
+tmux set-window-option -q -t "$window_id" pane-border-status "$pane_border_status" 2>/dev/null || true
 exit 0
