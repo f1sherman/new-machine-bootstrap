@@ -21,7 +21,7 @@ class HnpTest < Minitest::Test
     @ssh_capture = File.join(@tmpdir, "ssh.capture")
     FileUtils.mkdir_p(repo_path)
     FileUtils.mkdir_p(@bin)
-    write_state("sessions" => [], "attachments" => [], "created" => [])
+    write_state("sessions" => [], "attachments" => [], "created" => [], "client_pids" => [])
     write_fake_tmux
     write_fake_pi
     write_fake_ssh
@@ -79,6 +79,77 @@ class HnpTest < Minitest::Test
     assert_includes attachments, "hnp"
   end
 
+  def test_attach_failure_reaps_client_and_allows_later_reconnect
+    set_sessions([{ "name" => "hnp", "attached" => 0, "command" => "pi" }])
+
+    _out, _err, status = run_hnp(env: { "FAKE_TMUX_ATTACH_FAILURE" => "1" })
+    child_pid = state.fetch("client_pids").fetch(0)
+
+    refute status.success?
+    refute process_alive?(child_pid), "failed tmux client #{child_pid} leaked"
+
+    _out, err, retry_status = run_hnp
+    assert retry_status.success?, err
+    assert_equal ["hnp"], state.fetch("attachments")
+  end
+
+  def test_timeout_kills_term_ignoring_client_and_allows_later_reconnect
+    set_sessions([{ "name" => "hnp", "attached" => 0, "command" => "pi" }])
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    result = Thread.new do
+      run_hnp(env: {
+        "FAKE_TMUX_NEVER_CONFIRM" => "1",
+        "FAKE_TMUX_IGNORE_TERM" => "1",
+        "HNP_TMUX_ATTACH_TIMEOUT" => "0.2",
+        "HNP_TMUX_TERM_GRACE" => "0.05"
+      })
+    end
+
+    completed_promptly = result.join(1)
+    unless completed_promptly
+      state.fetch("client_pids").each { |pid| Process.kill("KILL", pid) if process_alive?(pid) }
+      result.join(1)
+    end
+    _out, _err, status = result.value
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+    child_pid = state.fetch("client_pids").fetch(0)
+
+    assert completed_promptly, "timeout cleanup remained blocked after #{elapsed.round(2)}s"
+    refute status.success?
+    refute process_alive?(child_pid), "timed-out tmux client #{child_pid} leaked"
+
+    _out, err, retry_status = run_hnp
+    assert retry_status.success?, err
+    assert_equal ["hnp"], state.fetch("attachments")
+  end
+
+  def test_interrupt_reaps_unconfirmed_client_and_releases_lock
+    set_sessions([{ "name" => "hnp", "attached" => 0, "command" => "pi" }])
+    error_path = File.join(@tmpdir, "interrupted.err")
+    env = launcher_env(
+      "FAKE_TMUX_NEVER_CONFIRM" => "1",
+      "HNP_TMUX_ATTACH_TIMEOUT" => "10",
+      "HNP_TMUX_TERM_GRACE" => "0.05"
+    )
+    launcher_pid = Process.spawn(env, HNP, out: File::NULL, err: error_path)
+    wait_until { !state.fetch("client_pids").empty? }
+    child_pid = state.fetch("client_pids").fetch(0)
+
+    Process.kill("INT", launcher_pid)
+    _, status = Process.wait2(launcher_pid)
+    sleep 0.1
+
+    refute status.success?
+    refute process_alive?(child_pid), "interrupted tmux client #{child_pid} leaked"
+
+    _out, err, retry_status = run_hnp
+    assert retry_status.success?, "lock was not reusable: #{err}"
+    assert_equal ["hnp"], state.fetch("attachments")
+  ensure
+    Process.kill("KILL", launcher_pid) if launcher_pid && process_alive?(launcher_pid)
+    Process.kill("KILL", child_pid) if child_pid && process_alive?(child_pid)
+  end
+
   def test_inside_tmux_runs_pi_directly_with_arguments
     _out, err, status = run_hnp("two words", "$(bad)", env: {
       "TMUX" => "/tmp/tmux",
@@ -132,7 +203,23 @@ class HnpTest < Minitest::Test
   end
 
   def set_sessions(sessions)
-    write_state("sessions" => sessions, "attachments" => [], "created" => [])
+    write_state("sessions" => sessions, "attachments" => [], "created" => [], "client_pids" => [])
+  end
+
+  def process_alive?(pid)
+    Process.kill(0, pid)
+    true
+  rescue Errno::ESRCH
+    false
+  end
+
+  def wait_until(timeout: 1)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+    until yield
+      raise "timed out waiting for process state" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+      sleep 0.01
+    end
   end
 
   def state
@@ -215,6 +302,14 @@ class HnpTest < Minitest::Test
       end
 
       def attach(path, target)
+        locked_state(path) { |state| state.fetch("client_pids") << Process.pid }
+        exit 42 if ENV["FAKE_TMUX_ATTACH_FAILURE"] == "1"
+        if ENV["FAKE_TMUX_NEVER_CONFIRM"] == "1"
+          Signal.trap("TERM") {} if ENV["FAKE_TMUX_IGNORE_TERM"] == "1"
+          sleep 30
+          exit 0
+        end
+
         session_name = locked_state(path) do |state|
           session = session_named(state, target)
           exit 1 unless session
