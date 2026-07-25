@@ -175,7 +175,7 @@ extract_marked_task_fields() {
   stripped="$(structured_remote_label "$title")" || return 1
   local_label="${stripped% | *}"
   case "$local_label" in
-    "~ "*|"("*|"✓ ("*) return 1 ;;
+    "~ "*) return 1 ;;
   esac
   host="$(normalize_field "${stripped##* | }")"
   [[ "$local_label" =~ ^(.*)[[:space:]]·[[:space:]](.*)$ ]] || return 1
