@@ -39,6 +39,9 @@ jobs:
       - name: Verify tmux restore startup coordination
         run: ruby tests/tmux-restore-startup.rb
 
+      - name: Verify HNP tmux attachment behavior
+        run: ruby tests/hnp.rb
+
       - name: Verify Ghostty session manifest
         run: ruby tests/ghostty-session-manifest.rb
 
