@@ -1,0 +1,16 @@
+---
+
+- name: Inspect retired NMB-managed hnp launcher
+  stat:
+    path: "{{ nmb_hnp_launcher_path }}"
+    checksum_algorithm: sha256
+  register: nmb_hnp_launcher
+
+- name: Remove retired NMB-managed hnp launcher
+  file:
+    path: "{{ nmb_hnp_launcher_path }}"
+    state: absent
+  when:
+    - nmb_hnp_launcher.stat.exists
+    - nmb_hnp_launcher.stat.isreg | default(false)
+    - nmb_hnp_launcher.stat.checksum | default('') in nmb_retired_hnp_checksums

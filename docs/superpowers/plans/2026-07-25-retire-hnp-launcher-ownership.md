@@ -146,7 +146,7 @@ Replace the existing `Install hnp script` task in `roles/common/tasks/main.yml` 
     nmb_hnp_launcher_path: '{{ ansible_facts["user_dir"] }}/.local/bin/hnp'
     nmb_retired_hnp_checksums:
       - 18a2dbe58ffcef1c68cac3754a4f818314ad5a5128bae459cbac4610b88769df
-      - 1337de6ecd63aed677f11134daf8319057a59aef0d920deee9a4b0ced0ae97
+      - 1337de6ecd63aed677f8f11134daf8319057a59aef0d920deee9a4b0ced0ae97
       - 4ffdd21b6a34d18362f7e3301465a23dc14ed884a461e0b3d72422bedf72fbaa
       - 571b2a4df10f75afa3e0930e6037b8c5ebfe6000a82765322c113e5dc657496b
       - 5aacc96a4c27a2cb49f263aae9f5de19f0c4baaeb4534f6b2b40084b90f25d28
