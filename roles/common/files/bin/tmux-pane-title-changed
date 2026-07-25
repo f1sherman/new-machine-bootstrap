@@ -41,6 +41,7 @@ case "$title" in
       fi
       tmux-sync-pane-border-status "$pane_id"
       tmux-update-pane-label "$pane_id"
+      tmux-window-label "$pane_id"
     fi
     ;;
   *)
