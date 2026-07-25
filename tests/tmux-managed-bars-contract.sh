@@ -55,7 +55,7 @@ for config in "$LINUX_TMUX_CONF" "$MACOS_TMUX_CONF"; do
       "set-hook -g ${event}\\[90\\] .*tmux-reconcile-status-bars" \
       "$platform config owns indexed status reconciliation on $event"
   done
-  for event in after-new-window window-linked; do
+  for event in after-new-window window-linked window-unlinked; do
     assert_file_contains "$config" \
       "set-hook -g ${event}\\[90\\] .*PATH=.*tmux-reconcile-status-bars" \
       "$platform config converges created or linked windows through portable $event hook"
@@ -106,6 +106,8 @@ tmux -L "$SOCK" set -gu @managed-bars
 tmux -L "$SOCK" set-option -t "$sid" status off
 tmux -L "$SOCK" set-hook -g 'client-detached[40]' \
   'set-option -g @unrelated-detach-hook-seen yes'
+tmux -L "$SOCK" set-hook -g 'window-unlinked[40]' \
+  'set-option -g @unrelated-unlink-hook-seen yes'
 HOME="$TEST_HOME" tmux -L "$SOCK" source-file "$LINUX_TMUX_CONF"
 HOME="$TEST_HOME" tmux -L "$SOCK" source-file "$LINUX_TMUX_CONF"
 HOME="$TEST_HOME" tmux -L "$SOCK" source-file "$LINUX_TMUX_CONF"
@@ -142,6 +144,11 @@ for event in after-new-window window-linked; do
   assert_equals "$(grep -c 'tmux-reconcile-status-bars' <<<"$creation_hooks" || true)" "1" \
     "repeated config sourcing keeps one indexed $event reconciler"
 done
+unlink_hooks="$(tmux -L "$SOCK" show-hooks -g window-unlinked 2>/dev/null)"
+assert_equals "$(grep -c '@unrelated-unlink-hook-seen' <<<"$unlink_hooks" || true)" "1" \
+  "repeated config sourcing preserves one unrelated window-unlinked hook"
+assert_equals "$(grep -c 'tmux-reconcile-status-bars' <<<"$unlink_hooks" || true)" "1" \
+  "repeated config sourcing keeps one indexed window-unlinked reconciler"
 
 python3 - "$SOCK" "$TEST_HOME" "$LINUX_TMUX_CONF" "$PANE_BORDER" <<'PY'
 import fcntl
@@ -242,11 +249,50 @@ def nested_marker(session):
     )
 
 
+def nested_window_marker(window_id):
+    return tmux(
+        "show-window-options",
+        "-v",
+        "-t",
+        window_id,
+        "@nested-window-only",
+        check=False,
+    )
+
+
+def nested_window_markers(session):
+    return {
+        window_id: nested_window_marker(window_id)
+        for window_id in window_ids(session)
+    }
+
+
+def window_index(session, window_id):
+    output = tmux(
+        "list-windows",
+        "-t",
+        session,
+        "-F",
+        "#{window_id} #{window_index}",
+    )
+    for line in output.splitlines():
+        listed_window, index = line.split(" ", 1)
+        if listed_window == window_id:
+            return index
+    raise AssertionError(f"{window_id} is not linked to {session}")
+
+
 def bars_state(session):
     return status(session), pane_border_statuses(session), nested_marker(session)
 
 
-def set_bars_state(session, status_value, border_value, marker_value):
+def set_bars_state(
+    session,
+    status_value,
+    border_value,
+    marker_value,
+    window_marker_value,
+):
     tmux("set-option", "-t", session, "status", status_value)
     for window_id in window_ids(session):
         tmux(
@@ -256,6 +302,23 @@ def set_bars_state(session, status_value, border_value, marker_value):
             "pane-border-status",
             border_value,
         )
+        if window_marker_value:
+            tmux(
+                "set-window-option",
+                "-t",
+                window_id,
+                "@nested-window-only",
+                window_marker_value,
+            )
+        else:
+            tmux(
+                "set-window-option",
+                "-u",
+                "-t",
+                window_id,
+                "@nested-window-only",
+                check=False,
+            )
     if marker_value:
         tmux(
             "set-option",
@@ -312,13 +375,21 @@ def assert_status(session, expected, name):
 
 
 def assert_bars(session, expected_status, expected_border, expected_marker, name):
+    expected_window_marker = "1" if expected_border == "off" else ""
+
     def matches():
         actual_status, borders, marker = bars_state(session)
+        window_markers = nested_window_markers(session)
         return (
             actual_status == expected_status
             and borders
             and all(value == expected_border for value in borders.values())
             and marker == expected_marker
+            and window_markers
+            and all(
+                value == expected_window_marker
+                for value in window_markers.values()
+            )
         )
 
     wait_until(
@@ -326,7 +397,31 @@ def assert_bars(session, expected_status, expected_border, expected_marker, name
         name,
         "expected "
         f"status={expected_status}, pane-border-status={expected_border} on every window, "
-        f"marker={expected_marker!r}; got {bars_state(session)!r}",
+        f"session marker={expected_marker!r}, window marker={expected_window_marker!r}; "
+        f"got {bars_state(session)!r}, {nested_window_markers(session)!r}",
+    )
+
+
+def assert_window_policy(window_id, expected_border, expected_marker, name):
+    def matches():
+        border = tmux(
+            "show-window-options",
+            "-v",
+            "-t",
+            window_id,
+            "pane-border-status",
+        )
+        return (
+            border == expected_border
+            and nested_window_marker(window_id) == expected_marker
+        )
+
+    wait_until(
+        matches,
+        name,
+        f"expected border={expected_border}, marker={expected_marker!r}; got "
+        f"border={tmux('show-window-options', '-v', '-t', window_id, 'pane-border-status')!r}, "
+        f"marker={nested_window_marker(window_id)!r}",
     )
 
 
@@ -337,7 +432,9 @@ def assert_bars_stay(expected_states, name, timeout=3.0):
         drain_clients()
         for session, expected in expected_states.items():
             actual_status, borders, marker = bars_state(session)
-            expected_status, expected_border, expected_marker = expected
+            expected_status, expected_border, expected_marker = expected[:3]
+            expected_window_marker = expected[3] if len(expected) == 4 else None
+            window_markers = nested_window_markers(session)
             borders_match = (
                 borders == expected_border
                 if isinstance(expected_border, dict)
@@ -348,10 +445,14 @@ def assert_bars_stay(expected_states, name, timeout=3.0):
                 actual_status != expected_status
                 or not borders_match
                 or marker != expected_marker
+                or (
+                    expected_window_marker is not None
+                    and window_markers != expected_window_marker
+                )
             ):
                 raise AssertionError(
                     f"{name}: {session} expected {expected!r}, got "
-                    f"{(actual_status, borders, marker)!r}"
+                    f"{(actual_status, borders, marker, window_markers)!r}"
                 )
         samples += 1
         time.sleep(0.05)
@@ -531,6 +632,85 @@ try:
         "pane-label refresh keeps nested-only pane labels hidden",
     )
 
+    tmux("new-session", "-d", "-s", "aggregate-a-zero", "sleep", "300")
+    tmux("new-session", "-d", "-s", "aggregate-z-nested", "sleep", "300")
+    aggregate_nested_late = attach("aggregate-z-nested", "tmux-256color")
+    shared_zero_first = window_ids("aggregate-a-zero")[0]
+    tmux(
+        "link-window",
+        "-s",
+        shared_zero_first,
+        "-t",
+        "aggregate-z-nested:",
+    )
+    assert_status(
+        "aggregate-a-zero",
+        "on",
+        "zero-client owner keeps its session status visible",
+    )
+    assert_status(
+        "aggregate-z-nested",
+        "off",
+        "nested owner keeps its session status hidden",
+    )
+    assert_window_policy(
+        shared_zero_first,
+        "bottom",
+        "",
+        "shared window uses direct-wins when zero-client owner lists before nested owner",
+    )
+
+    tmux("new-session", "-d", "-s", "aggregate-b-nested", "sleep", "300")
+    tmux("new-session", "-d", "-s", "aggregate-y-zero", "sleep", "300")
+    aggregate_nested_first = attach("aggregate-b-nested", "screen-256color")
+    shared_nested_first = window_ids("aggregate-b-nested")[0]
+    tmux(
+        "link-window",
+        "-s",
+        shared_nested_first,
+        "-t",
+        "aggregate-y-zero:",
+    )
+    assert_window_policy(
+        shared_nested_first,
+        "bottom",
+        "",
+        "shared window uses direct-wins when nested owner lists before zero-client owner",
+    )
+    sync_pane_border_status("aggregate-b-nested")
+    assert_window_policy(
+        shared_nested_first,
+        "bottom",
+        "",
+        "nested-session pane refresh preserves aggregate shared-window bottom",
+    )
+    shared_zero_index = window_index("aggregate-y-zero", shared_nested_first)
+    tmux(
+        "unlink-window",
+        "-t",
+        f"aggregate-y-zero:{shared_zero_index}",
+    )
+    assert_window_policy(
+        shared_nested_first,
+        "off",
+        "1",
+        "unlinking the zero-client owner returns shared window to nested-only",
+    )
+    wait_until(
+        lambda: tmux("show-options", "-gv", "@unrelated-unlink-hook-seen") == "yes",
+        "unrelated window-unlinked hook still runs",
+        "unrelated window-unlinked hook did not set its marker",
+    )
+    detach(aggregate_nested_late)
+    detach(aggregate_nested_first)
+    for aggregate_session in (
+        "aggregate-a-zero",
+        "aggregate-z-nested",
+        "aggregate-b-nested",
+        "aggregate-y-zero",
+    ):
+        tmux("kill-session", "-t", aggregate_session, check=False)
+
     direct = attach("s", "xterm-256color")
     assert_bars(
         "s",
@@ -643,10 +823,20 @@ try:
         "lock owner reaches managed-state inspection",
         "lock owner did not advance beyond acquisition",
     )
-    set_bars_state("s", "off", "off", "stale-marker")
+    set_bars_state("s", "off", "off", "stale-marker", "stale-window-marker")
     queued_pid = start_reconciler("queued-after-kill")
     assert_bars_stay(
-        {"s": ("off", "off", "stale-marker")},
+        {
+            "s": (
+                "off",
+                "off",
+                "stale-marker",
+                {
+                    window_id: "stale-window-marker"
+                    for window_id in window_ids("s")
+                },
+            )
+        },
         "queued reconciliation leaves all managed state untouched behind the lock owner",
         timeout=0.5,
     )
@@ -668,7 +858,7 @@ try:
         "queued reconciler converges all managed state after owner SIGKILL",
     )
 
-    set_bars_state("s", "off", "off", "stale-marker")
+    set_bars_state("s", "off", "off", "stale-marker", "stale-window-marker")
     successor_pid = start_reconciler("post-kill-successor")
     wait_for_process_exit(
         successor_pid,
@@ -709,7 +899,14 @@ try:
     nested = attach("s", "tmux-256color")
     mutation_queued_pid = start_reconciler("queued-behind-mutation")
     assert_bars_stay(
-        {"s": ("off", "bottom", "")},
+        {
+            "s": (
+                "off",
+                "bottom",
+                "",
+                {window_id: "" for window_id in window_ids("s")},
+            )
+        },
         "queued reconciliation leaves all managed state untouched behind the in-flight mutation child",
         timeout=0.5,
     )
@@ -737,7 +934,7 @@ try:
         "queued reconciler repairs all stale managed state after owner SIGKILL",
     )
 
-    set_bars_state("s", "on", "bottom", "")
+    set_bars_state("s", "on", "bottom", "", "")
     mutation_successor_pid = start_reconciler("post-mutation-successor")
     wait_for_process_exit(
         mutation_successor_pid,
@@ -766,16 +963,37 @@ try:
     tmux("set-option", "-t", "opt-source", "status", "off")
     tmux("set-window-option", "-t", "opt-source", "pane-border-status", "off")
     tmux("set-option", "-t", "opt-source", "@nested-client-only", "keep-source")
+    tmux("set-window-option", "-t", "opt-source", "@nested-window-only", "keep-source-window")
     tmux("set-option", "-t", "opt-destination", "status", "on")
     tmux("set-window-option", "-t", "opt-destination", "pane-border-status", "bottom")
     tmux("set-option", "-t", "opt-destination", "@nested-client-only", "1")
+    tmux("set-window-option", "-t", "opt-destination", "@nested-window-only", "keep-destination-window")
     tmux("set-option", "-t", "unrelated", "status", "off")
     tmux("set-window-option", "-t", "unrelated", "pane-border-status", "top")
     tmux("set-option", "-u", "-t", "unrelated", "@nested-client-only", check=False)
+    tmux("set-window-option", "-t", "unrelated", "@nested-window-only", "keep-unrelated-window")
     opted_out_states = {
-        "opt-source": ("off", "off", "keep-source"),
-        "opt-destination": ("on", "bottom", "1"),
-        "unrelated": ("off", "top", ""),
+        "opt-source": (
+            "off",
+            "off",
+            "keep-source",
+            {window_ids("opt-source")[0]: "keep-source-window"},
+        ),
+        "opt-destination": (
+            "on",
+            "bottom",
+            "1",
+            {window_ids("opt-destination")[0]: "keep-destination-window"},
+        ),
+        "unrelated": (
+            "off",
+            "top",
+            "",
+            {
+                window_id: "keep-unrelated-window"
+                for window_id in window_ids("unrelated")
+            },
+        ),
     }
 
     direct = attach("opt-source", "xterm-256color")
@@ -802,6 +1020,7 @@ try:
     detach(switcher)
 
     _, opt_source_borders, _ = bars_state("opt-source")
+    opt_source_window_markers = nested_window_markers("opt-source")
     tmux("set-window-option", "-g", "pane-border-status", "top")
     opted_out_window = tmux(
         "new-window",
@@ -828,9 +1047,73 @@ try:
         )
     print("PASS  @managed-bars=off window inherits caller-selected border default")
     opt_source_borders[opted_out_window] = ""
+    opt_source_window_markers[opted_out_window] = ""
     assert_bars_stay(
-        {"opt-source": ("off", opt_source_borders, "keep-source")},
+        {
+            "opt-source": (
+                "off",
+                opt_source_borders,
+                "keep-source",
+                opt_source_window_markers,
+            )
+        },
         "@managed-bars=off preserves a newly created window's inherited border",
+    )
+
+    tmux(
+        "set-window-option",
+        "-t",
+        opted_out_window,
+        "@nested-window-only",
+        "keep-linked-window",
+    )
+    opt_source_window_markers[opted_out_window] = "keep-linked-window"
+    linked_destination_borders = pane_border_statuses("opt-destination")
+    linked_destination_markers = nested_window_markers("opt-destination")
+    linked_destination_borders[opted_out_window] = ""
+    linked_destination_markers[opted_out_window] = "keep-linked-window"
+    tmux(
+        "link-window",
+        "-s",
+        opted_out_window,
+        "-t",
+        "opt-destination:",
+    )
+    assert_bars_stay(
+        {
+            "opt-source": (
+                "off",
+                opt_source_borders,
+                "keep-source",
+                opt_source_window_markers,
+            ),
+            "opt-destination": (
+                "on",
+                linked_destination_borders,
+                "1",
+                linked_destination_markers,
+            ),
+        },
+        "@managed-bars=off preserves window marker through linking",
+        timeout=1.0,
+    )
+    opted_out_link_index = window_index("opt-destination", opted_out_window)
+    tmux(
+        "unlink-window",
+        "-t",
+        f"opt-destination:{opted_out_link_index}",
+    )
+    assert_bars_stay(
+        {
+            "opt-source": (
+                "off",
+                opt_source_borders,
+                "keep-source",
+                opt_source_window_markers,
+            )
+        },
+        "@managed-bars=off preserves window marker through unlinking",
+        timeout=1.0,
     )
 finally:
     for client in list(clients):

@@ -152,10 +152,11 @@ Expected: all checks pass; the new goal scenario renames the stale outer tab onc
 - Modify: `roles/macos/templates/dotfiles/tmux.conf`
 
 **Interfaces:**
-- Session option `@nested-client-only` is `1` only while every attached client terminal starts with `tmux` or `screen`; it is unset for direct, mixed, and zero-client sessions.
-- Reconciler applies `status off` plus `pane-border-status off` for nested-only sessions, otherwise `status on` plus `pane-border-status bottom`.
-- `tmux-sync-pane-border-status <pane-id>` resolves the pane's session and applies `off` when `@nested-client-only=1`, otherwise `bottom`.
-- `@managed-bars=off` bypasses all reads/writes that mutate managed visibility.
+- Session option `@nested-client-only` is `1` only while every attached client terminal starts with `tmux` or `screen`; it is unset for direct, mixed, and zero-client sessions. It controls only that session's top status.
+- Window option `@nested-window-only` is `1` only while every session owning that window is nested-only. A direct, mixed, or zero-client owner wins and leaves the marker unset, independent of session listing order.
+- Reconciler discovers the complete server session/client/window ownership topology before mutation, then applies session status once per session and pane-border status plus aggregate marker once per unique window.
+- `tmux-sync-pane-border-status <pane-id>` resolves the pane's window and applies `off` when `@nested-window-only=1`, otherwise `bottom`.
+- `@managed-bars=off` bypasses all reads/writes that mutate status, pane-border status, session markers, or window markers.
 
 - [ ] **Step 1: Add failing managed-bars behavior tests**
 
@@ -171,7 +172,9 @@ last nested client detaches status=on pane-border-status=bottom  marker unset
 
 Create at least two windows in the nested session and assert reconciliation changes every existing window, not only the current window. After nested reconciliation, invoke `tmux-sync-pane-border-status` for a pane and assert it remains `off`. After a direct attach, invoke it again and assert `bottom`.
 
-Expand the existing `@managed-bars=off` stability sampling to assert the chosen `pane-border-status` and `@nested-client-only` values remain unchanged across attach, detach, and session-change hooks.
+Use real linked-window topology in both session listing orders. Link a window between a nested-only session and a direct or zero-client session and assert window-level direct-wins keeps `bottom` with `@nested-window-only` unset. Invoke `tmux-sync-pane-border-status` from the nested owner and prove it cannot override aggregate `bottom`. Unlink the direct/zero owner and prove the `window-unlinked` hook converges the remaining nested-only window to `off` with marker `1`.
+
+Expand `@managed-bars=off` stability sampling to assert the chosen `pane-border-status`, `@nested-client-only`, and `@nested-window-only` values remain unchanged across attach, detach, session-change, creation, link, and unlink hooks.
 
 - [ ] **Step 2: Run the managed-bars contract and confirm failure**
 
@@ -185,32 +188,27 @@ Expected: nested sessions still report `pane-border-status=bottom`, no nested ma
 
 - [ ] **Step 3: Extend locked reconciliation to pane-label visibility**
 
-In `roles/common/files/bin/tmux-reconcile-status-bars`, after calculating `nested_only`:
+In `roles/common/files/bin/tmux-reconcile-status-bars`, discover every session's clients and windows before the first mutation. Abort the pass if any topology read fails. Record each session's nested-only state and aggregate the owner states for every unique window ID.
 
-```python
-status = "off" if nested_only else "on"
-pane_border_status = "off" if nested_only else "bottom"
-```
+Under the same lock, set or unset session option `@nested-client-only` and apply that session's status. Then mutate each unique window exactly once: use `pane-border-status off` plus `@nested-window-only=1` only when all owning sessions are nested-only; otherwise use `bottom` and unset the window marker. Retain best-effort behavior for individual mutations after complete discovery.
 
-Set or unset session option `@nested-client-only` under the same lock. List every window in the session using `tmux list-windows -t <session-id> -F '#{window_id}'`; for a successful result, apply `set-window-option -q -t <window-id> pane-border-status <value>` to each window. Continue skipping a session when client or window discovery fails, and retain best-effort behavior for individual mutation failures.
-
-Do not alter state before both client and window discovery succeed. This preserves convergence and avoids a partially derived topology.
+This full-topology snapshot makes shared-window direct-wins independent of tmux session listing order and avoids partially derived mutations.
 
 - [ ] **Step 4: Prevent refresh hooks from restoring nested labels**
 
-In `roles/common/files/bin/tmux-sync-pane-border-status`, include `#{session_id}` with `#{window_id}` in the single `display-message` read. Resolve `@nested-client-only` on that session and choose:
+In `roles/common/files/bin/tmux-sync-pane-border-status`, resolve `#{window_id}` in one `display-message` read. Read `@nested-window-only` on that window and choose:
 
 ```bash
 pane_border_status=bottom
-[ "$nested_client_only" = "1" ] && pane_border_status=off
+[ "$nested_window_only" = "1" ] && pane_border_status=off
 tmux set-window-option -q -t "$window_id" pane-border-status "$pane_border_status"
 ```
 
-Retain the global `@managed-bars=off` early return and quiet behavior for missing pane/session/window targets.
+Retain the global `@managed-bars=off` early return and quiet behavior for missing pane/window targets. Never infer the policy from one ambiguous owning session.
 
 - [ ] **Step 5: Update config comments to describe both managed bars**
 
-In both managed tmux configs, update the nearby reconciliation comments from top-status-only language to explain that direct clients show the top window bar and bottom pane labels, while nested-only clients hide both duplicate rows. Do not add new hooks, timers, or inline client-detection logic; existing indexed hooks remain the only event sources.
+In both managed tmux configs, update the nearby reconciliation comments to distinguish session status from shared-window aggregate pane labels. Keep the indexed attach/detach/session-change and after-new-window/window-linked paths, and add portable indexed `window-unlinked[90]` reconciliation so removing the last direct/zero owner converges immediately. Do not add timers or inline client-detection logic.
 
 - [ ] **Step 6: Run managed-bar and full focused contracts**
 

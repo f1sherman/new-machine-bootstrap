@@ -38,9 +38,11 @@ def reconcile(lock_fd):
         "#{session_id}",
         lock_fd=lock_fd,
     )
-    if sessions is None:
+    if sessions is None or sessions.returncode != 0:
         return
 
+    session_states = {}
+    window_owners = {}
     for session_id in sessions.stdout.splitlines():
         if not session_id:
             continue
@@ -54,7 +56,7 @@ def reconcile(lock_fd):
             lock_fd=lock_fd,
         )
         if clients is None or clients.returncode != 0:
-            continue
+            return
 
         windows = tmux(
             "list-windows",
@@ -65,14 +67,19 @@ def reconcile(lock_fd):
             lock_fd=lock_fd,
         )
         if windows is None or windows.returncode != 0:
-            continue
+            return
 
         client_terms = clients.stdout.splitlines()
         nested_only = bool(client_terms) and all(
             term.startswith(("tmux", "screen")) for term in client_terms
         )
+        session_states[session_id] = nested_only
+        for window_id in set(windows.stdout.splitlines()):
+            if window_id:
+                window_owners.setdefault(window_id, []).append(nested_only)
+
+    for session_id, nested_only in session_states.items():
         status = "off" if nested_only else "on"
-        pane_border_status = "off" if nested_only else "bottom"
         tmux(
             "set-option",
             "-q",
@@ -88,18 +95,39 @@ def reconcile(lock_fd):
             else ("set-option", "-q", "-u", "-t", session_id, "@nested-client-only")
         )
         tmux(*marker_args, lock_fd=lock_fd)
-        for window_id in windows.stdout.splitlines():
-            if not window_id:
-                continue
-            tmux(
+
+    for window_id, owner_states in window_owners.items():
+        nested_window_only = all(owner_states)
+        pane_border_status = "off" if nested_window_only else "bottom"
+        tmux(
+            "set-window-option",
+            "-q",
+            "-t",
+            window_id,
+            "pane-border-status",
+            pane_border_status,
+            lock_fd=lock_fd,
+        )
+        marker_args = (
+            (
                 "set-window-option",
                 "-q",
                 "-t",
                 window_id,
-                "pane-border-status",
-                pane_border_status,
-                lock_fd=lock_fd,
+                "@nested-window-only",
+                "1",
             )
+            if nested_window_only
+            else (
+                "set-window-option",
+                "-q",
+                "-u",
+                "-t",
+                window_id,
+                "@nested-window-only",
+            )
+        )
+        tmux(*marker_args, lock_fd=lock_fd)
 
 
 def main():
