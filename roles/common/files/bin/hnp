@@ -8,6 +8,7 @@ require "socket"
 DEV_HOST = ENV.fetch("HNP_DEV_HOST", "dev")
 TMUX_SESSION = ENV.fetch("HNP_TMUX_SESSION", "hnp")
 TMUX_ATTACH_TIMEOUT = Float(ENV.fetch("HNP_TMUX_ATTACH_TIMEOUT", "2"))
+TMUX_TERM_GRACE = Float(ENV.fetch("HNP_TMUX_TERM_GRACE", "0.25"))
 TMUX_LOCK_FILE = ENV.fetch(
   "HNP_TMUX_LOCK_FILE",
   File.join(ENV.fetch("TMPDIR", "/tmp"), "hnp-tmux-#{Process.uid}.lock")
@@ -58,14 +59,30 @@ def create_tmux_session(session_name, repo_path, command)
   ) || abort("failed to create hnp tmux session #{session_name}")
 end
 
+def wait_for_process_exit(pid, timeout)
+  deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+  loop do
+    return true if Process.waitpid(pid, Process::WNOHANG)
+    return false if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+    sleep 0.01
+  end
+rescue Errno::ECHILD
+  true
+end
+
 def stop_tmux_client(client_pid)
   Process.kill("TERM", client_pid)
-  Process.wait(client_pid)
+  return if wait_for_process_exit(client_pid, TMUX_TERM_GRACE)
+
+  Process.kill("KILL", client_pid)
+  wait_for_process_exit(client_pid, TMUX_TERM_GRACE)
 rescue Errno::ESRCH, Errno::ECHILD
   nil
 end
 
 def attach_or_create_tmux_session(session_name, repo_path, command)
+  attachment_confirmed = false
   client_pid = nil
   lock = File.open(TMUX_LOCK_FILE, File::RDWR | File::CREAT, 0o600)
   lock.flock(File::LOCK_EX)
@@ -86,19 +103,22 @@ def attach_or_create_tmux_session(session_name, repo_path, command)
     client_pid = Process.spawn("tmux", "attach-session", "-t", "=#{selected}")
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + TMUX_ATTACH_TIMEOUT
     loop do
-      break if tmux_session_attached(selected).to_i.positive?
+      if tmux_session_attached(selected).to_i.positive?
+        attachment_confirmed = true
+        break
+      end
 
       if Process.waitpid(client_pid, Process::WNOHANG)
         abort "failed to attach hnp tmux session #{selected}"
       end
       if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
-        stop_tmux_client(client_pid)
         abort "timed out attaching hnp tmux session #{selected}"
       end
 
       sleep 0.01
     end
   ensure
+    stop_tmux_client(client_pid) if client_pid && !attachment_confirmed
     lock.flock(File::LOCK_UN)
     lock.close
   end
