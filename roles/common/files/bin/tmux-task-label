@@ -85,22 +85,49 @@ normalize_field() {
 }
 
 strip_title_markers() {
-  local title="$1" marker
+  local title="$1" marker base
 
   if [[ "$title" =~ ^(.*)\ \[nmb-edge=([^][]+)\]$ ]]; then
-    title="${BASH_REMATCH[1]}"
+    base="${BASH_REMATCH[1]}"
+    marker="${BASH_REMATCH[2]}"
+    [[ "$marker" =~ ^[hjkl]+$ ]] || return 1
+    title="$base"
   fi
   if [[ "$title" =~ ^(.*)\ \[nmb-ind=([^][]*)\]$ ]]; then
+    base="${BASH_REMATCH[1]}"
     marker="${BASH_REMATCH[2]}"
-    [[ "$marker" == *,* ]] || return 1
+    [[ "$marker" =~ ^[^,]*,[^,]*$ ]] || return 1
+    title="$base"
+  fi
+  if [[ "$title" =~ ^(.*)\ \[nmb-task=(goal|manual)\]$ ]]; then
     title="${BASH_REMATCH[1]}"
   fi
   [[ "$title" != *"[nmb-"* ]] || return 1
   printf '%s\n' "$title"
 }
 
+task_marker_source() {
+  local title="$1" marker base
+
+  if [[ "$title" =~ ^(.*)\ \[nmb-edge=([^][]+)\]$ ]]; then
+    base="${BASH_REMATCH[1]}"
+    marker="${BASH_REMATCH[2]}"
+    [[ "$marker" =~ ^[hjkl]+$ ]] || return 1
+    title="$base"
+  fi
+  if [[ "$title" =~ ^(.*)\ \[nmb-ind=([^][]*)\]$ ]]; then
+    base="${BASH_REMATCH[1]}"
+    marker="${BASH_REMATCH[2]}"
+    [[ "$marker" =~ ^[^,]*,[^,]*$ ]] || return 1
+    title="$base"
+  fi
+  [[ "$title" =~ \ \[nmb-task=(goal|manual)\]$ ]] || return 1
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
 structured_remote_label() {
-  local title nested_title host
+  local title nested_title host marked_task=""
+  task_marker_source "$1" >/dev/null 2>&1 && marked_task="1"
   title="$(strip_title_markers "$1")" || return 1
 
   case "$title" in
@@ -110,6 +137,11 @@ structured_remote_label() {
       if [[ "$nested_title" != "$title" ]]; then
         case "$nested_title" in
           "~ "*|"("*|"✓ ("*) title="$nested_title" ;;
+          *)
+            if [[ -n "$marked_task" && "${title%%: *}" =~ ^[0-9]+$ ]]; then
+              title="$nested_title"
+            fi
+            ;;
         esac
       fi
       ;;
@@ -135,8 +167,31 @@ extract_remote_provisional() {
   printf '%s\n' "$subject"
 }
 
+extract_marked_task_fields() {
+  local title="$1" stripped local_label subject context host source
+
+  source="$(task_marker_source "$title")" || return 1
+  stripped="$(structured_remote_label "$title")" || return 1
+  local_label="${stripped% | *}"
+  host="$(normalize_field "${stripped##* | }")"
+  [[ "$local_label" =~ ^(.*)[[:space:]]·[[:space:]](.*)$ ]] || return 1
+  subject="$(normalize_field "${BASH_REMATCH[1]}")"
+  context="$(normalize_field "${BASH_REMATCH[2]}")"
+  [[ -n "$subject" && -n "$context" && -n "$host" ]] || return 1
+
+  marked_task_subject="$subject"
+  marked_task_context="$context"
+  marked_task_host="$host"
+  marked_task_source="$source"
+}
+
 extract_remote_task() {
   local label local_label marker="" branch context subject
+
+  if extract_marked_task_fields "$1"; then
+    truncate_label "$marked_task_subject"
+    return 0
+  fi
 
   subject="$(extract_remote_provisional "$1" 2>/dev/null || true)"
   if [[ -n "$subject" ]]; then
@@ -160,6 +215,18 @@ extract_remote_task() {
   return 1
 }
 
+render_remote() {
+  local label
+
+  if extract_marked_task_fields "$1"; then
+    printf '(%s) %s | %s\n' "$marked_task_subject" "$marked_task_context" "$marked_task_host"
+    return 0
+  fi
+
+  label="$(structured_remote_label "$1")" || return 1
+  printf '%s\n' "$label"
+}
+
 case "${1:-}" in
   truncate)
     shift
@@ -173,8 +240,12 @@ case "${1:-}" in
     shift
     extract_remote_provisional "$*"
     ;;
+  render-remote)
+    shift
+    render_remote "$*"
+    ;;
   *)
-    printf 'Usage: tmux-task-label truncate <label>|extract-remote <structured-title>|extract-remote-provisional <structured-title>\n' >&2
+    printf 'Usage: tmux-task-label truncate <label>|extract-remote <structured-title>|extract-remote-provisional <structured-title>|render-remote <structured-title>\n' >&2
     exit 2
     ;;
 esac

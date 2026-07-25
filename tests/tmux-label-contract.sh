@@ -225,13 +225,13 @@ remote_task_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_T
 assert_equals "$remote_task_title" "(feature/durable-label) project | remote-host" "remote title builds active label from canonical task fields"
 
 remote_goal_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL='A durable goal that is intentionally longer than forty characters' TMUX_TEST_TASK_STATE=active TMUX_TEST_TASK_SOURCE=goal TMUX_TEST_TASK_CONTEXT=project TMUX_TEST_WINDOW_LABEL='A durable goal that is intentionally lo…' TMUX_TEST_PANE_LABEL='(A durable goal that is intentionally longer than forty characters) project | remote-host' TMUX_REMOTE_TITLE_ACTIVITY=waiting TMUX_REMOTE_TITLE_PR_STATE=merged PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
-assert_equals "$remote_goal_title" "A durable goal that is intentionally lo… [nmb-ind=waiting,merged]" "remote active goal title uses capped task-only window label"
+assert_equals "$remote_goal_title" "A durable goal that is intentionally longer than forty characters · project | remote-host [nmb-task=goal] [nmb-ind=waiting,merged]" "remote active goal publishes explicit task identity"
 
 remote_manual_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL='Manual task identity' TMUX_TEST_TASK_STATE=active TMUX_TEST_TASK_SOURCE=manual TMUX_TEST_TASK_CONTEXT=project TMUX_TEST_WINDOW_LABEL='Manual task identity' TMUX_TEST_PANE_LABEL='(Manual task identity) project | remote-host' PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
-assert_equals "$remote_manual_title" "Manual task identity" "remote active manual title uses task-only window label"
+assert_equals "$remote_manual_title" "Manual task identity · project | remote-host [nmb-task=manual]" "remote active manual publishes explicit task identity"
 
 remote_goal_fallback_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL='Missing cached goal' TMUX_TEST_TASK_STATE=active TMUX_TEST_TASK_SOURCE=goal TMUX_TEST_TASK_CONTEXT=project TMUX_TEST_WINDOW_LABEL='' TMUX_TEST_PANE_LABEL='(Missing cached goal) project | remote-host' PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
-assert_equals "$remote_goal_fallback_title" "(Missing cached goal) project | remote-host" "remote active goal falls back when cached window label is absent"
+assert_equals "$remote_goal_fallback_title" "Missing cached goal · project | remote-host [nmb-task=goal]" "remote active goal publication does not require cached window label"
 
 remote_pipe_title="$(TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host TMUX_TEST_TASK_LABEL='auth | billing' TMUX_TEST_TASK_STATE=provisional TMUX_TEST_TASK_CONTEXT=project TMUX_TEST_PANE_LABEL='~ wrong rendered label | wrong-host' PATH="$remote_task_tmux_dir:$PATH" "$REMOTE_TITLE" print)"
 assert_equals "$remote_pipe_title" "~ auth | billing · project | remote-host" "remote title preserves pipe in canonical provisional subject"
@@ -539,6 +539,18 @@ for remote_case in \
 done
 assert_equals "$($TASK_LABEL extract-remote '(feature/a)b) project | remote-host')" 'feature/a)b' "remote parser preserves branch closing parenthesis"
 assert_equals "$($TASK_LABEL extract-remote '(feature/x) project | remote-host [nmb-ind=working,draft] [nmb-edge=hj]')" 'feature/x' "remote parser strips indicator marker"
+assert_equals "$($TASK_LABEL extract-remote 'Fix stale tmux feedback indicator · new-machine-bootstrap | dev [nmb-task=goal] [nmb-ind=working,merged] [nmb-edge=hjkl]')" "Fix stale tmux feedback indicator" "remote parser extracts explicit goal identity"
+assert_equals "$($TASK_LABEL render-remote 'Fix stale tmux feedback indicator · new-machine-bootstrap | dev [nmb-task=goal] [nmb-ind=working,merged] [nmb-edge=hjkl]')" "(Fix stale tmux feedback indicator) new-machine-bootstrap | dev" "remote renderer hides task transport metadata"
+for rejected_task_title in \
+  'Unmarked bare goal · new-machine-bootstrap | dev' \
+  'Invalid task source · new-machine-bootstrap | dev [nmb-task=agent]' \
+  'Missing context ·  | dev [nmb-task=goal]' \
+  'Unknown marker · new-machine-bootstrap | dev [nmb-task=goal] [nmb-unknown=value]'; do
+  if "$TASK_LABEL" extract-remote "$rejected_task_title" >/dev/null 2>&1; then
+    fail_case "remote parser rejects invalid task wire: $rejected_task_title" 'unexpected successful extraction'
+  fi
+  pass_case "remote parser rejects invalid task wire: $rejected_task_title"
+done
 assert_equals \
   "$($TASK_LABEL extract-remote-provisional '~ investigate title race · project | remote-host [nmb-ind=waiting,] [nmb-edge=hj]')" \
   'investigate title race' \
@@ -744,6 +756,9 @@ chmod +x "$tmux_37_dir/tmux" "$tmux_37_hook_dir/"*
 pane_label="$(PATH="$tmux_37_dir:$PATH" "$PANE_LABEL" /dev/null /tmp/project ssh %37)"
 assert_equals "$pane_label" '(feature/tmux-37) project | remote-host' \
   'tmux 3.7 parsing preserves structured remote pane label'
+explicit_goal_pane_label="$(TMUX_37_TITLE='Fix stale tmux feedback indicator · new-machine-bootstrap | dev [nmb-task=goal] [nmb-ind=working,merged] [nmb-edge=hjkl]' PATH="$tmux_37_dir:$PATH" "$PANE_LABEL" /dev/null /tmp/project ssh %37)"
+assert_equals "$explicit_goal_pane_label" '(Fix stale tmux feedback indicator) new-machine-bootstrap | dev' \
+  'pane label renders explicit remote goal without transport metadata'
 TMUX_37_HOOK_LOG="$hook_log" PATH="$tmux_37_dir:$tmux_37_hook_dir:$PATH" \
   "$PANE_TITLE_CHANGED" %37
 assert_file_contains "$hook_log" 'tmux-sync-remote-title %37' \

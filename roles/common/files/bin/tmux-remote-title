@@ -267,6 +267,17 @@ host_tag() {
   fi
 }
 
+formatted_remote_task_title() {
+  local task_label="$1" task_context="$2" host="$3" task_source="$4" context
+  [ -n "$task_label" ] && [ -n "$task_context" ] || return 1
+  case "$task_source" in goal|manual) ;; *) return 1 ;; esac
+  context="$task_context"
+  if [ "${context##* | }" != "$host" ]; then
+    context="$context | $host"
+  fi
+  printf '%s · %s [nmb-task=%s]\n' "$task_label" "$context" "$task_source"
+}
+
 managed_task_title() {
   local task_label="$1" task_state="$2" task_context="$3" host="$4" context
   [ -n "$task_label" ] && [ -n "$task_context" ] || return 1
@@ -314,7 +325,7 @@ publish_title() {
 main() {
   local pane_path pane_tty pane_command edge_flags source_session_id source_window_id pane_active
   local host title worktree_path worktree_pid active_agent_pid info
-  local task_label task_state task_source task_context window_label
+  local task_label task_state task_source task_context
 
   info="$(pane_info)" || exit 0
   [ -n "$info" ] || exit 0
@@ -339,11 +350,8 @@ main() {
   task_state="$(read_pane_option "@task_state" 2>/dev/null || true)"
   task_source="$(read_pane_option "@task_source" 2>/dev/null || true)"
   task_context="$(read_pane_option "@task_context" 2>/dev/null || true)"
-  window_label="$(read_pane_option "@window-label" 2>/dev/null || true)"
-  if [ "$task_state" = "active" ] && [ -n "$window_label" ]; then
-    case "$task_source" in
-      goal|manual) title="$window_label" ;;
-    esac
+  if [ "$task_state" = "active" ]; then
+    title="$(formatted_remote_task_title "$task_label" "$task_context" "$host" "$task_source" 2>/dev/null || true)"
   fi
   if [ -z "${title:-}" ] && [ -n "$task_label" ] && [ -n "$task_state" ] && [ -n "$task_context" ]; then
     title="$(managed_task_title "$task_label" "$task_state" "$task_context" "$host" 2>/dev/null || true)"

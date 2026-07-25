@@ -330,6 +330,14 @@ if File.exist?(HELPER) && File.executable?(HELPER)
       field_separator = "__NMB_TMUX_FIELD__"
       if format == "\#{pane_title}#{field_separator}\#{pane_current_command}"
         puts [ENV.fetch("TMUX_TEST_TITLE"), "ssh"].join(field_separator)
+      elsif format == "\#{window_id}#{field_separator}\#{pane_active}#{field_separator}\#{pane_current_command}#{field_separator}\#{pane_tty}#{field_separator}\#{pane_title}#{field_separator}\#{window_name}"
+        window_name = File.read(File.join(state, "window-name"))
+        puts ["@120", "1", "ssh", "/dev/null", ENV.fetch("TMUX_TEST_TITLE"), window_name].join(field_separator)
+      elsif format == "\#{pane_title}#{field_separator}\#{window_name}"
+        window_name = File.read(File.join(state, "window-name"))
+        puts [ENV.fetch("TMUX_TEST_TITLE"), window_name].join(field_separator)
+      elsif format == "\#{pane_tty}|\#{pane_current_path}|\#{pane_current_command}|\#{pane_title}"
+        puts ["/dev/null", "/tmp/outer-project", "ssh", ENV.fetch("TMUX_TEST_TITLE")].join("|")
       elsif format.start_with?("\#{window_id}#{field_separator}")
         window_name = File.read(File.join(state, "window-name"))
         puts ["@120", "1", window_name, "/dev/null", "/tmp/outer-project", "ssh", ENV.fetch("TMUX_TEST_TITLE"), pane].join(field_separator)
@@ -358,6 +366,13 @@ if File.exist?(HELPER) && File.executable?(HELPER)
     #!/usr/bin/env ruby
     File.open(ENV.fetch("TMUX_BEHAVIOR_LOG"), "a") { |file| file.puts((["tmux-sync-pane-border-status"] + ARGV).join("\t")) }
   RUBY
+  %w[tmux-sync-remote-title tmux-update-pane-label tmux-window-label].each do |name|
+    write_executable(File.join(behavior_bin, name), <<~RUBY)
+      #!/usr/bin/env ruby
+      File.open(ENV.fetch("TMUX_BEHAVIOR_LOG"), "a") { |file| file.puts(([#{name.inspect}] + ARGV).join("\\t")) }
+      exec(File.join(ENV.fetch("TMUX_REAL_BIN_DIR"), #{name.inspect}), *ARGV)
+    RUBY
+  end
   write_executable(File.join(behavior_bin, "tmux-remote-title"), "#!/usr/bin/env bash\nexit 0\n")
   write_executable(File.join(behavior_bin, "failing-tmux-task-label"), <<~'BASH')
     #!/usr/bin/env bash
@@ -376,6 +391,7 @@ if File.exist?(HELPER) && File.executable?(HELPER)
     "TMUX_AGENT_STATE_CURRENT_PATH" => "/tmp/outer-project",
     "TMUX_BEHAVIOR_STATE" => behavior_state,
     "TMUX_BEHAVIOR_LOG" => behavior_log,
+    "TMUX_REAL_BIN_DIR" => File.join(REPO_ROOT, "roles/common/files/bin"),
     "TMUX_REAL_TASK_LABEL_BIN" => File.join(REPO_ROOT, "roles/common/files/bin/tmux-task-label"),
     "TMUX_TEST_TITLE" => "~ refined remote task · remote-project | remote-host [nmb-ind=waiting,]"
   }
@@ -427,6 +443,40 @@ if File.exist?(HELPER) && File.executable?(HELPER)
   assert("repeated publication does not duplicate the visible rename", behavior_calls) do
     behavior_calls.scan(/^VISIBLE_RENAME/).length == 1 &&
       behavior_calls.scan(/^tmux-sync-pane-border-status\t%120$/).length == 2
+  end
+
+  %w[@task_label @task_source @task_state @task_context @window-label].each do |key|
+    FileUtils.rm_f(File.join(behavior_state, "#{pane}.#{key}"))
+  end
+  File.write(File.join(behavior_state, "#{pane}.@pane-label"), "stale local pane label | outer-host")
+  File.write(File.join(behavior_state, "window-name"), "stale local window label")
+  File.write(behavior_log, "")
+  goal_env = behavior_env.merge(
+    "TMUX_TEST_TITLE" => "Fix stale tmux feedback indicator · new-machine-bootstrap | dev [nmb-task=goal] [nmb-ind=working,merged] [nmb-edge=hjkl]"
+  )
+  goal_result = Open3.capture3(goal_env, HELPER, pane)
+  goal_calls = File.read(behavior_log)
+  assert("explicit remote goal refreshes each outer label helper once", goal_result[1]) do
+    goal_result[2].success? &&
+      goal_calls.scan(/^tmux-sync-remote-title\t%120$/).length == 1 &&
+      goal_calls.scan(/^tmux-update-pane-label\t%120$/).length == 1 &&
+      goal_calls.scan(/^tmux-window-label\t%120$/).length == 1
+  end
+  assert("explicit remote goal replaces stale outer window and pane identities", goal_calls) do
+    File.read(File.join(behavior_state, "window-name")) == "Fix stale tmux feedback indicator" &&
+      File.read(File.join(behavior_state, "#{pane}.@pane-label")) == "(Fix stale tmux feedback indicator) new-machine-bootstrap | dev" &&
+      goal_calls.scan(/^VISIBLE_RENAME\tFix stale tmux feedback indicator$/).length == 1
+  end
+
+  File.write(behavior_log, "")
+  repository_env = behavior_env.merge("TMUX_TEST_TITLE" => "home-network-provisioning | dev")
+  repository_result = Open3.capture3(repository_env, HELPER, pane)
+  repository_calls = File.read(behavior_log)
+  assert("ordinary remote repository identity replaces the prior explicit goal", repository_result[1]) do
+    repository_result[2].success? &&
+      File.read(File.join(behavior_state, "window-name")) == "home-network-provisioning" &&
+      File.read(File.join(behavior_state, "#{pane}.@pane-label")) == "home-network-provisioning | dev" &&
+      repository_calls.scan(/^VISIBLE_RENAME\thome-network-provisioning$/).length == 1
   end
   end
 end
