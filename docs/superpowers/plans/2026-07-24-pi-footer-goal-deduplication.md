@@ -4,16 +4,17 @@
 
 **Goal:** Hide redundant `goal:` footer text when `pi-session-manager` already displays the identical automatic session name.
 
-**Architecture:** Make the existing goal renderer compare durable goal state with Pi's current session name, clearing only exact duplicates. Re-render after automatic naming and on `session_info_changed` so automatic and manual name transitions update immediately while all persistence and tmux identity behavior remains unchanged.
+**Architecture:** Make managed-hooks synchronize the established `sm` / `📁 <name>` status alongside its goal status, clearing only exact duplicates. Both managed-hooks and pi-session-manager converge on the same status key and representation; automatic and manual name transitions update immediately while all persistence, browsing, and tmux identity behavior remains unchanged.
 
 **Tech Stack:** TypeScript Pi extension, Node assertions embedded in Bash contract tests.
 
 ## Global Constraints
 
-- Exact non-empty goal/session-name equality clears only the `session-goal` status.
+- Exact non-empty goal/session-name equality clears only the `session-goal` status while `sm` displays the name.
 - Missing or different session names retain `goal: <goal>`.
 - Missing goals retain `goal: determining…`.
-- Distinct manual names and goals remain simultaneously visible through their separate extensions.
+- Distinct manual names and goals remain simultaneously visible through the shared `sm` status and managed goal status.
+- Clearing the session name clears `sm` and restores the durable goal immediately.
 - Do not modify `pi-session-manager`, goal generation, goal persistence, automatic naming policy, or tmux identity publication.
 
 ---
@@ -25,8 +26,8 @@
 - Test: `tests/pi-managed-hooks.sh:330-430,1150-1220`
 
 **Interfaces:**
-- Consumes: `ctx.sessionManager.getSessionName() -> string | undefined`, existing `currentSessionGoal`, Pi `session_info_changed` events.
-- Produces: unchanged `renderSessionGoal(ctx) -> void`; `session-goal` status is `undefined` only when current name exactly equals current goal.
+- Consumes: `ctx.sessionManager.getSessionName() -> string | undefined`, `ctx.ui.theme.fg("accent", text)`, existing `currentSessionGoal`, Pi `session_info_changed` events.
+- Produces: synchronized `sm` and `session-goal` statuses; `sm` renders accent `📁 <name>`, and `session-goal` is `undefined` only when current name exactly equals current goal.
 
 - [ ] **Step 1: Add failing duplicate-suppression tests**
 
@@ -67,38 +68,40 @@ Update existing assertions that currently expect `goal: <goal>` after automatic 
 Run:
 
 ```bash
-tests/pi-managed-hooks.sh
+bash tests/pi-managed-hooks.sh
 ```
 
-Expected: FAIL because matching goal/name pairs still render `goal: <goal>` and `session_info_changed` does not re-render goal status.
+Expected: FAIL because automatic names do not synchronize `sm`, matching goal/name pairs can leave no visible identity, and cleared-name events can read stale accessor state.
 
 - [ ] **Step 3: Implement exact duplicate suppression**
 
-Change the renderer to:
+Add `SESSION_NAME_STATUS_KEY = "sm"` and render the combined footer from one normalized session-name value:
 
 ```ts
-function renderSessionGoal(ctx) {
-  const sessionName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
-  const duplicate = Boolean(currentSessionGoal) && sessionName === currentSessionGoal;
+function renderSessionFooter(ctx, sessionName = ctx?.sessionManager?.getSessionName?.()) {
+  const normalizedName = sessionName?.trim() || "";
+  ctx?.ui?.setStatus?.(
+    SESSION_NAME_STATUS_KEY,
+    normalizedName ? ctx.ui.theme.fg("accent", `📁 ${normalizedName}`) : undefined,
+  );
   ctx?.ui?.setStatus?.(
     SESSION_GOAL_STATUS_KEY,
-    duplicate ? undefined : `goal: ${currentSessionGoal || SESSION_GOAL_PLACEHOLDER}`,
+    currentSessionGoal && normalizedName === currentSessionGoal
+      ? undefined
+      : `goal: ${currentSessionGoal || SESSION_GOAL_PLACEHOLDER}`,
   );
 }
 ```
 
-After `setManagedPiSessionName` returns in `applySessionGoal`, call `renderSessionGoal(ctx)` before identity publication so the status reflects the name that was just assigned.
-
-At the start of `session_info_changed`, call `renderSessionGoal(ctx)` before the existing empty-name/ownership guard. Do not alter identity publication logic.
+Use this combined renderer wherever the goal status currently renders, after `setManagedPiSessionName` returns, and at the start of `session_info_changed`. Pass `event.name ?? ""` on the event path so cleared names do not read stale accessor state. Do not alter identity publication logic.
 
 - [ ] **Step 4: Run focused and repository verification**
 
 Run:
 
 ```bash
-tests/pi-managed-hooks.sh
+bash tests/pi-managed-hooks.sh
 bash -n tests/pi-managed-hooks.sh
-bin/test
 ansible-playbook playbook.yml --syntax-check
 git diff --check
 ```
@@ -108,9 +111,11 @@ Expected: all commands exit `0`; the managed-hooks contract confirms placeholder
 - [ ] **Step 5: Commit implementation**
 
 ```bash
-~/.pi/agent/skills/z-commit/commit.sh -m "Suppress duplicate Pi goal footer text" \
+~/.pi/agent/skills/z-commit/commit.sh -m "Synchronize Pi footer session identity" \
   roles/common/files/pi/extensions/managed-hooks.ts \
-  tests/pi-managed-hooks.sh
+  tests/pi-managed-hooks.sh \
+  docs/superpowers/specs/2026-07-24-pi-footer-goal-deduplication-design.md \
+  docs/superpowers/plans/2026-07-24-pi-footer-goal-deduplication.md
 ```
 
 - [ ] **Step 6: Provision and verify live behavior**
