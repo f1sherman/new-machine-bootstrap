@@ -71,17 +71,16 @@ Normal structured repository titles continue to use the existing path. When the 
 
 ### One bottom pane label while nested
 
-Extend the existing per-session client reconciliation policy to manage `pane-border-status` alongside the top status bar:
+Extend the existing client reconciliation policy across the scopes tmux actually uses:
 
-- nested-only attached clients (`TERM=tmux*` or `screen*`): top status `off`, pane-border status `off`
-- any direct attached client: top status `on`, pane-border status `bottom`
-- no attached clients: safe defaults `on` and `bottom`
-- mixed clients: direct-client visibility wins
-- `@managed-bars=off`: preserve caller-selected values exactly
+- Session status remains session-specific. `@nested-client-only=1` means every attached client for that session uses `TERM=tmux*` or `screen*`; nested-only sessions use status `off`, while direct, mixed, and zero-client sessions use status `on` and leave the marker unset.
+- Pane-border status is window-specific. `@nested-window-only=1` means every session owning that window is nested-only; only those windows use pane-border status `off`.
+- A window linked into any direct, mixed, or zero-client session uses pane-border status `bottom` and leaves `@nested-window-only` unset. This window-level direct-wins rule is independent of session listing order.
+- `@managed-bars=off` preserves caller-selected status, pane-border status, session markers, and window markers exactly.
 
-This hides only the duplicate inner label row. Tmux pane borders, pane navigation, and the outer local pane label remain available. A direct attach to the remote tmux restores its own pane label.
+This hides only the duplicate inner label row. Tmux pane borders, pane navigation, and the outer local pane label remain available. A direct attach or direct/zero-client linked owner restores the shared window's pane label.
 
-`tmux-sync-pane-border-status` must honor the reconciled nested state rather than re-enabling the inner label during title, focus, or activity updates. Reconciliation remains event-driven through existing attach, detach, session-change, and config-load paths; no polling or timers are added.
+`tmux-sync-pane-border-status` must honor the reconciled window aggregate marker rather than an ambiguous owning session during title, focus, or activity updates. Reconciliation remains event-driven through attach, detach, session-change, window creation/link/unlink, and config-load paths; no polling or timers are added.
 
 ## Error handling and invariants
 
@@ -90,8 +89,8 @@ This hides only the duplicate inner label row. Tmux pane borders, pane navigatio
 - Indicator glyph selection remains local and authoritative.
 - Title publication remains scoped to clients displaying the source remote window.
 - Reconciliation remains serialized by the existing managed-bars lock.
-- Direct clients win over nested clients to preserve useful labels during mixed attachment.
-- `@managed-bars=off` remains a complete opt-out.
+- Direct, mixed, or zero-client owners win over nested-only owners for shared-window pane labels.
+- `@managed-bars=off` remains a complete opt-out across both session- and window-scoped state.
 
 ## Testing
 
@@ -108,7 +107,9 @@ Behavior coverage will verify:
 9. nested-only sessions disable both inner chrome rows;
 10. direct and zero-client sessions restore the bottom pane label;
 11. mixed sessions keep labels visible because the direct client wins;
-12. `@managed-bars=off` preserves explicit status and pane-border choices.
+12. linked windows remain visible when any owning session is direct, mixed, or has no clients, regardless of session listing order;
+13. unlinking the last such owner returns a nested-only window to `off`;
+14. `@managed-bars=off` preserves explicit status, pane-border, session-marker, and window-marker choices.
 
 Focused live verification will use a nested macOS-to-dev tmux session and confirm the exact tab and pane-label strings above.
 
