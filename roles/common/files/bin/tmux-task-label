@@ -84,13 +84,18 @@ normalize_field() {
     | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//'
 }
 
+valid_edge_marker() {
+  local marker="$1"
+  [[ -n "$marker" && "$marker" =~ ^h?j?k?l?$ ]]
+}
+
 strip_title_markers() {
   local title="$1" marker base
 
   if [[ "$title" =~ ^(.*)\ \[nmb-edge=([^][]+)\]$ ]]; then
     base="${BASH_REMATCH[1]}"
     marker="${BASH_REMATCH[2]}"
-    [[ "$marker" =~ ^[hjkl]+$ ]] || return 1
+    valid_edge_marker "$marker" || return 1
     title="$base"
   fi
   if [[ "$title" =~ ^(.*)\ \[nmb-ind=([^][]*)\]$ ]]; then
@@ -112,7 +117,7 @@ task_marker_source() {
   if [[ "$title" =~ ^(.*)\ \[nmb-edge=([^][]+)\]$ ]]; then
     base="${BASH_REMATCH[1]}"
     marker="${BASH_REMATCH[2]}"
-    [[ "$marker" =~ ^[hjkl]+$ ]] || return 1
+    valid_edge_marker "$marker" || return 1
     title="$base"
   fi
   if [[ "$title" =~ ^(.*)\ \[nmb-ind=([^][]*)\]$ ]]; then
@@ -130,22 +135,19 @@ structured_remote_label() {
   task_marker_source "$1" >/dev/null 2>&1 && marked_task="1"
   title="$(strip_title_markers "$1")" || return 1
 
-  case "$title" in
-    "~ "*|"("*|"✓ ("*) ;;
-    *)
-      nested_title="${title#*: }"
-      if [[ "$nested_title" != "$title" ]]; then
-        case "$nested_title" in
-          "~ "*|"("*|"✓ ("*) title="$nested_title" ;;
-          *)
-            if [[ -n "$marked_task" && "${title%%: *}" =~ ^[0-9]+$ ]]; then
-              title="$nested_title"
-            fi
-            ;;
-        esac
-      fi
-      ;;
-  esac
+  if [[ -z "$marked_task" ]]; then
+    case "$title" in
+      "~ "*|"("*|"✓ ("*) ;;
+      *)
+        nested_title="${title#*: }"
+        if [[ "$nested_title" != "$title" ]]; then
+          case "$nested_title" in
+            "~ "*|"("*|"✓ ("*) title="$nested_title" ;;
+          esac
+        fi
+        ;;
+    esac
+  fi
 
   case "$title" in
     *" | "*) ;;
@@ -174,9 +176,6 @@ extract_marked_task_fields() {
   source="$(task_marker_source "$title")" || return 1
   stripped="$(structured_remote_label "$title")" || return 1
   local_label="${stripped% | *}"
-  case "$local_label" in
-    "~ "*) return 1 ;;
-  esac
   host="$(normalize_field "${stripped##* | }")"
   [[ "$local_label" =~ ^(.*)[[:space:]]·[[:space:]](.*)$ ]] || return 1
   subject="$(normalize_field "${BASH_REMATCH[1]}")"
