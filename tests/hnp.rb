@@ -207,6 +207,13 @@ class HnpTest < Minitest::Test
         state.fetch("sessions").find { |session| session.fetch("name") == name }
       end
 
+      def display_session_named(state, target)
+        match = target.to_s.match(/\A=(.+):\z/)
+        return unless match
+
+        session_named(state, match[1])
+      end
+
       def attach(path, target)
         session_name = locked_state(path) do |state|
           session = session_named(state, target)
@@ -231,7 +238,7 @@ class HnpTest < Minitest::Test
         exit(found ? 0 : 1)
       when "display-message"
         target = option_value(args, "-t")
-        session = locked_state(state_path) { |state| session_named(state, target)&.dup }
+        session = locked_state(state_path) { |state| display_session_named(state, target)&.dup }
         exit 1 unless session
         puts session.fetch("attached")
       when "new-session"
