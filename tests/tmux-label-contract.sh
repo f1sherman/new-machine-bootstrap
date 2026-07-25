@@ -551,6 +551,20 @@ for rejected_task_title in \
   fi
   pass_case "remote parser rejects invalid task wire: $rejected_task_title"
 done
+for legacy_task_wire in \
+  '(feature/x) project | remote-host [nmb-task=goal]' \
+  '~ provisional · project | remote-host [nmb-task=manual]'; do
+  for task_label_mode in extract-remote render-remote; do
+    if "$TASK_LABEL" "$task_label_mode" "$legacy_task_wire" >/dev/null 2>&1; then
+      fail_case "$task_label_mode rejects task marker with legacy grammar: $legacy_task_wire" 'unexpected successful parsing'
+    fi
+    pass_case "$task_label_mode rejects task marker with legacy grammar: $legacy_task_wire"
+  done
+done
+if "$TASK_LABEL" extract-remote-provisional '~ provisional · project | remote-host [nmb-task=manual]' >/dev/null 2>&1; then
+  fail_case 'provisional extractor rejects task-marked provisional grammar' 'unexpected successful extraction'
+fi
+pass_case 'provisional extractor rejects task-marked provisional grammar'
 assert_equals \
   "$($TASK_LABEL extract-remote-provisional '~ investigate title race · project | remote-host [nmb-ind=waiting,] [nmb-edge=hj]')" \
   'investigate title race' \
