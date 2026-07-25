@@ -234,6 +234,35 @@ def bars_state(session):
     return status(session), pane_border_statuses(session), nested_marker(session)
 
 
+def set_bars_state(session, status_value, border_value, marker_value):
+    tmux("set-option", "-t", session, "status", status_value)
+    for window_id in window_ids(session):
+        tmux(
+            "set-window-option",
+            "-t",
+            window_id,
+            "pane-border-status",
+            border_value,
+        )
+    if marker_value:
+        tmux(
+            "set-option",
+            "-t",
+            session,
+            "@nested-client-only",
+            marker_value,
+        )
+    else:
+        tmux(
+            "set-option",
+            "-u",
+            "-t",
+            session,
+            "@nested-client-only",
+            check=False,
+        )
+
+
 def process_alive(pid):
     try:
         os.kill(pid, 0)
@@ -287,24 +316,6 @@ def assert_bars(session, expected_status, expected_border, expected_marker, name
         f"status={expected_status}, pane-border-status={expected_border} on every window, "
         f"marker={expected_marker!r}; got {bars_state(session)!r}",
     )
-
-
-def assert_statuses_stay(expected_statuses, name, timeout=3.0):
-    deadline = time.monotonic() + timeout
-    samples = 0
-    while time.monotonic() < deadline:
-        drain_clients()
-        for session, expected in expected_statuses.items():
-            actual = status(session)
-            if actual != expected:
-                raise AssertionError(
-                    f"{name}: {session} changed from '{expected}' to '{actual}'"
-                )
-        samples += 1
-        time.sleep(0.05)
-    if samples < 2:
-        raise AssertionError(f"{name}: insufficient stabilization samples")
-    print(f"PASS  {name} ({samples} stable samples over {timeout:.1f}s)")
 
 
 def assert_bars_stay(expected_states, name, timeout=3.0):
@@ -371,9 +382,9 @@ def start_reconciler(
     command += shlex.quote(str(launcher))
     tmux("run-shell", "-b", command)
     wait_until(
-        pid_file.exists,
+        lambda: pid_file.exists() and pid_file.read_text().strip().isdigit(),
         f"{label} reconciler starts",
-        f"PID file {pid_file} was not created",
+        f"PID file {pid_file} was not populated",
     )
     return int(pid_file.read_text().strip())
 
@@ -577,6 +588,13 @@ try:
 
     for event in ("client-attached", "client-detached", "client-session-changed"):
         tmux("set-hook", "-gu", f"{event}[90]")
+    barrier_pid = start_reconciler("pre-kill-barrier")
+    wait_until(
+        lambda: not process_alive(barrier_pid),
+        "earlier background reconciliations drain before SIGKILL coverage",
+        f"process {barrier_pid} did not exit",
+        timeout=10.0,
+    )
     owner_ready = runtime_dir / "owner.ready"
     owner_release = runtime_dir / "owner.release"
     owner_pid = start_reconciler(
@@ -589,11 +607,11 @@ try:
         "lock owner reaches managed-state inspection",
         "lock owner did not advance beyond acquisition",
     )
-    tmux("set-option", "-t", "s", "status", "off")
+    set_bars_state("s", "off", "off", "stale-marker")
     queued_pid = start_reconciler("queued-after-kill")
-    assert_statuses_stay(
-        {"s": "off"},
-        "queued reconciliation waits behind the lock owner",
+    assert_bars_stay(
+        {"s": ("off", "off", "stale-marker")},
+        "queued reconciliation leaves all managed state untouched behind the lock owner",
         timeout=0.5,
     )
     if not process_alive(queued_pid):
@@ -606,22 +624,26 @@ try:
         queued_pid,
         "queued reconciler acquires after owner SIGKILL",
     )
-    assert_status(
+    assert_bars(
         "s",
         "on",
-        "queued reconciler converges after owner SIGKILL",
+        "bottom",
+        "",
+        "queued reconciler converges all managed state after owner SIGKILL",
     )
 
-    tmux("set-option", "-t", "s", "status", "off")
+    set_bars_state("s", "off", "off", "stale-marker")
     successor_pid = start_reconciler("post-kill-successor")
     wait_for_process_exit(
         successor_pid,
         "subsequent reconciler acquires after owner SIGKILL",
     )
-    assert_status(
+    assert_bars(
         "s",
         "on",
-        "subsequent reconciler converges after owner SIGKILL",
+        "bottom",
+        "",
+        "subsequent reconciler converges all managed state after owner SIGKILL",
     )
 
     direct = attach("s", "xterm-256color")
@@ -636,9 +658,10 @@ try:
         block_set_release=mutation_release,
     )
     wait_until(
-        mutation_ready.exists,
+        lambda: mutation_ready.exists()
+        and mutation_ready.read_text().strip().isdigit(),
         "lock owner reaches an in-flight status mutation",
-        "set-option child did not block after the owner snapshot",
+        "set-option child did not publish its PID after the owner snapshot",
     )
     mutation_child_pid = int(mutation_ready.read_text().strip())
     os.kill(mutation_owner_pid, signal.SIGKILL)
@@ -649,9 +672,9 @@ try:
     detach(direct)
     nested = attach("s", "tmux-256color")
     mutation_queued_pid = start_reconciler("queued-behind-mutation")
-    assert_statuses_stay(
-        {"s": "off"},
-        "queued reconciliation waits behind the in-flight mutation child",
+    assert_bars_stay(
+        {"s": ("off", "bottom", "")},
+        "queued reconciliation leaves all managed state untouched behind the in-flight mutation child",
         timeout=0.5,
     )
     queued_behind_mutation = process_alive(mutation_queued_pid)
@@ -670,22 +693,26 @@ try:
             f"mutation child; final status is {status('s')}"
         )
     print("PASS  queued reconciler remains behind the in-flight mutation child")
-    assert_status(
+    assert_bars(
         "s",
         "off",
-        "queued reconciler repairs stale mutation after owner SIGKILL",
+        "off",
+        "1",
+        "queued reconciler repairs all stale managed state after owner SIGKILL",
     )
 
-    tmux("set-option", "-t", "s", "status", "on")
+    set_bars_state("s", "on", "bottom", "")
     mutation_successor_pid = start_reconciler("post-mutation-successor")
     wait_for_process_exit(
         mutation_successor_pid,
         "fresh successor acquires after mutation child",
     )
-    assert_status(
+    assert_bars(
         "s",
         "off",
-        "fresh successor converges after mutation child",
+        "off",
+        "1",
+        "fresh successor converges all managed state after mutation child",
     )
     detach(nested)
 
