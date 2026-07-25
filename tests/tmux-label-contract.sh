@@ -584,6 +584,17 @@ assert_equals \
   "$($TASK_LABEL render-remote "$opaque_numeric_task_wire")" \
   '(12: explicit goal) project | remote-host' \
   'marked task rendering preserves numeric opaque subject prefix'
+long_marked_goal="$(printf '👩‍💻%.0s' {1..21})"
+long_marked_goal_top="$(printf '👩‍💻%.0s' {1..19})…"
+long_marked_goal_wire="$long_marked_goal · project | remote-host [nmb-task=goal]"
+assert_equals \
+  "$($TASK_LABEL extract-remote "$long_marked_goal_wire")" \
+  "$long_marked_goal_top" \
+  'marked task extraction truncates top label by grapheme cell width'
+assert_equals \
+  "$($TASK_LABEL render-remote "$long_marked_goal_wire")" \
+  "($long_marked_goal) project | remote-host" \
+  'marked task rendering preserves full long detailed identity'
 for malformed_edge in hh kh lh; do
   malformed_edge_title="Explicit goal · project | remote-host [nmb-task=goal] [nmb-edge=$malformed_edge]"
   for task_label_mode in extract-remote render-remote; do
