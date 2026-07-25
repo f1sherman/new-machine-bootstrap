@@ -33,6 +33,9 @@ jobs:
       - name: Verify pinned binary privilege boundary
         run: bash tests/pinned-github-binary-privilege-boundary.sh
 
+      - name: Verify retired HNP launcher cleanup
+        run: bash tests/retired-hnp-launcher-cleanup.sh
+
       - name: Verify Rectangle migration
         run: ruby tests/rectangle-migration-contract.rb
 
