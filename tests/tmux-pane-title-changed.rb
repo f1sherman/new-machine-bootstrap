@@ -155,7 +155,8 @@ if File.exist?(HELPER) && File.executable?(HELPER)
     log.include?("tmux-task-label\textract-remote-provisional\trepo | remote-host") &&
       log.include?("tmux-sync-remote-title\t%91") &&
       log.include?("tmux-sync-pane-border-status\t%91") &&
-      log.include?("tmux-update-pane-label\t%91")
+      log.include?("tmux-update-pane-label\t%91") &&
+      log.include?("tmux-window-label\t%91")
   end
 
   File.write(File.join(tmpdir, "calls.log"), "")
@@ -283,12 +284,14 @@ if File.exist?(HELPER) && File.executable?(HELPER)
     if state.empty?
       assert("unmanaged structured title retains direct synchronization", log) do
         log.include?("tmux-sync-remote-title\t%#{100 + index}") &&
-          log.include?("tmux-update-pane-label\t%#{100 + index}")
+          log.include?("tmux-update-pane-label\t%#{100 + index}") &&
+          log.scan(/^tmux-window-label\t%#{100 + index}$/).length == 1
       end
     else
       assert("#{description} refreshes without direct remote rename", log) do
         !log.include?("tmux-sync-remote-title\t%#{100 + index}") &&
-          log.include?("tmux-update-pane-label\t%#{100 + index}")
+          log.include?("tmux-update-pane-label\t%#{100 + index}") &&
+          log.scan(/^tmux-window-label\t%#{100 + index}$/).length == 1
       end
     end
   end
