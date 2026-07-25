@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require "English"
+require "fileutils"
 require "shellwords"
 require "socket"
 
@@ -11,7 +12,7 @@ TMUX_ATTACH_TIMEOUT = Float(ENV.fetch("HNP_TMUX_ATTACH_TIMEOUT", "2"))
 TMUX_TERM_GRACE = Float(ENV.fetch("HNP_TMUX_TERM_GRACE", "0.25"))
 TMUX_LOCK_FILE = ENV.fetch(
   "HNP_TMUX_LOCK_FILE",
-  File.join(ENV.fetch("TMPDIR", "/tmp"), "hnp-tmux-#{Process.uid}.lock")
+  File.join(ENV.fetch("HOME"), ".local", "state", "hnp", "tmux.lock")
 )
 SSH_CHECK_OPTIONS = [
   "-o", "BatchMode=yes",
@@ -84,6 +85,7 @@ end
 def attach_or_create_tmux_session(session_name, repo_path, command)
   attachment_confirmed = false
   client_pid = nil
+  FileUtils.mkdir_p(File.dirname(TMUX_LOCK_FILE), mode: 0o700)
   lock = File.open(TMUX_LOCK_FILE, File::RDWR | File::CREAT, 0o600)
   lock.flock(File::LOCK_EX)
 

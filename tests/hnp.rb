@@ -42,6 +42,22 @@ class HnpTest < Minitest::Test
     assert_equal "env -u OPENAI_API_KEY pi two\\ words", created.fetch("command")
   end
 
+  def test_default_lock_is_created_in_user_owned_state_directory
+    shared_tmp = File.join(@tmpdir, "shared-tmp")
+    FileUtils.mkdir_p(shared_tmp)
+
+    _out, err, status = run_hnp(env: {
+      "HNP_TMUX_LOCK_FILE" => nil,
+      "TMPDIR" => shared_tmp
+    })
+
+    assert status.success?, err
+    lock_path = File.join(@home, ".local", "state", "hnp", "tmux.lock")
+    assert File.file?(lock_path)
+    assert_equal 0o600, File.stat(lock_path).mode & 0o777
+    assert_empty Dir.children(shared_tmp)
+  end
+
   def test_detached_canonical_session_is_reconnected
     set_sessions([{ "name" => "hnp", "attached" => 0, "command" => "pi" }])
 
@@ -223,7 +239,10 @@ class HnpTest < Minitest::Test
   end
 
   def state
-    JSON.parse(File.read(@state_path))
+    File.open(@state_path) do |file|
+      file.flock(File::LOCK_SH)
+      JSON.parse(file.read)
+    end
   end
 
   def session(name)

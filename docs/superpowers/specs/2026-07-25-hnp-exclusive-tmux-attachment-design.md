@@ -44,7 +44,7 @@ Never reconnect to existing sessions. This avoids duplicate attachment but loses
 
 ### Session selection
 
-On `dev` or during a remote invocation outside tmux, `hnp` acquires an exclusive per-user launch lock.
+On `dev` or during a remote invocation outside tmux, `hnp` acquires an exclusive launch lock under the user's `~/.local/state/hnp/` directory. Keeping the lock out of shared `/tmp` prevents another local user from pre-creating the path and blocking launches.
 
 It queries the exact canonical session target (`=hnp`):
 
