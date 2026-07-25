@@ -14,6 +14,7 @@ const SESSION_GOAL_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase of at m
 const SESSION_GOAL_MAX_LENGTH = 80;
 const SESSION_GOAL_ENTRY_TYPE = "session-goal";
 const SESSION_GOAL_STATUS_KEY = "session-goal";
+const SESSION_NAME_STATUS_KEY = "sm";
 const SESSION_GOAL_PLACEHOLDER = "determining…";
 const MANAGED_PI_SESSION_NAME_OPTION = "@pi_managed_session_name";
 const REPO_START_TRIGGERS = /(^|\s)(?:z-fix|z-spec-first|z-quick-pr|superpowers:systematic-debugging|superpowers:brainstorming)(?=\s|$)/i;
@@ -189,6 +190,7 @@ async function syncSessionNameFromTmux(pi, ctx) {
 
   try {
     await setManagedPiSessionName(pi, ctx, sessionName, () => !currentSessionGoal);
+    renderSessionFooter(ctx);
   } catch (error) {
     warn("set Pi session name from tmux label failed", error);
   }
@@ -700,12 +702,17 @@ function restoreSessionGoal(ctx) {
   return "";
 }
 
-function renderSessionGoal(ctx) {
-  const sessionName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
-  const duplicate = Boolean(currentSessionGoal) && sessionName === currentSessionGoal;
+function renderSessionFooter(ctx, sessionName = ctx?.sessionManager?.getSessionName?.()) {
+  const normalizedName = sessionName?.trim() || "";
+  ctx?.ui?.setStatus?.(
+    SESSION_NAME_STATUS_KEY,
+    normalizedName ? ctx.ui.theme.fg("accent", `📁 ${normalizedName}`) : undefined,
+  );
   ctx?.ui?.setStatus?.(
     SESSION_GOAL_STATUS_KEY,
-    duplicate ? undefined : `goal: ${currentSessionGoal || SESSION_GOAL_PLACEHOLDER}`,
+    currentSessionGoal && normalizedName === currentSessionGoal
+      ? undefined
+      : `goal: ${currentSessionGoal || SESSION_GOAL_PLACEHOLDER}`,
   );
 }
 
@@ -797,11 +804,11 @@ export default function managedHooks(pi) {
 
       pi.appendEntry(SESSION_GOAL_ENTRY_TYPE, { subject: normalized });
       currentSessionGoal = normalized;
-      renderSessionGoal(ctx);
+      renderSessionFooter(ctx);
       const maySet = () => !options.onlyIfUnset
         || (requestIsCurrent(options.request, ctx) && currentSessionGoal === normalized);
       const named = await setManagedPiSessionName(pi, ctx, normalized, maySet);
-      renderSessionGoal(ctx);
+      renderSessionFooter(ctx);
       if (named && maySet()) await publishSessionIdentity(pi, ctx, normalized);
       return normalized;
     });
@@ -850,7 +857,7 @@ export default function managedHooks(pi) {
     sessionGoalGeneration += 1;
     sessionGoalRunning?.controller.abort();
     currentSessionGoal = restoreSessionGoal(ctx);
-    renderSessionGoal(ctx);
+    renderSessionFooter(ctx);
   }
 
   async function applyRestoredVisibleIdentity(pi, ctx) {
@@ -867,6 +874,7 @@ export default function managedHooks(pi) {
     if (!currentSessionGoal) return false;
 
     const named = await setManagedPiSessionName(pi, ctx, currentSessionGoal);
+    renderSessionFooter(ctx);
     if (named) await publishSessionIdentity(pi, ctx, currentSessionGoal);
     return true;
   }
@@ -907,13 +915,14 @@ export default function managedHooks(pi) {
     if (restoredIdentityApplied) return;
     if (namingStatus.kind === "branch") {
       await setManagedPiSessionName(pi, ctx, namingStatus.subject);
+      renderSessionFooter(ctx);
     } else if (namingStatus.kind === "non-branch") {
       await syncSessionNameFromTmux(pi, ctx);
     }
   });
 
   pi.on("session_info_changed", async (event, ctx) => {
-    renderSessionGoal(ctx);
+    renderSessionFooter(ctx, event.name ?? "");
     const sessionName = event.name?.trim() || "";
     if (!sessionName || !ownsTmuxPane()) return;
     await publishSessionIdentity(pi, ctx, sessionName);
