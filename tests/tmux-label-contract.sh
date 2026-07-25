@@ -551,20 +551,44 @@ for rejected_task_title in \
   fi
   pass_case "remote parser rejects invalid task wire: $rejected_task_title"
 done
-for legacy_task_wire in \
-  '(feature/x) project | remote-host [nmb-task=goal]' \
-  '~ provisional · project | remote-host [nmb-task=manual]'; do
+branch_shaped_task_wire='(feature/x) project | remote-host [nmb-task=goal]'
+for task_label_mode in extract-remote render-remote; do
+  if "$TASK_LABEL" "$task_label_mode" "$branch_shaped_task_wire" >/dev/null 2>&1; then
+    fail_case "$task_label_mode rejects task marker with invalid marked grammar" 'unexpected legacy branch fallback'
+  fi
+  pass_case "$task_label_mode rejects task marker with invalid marked grammar"
+done
+opaque_provisional_task_wire='~ explicit goal · project | remote-host [nmb-task=manual]'
+assert_equals \
+  "$($TASK_LABEL extract-remote "$opaque_provisional_task_wire")" \
+  '~ explicit goal' \
+  'marked task extraction preserves provisional-looking opaque subject'
+assert_equals \
+  "$($TASK_LABEL render-remote "$opaque_provisional_task_wire")" \
+  '(~ explicit goal) project | remote-host' \
+  'marked task rendering preserves provisional-looking opaque subject'
+if "$TASK_LABEL" extract-remote-provisional "$opaque_provisional_task_wire" >/dev/null 2>&1; then
+  fail_case 'provisional extractor rejects authoritative task marker' 'unexpected provisional adoption candidate'
+fi
+pass_case 'provisional extractor rejects authoritative task marker'
+opaque_numeric_task_wire='12: explicit goal · project | remote-host [nmb-task=goal]'
+assert_equals \
+  "$($TASK_LABEL extract-remote "$opaque_numeric_task_wire")" \
+  '12: explicit goal' \
+  'marked task extraction preserves numeric opaque subject prefix'
+assert_equals \
+  "$($TASK_LABEL render-remote "$opaque_numeric_task_wire")" \
+  '(12: explicit goal) project | remote-host' \
+  'marked task rendering preserves numeric opaque subject prefix'
+for malformed_edge in hh kh lh; do
+  malformed_edge_title="Explicit goal · project | remote-host [nmb-task=goal] [nmb-edge=$malformed_edge]"
   for task_label_mode in extract-remote render-remote; do
-    if "$TASK_LABEL" "$task_label_mode" "$legacy_task_wire" >/dev/null 2>&1; then
-      fail_case "$task_label_mode rejects task marker with legacy grammar: $legacy_task_wire" 'unexpected successful parsing'
+    if "$TASK_LABEL" "$task_label_mode" "$malformed_edge_title" >/dev/null 2>&1; then
+      fail_case "$task_label_mode rejects malformed edge marker: $malformed_edge" 'unexpected successful parsing'
     fi
-    pass_case "$task_label_mode rejects task marker with legacy grammar: $legacy_task_wire"
+    pass_case "$task_label_mode rejects malformed edge marker: $malformed_edge"
   done
 done
-if "$TASK_LABEL" extract-remote-provisional '~ provisional · project | remote-host [nmb-task=manual]' >/dev/null 2>&1; then
-  fail_case 'provisional extractor rejects task-marked provisional grammar' 'unexpected successful extraction'
-fi
-pass_case 'provisional extractor rejects task-marked provisional grammar'
 assert_equals \
   "$($TASK_LABEL extract-remote-provisional '~ investigate title race · project | remote-host [nmb-ind=waiting,] [nmb-edge=hj]')" \
   'investigate title race' \

@@ -33,9 +33,9 @@
 
 **Interfaces:**
 - Produces wire titles of the form `<subject> · <context> | <host> [nmb-task=goal|manual]`, followed by optional validated `nmb-ind` and `nmb-edge` suffixes.
-- `tmux-task-label extract-remote <title>` returns the capped task-only top label.
-- `tmux-task-label extract-remote-provisional <title>` retains its existing raw provisional-subject contract.
-- New `tmux-task-label render-remote <title>` returns a marker-free detailed pane label, converting a task wire title to `(<subject>) <context> | <host>`.
+- `tmux-task-label extract-remote <title>` returns the capped task-only top label. For a valid `nmb-task` wire title, the subject is opaque and legacy-looking prefixes such as `~ ` and `12: ` are preserved exactly.
+- `tmux-task-label extract-remote-provisional <title>` retains its existing raw provisional-subject contract but rejects any valid `nmb-task` marker.
+- New `tmux-task-label render-remote <title>` returns a marker-free detailed pane label, converting a task wire title to `(<subject>) <context> | <host>` while preserving the opaque marked subject.
 - `tmux-pane-label` consumes `render-remote`; callers and argument order remain unchanged.
 
 - [ ] **Step 1: Add failing contract tests for publication, extraction, rendering, and rejection**
@@ -54,7 +54,7 @@ assert_equals "$("$TASK_LABEL" extract-remote 'Fix stale tmux feedback indicator
 assert_equals "$("$TASK_LABEL" render-remote 'Fix stale tmux feedback indicator · new-machine-bootstrap | dev [nmb-task=goal] [nmb-ind=working,merged] [nmb-edge=hjkl]')" "(Fix stale tmux feedback indicator) new-machine-bootstrap | dev" "remote renderer hides task transport metadata"
 ```
 
-Add rejection assertions for an unmarked bare goal, invalid `nmb-task` source, malformed missing context, and unknown marker. Add a pane-label fixture whose remote `pane_title` is the explicit goal wire title and assert that its output is exactly the detailed marker-free label.
+Add rejection assertions for an unmarked bare goal, invalid `nmb-task` source, malformed missing context, and unknown marker. Record the marker-authoritative decision with assertions that marked subjects beginning `~ ` or a numeric prefix such as `12: ` extract and render unchanged, while `extract-remote-provisional` rejects the task-marked title and malformed marked titles cannot fall through to legacy branch/provisional parsing. Add rejection assertions for duplicate or unordered edge flags such as `hh`, `kh`, and `lh`. Add a pane-label fixture whose remote `pane_title` is the explicit goal wire title and assert that its output is exactly the detailed marker-free label.
 
 In `tests/tmux-pane-title-changed.rb`, add a behavior scenario with a stale local `window_name`/`@pane-label` and the explicit goal wire title. Assert one `tmux-sync-remote-title`, one `tmux-update-pane-label`, one `tmux-window-label`, the concise renamed window, and the detailed marker-free cached pane label. Follow it with an ordinary `home-network-provisioning | dev` title and assert repository identity replaces the goal.
 
@@ -90,7 +90,9 @@ For active `goal` and `manual` sources, call this formatter before the generic `
 
 - [ ] **Step 4: Centralize validation and visible rendering in `tmux-task-label`**
 
-Extend `strip_title_markers` to consume suffixes in exact reverse publication order: optional valid edge, optional valid indicator containing one comma, then optional `nmb-task=goal|manual`. Reject any remaining `[nmb-` text. Preserve the validated task source in parsing paths rather than accepting arbitrary values.
+Extend `strip_title_markers` to consume suffixes in exact reverse publication order: optional valid edge, optional valid indicator containing one comma, then optional `nmb-task=goal|manual`. A valid edge is exactly a canonical ordered nonempty subset of `h`, `j`, `k`, `l`; duplicates and out-of-order combinations are rejected. Reject any remaining `[nmb-` text. Preserve the validated task source in parsing paths rather than accepting arbitrary values.
+
+A valid `nmb-task` marker is authoritative. Treat its subject as opaque after field normalization: do not apply provisional/branch recognition or numeric/named nested-title normalization to it. If marked-task field parsing fails, fail closed rather than trying legacy extract/render paths. Direct provisional extraction must reject marked titles.
 
 Add task-wire parsing after `structured_remote_label` normalization:
 
@@ -107,7 +109,7 @@ extract_marked_task_fields() {
 }
 ```
 
-Implement the behavior, not necessarily these local variable mechanics, so Bash subshell scope cannot discard parsed fields. `extract-remote` must prefer a validated marked task and return `truncate_label "$subject"`, then preserve existing provisional/branch behavior. Add `render-remote` to output `($subject) $context | $host` for a marked task and the stripped structured label for existing provisional/branch titles.
+Implement the behavior, not necessarily these local variable mechanics, so Bash subshell scope cannot discard parsed fields. `extract-remote` must prefer a validated marked task and return `truncate_label "$subject"`; only unmarked titles may continue to existing provisional/branch behavior. Add `render-remote` to output `($subject) $context | $host` for a marked task and the stripped structured label for existing unmarked provisional/branch titles.
 
 - [ ] **Step 5: Make pane rendering consume the shared parser**
 
