@@ -146,7 +146,7 @@ TMUX_LOCK_FILE = ENV.fetch(
 
 def tmux_session_attached(session_name)
   output = IO.popen(
-    ["tmux", "display-message", "-p", "-t", "=#{session_name}", '#{session_attached}'],
+    ["tmux", "display-message", "-p", "-t", "=#{session_name}:", '#{session_attached}'],
     err: File::NULL,
     &:read
   )
