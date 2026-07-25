@@ -77,19 +77,22 @@ done
 
 tmux -L "$SOCK" kill-server 2>/dev/null || true
 HOME="$TEST_HOME" tmux -L "$SOCK" new-session -d -s s -x 80 -y 24 sleep 300
+HOME="$TEST_HOME" tmux -L "$SOCK" new-window -d -t s: -n second sleep 300
 sid="$(tmux -L "$SOCK" display-message -p -t s '#{session_id}')"
 
 # pane-border sync
+sync_pane="$(tmux -L "$SOCK" display-message -p -t s:0 '#{pane_id}')"
+sync_window="$(tmux -L "$SOCK" display-message -p -t "$sync_pane" '#{window_id}')"
 tmux -L "$SOCK" set -gu @managed-bars 2>/dev/null || true
-tmux -L "$SOCK" set-window-option -t s pane-border-status off
-tmux -L "$SOCK" run-shell "$PANE_BORDER #{pane_id}"
-assert_equals "$(tmux -L "$SOCK" show-window-options -v -t s pane-border-status)" "bottom" \
+tmux -L "$SOCK" set-window-option -t "$sync_window" pane-border-status off
+tmux -L "$SOCK" run-shell "$PANE_BORDER $sync_pane"
+assert_equals "$(tmux -L "$SOCK" show-window-options -v -t "$sync_window" pane-border-status)" "bottom" \
   "pane-border sync forces bottom when flag unset"
 
 tmux -L "$SOCK" set -g @managed-bars off
-tmux -L "$SOCK" set-window-option -t s pane-border-status off
-tmux -L "$SOCK" run-shell "$PANE_BORDER #{pane_id}"
-assert_equals "$(tmux -L "$SOCK" show-window-options -v -t s pane-border-status)" "off" \
+tmux -L "$SOCK" set-window-option -t "$sync_window" pane-border-status off
+tmux -L "$SOCK" run-shell "$PANE_BORDER $sync_pane"
+assert_equals "$(tmux -L "$SOCK" show-window-options -v -t "$sync_window" pane-border-status)" "off" \
   "pane-border sync no-ops when @managed-bars off"
 
 # A local off value proves that the config-load reconciliation runs; the
@@ -128,7 +131,7 @@ assert_equals "$(grep -c 'tmux-remote-title publish' <<<"$session_change_hooks" 
 assert_equals "$(grep -c 'tmux-reconcile-status-bars' <<<"$session_change_hooks" || true)" "1" \
   "repeated config sourcing keeps one indexed client-session-changed reconciler"
 
-python3 - "$SOCK" "$TEST_HOME" "$LINUX_TMUX_CONF" <<'PY'
+python3 - "$SOCK" "$TEST_HOME" "$LINUX_TMUX_CONF" "$PANE_BORDER" <<'PY'
 import fcntl
 import os
 import pathlib
@@ -142,7 +145,7 @@ import sys
 import termios
 import time
 
-sock, test_home, linux_tmux_conf = sys.argv[1:]
+sock, test_home, linux_tmux_conf, pane_border = sys.argv[1:]
 base_env = os.environ.copy()
 base_env["HOME"] = test_home
 base_env.pop("TMUX", None)
@@ -198,6 +201,39 @@ def status(session):
     return tmux("show-options", "-v", "-t", session, "status")
 
 
+def window_ids(session):
+    output = tmux("list-windows", "-t", session, "-F", "#{window_id}")
+    return output.splitlines() if output else []
+
+
+def pane_border_statuses(session):
+    return {
+        window_id: tmux(
+            "show-window-options",
+            "-v",
+            "-t",
+            window_id,
+            "pane-border-status",
+        )
+        for window_id in window_ids(session)
+    }
+
+
+def nested_marker(session):
+    return tmux(
+        "show-options",
+        "-v",
+        "-t",
+        session,
+        "@nested-client-only",
+        check=False,
+    )
+
+
+def bars_state(session):
+    return status(session), pane_border_statuses(session), nested_marker(session)
+
+
 def process_alive(pid):
     try:
         os.kill(pid, 0)
@@ -234,6 +270,25 @@ def assert_status(session, expected, name):
     )
 
 
+def assert_bars(session, expected_status, expected_border, expected_marker, name):
+    def matches():
+        actual_status, borders, marker = bars_state(session)
+        return (
+            actual_status == expected_status
+            and borders
+            and all(value == expected_border for value in borders.values())
+            and marker == expected_marker
+        )
+
+    wait_until(
+        matches,
+        name,
+        "expected "
+        f"status={expected_status}, pane-border-status={expected_border} on every window, "
+        f"marker={expected_marker!r}; got {bars_state(session)!r}",
+    )
+
+
 def assert_statuses_stay(expected_statuses, name, timeout=3.0):
     deadline = time.monotonic() + timeout
     samples = 0
@@ -250,6 +305,41 @@ def assert_statuses_stay(expected_statuses, name, timeout=3.0):
     if samples < 2:
         raise AssertionError(f"{name}: insufficient stabilization samples")
     print(f"PASS  {name} ({samples} stable samples over {timeout:.1f}s)")
+
+
+def assert_bars_stay(expected_states, name, timeout=3.0):
+    deadline = time.monotonic() + timeout
+    samples = 0
+    while time.monotonic() < deadline:
+        drain_clients()
+        for session, expected in expected_states.items():
+            actual_status, borders, marker = bars_state(session)
+            expected_status, expected_border, expected_marker = expected
+            if (
+                actual_status != expected_status
+                or not borders
+                or any(value != expected_border for value in borders.values())
+                or marker != expected_marker
+            ):
+                raise AssertionError(
+                    f"{name}: {session} expected {expected!r}, got "
+                    f"{(actual_status, borders, marker)!r}"
+                )
+        samples += 1
+        time.sleep(0.05)
+    if samples < 2:
+        raise AssertionError(f"{name}: insufficient stabilization samples")
+    print(f"PASS  {name} ({samples} stable samples over {timeout:.1f}s)")
+
+
+def sync_pane_border_status(session):
+    pane_id = tmux("display-message", "-p", "-t", session, "#{pane_id}")
+    tmux(
+        "run-shell",
+        "-t",
+        session,
+        f"{shlex.quote(pane_border)} {shlex.quote(pane_id)}",
+    )
 
 
 def client_ttys():
@@ -348,17 +438,38 @@ def detach(client):
 
 
 try:
-    assert_status("s", "on", "no clients defaults status on after config load")
+    if len(window_ids("s")) < 2:
+        raise AssertionError("nested topology requires at least two existing windows")
+    print("PASS  nested topology has at least two existing windows")
+    assert_bars(
+        "s",
+        "on",
+        "bottom",
+        "",
+        "no clients show both managed bars with marker unset",
+    )
     tmux("new-session", "-d", "-s", "unrelated", "sleep", "300")
 
     tmux("set-option", "-t", "unrelated", "status", "off")
     direct = attach("s", "xterm-256color")
-    assert_status("s", "on", "direct-only session keeps status on")
+    assert_bars(
+        "s",
+        "on",
+        "bottom",
+        "",
+        "direct-only session shows both managed bars with marker unset",
+    )
     assert_status("unrelated", "on", "attach reconciles an unrelated session")
 
     tmux("set-option", "-t", "unrelated", "status", "off")
     detach(direct)
-    assert_status("s", "on", "direct client's last detach restores status on")
+    assert_bars(
+        "s",
+        "on",
+        "bottom",
+        "",
+        "direct client's last detach restores both bars with marker unset",
+    )
     assert_status("unrelated", "on", "detach reconciles an unrelated session")
     wait_until(
         lambda: tmux("show-options", "-gv", "@unrelated-detach-hook-seen") == "yes",
@@ -367,22 +478,74 @@ try:
     )
 
     nested = attach("s", "screen-256color")
-    assert_status("s", "off", "screen client makes a nested-only session status off")
+    assert_bars(
+        "s",
+        "off",
+        "off",
+        "1",
+        "nested-only session hides both bars on every window and sets marker",
+    )
+    sync_pane_border_status("s")
+    assert_bars(
+        "s",
+        "off",
+        "off",
+        "1",
+        "pane-label refresh keeps nested-only pane labels hidden",
+    )
 
     direct = attach("s", "xterm-256color")
-    assert_status("s", "on", "direct client wins in a mixed-client session")
+    assert_bars(
+        "s",
+        "on",
+        "bottom",
+        "",
+        "mixed direct and nested clients show both bars with marker unset",
+    )
+    sync_pane_border_status("s")
+    assert_bars(
+        "s",
+        "on",
+        "bottom",
+        "",
+        "pane-label refresh restores direct-client pane labels",
+    )
 
     tmux("set-option", "-t", "s", "status", "off")
     detach(nested)
-    assert_status("s", "on", "nested detach reconciles the remaining direct client")
+    assert_bars(
+        "s",
+        "on",
+        "bottom",
+        "",
+        "nested detach reconciles the remaining direct client",
+    )
 
     nested = attach("s", "tmux-256color")
-    assert_status("s", "on", "nested attach cannot hide status from a direct client")
+    assert_bars(
+        "s",
+        "on",
+        "bottom",
+        "",
+        "nested attach cannot hide bars from a direct client",
+    )
     detach(direct)
-    assert_status("s", "off", "direct detach reconciles the remaining nested client")
+    assert_bars(
+        "s",
+        "off",
+        "off",
+        "1",
+        "direct detach hides both bars for the remaining nested client",
+    )
 
     detach(nested)
-    assert_status("s", "on", "last nested client detach restores status on")
+    assert_bars(
+        "s",
+        "on",
+        "bottom",
+        "",
+        "last nested client detach restores both bars with marker unset",
+    )
 
     for iteration in range(8):
         nested = start_attach("s", "tmux-256color")
@@ -538,29 +701,40 @@ try:
     tmux("new-session", "-d", "-s", "opt-destination", "sleep", "300")
     tmux("set-option", "-g", "@managed-bars", "off")
     tmux("set-option", "-t", "opt-source", "status", "off")
+    tmux("set-window-option", "-t", "opt-source", "pane-border-status", "off")
+    tmux("set-option", "-t", "opt-source", "@nested-client-only", "keep-source")
     tmux("set-option", "-t", "opt-destination", "status", "on")
+    tmux("set-window-option", "-t", "opt-destination", "pane-border-status", "bottom")
+    tmux("set-option", "-t", "opt-destination", "@nested-client-only", "1")
     tmux("set-option", "-t", "unrelated", "status", "off")
+    tmux("set-window-option", "-t", "unrelated", "pane-border-status", "top")
+    tmux("set-option", "-u", "-t", "unrelated", "@nested-client-only", check=False)
+    opted_out_states = {
+        "opt-source": ("off", "off", "keep-source"),
+        "opt-destination": ("on", "bottom", "1"),
+        "unrelated": ("off", "top", ""),
+    }
 
     direct = attach("opt-source", "xterm-256color")
-    assert_statuses_stay(
-        {"opt-source": "off", "opt-destination": "on", "unrelated": "off"},
-        "@managed-bars=off preserves chosen values after attach",
+    assert_bars_stay(
+        opted_out_states,
+        "@managed-bars=off preserves bars and markers after attach",
     )
     detach(direct)
-    assert_statuses_stay(
-        {"opt-source": "off", "opt-destination": "on", "unrelated": "off"},
-        "@managed-bars=off preserves chosen values after detach",
+    assert_bars_stay(
+        opted_out_states,
+        "@managed-bars=off preserves bars and markers after detach",
     )
 
     switcher = attach("opt-source", "screen-256color")
-    assert_statuses_stay(
-        {"opt-source": "off", "opt-destination": "on", "unrelated": "off"},
-        "@managed-bars=off preserves chosen values before session change",
+    assert_bars_stay(
+        opted_out_states,
+        "@managed-bars=off preserves bars and markers before session change",
     )
     tmux("switch-client", "-c", switcher["tty"], "-t", "opt-destination")
-    assert_statuses_stay(
-        {"opt-source": "off", "opt-destination": "on", "unrelated": "off"},
-        "@managed-bars=off preserves chosen values after session change",
+    assert_bars_stay(
+        opted_out_states,
+        "@managed-bars=off preserves bars and markers after session change",
     )
     detach(switcher)
 finally:
