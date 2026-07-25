@@ -1,5 +1,6 @@
 const WRAPPED_MARKER = Symbol.for("nmb.piAttentionBell.wrappedUi");
 const ATTENTION_METHODS = ["select", "confirm", "input", "editor", "custom"];
+const ACTIVITY_STATE_EVENT = "agent-activity:state-changed";
 
 function requestAttention() {
   try {
@@ -37,12 +38,19 @@ function wrapAttentionUi(ui) {
   }
 }
 
+function handleActivityTransition(payload) {
+  if (payload?.previousState !== "working" || payload?.state !== "waiting") return;
+  requestAttention();
+}
+
 export default function piAttentionBell(pi) {
-  pi.on("agent_end", async () => {
-    requestAttention();
-  });
+  const unsubscribe = pi.events.on(ACTIVITY_STATE_EVENT, handleActivityTransition);
 
   pi.on("session_start", async (_event, ctx) => {
     wrapAttentionUi(ctx?.ui);
+  });
+
+  pi.on("session_shutdown", () => {
+    if (typeof unsubscribe === "function") unsubscribe();
   });
 }
