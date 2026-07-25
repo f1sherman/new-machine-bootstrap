@@ -141,7 +141,7 @@ In `roles/common/files/bin/hnp`, add constants and helpers shaped as follows:
 TMUX_ATTACH_TIMEOUT = Float(ENV.fetch("HNP_TMUX_ATTACH_TIMEOUT", "2"))
 TMUX_LOCK_FILE = ENV.fetch(
   "HNP_TMUX_LOCK_FILE",
-  File.join(ENV.fetch("TMPDIR", "/tmp"), "hnp-tmux-#{Process.uid}.lock")
+  File.join(ENV.fetch("HOME"), ".local", "state", "hnp", "tmux.lock")
 )
 
 def tmux_session_attached(session_name)
@@ -163,7 +163,7 @@ def create_tmux_session(session_name, repo_path, command)
 end
 ```
 
-Require `English` for `$CHILD_STATUS`. Select the target under `File.open(TMUX_LOCK_FILE, File::RDWR | File::CREAT, 0o600)` plus `flock(File::LOCK_EX)`:
+Require `English` for `$CHILD_STATUS` and `fileutils` for directory creation. Create the lock's user-owned parent directory with mode `0700`, then select the target under `File.open(TMUX_LOCK_FILE, File::RDWR | File::CREAT, 0o600)` plus `flock(File::LOCK_EX)`:
 
 ```ruby
 attached = tmux_session_attached(TMUX_SESSION)
