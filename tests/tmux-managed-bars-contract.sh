@@ -55,6 +55,11 @@ for config in "$LINUX_TMUX_CONF" "$MACOS_TMUX_CONF"; do
       "set-hook -g ${event}\\[90\\] .*tmux-reconcile-status-bars" \
       "$platform config owns indexed status reconciliation on $event"
   done
+  for event in after-new-window window-linked; do
+    assert_file_contains "$config" \
+      "set-hook -g ${event}\\[90\\] .*PATH=.*tmux-reconcile-status-bars" \
+      "$platform config converges created or linked windows through portable $event hook"
+  done
   assert_file_contains "$config" \
     '^run-shell -b .*tmux-reconcile-status-bars' \
     "$platform config reconciles status at load time"
@@ -130,6 +135,13 @@ assert_equals "$(grep -c 'tmux-remote-title publish' <<<"$session_change_hooks" 
   "repeated config sourcing preserves one base client-session-changed hook"
 assert_equals "$(grep -c 'tmux-reconcile-status-bars' <<<"$session_change_hooks" || true)" "1" \
   "repeated config sourcing keeps one indexed client-session-changed reconciler"
+for event in after-new-window window-linked; do
+  creation_hooks="$(tmux -L "$SOCK" show-hooks -g "$event" 2>/dev/null)"
+  assert_equals "$(grep -c 'tmux-pipe-pane-start' <<<"$creation_hooks" || true)" "1" \
+    "repeated config sourcing preserves one base $event pane initializer"
+  assert_equals "$(grep -c 'tmux-reconcile-status-bars' <<<"$creation_hooks" || true)" "1" \
+    "repeated config sourcing keeps one indexed $event reconciler"
+done
 
 python3 - "$SOCK" "$TEST_HOME" "$LINUX_TMUX_CONF" "$PANE_BORDER" <<'PY'
 import fcntl
@@ -326,10 +338,15 @@ def assert_bars_stay(expected_states, name, timeout=3.0):
         for session, expected in expected_states.items():
             actual_status, borders, marker = bars_state(session)
             expected_status, expected_border, expected_marker = expected
+            borders_match = (
+                borders == expected_border
+                if isinstance(expected_border, dict)
+                else borders
+                and all(value == expected_border for value in borders.values())
+            )
             if (
                 actual_status != expected_status
-                or not borders
-                or any(value != expected_border for value in borders.values())
+                or not borders_match
                 or marker != expected_marker
             ):
                 raise AssertionError(
@@ -496,6 +513,15 @@ try:
         "1",
         "nested-only session hides both bars on every window and sets marker",
     )
+    tmux("set-window-option", "-g", "pane-border-status", "bottom")
+    tmux("new-window", "-d", "-t", "s:", "-n", "nested-late", "sleep", "300")
+    assert_bars(
+        "s",
+        "off",
+        "off",
+        "1",
+        "window created after nested-only convergence is hidden by its event hook",
+    )
     sync_pane_border_status("s")
     assert_bars(
         "s",
@@ -513,6 +539,16 @@ try:
         "",
         "mixed direct and nested clients show both bars with marker unset",
     )
+    tmux("set-window-option", "-g", "pane-border-status", "off")
+    tmux("new-window", "-d", "-t", "s:", "-n", "direct-late", "sleep", "300")
+    assert_bars(
+        "s",
+        "on",
+        "bottom",
+        "",
+        "window created with stale off default converges for a direct client",
+    )
+    tmux("set-window-option", "-g", "pane-border-status", "bottom")
     sync_pane_border_status("s")
     assert_bars(
         "s",
@@ -764,6 +800,38 @@ try:
         "@managed-bars=off preserves bars and markers after session change",
     )
     detach(switcher)
+
+    _, opt_source_borders, _ = bars_state("opt-source")
+    tmux("set-window-option", "-g", "pane-border-status", "top")
+    opted_out_window = tmux(
+        "new-window",
+        "-d",
+        "-P",
+        "-F",
+        "#{window_id}",
+        "-t",
+        "opt-source:",
+        "sleep",
+        "300",
+    )
+    inherited_border = tmux(
+        "display-message",
+        "-p",
+        "-t",
+        opted_out_window,
+        "#{pane-border-status}",
+    )
+    if inherited_border != "top":
+        raise AssertionError(
+            "opted-out window did not inherit the caller's top border default: "
+            f"{inherited_border!r}"
+        )
+    print("PASS  @managed-bars=off window inherits caller-selected border default")
+    opt_source_borders[opted_out_window] = ""
+    assert_bars_stay(
+        {"opt-source": ("off", opt_source_borders, "keep-source")},
+        "@managed-bars=off preserves a newly created window's inherited border",
+    )
 finally:
     for client in list(clients):
         process = client["process"]
