@@ -525,6 +525,45 @@ for separator_case in \
   assert_file_contains "$window_log" "rename-window -t @1 $expected" "outer window preserves provisional separators: $expected"
 done
 
+degraded_goal_wire='Fix stale tmux feedback indicator · new-machine-bootstrap | dev [nmb-task=goal] [nmb-ind=working,merged] [nmb-edge=hjkl]'
+: > "$window_log"
+TMUX_TEST_TITLE=dev TMUX_TEST_WINDOW_NAME="$degraded_goal_wire" \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" \
+  'rename-window -t @1 Fix stale tmux feedback indicator' \
+  'host-only pane title extracts concise marked goal from window name'
+assert_file_contains "$window_log" \
+  'set-option -wq -t @1 @window-indicators 🤖#[fg=#8957e5]● ' \
+  'host-only marked goal fallback captures formatted indicators'
+assert_file_not_contains "$window_log" '[nmb-' \
+  'host-only marked goal fallback leaks no transport metadata'
+
+: > "$window_log"
+TMUX_TEST_TITLE=dev \
+TMUX_TEST_WINDOW_NAME='Untrusted goal · new-machine-bootstrap | dev [nmb-task=agent]' \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_not_contains "$window_log" 'rename-window -t @1 Untrusted goal' \
+  'host-only malformed marked window name fails closed'
+assert_file_not_contains "$window_log" '[nmb-' \
+  'host-only malformed marked window name leaks no transport metadata'
+
+for degraded_fallback_case in \
+  'remote-host^(feature/fallback) project | remote-host^feature/fallback^branch' \
+  'remote-host^~ fallback goal · project | remote-host^~ fallback goal^provisional' \
+  'remote-host^0: (feature/numeric) project | remote-host^feature/numeric^numeric nested'; do
+  pane_host="${degraded_fallback_case%%^*}"
+  remainder="${degraded_fallback_case#*^}"
+  fallback_wire="${remainder%%^*}"
+  remainder="${remainder#*^}"
+  fallback_expected="${remainder%%^*}"
+  fallback_name="${remainder#*^}"
+  : > "$window_log"
+  TMUX_TEST_TITLE="$pane_host" TMUX_TEST_WINDOW_NAME="$fallback_wire" \
+  TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+  assert_file_contains "$window_log" "rename-window -t @1 $fallback_expected" \
+    "host-only pane title preserves $fallback_name window-name fallback"
+done
+
 for remote_case in \
   '(feature/a)b) project | remote-host' \
   "(feature/$(printf 'a%.0s' {1..60})) project | remote-host" \

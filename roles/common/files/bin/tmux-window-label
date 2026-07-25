@@ -19,10 +19,6 @@ IFS="$parse_separator" read -r window_id pane_active window_name pane_tty pane_c
 [ -n "$window_id" ] || exit 0
 [ "$pane_active" = "1" ] || exit 0
 
-strip_ind_marker() {
-  printf '%s\n' "${1:-}" | sed -E 's/ \[nmb-ind=[^]]*\]//'
-}
-
 ind_activity=""
 ind_pr_state=""
 capture_ind_marker() {
@@ -38,8 +34,6 @@ capture_ind_marker() {
 }
 capture_ind_marker "$pane_title"
 [ -n "$ind_activity$ind_pr_state" ] || capture_ind_marker "$window_name"
-pane_title="$(strip_ind_marker "$pane_title")"
-window_name="$(strip_ind_marker "$window_name")"
 
 cached_window_label="$(tmux show-options -qv -p -t "$pane_id" "@window-label" 2>/dev/null || true)"
 task_state="$(tmux show-options -qv -p -t "$pane_id" "@task_state" 2>/dev/null || true)"
@@ -60,46 +54,18 @@ is_remote_candidate_command() {
   esac
 }
 
-is_structured_remote_label() {
-  case "$1" in
-    *" | "*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-strip_edge_marker() {
-  local title="${1:-}"
-  printf '%s\n' "${title% \[nmb-edge=*]}"
-}
-
-structured_remote_label() {
-  local title="${1:-}" nested_title prefix
-
-  title="$(strip_edge_marker "$title")"
-  is_structured_remote_label "$title" || return 1
-  nested_title="${title#*: }"
-  prefix="${title%%: *}"
-  if [ "$nested_title" != "$title" ] && is_structured_remote_label "$nested_title" && {
-    [[ "$prefix" =~ ^[0-9]+$ ]] ||
-      [[ "$nested_title" == \(* ]] ||
-      [[ "$nested_title" == "✓ ("* ]] ||
-      [[ "$nested_title" == "~ "* ]]
-  }; then
-    printf '%s\n' "$nested_title"
-  else
-    printf '%s\n' "$title"
-  fi
-}
-
 task_from_remote_label() {
   [ -x "$task_label_helper" ] || return 1
   "$task_label_helper" extract-remote "${1:-}"
 }
 
+render_remote_label() {
+  [ -x "$task_label_helper" ] || return 1
+  "$task_label_helper" render-remote "${1:-}"
+}
+
 remote_host_suffix() {
-  local title
-  title="$(strip_edge_marker "$1")"
-  printf '%s\n' "${title##* | }"
+  printf '%s\n' "${1##* | }"
 }
 
 strip_host_suffix() {
@@ -111,17 +77,16 @@ if [ -z "$label" ] && is_remote_candidate_command "$pane_current_command"; then
   if [ -n "$label" ]; then
     task_label_resolved="1"
   else
-    structured_window="$(structured_remote_label "$window_name" 2>/dev/null || true)"
-    if [ -n "$structured_window" ] && [ "$pane_title" = "$(remote_host_suffix "$structured_window")" ]; then
-      label="$(task_from_remote_label "$structured_window" 2>/dev/null || true)"
+    rendered_window="$(render_remote_label "$window_name" 2>/dev/null || true)"
+    if [ -n "$rendered_window" ] && [ "$pane_title" = "$(remote_host_suffix "$rendered_window")" ]; then
+      label="$(task_from_remote_label "$window_name" 2>/dev/null || true)"
       [ -z "$label" ] || task_label_resolved="1"
     fi
   fi
   if [ -z "$label" ]; then
     structured_marker="$(tmux show-options -qv -p -t "$pane_id" "@pane-title-structured" 2>/dev/null || true)"
     cached_pane_label="$(tmux show-options -qv -p -t "$pane_id" "@pane-label" 2>/dev/null || true)"
-    cached_pane_label="$(strip_ind_marker "$cached_pane_label")"
-    if [ -n "$structured_marker" ] && is_structured_remote_label "$cached_pane_label"; then
+    if [ -n "$structured_marker" ]; then
       label="$(task_from_remote_label "$cached_pane_label" 2>/dev/null || true)"
       [ -z "$label" ] || task_label_resolved="1"
     fi
