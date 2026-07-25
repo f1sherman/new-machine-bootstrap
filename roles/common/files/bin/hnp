@@ -1,11 +1,17 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require "English"
 require "shellwords"
 require "socket"
 
 DEV_HOST = ENV.fetch("HNP_DEV_HOST", "dev")
 TMUX_SESSION = ENV.fetch("HNP_TMUX_SESSION", "hnp")
+TMUX_ATTACH_TIMEOUT = Float(ENV.fetch("HNP_TMUX_ATTACH_TIMEOUT", "2"))
+TMUX_LOCK_FILE = ENV.fetch(
+  "HNP_TMUX_LOCK_FILE",
+  File.join(ENV.fetch("TMPDIR", "/tmp"), "hnp-tmux-#{Process.uid}.lock")
+)
 SSH_CHECK_OPTIONS = [
   "-o", "BatchMode=yes",
   "-o", "ConnectTimeout=2",
@@ -34,6 +40,73 @@ def remote_invocation?
   ENV["HNP_REMOTE"] == "1" || !ENV["SSH_CONNECTION"].to_s.empty?
 end
 
+def tmux_session_attached(session_name)
+  output = IO.popen(
+    ["tmux", "display-message", "-p", "-t", "=#{session_name}", '#{session_attached}'],
+    err: File::NULL,
+    &:read
+  )
+  return nil unless $CHILD_STATUS.success?
+
+  Integer(output.strip, exception: false)
+end
+
+def create_tmux_session(session_name, repo_path, command)
+  system(
+    "tmux", "new-session", "-d", "-s", session_name,
+    "-c", repo_path, command.shelljoin
+  ) || abort("failed to create hnp tmux session #{session_name}")
+end
+
+def stop_tmux_client(client_pid)
+  Process.kill("TERM", client_pid)
+  Process.wait(client_pid)
+rescue Errno::ESRCH, Errno::ECHILD
+  nil
+end
+
+def attach_or_create_tmux_session(session_name, repo_path, command)
+  client_pid = nil
+  lock = File.open(TMUX_LOCK_FILE, File::RDWR | File::CREAT, 0o600)
+  lock.flock(File::LOCK_EX)
+
+  begin
+    attached = tmux_session_attached(session_name)
+    selected = if attached.nil?
+      create_tmux_session(session_name, repo_path, command)
+      session_name
+    elsif attached.zero?
+      session_name
+    else
+      unique_name = "#{session_name}-#{Process.pid}-#{Time.now.to_i}"
+      create_tmux_session(unique_name, repo_path, command)
+      unique_name
+    end
+
+    client_pid = Process.spawn("tmux", "attach-session", "-t", "=#{selected}")
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + TMUX_ATTACH_TIMEOUT
+    loop do
+      break if tmux_session_attached(selected).to_i.positive?
+
+      if Process.waitpid(client_pid, Process::WNOHANG)
+        abort "failed to attach hnp tmux session #{selected}"
+      end
+      if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+        stop_tmux_client(client_pid)
+        abort "timed out attaching hnp tmux session #{selected}"
+      end
+
+      sleep 0.01
+    end
+  ensure
+    lock.flock(File::LOCK_UN)
+    lock.close
+  end
+
+  _, status = Process.wait2(client_pid)
+  exit(status.exitstatus || 1)
+end
+
 host = current_host
 if !remote_invocation? && host != short_host(DEV_HOST) && dev_ssh_available?
   exec("ssh", "-t", DEV_HOST, "HNP_REMOTE=1 #{["hnp", *ARGV].shelljoin}")
@@ -43,7 +116,7 @@ repo_path = File.join(ENV.fetch("HOME"), "projects", "home-network-provisioning"
 pi_command = ["env", "-u", "OPENAI_API_KEY", "pi", *ARGV]
 
 if (remote_invocation? || host == short_host(DEV_HOST)) && !inside_tmux?
-  exec("tmux", "new-session", "-A", "-s", TMUX_SESSION, "-c", repo_path, pi_command.shelljoin)
+  attach_or_create_tmux_session(TMUX_SESSION, repo_path, pi_command)
 end
 
 Dir.chdir(repo_path)
