@@ -41,9 +41,16 @@ const extensionPath = process.argv[2];
 const { default: install } = await import(pathToFileURL(extensionPath));
 
 const handlers = new Map();
+const eventHandlers = new Map();
 const pi = {
   on(event, handler) {
     handlers.set(event, handler);
+  },
+  events: {
+    on(event, handler) {
+      eventHandlers.set(event, handler);
+      return () => eventHandlers.delete(event);
+    },
   },
 };
 
@@ -60,17 +67,25 @@ process.stdout.write = (chunk, encoding, callback) => {
 try {
   install(pi);
 
-  assert.equal(typeof handlers.get("agent_end"), "function", "registers agent_end handler");
+  assert.equal(handlers.has("agent_end"), false, "does not ring on low-level agent_end");
   assert.equal(typeof handlers.get("session_start"), "function", "registers session_start handler");
+  assert.equal(typeof handlers.get("session_shutdown"), "function", "registers session_shutdown handler");
+
+  const activity = eventHandlers.get("agent-activity:state-changed");
+  assert.equal(typeof activity, "function", "subscribes to aggregate activity transitions");
 
   Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: true });
-  await handlers.get("agent_end")({}, {});
-  assert.equal(captured, "\x07", "agent_end emits one BEL when stdout is a TTY");
+  activity({ previousState: undefined, state: "waiting" });
+  activity({ previousState: "waiting", state: "working" });
+  activity({ previousState: "working", state: "working" });
+  assert.equal(captured, "", "non-readiness transitions do not ring");
+  activity({ previousState: "working", state: "waiting" });
+  assert.equal(captured, "\x07", "aggregate readiness rings once");
 
   Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: false });
   captured = "";
-  await handlers.get("agent_end")({}, {});
-  assert.equal(captured, "", "agent_end skips BEL when stdout is not a TTY");
+  activity({ previousState: "working", state: "waiting" });
+  assert.equal(captured, "", "aggregate readiness skips BEL when stdout is not a TTY");
 
   Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: true });
 
@@ -107,6 +122,13 @@ try {
     "missing UI context fails open without throwing",
   );
   assert.equal(captured, "", "bad UI context fails open without BEL spam");
+
+  await handlers.get("session_shutdown")({}, {});
+  assert.equal(
+    eventHandlers.has("agent-activity:state-changed"),
+    false,
+    "session shutdown unsubscribes the aggregate activity listener",
+  );
 } finally {
   process.stdout.write = originalWrite;
   if (originalIsTTY) {
