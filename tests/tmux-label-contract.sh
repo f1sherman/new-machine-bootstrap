@@ -541,6 +541,10 @@ assert_equals "$($TASK_LABEL extract-remote '(feature/a)b) project | remote-host
 assert_equals "$($TASK_LABEL extract-remote '(feature/x) project | remote-host [nmb-ind=working,draft] [nmb-edge=hj]')" 'feature/x' "remote parser strips indicator marker"
 assert_equals "$($TASK_LABEL extract-remote 'Fix stale tmux feedback indicator · new-machine-bootstrap | dev [nmb-task=goal] [nmb-ind=working,merged] [nmb-edge=hjkl]')" "Fix stale tmux feedback indicator" "remote parser extracts explicit goal identity"
 assert_equals "$($TASK_LABEL render-remote 'Fix stale tmux feedback indicator · new-machine-bootstrap | dev [nmb-task=goal] [nmb-ind=working,merged] [nmb-edge=hjkl]')" "(Fix stale tmux feedback indicator) new-machine-bootstrap | dev" "remote renderer hides task transport metadata"
+assert_equals \
+  "$($TASK_LABEL render-remote '0: repo | dev')" \
+  'repo | dev' \
+  'remote renderer normalizes numeric nested repository prefix'
 for rejected_task_title in \
   'Unmarked bare goal · new-machine-bootstrap | dev' \
   'Invalid task source · new-machine-bootstrap | dev [nmb-task=agent]' \
@@ -797,6 +801,9 @@ assert_equals "$pane_label" '(feature/tmux-37) project | remote-host' \
 explicit_goal_pane_label="$(TMUX_37_TITLE='Fix stale tmux feedback indicator · new-machine-bootstrap | dev [nmb-task=goal] [nmb-ind=working,merged] [nmb-edge=hjkl]' PATH="$tmux_37_dir:$PATH" "$PANE_LABEL" /dev/null /tmp/project ssh %37)"
 assert_equals "$explicit_goal_pane_label" '(Fix stale tmux feedback indicator) new-machine-bootstrap | dev' \
   'pane label renders explicit remote goal without transport metadata'
+numeric_repository_pane_label="$(TMUX_37_TITLE='0: repo | dev' PATH="$tmux_37_dir:$PATH" "$PANE_LABEL" /dev/null /tmp/project ssh %37)"
+assert_equals "$numeric_repository_pane_label" 'repo | dev' \
+  'pane label normalizes numeric nested repository prefix'
 TMUX_37_HOOK_LOG="$hook_log" PATH="$tmux_37_dir:$tmux_37_hook_dir:$PATH" \
   "$PANE_TITLE_CHANGED" %37
 assert_file_contains "$hook_log" 'tmux-sync-remote-title %37' \

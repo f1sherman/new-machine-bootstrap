@@ -136,17 +136,21 @@ structured_remote_label() {
   title="$(strip_title_markers "$1")" || return 1
 
   if [[ -z "$marked_task" ]]; then
-    case "$title" in
-      "~ "*|"("*|"✓ ("*) ;;
-      *)
-        nested_title="${title#*: }"
-        if [[ "$nested_title" != "$title" ]]; then
-          case "$nested_title" in
-            "~ "*|"("*|"✓ ("*) title="$nested_title" ;;
-          esac
-        fi
-        ;;
-    esac
+    if [[ "$title" =~ ^[0-9]+:[[:space:]]+(.*)$ ]]; then
+      title="${BASH_REMATCH[1]}"
+    else
+      case "$title" in
+        "~ "*|"("*|"✓ ("*) ;;
+        *)
+          nested_title="${title#*: }"
+          if [[ "$nested_title" != "$title" ]]; then
+            case "$nested_title" in
+              "~ "*|"("*|"✓ ("*) title="$nested_title" ;;
+            esac
+          fi
+          ;;
+      esac
+    fi
   fi
 
   case "$title" in
