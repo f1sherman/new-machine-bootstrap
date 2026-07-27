@@ -2,27 +2,42 @@
 
 ## Problem
 
-Provisioning derives the managed Pi executable and package root from `<mise install>/bin/pi`. Current Aube-backed npm installs instead expose the executable at `<mise install>/node_modules/.bin/pi` and the package at `<mise install>/node_modules/@earendil-works/pi-coding-agent`. A fresh package upgrade can therefore leave provisioning unable to resolve `bin/pi`, even though the package installed successfully.
+The managed Aube-backed npm install does not have one cross-platform filesystem layout. The install root returned by `mise where npm:@earendil-works/pi-coding-agent` contains `bin/pi` and `global-aube/` on macOS, while Linux contains `node_modules/.bin/pi` and `node_modules/@earendil-works/pi-coding-agent`.
+
+Treating either layout as universal makes provisioning fail on the other platform after a package upgrade, even though the package installed successfully.
 
 ## Design
 
-Treat the current Aube install tree as the single supported managed layout:
+Resolve the mise install root once per task, then select one explicit managed layout from the Ansible OS family:
 
-- Resolve the Pi package root directly from `<mise install>/node_modules/@earendil-works/pi-coding-agent`.
-- Resolve the stable Pi command from `<mise install>/node_modules/.bin/pi`.
-- Keep the existing managed link into the active Node.js global package tree, but point it at the direct package root rather than inferring it through an executable symlink.
-- Keep the existing `~/.local/bin/pi` management, changing only its source path.
+- Darwin command: `<mise install root>/bin/pi`.
+- Darwin package: resolve the command symlink to its real target, then derive the package root from the target's parent directories.
+- Non-Darwin command: `<mise install root>/node_modules/.bin/pi`.
+- Non-Darwin package: `<mise install root>/node_modules/@earendil-works/pi-coding-agent`.
 
-No fallback to the legacy `<mise install>/bin/pi` layout will be added. The repository manages the package installer and version together, so supporting one explicit current layout avoids permanent compatibility inference.
+This is platform selection, not a fallback. Provisioning must not probe for one layout and silently try the other. The repository manages the package installer and version together, so each supported platform has one explicit current layout.
+
+Keep the existing managed link into the active Node.js global package tree. If that destination is a stale managed symlink from a previous package version, replace it. If it is a non-symlink path, fail rather than overwrite it.
+
+Keep `~/.local/bin/pi` as the stable managed command and point it at the platform-specific executable.
 
 ## Error Handling
 
-Missing package or executable paths remain fatal provisioning errors. This is intentional: silently retaining an older Pi command would report successful provisioning while leaving the requested version inactive.
+The selected executable must exist and be executable before either package resolution or stable-link creation. The selected or derived package root must resolve to an existing directory. Either failure is fatal so provisioning cannot report success while retaining an older Pi command or broken package link.
 
 ## Testing
 
-Add a focused contract test that inspects the Ansible task and requires both current Aube paths while rejecting the legacy Pi path. Run the focused test, relevant existing provisioning contract tests, YAML syntax checks, and a real provision. Verify `~/.local/bin/pi` resolves to the current package and `pi --version` reports the managed version.
+Use a focused contract test that requires:
+
+- explicit Darwin and non-Darwin branches in both managed Pi tasks;
+- the Darwin `bin/pi` command and symlink-derived package root;
+- the non-Darwin `node_modules/.bin/pi` command and direct package root;
+- executable validation before package resolution and stable-link creation;
+- package directory validation; and
+- stale managed-link replacement.
+
+Run the focused contract, YAML parsing, the existing Pi managed-Aube update contract, and diff checks. Live verification must run provisioning on each available platform and validate the platform-appropriate `~/.local/bin/pi` target and managed version.
 
 ## Scope
 
-Only managed Pi path resolution changes. Aube installation, package versions, Node.js path setup, and unrelated npm tools remain unchanged.
+Only managed Pi path selection and validation change. Aube installation, package versions, Node.js path setup, and unrelated npm tools remain unchanged.

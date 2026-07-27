@@ -1401,14 +1401,28 @@
     set -euo pipefail
 
     pi_root="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')"
-    export PI_PACKAGE_ROOT="$pi_root/node_modules/@earendil-works/pi-coding-agent"
+    if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then
+      pi_bin="$pi_root/bin/pi"
+    else
+      pi_bin="$pi_root/node_modules/.bin/pi"
+      export PI_PACKAGE_ROOT="$pi_root/node_modules/@earendil-works/pi-coding-agent"
+    fi
+    export PI_BIN="$pi_bin"
+    [[ -x "$pi_bin" ]] || { echo "Managed Pi executable is missing or not executable: $pi_bin" >&2; exit 1; }
 
     IFS=' ' read -r -a ruby_cmd <<<"${RUBY_BIN:?}"
     "${ruby_cmd[@]}" <<'RUBY'
     require "fileutils"
     require "pathname"
 
-    package_root = Pathname.new(ENV.fetch("PI_PACKAGE_ROOT")).realpath
+    if ENV.fetch("PI_OS_FAMILY") == "Darwin"
+      pi_bin = Pathname.new(ENV.fetch("PI_BIN")).realpath
+      package_root = pi_bin.dirname.dirname
+    else
+      package_root = Pathname.new(ENV.fetch("PI_PACKAGE_ROOT")).realpath
+    end
+    abort "Managed Pi package root is missing or not a directory: #{package_root}" unless package_root.directory?
+
     expected = Pathname.new(ENV.fetch("NODE_PATH")).join("lib/node_modules/@earendil-works/pi-coding-agent")
 
     FileUtils.mkdir_p(expected.dirname)
@@ -1428,6 +1442,7 @@
     executable: /bin/bash
   environment:
     RUBY_BIN: "{{ mise_bin }} exec ruby@{{ tool_versions.runtimes.ruby }} -- ruby"
+    PI_OS_FAMILY: "{{ ansible_facts['os_family'] }}"
     NODE_PATH: "{{ (ansible_facts['os_family'] == 'Darwin') | ternary(common_aube_global_tools_node_path_macos.stdout, common_aube_global_tools_node_path_linux.stdout) }}"
   register: common_pi_coding_agent_global_node_link
   changed_when: common_pi_coding_agent_global_node_link.stdout.strip() == 'changed'
@@ -1441,7 +1456,12 @@
   shell: |
     set -euo pipefail
     codex_bin="$("{{ mise_bin }}" where 'npm:@openai/codex')/bin/codex"
-    pi_bin="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')/node_modules/.bin/pi"
+    pi_root="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')"
+    if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then
+      pi_bin="$pi_root/bin/pi"
+    else
+      pi_bin="$pi_root/node_modules/.bin/pi"
+    fi
     [[ -x "$pi_bin" ]] || { echo "Managed Pi executable is missing or not executable: $pi_bin" >&2; exit 1; }
     ln -sf "$codex_bin" "{{ ansible_facts['user_dir'] }}/.local/bin/codex"
     ln -sf "$pi_bin" "{{ ansible_facts['user_dir'] }}/.local/bin/pi"
