@@ -45,6 +45,12 @@ jobs:
       - name: Verify tmux restore startup coordination
         run: ruby tests/tmux-restore-startup.rb
 
+      - name: Verify tmux-resurrect extra save fields
+        run: ruby tests/tmux-resurrect-save-extra.rb
+
+      - name: Verify tmux-resurrect extra field restoration
+        run: ruby tests/tmux-resurrect-restore-extra.rb
+
       - name: Verify Ghostty session manifest
         run: ruby tests/ghostty-session-manifest.rb
 
