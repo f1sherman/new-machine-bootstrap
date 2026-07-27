@@ -403,6 +403,18 @@ class TmuxRestoreStartupTest < Minitest::Test
     refute_match(/event=restore_snapshot_fallback\t/, File.read(@events_path))
   end
 
+  def test_last_pointing_to_existing_directory_does_not_fall_back
+    FileUtils.mkdir_p(File.join(@resurrect_dir, "snapshots"))
+    File.write(File.join(@resurrect_dir, "last.safe"), "safe snapshot\n")
+    File.symlink("snapshots", File.join(@resurrect_dir, "last"))
+
+    _out, _err, status = Open3.capture3(helper_env("FAKE_RESTORE_SESSIONS" => "journal"), HELPER)
+
+    assert status.success?
+    assert_equal "snapshots", File.readlink(File.join(@resurrect_dir, "last"))
+    refute_match(/event=restore_snapshot_fallback\t/, File.read(@events_path))
+  end
+
   def test_dangling_last_without_safe_keeps_empty_start_behavior
     File.symlink("missing.txt", File.join(@resurrect_dir, "last"))
 

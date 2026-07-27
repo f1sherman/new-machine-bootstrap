@@ -54,7 +54,7 @@ fallback_resurrect_snapshot() {
     /*) ;;
     *) resurrect_target="$resurrect_dir/$resurrect_target" ;;
   esac
-  [ -f "$resurrect_target" ] && return 0
+  [ -e "$resurrect_target" ] && return 0
 
   safe_snapshot="$resurrect_dir/last.safe"
   [ -f "$safe_snapshot" ] || return 0
