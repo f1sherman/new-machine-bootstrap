@@ -46,7 +46,7 @@ Revise the focused contract test to isolate both managed Pi tasks and require:
 
 Run: `ruby tests/pi-aube-install-layout-contract.rb`
 
-Expected against the single-layout implementation: failure reporting that the explicit Darwin branch is missing.
+Expected against the shim-target implementation: failure reporting that a managed Pi task lacks the required direct non-Darwin entrypoint or still selects the relocatable shell shim.
 
 - [ ] **Step 3: Implement explicit platform paths**
 
@@ -82,7 +82,7 @@ Expected: all commands exit 0.
 
 - [ ] **Step 5: Commit correction**
 
-Commit the contract, implementation, approved documents, and Task 1 round-2 evidence without AI attribution.
+Commit the contract, implementation, approved documents, and Task 1 fix-round evidence without AI attribution.
 
 ### Task 2: Verify provisioning behavior
 
