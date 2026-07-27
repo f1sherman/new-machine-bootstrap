@@ -45,6 +45,9 @@ jobs:
       - name: Verify tmux restore startup coordination
         run: ruby tests/tmux-restore-startup.rb
 
+      - name: Verify interrupted tmux-resurrect recovery
+        run: ruby tests/tmux-resurrect-recover.rb
+
       - name: Verify tmux-resurrect extra save fields
         run: ruby tests/tmux-resurrect-save-extra.rb
 
