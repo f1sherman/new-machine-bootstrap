@@ -166,16 +166,18 @@ def free_fds_and_hooks_if_overloaded(server_pid)
   true
 end
 
-def pause_continuum
+def continuum_interval
   current = `tmux show -gv @continuum-save-interval 2>/dev/null`.strip
-  current = '15' if current.empty?
-  system('tmux', 'set', '-g', '@continuum-save-interval', '0', out: File::NULL, err: File::NULL)
-  current
+  current.empty? ? '15' : current
+end
+
+def set_continuum_interval(value)
+  system('tmux', 'set', '-g', '@continuum-save-interval', value, out: File::NULL, err: File::NULL)
 end
 
 def resume_continuum(prior_value)
   prior_value = '15' if prior_value.to_s.empty? || prior_value == '0'
-  system('tmux', 'set', '-g', '@continuum-save-interval', prior_value, out: File::NULL, err: File::NULL)
+  set_continuum_interval(prior_value)
 end
 
 def repoint_last(dir, target_path)
@@ -235,39 +237,61 @@ def main(opts)
   server_pid = tmux_server_pid
   ensure_tmux_env(server_pid)
 
-  prior_continuum = pause_continuum
   prior_signal_handlers = {}
+  pending_signal = nil
+  pause_attempted = false
   recovery_completed = false
+  result = 0
   begin
     %w[HUP INT TERM].each do |signal|
       signal_number = Signal.list.fetch(signal)
-      prior_signal_handlers[signal] = Signal.trap(signal) { exit(128 + signal_number) }
+      prior_signal_handlers[signal] = Signal.trap(signal) { pending_signal ||= signal_number }
     end
 
-    reaped = server_pid ? free_fds_and_hooks_if_overloaded(server_pid) : false
-    repoint_last(opts[:resurrect_dir], picked)
-
-    log 'running tmux-resurrect restore.sh'
-    restore_ok = system(opts[:restore_script])
-    restore_status = $?.exitstatus
-    log "restore script exit=#{restore_status}" unless restore_ok
-
-    if reaped && File.file?(opts[:tmux_conf])
-      log 're-sourcing tmux.conf to reinstate hooks'
-      system('tmux', 'source-file', opts[:tmux_conf], out: File::NULL, err: File::NULL)
+    unless pending_signal
+      prior_continuum = continuum_interval
+      unless pending_signal
+        # Cleanup owns the interval before starting the subprocess because a
+        # signal can arrive after tmux changes it but before system returns.
+        pause_attempted = true
+        set_continuum_interval('0')
+      end
     end
 
-    result = restore_ok ? 0 : (restore_status || 1)
-    recovery_completed = true
-    result
+    unless pending_signal
+      reaped = server_pid ? free_fds_and_hooks_if_overloaded(server_pid) : false
+      repoint_last(opts[:resurrect_dir], picked)
+    end
+
+    unless pending_signal
+      log 'running tmux-resurrect restore.sh'
+      restore_ok = system(opts[:restore_script])
+      restore_status = $?.exitstatus
+      log "restore script exit=#{restore_status}" unless restore_ok
+    end
+
+    unless pending_signal
+      if reaped && File.file?(opts[:tmux_conf])
+        log 're-sourcing tmux.conf to reinstate hooks'
+        system('tmux', 'source-file', opts[:tmux_conf], out: File::NULL, err: File::NULL)
+      end
+
+      result = restore_ok ? 0 : (restore_status || 1)
+      recovery_completed = true
+    end
   ensure
     begin
-      resume_continuum(prior_continuum)
-      print_summary if recovery_completed
+      if pause_attempted
+        resumed = resume_continuum(prior_continuum)
+        resumed = resume_continuum(prior_continuum) while pending_signal && !resumed
+        print_summary if recovery_completed && !pending_signal
+      end
     ensure
       prior_signal_handlers.each { |signal, handler| Signal.trap(signal, handler) }
     end
   end
+
+  pending_signal ? 128 + pending_signal : result
 end
 
 def print_summary
