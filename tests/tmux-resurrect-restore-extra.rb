@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require "digest"
 require "fileutils"
 require "json"
 require "minitest/autorun"
@@ -42,7 +43,7 @@ class TmuxResurrectRestoreExtraTest < Minitest::Test
   end
 
   def test_handlers_start_independently_and_dispatcher_returns_promptly
-    write_sidecar("slow" => "slow value", "fast" => "fast value")
+    write_sidecar({ "slow" => "slow value", "fast" => "fast value" })
     write_handler("slow", <<~'SH')
       printf '%s|%s\n' "$1" "$2" > "$SLOW_STARTED"
       sleep 2
@@ -64,7 +65,7 @@ class TmuxResurrectRestoreExtraTest < Minitest::Test
   end
 
   def test_handler_failure_is_logged_without_failing_dispatcher
-    write_sidecar("failed" => "failed value")
+    write_sidecar({ "failed" => "failed value" })
     write_handler("failed", <<~'SH')
       printf '%s|%s\n' "$1" "$2" > "$FAILED_STARTED"
       exit 17
@@ -76,10 +77,26 @@ class TmuxResurrectRestoreExtraTest < Minitest::Test
     wait_for_log(/handler-failed: failed for work:1\.0/)
   end
 
+  def test_mismatched_state_generation_skips_all_handlers
+    write_sidecar({ "fast" => "stale value" }, state_sha256: "0" * 64)
+    write_handler("fast", <<~'SH')
+      printf '%s|%s\n' "$1" "$2" > "$FAST_STARTED"
+    SH
+
+    Timeout.timeout(1) { system(@env, RESTORE_EXTRA, exception: true) }
+
+    sleep 0.2
+    refute File.exist?(@fast_started), "handler ran with metadata from a different state generation"
+    assert File.read(@log).match?(/generation mismatch/), "generation mismatch was not logged"
+  end
+
   private
 
-  def write_sidecar(values)
-    File.write(@sidecar, JSON.generate("panes" => { "work:1.0" => values }))
+  def write_sidecar(values, state_sha256: Digest::SHA256.file(@state_file).hexdigest)
+    File.write(
+      @sidecar,
+      JSON.generate("state_sha256" => state_sha256, "panes" => { "work:1.0" => values })
+    )
   end
 
   def write_fake_tmux

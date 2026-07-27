@@ -1,7 +1,9 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require "digest"
 require "fileutils"
+require "json"
 require "minitest/autorun"
 require "open3"
 require "rbconfig"
@@ -46,6 +48,13 @@ class TmuxResurrectSaveExtraTest < Minitest::Test
 
     assert File.symlink?(@last)
     assert_equal File.basename(different_state), File.readlink(@last)
+  end
+
+  def test_sidecar_binds_metadata_to_state_generation
+    run_save_extra
+
+    sidecar = JSON.parse(File.read("#{@state_file}.meta.json"))
+    assert_equal Digest::SHA256.file(@state_file).hexdigest, sidecar.fetch("state_sha256")
   end
 
   private

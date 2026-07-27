@@ -64,6 +64,21 @@ class TmuxResurrectRecoverTest < Minitest::Test
       "continuum interval should be paused and restored exactly once"
   end
 
+  def test_term_to_recovery_pid_terminates_restore_child_and_resumes_interval
+    spawn_recovery("FAKE_RESTORE_IGNORE_TERM" => "1")
+
+    wait_until { File.exist?(@restore_marker) }
+    assert_equal "0", current_interval, "manual recovery did not pause continuum"
+
+    Process.kill("TERM", @pid)
+    wait_until(timeout: 1) { recovery_exited? }
+
+    assert_equal "5", current_interval, "direct-PID TERM left continuum autosaving paused"
+    assert_equal 143, @status.exitstatus
+    restore_pid = Integer(File.read(@restore_marker), 10)
+    assert_raises(Errno::ESRCH) { Process.kill(0, restore_pid) }
+  end
+
   private
 
   def spawn_recovery(extra_env = {})
@@ -171,6 +186,7 @@ class TmuxResurrectRecoverTest < Minitest::Test
   def write_blocking_restore
     write_executable(@restore_script, <<~'RUBY')
       #!/usr/bin/env ruby
+      Signal.trap("TERM") {} if ENV["FAKE_RESTORE_IGNORE_TERM"] == "1"
       File.write(ENV.fetch("FAKE_RESTORE_MARKER"), Process.pid.to_s)
       sleep
     RUBY

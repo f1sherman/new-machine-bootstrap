@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -u
+
+save_script="${TMUX_RESURRECT_SAVE_SCRIPT:-$HOME/.tmux/plugins/tmux-resurrect/scripts/save.sh}"
+lock="${TMUX_RESURRECT_SAVE_LOCK:-${XDG_DATA_HOME:-$HOME/.local/share}/tmux/resurrect/save.lock}"
+
+mkdir -p "$(dirname "$lock")"
+exec 9>"$lock"
+flock 9 || exit $?
+exec "$save_script" "$@"

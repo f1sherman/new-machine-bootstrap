@@ -265,9 +265,29 @@ def main(opts)
 
     unless pending_signal
       log 'running tmux-resurrect restore.sh'
-      restore_ok = system(opts[:restore_script])
-      restore_status = $?.exitstatus
-      log "restore script exit=#{restore_status}" unless restore_ok
+      restore_pid = Process.spawn(opts[:restore_script], pgroup: true)
+      restore_status = nil
+      loop do
+        waited_pid, status = Process.wait2(restore_pid, Process::WNOHANG)
+        if waited_pid
+          restore_status = status
+          break
+        end
+
+        if pending_signal
+          begin
+            Process.kill('KILL', -restore_pid)
+          rescue Errno::ESRCH
+            nil
+          end
+          _waited_pid, restore_status = Process.wait2(restore_pid)
+          break
+        end
+
+        sleep 0.05
+      end
+      restore_ok = restore_status.success?
+      log "restore script exit=#{restore_status.exitstatus}" unless restore_ok
     end
 
     unless pending_signal

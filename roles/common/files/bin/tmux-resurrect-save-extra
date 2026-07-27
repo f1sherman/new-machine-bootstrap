@@ -18,6 +18,7 @@
 # only forks per invocation are one `tmux list-panes` plus one
 # `tmux show-options` per pane.
 
+require 'digest'
 require 'json'
 require 'shellwords'
 require 'time'
@@ -32,6 +33,7 @@ tmp_sidecar = "#{sidecar}.tmp.#{Process.pid}"
 at_exit { File.unlink(tmp_sidecar) if File.exist?(tmp_sidecar) }
 
 saved_at = Time.now.iso8601
+state_sha256 = Digest::SHA256.file(state_file).hexdigest
 
 # Decode tmux's quoted option-value form. `tmux show-options -pq` emits
 # lines like `@persist_foo "bar"`. Inside the quotes tmux escapes only
@@ -83,7 +85,12 @@ panes_raw.each_line do |line|
   panes["#{sess}:#{win}.#{pane}"] = persist
 end
 
-doc = { 'version' => 1, 'saved_at' => saved_at, 'panes' => panes }
+doc = {
+  'version' => 1,
+  'saved_at' => saved_at,
+  'state_sha256' => state_sha256,
+  'panes' => panes,
+}
 File.write(tmp_sidecar, JSON.pretty_generate(doc) + "\n")
 File.rename(tmp_sidecar, sidecar)
 

@@ -17,6 +17,23 @@ sidecar="$state_file.meta.json"
 
 log="$dir/restore-extra.log"
 
+state_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    return 1
+  fi
+}
+
+expected_state_sha256="$(jq -r '.state_sha256 // empty' "$sidecar" 2>>"$log" || true)"
+actual_state_sha256="$(state_sha256 "$state_file" 2>>"$log" || true)"
+if [ -z "$expected_state_sha256" ] || [ "$actual_state_sha256" != "$expected_state_sha256" ]; then
+  echo "$(date) skip: state metadata generation mismatch" >> "$log"
+  exit 0
+fi
+
 # Snapshot live coordinate -> pane_id mapping as TSV. We do linear lookups
 # below to stay compatible with bash 3.2 (no associative arrays).
 live_panes="$(tmux list-panes -a -F '#{session_name}	#{window_index}	#{pane_index}	#{pane_id}')"
