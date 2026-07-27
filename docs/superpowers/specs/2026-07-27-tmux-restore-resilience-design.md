@@ -11,6 +11,7 @@ Manual recovery from `last.safe` restored the layouts, but a long-running post-r
 - Preserve a usable latest snapshot when two saves select the same timestamped path.
 - Fall back explicitly to `last.safe` when `last` is dangling.
 - Complete core tmux restoration without waiting for long-running process handlers.
+- Restore periodic autosaving after an interrupted manual recovery.
 - Rebuild saved Ghostty tabs after restored tmux sessions exist.
 - Preserve current behavior for idle shells and configured resumable processes.
 - Emit structured restore events for fallback and asynchronous handler outcomes.
@@ -42,6 +43,10 @@ The fallback occurs while the existing startup lock is held, before tmux-resurre
 
 This preserves handler isolation: a long-running handler can continue restoring its pane without blocking other handlers, core restore completion, or Ghostty tab reconstruction. Existing handler command discovery and coordinate mapping remain unchanged.
 
+### Interrupted manual recovery
+
+`tmux-resurrect-recover` temporarily sets the continuum save interval to zero so periodic saves cannot race a manual restore. Once that pause has succeeded, signal handling and an `ensure` path will restore the prior nonzero interval on success, ordinary failure, `HUP`, `INT`, or `TERM`. Restoration is idempotent so both signal-driven exit and normal cleanup can safely request it. `KILL` remains inherently uncatchable; the managed tmux configuration restores the explicit five-minute interval when it is next sourced or when a new server starts.
+
 ### Ghostty ordering
 
 No separate tab recovery mechanism is needed. The startup sequence remains:
@@ -61,6 +66,7 @@ No separate tab recovery mechanism is needed. The startup sequence remains:
 - Failure to repoint `last` is a startup restore failure and uses existing fallback-shell handling.
 - Missing process handlers remain logged and skipped.
 - Handler failures affect only their own panes and do not fail core restore.
+- Interrupted manual recovery restores the pre-recovery continuum interval before exiting for catchable signals.
 
 ## Testing
 
@@ -72,6 +78,7 @@ Regression coverage will verify:
 - No fallback occurs when `last.safe` is absent.
 - A blocking handler does not prevent another handler from starting or the dispatcher from returning promptly.
 - Handler failures are logged independently.
+- A manual recovery interrupted by `TERM` restores the prior continuum interval.
 - Existing Ghostty manifest, tab reconstruction, restore diagnostics, and provisioning tests remain green.
 
 ## Success criteria
