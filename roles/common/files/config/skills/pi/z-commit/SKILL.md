@@ -22,7 +22,7 @@ Use this process:
 3. Write imperative commit messages that explain why the change exists.
 4. Never add AI attribution, "Generated with Codex", or "Co-Authored-By" lines.
 5. For each commit, run `~/.pi/agent/skills/z-commit/commit.sh -m "<message>" file1 file2 ...`.
-6. If `commit.sh` fails only because a file is gitignored, rerun the same command with `--force`.
+6. If `commit.sh` fails only because a file is gitignored, rerun the same command with `--force`, except never force-add an ignored file under `docs/superpowers/`; leave those local and omit them from the commit.
 7. If there are no changes to commit, return `No changes to commit.` and stop.
 8. On success, return a short success message (e.g., "Committed." or "Created 2 commits."). On failure, return the actual error output.
 ```
