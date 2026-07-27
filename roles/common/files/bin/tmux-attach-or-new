@@ -42,6 +42,35 @@ lock_held=0
 reserved_target=""
 tabs_restore_initialized=0
 
+fallback_resurrect_snapshot() {
+  local resurrect_dir resurrect_link resurrect_target safe_snapshot tmp_link
+
+  resurrect_dir="${TMUX_RESURRECT_DIR:-$HOME/.local/share/tmux/resurrect}"
+  resurrect_link="$resurrect_dir/last"
+  [ -L "$resurrect_link" ] || return 0
+
+  resurrect_target="$(readlink "$resurrect_link" 2>/dev/null || true)"
+  case "$resurrect_target" in
+    /*) ;;
+    *) resurrect_target="$resurrect_dir/$resurrect_target" ;;
+  esac
+  [ -f "$resurrect_target" ] && return 0
+
+  safe_snapshot="$resurrect_dir/last.safe"
+  [ -f "$safe_snapshot" ] || return 0
+
+  tmp_link="$resurrect_dir/.last.fallback.$$"
+  if ! ln -s last.safe "$tmp_link" 2>/dev/null; then
+    fallback_shell restore_snapshot_fallback_failed
+  fi
+  if ! mv -f "$tmp_link" "$resurrect_link" 2>/dev/null; then
+    rm -f "$tmp_link"
+    fallback_shell restore_snapshot_fallback_failed
+  fi
+  tmux_restore_log_event restore_snapshot_fallback \
+    "missing=$resurrect_target" "selected=$safe_snapshot"
+}
+
 resurrect_snapshot() {
   local resurrect_dir resurrect_link resurrect_target
 
@@ -184,6 +213,7 @@ tmux_restore_log_event server_snapshot "phase=pre_decision" "has_server=$has_ser
 
 restored=0
 if [ "$has_server" = "0" ]; then
+  fallback_resurrect_snapshot
   bootstrap_started=$SECONDS
   tmux_restore_log_event bootstrap_start "session=__bootstrap__"
   if tmux new-session -d -s __bootstrap__; then

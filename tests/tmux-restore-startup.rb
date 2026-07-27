@@ -28,6 +28,8 @@ class TmuxRestoreStartupTest < Minitest::Test
     @queue_path = File.join(@tmpdir, "ghostty-restore-queue.json")
     @builder_log = File.join(@tmpdir, "ghostty-tabs-builder.log")
     @builder_path = File.join(@tmpdir, "ghostty-session-tabs-restore")
+    @resurrect_dir = File.join(@tmpdir, "resurrect")
+    FileUtils.mkdir_p(@resurrect_dir)
     write_json(@state_path, base_state)
     write_json(@attachments_path, [])
     write_fake_tmux
@@ -378,6 +380,42 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert_equal 2, tasks.scan(fallback_guard).length
   end
 
+  def test_dangling_last_falls_back_before_restore
+    File.write(File.join(@resurrect_dir, "last.safe"), "safe snapshot\n")
+    File.symlink("missing.txt", File.join(@resurrect_dir, "last"))
+
+    _out, _err, status = Open3.capture3(helper_env("FAKE_RESTORE_SESSIONS" => "journal"), HELPER)
+
+    assert status.success?
+    assert_equal "last.safe", File.readlink(File.join(@resurrect_dir, "last"))
+    assert_event(/event=restore_snapshot_fallback\tmissing=.*\tselected=.*last\.safe/)
+  end
+
+  def test_valid_last_is_retained_before_restore
+    File.write(File.join(@resurrect_dir, "snapshot.txt"), "valid snapshot\n")
+    File.write(File.join(@resurrect_dir, "last.safe"), "safe snapshot\n")
+    File.symlink("snapshot.txt", File.join(@resurrect_dir, "last"))
+
+    _out, _err, status = Open3.capture3(helper_env("FAKE_RESTORE_SESSIONS" => "journal"), HELPER)
+
+    assert status.success?
+    assert_equal "snapshot.txt", File.readlink(File.join(@resurrect_dir, "last"))
+    refute_match(/event=restore_snapshot_fallback\t/, File.read(@events_path))
+  end
+
+  def test_dangling_last_without_safe_keeps_empty_start_behavior
+    File.symlink("missing.txt", File.join(@resurrect_dir, "last"))
+
+    _out, _err, status = Open3.capture3(helper_env("FAKE_RESTORE_SESSIONS" => ""), HELPER)
+    attachments = read_attachments
+
+    assert status.success?
+    assert_equal "missing.txt", File.readlink(File.join(@resurrect_dir, "last"))
+    assert_equal 1, attachments.length
+    refute_equal "__bootstrap__", attachments.first.fetch("session_name")
+    refute_match(/event=restore_snapshot_fallback\t/, File.read(@events_path))
+  end
+
   def test_empty_restore_creates_and_attaches_normal_session
     env = helper_env("FAKE_RESTORE_SESSIONS" => "")
 
@@ -423,6 +461,7 @@ class TmuxRestoreStartupTest < Minitest::Test
       "TMUX_ATTACH_LOCK_FILE" => @lock_file,
       "TMUX_ATTACH_LOCK_TIMEOUT" => "1",
       "TMUX_RESTORE_LOG_LIB" => File.join(@tmpdir, "tmux-restore-log.sh"),
+      "TMUX_RESURRECT_DIR" => @resurrect_dir,
       "TMUX_RESURRECT_RESTORE_WRAPPER" => File.join(@tmpdir, "restore"),
       "TMUX_ATTACH_FALLBACK_SHELL" => File.join(@tmpdir, "fallback-shell"),
       "TMUX_GHOSTTY_MANIFEST" => @manifest_path,
