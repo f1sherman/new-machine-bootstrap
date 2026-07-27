@@ -289,3 +289,68 @@ Expected: all tests pass and CI inventory references the new test.
 git add tests/tmux-resurrect-recover.rb roles/common/files/bin/tmux-resurrect-recover .github/workflows/integration-test.yml docs/superpowers/specs/2026-07-27-tmux-restore-resilience-design.md docs/superpowers/plans/2026-07-27-tmux-restore-resilience.md
 git commit -m "Resume tmux autosaves after interrupted recovery"
 ```
+
+### Task 6: Close final save and signal safety gaps
+
+**Files:**
+- Create: `roles/common/files/bin/tmux-resurrect-save-wrapper`
+- Create: `tests/tmux-resurrect-save-wrapper.rb`
+- Modify: `roles/common/tasks/main.yml`
+- Modify: `roles/macos/templates/dotfiles/tmux.conf`
+- Modify: `roles/linux/files/dotfiles/tmux.conf`
+- Modify: `roles/common/files/bin/tmux-resurrect-save-extra`
+- Modify: `roles/common/files/bin/tmux-resurrect-restore-extra`
+- Modify: `tests/tmux-resurrect-save-extra.rb`
+- Modify: `tests/tmux-resurrect-restore-extra.rb`
+- Modify: `roles/common/files/bin/tmux-resurrect-recover`
+- Modify: `tests/tmux-resurrect-recover.rb`
+- Modify: `.github/workflows/integration-test.yml`
+
+**Interfaces:**
+- Produces: `tmux-resurrect-save-wrapper`, which consumes `TMUX_RESURRECT_SAVE_SCRIPT` and `TMUX_RESURRECT_SAVE_LOCK` overrides and serializes the complete upstream save command.
+- Produces: sidecar field `state_sha256`, verified against the selected state file before any process handler dispatch.
+- Produces: recovery-owned restore child process group, terminated when the parent receives `HUP`, `INT`, or `TERM` directly.
+
+- [ ] **Step 1: Write three failing boundary regressions**
+
+Add tests proving: two concurrent wrapper invocations never overlap inside a blocking fake save script; restore-extra skips all handlers when `state_sha256` does not match the selected state file; and `TERM` sent only to the recovery PID terminates the blocking restore child, restores interval `5`, and exits `143`.
+
+- [ ] **Step 2: Run each focused test and verify RED**
+
+```bash
+ruby tests/tmux-resurrect-save-wrapper.rb
+ruby tests/tmux-resurrect-restore-extra.rb
+ruby tests/tmux-resurrect-recover.rb
+```
+
+Expected: overlap is observed without the wrapper, mismatched metadata still dispatches handlers, and direct-PID TERM leaves recovery blocked.
+
+- [ ] **Step 3: Implement save-wide serialization**
+
+Install the wrapper from `roles/common/tasks/main.yml`. It opens the lock path, acquires `flock`, and executes the upstream save script with all arguments. Set `@resurrect-save-script-path` to the wrapper after TPM initialization in both managed tmux configs.
+
+- [ ] **Step 4: Bind and validate state generations**
+
+Use Ruby's standard `Digest::SHA256` in `tmux-resurrect-save-extra` to store `state_sha256`. Before reading pane entries, `tmux-resurrect-restore-extra` computes the selected state digest with an available system tool and exits after logging a generation mismatch when the digest differs or is absent. Update existing fixtures to include valid digests.
+
+- [ ] **Step 5: Own and terminate the restore child**
+
+Replace the blocking `system(opts[:restore_script])` call with an explicitly spawned child in a new process group. Record its PID before waiting. Deferred catchable-signal handling terminates that child process group so direct-PID signals promptly unwind into existing interval cleanup and preserve first-signal exit status.
+
+- [ ] **Step 6: Verify and commit**
+
+```bash
+ruby tests/tmux-resurrect-save-wrapper.rb
+ruby tests/tmux-resurrect-save-extra.rb
+ruby tests/tmux-resurrect-restore-extra.rb
+ruby tests/tmux-resurrect-recover.rb
+ruby tests/tmux-restore-startup.rb
+bash tests/ci-test-inventory.sh
+bash -n roles/common/files/bin/tmux-resurrect-save-wrapper
+bash -n roles/common/files/bin/tmux-resurrect-restore-extra
+ruby -c roles/common/files/bin/tmux-resurrect-save-extra
+ruby -c roles/common/files/bin/tmux-resurrect-recover
+git diff --check
+```
+
+Commit with message `Close tmux restore concurrency gaps` and no AI attribution.

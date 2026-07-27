@@ -8,7 +8,9 @@ Manual recovery from `last.safe` restored the layouts, but a long-running post-r
 
 ## Goals
 
+- Serialize complete tmux-resurrect saves so concurrent saves cannot race the active `last` link.
 - Preserve a usable latest snapshot when two saves select the same timestamped path.
+- Bind safe metadata to the exact state generation and skip mismatched process restoration.
 - Fall back explicitly to `last.safe` when `last` is dangling.
 - Complete core tmux restoration without waiting for long-running process handlers.
 - Restore periodic autosaving after an interrupted manual recovery.
@@ -25,11 +27,17 @@ Manual recovery from `last.safe` restored the layouts, but a long-running post-r
 
 ## Design
 
-### Save collision guard
+### Save serialization and collision guard
+
+A managed `tmux-resurrect-save-wrapper` will hold an advisory lock for the complete upstream save invocation. Both managed tmux configurations will set `@resurrect-save-script-path` to this wrapper after TPM initialization, matching the existing restore-wrapper override. This serializes snapshot creation, post-save hooks, comparison, `last` relinking, pane-content archiving, and cleanup without changing tmux-resurrect itself.
 
 `tmux-resurrect-save-extra` runs before tmux-resurrect compares the new state file with `last`. If `last` is a symlink whose resolved target is the same path as the new state file, the comparison would compare the file with itself and tmux-resurrect would delete it as unchanged, leaving `last` dangling.
 
 After creating `last.safe`, the post-save helper will detect this exact same-target condition and unlink only the `last` symlink. Tmux-resurrect will then compare the state file with a missing `last`, retain the file, and recreate `last`. No filename heuristics or migration logic will be introduced.
+
+### Safe generation binding
+
+Each sidecar records a SHA-256 digest of its state file. Safe state and metadata may still be published as separate atomic renames, but `tmux-resurrect-restore-extra` will dispatch process handlers only when the sidecar digest matches the selected state file. A crash between publication renames therefore degrades to restored layouts without process handlers rather than applying stale process identity to a newer layout.
 
 ### Explicit safe fallback
 
@@ -45,7 +53,7 @@ This preserves handler isolation: a long-running handler can continue restoring 
 
 ### Interrupted manual recovery
 
-`tmux-resurrect-recover` temporarily sets the continuum save interval to zero so periodic saves cannot race a manual restore. Once that pause has succeeded, signal handling and an `ensure` path will restore the prior nonzero interval on success, ordinary failure, `HUP`, `INT`, or `TERM`. Restoration is idempotent so both signal-driven exit and normal cleanup can safely request it. `KILL` remains inherently uncatchable; the managed tmux configuration restores the explicit five-minute interval when it is next sourced or when a new server starts.
+`tmux-resurrect-recover` temporarily sets the continuum save interval to zero so periodic saves cannot race a manual restore. Once that pause has succeeded, signal handling and an `ensure` path will restore the prior nonzero interval on success, ordinary failure, `HUP`, `INT`, or `TERM`. The recovery process will own the restore child in a separate process group; a catchable signal delivered only to the recovery PID terminates that child group so the parent can enter cleanup promptly. Restoration is idempotent so both signal-driven exit and normal cleanup can safely request it. `KILL` remains inherently uncatchable; the managed tmux configuration restores the explicit five-minute interval when it is next sourced or when a new server starts.
 
 ### Ghostty ordering
 
@@ -61,7 +69,9 @@ No separate tab recovery mechanism is needed. The startup sequence remains:
 
 ## Error handling
 
+- Managed saves hold one lock across the complete upstream save lifecycle.
 - Same-target save handling only removes the replaceable `last` symlink after `last.safe` is valid.
+- Sidecar digest mismatch skips process handlers without blocking layout restoration.
 - Fallback is limited to a dangling `last` plus an existing regular `last.safe` file.
 - Failure to repoint `last` is a startup restore failure and uses existing fallback-shell handling.
 - Missing process handlers remain logged and skipped.
@@ -78,7 +88,9 @@ Regression coverage will verify:
 - No fallback occurs when `last.safe` is absent.
 - A blocking handler does not prevent another handler from starting or the dispatcher from returning promptly.
 - Handler failures are logged independently.
-- A manual recovery interrupted by `TERM` restores the prior continuum interval.
+- A manual recovery interrupted by a direct-PID `TERM` terminates its restore child and restores the prior continuum interval.
+- Concurrent managed save attempts execute serially across upstream compare/relink.
+- Mismatched state and metadata generations do not dispatch process handlers.
 - Existing Ghostty manifest, tab reconstruction, restore diagnostics, and provisioning tests remain green.
 
 ## Success criteria
