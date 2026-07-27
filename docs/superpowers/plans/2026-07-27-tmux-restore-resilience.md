@@ -242,3 +242,50 @@ Expected: source and deployed hashes match. Do not restart or destroy the recove
 - [ ] **Step 5: Independent review, push, and PR**
 
 Request a fresh-context code review, apply any verified fixes as the sole writer, rerun affected checks, push `fix/tmux-restore-resilience`, and open a public PR describing only generic macOS/Ghostty/tmux behavior.
+
+### Task 5: Restore autosaving after interrupted manual recovery
+
+**Files:**
+- Create: `tests/tmux-resurrect-recover.rb`
+- Modify: `roles/common/files/bin/tmux-resurrect-recover`
+- Modify: `.github/workflows/integration-test.yml`
+
+**Interfaces:**
+- Consumes: the current `@continuum-save-interval` and catchable process signals while manual recovery owns the temporary pause.
+- Produces: idempotent restoration of the prior nonzero interval on normal completion, ordinary failure, `HUP`, `INT`, or `TERM`.
+
+- [ ] **Step 1: Write the failing interruption regression**
+
+Create a minitest fixture with a fake `tmux` executable backed by an interval state file and a blocking fake restore script. Spawn `tmux-resurrect-recover` in its own process group with an explicit substantial source snapshot and nonempty `TMUX`; wait until the restore marker exists, send `TERM` to the process group, and assert the fake tmux interval returns from `0` to `5` before the process exits.
+
+- [ ] **Step 2: Run the test and verify RED**
+
+Run: `ruby tests/tmux-resurrect-recover.rb`
+
+Expected: the interval remains `0` after interruption.
+
+- [ ] **Step 3: Add interruption-safe cleanup**
+
+After pausing continuum, install catchable signal handlers that exit with conventional `128 + signal` status. Wrap the recovery body in `begin`/`ensure`, restoring the prior interval exactly once from the ensure path. Restore prior signal handlers after ordinary completion. Preserve existing snapshot selection, fd-pressure handling, tmux config sourcing, and summary behavior.
+
+- [ ] **Step 4: Add CI coverage and verify GREEN**
+
+Add `ruby tests/tmux-resurrect-recover.rb` beside the other tmux restore workflow steps. Run:
+
+```bash
+ruby tests/tmux-resurrect-recover.rb
+bash tests/ci-test-inventory.sh
+ruby tests/tmux-restore-startup.rb
+ruby tests/tmux-resurrect-save-extra.rb
+ruby tests/tmux-resurrect-restore-extra.rb
+git diff --check
+```
+
+Expected: all tests pass and CI inventory references the new test.
+
+- [ ] **Step 5: Commit interrupted-recovery safety**
+
+```bash
+git add tests/tmux-resurrect-recover.rb roles/common/files/bin/tmux-resurrect-recover .github/workflows/integration-test.yml docs/superpowers/specs/2026-07-27-tmux-restore-resilience-design.md docs/superpowers/plans/2026-07-27-tmux-restore-resilience.md
+git commit -m "Resume tmux autosaves after interrupted recovery"
+```
