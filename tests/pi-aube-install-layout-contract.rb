@@ -9,7 +9,8 @@ abort "missing managed Pi local-bin task" unless bin_task
 
 platform_branch = %q{if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then}
 darwin_bin = 'pi_bin="$pi_root/bin/pi"'
-non_darwin_bin = 'pi_bin="$pi_root/node_modules/.bin/pi"'
+non_darwin_bin = 'pi_bin="$pi_root/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"'
+non_darwin_shim = 'pi_bin="$pi_root/node_modules/.bin/pi"'
 non_darwin_package = 'PI_PACKAGE_ROOT="$pi_root/node_modules/@earendil-works/pi-coding-agent"'
 executable_check = '[[ -x "$pi_bin" ]]'
 package_check = 'abort "Managed Pi package root is missing or not a directory: #{package_root}" unless package_root.directory?'
@@ -21,6 +22,7 @@ pi_link = 'ln -sf "$pi_bin"'
   else_index = task.index("\n    else\n", darwin_index || 0)
   non_darwin_index = task.index(non_darwin_bin, else_index || 0)
   abort "managed Pi task must use explicit Darwin and non-Darwin branches" unless branch_index && darwin_index && else_index && non_darwin_index && branch_index < darwin_index && darwin_index < else_index && else_index < non_darwin_index
+  abort "managed Pi task must not link the relocatable non-Darwin shell shim" if task.include?(non_darwin_shim)
 end
 
 abort "package-link task is missing the direct non-Darwin package layout" unless package_task.include?(non_darwin_package)
