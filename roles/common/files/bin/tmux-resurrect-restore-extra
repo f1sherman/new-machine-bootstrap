@@ -71,5 +71,11 @@ while IFS=$'\t' read -r coord key value_b64; do
     echo "$(date) skip: no handler for $key" >> "$log"
     continue
   fi
-  "$handler" "$pid" "$val" >>"$log" 2>&1 || echo "$(date) handler-failed: $key for $coord" >> "$log"
+  (
+    if "$handler" "$pid" "$val"; then
+      echo "$(date) handler-complete: $key for $coord"
+    else
+      echo "$(date) handler-failed: $key for $coord"
+    fi
+  ) >>"$log" 2>&1 &
 done <<<"$panes"
