@@ -95,12 +95,36 @@ for file in "${files[@]}"; do
 done
 
 # Pre-check: identify gitignored files
+repo_root=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
 ignored_files=()
+ignored_superpowers_files=()
+
 for file in "${files[@]}"; do
     if [[ -e "$file" ]] && git check-ignore -q "$file" 2>/dev/null; then
         ignored_files+=("$file")
+
+        if [[ "$file" = /* ]]; then
+            absolute_file="$file"
+        else
+            absolute_file="$(pwd -P)/$file"
+        fi
+        absolute_file="$(cd "$(dirname "$absolute_file")" && pwd -P)/$(basename "$absolute_file")"
+
+        case "$absolute_file" in
+            "$repo_root/docs/superpowers"|"$repo_root/docs/superpowers/"*)
+                ignored_superpowers_files+=("$file")
+                ;;
+        esac
     fi
 done
+
+if [[ ${#ignored_superpowers_files[@]} -gt 0 ]]; then
+    echo "Error: Ignored docs/superpowers files are local working documents and cannot be force-added:" >&2
+    for f in "${ignored_superpowers_files[@]}"; do
+        echo "  $f" >&2
+    done
+    exit 1
+fi
 
 # If gitignored files found without --force, fail with helpful message
 if [[ ${#ignored_files[@]} -gt 0 && "$force" == "false" ]]; then
