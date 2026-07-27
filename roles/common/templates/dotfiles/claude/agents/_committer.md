@@ -30,7 +30,7 @@ Your prompt contains a short summary of what was done and why, written by the ag
      ```bash
      ~/.claude/skills/_commit/commit.sh -m "Your commit message" file1 file2 ...
      ```
-   - If `commit.sh` fails because a file matches `.gitignore`, retry with `--force` (`-f`)
+   - If `commit.sh` fails only because a file is gitignored, retry the same command with `--force` (`-f`), except never force-add an ignored file under `docs/superpowers/`; leave those local and omit them from the commit
    - The script handles staging and committing
    - Do not push. Pushing requires separate user approval.
 

@@ -86,7 +86,7 @@ After making changes, apply them with `bin/provision` when the environment allow
 ## Agent Behavior
 - **Do it yourself**: If you can run a command such as `bin/provision` or `git commit`, do it directly instead of asking the user to run it.
 - **Always use worktrees**: Before making changes, create a git worktree using the `superpowers:using-git-worktrees` skill. Never work directly on the current branch.
-- **Always commit specs and plans**: Design specs and implementation plans must be committed under `docs/superpowers/` or `.coding-agent/`.
+- **Commit specs and plans unless ignored**: Design specs and implementation plans belong under `docs/superpowers/`. Before committing them, run `git check-ignore -q docs/superpowers`; when ignored, keep them local and never use `git add -f` or `--force` on them.
 - **Always finish with a PR**: When work in a worktree is complete and verified, push the branch and open a GitHub pull request. Never merge to `main` locally (do not use `worktree-merge`). After the PR merges, clean up with `repo-end`.
 - **Avoid compatibility inference for minor features**: For small quality-of-life behavior, prefer one explicit marker or setting over fallbacks, heuristics, or migration logic. Keep cleanup tasks when removing known-unwanted managed state, but do not add permanent backwards-compatibility detection unless data loss, security, or clear breakage is likely.
 
