@@ -1404,7 +1404,7 @@
     if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then
       pi_bin="$pi_root/bin/pi"
     else
-      pi_bin="$pi_root/node_modules/.bin/pi"
+      pi_bin="$pi_root/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
       export PI_PACKAGE_ROOT="$pi_root/node_modules/@earendil-works/pi-coding-agent"
     fi
     export PI_BIN="$pi_bin"
@@ -1460,7 +1460,7 @@
     if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then
       pi_bin="$pi_root/bin/pi"
     else
-      pi_bin="$pi_root/node_modules/.bin/pi"
+      pi_bin="$pi_root/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
     fi
     [[ -x "$pi_bin" ]] || { echo "Managed Pi executable is missing or not executable: $pi_bin" >&2; exit 1; }
     ln -sf "$codex_bin" "{{ ansible_facts['user_dir'] }}/.local/bin/codex"

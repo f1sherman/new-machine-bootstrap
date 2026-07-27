@@ -2,9 +2,9 @@
 
 ## Problem
 
-The managed Aube-backed npm install does not have one cross-platform filesystem layout. The install root returned by `mise where npm:@earendil-works/pi-coding-agent` contains `bin/pi` and `global-aube/` on macOS, while Linux contains `node_modules/.bin/pi` and `node_modules/@earendil-works/pi-coding-agent`.
+The managed Aube-backed npm install does not have one cross-platform filesystem layout. The install root returned by `mise where npm:@earendil-works/pi-coding-agent` contains `bin/pi` and `global-aube/` on macOS. On Linux, `node_modules/.bin/pi` is a regular shell shim whose package target is relative to the shim's own directory, while the executable package entrypoint is `node_modules/@earendil-works/pi-coding-agent/dist/cli.js` and the package root is `node_modules/@earendil-works/pi-coding-agent`.
 
-Treating either layout as universal makes provisioning fail on the other platform after a package upgrade, even though the package installed successfully.
+Treating either layout as universal makes provisioning fail on the other platform after a package upgrade, even though the package installed successfully. Symlinking the Linux shell shim into `~/.local/bin` also changes the shim's effective directory and breaks its relative target with `MODULE_NOT_FOUND`.
 
 ## Design
 
@@ -12,7 +12,7 @@ Resolve the mise install root once per task, then select one explicit managed la
 
 - Darwin command: `<mise install root>/bin/pi`.
 - Darwin package: resolve the command symlink to its real target, then derive the package root from the target's parent directories.
-- Non-Darwin command: `<mise install root>/node_modules/.bin/pi`.
+- Non-Darwin command: `<mise install root>/node_modules/@earendil-works/pi-coding-agent/dist/cli.js`.
 - Non-Darwin package: `<mise install root>/node_modules/@earendil-works/pi-coding-agent`.
 
 This is platform selection, not a fallback. Provisioning must not probe for one layout and silently try the other. The repository manages the package installer and version together, so each supported platform has one explicit current layout.
@@ -31,7 +31,8 @@ Use a focused contract test that requires:
 
 - explicit Darwin and non-Darwin branches in both managed Pi tasks;
 - the Darwin `bin/pi` command and symlink-derived package root;
-- the non-Darwin `node_modules/.bin/pi` command and direct package root;
+- the non-Darwin direct package `dist/cli.js` command and direct package root;
+- rejection of the relocatable non-Darwin `node_modules/.bin/pi` shell shim as the stable-link target;
 - executable validation before package resolution and stable-link creation;
 - package directory validation; and
 - stale managed-link replacement.

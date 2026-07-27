@@ -4,7 +4,7 @@
 
 **Goal:** Make provisioning resolve managed Pi from the explicit current Aube-backed mise npm layout for each supported platform.
 
-**Architecture:** Derive one mise install root per task and branch on the Ansible OS family. Darwin uses `bin/pi` and derives the package root from that symlink's real target. Non-Darwin uses `node_modules/.bin/pi` and the direct `node_modules/@earendil-works/pi-coding-agent` package root. The selected executable and package path are mandatory; no layout probing or fallback is allowed.
+**Architecture:** Derive one mise install root per task and branch on the Ansible OS family. Darwin uses `bin/pi` and derives the package root from that symlink's real target. Non-Darwin uses the direct package entrypoint `node_modules/@earendil-works/pi-coding-agent/dist/cli.js` and the direct `node_modules/@earendil-works/pi-coding-agent` package root. The selected executable and package path are mandatory; no layout probing or fallback is allowed. The non-Darwin `node_modules/.bin/pi` shell shim must not be used as the stable-link target because its relative target breaks when the shim is symlinked outside its own directory.
 
 **Tech Stack:** Ansible YAML, Bash, Ruby contract tests
 
@@ -28,14 +28,14 @@
 **Interfaces:**
 - Consumes: `mise where npm:@earendil-works/pi-coding-agent`, returning the managed install root, plus `ansible_facts['os_family']`.
 - Produces on Darwin: package root derived from `<root>/bin/pi`'s real target and command source `<root>/bin/pi`.
-- Produces on non-Darwin: package source `<root>/node_modules/@earendil-works/pi-coding-agent` and command source `<root>/node_modules/.bin/pi`.
+- Produces on non-Darwin: package source `<root>/node_modules/@earendil-works/pi-coding-agent` and command source `<root>/node_modules/@earendil-works/pi-coding-agent/dist/cli.js`.
 
 - [ ] **Step 1: Write the failing platform contract**
 
 Revise the focused contract test to isolate both managed Pi tasks and require:
 
 - an explicit Darwin branch and non-Darwin `else` path in each task;
-- both command layouts;
+- both command layouts and rejection of the non-Darwin `node_modules/.bin/pi` shell shim as a stable-link target;
 - Darwin package derivation through `Pathname#realpath` on `PI_BIN`;
 - non-Darwin direct package resolution through `Pathname#realpath` on `PI_PACKAGE_ROOT`;
 - executable validation before package resolution and command linking;
@@ -56,7 +56,7 @@ In both managed Pi shell tasks, resolve `pi_root` once and select the executable
 if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then
   pi_bin="$pi_root/bin/pi"
 else
-  pi_bin="$pi_root/node_modules/.bin/pi"
+  pi_bin="$pi_root/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
 fi
 ```
 
@@ -109,7 +109,7 @@ readlink ~/.local/bin/pi
 pi --version
 ```
 
-Expected: on Darwin the link target ends in `/bin/pi`; on non-Darwin it ends in `/node_modules/.bin/pi`. Pi reports the managed version.
+Expected: on Darwin the link target ends in `/bin/pi`; on non-Darwin it ends in `/node_modules/@earendil-works/pi-coding-agent/dist/cli.js`. Pi reports the managed version.
 
 - [ ] **Step 3: Re-run focused validation**
 
