@@ -79,6 +79,18 @@ class TmuxResurrectRecoverTest < Minitest::Test
     assert_raises(Errno::ESRCH) { Process.kill(0, restore_pid) }
   end
 
+  def test_failed_restore_preserves_numeric_status_and_resumes_interval
+    write_executable(@restore_script, <<~'RUBY')
+      #!/usr/bin/env ruby
+      exit 23
+    RUBY
+    spawn_recovery
+    wait_for_recovery
+
+    assert_equal 23, @status.exitstatus
+    assert_equal "5", current_interval
+  end
+
   private
 
   def spawn_recovery(extra_env = {})
