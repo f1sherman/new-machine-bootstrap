@@ -2,75 +2,69 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make provisioning resolve managed Pi from the current Aube-backed mise npm layout.
+**Goal:** Make provisioning resolve managed Pi from the explicit current Aube-backed mise npm layout for each supported platform.
 
-**Architecture:** Derive one mise install root, then address the package through `node_modules/@earendil-works/pi-coding-agent` and the command through `node_modules/.bin/pi`. A contract test locks those paths and rejects the removed legacy path.
+**Architecture:** Derive one mise install root per task and branch on the Ansible OS family. Darwin uses `bin/pi` and derives the package root from that symlink's real target. Non-Darwin uses `node_modules/.bin/pi` and the direct `node_modules/@earendil-works/pi-coding-agent` package root. The selected executable and package path are mandatory; no layout probing or fallback is allowed.
 
 **Tech Stack:** Ansible YAML, Bash, Ruby contract tests
 
 ## Global Constraints
 
-- Public artifacts must contain no private organization, repository, ticket, employee, DevPod, or Codespaces references.
-- Support only the current managed Aube layout; do not add legacy layout fallback.
-- Missing managed paths remain fatal.
+- Public artifacts must contain no private organization, repository, ticket, employee, development-host, or hosted-workspace references.
+- Support one explicit managed layout per platform; do not add heuristic fallback.
+- Missing managed executable or package paths remain fatal.
+- Preserve replacement of stale managed package symlinks and refusal to overwrite non-symlink destinations.
 
 ---
 
-### Task 1: Lock and implement the current Aube paths
+### Task 1: Lock and implement the platform-specific Aube paths
 
 **Files:**
 - Create: `tests/pi-aube-install-layout-contract.rb`
-- Modify: `roles/common/tasks/main.yml:1399-1447`
+- Modify: `roles/common/tasks/main.yml:1399-1468`
+- Modify: `docs/superpowers/specs/2026-07-27-pi-aube-install-layout-design.md`
+- Modify: `docs/superpowers/plans/2026-07-27-pi-aube-install-layout.md`
 
 **Interfaces:**
-- Consumes: `mise where npm:@earendil-works/pi-coding-agent`, returning the managed install root.
-- Produces: package link source `<root>/node_modules/@earendil-works/pi-coding-agent`; command source `<root>/node_modules/.bin/pi`.
+- Consumes: `mise where npm:@earendil-works/pi-coding-agent`, returning the managed install root, plus `ansible_facts['os_family']`.
+- Produces on Darwin: package root derived from `<root>/bin/pi`'s real target and command source `<root>/bin/pi`.
+- Produces on non-Darwin: package source `<root>/node_modules/@earendil-works/pi-coding-agent` and command source `<root>/node_modules/.bin/pi`.
 
-- [ ] **Step 1: Write the failing contract test**
+- [ ] **Step 1: Write the failing platform contract**
 
-Create a Ruby test that reads `roles/common/tasks/main.yml`, asserts both current path fragments occur, and rejects `npm:@earendil-works/pi-coding-agent')/bin/pi`.
+Revise the focused contract test to isolate both managed Pi tasks and require:
 
-```ruby
-# frozen_string_literal: true
-
-repo_root = File.expand_path('..', __dir__)
-tasks = File.read(File.join(repo_root, 'roles/common/tasks/main.yml'))
-current_package = 'node_modules/@earendil-works/pi-coding-agent'
-current_bin = 'node_modules/.bin/pi'
-legacy_bin = %q{npm:@earendil-works/pi-coding-agent')/bin/pi}
-
-abort "missing current Pi package path: #{current_package}" unless tasks.include?(current_package)
-abort "missing current Pi executable path: #{current_bin}" unless tasks.include?(current_bin)
-abort "legacy Pi executable path remains: #{legacy_bin}" if tasks.include?(legacy_bin)
-
-puts 'Pi Aube install layout contract passed'
-```
+- an explicit Darwin branch and non-Darwin `else` path in each task;
+- both command layouts;
+- Darwin package derivation through `Pathname#realpath` on `PI_BIN`;
+- non-Darwin direct package resolution through `Pathname#realpath` on `PI_PACKAGE_ROOT`;
+- executable validation before package resolution and command linking;
+- package directory validation; and
+- the existing stale managed-symlink replacement behavior.
 
 - [ ] **Step 2: Verify RED**
 
 Run: `ruby tests/pi-aube-install-layout-contract.rb`
-Expected: FAIL with `missing current Pi executable path: node_modules/.bin/pi`.
 
-- [ ] **Step 3: Implement the explicit current paths**
+Expected against the single-layout implementation: failure reporting that the explicit Darwin branch is missing.
 
-In the package-link task, replace executable inference with:
+- [ ] **Step 3: Implement explicit platform paths**
 
-```bash
-pi_root="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')"
-export PI_PACKAGE_ROOT="$pi_root/node_modules/@earendil-works/pi-coding-agent"
-```
-
-In Ruby, resolve `PI_PACKAGE_ROOT` directly and remove `pi_bin` inference:
-
-```ruby
-package_root = Pathname.new(ENV.fetch("PI_PACKAGE_ROOT")).realpath
-```
-
-In the local-bin task, use:
+In both managed Pi shell tasks, resolve `pi_root` once and select the executable explicitly:
 
 ```bash
-pi_bin="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')/node_modules/.bin/pi"
+if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then
+  pi_bin="$pi_root/bin/pi"
+else
+  pi_bin="$pi_root/node_modules/.bin/pi"
+fi
 ```
+
+Reject a missing or non-executable `pi_bin` before using it.
+
+In the package-link task, export the direct package path only for non-Darwin. Pass the explicit OS family into Ruby. For Darwin, resolve `PI_BIN` and derive the package root from the executable target's parent directories. For non-Darwin, resolve `PI_PACKAGE_ROOT` directly. Require the resulting package root to be a directory before managing the global package link.
+
+Do not alter stale managed-link replacement.
 
 - [ ] **Step 4: Verify GREEN and syntax**
 
@@ -80,16 +74,15 @@ Run:
 ruby tests/pi-aube-install-layout-contract.rb
 ruby -e 'require "yaml"; YAML.load_file("roles/common/tasks/main.yml"); puts "YAML valid"'
 ruby tests/pi-managed-aube-update-contract.rb
+git diff --check
+git diff --check HEAD -- roles/common/tasks/main.yml tests/pi-aube-install-layout-contract.rb docs/superpowers/specs/2026-07-27-pi-aube-install-layout-design.md docs/superpowers/plans/2026-07-27-pi-aube-install-layout.md
 ```
 
 Expected: all commands exit 0.
 
-- [ ] **Step 5: Commit implementation**
+- [ ] **Step 5: Commit correction**
 
-```bash
-git add tests/pi-aube-install-layout-contract.rb roles/common/tasks/main.yml
-git commit -m "Fix managed Pi paths for current Aube layout"
-```
+Commit the contract, implementation, approved documents, and Task 1 round-2 evidence without AI attribution.
 
 ### Task 2: Verify provisioning behavior
 
@@ -97,13 +90,14 @@ git commit -m "Fix managed Pi paths for current Aube layout"
 - No source changes expected.
 
 **Interfaces:**
-- Consumes: the updated Ansible tasks.
+- Consumes: the corrected platform-specific Ansible tasks.
 - Produces: a valid `~/.local/bin/pi` and active package link after provisioning.
 
 - [ ] **Step 1: Run repository verification**
 
 Run: `bin/provision`
-Expected: exit 0 with a new `/tmp/provision-*.log` whose provenance identifies this worktree.
+
+Expected: exit 0 with a new provision log whose provenance identifies this worktree and correction commit.
 
 - [ ] **Step 2: Verify installed command**
 
@@ -115,9 +109,15 @@ readlink ~/.local/bin/pi
 pi --version
 ```
 
-Expected: the link target contains `node_modules/.bin/pi`; Pi reports the managed version.
+Expected: on Darwin the link target ends in `/bin/pi`; on non-Darwin it ends in `/node_modules/.bin/pi`. Pi reports the managed version.
 
-- [ ] **Step 3: Re-run the focused contract**
+- [ ] **Step 3: Re-run focused validation**
 
-Run: `ruby tests/pi-aube-install-layout-contract.rb`
-Expected: PASS.
+Run:
+
+```bash
+ruby tests/pi-aube-install-layout-contract.rb
+ruby tests/pi-managed-aube-update-contract.rb
+```
+
+Expected: both pass.
