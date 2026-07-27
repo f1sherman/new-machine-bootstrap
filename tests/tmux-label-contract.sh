@@ -173,8 +173,8 @@ repo_path="$(create_repo label-repo)"
 fallback_repo_label="$(TMUX_PANE_LABEL_HOST_TAG=host-a "$PANE_LABEL" /dev/null "$repo_path" zsh)"
 assert_equals "$fallback_repo_label" "label-repo | host-a" "fallback pane label does not infer repo branch"
 
-assert_equals "$("$GLYPHS" working approved)" '🤖#[fg=#b5bd68]● ' "indicator glyphs render working+approved"
-assert_equals "$("$GLYPHS" waiting "")" "⏳ " "indicator glyphs render waiting only"
+assert_equals "$("$GLYPHS" working approved)" '⏳#[fg=#b5bd68]● ' "indicator glyphs render working+approved"
+assert_equals "$("$GLYPHS" waiting "")" "💬 " "indicator glyphs render waiting only"
 assert_equals "$("$GLYPHS" "" draft)" '#[fg=#808080]● ' "draft indicator matches Pi muted"
 assert_equals "$("$GLYPHS" "" checks-failing)" '#[fg=#cc6666]● ' "checks-failing indicator matches Pi error"
 assert_equals "$("$GLYPHS" "" changes-requested)" '#[fg=#ffff00]● ' "changes-requested indicator matches Pi warning"
@@ -533,7 +533,7 @@ assert_file_contains "$window_log" \
   'rename-window -t @1 Fix stale tmux feedback indicator' \
   'host-only pane title extracts concise marked goal from window name'
 assert_file_contains "$window_log" \
-  'set-option -wq -t @1 @window-indicators 🤖#[fg=#8957e5]● ' \
+  'set-option -wq -t @1 @window-indicators ⏳#[fg=#8957e5]● ' \
   'host-only marked goal fallback captures formatted indicators'
 assert_file_not_contains "$window_log" '[nmb-' \
   'host-only marked goal fallback leaks no transport metadata'
@@ -707,19 +707,19 @@ pass_case 'remote parser rejects control-only provisional subject'
 : > "$window_log"
 TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=working,draft] [nmb-edge=hjl]' \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
-assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators 🤖#[fg=#808080]● " "remote marker stores formatted indicators"
+assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators ⏳#[fg=#808080]● " "remote marker stores formatted indicators"
 assert_file_contains "$window_log" "rename-window -t @1 feature/remote" "remote marker keeps window name plain"
 
 : > "$window_log"
 TMUX_TEST_TITLE='(feature/remote) project | remote-host' TMUX_TEST_ACTIVITY=waiting TMUX_TEST_PR_STATE=approved \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
-assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators ⏳#[fg=#b5bd68]● " "local pane state stores formatted indicators"
+assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators 💬#[fg=#b5bd68]● " "local pane state stores formatted indicators"
 assert_file_contains "$window_log" "rename-window -t @1 feature/remote" "local pane state keeps window name plain"
 
 : > "$window_log"
 TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=working,draft]' TMUX_TEST_ACTIVITY=waiting \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
-assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators ⏳ " "local pane state wins over remote marker"
+assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators 💬 " "local pane state wins over remote marker"
 assert_file_contains "$window_log" "rename-window -t @1 feature/remote" "local precedence keeps window name plain"
 
 : > "$window_log"

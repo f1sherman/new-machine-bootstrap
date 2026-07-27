@@ -8,8 +8,8 @@ pr_state="${2:-}"
 out=""
 
 case "$activity" in
-  working) out+="🤖" ;;
-  waiting) out+="⏳" ;;
+  working) out+="⏳" ;;
+  waiting) out+="💬" ;;
 esac
 
 case "$pr_state" in
