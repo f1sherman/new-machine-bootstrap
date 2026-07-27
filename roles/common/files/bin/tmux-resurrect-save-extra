@@ -104,6 +104,11 @@ if size >= 1024 && pane_count >= 3
     File.rename(state_tmp, state_safe)
     File.write(meta_tmp, File.binread(sidecar))
     File.rename(meta_tmp, meta_safe)
+
+    last = File.join(dir, 'last')
+    if File.symlink?(last) && File.expand_path(File.readlink(last), dir) == File.expand_path(state_file)
+      File.unlink(last)
+    end
   ensure
     File.unlink(state_tmp) if File.exist?(state_tmp)
     File.unlink(meta_tmp) if File.exist?(meta_tmp)
