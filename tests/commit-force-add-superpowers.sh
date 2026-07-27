@@ -67,6 +67,29 @@ assert_rejected() {
   assert_empty_index "$test_repo"
 }
 
+case_alias_failures=()
+
+assert_case_alias_rejected() {
+  local script=$1
+  local name=$2
+
+  new_repo "$name"
+  git -C "$test_repo" config core.ignorecase true
+  mkdir -p "$test_repo/DOCS/SUPERPOWERS/SPECS"
+  printf '/docs/superpowers/\n' > "$test_repo/.gitignore"
+  printf 'design\n' > "$test_repo/DOCS/SUPERPOWERS/SPECS/design.md"
+
+  if (cd "$test_repo" && bash "$script" --force -m "Rejected protected case alias" DOCS/SUPERPOWERS/SPECS/design.md) >"$test_repo/output" 2>&1; then
+    git -C "$test_repo" cat-file -e HEAD:DOCS/SUPERPOWERS/SPECS/design.md 2>/dev/null || \
+      fail "case-alias wrapper succeeded without committing the protected file: $name"
+    case_alias_failures+=("$name")
+    return
+  fi
+
+  assert_no_commit "$test_repo"
+  assert_empty_index "$test_repo"
+}
+
 for script in "${scripts[@]}"; do
   wrapper_name=$(basename "$(dirname "$script")")
 
@@ -80,6 +103,7 @@ for script in "${scripts[@]}"; do
 
   assert_rejected "$script" "$wrapper_name-rejected-mixed" \
     normal.txt docs/superpowers/specs/design.md
+  assert_case_alias_rejected "$script" "$wrapper_name-rejected-case-alias"
 
   new_repo "$wrapper_name-allowed-superpowers"
   mkdir -p "$test_repo/docs/superpowers/specs"
@@ -104,5 +128,12 @@ for script in "${scripts[@]}"; do
   git -C "$ignored_repo" cat-file -e HEAD:ignored/generated.txt 2>/dev/null || \
     fail "generic ignored file was not committed: $wrapper_name"
 done
+
+if [[ ${#case_alias_failures[@]} -gt 0 ]]; then
+  for name in "${case_alias_failures[@]}"; do
+    echo "FAIL: case-insensitive ignored docs/superpowers alias was force-committed: $name" >&2
+  done
+  fail "commit wrappers accepted protected case aliases"
+fi
 
 echo "PASS: commit wrappers protect ignored docs/superpowers files"

@@ -96,6 +96,11 @@ done
 
 # Pre-check: identify gitignored files
 repo_root=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
+comparison_repo_root="$repo_root"
+ignore_case=$(git config --bool core.ignorecase 2>/dev/null || true)
+if [[ "$ignore_case" == "true" ]]; then
+    comparison_repo_root=$(printf '%s' "$repo_root" | tr '[:upper:]' '[:lower:]')
+fi
 ignored_files=()
 ignored_superpowers_files=()
 
@@ -109,9 +114,13 @@ for file in "${files[@]}"; do
             absolute_file="$(pwd -P)/$file"
         fi
         absolute_file="$(cd "$(dirname "$absolute_file")" && pwd -P)/$(basename "$absolute_file")"
+        comparison_absolute_file="$absolute_file"
+        if [[ "$ignore_case" == "true" ]]; then
+            comparison_absolute_file=$(printf '%s' "$absolute_file" | tr '[:upper:]' '[:lower:]')
+        fi
 
-        case "$absolute_file" in
-            "$repo_root/docs/superpowers"|"$repo_root/docs/superpowers/"*)
+        case "$comparison_absolute_file" in
+            "$comparison_repo_root/docs/superpowers"|"$comparison_repo_root/docs/superpowers/"*)
                 ignored_superpowers_files+=("$file")
                 ;;
         esac
