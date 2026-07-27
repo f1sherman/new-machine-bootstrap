@@ -17,6 +17,8 @@ class TmuxResurrectRecoverTest < Minitest::Test
     @snapshot = File.join(@resurrect_dir, "tmux_resurrect_20260727T120000.txt")
     @restore_script = File.join(@tmpdir, "restore")
     @restore_marker = File.join(@tmpdir, "restore-started")
+    @pause_marker = File.join(@tmpdir, "pause-started")
+    @resume_marker = File.join(@tmpdir, "resume-started")
     @interval_state = File.join(@tmpdir, "continuum-interval")
     @set_log = File.join(@tmpdir, "continuum-set.log")
     @output = File.join(@tmpdir, "recover.log")
@@ -32,14 +34,46 @@ class TmuxResurrectRecoverTest < Minitest::Test
     FileUtils.remove_entry(@tmpdir)
   end
 
-  def test_term_restores_continuum_interval_before_recovery_exits
+  def test_term_during_pause_transition_does_not_start_restore
+    spawn_recovery("FAKE_TMUX_PAUSE_MARKER" => @pause_marker)
+
+    wait_until { File.exist?(@pause_marker) }
+    Process.kill("TERM", -@pid)
+    wait_for_recovery
+
+    assert_equal "5", current_interval, "TERM during pause transition changed the interval"
+    refute File.exist?(@restore_marker), "restore started after TERM became pending"
+    assert_equal 143, @status.exitstatus
+  end
+
+  def test_signal_during_cleanup_retries_interval_restoration
+    spawn_recovery("FAKE_TMUX_RESUME_MARKER" => @resume_marker)
+
+    wait_until { File.exist?(@restore_marker) }
+    assert_equal "0", current_interval, "manual recovery did not pause continuum"
+
+    Process.kill("TERM", -@pid)
+    wait_until { File.exist?(@resume_marker) }
+    Process.kill("HUP", -@pid)
+    wait_until { current_interval == "5" || recovery_exited? }
+    wait_for_recovery unless @status
+
+    assert_equal "5", current_interval, "signal during cleanup left continuum autosaving paused"
+    assert_equal 143, @status.exitstatus, "the first pending signal should determine exit status"
+    assert_equal %w[0 5], File.readlines(@set_log, chomp: true),
+      "continuum interval should be paused and restored exactly once"
+  end
+
+  private
+
+  def spawn_recovery(extra_env = {})
     env = {
       "PATH" => "#{@bin}:#{ENV.fetch("PATH")}",
       "TMUX" => "/tmp/fake-tmux-socket,123,0",
       "FAKE_TMUX_INTERVAL_STATE" => @interval_state,
       "FAKE_TMUX_SET_LOG" => @set_log,
       "FAKE_RESTORE_MARKER" => @restore_marker
-    }
+    }.merge(extra_env)
     output = File.open(@output, "w")
     @pid = Process.spawn(
       env,
@@ -53,27 +87,15 @@ class TmuxResurrectRecoverTest < Minitest::Test
       err: output
     )
     output.close
-
-    wait_until { File.exist?(@restore_marker) }
-    assert_equal "0", current_interval, "manual recovery did not pause continuum"
-
-    Process.kill("TERM", -@pid)
-    wait_until { current_interval == "5" || recovery_exited? }
-
-    assert_equal "5", current_interval, "TERM left continuum autosaving paused"
-    unless @status
-      _waited_pid, @status = Process.wait2(@pid)
-      @pid = nil
-    end
-    assert_equal 143, @status.exitstatus
-    assert_equal %w[0 5], File.readlines(@set_log, chomp: true),
-      "continuum interval should be paused and restored exactly once"
   end
-
-  private
 
   def current_interval
     File.read(@interval_state).strip
+  end
+
+  def wait_for_recovery
+    _waited_pid, @status = Process.wait2(@pid)
+    @pid = nil
   end
 
   def wait_until(timeout: 3)
@@ -129,6 +151,12 @@ class TmuxResurrectRecoverTest < Minitest::Test
         print File.read(state_path)
       when "set"
         value = args.last
+        marker_env = value == "0" ? "FAKE_TMUX_PAUSE_MARKER" : "FAKE_TMUX_RESUME_MARKER"
+        marker = ENV[marker_env]
+        if marker && !File.exist?(marker)
+          File.write(marker, Process.pid.to_s)
+          sleep
+        end
         File.write(state_path, "#{value}\n")
         File.open(set_log, "a") { |file| file.puts(value) }
       when "list-sessions"
