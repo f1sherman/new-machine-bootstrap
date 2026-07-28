@@ -1092,7 +1092,8 @@ case "$1" in
       @task_label) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'tmux subject labels' ;;
       @agent_kind) printf '%s' "${TMUX_TEST_AGENT_KIND:-}" ;;
       @agent_worktree_path) printf '' ;;
-      @pane-label) printf '(feature/label) label-repo | host-a' ;;
+      @pane-title-structured) printf '%s' "${TMUX_TEST_STRUCTURED:-}" ;;
+      @pane-label) printf '%s' "${TMUX_TEST_PANE_LABEL:-(feature/label) label-repo | host-a}" ;;
     esac
     ;;
   rename-window)
@@ -1115,6 +1116,12 @@ assert_file_contains "$remote_window_label_log" "rename-window -t @5 codex: tmux
 TMUX_TEST_TITLE=plain TMUX_PANE_LABEL_BIN="$PANE_LABEL" TMUX_WINDOW_LABEL_LOG="$remote_window_label_log" \
   PATH="$remote_window_label_tmux_dir:$PATH" "$WINDOW_LABEL" "%5"
 assert_equals "$(cat "$remote_window_label_log")" "rename-window -t @5 ssh | current" "unowned stale window cache uses non-agent command and directory"
+
+: > "$remote_window_label_log"
+TMUX_TEST_TITLE=plain TMUX_TEST_STRUCTURED=1 TMUX_TEST_PANE_LABEL='stale local pane label' \
+TMUX_PANE_LABEL_BIN="$PANE_LABEL" TMUX_WINDOW_LABEL_LOG="$remote_window_label_log" \
+  PATH="$remote_window_label_tmux_dir:$PATH" "$WINDOW_LABEL" "%5"
+assert_equals "$(cat "$remote_window_label_log")" "rename-window -t @5 ssh | current" "marked pane rejects nonstructured cached pane label"
 
 cached_tmux_dir="$TMPROOT/fake-tmux-bin-cached"
 cached_log="$TMPROOT/window-label-cached.log"
