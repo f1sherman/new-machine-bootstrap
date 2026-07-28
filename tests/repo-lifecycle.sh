@@ -8,6 +8,7 @@ REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 BIN_DIR="$REPO_ROOT/roles/common/files/bin"
 REPO_START_SCRIPT="$BIN_DIR/repo-start"
 REPO_END_SCRIPT="$BIN_DIR/repo-end"
+WORKTREE_DONE_SCRIPT="$BIN_DIR/worktree-done"
 
 if [ ! -x "$REPO_START_SCRIPT" ]; then
   printf 'ERROR: %s is not executable (or does not exist)\n' "$REPO_START_SCRIPT" >&2
@@ -16,6 +17,11 @@ fi
 
 if [ ! -x "$REPO_END_SCRIPT" ]; then
   printf 'ERROR: %s is not executable (or does not exist)\n' "$REPO_END_SCRIPT" >&2
+  exit 2
+fi
+
+if [ ! -x "$WORKTREE_DONE_SCRIPT" ]; then
+  printf 'ERROR: %s is not executable (or does not exist)\n' "$WORKTREE_DONE_SCRIPT" >&2
   exit 2
 fi
 
@@ -416,6 +422,20 @@ commit_file "$wt_from_main_repo" wt-side.txt "side" "side change"
 wt_fresh_path="$(cd "$wt_from_main_repo" && "$REPO_START_SCRIPT" --use-worktrees feature/wt-fresh --print-path)"
 assert_equals "$(git -C "$wt_fresh_path" rev-parse HEAD)" "$wt_advanced_main_tip" "worktree mode cuts new branch from latest origin main, not HEAD"
 assert_no_file "$wt_fresh_path/wt-side.txt" "worktree mode new branch excludes other branch content"
+
+create_remote_repo done-coding-agent
+done_coding_main="$CREATED_REPO"
+done_coding_feature="$TMPROOT/done-coding-agent-feature"
+git -C "$done_coding_main" worktree add -q -b feature/done-coding-agent "$done_coding_feature" main
+done_coding_feature="$(realpath "$done_coding_feature")"
+commit_file "$done_coding_feature" worktree-done.txt "done" "worktree-done change"
+mkdir -p "$done_coding_main/.git/info" "$done_coding_feature/.coding-agent"
+printf '/.coding-agent/\n' >>"$done_coding_main/.git/info/exclude"
+printf 'worktree-only\n' >"$done_coding_feature/.coding-agent/worktree-only.txt"
+done_coding_out="$TMPROOT/done-coding-agent.out"
+(cd "$done_coding_feature" && "$WORKTREE_DONE_SCRIPT" --print-path >"$done_coding_out")
+assert_file_contains "$done_coding_out" "$done_coding_main" "worktree-done prints main path"
+assert_no_file "$done_coding_main/.coding-agent/worktree-only.txt" "worktree-done leaves retired .coding-agent state behind"
 
 tmux_stub_bin="$TMPROOT/repo-end-tmux-bin"
 tmux_log="$TMPROOT/repo-end-tmux.log"
