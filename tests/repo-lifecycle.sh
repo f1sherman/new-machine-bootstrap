@@ -478,6 +478,37 @@ assert_retired_data_cleanup_guard "$REPO_END_SCRIPT" directory "end-guard-direct
 assert_retired_data_cleanup_guard "$REPO_END_SCRIPT" file "end-guard-file"
 assert_retired_data_cleanup_guard "$REPO_END_SCRIPT" symlink "end-guard-symlink"
 
+assert_tracked_retired_data_allows_cleanup() {
+  local command_name="$1" fixture_name="$2"
+  local main_repo feature_path output
+
+  create_remote_repo "$fixture_name"
+  main_repo="$CREATED_REPO"
+  mkdir -p "$main_repo/.coding-agent"
+  commit_file "$main_repo" ".coding-agent/tracked.txt" "historical" "add historical artifact"
+  git -C "$main_repo" push -q origin main
+
+  feature_path="$TMPROOT/${fixture_name}-feature"
+  git -C "$main_repo" worktree add -q -b "feature/$fixture_name" "$feature_path" main
+  feature_path="$(realpath "$feature_path")"
+  commit_file "$feature_path" "${fixture_name}.txt" "$fixture_name" "$fixture_name change"
+  git -C "$main_repo" merge --ff-only --quiet "feature/$fixture_name"
+  git -C "$main_repo" rm -qr .coding-agent
+  git -C "$main_repo" commit -q -m "retire historical artifact"
+  git -C "$main_repo" push -q origin main
+
+  output="$TMPROOT/${fixture_name}.out"
+  (cd "$feature_path" && HOME="$TMPROOT/${fixture_name}-home" "$command_name" --print-path >"$output")
+  assert_file_contains "$output" "$main_repo" "$fixture_name prints main path"
+  if [ -d "$feature_path" ]; then
+    fail_case "$fixture_name removes worktree" "worktree remains at $feature_path"
+  fi
+  pass_case "$fixture_name removes worktree"
+}
+
+assert_tracked_retired_data_allows_cleanup "$WORKTREE_DONE_SCRIPT" "done-tracked-retired"
+assert_tracked_retired_data_allows_cleanup "$REPO_END_SCRIPT" "end-tracked-retired"
+
 create_remote_repo done-basic
 done_main="$CREATED_REPO"
 done_feature="$TMPROOT/done-basic-feature"
