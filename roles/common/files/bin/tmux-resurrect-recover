@@ -34,6 +34,8 @@ CASCADE_HOOKS = %w[
   window-linked
 ].freeze
 FD_PRESSURE_THRESHOLD = 200
+CONTINUUM_RESUME_MAX_ATTEMPTS = 3
+CONTINUUM_RESUME_RETRY_DELAY = 0.05
 
 opts = {
   dry_run: false,
@@ -302,8 +304,14 @@ def main(opts)
   ensure
     begin
       if pause_attempted
+        resume_attempts = 1
         resumed = resume_continuum(prior_continuum)
-        resumed = resume_continuum(prior_continuum) while pending_signal && !resumed
+        while pending_signal && !resumed && resume_attempts < CONTINUUM_RESUME_MAX_ATTEMPTS
+          sleep CONTINUUM_RESUME_RETRY_DELAY
+          resume_attempts += 1
+          resumed = resume_continuum(prior_continuum)
+        end
+        log "failed to resume continuum after #{resume_attempts} attempts" unless resumed
         print_summary if recovery_completed && !pending_signal
       end
     ensure
