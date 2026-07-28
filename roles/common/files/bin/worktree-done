@@ -84,8 +84,6 @@ else
   "$(_worktree_cmd git)" -C "$main_path" push --quiet
 fi
 
-_worktree_sync_coding_agent_new_files "${repo_root}/.coding-agent" "${main_path}/.coding-agent"
-
 "$(_worktree_cmd git)" -C "$main_path" worktree remove "$repo_root"
 "$(_worktree_cmd git)" -C "$main_path" branch -D --quiet "$current_branch"
 
