@@ -473,15 +473,17 @@ cat >"$fake_tmux_dir/tmux" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
   display-message)
-    printf '@1__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__/tmp/project__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%%1\n' \
-      "${TMUX_TEST_WINDOW_NAME:-old-window}" "${TMUX_TEST_COMMAND:-ssh}" "${TMUX_TEST_TITLE:-}"
+    printf '@1__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%%1\n' \
+      "${TMUX_TEST_WINDOW_NAME:-old-window}" "${TMUX_TEST_PATH:-/tmp/project}" \
+      "${TMUX_TEST_COMMAND:-ssh}" "${TMUX_TEST_TITLE:-}"
     ;;
   show-options)
     case "${*: -1}" in
       @window-label) printf '%s' "${TMUX_TEST_WINDOW_LABEL:-}" ;;
-      @task_state) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'active' ;;
-      @task_source) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'branch' ;;
-      @task_label) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'feature/durable-label' ;;
+      @task_state) printf '%s' "${TMUX_TEST_TASK_STATE:-${TMUX_TEST_LOCAL_TASK:+active}}" ;;
+      @task_source) printf '%s' "${TMUX_TEST_TASK_SOURCE:-${TMUX_TEST_LOCAL_TASK:+branch}}" ;;
+      @task_label) printf '%s' "${TMUX_TEST_TASK_LABEL:-${TMUX_TEST_LOCAL_TASK:+feature/durable-label}}" ;;
+      @agent_kind) printf '%s' "${TMUX_TEST_AGENT_KIND:-}" ;;
       @agent_activity) printf '%s' "${TMUX_TEST_ACTIVITY:-}" ;;
       @pr_state) printf '%s' "${TMUX_TEST_PR_STATE:-}" ;;
     esac
@@ -711,16 +713,19 @@ assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators ⏳#
 assert_file_contains "$window_log" "rename-window -t @1 feature/remote" "remote marker keeps window name plain"
 
 : > "$window_log"
-TMUX_TEST_TITLE='(feature/remote) project | remote-host' TMUX_TEST_ACTIVITY=waiting TMUX_TEST_PR_STATE=approved \
+TMUX_TEST_AGENT_KIND=pi TMUX_TEST_COMMAND=pi TMUX_TEST_LOCAL_TASK=1 \
+TMUX_TEST_WINDOW_LABEL='feature/durable-label' TMUX_TEST_ACTIVITY=waiting TMUX_TEST_PR_STATE=approved \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
-assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators 💬#[fg=#b5bd68]● " "local pane state stores formatted indicators"
-assert_file_contains "$window_log" "rename-window -t @1 feature/remote" "local pane state keeps window name plain"
+assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators 💬#[fg=#b5bd68]● " "live local pane state stores formatted indicators"
+assert_file_contains "$window_log" "rename-window -t @1 feature/durable-label" "live local pane state keeps window name plain"
 
 : > "$window_log"
+TMUX_TEST_AGENT_KIND=pi TMUX_TEST_COMMAND=node TMUX_TEST_LOCAL_TASK=1 \
+TMUX_TEST_WINDOW_LABEL='feature/durable-label' \
 TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=working,draft]' TMUX_TEST_ACTIVITY=waiting \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
-assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators 💬 " "local pane state wins over remote marker"
-assert_file_contains "$window_log" "rename-window -t @1 feature/remote" "local precedence keeps window name plain"
+assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators 💬 " "live local pane state wins over stale remote marker"
+assert_file_contains "$window_log" "rename-window -t @1 feature/durable-label" "live local precedence keeps window name plain"
 
 : > "$window_log"
 TMUX_TEST_WINDOW_NAME='feature/remote' TMUX_TEST_TITLE='(feature/remote) project | remote-host' \
@@ -729,9 +734,51 @@ assert_file_contains "$window_log" "set-option -wqu -t @1 @window-indicators" "m
 assert_file_not_contains "$window_log" "rename-window" "unchanged plain label does not trigger a rename"
 
 : > "$window_log"
-TMUX_TEST_COMMAND=zsh TMUX_TEST_WINDOW_LABEL='feature/durable-label' TMUX_TEST_LOCAL_TASK=1 \
+TMUX_TEST_AGENT_KIND=pi TMUX_TEST_COMMAND=pi \
+TMUX_TEST_WINDOW_LABEL='feature/durable-label' TMUX_TEST_LOCAL_TASK=1 \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
-assert_file_contains "$window_log" "rename-window -t @1 feature/durable-label" "local window uses task-only cached label unchanged"
+assert_file_contains "$window_log" "rename-window -t @1 feature/durable-label" "live local window uses task-only cached label unchanged"
+
+nested_path="$repo_path/content/posts"
+mkdir -p "$nested_path"
+: > "$window_log"
+TMUX_TEST_AGENT_KIND=pi TMUX_TEST_TASK_STATE=provisional \
+TMUX_TEST_TASK_SOURCE=agent TMUX_TEST_TASK_LABEL='Summer 2027 award flights' \
+TMUX_TEST_WINDOW_LABEL='~ Summer 2027 award flights' \
+TMUX_TEST_PATH="$nested_path" TMUX_TEST_COMMAND=nvim \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" \
+  "$WINDOW_LABEL" %1
+assert_file_contains "$window_log" 'rename-window -t @1 nvim | label-repo' \
+  'non-agent command ignores stale agent title and uses Git root'
+assert_file_contains "$window_log" 'set-option -wqu -t @1 @window-indicators' \
+  'non-agent command clears managed indicators'
+
+: > "$window_log"
+TMUX_TEST_AGENT_KIND=pi TMUX_TEST_TASK_STATE=provisional \
+TMUX_TEST_TASK_SOURCE=agent TMUX_TEST_TASK_LABEL='Summer 2027 award flights' \
+TMUX_TEST_WINDOW_LABEL='~ Summer 2027 award flights' \
+TMUX_TEST_PATH="$nested_path" TMUX_TEST_COMMAND=pi \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" \
+  "$WINDOW_LABEL" %1
+assert_file_contains "$window_log" 'rename-window -t @1 ~ Summer 2027 award flights' \
+  'live Pi command preserves cached agent title'
+
+: > "$window_log"
+TMUX_TEST_AGENT_KIND=pi TMUX_TEST_TASK_STATE=provisional \
+TMUX_TEST_TASK_SOURCE=agent TMUX_TEST_TASK_LABEL='Summer 2027 award flights' \
+TMUX_TEST_WINDOW_LABEL='~ Summer 2027 award flights' \
+TMUX_TEST_PATH="$nested_path" TMUX_TEST_COMMAND=zsh \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" \
+  "$WINDOW_LABEL" %1 nvim
+assert_file_contains "$window_log" 'rename-window -t @1 nvim | label-repo' \
+  'explicit command override controls non-agent title'
+
+: > "$window_log"
+TMUX_TEST_PATH="$plain_path" TMUX_TEST_COMMAND=nvim \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" \
+  "$WINDOW_LABEL" %1
+assert_file_contains "$window_log" 'rename-window -t @1 nvim | plain-dir' \
+  'non-agent command uses current non-Git directory'
 
 sync_remote_log="$TMPROOT/sync-remote-title.log"
 sync_remote_tmux_dir="$TMPROOT/sync-remote-title-bin"
@@ -1019,6 +1066,7 @@ case "$1" in
       @task_state) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'provisional' ;;
       @task_source) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'agent' ;;
       @task_label) [ -z "${TMUX_TEST_LOCAL_TASK:-}" ] || printf 'tmux subject labels' ;;
+      @agent_kind) printf '%s' "${TMUX_TEST_AGENT_KIND:-}" ;;
       @agent_worktree_path) printf '' ;;
       @pane-label) printf '(feature/label) label-repo | host-a' ;;
     esac
@@ -1034,13 +1082,15 @@ TMUX_WINDOW_LABEL_LOG="$remote_window_label_log" PATH="$remote_window_label_tmux
 assert_file_contains "$remote_window_label_log" "rename-window -t @5 ~ remote task" "structured provisional task overrides stale cached window label"
 
 : > "$remote_window_label_log"
-TMUX_TEST_LOCAL_TASK=1 TMUX_WINDOW_LABEL_LOG="$remote_window_label_log" PATH="$remote_window_label_tmux_dir:$PATH" "$WINDOW_LABEL" "%5"
-assert_file_contains "$remote_window_label_log" "rename-window -t @5 codex: tmux subject labels" "valid local task keeps cached window label precedence"
+TMUX_TEST_AGENT_KIND=codex TMUX_TEST_LOCAL_TASK=1 \
+TMUX_WINDOW_LABEL_LOG="$remote_window_label_log" PATH="$remote_window_label_tmux_dir:$PATH" \
+  "$WINDOW_LABEL" "%5" codex
+assert_file_contains "$remote_window_label_log" "rename-window -t @5 codex: tmux subject labels" "live local task keeps cached window label precedence"
 
 : > "$remote_window_label_log"
 TMUX_TEST_TITLE=plain TMUX_PANE_LABEL_BIN="$PANE_LABEL" TMUX_WINDOW_LABEL_LOG="$remote_window_label_log" \
   PATH="$remote_window_label_tmux_dir:$PATH" "$WINDOW_LABEL" "%5"
-assert_equals "$(cat "$remote_window_label_log")" "rename-window -t @5 current" "unowned stale window cache does not suppress host suffix stripping"
+assert_equals "$(cat "$remote_window_label_log")" "rename-window -t @5 ssh | current" "unowned stale window cache uses non-agent command and directory"
 
 cached_tmux_dir="$TMPROOT/fake-tmux-bin-cached"
 cached_log="$TMPROOT/window-label-cached.log"
@@ -1049,7 +1099,7 @@ cat >"$cached_tmux_dir/tmux" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
   display-message)
-    printf '@2__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__old-window__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__/tmp/project__NMB_TMUX_FIELD__zsh__NMB_TMUX_FIELD____NMB_TMUX_FIELD__%%2\n'
+    printf '@2__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__old-window__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__/tmp/project__NMB_TMUX_FIELD__pi__NMB_TMUX_FIELD____NMB_TMUX_FIELD__%%2\n'
     exit 0
     ;;
   show-options)
@@ -1061,6 +1111,10 @@ case "$1" in
           ;;
         @agent_worktree_path)
           printf '/tmp/agent-worktree\n'
+          exit 0
+          ;;
+        @agent_kind)
+          printf 'pi\n'
           exit 0
           ;;
       esac
@@ -1086,7 +1140,7 @@ cat >"$window_label_tmux_dir/tmux" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
   display-message)
-    printf '@4__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__old-name__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__/tmp/current__NMB_TMUX_FIELD__zsh__NMB_TMUX_FIELD__plain__NMB_TMUX_FIELD__%%4\n'
+    printf '@4__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__old-name__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__/tmp/current__NMB_TMUX_FIELD__codex__NMB_TMUX_FIELD__plain__NMB_TMUX_FIELD__%%4\n'
     ;;
   show-options)
     case "${*: -1}" in
@@ -1094,6 +1148,7 @@ case "$1" in
       @task_state) printf 'provisional' ;;
       @task_source) printf 'agent' ;;
       @task_label) printf 'tmux subject labels' ;;
+      @agent_kind) printf 'codex' ;;
       @agent_worktree_path) printf '' ;;
       @pane-label) printf '(feature/label) label-repo | host-a' ;;
     esac
@@ -1143,7 +1198,7 @@ chmod +x "$stale_tmux_dir/tmux"
 
 TMUX_PANE_LABEL_BIN="$PANE_LABEL" TMUX_PANE_LABEL_HOST_TAG=host-a TMUX_WINDOW_LABEL_LOG="$stale_log" \
   PATH="$stale_tmux_dir:$PATH" "$WINDOW_LABEL" "%3"
-assert_file_contains "$stale_log" "rename-window -t @3 fresh-dir" "non-agent panes ignore @pane-label cache and re-derive from current path"
+assert_file_contains "$stale_log" "rename-window -t @3 zsh | fresh-dir" "non-agent panes ignore @pane-label cache and render command with current path"
 
 zshrc_template="$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/50-personal-dev-shell.zsh"
 repo_end_wrapper="$TMPROOT/repo-end-wrapper.zsh"

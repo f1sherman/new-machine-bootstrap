@@ -18,6 +18,22 @@ pane_info="${pane_info//$field_separator/$parse_separator}"
 IFS="$parse_separator" read -r window_id pane_active window_name pane_tty pane_current_path pane_current_command pane_title pane_id <<< "$pane_info"
 [ -n "$window_id" ] || exit 0
 [ "$pane_active" = "1" ] || exit 0
+effective_command="${2:-$pane_current_command}"
+
+is_remote_candidate_command() {
+  case "$1" in
+    ssh|gh|ruby) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+agent_kind="$(tmux show-options -qv -p -t "$pane_id" "@agent_kind" 2>/dev/null || true)"
+is_live_agent() {
+  case "$agent_kind:$effective_command" in
+    claude:claude|claude:node|codex:codex|pi:pi|pi:node) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 ind_activity=""
 ind_pr_state=""
@@ -32,27 +48,26 @@ capture_ind_marker() {
   ind_activity="${values%%,*}"
   ind_pr_state="${values#*,}"
 }
-capture_ind_marker "$pane_title"
-[ -n "$ind_activity$ind_pr_state" ] || capture_ind_marker "$window_name"
+if is_remote_candidate_command "$effective_command"; then
+  capture_ind_marker "$pane_title"
+  [ -n "$ind_activity$ind_pr_state" ] || capture_ind_marker "$window_name"
+fi
 
-cached_window_label="$(tmux show-options -qv -p -t "$pane_id" "@window-label" 2>/dev/null || true)"
-task_state="$(tmux show-options -qv -p -t "$pane_id" "@task_state" 2>/dev/null || true)"
-task_source="$(tmux show-options -qv -p -t "$pane_id" "@task_source" 2>/dev/null || true)"
-task_label="$(tmux show-options -qv -p -t "$pane_id" "@task_label" 2>/dev/null || true)"
+cached_window_label=""
 label=""
-if [ -n "$task_state" ] && [ -n "$task_source" ] && [ -n "$task_label" ]; then
-  label="$cached_window_label"
-else
-  cached_window_label=""
+non_agent_fallback=""
+if is_live_agent; then
+  cached_window_label="$(tmux show-options -qv -p -t "$pane_id" "@window-label" 2>/dev/null || true)"
+  task_state="$(tmux show-options -qv -p -t "$pane_id" "@task_state" 2>/dev/null || true)"
+  task_source="$(tmux show-options -qv -p -t "$pane_id" "@task_source" 2>/dev/null || true)"
+  task_label="$(tmux show-options -qv -p -t "$pane_id" "@task_label" 2>/dev/null || true)"
+  if [ -n "$task_state" ] && [ -n "$task_source" ] && [ -n "$task_label" ]; then
+    label="$cached_window_label"
+  else
+    cached_window_label=""
+  fi
 fi
 task_label_resolved=""
-
-is_remote_candidate_command() {
-  case "$1" in
-    ssh|gh|ruby) return 0 ;;
-    *) return 1 ;;
-  esac
-}
 
 task_from_remote_label() {
   [ -x "$task_label_helper" ] || return 1
@@ -72,7 +87,7 @@ strip_host_suffix() {
   printf '%s\n' "${1%% | *}"
 }
 
-if [ -z "$label" ] && is_remote_candidate_command "$pane_current_command"; then
+if [ -z "$label" ] && is_remote_candidate_command "$effective_command"; then
   label="$(task_from_remote_label "$pane_title" 2>/dev/null || true)"
   if [ -n "$label" ]; then
     task_label_resolved="1"
@@ -93,7 +108,7 @@ if [ -z "$label" ] && is_remote_candidate_command "$pane_current_command"; then
   fi
 fi
 
-if [ -z "$label" ]; then
+if [ -z "$label" ] && is_live_agent; then
   agent_path="$(tmux show-options -qv -p -t "$pane_id" "@agent_worktree_path" 2>/dev/null || true)"
   if [ -n "$agent_path" ]; then
     label="$(tmux show-options -qv -p -t "$pane_id" "@pane-label" 2>/dev/null || true)"
@@ -101,21 +116,33 @@ if [ -z "$label" ]; then
 fi
 
 if [ -z "$label" ]; then
-  label_helper="${TMUX_PANE_LABEL_BIN:-$HOME/.local/bin/tmux-pane-label}"
-  if [ ! -x "$label_helper" ]; then
-    label_helper="tmux-pane-label"
-  fi
+  if is_live_agent; then
+    label_helper="${TMUX_PANE_LABEL_BIN:-$HOME/.local/bin/tmux-pane-label}"
+    if [ ! -x "$label_helper" ]; then
+      label_helper="tmux-pane-label"
+    fi
 
-  label="$("$label_helper" "$pane_tty" "$pane_current_path" "$pane_current_command" "$pane_id" 2>/dev/null || true)"
+    label="$("$label_helper" "$pane_tty" "$pane_current_path" "$effective_command" "$pane_id" 2>/dev/null || true)"
+  elif [ -n "$pane_current_path" ]; then
+    directory_path="$(git -C "$pane_current_path" rev-parse --show-toplevel 2>/dev/null || true)"
+    [ -n "$directory_path" ] || directory_path="$pane_current_path"
+    directory="$(basename "$directory_path")"
+    label="$effective_command | $directory"
+    non_agent_fallback="1"
+  fi
 fi
 [ -n "$label" ] || exit 0
-if [ -z "$cached_window_label" ] && [ -z "$task_label_resolved" ]; then
+if [ -z "$cached_window_label" ] && [ -z "$task_label_resolved" ] && [ -z "$non_agent_fallback" ]; then
   label="$(strip_host_suffix "$label")"
 fi
 [ -n "$label" ] || exit 0
 
-activity="$(tmux show-options -qv -p -t "$pane_id" "@agent_activity" 2>/dev/null || true)"
-pr_state="$(tmux show-options -qv -p -t "$pane_id" "@pr_state" 2>/dev/null || true)"
+activity=""
+pr_state=""
+if is_live_agent; then
+  activity="$(tmux show-options -qv -p -t "$pane_id" "@agent_activity" 2>/dev/null || true)"
+  pr_state="$(tmux show-options -qv -p -t "$pane_id" "@pr_state" 2>/dev/null || true)"
+fi
 if [ -z "$activity" ] && [ -z "$pr_state" ]; then
   activity="$ind_activity"
   pr_state="$ind_pr_state"
