@@ -137,6 +137,22 @@ fi
 alias duss="du -d 1 -h 2>/dev/null | sort -hr"
 
 if [[ -n "$TMUX" ]]; then
+  _tmux_window_title_command() {
+    local -a command_words
+    command_words=("${(@Q)${(z)1}}")
+    print -r -- "${command_words[1]:t}"
+  }
+
+  _tmux_window_title_preexec() {
+    local program="$(_tmux_window_title_command "$1")"
+    [[ -n "$program" ]] || return 0
+    command tmux-window-label "$TMUX_PANE" "$program" >/dev/null 2>&1 || true
+  }
+
+  _tmux_window_title_precmd() {
+    command tmux-window-label "$TMUX_PANE" zsh >/dev/null 2>&1 || true
+  }
+
   _tmux_remote_title_should_sync() {
     [[ -n "${SSH_CONNECTION:-}${CODESPACES:-}${DEVPOD_WORKSPACE_ID:-}" ]] || return 1
     command -v tmux-remote-title >/dev/null 2>&1
@@ -158,7 +174,9 @@ if [[ -n "$TMUX" ]]; then
     command tmux-remote-title publish >/dev/null 2>&1 || true
   }
 
+  add-zsh-hook preexec _tmux_window_title_preexec
   add-zsh-hook preexec _tmux_remote_title_preexec
+  add-zsh-hook precmd _tmux_window_title_precmd
   add-zsh-hook precmd _tmux_remote_title_precmd
 
   # chpwd-only: pane_current_path changes don't fire any tmux event hook,
@@ -167,7 +185,7 @@ if [[ -n "$TMUX" ]]; then
   # tmux event hooks defined in tmux.conf — running on precmd too would
   # spawn two background bash processes per shell prompt.
   _tmux_label_update() {
-    command tmux-window-label "$TMUX_PANE" &>/dev/null &!
+    command tmux-window-label "$TMUX_PANE" zsh &>/dev/null &!
     command tmux-sync-pane-border-status "$TMUX_PANE" &>/dev/null &!
   }
   autoload -Uz add-zsh-hook

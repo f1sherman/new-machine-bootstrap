@@ -88,6 +88,27 @@ assert_file_not_contains() {
   pass_case "$name"
 }
 
+assert_file_line() {
+  local path="$1" line="$2" name="$3"
+  if [ ! -f "$path" ]; then
+    fail_case "$name" "missing file: $path"
+  fi
+  if ! grep -Fxq -- "$line" "$path"; then
+    fail_case "$name" "missing exact line '$line' in $path"
+  fi
+  pass_case "$name"
+}
+
+assert_line_before() {
+  local path="$1" before="$2" after="$3" name="$4" before_line after_line
+  before_line="$(grep -nFx -- "$before" "$path" | head -n 1 | cut -d: -f1)"
+  after_line="$(grep -nFx -- "$after" "$path" | head -n 1 | cut -d: -f1)"
+  if [ -z "$before_line" ] || [ -z "$after_line" ] || [ "$before_line" -ge "$after_line" ]; then
+    fail_case "$name" "'$before' does not appear before '$after' in $path"
+  fi
+  pass_case "$name"
+}
+
 assert_no_file() {
   local path="$1" name="$2"
   if [ -e "$path" ]; then
@@ -312,11 +333,11 @@ zsh_hook_bin="$TMPROOT/zsh-hook-bin"
 mkdir -p "$zsh_hook_home" "$zsh_hook_bin"
 cat >"$zsh_hook_bin/tmux-remote-title" <<'STUB'
 #!/usr/bin/env bash
-printf '%s\t%s\n' "${TMUX_REMOTE_TITLE_SUPPRESS_EDGE:-0}" "${1:-}" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
+printf 'tmux-remote-title\t%s\t%s\n' "${TMUX_REMOTE_TITLE_SUPPRESS_EDGE:-0}" "${1:-}" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
 STUB
 cat >"$zsh_hook_bin/tmux-window-label" <<'STUB'
 #!/usr/bin/env bash
-exit 0
+printf '%s %s\n' "${1:-}" "${2:-}" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
 STUB
 cat >"$zsh_hook_bin/tmux-sync-pane-border-status" <<'STUB'
 #!/usr/bin/env bash
@@ -329,9 +350,12 @@ TMUX_PANE=%1 \
 SSH_CONNECTION="127.0.0.1 1 127.0.0.1 2" \
 TMUX_REMOTE_TITLE_HOOK_LOG="$zsh_hook_log" \
 PATH="$zsh_hook_bin:$PATH" \
-  zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; _tmux_remote_title_preexec 'nvim'; _tmux_remote_title_precmd"
-assert_file_contains "$zsh_hook_log" $'1\tpublish' "zsh preexec clears remote edge marker before vim-like command"
-assert_file_contains "$zsh_hook_log" $'0\tpublish' "zsh precmd restores remote edge marker at prompt"
+  zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; for hook in \${preexec_functions[@]}; do \"\$hook\" 'nvim content/post.md'; done; for hook in \${precmd_functions[@]}; do \"\$hook\"; done"
+assert_file_line "$zsh_hook_log" '%1 nvim' "zsh preexec refreshes window label with launched command"
+assert_file_line "$zsh_hook_log" '%1 zsh' "zsh precmd restores shell window label"
+assert_line_before "$zsh_hook_log" '%1 nvim' $'tmux-remote-title\t1\tpublish' "zsh preexec refreshes window label before remote title publication"
+assert_file_contains "$zsh_hook_log" $'tmux-remote-title\t1\tpublish' "zsh preexec clears remote edge marker before vim-like command"
+assert_file_contains "$zsh_hook_log" $'tmux-remote-title\t0\tpublish' "zsh precmd restores remote edge marker at prompt"
 
 # Non-vim foreground commands (agents) must keep the edge marker live so the
 # outer tmux can use C-h/j/k/l edge fallback while the agent runs.
@@ -343,8 +367,8 @@ SSH_CONNECTION="127.0.0.1 1 127.0.0.1 2" \
 TMUX_REMOTE_TITLE_HOOK_LOG="$zsh_agent_log" \
 PATH="$zsh_hook_bin:$PATH" \
   zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; _tmux_remote_title_preexec 'claude --resume'"
-assert_file_contains "$zsh_agent_log" $'0\tpublish' "zsh preexec keeps remote edge marker for non-vim command"
-assert_file_not_contains "$zsh_agent_log" $'1\tpublish' "zsh preexec does not suppress edge marker for non-vim command"
+assert_file_contains "$zsh_agent_log" $'tmux-remote-title\t0\tpublish' "zsh preexec keeps remote edge marker for non-vim command"
+assert_file_not_contains "$zsh_agent_log" $'tmux-remote-title\t1\tpublish' "zsh preexec does not suppress edge marker for non-vim command"
 
 stub_bin="$TMPROOT/stub-bin"
 mkdir -p "$stub_bin"
