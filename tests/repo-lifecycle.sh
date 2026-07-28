@@ -218,7 +218,9 @@ printf '{"permissions":{}}\n' >"$worktree_repo/.claude/settings.local.json"
 worktree_path="$(cd "$worktree_repo" && "$REPO_START_SCRIPT" --use-worktrees feature/worktree --print-path)"
 [ -e "$worktree_path/.git" ] || fail_case "repo-start worktree mode creates linked checkout" "missing .git at $worktree_path"
 assert_file_contains "$worktree_repo/.repo.yml" "use_worktrees: true" "explicit worktree mode writes config"
-assert_file_contains "$worktree_path/.coding-agent/note.txt" "note" "worktree mode copies .coding-agent"
+[ ! -e "$worktree_path/.coding-agent" ] || \
+  fail_case "worktree mode leaves retired .coding-agent state behind" \
+    "unexpected .coding-agent at $worktree_path"
 assert_file_contains "$worktree_path/.claude/settings.local.json" "permissions" "worktree mode copies Claude local settings"
 assert_equals "$(git -C "$worktree_path" branch --show-current)" "feature/worktree" "worktree mode checks out requested branch"
 
@@ -547,6 +549,9 @@ commit_file "$worktree_feature" worktree.txt "worktree" "worktree change"
 git -C "$worktree_main" merge --ff-only --quiet feature/end-worktree
 git -C "$worktree_main" push -q origin main
 forbid_origin_main_pushes "$worktree_main"
+mkdir -p "$worktree_main/.git/info" "$worktree_feature/.coding-agent"
+printf '/.coding-agent/\n' >>"$worktree_main/.git/info/exclude"
+printf 'worktree-only\n' >"$worktree_feature/.coding-agent/worktree-only.txt"
 worktree_home="$TMPROOT/end-worktree-home"
 worktree_log="$worktree_home/.local/state/repo-end.log"
 install_callback "$worktree_home" "$worktree_log"
@@ -555,6 +560,7 @@ worktree_out="$TMPROOT/end-worktree-merged.out"
 assert_file_contains "$worktree_out" "$worktree_main" "repo-end worktree mode prints main path"
 assert_git_has_file "$worktree_main" main worktree.txt "repo-end worktree mode keeps merged main content"
 assert_git_has_file "$worktree_origin" main worktree.txt "repo-end worktree mode relies on origin main"
+assert_no_file "$worktree_main/.coding-agent/worktree-only.txt" "repo-end worktree mode leaves retired .coding-agent state behind"
 if [ -e "$worktree_feature" ]; then
   fail_case "repo-end worktree mode removes linked worktree" "worktree remains at $worktree_feature"
 fi

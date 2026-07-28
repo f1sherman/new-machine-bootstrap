@@ -204,15 +204,6 @@ _worktree_copy_new_files() {
   fi
 }
 
-_worktree_sync_coding_agent_new_files() {
-  local src="$1"
-  local dst="$2"
-
-  if ! _worktree_copy_new_files "$src" "$dst"; then
-    _worktree_warn ".coding-agent sync failed for $dst"
-  fi
-}
-
 _worktree_main_branch() {
   local origin_head
   origin_head="$("$(_worktree_cmd git)" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || true)"
