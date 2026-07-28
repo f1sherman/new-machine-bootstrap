@@ -327,7 +327,7 @@ Expected: overlap is observed without the wrapper, mismatched metadata still dis
 
 - [ ] **Step 3: Implement save-wide serialization**
 
-Install the wrapper from `roles/common/tasks/main.yml`. It opens the lock path, acquires `flock`, and executes the upstream save script with all arguments. Set `@resurrect-save-script-path` to the wrapper after TPM initialization in both managed tmux configs.
+Install the wrapper from `roles/common/tasks/main.yml`. It opens the lock path, acquires `flock`, and executes the upstream save script with all arguments. Set `@resurrect-save-script-path` to the wrapper after TPM initialization in both managed tmux configs, then explicitly rebind tmux-resurrect's manual save key to the wrapper because the plugin's existing binding bypasses the option.
 
 - [ ] **Step 4: Bind and validate state generations**
 

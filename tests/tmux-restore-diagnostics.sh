@@ -54,6 +54,8 @@ for tmux_config in \
   config_contents="$(cat "$tmux_config")"
   # shellcheck disable=SC2016
   assert_contains "$config_contents" 'set -g @resurrect-restore-script-path "$HOME/.local/bin/tmux-resurrect-restore-wrapper"'
+  # shellcheck disable=SC2016
+  assert_contains "$config_contents" 'bind-key C-s run-shell "$HOME/.local/bin/tmux-resurrect-save-wrapper"'
   assert_not_contains "$config_contents" 'tmux-debug.log'
   assert_not_contains "$config_contents" '/bin/ps -axo'
   assert_not_contains "$config_contents" 'session-created:'
