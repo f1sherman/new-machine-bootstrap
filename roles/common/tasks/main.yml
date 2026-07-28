@@ -1262,12 +1262,11 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Darwin"
 
-# Older provisioning installed pi as @mariozechner/pi-coding-agent into per-Node
-# global prefixes. pi has since been renamed to @earendil-works/pi-coding-agent
-# and is managed through mise, but the stale global install was never removed and
-# can shadow the managed pi on PATH (a Node global bin outranks the mise-managed
-# bin), silently running an outdated pi. Purge it before wiring up managed tools.
-- name: Remove legacy @mariozechner/pi-coding-agent shadowing the managed pi
+# Per-Node/global-prefix installs of either Pi package identity can shadow the
+# mise-managed npm tool through mise's Node shims. Purge both package identities
+# from those prefixes before wiring up the managed tool; the separate mise npm
+# tool install root is outside the purge script's scanned prefix globs.
+- name: Remove per-Node Pi installs shadowing the managed mise npm tool
   command: bash {{ playbook_dir }}/roles/common/files/bin/purge-legacy-pi-coding-agent
   register: common_purge_legacy_pi
   changed_when: common_purge_legacy_pi.stdout.strip() == 'changed'

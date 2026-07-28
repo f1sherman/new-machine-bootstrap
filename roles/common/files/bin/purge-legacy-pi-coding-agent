@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
-# Remove the pre-rename @mariozechner/pi-coding-agent left behind by older
-# provisioning that installed pi into per-Node global prefixes.
+# Remove per-Node/global-prefix Pi installs that can shadow the mise-managed npm
+# tool. Both the pre-rename @mariozechner package and per-Node installs of the
+# current @earendil-works package are stale under the managed npm-tool policy.
 #
-# pi now ships as @earendil-works/pi-coding-agent and is managed through mise.
-# The provisioning that switched scopes never removed the old global install, so
-# a stale @mariozechner `pi` can sit ahead of the managed one on PATH (e.g. a
-# Node global bin outranks the mise-managed bin) and silently run an outdated
-# pi. That breaks extensions built against the newer pi runtime.
+# Only the explicit global-prefix globs below are scanned. The separate mise npm
+# tool install root is not included.
 #
 # Idempotent: prints "changed" if it removed anything, "unchanged" otherwise, so
 # a provisioning caller can map the exit output to a changed state.
 set -euo pipefail
 
-legacy_pkg="${PI_LEGACY_PACKAGE:-@mariozechner/pi-coding-agent}"
-scope="${legacy_pkg%%/*}"
+stale_packages="@mariozechner/pi-coding-agent @earendil-works/pi-coding-agent"
 
 # Space-separated glob patterns of Node "prefix" dirs. Each prefix is expected
 # to hold lib/node_modules/<pkg> and bin/pi (the layout npm -g and Homebrew's
@@ -27,25 +24,27 @@ changed=0
 for prefix in $prefix_globs; do
   [ -d "$prefix" ] || continue
 
-  pkg_dir="$prefix/lib/node_modules/$legacy_pkg"
-  if [ -e "$pkg_dir" ]; then
-    rm -rf "$pkg_dir"
-    changed=1
+  for stale_pkg in $stale_packages; do
+    pkg_dir="$prefix/lib/node_modules/$stale_pkg"
+    if [ -e "$pkg_dir" ]; then
+      rm -rf "$pkg_dir"
+      changed=1
 
-    # Drop the now-empty scope dir (e.g. @mariozechner) only if nothing else
-    # lives under it, so an unrelated package in the same scope is preserved.
-    scope_dir="$prefix/lib/node_modules/$scope"
-    if [ -d "$scope_dir" ] && [ -z "$(ls -A "$scope_dir")" ]; then
-      rmdir "$scope_dir"
+      # Drop the scope dir only when nothing else lives under it.
+      scope="${stale_pkg%%/*}"
+      scope_dir="$prefix/lib/node_modules/$scope"
+      if [ -d "$scope_dir" ] && [ -z "$(ls -A "$scope_dir")" ]; then
+        rmdir "$scope_dir"
+      fi
     fi
-  fi
+  done
 
-  # Only remove a `pi` bin symlink when it points into the legacy package, so a
-  # correctly-managed pi is never touched.
+  # Remove bin/pi only when its target points into one of the stale package
+  # identities. Unrelated pi links remain untouched.
   pi_bin="$prefix/bin/pi"
   if [ -L "$pi_bin" ]; then
     case "$(readlink "$pi_bin")" in
-      *"$legacy_pkg"*)
+      */@mariozechner/pi-coding-agent/*|@mariozechner/pi-coding-agent/*|*/@earendil-works/pi-coding-agent/*|@earendil-works/pi-coding-agent/*)
         rm -f "$pi_bin"
         changed=1
         ;;

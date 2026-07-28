@@ -4,7 +4,7 @@
 
 **Goal:** Make provisioning resolve managed Pi from the explicit current Aube-backed mise npm layout for each supported platform.
 
-**Architecture:** Derive one mise install root per task and branch on the Ansible OS family. Darwin uses `bin/pi` and derives the package root from that symlink's real target. Non-Darwin uses the direct package entrypoint `node_modules/@earendil-works/pi-coding-agent/dist/cli.js` and the direct `node_modules/@earendil-works/pi-coding-agent` package root. The selected executable and package path are mandatory; no layout probing or fallback is allowed. The non-Darwin `node_modules/.bin/pi` shell shim must not be used as the stable-link target because its relative target breaks when the shim is symlinked outside its own directory.
+**Architecture:** Derive one mise install root per task and branch on the Ansible OS family. Darwin uses `bin/pi` and derives the package root from that symlink's real target. Non-Darwin uses the direct package entrypoint `node_modules/@earendil-works/pi-coding-agent/dist/cli.js` and the direct `node_modules/@earendil-works/pi-coding-agent` package root. The selected executable and package path are mandatory; no layout probing or fallback is allowed. The non-Darwin `node_modules/.bin/pi` shell shim must not be used as the stable-link target because its relative target breaks when the shim is symlinked outside its own directory. Before managed installation, an idempotent cleanup scans only known npm global-prefix layouts and removes both Pi package identities that can shadow the managed mise npm tool.
 
 **Tech Stack:** Ansible YAML, Bash, Ruby contract tests
 
@@ -14,6 +14,8 @@
 - Support one explicit managed layout per platform; do not add heuristic fallback.
 - Missing managed executable or package paths remain fatal.
 - Preserve replacement of stale managed package symlinks and refusal to overwrite non-symlink destinations.
+- Limit cleanup to mise Node, Homebrew, and `/usr/local` global prefixes; never scan the managed mise npm-tool install root.
+- Preserve unrelated packages and unrelated `pi` links.
 
 ---
 
@@ -83,6 +85,50 @@ Expected: all commands exit 0.
 - [ ] **Step 5: Commit correction**
 
 Commit the contract, implementation, approved documents, and Task 1 fix-round evidence without AI attribution.
+
+### Correction: Remove per-Node Pi shadows
+
+**Files:**
+- Modify: `tests/purge-legacy-pi-coding-agent.sh`
+- Modify: `roles/common/files/bin/purge-legacy-pi-coding-agent`
+- Modify: `roles/common/tasks/main.yml`
+- Modify: `docs/superpowers/specs/2026-07-27-pi-aube-install-layout-design.md`
+- Modify: `docs/superpowers/plans/2026-07-27-pi-aube-install-layout.md`
+
+**Interfaces:**
+- Consumes: known npm global-prefix globs, overridable by the behavioral test.
+- Produces: removal of `@mariozechner/pi-coding-agent` and `@earendil-works/pi-coding-agent` package directories plus only their matching `bin/pi` links; prints `changed` or `unchanged`.
+
+- [ ] **Step 1: Strengthen the behavioral cleanup test**
+
+Create both stale package identities in isolated scanned prefixes. Also create unrelated same-scope packages, an unrelated `pi` link, and a managed mise npm-tool install root outside the scanned prefix override. Require both stale packages and matching links to be removed, empty scope directories to be removed, unrelated and managed content to survive, and a second run to report `unchanged`.
+
+- [ ] **Step 2: Verify RED**
+
+Run: `bash tests/purge-legacy-pi-coding-agent.sh`
+
+Expected against the single-package cleanup: failures for the remaining `@earendil-works/pi-coding-agent` directory, scope, and matching `pi` link.
+
+- [ ] **Step 3: Purge both stale package identities**
+
+Iterate over the two fixed Pi package identities within each scanned prefix. Remove each package directory, remove its scope directory only when empty, and remove `bin/pi` only when `readlink` points into either identity. Keep the existing Bash 3.2-compatible prefix-glob override and changed/unchanged output.
+
+Update the Ansible task name and comments to describe managed npm-tool shadow cleanup rather than rename-only cleanup.
+
+- [ ] **Step 4: Verify behavior and contracts**
+
+Run:
+
+```bash
+bash tests/purge-legacy-pi-coding-agent.sh
+bash -n roles/common/files/bin/purge-legacy-pi-coding-agent
+ruby tests/pi-aube-install-layout-contract.rb
+ruby tests/pi-managed-aube-update-contract.rb
+ruby -e 'require "yaml"; YAML.load_file("roles/common/tasks/main.yml"); puts "YAML valid"'
+git diff --check
+```
+
+Expected: all commands exit 0.
 
 ### Task 2: Verify provisioning behavior
 
