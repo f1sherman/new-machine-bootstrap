@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Behavioral test for roles/common/files/bin/purge-legacy-pi-coding-agent:
-# the legacy @mariozechner pi (package dir + shadowing `pi` symlink) is removed
-# from every scanned Node prefix, the managed @earendil-works pi is left intact,
-# and a second run is a no-op.
+# both package identities that can shadow the mise-managed npm tool are removed
+# from scanned global prefixes, unrelated content survives, and reruns are no-ops.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
@@ -17,45 +16,92 @@ fail_case() { fail=$((fail + 1)); printf 'FAIL  %s\n' "$1"; printf '      %s\n' 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-# A stale Node prefix carrying the legacy package + a `pi` symlink into it.
-legacy_prefix="$tmp/node/22.0.0"
-mkdir -p "$legacy_prefix/bin" "$legacy_prefix/lib/node_modules/@mariozechner/pi-coding-agent/dist"
-printf '#!/usr/bin/env node\n' >"$legacy_prefix/lib/node_modules/@mariozechner/pi-coding-agent/dist/cli.js"
-ln -s "../lib/node_modules/@mariozechner/pi-coding-agent/dist/cli.js" "$legacy_prefix/bin/pi"
+# Separate scanned per-Node prefixes exercise each stale package identity and
+# its corresponding bin/pi link.
+mario_prefix="$tmp/node/20.0.0"
+mkdir -p "$mario_prefix/bin" "$mario_prefix/lib/node_modules/@mariozechner/pi-coding-agent/dist"
+printf '#!/usr/bin/env node\n' >"$mario_prefix/lib/node_modules/@mariozechner/pi-coding-agent/dist/cli.js"
+ln -s "../lib/node_modules/@mariozechner/pi-coding-agent/dist/cli.js" "$mario_prefix/bin/pi"
 
-# A managed prefix that MUST survive: @earendil-works package + its own `pi`.
-managed_prefix="$tmp/managed"
-mkdir -p "$managed_prefix/bin" "$managed_prefix/lib/node_modules/@earendil-works/pi-coding-agent/dist"
-printf '#!/usr/bin/env node\n' >"$managed_prefix/lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
-ln -s "../lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" "$managed_prefix/bin/pi"
+earendil_prefix="$tmp/node/22.0.0"
+mkdir -p "$earendil_prefix/bin" "$earendil_prefix/lib/node_modules/@earendil-works/pi-coding-agent/dist"
+printf '#!/usr/bin/env node\n' >"$earendil_prefix/lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
+ln -s "../lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" "$earendil_prefix/bin/pi"
 
-globs="$legacy_prefix $managed_prefix"
+# A scanned prefix with stale packages but an unrelated pi link. The packages
+# must be removed without disturbing the link or unrelated same-scope packages.
+preserved_prefix="$tmp/homebrew"
+mkdir -p \
+  "$preserved_prefix/bin" \
+  "$preserved_prefix/lib/node_modules/@mariozechner/pi-coding-agent" \
+  "$preserved_prefix/lib/node_modules/@mariozechner/other-package" \
+  "$preserved_prefix/lib/node_modules/@earendil-works/pi-coding-agent" \
+  "$preserved_prefix/lib/node_modules/@earendil-works/other-package" \
+  "$preserved_prefix/lib/node_modules/other-package/dist"
+printf '#!/usr/bin/env node\n' >"$preserved_prefix/lib/node_modules/other-package/dist/pi.js"
+ln -s "../lib/node_modules/other-package/dist/pi.js" "$preserved_prefix/bin/pi"
 
+# The managed mise npm-tool root is intentionally outside the scanned prefix
+# list and must remain untouched.
+managed_root="$tmp/mise/installs/npm-earendil-works-pi-coding-agent/0.80.10"
+mkdir -p "$managed_root/bin" "$managed_root/node_modules/@earendil-works/pi-coding-agent/dist"
+printf '#!/usr/bin/env node\n' >"$managed_root/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
+ln -s "../node_modules/@earendil-works/pi-coding-agent/dist/cli.js" "$managed_root/bin/pi"
+
+globs="$mario_prefix $earendil_prefix $preserved_prefix"
 first="$(PI_LEGACY_PREFIX_GLOBS="$globs" bash "$purge")"
 
-if [ ! -e "$legacy_prefix/lib/node_modules/@mariozechner/pi-coding-agent" ]; then
-  pass_case "legacy package directory removed"
+for package_path in \
+  "$mario_prefix/lib/node_modules/@mariozechner/pi-coding-agent" \
+  "$earendil_prefix/lib/node_modules/@earendil-works/pi-coding-agent" \
+  "$preserved_prefix/lib/node_modules/@mariozechner/pi-coding-agent" \
+  "$preserved_prefix/lib/node_modules/@earendil-works/pi-coding-agent"
+do
+  if [ ! -e "$package_path" ]; then
+    pass_case "stale package removed: ${package_path#"$tmp"/}"
+  else
+    fail_case "stale package removed: ${package_path#"$tmp"/}" "still present"
+  fi
+done
+
+for scope_path in \
+  "$mario_prefix/lib/node_modules/@mariozechner" \
+  "$earendil_prefix/lib/node_modules/@earendil-works"
+do
+  if [ ! -e "$scope_path" ]; then
+    pass_case "emptied scope removed: ${scope_path#"$tmp"/}"
+  else
+    fail_case "emptied scope removed: ${scope_path#"$tmp"/}" "still present"
+  fi
+done
+
+for pi_link in "$mario_prefix/bin/pi" "$earendil_prefix/bin/pi"; do
+  if [ ! -L "$pi_link" ] && [ ! -e "$pi_link" ]; then
+    pass_case "shadowing pi link removed: ${pi_link#"$tmp"/}"
+  else
+    fail_case "shadowing pi link removed: ${pi_link#"$tmp"/}" "still present"
+  fi
+done
+
+if [ -d "$preserved_prefix/lib/node_modules/@mariozechner/other-package" ] \
+  && [ -d "$preserved_prefix/lib/node_modules/@earendil-works/other-package" ]; then
+  pass_case "unrelated same-scope packages preserved"
 else
-  fail_case "legacy package directory removed" "still present"
+  fail_case "unrelated same-scope packages preserved" "an unrelated package was removed"
 fi
 
-if [ ! -e "$legacy_prefix/lib/node_modules/@mariozechner" ]; then
-  pass_case "emptied legacy scope directory removed"
+if [ -L "$preserved_prefix/bin/pi" ] \
+  && [ "$(readlink "$preserved_prefix/bin/pi")" = "../lib/node_modules/other-package/dist/pi.js" ]; then
+  pass_case "unrelated pi link preserved"
 else
-  fail_case "emptied legacy scope directory removed" "still present"
+  fail_case "unrelated pi link preserved" "unrelated link was removed or changed"
 fi
 
-if [ ! -L "$legacy_prefix/bin/pi" ] && [ ! -e "$legacy_prefix/bin/pi" ]; then
-  pass_case "shadowing legacy pi symlink removed"
+if [ -e "$managed_root/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" ] \
+  && [ -L "$managed_root/bin/pi" ]; then
+  pass_case "mise npm-tool install root outside scanned prefixes preserved"
 else
-  fail_case "shadowing legacy pi symlink removed" "still present"
-fi
-
-if [ -e "$managed_prefix/lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" ] \
-  && [ -L "$managed_prefix/bin/pi" ]; then
-  pass_case "managed @earendil-works pi left intact"
-else
-  fail_case "managed @earendil-works pi left intact" "managed install was disturbed"
+  fail_case "mise npm-tool install root outside scanned prefixes preserved" "managed install was disturbed"
 fi
 
 if [ "$first" = "changed" ]; then
@@ -69,17 +115,6 @@ if [ "$second" = "unchanged" ]; then
   pass_case "idempotent: reports unchanged on second run"
 else
   fail_case "idempotent: reports unchanged on second run" "got: $second"
-fi
-
-# A managed pi that is the only thing on PATH must never be reported/removed.
-managed_only="$tmp/managed-only"
-mkdir -p "$managed_only/bin" "$managed_only/lib/node_modules/@earendil-works/pi-coding-agent/dist"
-ln -s "../lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" "$managed_only/bin/pi"
-managed_run="$(PI_LEGACY_PREFIX_GLOBS="$managed_only" bash "$purge")"
-if [ "$managed_run" = "unchanged" ] && [ -L "$managed_only/bin/pi" ]; then
-  pass_case "no-op against a managed-only prefix"
-else
-  fail_case "no-op against a managed-only prefix" "got: $managed_run"
 fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
