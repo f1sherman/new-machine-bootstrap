@@ -423,19 +423,70 @@ wt_fresh_path="$(cd "$wt_from_main_repo" && "$REPO_START_SCRIPT" --use-worktrees
 assert_equals "$(git -C "$wt_fresh_path" rev-parse HEAD)" "$wt_advanced_main_tip" "worktree mode cuts new branch from latest origin main, not HEAD"
 assert_no_file "$wt_fresh_path/wt-side.txt" "worktree mode new branch excludes other branch content"
 
-create_remote_repo done-coding-agent
-done_coding_main="$CREATED_REPO"
-done_coding_feature="$TMPROOT/done-coding-agent-feature"
-git -C "$done_coding_main" worktree add -q -b feature/done-coding-agent "$done_coding_feature" main
-done_coding_feature="$(realpath "$done_coding_feature")"
-commit_file "$done_coding_feature" worktree-done.txt "done" "worktree-done change"
-mkdir -p "$done_coding_main/.git/info" "$done_coding_feature/.coding-agent"
-printf '/.coding-agent/\n' >>"$done_coding_main/.git/info/exclude"
-printf 'worktree-only\n' >"$done_coding_feature/.coding-agent/worktree-only.txt"
-done_coding_out="$TMPROOT/done-coding-agent.out"
-(cd "$done_coding_feature" && "$WORKTREE_DONE_SCRIPT" --print-path >"$done_coding_out")
-assert_file_contains "$done_coding_out" "$done_coding_main" "worktree-done prints main path"
-assert_no_file "$done_coding_main/.coding-agent/worktree-only.txt" "worktree-done leaves retired .coding-agent state behind"
+assert_retired_data_cleanup_guard() {
+  local command_name="$1" entry_kind="$2" fixture_name="$3"
+  local main_repo feature_path guarded_path output error
+
+  create_remote_repo "$fixture_name"
+  main_repo="$CREATED_REPO"
+  feature_path="$TMPROOT/${fixture_name}-feature"
+  git -C "$main_repo" worktree add -q -b "feature/$fixture_name" "$feature_path" main
+  feature_path="$(realpath "$feature_path")"
+  commit_file "$feature_path" "${fixture_name}.txt" "$fixture_name" "$fixture_name change"
+  git -C "$main_repo" merge --ff-only --quiet "feature/$fixture_name"
+  git -C "$main_repo" push -q origin main
+
+  mkdir -p "$main_repo/.git/info"
+  printf '/.coding-agent\n' >>"$main_repo/.git/info/exclude"
+  guarded_path="$feature_path/.coding-agent"
+  case "$entry_kind" in
+    directory)
+      mkdir -p "$guarded_path"
+      printf 'recover me\n' >"$guarded_path/worktree-only.txt"
+      ;;
+    file)
+      printf 'recover me\n' >"$guarded_path"
+      ;;
+    symlink)
+      ln -s missing-worktree-only-target "$guarded_path"
+      ;;
+    *)
+      fail_case "$fixture_name setup" "unknown entry kind: $entry_kind"
+      ;;
+  esac
+
+  output="$TMPROOT/${fixture_name}.out"
+  error="$TMPROOT/${fixture_name}.err"
+  if (cd "$feature_path" && HOME="$TMPROOT/${fixture_name}-home" "$command_name" --print-path >"$output" 2>"$error"); then
+    fail_case "$fixture_name refuses retired data cleanup" "$command_name unexpectedly succeeded"
+  fi
+  assert_file_contains "$error" "manual recovery/removal" "$fixture_name explains manual recovery"
+  if [ ! -d "$feature_path" ]; then
+    fail_case "$fixture_name preserves worktree" "worktree was removed at $feature_path"
+  fi
+  pass_case "$fixture_name preserves worktree"
+  if [ ! -e "$guarded_path" ] && [ ! -L "$guarded_path" ]; then
+    fail_case "$fixture_name preserves retired data" "missing guarded entry: $guarded_path"
+  fi
+  pass_case "$fixture_name preserves retired data"
+}
+
+assert_retired_data_cleanup_guard "$WORKTREE_DONE_SCRIPT" directory "done-guard-directory"
+assert_retired_data_cleanup_guard "$WORKTREE_DONE_SCRIPT" file "done-guard-file"
+assert_retired_data_cleanup_guard "$WORKTREE_DONE_SCRIPT" symlink "done-guard-symlink"
+assert_retired_data_cleanup_guard "$REPO_END_SCRIPT" directory "end-guard-directory"
+assert_retired_data_cleanup_guard "$REPO_END_SCRIPT" file "end-guard-file"
+assert_retired_data_cleanup_guard "$REPO_END_SCRIPT" symlink "end-guard-symlink"
+
+create_remote_repo done-basic
+done_main="$CREATED_REPO"
+done_feature="$TMPROOT/done-basic-feature"
+git -C "$done_main" worktree add -q -b feature/done-basic "$done_feature" main
+done_feature="$(realpath "$done_feature")"
+commit_file "$done_feature" worktree-done.txt "done" "worktree-done change"
+done_out="$TMPROOT/done-basic.out"
+(cd "$done_feature" && "$WORKTREE_DONE_SCRIPT" --print-path >"$done_out")
+assert_file_contains "$done_out" "$done_main" "worktree-done prints main path"
 
 tmux_stub_bin="$TMPROOT/repo-end-tmux-bin"
 tmux_log="$TMPROOT/repo-end-tmux.log"
@@ -569,9 +620,6 @@ commit_file "$worktree_feature" worktree.txt "worktree" "worktree change"
 git -C "$worktree_main" merge --ff-only --quiet feature/end-worktree
 git -C "$worktree_main" push -q origin main
 forbid_origin_main_pushes "$worktree_main"
-mkdir -p "$worktree_main/.git/info" "$worktree_feature/.coding-agent"
-printf '/.coding-agent/\n' >>"$worktree_main/.git/info/exclude"
-printf 'worktree-only\n' >"$worktree_feature/.coding-agent/worktree-only.txt"
 worktree_home="$TMPROOT/end-worktree-home"
 worktree_log="$worktree_home/.local/state/repo-end.log"
 install_callback "$worktree_home" "$worktree_log"
@@ -580,7 +628,6 @@ worktree_out="$TMPROOT/end-worktree-merged.out"
 assert_file_contains "$worktree_out" "$worktree_main" "repo-end worktree mode prints main path"
 assert_git_has_file "$worktree_main" main worktree.txt "repo-end worktree mode keeps merged main content"
 assert_git_has_file "$worktree_origin" main worktree.txt "repo-end worktree mode relies on origin main"
-assert_no_file "$worktree_main/.coding-agent/worktree-only.txt" "repo-end worktree mode leaves retired .coding-agent state behind"
 if [ -e "$worktree_feature" ]; then
   fail_case "repo-end worktree mode removes linked worktree" "worktree remains at $worktree_feature"
 fi

@@ -84,6 +84,12 @@ jobs:
       - name: Verify repo lifecycle helpers
         run: bash tests/repo-lifecycle.sh
 
+      - name: Verify dev-host Claude permission migration
+        run: bash tests/dev-host-claude-permissions.sh
+
+      - name: Verify retired coding-agent references
+        run: bash tests/retired-coding-agent-references.sh
+
       - name: Verify repo-end callback behavior
         run: bash tests/repo-end-callbacks.sh
 
