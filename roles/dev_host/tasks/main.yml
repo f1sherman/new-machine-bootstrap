@@ -85,9 +85,7 @@
       changed = True
 
     default_allowed_tools = [
-      "Write(.coding-agent/plans/**)",
-      "Write(.coding-agent/research/**)",
-      "Write(.coding-agent/handoffs/**)",
+      "Write(.superpowers/handoffs/**)",
       "Bash(mkdir -p:*)",
       "Bash(~/.local/bin/spec-metadata:*)"
     ]

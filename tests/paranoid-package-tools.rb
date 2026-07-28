@@ -7,7 +7,6 @@ require "yaml"
 
 SKIP_PATH_PATTERNS = [
   %r{\Adocs/},
-  %r{\A\.coding-agent/},
   %r{\Atests/},
   %r{\Atests/paranoid-package-tools\.rb\z},
   %r{/(default-npm-packages|npmrc)\z}
