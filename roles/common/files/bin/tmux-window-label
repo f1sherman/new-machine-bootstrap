@@ -101,7 +101,7 @@ if [ -z "$label" ] && is_remote_candidate_command "$effective_command"; then
   if [ -z "$label" ]; then
     structured_marker="$(tmux show-options -qv -p -t "$pane_id" "@pane-title-structured" 2>/dev/null || true)"
     cached_pane_label="$(tmux show-options -qv -p -t "$pane_id" "@pane-label" 2>/dev/null || true)"
-    if [ -n "$structured_marker" ]; then
+    if [ -n "$structured_marker" ] && [[ "$cached_pane_label" == *" | "* ]]; then
       label="$(task_from_remote_label "$cached_pane_label" 2>/dev/null || true)"
       if [ -n "$label" ]; then
         task_label_resolved="1"
