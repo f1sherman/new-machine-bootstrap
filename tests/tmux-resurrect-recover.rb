@@ -21,6 +21,7 @@ class TmuxResurrectRecoverTest < Minitest::Test
     @resume_marker = File.join(@tmpdir, "resume-started")
     @interval_state = File.join(@tmpdir, "continuum-interval")
     @set_log = File.join(@tmpdir, "continuum-set.log")
+    @resume_attempt_log = File.join(@tmpdir, "continuum-resume-attempt.log")
     @output = File.join(@tmpdir, "recover.log")
     FileUtils.mkdir_p([@bin, @resurrect_dir])
     File.write(@snapshot, "pane\tone\npane\ttwo\npane\tthree\n#{"state\n" * 200}")
@@ -64,6 +65,20 @@ class TmuxResurrectRecoverTest < Minitest::Test
       "continuum interval should be paused and restored exactly once"
   end
 
+  def test_persistent_resume_failure_is_bounded_after_signal
+    spawn_recovery("FAKE_TMUX_FAIL_RESUME" => "1")
+
+    wait_until { File.exist?(@restore_marker) }
+    Process.kill("TERM", -@pid)
+    wait_until(timeout: 1) { recovery_exited? }
+
+    assert_equal "0", current_interval, "failed resume unexpectedly changed the interval"
+    assert_equal 143, @status.exitstatus
+    assert_equal 3, File.readlines(@resume_attempt_log).size,
+      "continuum resume should stop after the bounded attempt count"
+    assert_includes File.read(@output), "failed to resume continuum after 3 attempts"
+  end
+
   def test_term_to_recovery_pid_terminates_restore_child_and_resumes_interval
     spawn_recovery("FAKE_RESTORE_IGNORE_TERM" => "1")
 
@@ -99,6 +114,7 @@ class TmuxResurrectRecoverTest < Minitest::Test
       "TMUX" => "/tmp/fake-tmux-socket,123,0",
       "FAKE_TMUX_INTERVAL_STATE" => @interval_state,
       "FAKE_TMUX_SET_LOG" => @set_log,
+      "FAKE_TMUX_RESUME_ATTEMPT_LOG" => @resume_attempt_log,
       "FAKE_RESTORE_MARKER" => @restore_marker
     }.merge(extra_env)
     output = File.open(@output, "w")
@@ -178,6 +194,10 @@ class TmuxResurrectRecoverTest < Minitest::Test
         print File.read(state_path)
       when "set"
         value = args.last
+        if value != "0"
+          File.open(ENV.fetch("FAKE_TMUX_RESUME_ATTEMPT_LOG"), "a") { |file| file.puts(value) }
+          exit 1 if ENV["FAKE_TMUX_FAIL_RESUME"] == "1"
+        end
         marker_env = value == "0" ? "FAKE_TMUX_PAUSE_MARKER" : "FAKE_TMUX_RESUME_MARKER"
         marker = ENV[marker_env]
         if marker && !File.exist?(marker)
