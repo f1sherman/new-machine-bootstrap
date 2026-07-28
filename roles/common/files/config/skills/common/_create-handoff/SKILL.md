@@ -12,17 +12,13 @@ You are tasked with writing a handoff document to transfer your work context to 
 ## Process
 
 ### 1. Filepath & Metadata
-Use the following information to understand how to create your document:
-- Create your file under `.coding-agent/handoffs/ENG-XXXX/YYYY-MM-DD_HH-MM-SS_ENG-ZZZZ_description.md` (create the subdirectory structure if it doesn't already exist), where:
+Use the following information to create your document:
+- Create `.superpowers/handoffs/` if needed, then write `.superpowers/handoffs/YYYY-MM-DD_HH-MM-SS_<description>.md`, where:
   - YYYY-MM-DD is today's date
-  - HH-MM-SS is the hours, minutes and seconds based on the current time, in 24-hour format (i.e. use `13:00` for `1:00 pm`)
-  - ENG-XXXX is the ticket number (replace with `general` if no ticket)
-  - ENG-ZZZZ is the ticket number (omit if no ticket)
+  - HH-MM-SS is the current time in 24-hour hours, minutes, and seconds
   - description is a brief kebab-case description
 - Run the `~/.local/bin/spec-metadata` script to generate all relevant metadata
-- Examples:
-  - With ticket: `2025-01-08_13-55-22_ENG-2166_create-context-compaction.md`
-  - Without ticket: `2025-01-08_13-55-22_create-context-compaction.md`
+- Example: `.superpowers/handoffs/2025-01-08_13-55-22_create-context-compaction.md`
 
 ### 2. Handoff writing
 Using the above conventions, write your document. Use the defined filepath and the following YAML frontmatter pattern. Use the metadata gathered in step 1. Structure the document with YAML frontmatter followed by content:
@@ -41,7 +37,7 @@ last_updated: [Current date in YYYY-MM-DD format]
 type: implementation_strategy
 ---
 
-# Handoff: ENG-XXXX {very concise description}
+# Handoff: {very concise description}
 
 ## Task(s)
 {description of the task(s) that you were working on, along with the status of each (completed, work in progress, planned/discussed). If you are working on an implementation plan, make sure to call out which phase you are on. Make sure to reference the plan document and/or research document(s) you are working from that were provided to you at the beginning of the session, if applicable.}
@@ -71,9 +67,9 @@ Ask the user to review and approve the document. If they request any changes, ma
 Once approved, respond with a concise confirmation and include the handoff path, for example:
 
 ```
-Handoff created and synced! You can resume from this handoff in a new session with:
+Handoff created! You can resume from this handoff in a new session with:
 
-.coding-agent/handoffs/ENG-2166/2025-01-08_13-44-55_ENG-2166_create-context-compaction.md
+.superpowers/handoffs/2025-01-08_13-44-55_create-context-compaction.md
 ```
 
 ## Additional Notes & Instructions

@@ -13,29 +13,16 @@ You are tasked with resuming work from a handoff document through an interactive
 
 1. **If the path to a handoff document was provided**:
    - Immediately read the handoff document FULLY
-   - Immediately read any research or plan documents that it links to under `.coding-agent/plans` or `.coding-agent/research`. Do NOT use a sub-agent to read these critical files.
+   - Immediately read every critical artifact it links to, regardless of the artifact's ordinary repository path. Do NOT use a sub-agent to read these critical files.
    - Begin the analysis process by ingesting relevant context from the handoff document and reading additional files it mentions
    - Then propose a course of action to the user and confirm, or ask for clarification on direction
 
-2. **If a ticket number (like ENG-XXXX) was provided**:
-   - Locate the most recent handoff document for the ticket. Handoffs will be located in `.coding-agent/handoffs/ENG-XXXX` where `ENG-XXXX` is the ticket number. **List this directory's contents.**
-   - There may be zero, one or multiple files in the directory.
-   - **If there are zero files in the directory, or the directory does not exist**: tell the user: "I'm sorry, I can't seem to find that handoff document. Can you please provide me with a path to it?"
-   - **If there is only one file in the directory**: proceed with that handoff
-   - **If there are multiple files in the directory**: using the date and time specified in the file name (it will be in the format `YYYY-MM-DD_HH-MM-SS` in 24-hour time format), proceed with the most recent handoff document
-   - Immediately read the handoff document FULLY
-   - Immediately read any research or plan documents that it links to under `.coding-agent/plans` or `.coding-agent/research`; do NOT use a sub-agent to read these critical files
-   - Begin the analysis process by ingesting relevant context from the handoff document and reading additional files it mentions
-   - Then propose a course of action to the user and confirm, or ask for clarification on direction
-
-3. **If no parameters provided**, respond with:
-```
-I'll help you resume work from a handoff document. Let me find the available handoffs.
-
-Which handoff would you like to resume from?
-```
-
-Then wait for the user's input.
+2. **If no path was provided**:
+   - Recursively enumerate Markdown files (`*.md`) beneath `.superpowers/handoffs/`
+   - Select the newest handoff by the `YYYY-MM-DD_HH-MM-SS` timestamp in its filename
+   - If no Markdown handoff exists there, clearly report that none was found
+   - Never search or recreate retired handoff locations
+   - Read the selected handoff and every critical linked artifact fully, then begin the analysis process
 
 ## Process Steps
 
@@ -215,7 +202,7 @@ Then wait for the user's input.
 ## Example Interaction Flow
 
 ```
-User: Please resume from .coding-agent/handoffs/handoff-0.md
+User: Please resume from .superpowers/handoffs/2025-01-08_13-44-55_webhook-validation.md
 Assistant: Let me read and analyze that handoff document...
 
 [Reads handoff completely]
