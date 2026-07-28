@@ -19,10 +19,12 @@ non_darwin_bin = 'pi_bin="$PI_PACKAGE_ROOT/dist/cli.js"'
 non_darwin_local_bin = 'pi_bin="$pi_package_root/dist/cli.js"'
 non_darwin_shim = 'pi_bin="$pi_root/bin/pi"'
 invalid_non_darwin_bin = 'pi_bin="$pi_root/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"'
-non_darwin_package = 'PI_PACKAGE_ROOT="$pi_listing"'
+non_darwin_package = 'PI_PACKAGE_ROOT="$pi_package_root"'
 aube_executable_check = '[[ -x "$aube_bin" ]]'
 listing_cardinality_check = %q{[[ -n "$pi_listing" && "$pi_listing" != *$'\n'* ]]}
-listing_identity_check = %q{[[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]]}
+listing_parser = %q{IFS=$'\t' read -r pi_package_root pi_listing_name pi_listing_version pi_listing_extra <<<"$pi_listing"}
+listing_identity_check = %q{[[ -n "$pi_package_root" && "$pi_listing_name" == '@earendil-works/pi-coding-agent' && "$pi_listing_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" && -z "$pi_listing_extra" ]]}
+manifest_identity_check = %q{[[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]]}
 executable_check = '[[ -x "$pi_bin" ]]'
 package_check = 'abort "Managed Pi package root is missing or not a directory: #{package_root}" unless package_root.directory?'
 pi_link = 'ln -sf "$pi_bin"'
@@ -39,7 +41,9 @@ pi_link = 'ln -sf "$pi_bin"'
   abort "managed Pi task must not assume packages live directly under the mise install root" if task.include?(invalid_non_darwin_bin)
   abort "managed Pi task must validate the Aube executable" unless task.include?(aube_executable_check)
   abort "managed Pi task must require exactly one Aube package listing" unless task.include?(listing_cardinality_check)
+  abort "managed Pi task must parse Aube's tab-separated package listing" unless task.include?(listing_parser)
   abort "managed Pi task must validate the listed package identity and version" unless task.include?(listing_identity_check)
+  abort "managed Pi task must validate the package manifest identity and version" unless task.include?(manifest_identity_check)
 end
 
 abort "package-link task is missing the Aube-listed non-Darwin package layout" unless package_task.include?(non_darwin_package)
@@ -80,8 +84,9 @@ Dir.mktmpdir("pi-aube-layout") do |dir|
   FileUtils.mkdir_p(File.dirname(pi_bin))
   File.write(pi_bin, "#!/bin/sh\n")
   FileUtils.chmod(0o755, pi_bin)
-  File.write(File.join(package_root, "package.json"), %({"name":"@earendil-works/pi-coding-agent","version":"#{version}"}))
-  File.write(aube_bin, "#!/bin/sh\nprintf '%s\\n' #{Shellwords.escape(package_root)}\n")
+  package_name = "@earendil-works/pi-coding-agent"
+  File.write(File.join(package_root, "package.json"), %({"name":"#{package_name}","version":"#{version}"}))
+  File.write(aube_bin, "#!/bin/sh\nprintf '%s\\t%s\\t%s\\n' #{Shellwords.escape(package_root)} #{Shellwords.escape(package_name)} #{Shellwords.escape(version)}\n")
   FileUtils.chmod(0o755, aube_bin)
 
   parser = non_darwin_parser.gsub("{{ tool_versions.runtimes.pi_coding_agent }}", version)

@@ -1407,11 +1407,13 @@
       [[ -x "$aube_bin" ]] || { echo "Managed Aube executable is missing or not executable: $aube_bin" >&2; exit 1; }
       pi_listing="$(cd "$pi_root" && "$aube_bin" list --global --parseable '@earendil-works/pi-coding-agent')"
       [[ -n "$pi_listing" && "$pi_listing" != *$'\n'* ]] || { echo "Managed Pi package listing is missing or ambiguous" >&2; exit 1; }
-      PI_PACKAGE_ROOT="$pi_listing"
+      IFS=$'\t' read -r pi_package_root pi_listing_name pi_listing_version pi_listing_extra <<<"$pi_listing"
+      [[ -n "$pi_package_root" && "$pi_listing_name" == '@earendil-works/pi-coding-agent' && "$pi_listing_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" && -z "$pi_listing_extra" ]] || { echo "Managed Pi package listing is invalid: $pi_listing" >&2; exit 1; }
+      PI_PACKAGE_ROOT="$pi_package_root"
       pi_manifest="$PI_PACKAGE_ROOT/package.json"
       pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")"
       pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")"
-      [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]] || { echo "Managed Pi package listing is invalid: $pi_listing" >&2; exit 1; }
+      [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]] || { echo "Managed Pi package manifest is invalid: $pi_manifest" >&2; exit 1; }
       pi_bin="$PI_PACKAGE_ROOT/dist/cli.js"
       export PI_PACKAGE_ROOT
     fi
@@ -1472,11 +1474,12 @@
       [[ -x "$aube_bin" ]] || { echo "Managed Aube executable is missing or not executable: $aube_bin" >&2; exit 1; }
       pi_listing="$(cd "$pi_root" && "$aube_bin" list --global --parseable '@earendil-works/pi-coding-agent')"
       [[ -n "$pi_listing" && "$pi_listing" != *$'\n'* ]] || { echo "Managed Pi package listing is missing or ambiguous" >&2; exit 1; }
-      pi_package_root="$pi_listing"
+      IFS=$'\t' read -r pi_package_root pi_listing_name pi_listing_version pi_listing_extra <<<"$pi_listing"
+      [[ -n "$pi_package_root" && "$pi_listing_name" == '@earendil-works/pi-coding-agent' && "$pi_listing_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" && -z "$pi_listing_extra" ]] || { echo "Managed Pi package listing is invalid: $pi_listing" >&2; exit 1; }
       pi_manifest="$pi_package_root/package.json"
       pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")"
       pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")"
-      [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]] || { echo "Managed Pi package listing is invalid: $pi_listing" >&2; exit 1; }
+      [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]] || { echo "Managed Pi package manifest is invalid: $pi_manifest" >&2; exit 1; }
       pi_bin="$pi_package_root/dist/cli.js"
     fi
     [[ -x "$pi_bin" ]] || { echo "Managed Pi executable is missing or not executable: $pi_bin" >&2; exit 1; }
