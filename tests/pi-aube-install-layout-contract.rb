@@ -1,5 +1,10 @@
 # frozen_string_literal: true
 
+require "fileutils"
+require "open3"
+require "shellwords"
+require "tmpdir"
+
 repo_root = File.expand_path("..", __dir__)
 tasks = File.read(File.join(repo_root, "roles/common/tasks/main.yml"))
 package_task = tasks[/^- name: Link pi-coding-agent.*?(?=^- name: Create ~\/\.local\/bin symlinks)/m]
@@ -58,5 +63,36 @@ bin_index = bin_task.index(non_darwin_bin)
 check_index = bin_task.index(executable_check, bin_index || 0)
 link_index = bin_task.index(pi_link, bin_index || 0)
 abort "local-bin task must reject a missing executable before linking" unless bin_index && check_index && link_index && check_index < link_index
+
+non_darwin_parser = package_task[/^      pi_listing=.*?^      export PI_PACKAGE_ROOT$/m]
+abort "missing non-Darwin Aube listing parser" unless non_darwin_parser
+non_darwin_parser = non_darwin_parser.lines.map { |line| line.delete_prefix("      ") }.join
+
+Dir.mktmpdir("pi-aube-layout") do |dir|
+  version = "0.80.10"
+  install_root = File.join(dir, "global-aube", "install")
+  package_root = File.join(install_root, "node_modules/@earendil-works/pi-coding-agent")
+  pi_bin = File.join(package_root, "dist/cli.js")
+  aube_bin = File.join(dir, "aube")
+
+  FileUtils.mkdir_p(File.dirname(pi_bin))
+  File.write(pi_bin, "#!/bin/sh\n")
+  FileUtils.chmod(0o755, pi_bin)
+  File.write(aube_bin, "#!/bin/sh\nprintf '%s\\t%s\\t%s\\n' #{Shellwords.escape(install_root)} '@earendil-works/pi-coding-agent' #{version}\n")
+  FileUtils.chmod(0o755, aube_bin)
+
+  parser = non_darwin_parser.gsub("{{ tool_versions.runtimes.pi_coding_agent }}", version)
+  script = <<~BASH
+    set -euo pipefail
+    pi_root=#{Shellwords.escape(dir)}
+    aube_bin=#{Shellwords.escape(aube_bin)}
+    #{parser}
+    printf '%s\\n%s\\n' "$pi_bin" "$PI_PACKAGE_ROOT"
+  BASH
+  stdout, stderr, status = Open3.capture3("bash", "-c", script)
+  abort "non-Darwin parser rejected Aube global parseable output: #{stderr}" unless status.success?
+  expected = "#{pi_bin}\n#{package_root}\n"
+  abort "non-Darwin parser resolved the wrong Aube paths: #{stdout.inspect}" unless stdout == expected
+end
 
 puts "Pi Aube install layout contract passed"
