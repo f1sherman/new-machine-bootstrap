@@ -50,6 +50,11 @@ if [[ -d "$repo_root/.git" ]]; then
   exit 1
 fi
 
+if [[ -e "$repo_root/.coding-agent" || -L "$repo_root/.coding-agent" ]]; then
+  printf 'Error: manual recovery/removal is required for retired data at %s; preserve any needed data, remove it, then run worktree-done again\n' "$repo_root/.coding-agent" >&2
+  exit 1
+fi
+
 if [[ -n "$("$(_worktree_cmd git)" -C "$repo_root" status --porcelain)" ]]; then
   printf 'Error: worktree has uncommitted changes; commit or stash first\n' >&2
   exit 1

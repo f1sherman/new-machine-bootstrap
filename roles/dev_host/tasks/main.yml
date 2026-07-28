@@ -84,6 +84,12 @@
       data["projects"] = {}
       changed = True
 
+    retired_tool_root = "." + "coding-agent"
+    retired_allowed_tools = {
+      f"Write({retired_tool_root}/plans/**)",
+      f"Write({retired_tool_root}/research/**)",
+      f"Write({retired_tool_root}/handoffs/**)"
+    }
     default_allowed_tools = [
       "Write(.superpowers/handoffs/**)",
       "Bash(mkdir -p:*)",
@@ -106,11 +112,14 @@
           changed = True
 
         existing_tools = project.get("allowedTools", [])
+        filtered_tools = [tool for tool in existing_tools if tool not in retired_allowed_tools]
+        if filtered_tools != existing_tools:
+          changed = True
         for tool in default_allowed_tools:
-          if tool not in existing_tools:
-            existing_tools.append(tool)
+          if tool not in filtered_tools:
+            filtered_tools.append(tool)
             changed = True
-        project["allowedTools"] = existing_tools
+        project["allowedTools"] = filtered_tools
 
     if changed:
       with open(config_file, "w") as f:

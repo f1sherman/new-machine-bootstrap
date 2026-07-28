@@ -61,7 +61,7 @@ type: implementation_strategy
 { other notes, references, or useful information - e.g. where relevant sections of the codebase are, where relevant documents are, or other important things you learned that you want to pass on but that don't fall into the above categories}
 ```
 
-### 3. Approve and Sync
+### 3. Review and Approve
 Ask the user to review and approve the document. If they request any changes, make them and ask for approval again.
 
 Once approved, respond with a concise confirmation and include the handoff path, for example:
