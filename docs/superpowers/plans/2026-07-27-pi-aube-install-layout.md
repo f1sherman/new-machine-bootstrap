@@ -4,7 +4,7 @@
 
 **Goal:** Make provisioning resolve managed Pi from the explicit current Aube-backed mise npm layout for each supported platform.
 
-**Architecture:** Derive one mise install root per task and branch on the Ansible OS family. Darwin uses `bin/pi` and derives the package root from that symlink's real target. Non-Darwin uses the direct package entrypoint `node_modules/@earendil-works/pi-coding-agent/dist/cli.js` and the direct `node_modules/@earendil-works/pi-coding-agent` package root. The selected executable and package path are mandatory; no layout probing or fallback is allowed. The non-Darwin `node_modules/.bin/pi` shell shim must not be used as the stable-link target because its relative target breaks when the shim is symlinked outside its own directory. Before managed installation, an idempotent cleanup scans only known npm global-prefix layouts and removes both Pi package identities that can shadow the managed mise npm tool.
+**Architecture:** Derive one mise install root per task and branch on the Ansible OS family. Darwin uses `bin/pi` and derives the package root from that symlink's real target. Non-Darwin asks Aube for the one installed package at the pinned version, then uses the direct entrypoint and package root under that physical global install. The selected executable and package path are mandatory; no layout probing or fallback is allowed. The non-Darwin `bin/pi` shell shim must not be used as the stable-link target because its relative target breaks when the shim is symlinked outside its own directory. Before managed installation, an idempotent cleanup scans only known npm global-prefix layouts and removes both Pi package identities that can shadow the managed mise npm tool.
 
 **Tech Stack:** Ansible YAML, Bash, Ruby contract tests
 
@@ -28,18 +28,18 @@
 - Modify: `docs/superpowers/plans/2026-07-27-pi-aube-install-layout.md`
 
 **Interfaces:**
-- Consumes: `mise where npm:@earendil-works/pi-coding-agent`, returning the managed install root, plus `ansible_facts['os_family']`.
+- Consumes: `mise where npm:@earendil-works/pi-coding-agent`, returning the managed install root, Aube's `list --global --parseable` output from that root, plus `ansible_facts['os_family']`.
 - Produces on Darwin: package root derived from `<root>/bin/pi`'s real target and command source `<root>/bin/pi`.
-- Produces on non-Darwin: package source `<root>/node_modules/@earendil-works/pi-coding-agent` and command source `<root>/node_modules/@earendil-works/pi-coding-agent/dist/cli.js`.
+- Produces on non-Darwin: package source `<Aube-listed install>/node_modules/@earendil-works/pi-coding-agent` and command source `<Aube-listed install>/node_modules/@earendil-works/pi-coding-agent/dist/cli.js`.
 
 - [ ] **Step 1: Write the failing platform contract**
 
 Revise the focused contract test to isolate both managed Pi tasks and require:
 
 - an explicit Darwin branch and non-Darwin `else` path in each task;
-- both command layouts and rejection of the non-Darwin `node_modules/.bin/pi` shell shim as a stable-link target;
+- both command layouts and rejection of the non-Darwin `bin/pi` shell shim as a stable-link target;
 - Darwin package derivation through `Pathname#realpath` on `PI_BIN`;
-- non-Darwin direct package resolution through `Pathname#realpath` on `PI_PACKAGE_ROOT`;
+- non-Darwin resolution of exactly one Aube-listed install at the pinned version and direct package resolution through `Pathname#realpath` on `PI_PACKAGE_ROOT`;
 - executable validation before package resolution and command linking;
 - package directory validation; and
 - the existing stale managed-symlink replacement behavior.
@@ -48,7 +48,7 @@ Revise the focused contract test to isolate both managed Pi tasks and require:
 
 Run: `ruby tests/pi-aube-install-layout-contract.rb`
 
-Expected against the shim-target implementation: failure reporting that a managed Pi task lacks the required direct non-Darwin entrypoint or still selects the relocatable shell shim.
+Expected against the incorrect root-level package implementation: failure reporting that a managed Pi task lacks the required Aube-listed non-Darwin entrypoint.
 
 - [ ] **Step 3: Implement explicit platform paths**
 
@@ -58,13 +58,15 @@ In both managed Pi shell tasks, resolve `pi_root` once and select the executable
 if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then
   pi_bin="$pi_root/bin/pi"
 else
-  pi_bin="$pi_root/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
+  pi_listing="$(cd "$pi_root" && "$aube_bin" list --global --parseable '@earendil-works/pi-coding-agent')"
+  # Require one exact package/version row, then derive pi_install from it.
+  pi_bin="$pi_install/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
 fi
 ```
 
-Reject a missing or non-executable `pi_bin` before using it.
+Reject a missing Aube executable, missing or ambiguous package listing, mismatched package name or version, and missing or non-executable `pi_bin` before use.
 
-In the package-link task, export the direct package path only for non-Darwin. Pass the explicit OS family into Ruby. For Darwin, resolve `PI_BIN` and derive the package root from the executable target's parent directories. For non-Darwin, resolve `PI_PACKAGE_ROOT` directly. Require the resulting package root to be a directory before managing the global package link.
+In the package-link task, export the Aube-listed direct package path only for non-Darwin. Pass the explicit OS family into Ruby. For Darwin, resolve `PI_BIN` and derive the package root from the executable target's parent directories. For non-Darwin, resolve `PI_PACKAGE_ROOT` directly. Require the resulting package root to be a directory before managing the global package link.
 
 Do not alter stale managed-link replacement.
 
@@ -155,7 +157,7 @@ readlink ~/.local/bin/pi
 pi --version
 ```
 
-Expected: on Darwin the link target ends in `/bin/pi`; on non-Darwin it ends in `/node_modules/@earendil-works/pi-coding-agent/dist/cli.js`. Pi reports the managed version.
+Expected: on Darwin the link target ends in `/bin/pi`; on non-Darwin it runs the direct `/global-aube/.../node_modules/@earendil-works/pi-coding-agent/dist/cli.js` entrypoint. Pi reports the managed version.
 
 - [ ] **Step 3: Re-run focused validation**
 

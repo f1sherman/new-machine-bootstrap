@@ -1403,8 +1403,15 @@
     if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then
       pi_bin="$pi_root/bin/pi"
     else
-      pi_bin="$pi_root/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
-      export PI_PACKAGE_ROOT="$pi_root/node_modules/@earendil-works/pi-coding-agent"
+      aube_bin="$("{{ mise_bin }}" where "aube@{{ tool_versions.runtimes.aube }}")/aube"
+      [[ -x "$aube_bin" ]] || { echo "Managed Aube executable is missing or not executable: $aube_bin" >&2; exit 1; }
+      pi_listing="$(cd "$pi_root" && "$aube_bin" list --global --parseable '@earendil-works/pi-coding-agent')"
+      [[ -n "$pi_listing" && "$pi_listing" != *$'\n'* ]] || { echo "Managed Pi package listing is missing or ambiguous" >&2; exit 1; }
+      IFS=$'\t' read -r pi_install pi_name pi_version pi_extra <<<"$pi_listing"
+      [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" && -z "$pi_extra" ]] || { echo "Managed Pi package listing is invalid: $pi_listing" >&2; exit 1; }
+      pi_bin="$pi_install/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
+      PI_PACKAGE_ROOT="$pi_install/node_modules/@earendil-works/pi-coding-agent"
+      export PI_PACKAGE_ROOT
     fi
     export PI_BIN="$pi_bin"
     [[ -x "$pi_bin" ]] || { echo "Managed Pi executable is missing or not executable: $pi_bin" >&2; exit 1; }
@@ -1459,7 +1466,13 @@
     if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then
       pi_bin="$pi_root/bin/pi"
     else
-      pi_bin="$pi_root/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
+      aube_bin="$("{{ mise_bin }}" where "aube@{{ tool_versions.runtimes.aube }}")/aube"
+      [[ -x "$aube_bin" ]] || { echo "Managed Aube executable is missing or not executable: $aube_bin" >&2; exit 1; }
+      pi_listing="$(cd "$pi_root" && "$aube_bin" list --global --parseable '@earendil-works/pi-coding-agent')"
+      [[ -n "$pi_listing" && "$pi_listing" != *$'\n'* ]] || { echo "Managed Pi package listing is missing or ambiguous" >&2; exit 1; }
+      IFS=$'\t' read -r pi_install pi_name pi_version pi_extra <<<"$pi_listing"
+      [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" && -z "$pi_extra" ]] || { echo "Managed Pi package listing is invalid: $pi_listing" >&2; exit 1; }
+      pi_bin="$pi_install/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
     fi
     [[ -x "$pi_bin" ]] || { echo "Managed Pi executable is missing or not executable: $pi_bin" >&2; exit 1; }
     ln -sf "$codex_bin" "{{ ansible_facts['user_dir'] }}/.local/bin/codex"
