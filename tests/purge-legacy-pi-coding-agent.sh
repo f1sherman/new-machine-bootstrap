@@ -28,6 +28,18 @@ mkdir -p "$earendil_prefix/bin" "$earendil_prefix/lib/node_modules/@earendil-wor
 printf '#!/usr/bin/env node\n' >"$earendil_prefix/lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
 ln -s "../lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" "$earendil_prefix/bin/pi"
 
+# Dangling package links model stale global installs whose old mise targets have
+# already disappeared. Neither filesystem existence nor symlink identity may
+# remain after cleanup.
+dangling_prefix="$tmp/node/24.0.0"
+mkdir -p \
+  "$dangling_prefix/lib/node_modules/@mariozechner" \
+  "$dangling_prefix/lib/node_modules/@earendil-works"
+ln -s "$tmp/missing/mariozechner-pi" \
+  "$dangling_prefix/lib/node_modules/@mariozechner/pi-coding-agent"
+ln -s "$tmp/missing/earendil-works-pi" \
+  "$dangling_prefix/lib/node_modules/@earendil-works/pi-coding-agent"
+
 # A scanned prefix with stale packages but an unrelated pi link. The packages
 # must be removed without disturbing the link or unrelated same-scope packages.
 preserved_prefix="$tmp/homebrew"
@@ -48,7 +60,7 @@ mkdir -p "$managed_root/bin" "$managed_root/node_modules/@earendil-works/pi-codi
 printf '#!/usr/bin/env node\n' >"$managed_root/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"
 ln -s "../node_modules/@earendil-works/pi-coding-agent/dist/cli.js" "$managed_root/bin/pi"
 
-globs="$mario_prefix $earendil_prefix $preserved_prefix"
+globs="$mario_prefix $earendil_prefix $dangling_prefix $preserved_prefix"
 first="$(PI_LEGACY_PREFIX_GLOBS="$globs" bash "$purge")"
 
 for package_path in \
@@ -61,6 +73,17 @@ do
     pass_case "stale package removed: ${package_path#"$tmp"/}"
   else
     fail_case "stale package removed: ${package_path#"$tmp"/}" "still present"
+  fi
+done
+
+for dangling_path in \
+  "$dangling_prefix/lib/node_modules/@mariozechner/pi-coding-agent" \
+  "$dangling_prefix/lib/node_modules/@earendil-works/pi-coding-agent"
+do
+  if [ ! -e "$dangling_path" ] && [ ! -L "$dangling_path" ]; then
+    pass_case "dangling stale package link removed: ${dangling_path#"$tmp"/}"
+  else
+    fail_case "dangling stale package link removed: ${dangling_path#"$tmp"/}" "filesystem entry or symlink still present"
   fi
 done
 

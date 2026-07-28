@@ -26,7 +26,7 @@ for prefix in $prefix_globs; do
 
   for stale_pkg in $stale_packages; do
     pkg_dir="$prefix/lib/node_modules/$stale_pkg"
-    if [ -e "$pkg_dir" ]; then
+    if [ -e "$pkg_dir" ] || [ -L "$pkg_dir" ]; then
       rm -rf "$pkg_dir"
       changed=1
 
