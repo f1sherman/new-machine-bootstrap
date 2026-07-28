@@ -15,23 +15,25 @@ abort "missing managed Pi local-bin task" unless bin_task
 platform_branch = %q{if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then}
 darwin_bin = 'pi_bin="$pi_root/bin/pi"'
 non_darwin_listing = 'list --global --parseable \'@earendil-works/pi-coding-agent\''
-non_darwin_bin = 'pi_bin="$pi_install/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"'
+non_darwin_bin = 'pi_bin="$PI_PACKAGE_ROOT/dist/cli.js"'
+non_darwin_local_bin = 'pi_bin="$pi_package_root/dist/cli.js"'
 non_darwin_shim = 'pi_bin="$pi_root/bin/pi"'
 invalid_non_darwin_bin = 'pi_bin="$pi_root/node_modules/@earendil-works/pi-coding-agent/dist/cli.js"'
-non_darwin_package = 'PI_PACKAGE_ROOT="$pi_install/node_modules/@earendil-works/pi-coding-agent"'
+non_darwin_package = 'PI_PACKAGE_ROOT="$pi_listing"'
 aube_executable_check = '[[ -x "$aube_bin" ]]'
 listing_cardinality_check = %q{[[ -n "$pi_listing" && "$pi_listing" != *$'\n'* ]]}
-listing_identity_check = %q{[[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" && -z "$pi_extra" ]]}
+listing_identity_check = %q{[[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]]}
 executable_check = '[[ -x "$pi_bin" ]]'
 package_check = 'abort "Managed Pi package root is missing or not a directory: #{package_root}" unless package_root.directory?'
 pi_link = 'ln -sf "$pi_bin"'
 
-[package_task, bin_task].each do |task|
+[package_task, bin_task].each_with_index do |task, index|
   branch_index = task.index(platform_branch)
   darwin_index = task.index(darwin_bin, branch_index || 0)
   else_index = task.index("\n    else\n", darwin_index || 0)
   listing_index = task.index(non_darwin_listing, else_index || 0)
-  non_darwin_index = task.index(non_darwin_bin, listing_index || 0)
+  expected_bin = index.zero? ? non_darwin_bin : non_darwin_local_bin
+  non_darwin_index = task.index(expected_bin, listing_index || 0)
   abort "managed Pi task must use explicit Darwin and non-Darwin Aube layouts" unless branch_index && darwin_index && else_index && listing_index && non_darwin_index && branch_index < darwin_index && darwin_index < else_index && else_index < listing_index && listing_index < non_darwin_index
   abort "managed Pi task must not link the relocatable non-Darwin shell shim" if task.index(non_darwin_shim, else_index || 0)
   abort "managed Pi task must not assume packages live directly under the mise install root" if task.include?(invalid_non_darwin_bin)
@@ -59,7 +61,7 @@ package_check_index = package_task.index(executable_check, package_bin_index || 
 ruby_index = package_task.index(%q{"${ruby_cmd[@]}" <<'RUBY'})
 abort "package-link task must reject a missing executable before resolving the package" unless package_bin_index && package_check_index && ruby_index && package_check_index < ruby_index
 
-bin_index = bin_task.index(non_darwin_bin)
+bin_index = bin_task.index(non_darwin_local_bin)
 check_index = bin_task.index(executable_check, bin_index || 0)
 link_index = bin_task.index(pi_link, bin_index || 0)
 abort "local-bin task must reject a missing executable before linking" unless bin_index && check_index && link_index && check_index < link_index
@@ -78,7 +80,8 @@ Dir.mktmpdir("pi-aube-layout") do |dir|
   FileUtils.mkdir_p(File.dirname(pi_bin))
   File.write(pi_bin, "#!/bin/sh\n")
   FileUtils.chmod(0o755, pi_bin)
-  File.write(aube_bin, "#!/bin/sh\nprintf '%s\\t%s\\t%s\\n' #{Shellwords.escape(install_root)} '@earendil-works/pi-coding-agent' #{version}\n")
+  File.write(File.join(package_root, "package.json"), %({"name":"@earendil-works/pi-coding-agent","version":"#{version}"}))
+  File.write(aube_bin, "#!/bin/sh\nprintf '%s\\n' #{Shellwords.escape(package_root)}\n")
   FileUtils.chmod(0o755, aube_bin)
 
   parser = non_darwin_parser.gsub("{{ tool_versions.runtimes.pi_coding_agent }}", version)
