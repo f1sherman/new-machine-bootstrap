@@ -29,7 +29,7 @@ Manual recovery from `last.safe` restored the layouts, but a long-running post-r
 
 ### Save serialization and collision guard
 
-A managed `tmux-resurrect-save-wrapper` will hold an advisory lock for the complete upstream save invocation. Both managed tmux configurations will set `@resurrect-save-script-path` to this wrapper after TPM initialization, matching the existing restore-wrapper override. This serializes snapshot creation, post-save hooks, comparison, `last` relinking, pane-content archiving, and cleanup without changing tmux-resurrect itself.
+A managed `tmux-resurrect-save-wrapper` will hold an advisory lock for the complete upstream save invocation. Both managed tmux configurations will set `@resurrect-save-script-path` to this wrapper after TPM initialization, matching the existing restore-wrapper override, and explicitly rebind tmux-resurrect's manual save key to the wrapper because the plugin creates that binding before consulting the option. This serializes manual and automatic snapshot creation, post-save hooks, comparison, `last` relinking, pane-content archiving, and cleanup without changing tmux-resurrect itself.
 
 `tmux-resurrect-save-extra` runs before tmux-resurrect compares the new state file with `last`. If `last` is a symlink whose resolved target is the same path as the new state file, the comparison would compare the file with itself and tmux-resurrect would delete it as unchanged, leaving `last` dangling.
 
