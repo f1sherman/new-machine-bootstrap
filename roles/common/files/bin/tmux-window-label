@@ -18,7 +18,7 @@ pane_info="${pane_info//$field_separator/$parse_separator}"
 IFS="$parse_separator" read -r window_id pane_active window_name pane_tty pane_current_path pane_current_command pane_title pane_id <<< "$pane_info"
 [ -n "$window_id" ] || exit 0
 [ "$pane_active" = "1" ] || exit 0
-effective_command="${2:-$pane_current_command}"
+effective_command="${2:-${pane_current_command:-zsh}}"
 
 is_remote_candidate_command() {
   case "$1" in
@@ -28,11 +28,43 @@ is_remote_candidate_command() {
 }
 
 agent_kind="$(tmux show-options -qv -p -t "$pane_id" "@agent_kind" 2>/dev/null || true)"
+get_process_lines() {
+  if [ -n "${TMUX_WINDOW_LABEL_PS_FILE:-}" ] && [ -f "$TMUX_WINDOW_LABEL_PS_FILE" ]; then
+    cat "$TMUX_WINDOW_LABEL_PS_FILE"
+  elif [ -n "$pane_tty" ]; then
+    ps -o pid=,stat=,comm=,args= -t "$pane_tty" 2>/dev/null
+  fi
+}
+
+node_matches_agent_kind() {
+  local line pid stat comm args
+  while IFS= read -r line || [ -n "$line" ]; do
+    [ -n "$line" ] || continue
+    read -r pid stat comm args <<< "$line"
+    [ "${comm:-}" = node ] || continue
+    case "${stat:-}" in
+      *+*) ;;
+      *) continue ;;
+    esac
+    case "$agent_kind" in
+      pi)
+        printf '%s\n' "${args:-}" | grep -Eq 'pi-coding-agent|(^|[[:space:]])([^[:space:]]*/)?pi([[:space:]]|$)' && return 0
+        ;;
+      claude)
+        printf '%s\n' "${args:-}" | grep -Eq '@anthropic-ai/claude-code|(^|[[:space:]])([^[:space:]]*/)?claude([[:space:]]|$)' && return 0
+        ;;
+    esac
+  done < <(get_process_lines)
+  return 1
+}
+
+live_agent=""
+case "$agent_kind:$effective_command" in
+  claude:claude|codex:codex|pi:pi) live_agent=1 ;;
+  claude:node|pi:node) node_matches_agent_kind && live_agent=1 ;;
+esac
 is_live_agent() {
-  case "$agent_kind:$effective_command" in
-    claude:claude|claude:node|codex:codex|pi:pi|pi:node) return 0 ;;
-    *) return 1 ;;
-  esac
+  [ -n "$live_agent" ]
 }
 
 ind_activity=""

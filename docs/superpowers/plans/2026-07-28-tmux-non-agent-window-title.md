@@ -4,7 +4,7 @@
 
 **Goal:** Render non-agent tmux windows as `<program> | <Git root or current directory>` while preserving managed labels for live coding-agent TUIs.
 
-**Architecture:** `tmux-window-label` remains the sole window-name renderer. It accepts an optional effective-command override, checks live agent ownership before honoring cached task state, and computes a Git-root-aware fallback for other commands. Existing zsh lifecycle hooks call it at `preexec`, `precmd`, and `chpwd` so transitions are immediate; tmux focus hooks remain repair paths.
+**Architecture:** `tmux-window-label` remains the sole window-name renderer. It accepts an optional effective-command override, checks live agent ownership before honoring cached task state, and computes a Git-root-aware fallback for other commands. Zsh lifecycle hooks asynchronously dispatch ordered transitions through `tmux-title-transition`, which serializes label rendering before remote publication and drops stale requests; tmux focus hooks remain repair paths.
 
 **Tech Stack:** Bash, zsh hooks, tmux CLI, Git CLI, shell contract tests
 
@@ -67,7 +67,7 @@ In `tmux-window-label`:
 
 1. Read `effective_command="${2:-$pane_current_command}"`.
 2. Read `@agent_kind`.
-3. Add `is_live_agent` that requires kind/command pairs: Claude accepts `claude|node`, Codex accepts `codex`, and Pi accepts `pi|node`.
+3. Add `is_live_agent` that accepts direct `claude`, `codex`, and `pi` commands; a generic `node` command additionally requires matching foreground argv evidence from the pane tty for the cached Claude or Pi kind.
 4. Honor cached managed task/window labels and `@agent_worktree_path` only when `is_live_agent` succeeds.
 5. For non-agent panes, compute the Git top level with `git -C "$pane_current_path" rev-parse --show-toplevel`; fall back to `pane_current_path`; take its basename; render `"$effective_command | $directory"`.
 6. Clear `@window-indicators` on non-agent panes and avoid remote structured-label parsing unless the effective command is a remote candidate.
@@ -96,11 +96,13 @@ Expected: all assertions pass, including stale-task fallback and live-agent pres
 
 **Files:**
 - Modify: `tests/tmux-label-contract.sh`
+- Create: `roles/common/files/bin/tmux-title-transition`
 - Modify: `roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh`
+- Modify: `roles/common/tasks/main.yml`
 
 **Interfaces:**
-- Consumes: zsh `preexec`, `precmd`, and `chpwd` lifecycle callbacks; `tmux-window-label <pane-id> [effective-command]`
-- Produces: immediate pre-launch and post-command window-label refreshes, ordered before remote-title publication
+- Consumes: zsh `preexec`, `precmd`, and `chpwd` lifecycle callbacks; `tmux-title-transition <pane-id> <request-id> <effective-command> <suppress-edge>`
+- Produces: nonblocking pre-launch and post-command requests, serialized in request order with label rendering before remote-title publication
 
 - [ ] **Step 1: Add failing zsh-hook assertions**
 
@@ -135,10 +137,10 @@ Expected: FAIL because the lifecycle callbacks do not exist and preexec/precmd o
 In `10-common-shell.zsh`:
 
 1. Add a small command-name extractor using zsh lexical splitting, taking the first command word and stripping path prefixes.
-2. Add `_tmux_window_title_preexec` to call `tmux-window-label "$TMUX_PANE" "$program"` synchronously and best effort.
-3. Add `_tmux_window_title_precmd` to call `tmux-window-label "$TMUX_PANE" zsh` synchronously and best effort.
-4. Register both hooks before the existing remote-title preexec/precmd hooks so nested publication sees the corrected name.
-5. Keep `chpwd` asynchronous, but pass `zsh` to the renderer.
+2. Add `tmux-title-transition`, using monotonic request IDs and a per-pane lock to serialize background work, skip stale requests, render the label, then publish the remote title.
+3. Add `_tmux_window_title_preexec` and `_tmux_window_title_precmd` to dispatch the transition helper in disowned background jobs.
+4. Preserve vim edge suppression as transition input so publication follows the corrected label.
+5. Route `chpwd` through the same asynchronous transition path and provision the helper on macOS and Debian.
 
 - [ ] **Step 4: Run the focused contract and verify GREEN**
 
@@ -148,13 +150,14 @@ Run:
 bash tests/tmux-label-contract.sh
 ```
 
-Expected: all assertions pass with exact `nvim` and `zsh` calls and correct publication order.
+Expected: all assertions pass with asynchronous `nvim` and `zsh` dispatches, serialized/stale-request coverage, and correct label-before-publication order.
 
 - [ ] **Step 5: Commit the lifecycle change**
 
 ```bash
 ~/.pi/agent/skills/z-commit/commit.sh -m "Refresh tmux titles across shell commands" \
-  tests/tmux-label-contract.sh roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh
+  tests/tmux-label-contract.sh roles/common/files/bin/tmux-title-transition \
+  roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh roles/common/tasks/main.yml
 ```
 
 ---
@@ -174,6 +177,7 @@ Expected: all assertions pass with exact `nvim` and `zsh` calls and correct publ
 
 ```bash
 bash -n roles/common/files/bin/tmux-window-label
+bash -n roles/common/files/bin/tmux-title-transition
 zsh -n roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh
 git diff --check
 bash tests/tmux-label-contract.sh

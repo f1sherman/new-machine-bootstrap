@@ -10,6 +10,7 @@ PANE_LABEL="$BIN_DIR/tmux-pane-label"
 PANE_TITLE_CHANGED="$BIN_DIR/tmux-pane-title-changed"
 AGENT_WORKTREE="$BIN_DIR/tmux-agent-worktree"
 WINDOW_LABEL="$BIN_DIR/tmux-window-label"
+TITLE_TRANSITION="$BIN_DIR/tmux-title-transition"
 PANE_LINK="$BIN_DIR/tmux-pane-link"
 REMOTE_TITLE="$BIN_DIR/tmux-remote-title"
 SYNC_REMOTE_TITLE="$BIN_DIR/tmux-sync-remote-title"
@@ -66,6 +67,14 @@ assert_equals() {
   pass_case "$name"
 }
 
+assert_less_than() {
+  local actual="$1" limit="$2" name="$3"
+  if [ "$actual" -ge "$limit" ]; then
+    fail_case "$name" "expected $actual to be less than $limit"
+  fi
+  pass_case "$name"
+}
+
 assert_file_contains() {
   local path="$1" needle="$2" name="$3"
   if [ ! -f "$path" ]; then
@@ -101,12 +110,25 @@ assert_file_line() {
 
 assert_line_before() {
   local path="$1" before="$2" after="$3" name="$4" before_line after_line
-  before_line="$(grep -nFx -- "$before" "$path" | head -n 1 | cut -d: -f1)"
-  after_line="$(grep -nFx -- "$after" "$path" | head -n 1 | cut -d: -f1)"
+  before_line="$(grep -nFx -- "$before" "$path" 2>/dev/null | head -n 1 | cut -d: -f1 || true)"
+  after_line="$(grep -nFx -- "$after" "$path" 2>/dev/null | head -n 1 | cut -d: -f1 || true)"
   if [ -z "$before_line" ] || [ -z "$after_line" ] || [ "$before_line" -ge "$after_line" ]; then
     fail_case "$name" "'$before' does not appear before '$after' in $path"
   fi
   pass_case "$name"
+}
+
+wait_for_file_line() {
+  local path="$1" line="$2" name="$3" attempts=0
+  while [ "$attempts" -lt 100 ]; do
+    if [ -f "$path" ] && grep -Fxq -- "$line" "$path"; then
+      pass_case "$name"
+      return 0
+    fi
+    sleep 0.02
+    attempts=$((attempts + 1))
+  done
+  fail_case "$name" "missing exact line '$line' in $path after waiting"
 }
 
 assert_no_file() {
@@ -327,35 +349,63 @@ PATH="$remote_publish_tmux_dir:$PATH" \
   "$REMOTE_TITLE" publish
 assert_equals "$(wc -c < "$remote_publish_visible" | tr -d ' ')" "0" "inactive source pane publishes no remote title"
 
+transition_state="$TMPROOT/transition-state"
+transition_log="$TMPROOT/transition.log"
+transition_bin="$TMPROOT/transition-bin"
+mkdir -p "$transition_bin"
+cat >"$transition_bin/tmux-window-label" <<'STUB'
+#!/usr/bin/env bash
+printf 'label-start\t%s\n' "${2:-}" >> "$TMUX_TITLE_TRANSITION_LOG"
+[ "${2:-}" != old ] || sleep 0.2
+printf 'label-end\t%s\n' "${2:-}" >> "$TMUX_TITLE_TRANSITION_LOG"
+STUB
+cat >"$transition_bin/tmux-remote-title" <<'STUB'
+#!/usr/bin/env bash
+printf 'publish\t%s\t%s\n' "${TMUX_REMOTE_TITLE_SUPPRESS_EDGE:-0}" "${1:-}" >> "$TMUX_TITLE_TRANSITION_LOG"
+STUB
+chmod +x "$transition_bin/tmux-window-label" "$transition_bin/tmux-remote-title"
+SSH_CONNECTION=test TMUX_TITLE_TRANSITION_STATE_DIR="$transition_state" \
+TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
+  "$TITLE_TRANSITION" %1 0001 old 0 &
+old_transition_pid=$!
+wait_for_file_line "$transition_log" $'label-start\told' "older transition renderer starts"
+SSH_CONNECTION=test TMUX_TITLE_TRANSITION_STATE_DIR="$transition_state" \
+TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
+  "$TITLE_TRANSITION" %1 0002 new 1 &
+new_transition_pid=$!
+wait "$old_transition_pid" "$new_transition_pid"
+assert_line_before "$transition_log" $'label-start\told' $'label-end\told' "transition keeps each render serialized"
+assert_line_before "$transition_log" $'label-end\told' $'label-start\tnew' "newer transition waits for prior renderer"
+assert_file_not_contains "$transition_log" $'publish\t0\tpublish' "stale transition does not publish after a newer request"
+assert_file_line "$transition_log" $'publish\t1\tpublish' "newest transition publishes after its label"
+assert_line_before "$transition_log" $'label-end\tnew' $'publish\t1\tpublish' "newest label completes before remote publication"
+
 zsh_hook_home="$TMPROOT/zsh-hook-home"
 zsh_hook_log="$TMPROOT/zsh-hook.log"
 zsh_hook_bin="$TMPROOT/zsh-hook-bin"
 mkdir -p "$zsh_hook_home" "$zsh_hook_bin"
-cat >"$zsh_hook_bin/tmux-remote-title" <<'STUB'
+cat >"$zsh_hook_bin/tmux-title-transition" <<'STUB'
 #!/usr/bin/env bash
-printf 'tmux-remote-title\t%s\t%s\n' "${TMUX_REMOTE_TITLE_SUPPRESS_EDGE:-0}" "${1:-}" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
-STUB
-cat >"$zsh_hook_bin/tmux-window-label" <<'STUB'
-#!/usr/bin/env bash
-printf '%s %s\n' "${1:-}" "${2:-}" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
+sleep 2
+printf 'transition\t%s\t%s\t%s\n' "${1:-}" "${3:-}" "${4:-}" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
 STUB
 cat >"$zsh_hook_bin/tmux-sync-pane-border-status" <<'STUB'
 #!/usr/bin/env bash
 exit 0
 STUB
-chmod +x "$zsh_hook_bin/tmux-remote-title" "$zsh_hook_bin/tmux-window-label" "$zsh_hook_bin/tmux-sync-pane-border-status"
+chmod +x "$zsh_hook_bin/tmux-title-transition" "$zsh_hook_bin/tmux-sync-pane-border-status"
+SECONDS=0
 HOME="$zsh_hook_home" \
 TMUX=/tmp/tmux-test \
 TMUX_PANE=%1 \
 SSH_CONNECTION="127.0.0.1 1 127.0.0.1 2" \
 TMUX_REMOTE_TITLE_HOOK_LOG="$zsh_hook_log" \
 PATH="$zsh_hook_bin:$PATH" \
-  zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; for hook in \${preexec_functions[@]}; do \"\$hook\" 'nvim content/post.md'; done; for hook in \${precmd_functions[@]}; do \"\$hook\"; done"
-assert_file_line "$zsh_hook_log" '%1 nvim' "zsh preexec refreshes window label with launched command"
-assert_file_line "$zsh_hook_log" '%1 zsh' "zsh precmd restores shell window label"
-assert_line_before "$zsh_hook_log" '%1 nvim' $'tmux-remote-title\t1\tpublish' "zsh preexec refreshes window label before remote title publication"
-assert_file_contains "$zsh_hook_log" $'tmux-remote-title\t1\tpublish' "zsh preexec clears remote edge marker before vim-like command"
-assert_file_contains "$zsh_hook_log" $'tmux-remote-title\t0\tpublish' "zsh precmd restores remote edge marker at prompt"
+  zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; _tmux_window_title_preexec 'nvim content/post.md'; _tmux_window_title_precmd"
+hook_elapsed="$SECONDS"
+assert_less_than "$hook_elapsed" 2 "zsh title hooks dispatch without waiting for slow renderer"
+wait_for_file_line "$zsh_hook_log" $'transition\t%1\tnvim\t1' "zsh preexec dispatches vim-suppressed transition"
+wait_for_file_line "$zsh_hook_log" $'transition\t%1\tzsh\t0' "zsh precmd dispatches shell transition"
 
 # Non-vim foreground commands (agents) must keep the edge marker live so the
 # outer tmux can use C-h/j/k/l edge fallback while the agent runs.
@@ -366,9 +416,10 @@ TMUX_PANE=%1 \
 SSH_CONNECTION="127.0.0.1 1 127.0.0.1 2" \
 TMUX_REMOTE_TITLE_HOOK_LOG="$zsh_agent_log" \
 PATH="$zsh_hook_bin:$PATH" \
-  zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; _tmux_remote_title_preexec 'claude --resume'"
-assert_file_contains "$zsh_agent_log" $'tmux-remote-title\t0\tpublish' "zsh preexec keeps remote edge marker for non-vim command"
-assert_file_not_contains "$zsh_agent_log" $'tmux-remote-title\t1\tpublish' "zsh preexec does not suppress edge marker for non-vim command"
+  zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; _tmux_window_title_preexec 'claude --resume'"
+wait_for_file_line "$zsh_agent_log" $'transition\t%1\tclaude\t0' "zsh preexec keeps remote edge marker for non-vim command"
+
+assert_file_contains "$REPO_ROOT/roles/common/tasks/main.yml" '    - tmux-title-transition' "Ansible installs ordered title transition helper"
 
 stub_bin="$TMPROOT/stub-bin"
 mkdir -p "$stub_bin"
@@ -499,7 +550,7 @@ case "$1" in
   display-message)
     printf '@1__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%%1\n' \
       "${TMUX_TEST_WINDOW_NAME:-old-window}" "${TMUX_TEST_PATH:-/tmp/project}" \
-      "${TMUX_TEST_COMMAND:-ssh}" "${TMUX_TEST_TITLE:-}"
+      "${TMUX_TEST_COMMAND-ssh}" "${TMUX_TEST_TITLE:-}"
     ;;
   show-options)
     case "${*: -1}" in
@@ -743,13 +794,44 @@ TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" 
 assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators 💬#[fg=#b5bd68]● " "live local pane state stores formatted indicators"
 assert_file_contains "$window_log" "rename-window -t @1 feature/durable-label" "live local pane state keeps window name plain"
 
+node_ps="$TMPROOT/window-label-node.ps"
+printf '123 S+ node /opt/pi-coding-agent/dist/cli.js --offline\n' > "$node_ps"
 : > "$window_log"
 TMUX_TEST_AGENT_KIND=pi TMUX_TEST_COMMAND=node TMUX_TEST_LOCAL_TASK=1 \
 TMUX_TEST_WINDOW_LABEL='feature/durable-label' \
 TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=working,draft]' TMUX_TEST_ACTIVITY=waiting \
+TMUX_WINDOW_LABEL_PS_FILE="$node_ps" TMUX_WINDOW_LABEL_LOG="$window_log" \
+PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators 💬 " "foreground Pi Node identity wins over stale remote marker"
+assert_file_contains "$window_log" "rename-window -t @1 feature/durable-label" "foreground Pi Node identity keeps managed title"
+
+printf '124 S+ node node server.js\n' > "$node_ps"
+: > "$window_log"
+TMUX_TEST_AGENT_KIND=pi TMUX_TEST_COMMAND=node TMUX_TEST_LOCAL_TASK=1 \
+TMUX_TEST_WINDOW_LABEL='feature/durable-label' TMUX_TEST_PATH="$repo_path" \
+TMUX_WINDOW_LABEL_PS_FILE="$node_ps" TMUX_WINDOW_LABEL_LOG="$window_log" \
+PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" "rename-window -t @1 node | label-repo" "ordinary Node ignores stale Pi title"
+
+: > "$window_log"
+TMUX_TEST_AGENT_KIND=claude TMUX_TEST_COMMAND=node TMUX_TEST_LOCAL_TASK=1 \
+TMUX_TEST_WINDOW_LABEL='Claude direct title' TMUX_TEST_PATH="$repo_path" \
+TMUX_WINDOW_LABEL_PS_FILE="$node_ps" TMUX_WINDOW_LABEL_LOG="$window_log" \
+PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" "rename-window -t @1 node | label-repo" "ordinary Node ignores stale Claude title"
+
+printf '125 S+ node /opt/node_modules/@anthropic-ai/claude-code/cli.js --resume\n' > "$node_ps"
+: > "$window_log"
+TMUX_TEST_AGENT_KIND=claude TMUX_TEST_COMMAND=node TMUX_TEST_LOCAL_TASK=1 \
+TMUX_TEST_WINDOW_LABEL='Claude direct title' TMUX_WINDOW_LABEL_PS_FILE="$node_ps" \
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
-assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators 💬 " "live local pane state wins over stale remote marker"
-assert_file_contains "$window_log" "rename-window -t @1 feature/durable-label" "live local precedence keeps window name plain"
+assert_file_contains "$window_log" "rename-window -t @1 Claude direct title" "foreground Claude Node identity preserves direct title"
+
+: > "$window_log"
+TMUX_TEST_AGENT_KIND=claude TMUX_TEST_COMMAND=claude TMUX_TEST_LOCAL_TASK=1 \
+TMUX_TEST_WINDOW_LABEL='Claude direct title' TMUX_WINDOW_LABEL_LOG="$window_log" \
+PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" "rename-window -t @1 Claude direct title" "direct Claude command preserves direct title"
 
 : > "$window_log"
 TMUX_TEST_WINDOW_NAME='feature/remote' TMUX_TEST_TITLE='(feature/remote) project | remote-host' \
@@ -803,6 +885,13 @@ TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" \
   "$WINDOW_LABEL" %1
 assert_file_contains "$window_log" 'rename-window -t @1 nvim | plain-dir' \
   'non-agent command uses current non-Git directory'
+
+: > "$window_log"
+TMUX_TEST_PATH="$plain_path" TMUX_TEST_COMMAND='' \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" \
+  "$WINDOW_LABEL" %1
+assert_file_contains "$window_log" 'rename-window -t @1 zsh | plain-dir' \
+  'empty override and pane command use zsh fallback'
 
 sync_remote_log="$TMPROOT/sync-remote-title.log"
 sync_remote_tmux_dir="$TMPROOT/sync-remote-title-bin"

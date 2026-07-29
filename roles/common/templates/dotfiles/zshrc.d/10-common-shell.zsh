@@ -137,58 +137,48 @@ fi
 alias duss="du -d 1 -h 2>/dev/null | sort -hr"
 
 if [[ -n "$TMUX" ]]; then
+  typeset -gi _tmux_title_transition_serial=0
+
   _tmux_window_title_command() {
     local -a command_words
     command_words=("${(@Q)${(z)1}}")
     print -r -- "${command_words[1]:t}"
   }
 
-  _tmux_window_title_preexec() {
-    local program="$(_tmux_window_title_command "$1")"
-    [[ -n "$program" ]] || return 0
-    command tmux-window-label "$TMUX_PANE" "$program" >/dev/null 2>&1 || true
-  }
-
-  _tmux_window_title_precmd() {
-    command tmux-window-label "$TMUX_PANE" zsh >/dev/null 2>&1 || true
-  }
-
-  _tmux_remote_title_should_sync() {
-    [[ -n "${SSH_CONNECTION:-}${CODESPACES:-}${DEVPOD_WORKSPACE_ID:-}" ]] || return 1
-    command -v tmux-remote-title >/dev/null 2>&1
+  _tmux_title_transition_dispatch() {
+    local program="$1" suppress_edge="${2:-0}" request_id
+    _tmux_title_transition_serial=$((_tmux_title_transition_serial + 1))
+    printf -v request_id '%s.%010d.%010d' "${EPOCHREALTIME/./}" "$$" "$_tmux_title_transition_serial"
+    command tmux-title-transition "$TMUX_PANE" "$request_id" "$program" "$suppress_edge" &>/dev/null &!
   }
 
   # Markers stay live for non-vim foreground commands (agents) so the outer
   # tmux can use edge fallback; vim consumes C-h/j/k/l itself, so its launch
   # suppresses markers (matching append_edge_marker in tmux-remote-title).
-  _tmux_remote_title_preexec() {
-    _tmux_remote_title_should_sync || return 0
+  _tmux_window_title_preexec() {
+    local program="$(_tmux_window_title_command "$1")" suppress_edge=0
+    [[ -n "$program" ]] || return 0
     case "${2:-$1}" in
-      *vim*) TMUX_REMOTE_TITLE_SUPPRESS_EDGE=1 command tmux-remote-title publish >/dev/null 2>&1 || true ;;
-      *) command tmux-remote-title publish >/dev/null 2>&1 || true ;;
+      *vim*) suppress_edge=1 ;;
     esac
+    _tmux_title_transition_dispatch "$program" "$suppress_edge"
   }
 
-  _tmux_remote_title_precmd() {
-    _tmux_remote_title_should_sync || return 0
-    command tmux-remote-title publish >/dev/null 2>&1 || true
+  _tmux_window_title_precmd() {
+    _tmux_title_transition_dispatch zsh 0
   }
 
   add-zsh-hook preexec _tmux_window_title_preexec
-  add-zsh-hook preexec _tmux_remote_title_preexec
   add-zsh-hook precmd _tmux_window_title_precmd
-  add-zsh-hook precmd _tmux_remote_title_precmd
 
   # chpwd-only: pane_current_path changes don't fire any tmux event hook,
   # so we still need a zsh-side trigger when the user `cd`s. Other label
   # refresh paths (pane focus, pane title, new pane) are covered by the
-  # tmux event hooks defined in tmux.conf — running on precmd too would
-  # spawn two background bash processes per shell prompt.
+  # tmux event hooks defined in tmux.conf.
   _tmux_label_update() {
-    command tmux-window-label "$TMUX_PANE" zsh &>/dev/null &!
+    _tmux_title_transition_dispatch zsh 0
     command tmux-sync-pane-border-status "$TMUX_PANE" &>/dev/null &!
   }
-  autoload -Uz add-zsh-hook
   add-zsh-hook chpwd _tmux_label_update
 fi
 
