@@ -805,7 +805,14 @@ PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
 assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators 💬 " "foreground Pi Node identity wins over stale remote marker"
 assert_file_contains "$window_log" "rename-window -t @1 feature/durable-label" "foreground Pi Node identity keeps managed title"
 
-printf '124 S+ node node server.js\n' > "$node_ps"
+printf '124 S+ pi pi\n' > "$node_ps"
+: > "$window_log"
+TMUX_TEST_AGENT_KIND=pi TMUX_TEST_COMMAND=node TMUX_TEST_LOCAL_TASK=1 \
+TMUX_TEST_WINDOW_LABEL='feature/durable-label' TMUX_WINDOW_LABEL_PS_FILE="$node_ps" \
+TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" "rename-window -t @1 feature/durable-label" "foreground Pi process identity preserves title when tmux reports Node"
+
+printf '125 S+ node node server.js\n' > "$node_ps"
 : > "$window_log"
 TMUX_TEST_AGENT_KIND=pi TMUX_TEST_COMMAND=node TMUX_TEST_LOCAL_TASK=1 \
 TMUX_TEST_WINDOW_LABEL='feature/durable-label' TMUX_TEST_PATH="$repo_path" \
