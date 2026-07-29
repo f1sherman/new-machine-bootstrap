@@ -426,6 +426,60 @@ assert_file_line "$transition_log" $'publish\t1\tpublish' "newest transition pub
 assert_line_before "$transition_log" $'label-end\tnew' $'publish\t1\tpublish' "newest label completes before remote publication"
 assert_no_file "$transition_lock" "completed live-owner transitions leave no lock"
 
+terminated_waiter_state="$TMPROOT/terminated-waiter-state"
+terminated_waiter_log="$TMPROOT/terminated-waiter.log"
+terminated_waiter_lock="$terminated_waiter_state/default._11/worker.lock"
+terminated_waiter_request="$terminated_waiter_state/default._11/requests/0001"
+terminated_waiter_owner=terminated-waiter-live-owner
+mkdir -p "$terminated_waiter_lock"
+: > "$terminated_waiter_log"
+bash -c 'sleep 3; :' "$terminated_waiter_owner" &
+terminated_waiter_owner_pid=$!
+printf '%s\t%s\n' "$terminated_waiter_owner_pid" "$terminated_waiter_owner" > "$terminated_waiter_lock/owner"
+SSH_CONNECTION=test TMUX_TITLE_TRANSITION_STATE_DIR="$terminated_waiter_state" \
+TMUX_TITLE_TRANSITION_LOG="$terminated_waiter_log" PATH="$transition_bin:$PATH" \
+  "$TITLE_TRANSITION" %11 0001 canceled 0 &
+terminated_waiter_pid=$!
+for _ in {1..100}; do
+  [ ! -f "$terminated_waiter_request" ] || break
+  sleep 0.01
+done
+[ -f "$terminated_waiter_request" ] || fail_case "waiting transition creates its request" "missing $terminated_waiter_request"
+pass_case "waiting transition creates its request"
+assert_equals "$(cat "$terminated_waiter_lock/owner")" "$terminated_waiter_owner_pid"$'\t'"$terminated_waiter_owner" "cancel target waits on demonstrably live owner lock"
+kill -TERM "$terminated_waiter_pid"
+terminated_waiter_exited=0
+for _ in {1..100}; do
+  if ! kill -0 "$terminated_waiter_pid" 2>/dev/null; then
+    terminated_waiter_exited=1
+    break
+  fi
+  sleep 0.01
+done
+if [ "$terminated_waiter_exited" = "1" ]; then
+  if wait "$terminated_waiter_pid"; then
+    terminated_waiter_status=0
+  else
+    terminated_waiter_status=$?
+  fi
+else
+  kill -KILL "$terminated_waiter_pid" 2>/dev/null || true
+  wait "$terminated_waiter_pid" 2>/dev/null || true
+  kill "$terminated_waiter_owner_pid" 2>/dev/null || true
+  wait "$terminated_waiter_owner_pid" 2>/dev/null || true
+  fail_case "TERM exits waiting transition promptly" "process $terminated_waiter_pid remained alive"
+fi
+pass_case "TERM exits waiting transition promptly"
+assert_equals "$terminated_waiter_status" 0 "TERM exits waiting transition nonfatally"
+assert_equals "$(cat "$terminated_waiter_lock/owner")" "$terminated_waiter_owner_pid"$'\t'"$terminated_waiter_owner" "terminated waiter preserves live owner metadata"
+[ -d "$terminated_waiter_lock" ] || fail_case "terminated waiter preserves live owner lock" "missing $terminated_waiter_lock"
+pass_case "terminated waiter preserves live owner lock"
+assert_equals "$(wc -c < "$terminated_waiter_log" | tr -d ' ')" 0 "terminated waiter does not render or publish"
+assert_no_file "$terminated_waiter_request" "terminated waiter removes its request"
+kill "$terminated_waiter_owner_pid" 2>/dev/null || true
+wait "$terminated_waiter_owner_pid" 2>/dev/null || true
+rm -rf "$terminated_waiter_lock"
+
 render_failure_state="$TMPROOT/render-failure-state"
 render_failure_log="$TMPROOT/render-failure.log"
 SSH_CONNECTION=test TMUX_TITLE_TRANSITION_STATE_DIR="$render_failure_state" \

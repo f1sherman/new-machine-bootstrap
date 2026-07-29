@@ -57,7 +57,15 @@ cleanup() {
     fi
   fi
 }
-trap cleanup EXIT HUP INT TERM
+
+terminate() {
+  trap - EXIT HUP INT TERM
+  cleanup
+  exit 0
+}
+
+trap cleanup EXIT
+trap terminate HUP INT TERM
 
 latest_request() {
   local path candidate latest=""
