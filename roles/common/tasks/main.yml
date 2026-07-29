@@ -1273,7 +1273,10 @@
   changed_when: common_purge_legacy_pi.stdout.strip() == 'changed'
 
 - name: Install managed mise npm tools through aube
-  command: "{{ mise_bin }} --cd {{ ansible_facts['user_dir'] }} install --yes"
+  command: >-
+    {{ mise_bin }} install --yes
+    'npm:@openai/codex@latest'
+    'npm:@earendil-works/pi-coding-agent@{{ tool_versions.runtimes.pi_coding_agent }}'
   environment:
     AUBE_PARANOID: "true"
     # Codex tracks "latest", so a release under the 24h paranoid age gate would
