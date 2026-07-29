@@ -46,11 +46,14 @@ mkdir -p "$requests_dir" 2>/dev/null || exit 0
 chmod 700 "$state_root" "$state_dir" "$requests_dir" 2>/dev/null || true
 : > "$request_file" || exit 0
 
+lock_owner_snapshot() {
+  cat "$lock_owner_file" 2>/dev/null
+}
+
 cleanup() {
   local owner="" released_owner="$state_dir/worker.lock.owner.released.$$"
   rm -f "$request_file" "$lock_owner_tmp" 2>/dev/null || true
-  if [ "$lock_held" = "1" ] && [ -f "$lock_owner_file" ]; then
-    IFS= read -r owner < "$lock_owner_file" || true
+  if [ "$lock_held" = "1" ] && owner="$(lock_owner_snapshot)"; then
     if [ "$owner" = "$lock_owner_metadata" ] && mv "$lock_owner_file" "$released_owner" 2>/dev/null; then
       rmdir "$lock_dir" 2>/dev/null || true
       rm -f "$released_owner" 2>/dev/null || true
@@ -113,14 +116,14 @@ recover_abandoned_lock() {
     fi
   fi
 
-  IFS= read -r owner < "$lock_owner_file" || true
+  owner="$(lock_owner_snapshot)" || return 0
   IFS=$'\t' read -r owner_pid owner_request owner_extra <<< "$owner"
   if [ -z "$owner_extra" ] && process_matches_owner "$owner_pid" "$owner_request"; then
     return
   fi
 
-  IFS= read -r confirmed_owner < "$lock_owner_file" || true
-  [ "$confirmed_owner" = "$owner" ] || return
+  confirmed_owner="$(lock_owner_snapshot)" || return 0
+  [ "$confirmed_owner" = "$owner" ] || return 0
   rm -f "$abandoned_owner" 2>/dev/null || true
   if mv "$lock_owner_file" "$abandoned_owner" 2>/dev/null; then
     if ! rmdir "$lock_dir" 2>/dev/null; then
