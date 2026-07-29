@@ -320,6 +320,8 @@
     - tmux-pane-title-changed
     - tmux-hook-run
     - report-pane-error
+  tags:
+    - nmb_tmux_label_helpers
 
 - name: Install tmux attach/session helpers
   copy:

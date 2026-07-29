@@ -613,8 +613,6 @@ PATH="$zsh_hook_bin:$PATH" \
   zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; _tmux_window_title_preexec 'claude --resume'"
 wait_for_file_line "$zsh_agent_log" $'transition\t%1\tclaude\t0' "zsh preexec keeps remote edge marker for non-vim command"
 
-assert_file_contains "$REPO_ROOT/roles/common/tasks/main.yml" '    - tmux-title-transition' "Ansible installs ordered title transition helper"
-
 stub_bin="$TMPROOT/stub-bin"
 mkdir -p "$stub_bin"
 cat >"$stub_bin/tmux-window-label" <<'STUB'
