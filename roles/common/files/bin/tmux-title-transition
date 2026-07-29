@@ -12,7 +12,9 @@ case "$request_id" in
 esac
 
 state_root="${TMUX_TITLE_TRANSITION_STATE_DIR:-${TMPDIR:-/tmp}/tmux-title-transition-${UID:-$(id -u)}}"
-pane_key="$(printf '%s' "$pane_id" | tr -c 'A-Za-z0-9._-' '_')"
+tmux_server="${TMUX%%,*}"
+tmux_server="${tmux_server##*/}"
+pane_key="$(printf '%s.%s' "${tmux_server:-default}" "$pane_id" | tr -c 'A-Za-z0-9._-' '_')"
 state_dir="$state_root/$pane_key"
 requests_dir="$state_dir/requests"
 lock_dir="$state_dir/worker.lock"
