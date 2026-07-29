@@ -75,6 +75,14 @@ assert_less_than() {
   pass_case "$name"
 }
 
+assert_lexically_after() {
+  local later="$1" earlier="$2" name="$3"
+  if [[ ! "$later" > "$earlier" ]]; then
+    fail_case "$name" "expected '$later' to sort after '$earlier'"
+  fi
+  pass_case "$name"
+}
+
 assert_file_contains() {
   local path="$1" needle="$2" name="$3"
   if [ ! -f "$path" ]; then
@@ -388,6 +396,7 @@ cat >"$transition_bin/tmux-window-label" <<'STUB'
 #!/usr/bin/env bash
 printf 'label-start\t%s\n' "${2:-}" >> "$TMUX_TITLE_TRANSITION_LOG"
 [ "${2:-}" != old ] || sleep 0.2
+[ "${2:-}" != render-failure ] || exit 73
 printf 'label-end\t%s\n' "${2:-}" >> "$TMUX_TITLE_TRANSITION_LOG"
 STUB
 cat >"$transition_bin/tmux-remote-title" <<'STUB'
@@ -401,13 +410,13 @@ TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
 old_transition_pid=$!
 wait_for_file_line "$transition_log" $'label-start\told' "older transition renderer starts"
 transition_lock="$transition_state/default._1/worker.lock"
-assert_equals "$(cat "$transition_lock/owner")" "$old_transition_pid" "active transition records lock owner"
+assert_equals "$(cat "$transition_lock/owner")" "$old_transition_pid"$'\t'0001 "active transition records PID and request identity"
 SSH_CONNECTION=test TMUX_TITLE_TRANSITION_STATE_DIR="$transition_state" \
 TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
   "$TITLE_TRANSITION" %1 0002 new 1 &
 new_transition_pid=$!
 sleep 0.05
-assert_equals "$(cat "$transition_lock/owner")" "$old_transition_pid" "waiting transition does not steal live-owner lock"
+assert_equals "$(cat "$transition_lock/owner")" "$old_transition_pid"$'\t'0001 "waiting transition does not steal live-owner lock"
 assert_file_not_contains "$transition_log" $'label-start\tnew' "waiting transition does not render under live-owner lock"
 wait "$old_transition_pid" "$new_transition_pid"
 assert_line_before "$transition_log" $'label-start\told' $'label-end\told' "transition keeps each render serialized"
@@ -416,6 +425,14 @@ assert_file_not_contains "$transition_log" $'publish\t0\tpublish' "stale transit
 assert_file_line "$transition_log" $'publish\t1\tpublish' "newest transition publishes after its label"
 assert_line_before "$transition_log" $'label-end\tnew' $'publish\t1\tpublish' "newest label completes before remote publication"
 assert_no_file "$transition_lock" "completed live-owner transitions leave no lock"
+
+render_failure_state="$TMPROOT/render-failure-state"
+render_failure_log="$TMPROOT/render-failure.log"
+SSH_CONNECTION=test TMUX_TITLE_TRANSITION_STATE_DIR="$render_failure_state" \
+TMUX_TITLE_TRANSITION_LOG="$render_failure_log" PATH="$transition_bin:$PATH" \
+  "$TITLE_TRANSITION" %9 0001 render-failure 0
+assert_file_line "$render_failure_log" $'label-start\trender-failure' "failed transition attempts window rendering"
+assert_file_not_contains "$render_failure_log" $'publish\t0\tpublish' "failed window rendering suppresses remote publication"
 
 abandoned_transition_state="$TMPROOT/abandoned-transition-state"
 abandoned_transition_log="$TMPROOT/abandoned-transition.log"
@@ -432,22 +449,60 @@ assert_file_line "$abandoned_transition_log" $'publish\t0\tpublish' "recovered t
 assert_line_before "$abandoned_transition_log" $'label-end\trecovered' $'publish\t0\tpublish' "recovered label completes before publication"
 assert_no_file "$abandoned_transition_lock" "recovered transition leaves no lock"
 
+reused_pid_state="$TMPROOT/reused-pid-state"
+reused_pid_log="$TMPROOT/reused-pid.log"
+reused_pid_lock="$reused_pid_state/default._8/worker.lock"
+mkdir -p "$reused_pid_lock"
+printf '%s\n' "$$" > "$reused_pid_lock/owner"
+TMUX_TITLE_TRANSITION_STATE_DIR="$reused_pid_state" TMUX_TITLE_TRANSITION_LOG="$reused_pid_log" \
+PATH="$transition_bin:$PATH" "$TITLE_TRANSITION" %8 0001 reused-pid 0 &
+reused_pid_transition=$!
+sleep 0.1
+: > "$reused_pid_state/default._8/requests/0002"
+wait_for_process_exit "$reused_pid_transition" "transition exits when unrelated live process reuses lock PID"
+assert_file_line "$reused_pid_log" $'label-end\treused-pid' "live PID without owner identity recovers lock"
+rm -f "$reused_pid_state/default._8/requests/0002"
+
+reused_identity_state="$TMPROOT/reused-identity-state"
+reused_identity_log="$TMPROOT/reused-identity.log"
+reused_identity_lock="$reused_identity_state/default._10/worker.lock"
+mkdir -p "$reused_identity_lock"
+printf '%s\t%s\n' "$$" unrelated-reused-owner > "$reused_identity_lock/owner"
+TMUX_TITLE_TRANSITION_STATE_DIR="$reused_identity_state" TMUX_TITLE_TRANSITION_LOG="$reused_identity_log" \
+PATH="$transition_bin:$PATH" "$TITLE_TRANSITION" %10 0001 reused-identity 0
+assert_file_line "$reused_identity_log" $'label-end\treused-identity' "PID reuse with mismatched process identity recovers lock"
+
 owner_race_state="$TMPROOT/owner-race-state"
 owner_race_log="$TMPROOT/owner-race.log"
 owner_race_lock="$owner_race_state/default._5/worker.lock"
 mkdir -p "$owner_race_lock" "$owner_race_state/default._5/requests"
 : > "$owner_race_log"
+owner_race_identity=owner-race-live-process
+bash -c 'sleep 2; :' "$owner_race_identity" &
+owner_race_live_pid=$!
 TMUX_TITLE_TRANSITION_STATE_DIR="$owner_race_state" TMUX_TITLE_TRANSITION_LOG="$owner_race_log" \
 PATH="$transition_bin:$PATH" "$TITLE_TRANSITION" %5 0001 owner-race 0 &
 owner_race_pid=$!
 sleep 0.02
-printf '%s\n' "$$" > "$owner_race_lock/owner"
+printf '%s\t%s\n' "$owner_race_live_pid" "$owner_race_identity" > "$owner_race_lock/owner.tmp.test"
+mv "$owner_race_lock/owner.tmp.test" "$owner_race_lock/owner"
 sleep 0.06
 : > "$owner_race_state/default._5/requests/0002"
 wait_for_process_exit "$owner_race_pid" "contender exits stale after owner metadata race"
-assert_equals "$(cat "$owner_race_lock/owner")" "$$" "contender rechecks and preserves live owner after metadata race"
+assert_equals "$(cat "$owner_race_lock/owner")" "$owner_race_live_pid"$'\t'"$owner_race_identity" "contender preserves atomically published live owner metadata"
 assert_file_not_contains "$owner_race_log" $'label-start\towner-race' "stale contender does not render during metadata race"
+kill "$owner_race_live_pid" 2>/dev/null || true
+wait "$owner_race_live_pid" 2>/dev/null || true
 rm -rf "$owner_race_lock" "$owner_race_state/default._5/requests/0002"
+
+socket_state="$TMPROOT/socket-transition-state"
+TMUX_TITLE_TRANSITION_STATE_DIR="$socket_state" TMUX="$TMPROOT/socket-a/shared,1,1" \
+TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
+  "$TITLE_TRANSITION" %7 0001 first-socket 0
+TMUX_TITLE_TRANSITION_STATE_DIR="$socket_state" TMUX="$TMPROOT/socket-b/shared,1,1" \
+TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
+  "$TITLE_TRANSITION" %7 0001 second-socket 0
+assert_equals "$(find "$socket_state" -name completed -type f | wc -l | tr -d ' ')" "2" "full tmux socket paths have distinct transition state keys"
 
 transition_xdg="$TMPROOT/transition-xdg"
 transition_private_tmp="$TMPROOT/transition-private-tmp"
@@ -508,6 +563,18 @@ assert_less_than "$hook_elapsed" 2 "zsh title hooks dispatch without waiting for
 wait_for_file_line "$zsh_hook_log" $'transition\t%1\tnvim\t1' "zsh preexec dispatches vim-suppressed transition"
 wait_for_file_line "$zsh_hook_log" $'transition\t%1\tzsh\t0' "zsh precmd dispatches shell transition"
 assert_file_matches "$zsh_hook_log" $'^request\t[0-9]{16,}\.' "zsh transition requests include an ordered timestamp"
+
+rollback_hook_log="$TMPROOT/zsh-rollback-hook.log"
+HOME="$zsh_hook_home" \
+TMUX=/tmp/tmux-test \
+TMUX_PANE=%1 \
+TMUX_REMOTE_TITLE_HOOK_LOG="$rollback_hook_log" \
+PATH="$zsh_hook_bin:$PATH" \
+  zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; TMUX_TITLE_TRANSITION_NOW=2000000000000000; _tmux_title_transition_dispatch before-rollback; TMUX_TITLE_TRANSITION_NOW=1000000000000000; _tmux_title_transition_dispatch after-rollback; sleep 2.2"
+rollback_before="$(sed -n '/^request\t.*\.0000000001$/ { s/^request\t//; p; q; }' "$rollback_hook_log")"
+rollback_after="$(sed -n '/^request\t.*\.0000000002$/ { s/^request\t//; p; q; }' "$rollback_hook_log")"
+assert_file_matches "$rollback_hook_log" $'^request\t2000000000000000\.' "test timestamp source controls transition request clock"
+assert_lexically_after "$rollback_after" "$rollback_before" "same-shell request IDs remain ordered after wall-clock rollback"
 
 # Non-vim foreground commands (agents) must keep the edge marker live so the
 # outer tmux can use C-h/j/k/l edge fallback while the agent runs.
@@ -928,6 +995,22 @@ TMUX_TEST_WINDOW_LABEL='Claude direct title' TMUX_TEST_PATH="$repo_path" \
 TMUX_WINDOW_LABEL_PS_FILE="$node_ps" TMUX_WINDOW_LABEL_LOG="$window_log" \
 PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
 assert_file_contains "$window_log" "rename-window -t @1 node | label-repo" "ordinary Node ignores stale Claude title"
+
+for stale_node_case in \
+  'pi|node app.js pi|stale Pi argv word' \
+  'claude|node app.js claude|stale Claude argv word'; do
+  stale_kind="${stale_node_case%%|*}"
+  stale_remainder="${stale_node_case#*|}"
+  stale_argv="${stale_remainder%%|*}"
+  stale_name="${stale_remainder#*|}"
+  printf '126 S+ node %s\n' "$stale_argv" > "$node_ps"
+  : > "$window_log"
+  TMUX_TEST_AGENT_KIND="$stale_kind" TMUX_TEST_COMMAND=node TMUX_TEST_LOCAL_TASK=1 \
+  TMUX_TEST_WINDOW_LABEL='stale managed title' TMUX_TEST_PATH="$repo_path" \
+  TMUX_WINDOW_LABEL_PS_FILE="$node_ps" TMUX_WINDOW_LABEL_LOG="$window_log" \
+  PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" %1
+  assert_file_contains "$window_log" "rename-window -t @1 node | label-repo" "$stale_name does not prove a live agent"
+done
 
 printf '125 S+ node /opt/node_modules/@anthropic-ai/claude-code/cli.js --resume\n' > "$node_ps"
 : > "$window_log"
