@@ -1409,6 +1409,12 @@
     else
       pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
       pi_manifest="$pi_package_root/package.json"
+      if [[ ! -f "$pi_manifest" ]]; then
+        pi_launcher="$pi_root/bin/pi"
+        pi_bin="$(realpath "$pi_launcher")" || { echo "Managed Pi package could not be resolved from nested package or executable: $pi_package_root, $pi_launcher" >&2; exit 1; }
+        pi_package_root="$(dirname "$(dirname "$pi_bin")")"
+        pi_manifest="$pi_package_root/package.json"
+      fi
       pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string name: $pi_manifest" >&2; exit 1; }
       pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string version: $pi_manifest" >&2; exit 1; }
       [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]] || { echo "Managed Pi package manifest has unexpected identity or version: $pi_manifest" >&2; exit 1; }
@@ -1471,6 +1477,12 @@
     else
       pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
       pi_manifest="$pi_package_root/package.json"
+      if [[ ! -f "$pi_manifest" ]]; then
+        pi_launcher="$pi_root/bin/pi"
+        pi_bin="$(realpath "$pi_launcher")" || { echo "Managed Pi package could not be resolved from nested package or executable: $pi_package_root, $pi_launcher" >&2; exit 1; }
+        pi_package_root="$(dirname "$(dirname "$pi_bin")")"
+        pi_manifest="$pi_package_root/package.json"
+      fi
       pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string name: $pi_manifest" >&2; exit 1; }
       pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string version: $pi_manifest" >&2; exit 1; }
       [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]] || { echo "Managed Pi package manifest has unexpected identity or version: $pi_manifest" >&2; exit 1; }

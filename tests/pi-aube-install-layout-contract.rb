@@ -115,4 +115,32 @@ Dir.mktmpdir("pi-aube-layout") do |dir|
   end
 end
 
+Dir.mktmpdir("pi-aube-executable-layout") do |dir|
+  version = "0.80.10"
+  install_root = File.join(dir, "mise-install")
+  package_root = File.join(dir, "aube-store/content/node_modules/@earendil-works/pi-coding-agent")
+  pi_bin = File.join(package_root, "dist/cli.js")
+  manifest = File.join(package_root, "package.json")
+  mise_bin = File.join(install_root, "bin/pi")
+
+  FileUtils.mkdir_p(File.dirname(pi_bin))
+  FileUtils.mkdir_p(File.dirname(mise_bin))
+  File.write(manifest, JSON.generate("name" => "@earendil-works/pi-coding-agent", "version" => version))
+  File.write(pi_bin, "#!/bin/sh\n")
+  FileUtils.chmod(0o755, pi_bin)
+  FileUtils.ln_s(pi_bin, mise_bin)
+
+  resolver = non_darwin_resolver.gsub("{{ tool_versions.runtimes.pi_coding_agent }}", version)
+  script = <<~BASH
+    set -euo pipefail
+    pi_root=#{Shellwords.escape(install_root)}
+    #{resolver}
+    printf '%s\n%s\n' "$pi_bin" "$PI_PACKAGE_ROOT"
+  BASH
+  stdout, stderr, status = Open3.capture3("bash", "-c", script)
+  abort "non-Darwin resolver rejected the executable-link layout: #{stderr}" unless status.success?
+  expected = "#{pi_bin}\n#{package_root}\n"
+  abort "non-Darwin resolver returned the wrong executable-link paths: #{stdout.inspect}" unless stdout == expected
+end
+
 puts "Pi Aube install layout contract passed"

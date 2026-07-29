@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the managed npm-tool provisioning task install only Codex and Pi, and resolve Linux Pi from its deterministic mise npm tree.
+**Goal:** Make the managed npm-tool provisioning task install only Codex and Pi, and resolve Linux Pi across both observed mise npm trees.
 
-**Architecture:** Keep installation ownership in the existing Ansible role. Replace the home-wide mise install with explicit npm tool selectors, then derive and validate the Linux package directly under the mise tool root rather than querying Aube global state.
+**Architecture:** Keep installation ownership in the existing Ansible role. Replace the home-wide mise install with explicit npm tool selectors, then prefer the nested Linux package and fall back to mise's executable link rather than querying Aube global state.
 
 **Tech Stack:** Ansible YAML, Bash, Ruby contract tests, mise, Aube.
 
@@ -81,7 +81,7 @@ git add tests/managed-mise-npm-install-contract.rb roles/common/tasks/main.yml
 git commit -m "Target managed npm tool installation"
 ```
 
-### Task 2: Resolve Linux Pi beneath the mise tool root
+### Task 2: Resolve Linux Pi across mise npm layouts
 
 **Files:**
 - Modify: `tests/pi-aube-install-layout-contract.rb`
@@ -89,20 +89,18 @@ git commit -m "Target managed npm tool installation"
 
 **Interfaces:**
 - Consumes: `pi_root` from `mise where npm:@earendil-works/pi-coding-agent`.
-- Produces: `PI_PACKAGE_ROOT=$pi_root/node_modules/@earendil-works/pi-coding-agent` and `PI_BIN=$PI_PACKAGE_ROOT/dist/cli.js` after manifest validation.
+- Produces: a validated `PI_PACKAGE_ROOT` from either the nested package or the resolved executable target, plus `PI_BIN=$PI_PACKAGE_ROOT/dist/cli.js`.
 
-- [ ] **Step 1: Rewrite the Linux layout contract to describe the observed tree**
+- [ ] **Step 1: Rewrite the Linux layout contract to describe both observed trees**
 
-Remove expectations for `aube list --global`, tab-separated listing parsing, and `pi_install`. Require both managed Pi tasks to derive:
+Remove expectations for `aube list --global`, tab-separated listing parsing, and `pi_install`. Require both managed Pi tasks to prefer:
 
 ```bash
 pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
 pi_manifest="$pi_package_root/package.json"
-pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")"
-pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")"
 ```
 
-Require exact name/version validation and `dist/cli.js`. In the executable fixture, create a wrapper root `package.json`, the nested package manifest, and nested executable; execute the extracted non-Darwin resolver and assert the nested paths are returned. Also assert the resolver does not contain `list --global`.
+When that manifest is absent, require fallback through `$pi_root/bin/pi`, followed by exact name/version validation and `dist/cli.js`. Exercise the extracted non-Darwin resolver against both a nested-package fixture and a separate package store reached through the executable link. Also assert the resolver does not contain `list --global`.
 
 - [ ] **Step 2: Run the test and verify RED**
 
@@ -112,7 +110,7 @@ Expected: FAIL because production still queries Aube global state.
 
 - [ ] **Step 3: Implement deterministic package resolution**
 
-In both non-Darwin branches, replace Aube listing logic with direct nested path derivation. Validate the nested `package.json` name and pinned version with `jq -er`, then use `dist/cli.js`. Export `PI_PACKAGE_ROOT` in the package-link task. Preserve the Darwin branch and Ruby symlink logic unchanged.
+In both non-Darwin branches, replace Aube listing logic with nested path derivation and executable-link fallback. Validate the selected `package.json` name and pinned version with `jq -er`, then use `dist/cli.js`. Export `PI_PACKAGE_ROOT` in the package-link task. Preserve the Darwin branch and Ruby symlink logic unchanged.
 
 - [ ] **Step 4: Verify GREEN**
 

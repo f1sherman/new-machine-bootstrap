@@ -8,7 +8,7 @@ The shared provisioning role installs managed npm tools by running an unqualifie
 
 - Install only the managed npm tools during the npm-tool task.
 - Prevent this task from installing unrelated configured runtimes.
-- Resolve the Linux Pi package from the deterministic mise npm installation layout.
+- Resolve the Linux Pi package across both observed mise npm installation layouts.
 - Validate package identity, pinned version, and executable before creating links.
 - Preserve the existing macOS layout and stale-link replacement behavior.
 
@@ -29,13 +29,15 @@ This makes task ownership precise: runtime installation tasks install runtimes, 
 
 ### Deterministic Linux Pi resolution
 
-`mise where npm:@earendil-works/pi-coding-agent` returns the root of the mise npm tool installation. On Linux, the package root is:
+`mise where npm:@earendil-works/pi-coding-agent` returns the root of the mise npm tool installation, but mise/Aube expose two Linux layouts. Provisioning will first check the nested package path used by Aube-backed installations:
 
 ```text
 $pi_root/node_modules/@earendil-works/pi-coding-agent
 ```
 
-Provisioning will derive this path directly. Before linking it, provisioning will read `package.json` and require:
+When that package manifest is absent, provisioning will resolve `$pi_root/bin/pi` and derive the package root from its target. This fallback supports mise installations that expose the package only through their executable link.
+
+Before linking either result, provisioning will read `package.json` and require:
 
 - name `@earendil-works/pi-coding-agent`;
 - version equal to the configured pinned Pi version;
@@ -52,6 +54,6 @@ Every derived path is validated before any symlink mutation. Missing manifests, 
 Contract tests will first reproduce both failures:
 
 1. Reject an unqualified home-level `mise install` in the managed npm-tool task and require explicit npm tool selectors.
-2. Model the actual Linux mise npm tree, where Aube has no global package listing, and verify that Pi resolves from the nested package path with manifest and executable validation.
+2. Model both observed Linux mise npm trees—one with the nested package and one with only an executable link—and verify manifest and executable validation for each.
 
 Existing managed-Aube and provisioning contract tests must remain green. A final local provisioning run will verify that the host configuration remains idempotent; Linux behavior will be verified through the executable contract fixture and, when available, a remote development host provision.
