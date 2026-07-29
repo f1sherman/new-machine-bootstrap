@@ -1407,7 +1407,7 @@
     if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then
       pi_bin="$pi_root/bin/pi"
     else
-      pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
+      pi_package_root="$pi_root"
       pi_manifest="$pi_package_root/package.json"
       pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string name: $pi_manifest" >&2; exit 1; }
       pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string version: $pi_manifest" >&2; exit 1; }
@@ -1469,7 +1469,7 @@
     if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then
       pi_bin="$pi_root/bin/pi"
     else
-      pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
+      pi_package_root="$pi_root"
       pi_manifest="$pi_package_root/package.json"
       pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string name: $pi_manifest" >&2; exit 1; }
       pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string version: $pi_manifest" >&2; exit 1; }
