@@ -142,6 +142,26 @@ wait_for_file_line() {
   fail_case "$name" "missing exact line '$line' in $path after waiting"
 }
 
+wait_for_process_exit() {
+  local pid="$1" name="$2" attempts=0 status
+  while [ "$attempts" -lt 100 ]; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      if wait "$pid"; then
+        pass_case "$name"
+        return 0
+      else
+        status=$?
+        fail_case "$name" "process $pid exited with status $status"
+      fi
+    fi
+    sleep 0.02
+    attempts=$((attempts + 1))
+  done
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  fail_case "$name" "process $pid did not exit after waiting"
+}
+
 assert_no_file() {
   local path="$1" name="$2"
   if [ -e "$path" ]; then
@@ -380,16 +400,85 @@ TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
   "$TITLE_TRANSITION" %1 0001 old 0 &
 old_transition_pid=$!
 wait_for_file_line "$transition_log" $'label-start\told' "older transition renderer starts"
+transition_lock="$transition_state/default._1/worker.lock"
+assert_equals "$(cat "$transition_lock/owner")" "$old_transition_pid" "active transition records lock owner"
 SSH_CONNECTION=test TMUX_TITLE_TRANSITION_STATE_DIR="$transition_state" \
 TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
   "$TITLE_TRANSITION" %1 0002 new 1 &
 new_transition_pid=$!
+sleep 0.05
+assert_equals "$(cat "$transition_lock/owner")" "$old_transition_pid" "waiting transition does not steal live-owner lock"
+assert_file_not_contains "$transition_log" $'label-start\tnew' "waiting transition does not render under live-owner lock"
 wait "$old_transition_pid" "$new_transition_pid"
 assert_line_before "$transition_log" $'label-start\told' $'label-end\told' "transition keeps each render serialized"
 assert_line_before "$transition_log" $'label-end\told' $'label-start\tnew' "newer transition waits for prior renderer"
 assert_file_not_contains "$transition_log" $'publish\t0\tpublish' "stale transition does not publish after a newer request"
 assert_file_line "$transition_log" $'publish\t1\tpublish' "newest transition publishes after its label"
 assert_line_before "$transition_log" $'label-end\tnew' $'publish\t1\tpublish' "newest label completes before remote publication"
+assert_no_file "$transition_lock" "completed live-owner transitions leave no lock"
+
+abandoned_transition_state="$TMPROOT/abandoned-transition-state"
+abandoned_transition_log="$TMPROOT/abandoned-transition.log"
+abandoned_transition_lock="$abandoned_transition_state/default._2/worker.lock"
+mkdir -p "$abandoned_transition_lock"
+printf 'invalid-owner\n' > "$abandoned_transition_lock/owner"
+SSH_CONNECTION=test TMUX_TITLE_TRANSITION_STATE_DIR="$abandoned_transition_state" \
+TMUX_TITLE_TRANSITION_LOG="$abandoned_transition_log" PATH="$transition_bin:$PATH" \
+  "$TITLE_TRANSITION" %2 0001 recovered 0 &
+abandoned_transition_pid=$!
+wait_for_process_exit "$abandoned_transition_pid" "transition exits after recovering abandoned lock"
+assert_file_line "$abandoned_transition_log" $'label-end\trecovered' "recovered transition renders label"
+assert_file_line "$abandoned_transition_log" $'publish\t0\tpublish' "recovered transition publishes remote title"
+assert_line_before "$abandoned_transition_log" $'label-end\trecovered' $'publish\t0\tpublish' "recovered label completes before publication"
+assert_no_file "$abandoned_transition_lock" "recovered transition leaves no lock"
+
+owner_race_state="$TMPROOT/owner-race-state"
+owner_race_log="$TMPROOT/owner-race.log"
+owner_race_lock="$owner_race_state/default._5/worker.lock"
+mkdir -p "$owner_race_lock" "$owner_race_state/default._5/requests"
+: > "$owner_race_log"
+TMUX_TITLE_TRANSITION_STATE_DIR="$owner_race_state" TMUX_TITLE_TRANSITION_LOG="$owner_race_log" \
+PATH="$transition_bin:$PATH" "$TITLE_TRANSITION" %5 0001 owner-race 0 &
+owner_race_pid=$!
+sleep 0.02
+printf '%s\n' "$$" > "$owner_race_lock/owner"
+sleep 0.06
+: > "$owner_race_state/default._5/requests/0002"
+wait_for_process_exit "$owner_race_pid" "contender exits stale after owner metadata race"
+assert_equals "$(cat "$owner_race_lock/owner")" "$$" "contender rechecks and preserves live owner after metadata race"
+assert_file_not_contains "$owner_race_log" $'label-start\towner-race' "stale contender does not render during metadata race"
+rm -rf "$owner_race_lock" "$owner_race_state/default._5/requests/0002"
+
+transition_xdg="$TMPROOT/transition-xdg"
+transition_private_tmp="$TMPROOT/transition-private-tmp"
+transition_home="$TMPROOT/transition-home"
+mkdir -p "$transition_xdg" "$transition_private_tmp" "$transition_home"
+(
+  unset TMUX_TITLE_TRANSITION_STATE_DIR
+  XDG_RUNTIME_DIR="$transition_xdg" TMPDIR="$transition_private_tmp" HOME="$transition_home" \
+  TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
+    "$TITLE_TRANSITION" %3 0001 xdg 0
+)
+assert_file_line "$transition_xdg/tmux-title-transition/default._3/completed" 0001 "transition prefers XDG runtime state"
+assert_no_file "$transition_private_tmp/tmux-title-transition-${UID:-$(id -u)}" "XDG runtime state wins over private TMPDIR"
+
+(
+  unset TMUX_TITLE_TRANSITION_STATE_DIR XDG_RUNTIME_DIR
+  TMPDIR="$transition_private_tmp" HOME="$transition_home" \
+  TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
+    "$TITLE_TRANSITION" %6 0001 private-tmp 0
+)
+assert_file_line "$transition_private_tmp/tmux-title-transition-${UID:-$(id -u)}/default._6/completed" 0001 "transition preserves private TMPDIR fallback"
+
+(
+  unset TMUX_TITLE_TRANSITION_STATE_DIR XDG_RUNTIME_DIR TMPDIR
+  HOME="$transition_home" TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
+    "$TITLE_TRANSITION" %4 0001 home 0
+)
+transition_home_root="$transition_home/.local/state/tmux-title-transition"
+assert_file_line "$transition_home_root/default._4/completed" 0001 "transition uses HOME state instead of shared tmp fallback"
+transition_home_mode="$(stat -f '%Lp' "$transition_home_root" 2>/dev/null || stat -c '%a' "$transition_home_root")"
+assert_equals "$transition_home_mode" 700 "transition state root is user-private"
 
 zsh_hook_home="$TMPROOT/zsh-hook-home"
 zsh_hook_log="$TMPROOT/zsh-hook.log"
