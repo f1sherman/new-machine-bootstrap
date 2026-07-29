@@ -734,9 +734,11 @@ case "$1" in
     ;;
   set-option)
     printf '%s\n' "$*" >> "$TMUX_WINDOW_LABEL_LOG"
+    [ "${TMUX_TEST_FAIL_MUTATION:-}" != set-option ] || exit 71
     ;;
   rename-window)
     printf '%s\n' "$*" >> "$TMUX_WINDOW_LABEL_LOG"
+    [ "${TMUX_TEST_FAIL_MUTATION:-}" != rename-window ] || exit 72
     ;;
 esac
 STUB
@@ -955,6 +957,55 @@ TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=working,draft] 
 TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
 assert_file_contains "$window_log" "set-option -wq -t @1 @window-indicators ⏳#[fg=#808080]● " "remote marker stores formatted indicators"
 assert_file_contains "$window_log" "rename-window -t @1 feature/remote" "remote marker keeps window name plain"
+
+: > "$window_log"
+if TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=working,draft]' \
+  TMUX_TEST_FAIL_MUTATION=set-option TMUX_WINDOW_LABEL_LOG="$window_log" \
+  PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" %1; then
+  fail_case "window label reports indicator set failure" "unexpected successful status"
+fi
+pass_case "window label reports indicator set failure"
+assert_file_contains "$window_log" "rename-window -t @1 feature/remote" \
+  "indicator set failure does not skip required rename"
+
+: > "$window_log"
+if TMUX_TEST_TITLE='(feature/remote) project | remote-host' \
+  TMUX_TEST_FAIL_MUTATION=set-option TMUX_WINDOW_LABEL_LOG="$window_log" \
+  PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" %1; then
+  fail_case "window label reports indicator unset failure" "unexpected successful status"
+fi
+pass_case "window label reports indicator unset failure"
+assert_file_contains "$window_log" "rename-window -t @1 feature/remote" \
+  "indicator unset failure does not skip required rename"
+
+: > "$window_log"
+if TMUX_TEST_TITLE='(feature/remote) project | remote-host' \
+  TMUX_TEST_FAIL_MUTATION=rename-window TMUX_WINDOW_LABEL_LOG="$window_log" \
+  PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" %1; then
+  fail_case "window label reports required rename failure" "unexpected successful status"
+fi
+pass_case "window label reports required rename failure"
+assert_file_contains "$window_log" "set-option -wqu -t @1 @window-indicators" \
+  "required rename failure does not skip indicator mutation"
+
+production_render_failure_state="$TMPROOT/production-render-failure-state"
+production_render_failure_log="$TMPROOT/production-render-failure.log"
+if ! SSH_CONNECTION=test TMUX_TITLE_TRANSITION_STATE_DIR="$production_render_failure_state" \
+  TMUX_TITLE_TRANSITION_WINDOW_LABEL_BIN="$WINDOW_LABEL" \
+  TMUX_TITLE_TRANSITION_REMOTE_TITLE_BIN="$transition_bin/tmux-remote-title" \
+  TMUX_TITLE_TRANSITION_LOG="$production_render_failure_log" \
+  TMUX_WINDOW_LABEL_LOG="$production_render_failure_log" \
+  TMUX_TEST_TITLE='(feature/remote) project | remote-host' \
+  TMUX_TEST_FAIL_MUTATION=rename-window PATH="$fake_tmux_dir:$transition_bin:$PATH" \
+  "$TITLE_TRANSITION" %1 0001 ssh 0; then
+  fail_case "production renderer failure remains best effort for transition caller" \
+    "transition returned nonzero"
+fi
+pass_case "production renderer failure remains best effort for transition caller"
+assert_file_contains "$production_render_failure_log" "rename-window -t @1 feature/remote" \
+  "production transition attempts required window rename"
+assert_file_not_contains "$production_render_failure_log" $'publish\t0\tpublish' \
+  "production renderer mutation failure suppresses remote publication"
 
 : > "$window_log"
 TMUX_TEST_AGENT_KIND=pi TMUX_TEST_COMMAND=pi TMUX_TEST_LOCAL_TASK=1 \
