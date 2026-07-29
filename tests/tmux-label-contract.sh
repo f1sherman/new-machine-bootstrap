@@ -586,7 +586,11 @@ assert_file_line "$transition_private_tmp/tmux-title-transition-${UID:-$(id -u)}
 )
 transition_home_root="$transition_home/.local/state/tmux-title-transition"
 assert_file_line "$transition_home_root/default._4/completed" 0001 "transition uses HOME state instead of shared tmp fallback"
-transition_home_mode="$(stat -f '%Lp' "$transition_home_root" 2>/dev/null || stat -c '%a' "$transition_home_root")"
+if transition_home_mode="$(stat -c '%a' "$transition_home_root" 2>/dev/null)"; then
+  :
+else
+  transition_home_mode="$(stat -f '%Lp' "$transition_home_root")"
+fi
 assert_equals "$transition_home_mode" 700 "transition state root is user-private"
 
 zsh_hook_home="$TMPROOT/zsh-hook-home"
