@@ -97,6 +97,17 @@ assert_file_not_contains() {
   pass_case "$name"
 }
 
+assert_file_matches() {
+  local path="$1" pattern="$2" name="$3"
+  if [ ! -f "$path" ]; then
+    fail_case "$name" "missing file: $path"
+  fi
+  if ! grep -Eq -- "$pattern" "$path"; then
+    fail_case "$name" "missing pattern '$pattern' in $path"
+  fi
+  pass_case "$name"
+}
+
 assert_file_line() {
   local path="$1" line="$2" name="$3"
   if [ ! -f "$path" ]; then
@@ -388,6 +399,7 @@ cat >"$zsh_hook_bin/tmux-title-transition" <<'STUB'
 #!/usr/bin/env bash
 sleep 2
 printf 'transition\t%s\t%s\t%s\n' "${1:-}" "${3:-}" "${4:-}" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
+printf 'request\t%s\n' "${2:-}" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
 STUB
 cat >"$zsh_hook_bin/tmux-sync-pane-border-status" <<'STUB'
 #!/usr/bin/env bash
@@ -406,6 +418,7 @@ hook_elapsed="$SECONDS"
 assert_less_than "$hook_elapsed" 2 "zsh title hooks dispatch without waiting for slow renderer"
 wait_for_file_line "$zsh_hook_log" $'transition\t%1\tnvim\t1' "zsh preexec dispatches vim-suppressed transition"
 wait_for_file_line "$zsh_hook_log" $'transition\t%1\tzsh\t0' "zsh precmd dispatches shell transition"
+assert_file_matches "$zsh_hook_log" $'^request\t[0-9]{16,}\.' "zsh transition requests include an ordered timestamp"
 
 # Non-vim foreground commands (agents) must keep the edge marker live so the
 # outer tmux can use C-h/j/k/l edge fallback while the agent runs.

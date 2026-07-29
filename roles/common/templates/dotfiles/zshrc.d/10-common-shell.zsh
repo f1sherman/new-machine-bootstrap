@@ -137,6 +137,7 @@ fi
 alias duss="du -d 1 -h 2>/dev/null | sort -hr"
 
 if [[ -n "$TMUX" ]]; then
+  zmodload zsh/datetime
   typeset -gi _tmux_title_transition_serial=0
 
   _tmux_window_title_command() {
