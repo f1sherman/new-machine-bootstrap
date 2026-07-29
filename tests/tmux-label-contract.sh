@@ -549,6 +549,44 @@ kill "$owner_race_live_pid" 2>/dev/null || true
 wait "$owner_race_live_pid" 2>/dev/null || true
 rm -rf "$owner_race_lock" "$owner_race_state/default._5/requests/0002"
 
+disappearing_owner_state="$TMPROOT/disappearing-owner-state"
+disappearing_owner_log="$TMPROOT/disappearing-owner.log"
+disappearing_owner_lock="$disappearing_owner_state/default._12/worker.lock"
+disappearing_owner_ps_entered="$TMPROOT/disappearing-owner-ps-entered"
+disappearing_owner_ps_release="$TMPROOT/disappearing-owner-ps-release"
+disappearing_owner_identity=disappearing-owner-live-process
+mkdir -p "$disappearing_owner_lock"
+: > "$disappearing_owner_log"
+cat > "$transition_bin/blocking-ps" <<'STUB'
+#!/usr/bin/env bash
+printf 'entered\n' > "$TMUX_TITLE_TRANSITION_PS_ENTERED"
+while [ ! -e "$TMUX_TITLE_TRANSITION_PS_RELEASE" ]; do
+  sleep 0.01
+done
+exec ps "$@"
+STUB
+chmod +x "$transition_bin/blocking-ps"
+bash -c 'sleep 3; :' "$disappearing_owner_identity" &
+disappearing_owner_live_pid=$!
+printf '%s\t%s\n' "$disappearing_owner_live_pid" "$disappearing_owner_identity" > "$disappearing_owner_lock/owner"
+TMUX_TITLE_TRANSITION_STATE_DIR="$disappearing_owner_state" \
+TMUX_TITLE_TRANSITION_LOG="$disappearing_owner_log" \
+TMUX_TITLE_TRANSITION_PS_BIN="$transition_bin/blocking-ps" \
+TMUX_TITLE_TRANSITION_PS_ENTERED="$disappearing_owner_ps_entered" \
+TMUX_TITLE_TRANSITION_PS_RELEASE="$disappearing_owner_ps_release" \
+PATH="$transition_bin:$PATH" "$TITLE_TRANSITION" %12 0001 owner-disappeared 0 &
+disappearing_owner_contender_pid=$!
+wait_for_file_line "$disappearing_owner_ps_entered" entered "contender checks live owner before confirmation race"
+kill "$disappearing_owner_live_pid" 2>/dev/null || true
+wait "$disappearing_owner_live_pid" 2>/dev/null || true
+mv "$disappearing_owner_lock/owner" "$disappearing_owner_state/released-owner"
+rmdir "$disappearing_owner_lock"
+rm -f "$disappearing_owner_state/released-owner"
+: > "$disappearing_owner_ps_release"
+wait_for_process_exit "$disappearing_owner_contender_pid" "contender continues when owner disappears before confirmation snapshot"
+assert_file_line "$disappearing_owner_log" $'label-end\towner-disappeared' "contender renders after disappearing owner releases lock"
+assert_no_file "$disappearing_owner_lock" "contender cleans lock after disappearing-owner retry"
+
 socket_state="$TMPROOT/socket-transition-state"
 TMUX_TITLE_TRANSITION_STATE_DIR="$socket_state" TMUX="$TMPROOT/socket-a/shared,1,1" \
 TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
