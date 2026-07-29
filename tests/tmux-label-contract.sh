@@ -564,6 +564,23 @@ wait_for_file_line "$zsh_hook_log" $'transition\t%1\tnvim\t1' "zsh preexec dispa
 wait_for_file_line "$zsh_hook_log" $'transition\t%1\tzsh\t0' "zsh precmd dispatches shell transition"
 assert_file_matches "$zsh_hook_log" $'^request\t[0-9]{16,}\.' "zsh transition requests include an ordered timestamp"
 
+zsh_command_log="$TMPROOT/zsh-command-hook.log"
+HOME="$zsh_hook_home" \
+TMUX=/tmp/tmux-test \
+TMUX_PANE=%1 \
+TMUX_REMOTE_TITLE_HOOK_LOG="$zsh_command_log" \
+PATH="$zsh_hook_bin:$PATH" \
+  zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; TMUX_PANE=%alias; _tmux_window_title_preexec 'v README.md' 'nvim README.md' 'nvim README.md'; TMUX_PANE=%alias-fallback; _tmux_window_title_preexec 'v README.md' 'nvim README.md'; TMUX_PANE=%assignment; _tmux_window_title_preexec 'FOO=bar nvim README.md'; TMUX_PANE=%command; _tmux_window_title_preexec 'command nvim README.md'; TMUX_PANE=%env; _tmux_window_title_preexec 'env FOO=bar nvim README.md'; TMUX_PANE=%sudo; _tmux_window_title_preexec 'sudo nvim README.md'; TMUX_PANE=%sudo-option; _tmux_window_title_preexec 'sudo -u root nvim README.md'; TMUX_PANE=%path; _tmux_window_title_preexec \"'/usr/bin/nvim' 'content/post draft.md'\""
+wait_for_file_line "$zsh_command_log" $'transition\t%alias\tnvim\t1' "zsh preexec uses alias-expanded executed command"
+wait_for_file_line "$zsh_command_log" $'transition\t%alias-fallback\tnvim\t1' "zsh preexec falls back to alias-expanded command argument"
+wait_for_file_line "$zsh_command_log" $'transition\t%assignment\tnvim\t1' "zsh preexec skips leading environment assignments"
+wait_for_file_line "$zsh_command_log" $'transition\t%command\tnvim\t1' "zsh preexec skips command wrapper"
+wait_for_file_line "$zsh_command_log" $'transition\t%env\tnvim\t1' "zsh preexec skips env wrapper and assignments"
+wait_for_file_line "$zsh_command_log" $'transition\t%sudo\tnvim\t1' "zsh preexec skips sudo wrapper"
+wait_for_file_line "$zsh_command_log" $'transition\t%sudo-option\tnvim\t1' "zsh preexec skips sudo options with arguments"
+wait_for_file_line "$zsh_command_log" $'transition\t%path\tnvim\t1' "zsh preexec preserves quoted path parsing and vim suppression"
+assert_file_not_contains "$zsh_command_log" $'\tv\t' "zsh preexec does not title alias name"
+
 rollback_hook_log="$TMPROOT/zsh-rollback-hook.log"
 HOME="$zsh_hook_home" \
 TMUX=/tmp/tmux-test \
