@@ -142,9 +142,63 @@ if [[ -n "$TMUX" ]]; then
   typeset -g _tmux_title_transition_last_timestamp=""
 
   _tmux_window_title_command() {
+    emulate -L zsh
+    setopt extendedglob
+
     local -a command_words
+    local word
+    local -i index=1
     command_words=("${(@Q)${(z)1}}")
-    print -r -- "${command_words[1]:t}"
+
+    while (( index <= ${#command_words} )); do
+      word="${command_words[index]}"
+      if [[ "$word" == [A-Za-z_][A-Za-z0-9_]#=* ]]; then
+        (( index++ ))
+        continue
+      fi
+
+      case "$word" in
+        command)
+          (( index++ ))
+          while (( index <= ${#command_words} )); do
+            word="${command_words[index]}"
+            [[ "$word" == -- ]] && { (( index++ )); break; }
+            [[ "$word" == -* ]] || break
+            (( index++ ))
+          done
+          ;;
+        env)
+          (( index++ ))
+          while (( index <= ${#command_words} )); do
+            word="${command_words[index]}"
+            [[ "$word" == -- ]] && { (( index++ )); break; }
+            case "$word" in
+              -u|-C|-S|--unset|--chdir|--split-string) (( index += 2 )) ;;
+              --unset=*|--chdir=*|--split-string=*|-u?*|-C?*|-S?*) (( index++ )) ;;
+              -*) (( index++ )) ;;
+              *) break ;;
+            esac
+          done
+          ;;
+        sudo)
+          (( index++ ))
+          while (( index <= ${#command_words} )); do
+            word="${command_words[index]}"
+            [[ "$word" == -- ]] && { (( index++ )); break; }
+            case "$word" in
+              -u|-g|-h|-p|-C|-R|-T|-D|-r|-t|-U|--user|--group|--host|--prompt|--close-from|--chroot|--command-timeout|--chdir|--role|--type|--other-user) (( index += 2 )) ;;
+              --user=*|--group=*|--host=*|--prompt=*|--close-from=*|--chroot=*|--command-timeout=*|--chdir=*|--role=*|--type=*|--other-user=*|-[ughpCRTDrtU]?*) (( index++ )) ;;
+              -*) (( index++ )) ;;
+              *) break ;;
+            esac
+          done
+          ;;
+        *)
+          print -r -- "${word:t}"
+          return 0
+          ;;
+      esac
+    done
   }
 
   _tmux_title_transition_dispatch() {
@@ -164,9 +218,10 @@ if [[ -n "$TMUX" ]]; then
   # tmux can use edge fallback; vim consumes C-h/j/k/l itself, so its launch
   # suppresses markers (matching append_edge_marker in tmux-remote-title).
   _tmux_window_title_preexec() {
-    local program="$(_tmux_window_title_command "$1")" suppress_edge=0
+    local expanded_command="${3:-${2:-$1}}" program suppress_edge=0
+    program="$(_tmux_window_title_command "$expanded_command")"
     [[ -n "$program" ]] || return 0
-    case "${2:-$1}" in
+    case "$program" in
       *vim*) suppress_edge=1 ;;
     esac
     _tmux_title_transition_dispatch "$program" "$suppress_edge"
