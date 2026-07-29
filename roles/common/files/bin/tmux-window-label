@@ -51,10 +51,10 @@ node_matches_agent_kind() {
     [ "${comm:-}" = node ] || continue
     case "$agent_kind" in
       pi)
-        printf '%s\n' "${args:-}" | grep -Eq 'pi-coding-agent|(^|[[:space:]])([^[:space:]]*/)?pi([[:space:]]|$)' && return 0
+        printf '%s\n' "${args:-}" | grep -Eq '(^|[^[:alnum:]_-])pi-coding-agent([^[:alnum:]_-]|$)' && return 0
         ;;
       claude)
-        printf '%s\n' "${args:-}" | grep -Eq '@anthropic-ai/claude-code|(^|[[:space:]])([^[:space:]]*/)?claude([[:space:]]|$)' && return 0
+        printf '%s\n' "${args:-}" | grep -Eq '(^|[[:space:]/])@anthropic-ai/claude-code([[:space:]/]|$)' && return 0
         ;;
     esac
   done < <(get_process_lines)

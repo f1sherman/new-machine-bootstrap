@@ -44,7 +44,11 @@ Extend the managed zsh lifecycle hooks:
 
 The renderer accepts an optional effective-command override for these pre-execution transitions. Without an override, existing tmux focus and client-session hooks use `pane_current_command` and repair missed or externally initiated transitions.
 
-The existing remote-title publication path runs after the corrected label update so nested tmux clients do not republish a stale coding-agent subject.
+The existing remote-title publication path runs only after a successful corrected label update so nested tmux clients do not republish a stale coding-agent subject.
+
+Ordered transition state is scoped by a POSIX `cksum` of the full tmux socket path plus pane ID. Its directory lock publishes PID and request identity together through a temporary file and atomic rename. A waiter validates that identity against the live process argv before preserving the lock, so an unrelated process that reused the PID does not strand the queue.
+
+Each zsh clamps its request timestamp to the greatest timestamp it has already emitted. PID and serial fields retain uniqueness, and later requests from that shell remain lexically newer if wall clock moves backward.
 
 ### Agent transitions
 
@@ -61,6 +65,12 @@ All title updates remain best effort:
 - Git lookup failure or non-Git directory: use the current directory basename;
 - missing path: retain the existing title rather than emitting a malformed label;
 - tmux/helper failure: do not block shell command execution or prompt rendering.
+
+## Known minor limitations
+
+Cross-shell ordering still uses wall clock because synchronous shared coordination would block prompt transitions. If a replacement shell starts after a backward clock adjustment, its requests can sort behind the prior shell's high-water mark until wall clock catches up. The exposure is bounded by the size of the rollback; same-shell requests are clamped and remain ordered.
+
+Request files normally disappear through the transition helper's exit trap. An untrappable termination can leave a file in the private per-user state directory. Age-based garbage collection remains deferred: unsafe deletion could discard a genuinely pending request, while the residual risk is limited disk growth from small files.
 
 ## Testing
 

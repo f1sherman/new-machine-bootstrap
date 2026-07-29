@@ -139,6 +139,7 @@ alias duss="du -d 1 -h 2>/dev/null | sort -hr"
 if [[ -n "$TMUX" ]]; then
   zmodload zsh/datetime
   typeset -gi _tmux_title_transition_serial=0
+  typeset -g _tmux_title_transition_last_timestamp=""
 
   _tmux_window_title_command() {
     local -a command_words
@@ -148,8 +149,14 @@ if [[ -n "$TMUX" ]]; then
 
   _tmux_title_transition_dispatch() {
     local program="$1" suppress_edge="${2:-0}" request_id
+    local timestamp="${TMUX_TITLE_TRANSITION_NOW:-${EPOCHREALTIME/./}}"
+    [[ "$timestamp" == <-> ]] || return 0
+    if [[ -n "$_tmux_title_transition_last_timestamp" && "$timestamp" < "$_tmux_title_transition_last_timestamp" ]]; then
+      timestamp="$_tmux_title_transition_last_timestamp"
+    fi
+    _tmux_title_transition_last_timestamp="$timestamp"
     _tmux_title_transition_serial=$((_tmux_title_transition_serial + 1))
-    printf -v request_id '%s.%010d.%010d' "${EPOCHREALTIME/./}" "$$" "$_tmux_title_transition_serial"
+    printf -v request_id '%s.%010d.%010d' "$timestamp" "$$" "$_tmux_title_transition_serial"
     command tmux-title-transition "$TMUX_PANE" "$request_id" "$program" "$suppress_edge" &>/dev/null &!
   }
 

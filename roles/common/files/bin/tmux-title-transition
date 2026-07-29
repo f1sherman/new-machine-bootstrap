@@ -23,13 +23,21 @@ elif [ -n "${HOME:-}" ]; then
 else
   state_root="/tmp/tmux-title-transition-$user_id"
 fi
-tmux_server="${TMUX%%,*}"
-tmux_server="${tmux_server##*/}"
-pane_key="$(printf '%s.%s' "${tmux_server:-default}" "$pane_id" | tr -c 'A-Za-z0-9._-' '_')"
+tmux_value="${TMUX:-}"
+tmux_socket="${tmux_value%%,*}"
+if [ -n "$tmux_socket" ]; then
+  read -r socket_checksum socket_bytes _ <<< "$(printf '%s' "$tmux_socket" | cksum)"
+  tmux_server="socket-$socket_checksum-$socket_bytes"
+else
+  tmux_server="default"
+fi
+pane_key="$(printf '%s.%s' "$tmux_server" "$pane_id" | tr -c 'A-Za-z0-9._-' '_')"
 state_dir="$state_root/$pane_key"
 requests_dir="$state_dir/requests"
 lock_dir="$state_dir/worker.lock"
 lock_owner_file="$lock_dir/owner"
+lock_owner_tmp="$lock_dir/owner.tmp.$$"
+lock_owner_metadata="$$"$'\t'"$request_id"
 completed_file="$state_dir/completed"
 request_file="$requests_dir/$request_id"
 lock_held=0
@@ -40,10 +48,10 @@ chmod 700 "$state_root" "$state_dir" "$requests_dir" 2>/dev/null || true
 
 cleanup() {
   local owner="" released_owner="$state_dir/worker.lock.owner.released.$$"
-  rm -f "$request_file" 2>/dev/null || true
+  rm -f "$request_file" "$lock_owner_tmp" 2>/dev/null || true
   if [ "$lock_held" = "1" ] && [ -f "$lock_owner_file" ]; then
     IFS= read -r owner < "$lock_owner_file" || true
-    if [ "$owner" = "$$" ] && mv "$lock_owner_file" "$released_owner" 2>/dev/null; then
+    if [ "$owner" = "$lock_owner_metadata" ] && mv "$lock_owner_file" "$released_owner" 2>/dev/null; then
       rmdir "$lock_dir" 2>/dev/null || true
       rm -f "$released_owner" 2>/dev/null || true
     fi
@@ -73,8 +81,21 @@ is_stale() {
     { [ -n "$latest" ] && [[ "$request_id" < "$latest" ]]; }
 }
 
+process_matches_owner() {
+  local owner_pid="$1" owner_request="$2" args="" token ps_bin="${TMUX_TITLE_TRANSITION_PS_BIN:-ps}"
+  [[ "$owner_pid" =~ ^[1-9][0-9]*$ ]] || return 1
+  [ -n "$owner_request" ] || return 1
+  kill -0 "$owner_pid" 2>/dev/null || return 1
+  args="$(command "$ps_bin" -p "$owner_pid" -o args= 2>/dev/null)" || return 1
+  for token in $args; do
+    [ "$token" = "$owner_request" ] && return 0
+  done
+  return 1
+}
+
 recover_abandoned_lock() {
-  local owner="" confirmed_owner="" abandoned_owner="$state_dir/worker.lock.owner.abandoned.$$"
+  local owner="" owner_pid="" owner_request="" owner_extra="" confirmed_owner=""
+  local abandoned_owner="$state_dir/worker.lock.owner.abandoned.$$"
 
   if [ ! -f "$lock_owner_file" ]; then
     sleep 0.05
@@ -85,14 +106,10 @@ recover_abandoned_lock() {
   fi
 
   IFS= read -r owner < "$lock_owner_file" || true
-  case "$owner" in
-    ''|*[!0-9]*) ;;
-    *)
-      if [[ ! "$owner" =~ ^0+$ ]] && kill -0 "$owner" 2>/dev/null; then
-        return
-      fi
-      ;;
-  esac
+  IFS=$'\t' read -r owner_pid owner_request owner_extra <<< "$owner"
+  if [ -z "$owner_extra" ] && process_matches_owner "$owner_pid" "$owner_request"; then
+    return
+  fi
 
   IFS= read -r confirmed_owner < "$lock_owner_file" || true
   [ "$confirmed_owner" = "$owner" ] || return
@@ -112,11 +129,13 @@ while ! mkdir "$lock_dir" 2>/dev/null; do
   recover_abandoned_lock
   sleep 0.01
 done
-if ! printf '%s\n' "$$" > "$lock_owner_file"; then
+chmod 700 "$lock_dir" 2>/dev/null || true
+if ! printf '%s\n' "$lock_owner_metadata" > "$lock_owner_tmp" ||
+   ! mv -f "$lock_owner_tmp" "$lock_owner_file"; then
+  rm -f "$lock_owner_tmp" 2>/dev/null || true
   rmdir "$lock_dir" 2>/dev/null || true
   exit 0
 fi
-chmod 700 "$lock_dir" 2>/dev/null || true
 lock_held=1
 
 if is_stale; then
@@ -125,9 +144,12 @@ fi
 
 title_helper="${TMUX_TITLE_TRANSITION_WINDOW_LABEL_BIN:-tmux-window-label}"
 remote_helper="${TMUX_TITLE_TRANSITION_REMOTE_TITLE_BIN:-tmux-remote-title}"
-command "$title_helper" "$pane_id" "${effective_command:-zsh}" >/dev/null 2>&1 || true
+render_succeeded=0
+if command "$title_helper" "$pane_id" "${effective_command:-zsh}" >/dev/null 2>&1; then
+  render_succeeded=1
+fi
 
-if ! is_stale && [ -n "${SSH_CONNECTION:-}${CODESPACES:-}${DEVPOD_WORKSPACE_ID:-}" ] && command -v "$remote_helper" >/dev/null 2>&1; then
+if [ "$render_succeeded" = "1" ] && ! is_stale && [ -n "${SSH_CONNECTION:-}${CODESPACES:-}${DEVPOD_WORKSPACE_ID:-}" ] && command -v "$remote_helper" >/dev/null 2>&1; then
   if [ "$suppress_edge" = "1" ]; then
     TMUX_REMOTE_TITLE_SUPPRESS_EDGE=1 command "$remote_helper" publish >/dev/null 2>&1 || true
   else
