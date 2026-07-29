@@ -11,13 +11,25 @@ case "$request_id" in
   *[!A-Za-z0-9._-]*) exit 0 ;;
 esac
 
-state_root="${TMUX_TITLE_TRANSITION_STATE_DIR:-${TMPDIR:-/tmp}/tmux-title-transition-${UID:-$(id -u)}}"
+user_id="${UID:-$(id -u)}"
+if [ -n "${TMUX_TITLE_TRANSITION_STATE_DIR:-}" ]; then
+  state_root="$TMUX_TITLE_TRANSITION_STATE_DIR"
+elif [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+  state_root="${XDG_RUNTIME_DIR%/}/tmux-title-transition"
+elif [ -n "${TMPDIR:-}" ]; then
+  state_root="${TMPDIR%/}/tmux-title-transition-$user_id"
+elif [ -n "${HOME:-}" ]; then
+  state_root="${HOME%/}/.local/state/tmux-title-transition"
+else
+  state_root="/tmp/tmux-title-transition-$user_id"
+fi
 tmux_server="${TMUX%%,*}"
 tmux_server="${tmux_server##*/}"
 pane_key="$(printf '%s.%s' "${tmux_server:-default}" "$pane_id" | tr -c 'A-Za-z0-9._-' '_')"
 state_dir="$state_root/$pane_key"
 requests_dir="$state_dir/requests"
 lock_dir="$state_dir/worker.lock"
+lock_owner_file="$lock_dir/owner"
 completed_file="$state_dir/completed"
 request_file="$requests_dir/$request_id"
 lock_held=0
@@ -27,9 +39,14 @@ chmod 700 "$state_root" "$state_dir" "$requests_dir" 2>/dev/null || true
 : > "$request_file" || exit 0
 
 cleanup() {
+  local owner="" released_owner="$state_dir/worker.lock.owner.released.$$"
   rm -f "$request_file" 2>/dev/null || true
-  if [ "$lock_held" = "1" ]; then
-    rm -rf "$lock_dir" 2>/dev/null || true
+  if [ "$lock_held" = "1" ] && [ -f "$lock_owner_file" ]; then
+    IFS= read -r owner < "$lock_owner_file" || true
+    if [ "$owner" = "$$" ] && mv "$lock_owner_file" "$released_owner" 2>/dev/null; then
+      rmdir "$lock_dir" 2>/dev/null || true
+      rm -f "$released_owner" 2>/dev/null || true
+    fi
   fi
 }
 trap cleanup EXIT HUP INT TERM
@@ -56,12 +73,50 @@ is_stale() {
     { [ -n "$latest" ] && [[ "$request_id" < "$latest" ]]; }
 }
 
+recover_abandoned_lock() {
+  local owner="" confirmed_owner="" abandoned_owner="$state_dir/worker.lock.owner.abandoned.$$"
+
+  if [ ! -f "$lock_owner_file" ]; then
+    sleep 0.05
+    if [ ! -f "$lock_owner_file" ]; then
+      rmdir "$lock_dir" 2>/dev/null || true
+      return
+    fi
+  fi
+
+  IFS= read -r owner < "$lock_owner_file" || true
+  case "$owner" in
+    ''|*[!0-9]*) ;;
+    *)
+      if [[ ! "$owner" =~ ^0+$ ]] && kill -0 "$owner" 2>/dev/null; then
+        return
+      fi
+      ;;
+  esac
+
+  IFS= read -r confirmed_owner < "$lock_owner_file" || true
+  [ "$confirmed_owner" = "$owner" ] || return
+  rm -f "$abandoned_owner" 2>/dev/null || true
+  if mv "$lock_owner_file" "$abandoned_owner" 2>/dev/null; then
+    if ! rmdir "$lock_dir" 2>/dev/null; then
+      [ -e "$lock_owner_file" ] || mv "$abandoned_owner" "$lock_owner_file" 2>/dev/null || true
+    fi
+    rm -f "$abandoned_owner" 2>/dev/null || true
+  fi
+}
+
 while ! mkdir "$lock_dir" 2>/dev/null; do
   if is_stale; then
     exit 0
   fi
+  recover_abandoned_lock
   sleep 0.01
- done
+done
+if ! printf '%s\n' "$$" > "$lock_owner_file"; then
+  rmdir "$lock_dir" 2>/dev/null || true
+  exit 0
+fi
+chmod 700 "$lock_dir" 2>/dev/null || true
 lock_held=1
 
 if is_stale; then
