@@ -17,8 +17,8 @@ platform_branch = %q{if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; th
 darwin_bin = 'pi_bin="$pi_root/bin/pi"'
 non_darwin_package = 'pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"'
 non_darwin_manifest = 'pi_manifest="$pi_package_root/package.json"'
-non_darwin_name = %q{pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")"}
-non_darwin_version = %q{pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")"}
+non_darwin_name = %q{pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string name: $pi_manifest" >&2; exit 1; }}
+non_darwin_version = %q{pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string version: $pi_manifest" >&2; exit 1; }}
 non_darwin_identity = %q{[[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]]}
 non_darwin_bin = 'pi_bin="$pi_package_root/dist/cli.js"'
 non_darwin_shim = 'pi_bin="$pi_root/bin/pi"'
@@ -82,21 +82,37 @@ Dir.mktmpdir("pi-aube-layout") do |dir|
 
   FileUtils.mkdir_p(File.dirname(pi_bin))
   File.write(File.join(dir, "package.json"), JSON.generate("name" => "mise-npm-wrapper", "version" => "1.0.0"))
-  File.write(manifest, JSON.generate("name" => "@earendil-works/pi-coding-agent", "version" => version))
   File.write(pi_bin, "#!/bin/sh\n")
   FileUtils.chmod(0o755, pi_bin)
 
   resolver = non_darwin_resolver.gsub("{{ tool_versions.runtimes.pi_coding_agent }}", version)
-  script = <<~BASH
-    set -euo pipefail
-    pi_root=#{Shellwords.escape(dir)}
-    #{resolver}
-    printf '%s\n%s\n' "$pi_bin" "$PI_PACKAGE_ROOT"
-  BASH
-  stdout, stderr, status = Open3.capture3("bash", "-c", script)
+  run_resolver = lambda do |metadata|
+    File.write(manifest, JSON.generate(metadata))
+    script = <<~BASH
+      set -euo pipefail
+      pi_root=#{Shellwords.escape(dir)}
+      #{resolver}
+      printf '%s\n%s\n' "$pi_bin" "$PI_PACKAGE_ROOT"
+    BASH
+    Open3.capture3("bash", "-c", script)
+  end
+
+  stdout, stderr, status = run_resolver.call("name" => "@earendil-works/pi-coding-agent", "version" => version)
   abort "non-Darwin resolver rejected the nested managed package: #{stderr}" unless status.success?
   expected = "#{pi_bin}\n#{package_root}\n"
   abort "non-Darwin resolver returned the wrong nested paths: #{stdout.inspect}" unless stdout == expected
+
+  invalid_metadata = [
+    ["missing name", {"version" => version}],
+    ["non-string name", {"name" => 1, "version" => version}],
+    ["missing version", {"name" => "@earendil-works/pi-coding-agent"}],
+    ["non-string version", {"name" => "@earendil-works/pi-coding-agent", "version" => 1}]
+  ]
+  invalid_metadata.each do |description, metadata|
+    _stdout, invalid_stderr, invalid_status = run_resolver.call(metadata)
+    abort "non-Darwin resolver accepted #{description} metadata" if invalid_status.success?
+    abort "non-Darwin resolver did not report manifest path for #{description}: #{invalid_stderr.inspect}" unless invalid_stderr.include?(manifest)
+  end
 end
 
 puts "Pi Aube install layout contract passed"

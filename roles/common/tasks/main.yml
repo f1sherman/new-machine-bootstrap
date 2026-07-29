@@ -1409,8 +1409,8 @@
     else
       pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
       pi_manifest="$pi_package_root/package.json"
-      pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")"
-      pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")"
+      pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string name: $pi_manifest" >&2; exit 1; }
+      pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string version: $pi_manifest" >&2; exit 1; }
       [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]] || { echo "Managed Pi package manifest has unexpected identity or version: $pi_manifest" >&2; exit 1; }
       pi_bin="$pi_package_root/dist/cli.js"
       PI_PACKAGE_ROOT="$pi_package_root"
@@ -1471,8 +1471,8 @@
     else
       pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
       pi_manifest="$pi_package_root/package.json"
-      pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")"
-      pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")"
+      pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string name: $pi_manifest" >&2; exit 1; }
+      pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string version: $pi_manifest" >&2; exit 1; }
       [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]] || { echo "Managed Pi package manifest has unexpected identity or version: $pi_manifest" >&2; exit 1; }
       pi_bin="$pi_package_root/dist/cli.js"
     fi
