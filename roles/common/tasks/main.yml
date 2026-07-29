@@ -314,6 +314,7 @@
     - tmux-task-label
     - tmux-indicator-glyphs
     - tmux-window-label
+    - tmux-title-transition
     - tmux-sync-pane-border-status
     - tmux-reconcile-status-bars
     - tmux-pane-title-changed

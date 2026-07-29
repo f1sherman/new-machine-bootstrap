@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+pane_id="${1:-${TMUX_PANE:-}}"
+request_id="${2:-}"
+effective_command="${3:-zsh}"
+suppress_edge="${4:-0}"
+[ -n "$pane_id" ] || exit 0
+[ -n "$request_id" ] || exit 0
+case "$request_id" in
+  *[!A-Za-z0-9._-]*) exit 0 ;;
+esac
+
+state_root="${TMUX_TITLE_TRANSITION_STATE_DIR:-${TMPDIR:-/tmp}/tmux-title-transition-${UID:-$(id -u)}}"
+pane_key="$(printf '%s' "$pane_id" | tr -c 'A-Za-z0-9._-' '_')"
+state_dir="$state_root/$pane_key"
+requests_dir="$state_dir/requests"
+lock_dir="$state_dir/worker.lock"
+completed_file="$state_dir/completed"
+request_file="$requests_dir/$request_id"
+lock_held=0
+
+mkdir -p "$requests_dir" 2>/dev/null || exit 0
+chmod 700 "$state_root" "$state_dir" "$requests_dir" 2>/dev/null || true
+: > "$request_file" || exit 0
+
+cleanup() {
+  rm -f "$request_file" 2>/dev/null || true
+  if [ "$lock_held" = "1" ]; then
+    rm -rf "$lock_dir" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT HUP INT TERM
+
+latest_request() {
+  local path candidate latest=""
+  for path in "$requests_dir"/*; do
+    [ -f "$path" ] || continue
+    candidate="${path##*/}"
+    if [ -z "$latest" ] || [[ "$candidate" > "$latest" ]]; then
+      latest="$candidate"
+    fi
+  done
+  printf '%s\n' "$latest"
+}
+
+is_stale() {
+  local completed="" latest=""
+  if [ -f "$completed_file" ]; then
+    IFS= read -r completed < "$completed_file" || true
+  fi
+  latest="$(latest_request)"
+  { [ -n "$completed" ] && [[ "$request_id" < "$completed" ]]; } ||
+    { [ -n "$latest" ] && [[ "$request_id" < "$latest" ]]; }
+}
+
+while ! mkdir "$lock_dir" 2>/dev/null; do
+  if is_stale; then
+    exit 0
+  fi
+  sleep 0.01
+ done
+lock_held=1
+
+if is_stale; then
+  exit 0
+fi
+
+title_helper="${TMUX_TITLE_TRANSITION_WINDOW_LABEL_BIN:-tmux-window-label}"
+remote_helper="${TMUX_TITLE_TRANSITION_REMOTE_TITLE_BIN:-tmux-remote-title}"
+command "$title_helper" "$pane_id" "${effective_command:-zsh}" >/dev/null 2>&1 || true
+
+if ! is_stale && [ -n "${SSH_CONNECTION:-}${CODESPACES:-}${DEVPOD_WORKSPACE_ID:-}" ] && command -v "$remote_helper" >/dev/null 2>&1; then
+  if [ "$suppress_edge" = "1" ]; then
+    TMUX_REMOTE_TITLE_SUPPRESS_EDGE=1 command "$remote_helper" publish >/dev/null 2>&1 || true
+  else
+    command "$remote_helper" publish >/dev/null 2>&1 || true
+  fi
+fi
+
+completed=""
+if [ -f "$completed_file" ]; then
+  IFS= read -r completed < "$completed_file" || true
+fi
+if [ -z "$completed" ] || [[ "$completed" < "$request_id" ]]; then
+  completed_tmp="$state_dir/completed.$$"
+  printf '%s\n' "$request_id" > "$completed_tmp"
+  mv -f "$completed_tmp" "$completed_file"
+fi
