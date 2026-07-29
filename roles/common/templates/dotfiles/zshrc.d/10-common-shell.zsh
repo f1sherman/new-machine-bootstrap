@@ -150,7 +150,7 @@ if [[ -n "$TMUX" ]]; then
     local -i index=1
     command_words=("${(@Q)${(z)1}}")
 
-    while (( index <= ${#command_words} )); do
+    while (( index <= $#command_words )); do
       word="${command_words[index]}"
       if [[ "$word" == [A-Za-z_][A-Za-z0-9_]#=* ]]; then
         (( index++ ))
@@ -160,7 +160,7 @@ if [[ -n "$TMUX" ]]; then
       case "$word" in
         command)
           (( index++ ))
-          while (( index <= ${#command_words} )); do
+          while (( index <= $#command_words )); do
             word="${command_words[index]}"
             [[ "$word" == -- ]] && { (( index++ )); break; }
             [[ "$word" == -* ]] || break
@@ -169,7 +169,7 @@ if [[ -n "$TMUX" ]]; then
           ;;
         env)
           (( index++ ))
-          while (( index <= ${#command_words} )); do
+          while (( index <= $#command_words )); do
             word="${command_words[index]}"
             [[ "$word" == -- ]] && { (( index++ )); break; }
             case "$word" in
@@ -182,7 +182,7 @@ if [[ -n "$TMUX" ]]; then
           ;;
         sudo)
           (( index++ ))
-          while (( index <= ${#command_words} )); do
+          while (( index <= $#command_words )); do
             word="${command_words[index]}"
             [[ "$word" == -- ]] && { (( index++ )); break; }
             case "$word" in
