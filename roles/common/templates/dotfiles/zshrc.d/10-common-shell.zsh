@@ -158,7 +158,7 @@ if [[ -n "$TMUX" ]]; then
       fi
 
       case "$word" in
-        command)
+        command|builtin|nohup)
           (( index++ ))
           while (( index <= $#command_words )); do
             word="${command_words[index]}"
@@ -166,6 +166,27 @@ if [[ -n "$TMUX" ]]; then
             [[ "$word" == -* ]] || break
             (( index++ ))
           done
+          ;;
+        exec)
+          (( index++ ))
+          while (( index <= $#command_words )); do
+            word="${command_words[index]}"
+            [[ "$word" == -- ]] && { (( index++ )); break; }
+            case "$word" in
+              -a) (( index += 2 )) ;;
+              -*) (( index++ )) ;;
+              *) break ;;
+            esac
+          done
+          ;;
+        noglob|nocorrect)
+          (( index++ ))
+          ;;
+        time)
+          (( index++ ))
+          if [[ "${command_words[index]:-}" == -p ]]; then
+            (( index++ ))
+          fi
           ;;
         env)
           (( index++ ))

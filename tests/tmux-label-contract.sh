@@ -570,7 +570,7 @@ TMUX=/tmp/tmux-test \
 TMUX_PANE=%1 \
 TMUX_REMOTE_TITLE_HOOK_LOG="$zsh_command_log" \
 PATH="$zsh_hook_bin:$PATH" \
-  zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; TMUX_PANE=%alias; _tmux_window_title_preexec 'v README.md' 'nvim README.md' 'nvim README.md'; TMUX_PANE=%alias-fallback; _tmux_window_title_preexec 'v README.md' 'nvim README.md'; TMUX_PANE=%assignment; _tmux_window_title_preexec 'FOO=bar nvim README.md'; TMUX_PANE=%command; _tmux_window_title_preexec 'command nvim README.md'; TMUX_PANE=%env; _tmux_window_title_preexec 'env FOO=bar nvim README.md'; TMUX_PANE=%sudo; _tmux_window_title_preexec 'sudo nvim README.md'; TMUX_PANE=%sudo-option; _tmux_window_title_preexec 'sudo -u root nvim README.md'; TMUX_PANE=%path; _tmux_window_title_preexec \"'/usr/bin/nvim' 'content/post draft.md'\""
+  zsh -fc "source '$REPO_ROOT/roles/common/templates/dotfiles/zshrc.d/10-common-shell.zsh'; TMUX_PANE=%alias; _tmux_window_title_preexec 'v README.md' 'nvim README.md' 'nvim README.md'; TMUX_PANE=%alias-fallback; _tmux_window_title_preexec 'v README.md' 'nvim README.md'; TMUX_PANE=%assignment; _tmux_window_title_preexec 'FOO=bar nvim README.md'; TMUX_PANE=%command; _tmux_window_title_preexec 'command nvim README.md'; TMUX_PANE=%env; _tmux_window_title_preexec 'env FOO=bar nvim README.md'; TMUX_PANE=%sudo; _tmux_window_title_preexec 'sudo nvim README.md'; TMUX_PANE=%sudo-option; _tmux_window_title_preexec 'sudo -u root nvim README.md'; TMUX_PANE=%exec; _tmux_window_title_preexec 'exec nvim README.md'; TMUX_PANE=%exec-option; _tmux_window_title_preexec 'exec -a editor nvim README.md'; TMUX_PANE=%noglob; _tmux_window_title_preexec 'noglob nvim README.md'; TMUX_PANE=%nocorrect; _tmux_window_title_preexec 'nocorrect nvim README.md'; TMUX_PANE=%time; _tmux_window_title_preexec 'time nvim README.md'; TMUX_PANE=%time-option; _tmux_window_title_preexec 'time -p nvim README.md'; TMUX_PANE=%builtin; _tmux_window_title_preexec 'builtin nvim README.md'; TMUX_PANE=%nohup; _tmux_window_title_preexec 'nohup -- nvim README.md'; TMUX_PANE=%path; _tmux_window_title_preexec \"'/usr/bin/nvim' 'content/post draft.md'\""
 wait_for_file_line "$zsh_command_log" $'transition\t%alias\tnvim\t1' "zsh preexec uses alias-expanded executed command"
 wait_for_file_line "$zsh_command_log" $'transition\t%alias-fallback\tnvim\t1' "zsh preexec falls back to alias-expanded command argument"
 wait_for_file_line "$zsh_command_log" $'transition\t%assignment\tnvim\t1' "zsh preexec skips leading environment assignments"
@@ -578,6 +578,14 @@ wait_for_file_line "$zsh_command_log" $'transition\t%command\tnvim\t1' "zsh pree
 wait_for_file_line "$zsh_command_log" $'transition\t%env\tnvim\t1' "zsh preexec skips env wrapper and assignments"
 wait_for_file_line "$zsh_command_log" $'transition\t%sudo\tnvim\t1' "zsh preexec skips sudo wrapper"
 wait_for_file_line "$zsh_command_log" $'transition\t%sudo-option\tnvim\t1' "zsh preexec skips sudo options with arguments"
+wait_for_file_line "$zsh_command_log" $'transition\t%exec\tnvim\t1' "zsh preexec skips exec modifier"
+wait_for_file_line "$zsh_command_log" $'transition\t%exec-option\tnvim\t1' "zsh preexec skips exec options"
+wait_for_file_line "$zsh_command_log" $'transition\t%noglob\tnvim\t1' "zsh preexec skips noglob modifier"
+wait_for_file_line "$zsh_command_log" $'transition\t%nocorrect\tnvim\t1' "zsh preexec skips nocorrect modifier"
+wait_for_file_line "$zsh_command_log" $'transition\t%time\tnvim\t1' "zsh preexec skips time modifier"
+wait_for_file_line "$zsh_command_log" $'transition\t%time-option\tnvim\t1' "zsh preexec skips time options"
+wait_for_file_line "$zsh_command_log" $'transition\t%builtin\tnvim\t1' "zsh preexec skips builtin prefix"
+wait_for_file_line "$zsh_command_log" $'transition\t%nohup\tnvim\t1' "zsh preexec skips nohup prefix and options"
 wait_for_file_line "$zsh_command_log" $'transition\t%path\tnvim\t1' "zsh preexec preserves quoted path parsing and vim suppression"
 assert_file_not_contains "$zsh_command_log" $'\tv\t' "zsh preexec does not title alias name"
 
