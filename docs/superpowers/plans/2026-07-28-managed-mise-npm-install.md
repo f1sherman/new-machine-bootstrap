@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the managed npm-tool provisioning task install only Codex and Pi, and resolve Linux Pi through mise's deterministic executable link.
+**Goal:** Make the managed npm-tool provisioning task install only Codex and Pi, and resolve Linux Pi from its deterministic mise npm tree.
 
-**Architecture:** Keep installation ownership in the existing Ansible role. Replace the home-wide mise install with explicit npm tool selectors, then resolve mise's Pi executable link and validate its package rather than querying Aube global state or assuming a storage path.
+**Architecture:** Keep installation ownership in the existing Ansible role. Replace the home-wide mise install with explicit npm tool selectors, then derive and validate the Linux package directly under the mise tool root rather than querying Aube global state.
 
 **Tech Stack:** Ansible YAML, Bash, Ruby contract tests, mise, Aube.
 
@@ -81,29 +81,28 @@ git add tests/managed-mise-npm-install-contract.rb roles/common/tasks/main.yml
 git commit -m "Target managed npm tool installation"
 ```
 
-### Task 2: Resolve Linux Pi through the mise executable link
+### Task 2: Resolve Linux Pi beneath the mise tool root
 
 **Files:**
 - Modify: `tests/pi-aube-install-layout-contract.rb`
 - Modify: `roles/common/tasks/main.yml:1399-1478`
 
 **Interfaces:**
-- Consumes: `pi_root` from `mise where npm:@earendil-works/pi-coding-agent` and its `bin/pi` executable link.
-- Produces: `PI_BIN` as the resolved executable and `PI_PACKAGE_ROOT` as that executable's grandparent directory after manifest validation.
+- Consumes: `pi_root` from `mise where npm:@earendil-works/pi-coding-agent`.
+- Produces: `PI_PACKAGE_ROOT=$pi_root/node_modules/@earendil-works/pi-coding-agent` and `PI_BIN=$PI_PACKAGE_ROOT/dist/cli.js` after manifest validation.
 
-- [ ] **Step 1: Rewrite the Linux layout contract to describe executable-derived resolution**
+- [ ] **Step 1: Rewrite the Linux layout contract to describe the observed tree**
 
 Remove expectations for `aube list --global`, tab-separated listing parsing, and `pi_install`. Require both managed Pi tasks to derive:
 
 ```bash
-pi_bin="$(realpath "$pi_root/bin/pi")"
-pi_package_root="$(dirname "$(dirname "$pi_bin")")"
+pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
 pi_manifest="$pi_package_root/package.json"
 pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")"
 pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")"
 ```
 
-Require exact name/version and executable validation. In the executable fixture, create separate mise-install and package-store roots, link mise's `bin/pi` to the package executable, execute the extracted non-Darwin resolver, and assert the resolved executable and package paths are returned. Also assert the resolver does not contain `list --global`.
+Require exact name/version validation and `dist/cli.js`. In the executable fixture, create a wrapper root `package.json`, the nested package manifest, and nested executable; execute the extracted non-Darwin resolver and assert the nested paths are returned. Also assert the resolver does not contain `list --global`.
 
 - [ ] **Step 2: Run the test and verify RED**
 
@@ -113,7 +112,7 @@ Expected: FAIL because production still queries Aube global state.
 
 - [ ] **Step 3: Implement deterministic package resolution**
 
-In both non-Darwin branches, replace Aube listing logic with `realpath` resolution of mise's `bin/pi` link and derive the package root from the executable. Validate the derived `package.json` name and pinned version with `jq -er`, then use the resolved executable. Export `PI_PACKAGE_ROOT` in the package-link task. Preserve the Darwin branch and Ruby symlink logic unchanged.
+In both non-Darwin branches, replace Aube listing logic with direct nested path derivation. Validate the nested `package.json` name and pinned version with `jq -er`, then use `dist/cli.js`. Export `PI_PACKAGE_ROOT` in the package-link task. Preserve the Darwin branch and Ruby symlink logic unchanged.
 
 - [ ] **Step 4: Verify GREEN**
 
