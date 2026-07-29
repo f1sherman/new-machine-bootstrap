@@ -102,6 +102,9 @@ jobs:
       - name: Verify repo tests isolate tmux state
         run: bash tests/repo-tests-tmux-isolation.sh
 
+      - name: Verify tmux label helper provisioning
+        run: bash tests/tmux-label-helper-provisioning.sh
+
       - name: Verify tmux label contract
         run: bash tests/tmux-label-contract.sh
 
