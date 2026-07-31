@@ -85,8 +85,12 @@ _prompt_timer_precmd() {
     _prompt_cmd_time_display=
   fi
 }
+_reset_terminal_focus_reporting() {
+  printf '\e[?1004l'
+}
 add-zsh-hook preexec _prompt_timer_preexec
 add-zsh-hook precmd _prompt_timer_precmd
+add-zsh-hook precmd _reset_terminal_focus_reporting
 
 _prompt_vi_mode=
 function zle-keymap-select() {
