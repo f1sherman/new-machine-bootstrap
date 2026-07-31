@@ -114,6 +114,9 @@ jobs:
       - name: Verify editor environment contract
         run: bash tests/editor-env-contract.sh
 
+      - name: Verify Zsh terminal focus reset
+        run: bash tests/zsh-terminal-focus-reset.sh
+
       - name: Verify tmux agent key passthrough contract
         run: bash tests/tmux-agent-key-passthrough.sh
 
