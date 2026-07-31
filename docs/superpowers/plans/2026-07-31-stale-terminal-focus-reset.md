@@ -26,17 +26,17 @@
 - Consumes: Zsh `add-zsh-hook` and the `precmd` hook lifecycle.
 - Produces: `_reset_terminal_focus_reporting`, which writes exactly `ESC [ ? 1 0 0 4 l` and is registered for `precmd`.
 
-- [ ] **Step 1: Write the failing contract test**
+- [x] **Step 1: Write the failing contract test**
 
 Create a test that copies the Zsh fragment to a temporary directory, replaces `autoload -Uz add-zsh-hook` with a stub that records registrations, sources the fragment, invokes `_reset_terminal_focus_reporting`, and asserts the exact output bytes and `precmd:_reset_terminal_focus_reporting` registration.
 
-- [ ] **Step 2: Run the test and verify the expected failure**
+- [x] **Step 2: Run the test and verify the expected failure**
 
 Run: `bash tests/zsh-terminal-focus-reset.sh`
 
 Expected: FAIL because `_reset_terminal_focus_reporting` is not defined and is not registered.
 
-- [ ] **Step 3: Add the minimal Zsh hook**
+- [x] **Step 3: Add the minimal Zsh hook**
 
 Add:
 
@@ -49,7 +49,7 @@ add-zsh-hook precmd _reset_terminal_focus_reporting
 
 Place it with the existing `precmd` hooks.
 
-- [ ] **Step 4: Run focused and related tests**
+- [x] **Step 4: Run focused and related tests**
 
 Run:
 
@@ -61,10 +61,10 @@ bash tests/editor-env-contract.sh
 
 Expected: all commands exit 0.
 
-- [ ] **Step 5: Provision and verify live behavior**
+- [x] **Step 5: Provision and verify live behavior**
 
 Run `bin/provision`, then reproduce stale focus mode in a disposable tmux pane and verify that returning to the Zsh prompt disables mode 1004 before the window becomes inactive. Confirm `window_bell_flag=0` after repeated window switches.
 
-- [ ] **Step 6: Commit the implementation**
+- [x] **Step 6: Commit the implementation**
 
 Commit the spec, plan, test, and managed Zsh template with a concise bug-fix commit message.
