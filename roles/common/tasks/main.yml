@@ -1328,25 +1328,37 @@
   failed_when: pi_session_manager_plugin_linux.rc != 0
   when: ansible_facts["os_family"] == "Debian"
 
-- name: Install OpenAI server compaction extension for Pi (macOS)
-  command: >-
-    {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} --
-    pi install git:github.com/algal/pi-openai-server-compaction
+- name: Install or update OpenAI server compaction extension for Pi (macOS)
+  shell: |
+    set -euo pipefail
+    package_dir="{{ ansible_facts['user_dir'] }}/.pi/agent/git/github.com/algal/pi-openai-server-compaction"
+    before="$(git -C "$package_dir" rev-parse HEAD 2>/dev/null || true)"
+    {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- \
+      pi install git:github.com/algal/pi-openai-server-compaction
+    after="$(git -C "$package_dir" rev-parse HEAD)"
+    [[ "$before" == "$after" ]] || echo changed
   args:
-    creates: "{{ ansible_facts['user_dir'] }}/.pi/agent/git/github.com/algal/pi-openai-server-compaction/node_modules/.package-lock.json"
+    executable: /bin/bash
   register: pi_openai_server_compaction_macos
+  changed_when: "'changed' in pi_openai_server_compaction_macos.stdout_lines"
   failed_when: pi_openai_server_compaction_macos.rc != 0
   when: ansible_facts["os_family"] == "Darwin"
 
-- name: Install OpenAI server compaction extension for Pi (Linux)
-  shell: >-
-    {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} --
-    pi install git:github.com/algal/pi-openai-server-compaction
+- name: Install or update OpenAI server compaction extension for Pi (Linux)
+  shell: |
+    set -euo pipefail
+    package_dir="{{ ansible_facts['user_dir'] }}/.pi/agent/git/github.com/algal/pi-openai-server-compaction"
+    before="$(git -C "$package_dir" rev-parse HEAD 2>/dev/null || true)"
+    {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- \
+      pi install git:github.com/algal/pi-openai-server-compaction
+    after="$(git -C "$package_dir" rev-parse HEAD)"
+    [[ "$before" == "$after" ]] || echo changed
   args:
-    creates: "{{ ansible_facts['user_dir'] }}/.pi/agent/git/github.com/algal/pi-openai-server-compaction/node_modules/.package-lock.json"
+    executable: /bin/bash
   register: pi_openai_server_compaction_linux
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
+  changed_when: "'changed' in pi_openai_server_compaction_linux.stdout_lines"
   failed_when: pi_openai_server_compaction_linux.rc != 0
   when: ansible_facts["os_family"] == "Debian"
 

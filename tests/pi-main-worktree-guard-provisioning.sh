@@ -25,6 +25,18 @@ raise "wrong settings task include" unless include_task["include_tasks"] == "pi_
 model_include = by_name["Configure managed pi-coding-agent model overrides"] or abort "missing Pi model settings include"
 raise "wrong model task include" unless model_include["include_tasks"] == "pi_model_overrides.yml"
 
+{
+  "macOS" => "Darwin",
+  "Linux" => "Debian",
+}.each do |platform, family|
+  task = by_name["Install or update OpenAI server compaction extension for Pi (#{platform})"] or abort "missing #{platform} compaction extension task"
+  shell = task.fetch("shell")
+  raise "wrong #{platform} compaction source" unless shell.include?("pi install git:github.com/algal/pi-openai-server-compaction")
+  raise "missing #{platform} revision comparison" unless shell.include?('before=') && shell.include?('after=')
+  raise "wrong #{platform} platform condition" unless task["when"] == %(ansible_facts["os_family"] == "#{family}")
+  raise "missing #{platform} changed detection" unless task.fetch("changed_when").include?("stdout_lines")
+end
+
 settings_tasks = YAML.load_file(ARGV.fetch(1))
 settings_names = settings_tasks.filter_map { |task| task["name"] if task.is_a?(Hash) }
 [
