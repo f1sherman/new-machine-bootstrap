@@ -78,6 +78,15 @@ clear_task_options() {
   clear_obsolete_options "$pane"
 }
 
+clear_provisional_task() {
+  local pane="$1" source state
+  source="$(get_pane_option "$pane" @task_source 2>/dev/null || true)"
+  state="$(get_pane_option "$pane" @task_state 2>/dev/null || true)"
+  [[ "$source" = "agent" && "$state" = "provisional" ]] || return 0
+  clear_task_options "$pane"
+  refresh "$pane"
+}
+
 clear_worktree_options() {
   local pane="$1"
   clear_pane_option "$pane" @agent_worktree_path
@@ -381,6 +390,9 @@ case "$cmd" in
   clear-task)
     clear_task_options "$pane"
     refresh "$pane"
+    ;;
+  clear-provisional)
+    clear_provisional_task "$pane"
     ;;
   refresh)
     refresh "$pane"
