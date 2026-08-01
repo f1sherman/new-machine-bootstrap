@@ -153,6 +153,9 @@ jobs:
       - name: Verify Pi global AGENTS assembly
         run: bash tests/pi-agent-assemble-agents.sh
 
+      - name: Verify Cyberpunk Pi theme
+        run: bash tests/pi-cyberpunk-theme.sh
+
       - name: Verify Pi shared skills
         run: ruby tests/pi-shared-skills.rb
 
