@@ -1407,24 +1407,20 @@
     set -euo pipefail
 
     pi_root="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')"
-    if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then
-      pi_bin="$pi_root/bin/pi"
-    else
-      pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
+    pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
+    pi_manifest="$pi_package_root/package.json"
+    if [[ ! -f "$pi_manifest" && "{{ ansible_facts['os_family'] }}" != "Darwin" ]]; then
+      pi_launcher="$pi_root/bin/pi"
+      pi_bin="$(realpath "$pi_launcher")" || { echo "Managed Pi package could not be resolved from nested package or executable: $pi_package_root, $pi_launcher" >&2; exit 1; }
+      pi_package_root="$(dirname "$(dirname "$pi_bin")")"
       pi_manifest="$pi_package_root/package.json"
-      if [[ ! -f "$pi_manifest" ]]; then
-        pi_launcher="$pi_root/bin/pi"
-        pi_bin="$(realpath "$pi_launcher")" || { echo "Managed Pi package could not be resolved from nested package or executable: $pi_package_root, $pi_launcher" >&2; exit 1; }
-        pi_package_root="$(dirname "$(dirname "$pi_bin")")"
-        pi_manifest="$pi_package_root/package.json"
-      fi
-      pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string name: $pi_manifest" >&2; exit 1; }
-      pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string version: $pi_manifest" >&2; exit 1; }
-      [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]] || { echo "Managed Pi package manifest has unexpected identity or version: $pi_manifest" >&2; exit 1; }
-      pi_bin="$pi_package_root/dist/cli.js"
-      PI_PACKAGE_ROOT="$pi_package_root"
-      export PI_PACKAGE_ROOT
     fi
+    pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string name: $pi_manifest" >&2; exit 1; }
+    pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string version: $pi_manifest" >&2; exit 1; }
+    [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]] || { echo "Managed Pi package manifest has unexpected identity or version: $pi_manifest" >&2; exit 1; }
+    pi_bin="$pi_package_root/dist/cli.js"
+    PI_PACKAGE_ROOT="$pi_package_root"
+    export PI_PACKAGE_ROOT
     export PI_BIN="$pi_bin"
     [[ -x "$pi_bin" ]] || { echo "Managed Pi executable is missing or not executable: $pi_bin" >&2; exit 1; }
 
@@ -1433,12 +1429,7 @@
     require "fileutils"
     require "pathname"
 
-    if ENV.fetch("PI_OS_FAMILY") == "Darwin"
-      pi_bin = Pathname.new(ENV.fetch("PI_BIN")).realpath
-      package_root = pi_bin.dirname.dirname
-    else
-      package_root = Pathname.new(ENV.fetch("PI_PACKAGE_ROOT")).realpath
-    end
+    package_root = Pathname.new(ENV.fetch("PI_PACKAGE_ROOT")).realpath
     abort "Managed Pi package root is missing or not a directory: #{package_root}" unless package_root.directory?
 
     expected = Pathname.new(ENV.fetch("NODE_PATH")).join("lib/node_modules/@earendil-works/pi-coding-agent")
@@ -1460,7 +1451,6 @@
     executable: /bin/bash
   environment:
     RUBY_BIN: "{{ mise_bin }} exec ruby@{{ tool_versions.runtimes.ruby }} -- ruby"
-    PI_OS_FAMILY: "{{ ansible_facts['os_family'] }}"
     NODE_PATH: "{{ (ansible_facts['os_family'] == 'Darwin') | ternary(common_aube_global_tools_node_path_macos.stdout, common_aube_global_tools_node_path_linux.stdout) }}"
   register: common_pi_coding_agent_global_node_link
   changed_when: common_pi_coding_agent_global_node_link.stdout.strip() == 'changed'
@@ -1475,22 +1465,18 @@
     set -euo pipefail
     codex_bin="$("{{ mise_bin }}" where 'npm:@openai/codex')/bin/codex"
     pi_root="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')"
-    if [[ "{{ ansible_facts['os_family'] }}" == "Darwin" ]]; then
-      pi_bin="$pi_root/bin/pi"
-    else
-      pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
+    pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
+    pi_manifest="$pi_package_root/package.json"
+    if [[ ! -f "$pi_manifest" && "{{ ansible_facts['os_family'] }}" != "Darwin" ]]; then
+      pi_launcher="$pi_root/bin/pi"
+      pi_bin="$(realpath "$pi_launcher")" || { echo "Managed Pi package could not be resolved from nested package or executable: $pi_package_root, $pi_launcher" >&2; exit 1; }
+      pi_package_root="$(dirname "$(dirname "$pi_bin")")"
       pi_manifest="$pi_package_root/package.json"
-      if [[ ! -f "$pi_manifest" ]]; then
-        pi_launcher="$pi_root/bin/pi"
-        pi_bin="$(realpath "$pi_launcher")" || { echo "Managed Pi package could not be resolved from nested package or executable: $pi_package_root, $pi_launcher" >&2; exit 1; }
-        pi_package_root="$(dirname "$(dirname "$pi_bin")")"
-        pi_manifest="$pi_package_root/package.json"
-      fi
-      pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string name: $pi_manifest" >&2; exit 1; }
-      pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string version: $pi_manifest" >&2; exit 1; }
-      [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]] || { echo "Managed Pi package manifest has unexpected identity or version: $pi_manifest" >&2; exit 1; }
-      pi_bin="$pi_package_root/dist/cli.js"
     fi
+    pi_name="$(jq -er '.name | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string name: $pi_manifest" >&2; exit 1; }
+    pi_version="$(jq -er '.version | select(type == "string")' "$pi_manifest")" || { echo "Managed Pi package manifest is missing a string version: $pi_manifest" >&2; exit 1; }
+    [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]] || { echo "Managed Pi package manifest has unexpected identity or version: $pi_manifest" >&2; exit 1; }
+    pi_bin="$pi_package_root/dist/cli.js"
     [[ -x "$pi_bin" ]] || { echo "Managed Pi executable is missing or not executable: $pi_bin" >&2; exit 1; }
     ln -sf "$codex_bin" "{{ ansible_facts['user_dir'] }}/.local/bin/codex"
     ln -sf "$pi_bin" "{{ ansible_facts['user_dir'] }}/.local/bin/pi"
