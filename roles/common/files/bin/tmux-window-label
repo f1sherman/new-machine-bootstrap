@@ -125,7 +125,7 @@ strip_host_suffix() {
 sanitize_window_name() {
   local value="${1:-}"
   value="${value//./-}"
-  value="${value//:/ - }"
+  value="$(printf '%s\n' "$value" | sed -E 's/[[:space:]]*:[[:space:]]*/ - /g')"
   while [[ "$value" == *"  "* ]]; do
     value="${value//  / }"
   done
