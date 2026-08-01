@@ -5,12 +5,41 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 state="${TMUX_AGENT_STATE_BIN:-$script_dir/tmux-agent-state}"
 [[ -x "$state" ]] || state="${HOME:-}/.local/bin/tmux-agent-state"
 
+caller_owns_pane() {
+  [[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]] || return 1
+
+  local tmux_bin="${TMUX_AGENT_SUBJECT_TMUX_BIN:-tmux}"
+  local ps_bin="${TMUX_AGENT_SUBJECT_PS_BIN:-ps}"
+  local caller_pid="${TMUX_AGENT_SUBJECT_CALLER_PID:-$$}"
+  local pane_pid current_pid parent_pid seen=" "
+
+  pane_pid="$(command "$tmux_bin" display-message -p -t "$TMUX_PANE" '#{pane_pid}' 2>/dev/null)" || return 1
+  [[ "$pane_pid" =~ ^[1-9][0-9]*$ && "$caller_pid" =~ ^[1-9][0-9]*$ ]] || return 1
+
+  current_pid="$caller_pid"
+  while true; do
+    [[ "$current_pid" =~ ^[1-9][0-9]*$ ]] || return 1
+    [ "$current_pid" = "$pane_pid" ] && return 0
+    [ "$current_pid" = 1 ] && return 1
+    case "$seen" in
+      *" $current_pid "*) return 1 ;;
+    esac
+    seen+="$current_pid "
+    parent_pid="$(command "$ps_bin" -p "$current_pid" -o ppid= 2>/dev/null)" || return 1
+    parent_pid="${parent_pid//[[:space:]]/}"
+    [ "$parent_pid" != "$current_pid" ] || return 1
+    current_pid="$parent_pid"
+  done
+}
+
 case "${1:-}" in
   set)
+    caller_owns_pane || exit 0
     shift
     "$state" set-provisional "$@"
     ;;
   clear)
+    caller_owns_pane || exit 0
     "$state" clear-task
     ;;
   status)

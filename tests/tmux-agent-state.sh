@@ -110,7 +110,27 @@ path="$2"
 branch="$(git -C "$path" branch --show-current)"
 printf '(%s) repo | host-a\n' "$branch"
 STUB
-chmod +x "$stub_bin/tmux-window-label" "$stub_bin/tmux-remote-title" "$stub_bin/tmux-label-format"
+cat >"$stub_bin/tmux-subject" <<'STUB'
+#!/usr/bin/env bash
+[ "$1" = display-message ] || exit 1
+printf '%s\n' "${TMUX_AGENT_SUBJECT_TEST_PANE_PID:-}"
+STUB
+cat >"$stub_bin/ps-subject" <<'STUB'
+#!/usr/bin/env bash
+pid=""
+while [ "$#" -gt 0 ]; do
+  [ "$1" = -p ] && { shift; pid="${1:-}"; }
+  shift || true
+done
+case "$pid" in
+  300) printf '200\n' ;;
+  200) printf '100\n' ;;
+  400) printf '1\n' ;;
+  *) exit 1 ;;
+esac
+STUB
+chmod +x "$stub_bin/tmux-window-label" "$stub_bin/tmux-remote-title" "$stub_bin/tmux-label-format" \
+  "$stub_bin/tmux-subject" "$stub_bin/ps-subject"
 
 git -c init.defaultBranch=main -C "$repo" init -q
 git -C "$repo" config user.email test@example.com
@@ -129,7 +149,33 @@ export TMUX_AGENT_STATE_WINDOW_LOG="$TMPROOT/window.log"
 export TMUX_AGENT_STATE_TITLE_LOG="$TMPROOT/title.log"
 export TMUX_AGENT_STATE_LABEL_FORMAT_BIN="$stub_bin/tmux-label-format"
 export TMUX_AGENT_STATE_CURRENT_PATH="$repo"
+export TMUX_AGENT_SUBJECT_TMUX_BIN="$stub_bin/tmux-subject"
+export TMUX_AGENT_SUBJECT_PS_BIN="$stub_bin/ps-subject"
+export TMUX_AGENT_SUBJECT_CALLER_PID=300
+export TMUX_AGENT_SUBJECT_TEST_PANE_PID=100
 export PATH="$stub_bin:$PATH"
+
+unrelated_state_dir="$TMPROOT/unrelated-state"
+mkdir -p "$unrelated_state_dir"
+TMUX_AGENT_STATE_DIR="$unrelated_state_dir" TMUX_AGENT_SUBJECT_CALLER_PID=400 \
+  "$SUBJECT" set "must not leak"
+assert_no_file "$unrelated_state_dir/%1.@task_label" "unrelated process cannot set subject with copied pane environment"
+printf 'existing subject' >"$unrelated_state_dir/%1.@task_label"
+TMUX_AGENT_STATE_DIR="$unrelated_state_dir" TMUX_AGENT_SUBJECT_CALLER_PID=400 \
+  "$SUBJECT" clear
+assert_file_eq "$unrelated_state_dir/%1.@task_label" "existing subject" "unrelated process cannot clear subject with copied pane environment"
+
+invalid_pane_state_dir="$TMPROOT/invalid-pane-state"
+mkdir -p "$invalid_pane_state_dir"
+TMUX_AGENT_STATE_DIR="$invalid_pane_state_dir" TMUX_AGENT_SUBJECT_TEST_PANE_PID=invalid \
+  "$SUBJECT" set "must fail closed"
+assert_no_file "$invalid_pane_state_dir/%1.@task_label" "invalid pane PID cannot set subject"
+
+missing_pane_state_dir="$TMPROOT/missing-pane-state"
+mkdir -p "$missing_pane_state_dir"
+TMUX_AGENT_STATE_DIR="$missing_pane_state_dir" TMUX_AGENT_SUBJECT_TEST_PANE_PID= \
+  "$SUBJECT" set "must fail closed"
+assert_no_file "$missing_pane_state_dir/%1.@task_label" "missing pane PID cannot set subject"
 
 for key in @agent_subject @agent_subject_stale @agent_subject_done @agent_completed_window_label; do
   printf old >"$state_dir/%1.$key"
