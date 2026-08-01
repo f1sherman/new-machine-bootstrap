@@ -616,12 +616,12 @@ for (const prompt of subjectChildPrompts) {
   assert.equal(automaticSubject, undefined, `${prompt} prompt adds no main-context reminder`);
   const childCall = calls.find((call) => call.command === "pi" && !isGoalChildArgs(call.args));
   assert.ok(childCall, `${prompt} invokes isolated Pi child`);
-  assert.equal(modelArg(childCall), "openai-codex/gpt-5.4-mini");
+  assert.equal(modelArg(childCall), "openai-codex/gpt-5.6-luna");
   assert.deepEqual(childCall.args.slice(0, -1), [
     "--mode", "text",
     "--print",
     "--no-session",
-    "--model", "openai-codex/gpt-5.4-mini",
+    "--model", "openai-codex/gpt-5.6-luna",
     "--thinking", "off",
     "--no-tools",
     "--no-extensions",
@@ -736,7 +736,7 @@ assert.deepEqual(goalChildCalls[0].args.slice(0, -1), [
   "--mode", "text",
   "--print",
   "--no-session",
-  "--model", "openai-codex/gpt-5.4-mini",
+  "--model", "openai-codex/gpt-5.6-luna",
   "--thinking", "off",
   "--no-tools",
   "--no-extensions",
@@ -786,7 +786,7 @@ try {
   fs.writeFileSync(managedChildOverrideAuthPath, JSON.stringify(completeCodexOAuth));
   process.env.PI_CODING_AGENT_DIR = managedChildOverrideAuthDir;
   const callWithConfigDirOverride = await callGoalChildForManagedModel("config dir override");
-  assert.equal(modelArg(callWithConfigDirOverride), "openai-codex/gpt-5.4-mini");
+  assert.equal(modelArg(callWithConfigDirOverride), "openai-codex/gpt-5.6-luna");
   assert.equal(authReadCount, originalHomeAuthReads, "HOME auth is not inspected when PI_CODING_AGENT_DIR is set");
   assert.equal(overrideAuthReadCount, originalOverrideAuthReads + 1, "config-dir auth is inspected when PI_CODING_AGENT_DIR is set");
 
@@ -797,7 +797,7 @@ try {
   fs.writeFileSync(managedChildTildeAuthPath, JSON.stringify(completeCodexOAuth));
   process.env.PI_CODING_AGENT_DIR = "~/.pi-tilde/agent";
   const callWithTildeConfigDirOverride = await callGoalChildForManagedModel("config dir tilde override");
-  assert.equal(modelArg(callWithTildeConfigDirOverride), "openai-codex/gpt-5.4-mini");
+  assert.equal(modelArg(callWithTildeConfigDirOverride), "openai-codex/gpt-5.6-luna");
   assert.equal(authReadCount, originalHomeAuthReads, "HOME auth is not inspected when PI_CODING_AGENT_DIR uses a tilde path");
   assert.equal(tildeAuthReadCount, originalTildeAuthReads + 1, "tilde-expanded auth is inspected when PI_CODING_AGENT_DIR uses a tilde path");
 
@@ -807,7 +807,7 @@ try {
   fs.writeFileSync(managedChildExactTildeAuthPath, JSON.stringify(completeCodexOAuth));
   process.env.PI_CODING_AGENT_DIR = "~";
   const callWithExactTildeConfigDirOverride = await callGoalChildForManagedModel("config dir exact tilde override");
-  assert.equal(modelArg(callWithExactTildeConfigDirOverride), "openai-codex/gpt-5.4-mini");
+  assert.equal(modelArg(callWithExactTildeConfigDirOverride), "openai-codex/gpt-5.6-luna");
   assert.equal(authReadCount, originalHomeAuthReads, "HOME auth is not inspected when PI_CODING_AGENT_DIR is exactly tilde");
   assert.equal(exactTildeAuthReadCount, originalExactTildeAuthReads + 1, "HOME auth.json is inspected when PI_CODING_AGENT_DIR is exactly tilde");
 
@@ -818,10 +818,10 @@ try {
   useMatchingAuthMetadata = true;
   process.env.PI_CODING_AGENT_DIR = managedChildOverrideAuthDir;
   const callFromFirstMatchingMetadataPath = await callGoalChildForManagedModel("first matching metadata path");
-  assert.equal(modelArg(callFromFirstMatchingMetadataPath), "openai-codex/gpt-5.4-mini");
+  assert.equal(modelArg(callFromFirstMatchingMetadataPath), "openai-codex/gpt-5.6-luna");
   process.env.PI_CODING_AGENT_DIR = "~/.pi-tilde/agent";
   const callFromSecondMatchingMetadataPath = await callGoalChildForManagedModel("second matching metadata path");
-  assert.equal(modelArg(callFromSecondMatchingMetadataPath), "openai/gpt-4.1-mini", "auth path participates in the cache key");
+  assert.equal(modelArg(callFromSecondMatchingMetadataPath), "openai/gpt-5.6-luna", "auth path participates in the cache key");
 } finally {
   useMatchingAuthMetadata = false;
   if (originalCodingAgentDirSetting === undefined) delete process.env.PI_CODING_AGENT_DIR;
@@ -831,34 +831,34 @@ try {
 
 removeManagedChildAuth();
 const callAfterAuthRemoval = await callGoalChildForManagedModel("auth removed");
-assert.equal(modelArg(callAfterAuthRemoval), "openai/gpt-4.1-mini");
+assert.equal(modelArg(callAfterAuthRemoval), "openai/gpt-5.6-luna");
 
 writeManagedChildAuth(completeCodexOAuth);
 chmodManagedChildAuth(0o600);
 failManagedChildAuthRead = true;
 const callAfterUnreadableAuth = await callGoalChildForManagedModel("auth unreadable");
 failManagedChildAuthRead = false;
-assert.equal(modelArg(callAfterUnreadableAuth), "openai/gpt-4.1-mini");
+assert.equal(modelArg(callAfterUnreadableAuth), "openai/gpt-5.6-luna");
 
 replaceManagedChildAuth("{malformed");
 const callAfterMalformedAuth = await callGoalChildForManagedModel("auth malformed");
-assert.equal(modelArg(callAfterMalformedAuth), "openai/gpt-4.1-mini");
+assert.equal(modelArg(callAfterMalformedAuth), "openai/gpt-5.6-luna");
 
 replaceManagedChildAuth({
   "openai-codex": { type: "oauth", access: "test-access" },
 });
 const callAfterIncompleteOAuth = await callGoalChildForManagedModel("oauth incomplete");
-assert.equal(modelArg(callAfterIncompleteOAuth), "openai/gpt-4.1-mini");
+assert.equal(modelArg(callAfterIncompleteOAuth), "openai/gpt-5.6-luna");
 
 replaceManagedChildAuth({
   "openai-codex": { type: "api_key", key: "test-key" },
 });
 const callAfterNonOAuthAuth = await callGoalChildForManagedModel("auth is not oauth");
-assert.equal(modelArg(callAfterNonOAuthAuth), "openai/gpt-4.1-mini");
+assert.equal(modelArg(callAfterNonOAuthAuth), "openai/gpt-5.6-luna");
 
 replaceManagedChildAuth(completeCodexOAuth);
 const callAfterAtomicReplacement = await callGoalChildForManagedModel("auth atomically replaced");
-assert.equal(modelArg(callAfterAtomicReplacement), "openai-codex/gpt-5.4-mini");
+assert.equal(modelArg(callAfterAtomicReplacement), "openai-codex/gpt-5.6-luna");
 
 process.env.PI_MANAGED_CHILD_MODEL = "custom-provider/custom-model";
 const callWithOverride = await callGoalChildForManagedModel("model override");
