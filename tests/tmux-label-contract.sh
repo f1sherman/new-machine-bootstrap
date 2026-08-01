@@ -908,6 +908,13 @@ for sanitization_case in \
     "outer window sanitizes $case_name"
 done
 
+: > "$window_log"
+TMUX_TEST_AGENT_KIND=codex TMUX_TEST_LOCAL_TASK=1 \
+TMUX_TEST_WINDOW_LABEL=$'~ task\t:\tv2' TMUX_WINDOW_LABEL_LOG="$window_log" \
+  PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1" codex
+assert_file_contains "$window_log" "rename-window -t @1 ~ task - v2" \
+  "outer window sanitizes colon with tabs"
+
 degraded_goal_wire='Fix stale tmux feedback indicator · new-machine-bootstrap | dev [nmb-task=goal] [nmb-ind=working,merged] [nmb-edge=hjkl]'
 : > "$window_log"
 TMUX_TEST_TITLE=dev TMUX_TEST_WINDOW_NAME="$degraded_goal_wire" \
