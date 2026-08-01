@@ -194,6 +194,38 @@ done
 assert_file_contains "$TMPROOT/window.log" "%1" "provisional refresh invokes tmux-window-label"
 assert_file_contains "$TMPROOT/title.log" "publish" "provisional refresh publishes remote title"
 
+printf 'repo | host-a' >"$state_dir/%1.@task_context"
+"$STATE" clear-provisional
+for key in @task_label @task_source @task_state @task_context; do
+  assert_no_file "$state_dir/%1.$key" "clear-provisional removes $key"
+done
+
+for protected_case in \
+  'branch|active' \
+  'goal|active' \
+  'manual|active' \
+  'branch|completed'; do
+  protected_source="${protected_case%%|*}"
+  protected_state="${protected_case#*|}"
+  printf 'protected task' >"$state_dir/%1.@task_label"
+  printf '%s' "$protected_source" >"$state_dir/%1.@task_source"
+  printf '%s' "$protected_state" >"$state_dir/%1.@task_state"
+  printf 'repo | host-a' >"$state_dir/%1.@task_context"
+  "$STATE" clear-provisional
+  assert_file_eq "$state_dir/%1.@task_label" "protected task" "clear-provisional preserves $protected_source/$protected_state label"
+  assert_file_eq "$state_dir/%1.@task_source" "$protected_source" "clear-provisional preserves $protected_source/$protected_state source"
+  assert_file_eq "$state_dir/%1.@task_state" "$protected_state" "clear-provisional preserves $protected_source/$protected_state state"
+done
+
+"$STATE" clear-task
+printf 'agent' >"$state_dir/%1.@task_source"
+"$STATE" clear-provisional
+assert_file_eq "$state_dir/%1.@task_source" "agent" "clear-provisional preserves incomplete state"
+rm -f "$state_dir/%1.@task_source"
+"$STATE" clear-provisional
+assert_eq "" "$("$STATE" status)" "clear-provisional accepts empty state"
+
+"$SUBJECT" set "tmux label persistence"
 "$SUBJECT" set "auth · billing"
 assert_file_eq "$state_dir/%1.@window-label" "~ auth · billing" "local provisional top preserves middle-dot separator"
 assert_file_eq "$state_dir/%1.@pane-label" "~ auth · billing · repo | host-a" "local provisional bottom preserves middle-dot separator"

@@ -403,7 +403,29 @@ cat >"$transition_bin/tmux-remote-title" <<'STUB'
 #!/usr/bin/env bash
 printf 'publish\t%s\t%s\n' "${TMUX_REMOTE_TITLE_SUPPRESS_EDGE:-0}" "${1:-}" >> "$TMUX_TITLE_TRANSITION_LOG"
 STUB
-chmod +x "$transition_bin/tmux-window-label" "$transition_bin/tmux-remote-title"
+cat >"$transition_bin/tmux-agent-state" <<'STUB'
+#!/usr/bin/env bash
+printf 'state\t%s\n' "$*" >> "$TMUX_TITLE_TRANSITION_LOG"
+STUB
+chmod +x "$transition_bin/tmux-window-label" "$transition_bin/tmux-remote-title" "$transition_bin/tmux-agent-state"
+
+shell_cleanup_state="$TMPROOT/shell-cleanup-state"
+shell_cleanup_log="$TMPROOT/shell-cleanup.log"
+TMUX_TITLE_TRANSITION_STATE_DIR="$shell_cleanup_state" \
+TMUX_TITLE_TRANSITION_LOG="$shell_cleanup_log" \
+TMUX_TITLE_TRANSITION_AGENT_STATE_BIN="$transition_bin/tmux-agent-state" \
+PATH="$transition_bin:$PATH" "$TITLE_TRANSITION" %13 0001 zsh 0
+assert_file_line "$shell_cleanup_log" $'state\tclear-provisional' "zsh transition clears provisional agent state"
+assert_line_before "$shell_cleanup_log" $'state\tclear-provisional' $'label-start\tzsh' "zsh transition clears provisional state before rendering"
+
+agent_transition_state="$TMPROOT/agent-transition-state"
+agent_transition_log="$TMPROOT/agent-transition.log"
+TMUX_TITLE_TRANSITION_STATE_DIR="$agent_transition_state" \
+TMUX_TITLE_TRANSITION_LOG="$agent_transition_log" \
+TMUX_TITLE_TRANSITION_AGENT_STATE_BIN="$transition_bin/tmux-agent-state" \
+PATH="$transition_bin:$PATH" "$TITLE_TRANSITION" %14 0001 pi 0
+assert_file_not_contains "$agent_transition_log" $'state\tclear-provisional' "non-shell transition preserves provisional agent state"
+
 SSH_CONNECTION=test TMUX_TITLE_TRANSITION_STATE_DIR="$transition_state" \
 TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
   "$TITLE_TRANSITION" %1 0001 old 0 &

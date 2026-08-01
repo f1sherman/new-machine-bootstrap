@@ -153,6 +153,13 @@ if is_stale; then
   exit 0
 fi
 
+if [ "$effective_command" = "zsh" ]; then
+  agent_state_helper="${TMUX_TITLE_TRANSITION_AGENT_STATE_BIN:-tmux-agent-state}"
+  if command -v "$agent_state_helper" >/dev/null 2>&1; then
+    TMUX_PANE="$pane_id" command "$agent_state_helper" clear-provisional >/dev/null 2>&1 || true
+  fi
+fi
+
 title_helper="${TMUX_TITLE_TRANSITION_WINDOW_LABEL_BIN:-tmux-window-label}"
 remote_helper="${TMUX_TITLE_TRANSITION_REMOTE_TITLE_BIN:-tmux-remote-title}"
 render_succeeded=0
