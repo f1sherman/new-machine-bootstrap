@@ -956,6 +956,11 @@ try:
         "on",
         "restored config hooks finish load reconciliation",
     )
+    config_load_barrier_pid = start_reconciler("post-config-load-barrier")
+    wait_for_process_exit(
+        config_load_barrier_pid,
+        "restored config background reconciliations drain before opt-out coverage",
+    )
 
     tmux("new-session", "-d", "-s", "opt-source", "sleep", "300")
     tmux("new-session", "-d", "-s", "opt-destination", "sleep", "300")
