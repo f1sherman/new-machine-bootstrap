@@ -974,6 +974,13 @@ for remote_case in \
     PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
   assert_file_contains "$window_log" "rename-window -t @1 $expected" "outer window applies exact remote task contract: $expected"
 done
+colon_heavy_remote_case='~ a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x · project | remote-host'
+colon_heavy_label="$($TASK_LABEL extract-remote "$colon_heavy_remote_case")"
+colon_heavy_expected="$($TASK_LABEL truncate "${colon_heavy_label//:/ - }")"
+: > "$window_log"
+TMUX_TEST_TITLE="$colon_heavy_remote_case" TMUX_WINDOW_LABEL_LOG="$window_log" \
+  PATH="$fake_tmux_dir:$PATH" "$WINDOW_LABEL" "%1"
+assert_file_contains "$window_log" "rename-window -t @1 $colon_heavy_expected" "outer window truncates colon-heavy sanitized label"
 assert_equals "$($TASK_LABEL extract-remote '(feature/a)b) project | remote-host')" 'feature/a)b' "remote parser preserves branch closing parenthesis"
 assert_equals "$($TASK_LABEL extract-remote '(feature/x) project | remote-host [nmb-ind=working,draft] [nmb-edge=hj]')" 'feature/x' "remote parser strips indicator marker"
 assert_equals "$($TASK_LABEL extract-remote 'Fix stale tmux feedback indicator · new-machine-bootstrap | dev [nmb-task=goal] [nmb-ind=working,merged] [nmb-edge=hjkl]')" "Fix stale tmux feedback indicator" "remote parser extracts explicit goal identity"
