@@ -895,7 +895,8 @@ done
 for sanitization_case in \
   'Replace models with 5.6^Replace models with 5-6^period' \
   'task: v2^task - v2^colon with space' \
-  'task:v2^task - v2^colon without space'; do
+  'task:v2^task - v2^colon without space' \
+  'std::io^std - - io^adjacent colons'; do
   input="${sanitization_case%%^*}"
   remainder="${sanitization_case#*^}"
   expected="${remainder%%^*}"
