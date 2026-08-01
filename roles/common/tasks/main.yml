@@ -1328,6 +1328,28 @@
   failed_when: pi_session_manager_plugin_linux.rc != 0
   when: ansible_facts["os_family"] == "Debian"
 
+- name: Install OpenAI server compaction extension for Pi (macOS)
+  command: >-
+    {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} --
+    pi install git:github.com/algal/pi-openai-server-compaction
+  args:
+    creates: "{{ ansible_facts['user_dir'] }}/.pi/agent/git/github.com/algal/pi-openai-server-compaction/node_modules/.package-lock.json"
+  register: pi_openai_server_compaction_macos
+  failed_when: pi_openai_server_compaction_macos.rc != 0
+  when: ansible_facts["os_family"] == "Darwin"
+
+- name: Install OpenAI server compaction extension for Pi (Linux)
+  shell: >-
+    {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} --
+    pi install git:github.com/algal/pi-openai-server-compaction
+  args:
+    creates: "{{ ansible_facts['user_dir'] }}/.pi/agent/git/github.com/algal/pi-openai-server-compaction/node_modules/.package-lock.json"
+  register: pi_openai_server_compaction_linux
+  environment:
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
+  failed_when: pi_openai_server_compaction_linux.rc != 0
+  when: ansible_facts["os_family"] == "Debian"
+
 - name: Create pi-coding-agent global extensions directory
   file:
     path: "{{ ansible_facts['user_dir'] }}/.pi/agent/extensions"
@@ -1372,6 +1394,11 @@
       {
         "tui.input.newLine": ["shift+enter", "ctrl+n"]
       }
+
+- name: Configure managed pi-coding-agent model overrides
+  include_tasks: pi_model_overrides.yml
+  vars:
+    pi_agent_dir: "{{ ansible_facts['user_dir'] }}/.pi/agent"
 
 - name: Install managed pi-coding-agent hooks
   copy:
