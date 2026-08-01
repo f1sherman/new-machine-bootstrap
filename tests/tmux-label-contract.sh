@@ -892,6 +892,22 @@ for separator_case in \
   assert_file_contains "$window_log" "rename-window -t @1 $expected" "outer window preserves provisional separators: $expected"
 done
 
+for sanitization_case in \
+  'Replace models with 5.6^Replace models with 5-6^period' \
+  'task: v2^task - v2^colon with space' \
+  'task:v2^task - v2^colon without space'; do
+  input="${sanitization_case%%^*}"
+  remainder="${sanitization_case#*^}"
+  expected="${remainder%%^*}"
+  case_name="${remainder#*^}"
+  : > "$window_log"
+  TMUX_TEST_TITLE="~ $input · project | remote-host" \
+  TMUX_WINDOW_LABEL_LOG="$window_log" PATH="$fake_tmux_dir:$PATH" \
+    "$WINDOW_LABEL" "%1"
+  assert_file_contains "$window_log" "rename-window -t @1 ~ $expected" \
+    "outer window sanitizes $case_name"
+done
+
 degraded_goal_wire='Fix stale tmux feedback indicator · new-machine-bootstrap | dev [nmb-task=goal] [nmb-ind=working,merged] [nmb-edge=hjkl]'
 : > "$window_log"
 TMUX_TEST_TITLE=dev TMUX_TEST_WINDOW_NAME="$degraded_goal_wire" \
@@ -1561,7 +1577,7 @@ assert_file_contains "$remote_window_label_log" "rename-window -t @5 ~ remote ta
 TMUX_TEST_AGENT_KIND=codex TMUX_TEST_LOCAL_TASK=1 \
 TMUX_WINDOW_LABEL_LOG="$remote_window_label_log" PATH="$remote_window_label_tmux_dir:$PATH" \
   "$WINDOW_LABEL" "%5" codex
-assert_file_contains "$remote_window_label_log" "rename-window -t @5 codex: tmux subject labels" "live local task keeps cached window label precedence"
+assert_file_contains "$remote_window_label_log" "rename-window -t @5 codex - tmux subject labels" "live local task keeps cached window label precedence"
 
 : > "$remote_window_label_log"
 TMUX_TEST_TITLE=plain TMUX_PANE_LABEL_BIN="$PANE_LABEL" TMUX_WINDOW_LABEL_LOG="$remote_window_label_log" \
@@ -1643,7 +1659,7 @@ STUB
 chmod +x "$window_label_tmux_dir/tmux"
 
 TMUX_WINDOW_LABEL_LOG="$window_label_log" PATH="$window_label_tmux_dir:$PATH" "$WINDOW_LABEL" "%4"
-assert_file_contains "$window_label_log" "rename-window -t @4 codex: tmux subject labels" "window labels prefer @window-label over @pane-label"
+assert_file_contains "$window_label_log" "rename-window -t @4 codex - tmux subject labels" "window labels prefer @window-label over @pane-label"
 
 stale_tmux_dir="$TMPROOT/fake-tmux-bin-stale"
 stale_log="$TMPROOT/window-label-stale.log"

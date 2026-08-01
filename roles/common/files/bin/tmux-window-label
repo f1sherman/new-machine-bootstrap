@@ -122,6 +122,16 @@ strip_host_suffix() {
   printf '%s\n' "${1%% | *}"
 }
 
+sanitize_window_name() {
+  local value="${1:-}"
+  value="${value//./-}"
+  value="${value//:/ - }"
+  while [[ "$value" == *"  "* ]]; do
+    value="${value//  / }"
+  done
+  printf '%s\n' "$value"
+}
+
 if [ -z "$label" ] && is_remote_candidate_command "$effective_command"; then
   label="$(task_from_remote_label "$pane_title" 2>/dev/null || true)"
   if [ -n "$label" ]; then
@@ -170,10 +180,10 @@ if [ -z "$label" ]; then
     non_agent_fallback="1"
   fi
 fi
-[ -n "$label" ] || exit 0
 if [ -z "$cached_window_label" ] && [ -z "$task_label_resolved" ] && [ -z "$non_agent_fallback" ]; then
   label="$(strip_host_suffix "$label")"
 fi
+label="$(sanitize_window_name "$label")"
 [ -n "$label" ] || exit 0
 
 activity=""
