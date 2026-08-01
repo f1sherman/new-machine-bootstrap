@@ -132,6 +132,15 @@ sanitize_window_name() {
   printf '%s\n' "$value"
 }
 
+truncate_window_name() {
+  local value="${1:-}" truncated
+  if [ -x "$task_label_helper" ] && truncated="$("$task_label_helper" truncate "$value" 2>/dev/null)"; then
+    printf '%s\n' "$truncated"
+  else
+    printf '%s\n' "$value"
+  fi
+}
+
 if [ -z "$label" ] && is_remote_candidate_command "$effective_command"; then
   label="$(task_from_remote_label "$pane_title" 2>/dev/null || true)"
   if [ -n "$label" ]; then
@@ -184,6 +193,7 @@ if [ -z "$cached_window_label" ] && [ -z "$task_label_resolved" ] && [ -z "$non_
   label="$(strip_host_suffix "$label")"
 fi
 label="$(sanitize_window_name "$label")"
+label="$(truncate_window_name "$label")"
 [ -n "$label" ] || exit 0
 
 activity=""
