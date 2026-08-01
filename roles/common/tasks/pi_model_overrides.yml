@@ -1,0 +1,30 @@
+---
+- name: Check if Pi models.json exists
+  stat:
+    path: "{{ pi_agent_dir }}/models.json"
+  register: pi_models_stat
+
+- name: Read existing Pi models.json if it exists
+  slurp:
+    src: "{{ pi_agent_dir }}/models.json"
+  register: pi_models_content
+  when: pi_models_stat.stat.exists
+
+- name: Parse existing Pi models or use empty object
+  set_fact:
+    pi_models: "{{ (pi_models_content.content | b64decode | from_json) if pi_models_stat.stat.exists else {} }}"
+
+- name: Load managed Pi model overrides
+  set_fact:
+    pi_managed_model_overrides: "{{ lookup('file', pi_model_overrides_file | default(playbook_dir + '/roles/common/files/pi/models.json')) | from_json }}"
+
+- name: Merge managed Pi model overrides
+  set_fact:
+    pi_merged_models: "{{ pi_models | combine(pi_managed_model_overrides, recursive=True) }}"
+
+- name: Write merged Pi models.json
+  copy:
+    content: "{{ pi_merged_models | to_nice_json }}"
+    dest: "{{ pi_agent_dir }}/models.json"
+    mode: '0600'
+    backup: yes

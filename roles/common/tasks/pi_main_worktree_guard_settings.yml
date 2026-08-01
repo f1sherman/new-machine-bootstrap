@@ -37,9 +37,16 @@
       researcher:
         subagentOnlyExtensions: "{{ ((existing_overrides.get('researcher', {}).get('subagentOnlyExtensions', []) | default([], true)) + [guard_extension]) | unique }}"
 
-- name: Merge Pi subagent main worktree guard settings
+- name: Merge managed Pi settings
   set_fact:
-    pi_merged_settings: "{{ pi_settings | combine({'subagents': {'agentOverrides': pi_subagent_main_worktree_guard_overrides}}, recursive=True) }}"
+    pi_merged_settings: >-
+      {{ pi_settings | combine({
+        'hideThinkingBlock': true,
+        'quietStartup': true,
+        'collapseChangelog': true,
+        'packages': (pi_settings.get('packages', []) + ['git:github.com/algal/pi-openai-server-compaction']) | unique,
+        'subagents': {'agentOverrides': pi_subagent_main_worktree_guard_overrides}
+      }, recursive=True) }}
 
 - name: Write merged Pi settings.json
   copy:
