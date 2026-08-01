@@ -25,7 +25,7 @@
 - Modify: `roles/common/files/pi/extensions/managed-hooks.ts:6-7`
 
 **Interfaces:**
-- Consumes: Existing `selectManagedChildModel()` behavior and `PI_MANAGED_CHILD_MODEL` override.
+- Consumes: Existing `managedChildModel()` behavior and `PI_MANAGED_CHILD_MODEL` override.
 - Produces: Provider-qualified Luna model identifiers passed through the existing Pi child argument builder.
 
 - [ ] **Step 1: Change focused test expectations to Luna**
