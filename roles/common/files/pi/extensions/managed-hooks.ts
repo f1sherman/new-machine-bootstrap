@@ -3,8 +3,8 @@ import path from "node:path";
 
 const COMMAND_TIMEOUT_MS = 5000;
 const SUBJECT_CHILD_TIMEOUT_MS = 15000;
-const CODEX_MANAGED_CHILD_MODEL = "openai-codex/gpt-5.4-mini";
-const OPENAI_MANAGED_CHILD_MODEL = "openai/gpt-4.1-mini";
+const CODEX_MANAGED_CHILD_MODEL = "openai-codex/gpt-5.6-luna";
+const OPENAI_MANAGED_CHILD_MODEL = "openai/gpt-5.6-luna";
 const MANAGED_CHILD_MODEL_OVERRIDE = "PI_MANAGED_CHILD_MODEL";
 let cachedManagedChildAuthSignature;
 let cachedManagedChildModel = OPENAI_MANAGED_CHILD_MODEL;
