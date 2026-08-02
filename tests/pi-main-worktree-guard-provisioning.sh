@@ -29,9 +29,9 @@ raise "wrong model task include" unless model_include["include_tasks"] == "pi_mo
   "macOS" => "Darwin",
   "Linux" => "Debian",
 }.each do |platform, family|
-  task = by_name["Install or update OpenAI server compaction extension for Pi (#{platform})"] or abort "missing #{platform} compaction extension task"
+  task = by_name["Install pinned OpenAI server compaction extension for Pi (#{platform})"] or abort "missing #{platform} compaction extension task"
   shell = task.fetch("shell")
-  raise "wrong #{platform} compaction source" unless shell.include?("pi install git:github.com/algal/pi-openai-server-compaction")
+  raise "wrong #{platform} compaction source" unless shell.include?("pi install git:github.com/algal/pi-openai-server-compaction@8a3de2f3b0c178fdd6f73f2f94172dfc3943e466")
   raise "missing #{platform} revision comparison" unless shell.include?('before=') && shell.include?('after=')
   raise "wrong #{platform} platform condition" unless task["when"] == %(ansible_facts["os_family"] == "#{family}")
   raise "missing #{platform} changed detection" unless task.fetch("changed_when").include?("stdout_lines")
@@ -127,8 +127,8 @@ settings="$tmp_root/pi-agent/settings.json"
 test "$(jq -r '.defaultModel' "$settings")" = existing-model
 test "$(jq -r '.theme' "$settings")" = existing-theme
 test "$(jq -r '.packages[0]' "$settings")" = npm:existing-package
-jq -e '[.packages[] | select((if type == "object" then .source else . end) == "git:github.com/algal/pi-openai-server-compaction")] | length == 1' "$settings" >/dev/null
-jq -e '.packages[] | select(. == "git:github.com/algal/pi-openai-server-compaction")' "$settings" >/dev/null
+jq -e '[.packages[] | select((if type == "object" then .source else . end) | startswith("git:github.com/algal/pi-openai-server-compaction"))] | length == 1' "$settings" >/dev/null
+jq -e '.packages[] | select(. == "git:github.com/algal/pi-openai-server-compaction@8a3de2f3b0c178fdd6f73f2f94172dfc3943e466")' "$settings" >/dev/null
 jq -e '.hideThinkingBlock == true and .quietStartup == true and .collapseChangelog == true' "$settings" >/dev/null
 test "$(jq -r '.subagents.agentOverrides.worker.model' "$settings")" = existing-worker-model
 test "$(jq -r '.subagents.agentOverrides["custom-agent"].thinking' "$settings")" = high
