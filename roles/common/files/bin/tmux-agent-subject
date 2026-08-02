@@ -45,11 +45,15 @@ case "${1:-}" in
     caller_owns_pane || exit 0
     "$state" clear-task
     ;;
+  clear-provisional)
+    caller_owns_pane || exit 0
+    "$state" clear-provisional
+    ;;
   status)
     "$state" status
     ;;
   *)
-    printf 'Usage: tmux-agent-subject set <subject>|clear|status\n' >&2
+    printf 'Usage: tmux-agent-subject set <subject>|clear|clear-provisional|status\n' >&2
     exit 2
     ;;
 esac

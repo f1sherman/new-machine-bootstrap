@@ -164,6 +164,12 @@ printf 'existing subject' >"$unrelated_state_dir/%1.@task_label"
 TMUX_AGENT_STATE_DIR="$unrelated_state_dir" TMUX_AGENT_SUBJECT_CALLER_PID=400 \
   "$SUBJECT" clear
 assert_file_eq "$unrelated_state_dir/%1.@task_label" "existing subject" "unrelated process cannot clear subject with copied pane environment"
+printf 'agent' >"$unrelated_state_dir/%1.@task_source"
+printf 'provisional' >"$unrelated_state_dir/%1.@task_state"
+TMUX_AGENT_STATE_DIR="$unrelated_state_dir" TMUX_AGENT_SUBJECT_CALLER_PID=400 \
+  "$SUBJECT" clear-provisional
+assert_file_eq "$unrelated_state_dir/%1.@task_label" "existing subject" "unrelated process cannot clear provisional subject with copied pane environment"
+assert_file_eq "$unrelated_state_dir/%1.@task_state" "provisional" "unrelated process preserves provisional state with copied pane environment"
 
 invalid_pane_state_dir="$TMPROOT/invalid-pane-state"
 mkdir -p "$invalid_pane_state_dir"
@@ -220,9 +226,9 @@ assert_file_contains "$TMPROOT/window.log" "%1" "provisional refresh invokes tmu
 assert_file_contains "$TMPROOT/title.log" "publish" "provisional refresh publishes remote title"
 
 printf 'repo | host-a' >"$state_dir/%1.@task_context"
-"$STATE" clear-provisional
+"$SUBJECT" clear-provisional
 for key in @task_label @task_source @task_state @task_context; do
-  assert_no_file "$state_dir/%1.$key" "clear-provisional removes $key"
+  assert_no_file "$state_dir/%1.$key" "owned clear-provisional removes $key"
 done
 
 for protected_case in \

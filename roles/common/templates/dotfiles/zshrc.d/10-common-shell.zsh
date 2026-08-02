@@ -253,7 +253,7 @@ if [[ -n "$TMUX" ]]; then
   }
 
   _tmux_window_title_precmd() {
-    command tmux-agent-state clear-provisional &>/dev/null || true
+    command tmux-agent-subject clear-provisional &>/dev/null || true
     _tmux_title_transition_dispatch zsh 0
   }
 

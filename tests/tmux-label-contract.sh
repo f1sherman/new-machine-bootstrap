@@ -655,17 +655,21 @@ sleep 2
 printf 'transition\t%s\t%s\t%s\n' "${1:-}" "${3:-}" "${4:-}" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
 printf 'request\t%s\n' "${2:-}" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
 STUB
+cat >"$zsh_hook_bin/tmux-agent-subject" <<'STUB'
+#!/usr/bin/env bash
+printf 'subject-start\t%s\n' "$*" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
+sleep 0.2
+printf 'subject-end\t%s\n' "$*" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
+STUB
 cat >"$zsh_hook_bin/tmux-agent-state" <<'STUB'
 #!/usr/bin/env bash
-printf 'state-start\t%s\n' "$*" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
-sleep 0.2
-printf 'state-end\t%s\n' "$*" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
+printf 'state\t%s\n' "$*" >> "$TMUX_REMOTE_TITLE_HOOK_LOG"
 STUB
 cat >"$zsh_hook_bin/tmux-sync-pane-border-status" <<'STUB'
 #!/usr/bin/env bash
 exit 0
 STUB
-chmod +x "$zsh_hook_bin/tmux-title-transition" "$zsh_hook_bin/tmux-agent-state" "$zsh_hook_bin/tmux-sync-pane-border-status"
+chmod +x "$zsh_hook_bin/tmux-title-transition" "$zsh_hook_bin/tmux-agent-subject" "$zsh_hook_bin/tmux-agent-state" "$zsh_hook_bin/tmux-sync-pane-border-status"
 SECONDS=0
 HOME="$zsh_hook_home" \
 TMUX=/tmp/tmux-test \
@@ -678,9 +682,10 @@ hook_elapsed="$SECONDS"
 assert_less_than "$hook_elapsed" 2 "zsh title hooks dispatch without waiting for slow renderer"
 wait_for_file_line "$zsh_hook_log" $'transition\t%1\tnvim\t1' "zsh preexec dispatches vim-suppressed transition"
 wait_for_file_line "$zsh_hook_log" $'transition\t%1\tzsh\t0' "zsh precmd dispatches shell transition"
-assert_file_line "$zsh_hook_log" $'state-start\tclear-provisional' "zsh precmd starts provisional cleanup"
-assert_file_line "$zsh_hook_log" $'state-end\tclear-provisional' "zsh precmd waits for provisional cleanup"
-assert_line_before "$zsh_hook_log" $'state-end\tclear-provisional' $'transition-start\tzsh' "zsh precmd finishes cleanup before asynchronous transition"
+assert_file_line "$zsh_hook_log" $'subject-start\tclear-provisional' "zsh precmd starts ownership-gated provisional cleanup"
+assert_file_line "$zsh_hook_log" $'subject-end\tclear-provisional' "zsh precmd waits for ownership-gated provisional cleanup"
+assert_file_not_contains "$zsh_hook_log" $'state\tclear-provisional' "zsh precmd does not bypass subject ownership gate"
+assert_line_before "$zsh_hook_log" $'subject-end\tclear-provisional' $'transition-start\tzsh' "zsh precmd finishes gated cleanup before asynchronous transition"
 assert_file_matches "$zsh_hook_log" $'^request\t[0-9]{16,}\.' "zsh transition requests include an ordered timestamp"
 
 zsh_command_log="$TMPROOT/zsh-command-hook.log"
