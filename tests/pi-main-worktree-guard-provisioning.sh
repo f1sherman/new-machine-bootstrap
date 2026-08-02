@@ -68,7 +68,7 @@ cat > "$tmp_root/pi-agent/settings.json" <<'JSON'
   "packages": [
     "npm:existing-package",
     {
-      "source": "git:github.com/algal/pi-openai-server-compaction",
+      "source": "git:github.com/algal/pi-openai-server-compaction@previous-ref",
       "extensions": []
     }
   ],
