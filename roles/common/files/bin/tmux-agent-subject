@@ -8,10 +8,13 @@ state="${TMUX_AGENT_STATE_BIN:-$script_dir/tmux-agent-state}"
 caller_owns_pane() {
   [[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]] || return 1
 
-  local tmux_bin="${TMUX_AGENT_SUBJECT_TMUX_BIN:-tmux}"
-  local ps_bin="${TMUX_AGENT_SUBJECT_PS_BIN:-ps}"
-  local caller_pid="${TMUX_AGENT_SUBJECT_CALLER_PID:-$$}"
+  local tmux_bin=tmux ps_bin=ps caller_pid="$$"
   local pane_pid current_pid parent_pid seen=" "
+  if [[ -n "${TMUX_AGENT_STATE_DIR:-}" ]]; then
+    tmux_bin="${TMUX_AGENT_SUBJECT_TMUX_BIN:-tmux}"
+    ps_bin="${TMUX_AGENT_SUBJECT_PS_BIN:-ps}"
+    caller_pid="${TMUX_AGENT_SUBJECT_CALLER_PID:-$$}"
+  fi
 
   pane_pid="$(command "$tmux_bin" display-message -p -t "$TMUX_PANE" '#{pane_pid}' 2>/dev/null)" || return 1
   [[ "$pane_pid" =~ ^[1-9][0-9]*$ && "$caller_pid" =~ ^[1-9][0-9]*$ ]] || return 1

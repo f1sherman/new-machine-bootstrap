@@ -177,6 +177,31 @@ TMUX_AGENT_STATE_DIR="$missing_pane_state_dir" TMUX_AGENT_SUBJECT_TEST_PANE_PID=
   "$SUBJECT" set "must fail closed"
 assert_no_file "$missing_pane_state_dir/%1.@task_label" "missing pane PID cannot set subject"
 
+production_bin="$TMPROOT/production-bin"
+production_state_log="$TMPROOT/production-state.log"
+mkdir -p "$production_bin"
+cat >"$production_bin/tmux" <<'STUB'
+#!/usr/bin/env bash
+[ "$1" = display-message ] || exit 1
+printf '999999\n'
+STUB
+cat >"$production_bin/tmux-agent-state" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$TMUX_AGENT_SUBJECT_PRODUCTION_STATE_LOG"
+STUB
+chmod +x "$production_bin/tmux" "$production_bin/tmux-agent-state"
+(
+  unset TMUX_AGENT_STATE_DIR
+  TMUX_AGENT_STATE_BIN="$production_bin/tmux-agent-state" \
+  TMUX_AGENT_SUBJECT_PRODUCTION_STATE_LOG="$production_state_log" \
+  TMUX_AGENT_SUBJECT_TMUX_BIN="$stub_bin/tmux-subject" \
+  TMUX_AGENT_SUBJECT_PS_BIN="$stub_bin/ps-subject" \
+  TMUX_AGENT_SUBJECT_CALLER_PID=100 \
+  PATH="$production_bin:$PATH" \
+    "$SUBJECT" set "must not forge ownership"
+)
+assert_no_file "$production_state_log" "production ownership ignores caller-controlled test overrides"
+
 for key in @agent_subject @agent_subject_stale @agent_subject_done @agent_completed_window_label; do
   printf old >"$state_dir/%1.$key"
 done
