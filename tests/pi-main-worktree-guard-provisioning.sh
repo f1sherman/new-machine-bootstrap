@@ -44,6 +44,8 @@ settings_names = settings_tasks.filter_map { |task| task["name"] if task.is_a?(H
   "Read existing Pi settings.json if it exists",
   "Parse existing Pi settings or use empty object",
   "Build Pi subagent main worktree guard overrides",
+  "Initialize preserved Pi package entries",
+  "Preserve Pi packages other than managed server compaction",
   "Merge managed Pi settings",
   "Write merged Pi settings.json",
 ].each { |name| raise "missing task: #{name}" unless settings_names.include?(name) }
@@ -63,7 +65,13 @@ RUBY
 mkdir -p "$tmp_root/pi-agent"
 cat > "$tmp_root/pi-agent/settings.json" <<'JSON'
 {
-  "packages": ["npm:existing-package"],
+  "packages": [
+    "npm:existing-package",
+    {
+      "source": "git:github.com/algal/pi-openai-server-compaction",
+      "extensions": []
+    }
+  ],
   "defaultModel": "existing-model",
   "theme": "existing-theme",
   "subagents": {
@@ -119,7 +127,8 @@ settings="$tmp_root/pi-agent/settings.json"
 test "$(jq -r '.defaultModel' "$settings")" = existing-model
 test "$(jq -r '.theme' "$settings")" = existing-theme
 test "$(jq -r '.packages[0]' "$settings")" = npm:existing-package
-jq -e '.packages | index("git:github.com/algal/pi-openai-server-compaction") != null' "$settings" >/dev/null
+jq -e '[.packages[] | select((if type == "object" then .source else . end) == "git:github.com/algal/pi-openai-server-compaction")] | length == 1' "$settings" >/dev/null
+jq -e '.packages[] | select(. == "git:github.com/algal/pi-openai-server-compaction")' "$settings" >/dev/null
 jq -e '.hideThinkingBlock == true and .quietStartup == true and .collapseChangelog == true' "$settings" >/dev/null
 test "$(jq -r '.subagents.agentOverrides.worker.model' "$settings")" = existing-worker-model
 test "$(jq -r '.subagents.agentOverrides["custom-agent"].thinking' "$settings")" = high
