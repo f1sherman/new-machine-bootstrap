@@ -892,7 +892,7 @@ await withStdoutTTY(true, () => sessionGoalTool.execute(
 ));
 assert.equal(customEntries.length, duplicateEntries, "same normalized explicit goal does not append duplicate state");
 assert.equal(sessionNames.length, duplicateNames, "same normalized explicit goal does not rename again");
-assert.equal(calls.length, 0, "same normalized explicit goal does not republish identity");
+assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity goal cross branch theme"), "same normalized explicit goal republishes identity");
 
 for (const invalidGoal of [
   "first\nsecond",
@@ -1194,10 +1194,26 @@ await withStdoutTTY(true, () => sessionGoalTool.execute(
   undefined,
   ctx,
 ));
-assert.equal(customEntries.length, manualToolEntries + 1, "goal tool still persists under a manual visible name");
-assert.equal(statuses.at(-1).value, "goal: updated durable theme", "goal tool updates durable status under a manual visible name");
-assert.equal(currentSessionName, "renamed manual investigation", "goal tool preserves manual visible Pi name");
-assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args[1] === "goal"), false, "goal tool preserves manual tmux identity when automatic naming is blocked");
+assert.equal(customEntries.length, manualToolEntries + 1, "goal tool persists a changed explicit goal");
+assert.equal(currentSessionName, "updated durable theme", "goal tool replaces an inherited or manual-looking Pi name");
+assert.equal(managedPiSessionName, "updated durable theme", "goal tool claims managed ownership for the explicit identity");
+assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity goal updated durable theme"), "goal tool publishes the explicit tmux goal identity");
+
+const sameGoalEntryCount = customEntries.length;
+currentSessionName = "Implement cmdrunner→command-proxy migration";
+managedPiSessionName = "Implement cmdrunner→command-proxy migra…";
+calls.length = 0;
+await withStdoutTTY(true, () => sessionGoalTool.execute(
+  "same-explicit-goal",
+  { goal: "updated durable theme" },
+  subjectSignal,
+  undefined,
+  ctx,
+));
+assert.equal(customEntries.length, sameGoalEntryCount, "same explicit goal does not append duplicate durable history");
+assert.equal(currentSessionName, "updated durable theme", "same explicit goal repairs an inherited Pi name");
+assert.equal(managedPiSessionName, "updated durable theme", "same explicit goal repairs a truncated managed marker");
+assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity goal updated durable theme"), "same explicit goal republishes the repaired tmux identity");
 
 branchEntries = [
   { type: "custom", customType: "session-goal", data: { subject: "extension managed goal" } },
