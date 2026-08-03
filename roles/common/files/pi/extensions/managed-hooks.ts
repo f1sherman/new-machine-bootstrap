@@ -154,10 +154,11 @@ async function setManagedPiSessionName(
   replaceExistingName = false,
 ) {
   if (!sessionName || typeof pi.setSessionName !== "function") return false;
-  let currentName = ctx?.sessionManager?.getSessionName?.() || "";
+  const currentName = ctx?.sessionManager?.getSessionName?.() || "";
   if (currentName) {
     const marker = await tmuxOption(pi, MANAGED_PI_SESSION_NAME_OPTION);
-    currentName = ctx?.sessionManager?.getSessionName?.() || "";
+    const liveName = ctx?.sessionManager?.getSessionName?.() || "";
+    if (liveName !== currentName) return false;
     if (marker === currentName) lastManagedSessionName = currentName;
   }
   if (currentName === sessionName && (!inTmux() || currentName === lastManagedSessionName)) return true;
