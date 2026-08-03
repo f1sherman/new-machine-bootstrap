@@ -146,7 +146,13 @@ async function managedWrite(pi, command, args, failureMessage) {
   return true;
 }
 
-async function setManagedPiSessionName(pi, ctx, sessionName, maySet = () => true) {
+async function setManagedPiSessionName(
+  pi,
+  ctx,
+  sessionName,
+  maySet = () => true,
+  replaceExistingName = false,
+) {
   if (!sessionName || typeof pi.setSessionName !== "function") return false;
   let currentName = ctx?.sessionManager?.getSessionName?.() || "";
   if (currentName) {
@@ -154,8 +160,8 @@ async function setManagedPiSessionName(pi, ctx, sessionName, maySet = () => true
     currentName = ctx?.sessionManager?.getSessionName?.() || "";
     if (marker === currentName) lastManagedSessionName = currentName;
   }
-  if (currentName === sessionName) return !inTmux() || currentName === lastManagedSessionName;
-  if (currentName && currentName !== lastManagedSessionName) return false;
+  if (currentName === sessionName && (!inTmux() || currentName === lastManagedSessionName)) return true;
+  if (!replaceExistingName && currentName && currentName !== lastManagedSessionName) return false;
   if (!maySet()) return false;
 
   if (inTmux()) {
@@ -800,14 +806,21 @@ export default function managedHooks(pi) {
         && (!requestIsCurrent(options.request, ctx) || currentSessionGoal)) {
         return currentSessionGoal;
       }
-      if (normalized === currentSessionGoal) return normalized;
-
-      pi.appendEntry(SESSION_GOAL_ENTRY_TYPE, { subject: normalized });
-      currentSessionGoal = normalized;
+      const goalChanged = normalized !== currentSessionGoal;
+      if (goalChanged) {
+        pi.appendEntry(SESSION_GOAL_ENTRY_TYPE, { subject: normalized });
+        currentSessionGoal = normalized;
+      }
       renderSessionFooter(ctx);
       const maySet = () => !options.onlyIfUnset
         || (requestIsCurrent(options.request, ctx) && currentSessionGoal === normalized);
-      const named = await setManagedPiSessionName(pi, ctx, normalized, maySet);
+      const named = await setManagedPiSessionName(
+        pi,
+        ctx,
+        normalized,
+        maySet,
+        options.replaceExistingName === true,
+      );
       renderSessionFooter(ctx);
       if (named && maySet()) await publishSessionIdentity(pi, ctx, normalized);
       return normalized;
@@ -892,7 +905,7 @@ export default function managedHooks(pi) {
       additionalProperties: false,
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const goal = await applySessionGoal(pi, ctx, params.goal);
+      const goal = await applySessionGoal(pi, ctx, params.goal, { replaceExistingName: true });
       return { content: [{ type: "text", text: `Session goal set to: ${goal}` }], details: { goal } };
     },
   });
