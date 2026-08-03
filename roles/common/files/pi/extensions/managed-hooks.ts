@@ -899,11 +899,11 @@ export default function managedHooks(pi) {
   pi.registerTool({
     name: "set_session_goal",
     label: "Set Session Goal",
-    description: "Set the durable broad goal and automatic identity for the current Pi session; prefer at most 40 characters",
+    description: "Set the durable broad goal and automatic identity for the current Pi session. Call only when the user's overall objective materially changes. Keep the existing goal during implementation phases, debugging steps, testing, deployment, PR work, and other subtasks. Prefer at most 40 characters.",
     parameters: {
       type: "object",
       properties: {
-        goal: { type: "string", description: "Concise broad session goal; prefer at most 40 characters (maximum 80)" },
+        goal: { type: "string", description: "Concise broad session goal that describes the overall objective, not the current step; prefer at most 40 characters (maximum 80)" },
       },
       required: ["goal"],
       additionalProperties: false,

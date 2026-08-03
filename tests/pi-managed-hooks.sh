@@ -336,7 +336,10 @@ assert.equal(typeof handlers.get("tool_call"), "function", "registers tool_call 
 assert.equal(typeof handlers.get("tool_result"), "function", "registers tool_result hook");
 assert.equal(sessionGoalTool.name, "set_session_goal", "registers explicit session goal tool");
 assert.match(sessionGoalTool.description, /at most 40 characters/, "goal tool guides concise 40-character identities");
+assert.match(sessionGoalTool.description, /overall objective materially changes/, "goal tool limits updates to broad intent changes");
+assert.match(sessionGoalTool.description, /implementation phases.*debugging steps.*testing.*deployment.*PR work.*subtasks/, "goal tool keeps its identity across task phases");
 assert.match(sessionGoalTool.parameters.properties.goal.description, /at most 40 characters/, "goal argument guides concise 40-character identities");
+assert.match(sessionGoalTool.parameters.properties.goal.description, /overall objective, not the current step/, "goal argument describes session intent instead of current work");
 assert.deepEqual(sessionGoalTool.parameters.required, ["goal"], "goal tool requires goal text");
 
 process.env.TMUX = "1";
