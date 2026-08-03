@@ -1215,6 +1215,20 @@ assert.equal(currentSessionName, "updated durable theme", "same explicit goal re
 assert.equal(managedPiSessionName, "updated durable theme", "same explicit goal repairs a truncated managed marker");
 assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity goal updated durable theme"), "same explicit goal republishes the repaired tmux identity");
 
+const staleMarkerEntryCount = customEntries.length;
+managedPiSessionName = "updated durable the…";
+calls.length = 0;
+await withStdoutTTY(true, () => sessionGoalTool.execute(
+  "same-explicit-goal-stale-marker",
+  { goal: "updated durable theme" },
+  subjectSignal,
+  undefined,
+  ctx,
+));
+assert.equal(customEntries.length, staleMarkerEntryCount, "same explicit goal with a stale marker does not append duplicate durable history");
+assert.equal(currentSessionName, "updated durable theme", "same explicit goal with a stale marker keeps the matching Pi name");
+assert.equal(managedPiSessionName, "updated durable theme", "same explicit goal rewrites a marker that became stale in the current runtime");
+
 currentSessionName = "name before explicit race";
 managedPiSessionName = "older managed name";
 markerReadDeferred = deferred();
