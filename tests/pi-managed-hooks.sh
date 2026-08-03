@@ -1229,6 +1229,23 @@ assert.equal(customEntries.length, staleMarkerEntryCount, "same explicit goal wi
 assert.equal(currentSessionName, "updated durable theme", "same explicit goal with a stale marker keeps the matching Pi name");
 assert.equal(managedPiSessionName, "updated durable theme", "same explicit goal rewrites a marker that became stale in the current runtime");
 
+branchEntries = [];
+await handlers.get("session_tree")({ reason: "prepare automatic marker read outage" }, ctx);
+managedPiSessionName = "";
+sessionNames.length = 0;
+goalChildResults.push(ok("automatic goal after marker outage\n"));
+await withStdoutTTY(true, async () => {
+  await handlers.get("before_agent_start")({
+    prompt: "generate an automatic goal during marker outage",
+    systemPrompt: "",
+    systemPromptOptions: { cwd: "/repo" },
+  }, ctx);
+  await flushAsyncWork();
+});
+assert.equal(currentSessionName, "automatic goal after marker outage", "automatic goal transition uses valid cached ownership when the marker read is unavailable");
+assert.equal(managedPiSessionName, "automatic goal after marker outage", "automatic goal transition rewrites the unavailable marker");
+assert.deepEqual(sessionNames, ["automatic goal after marker outage"], "automatic goal transition replaces the same-runtime managed name after a marker read failure");
+
 currentSessionName = "name before explicit race";
 managedPiSessionName = "older managed name";
 markerReadDeferred = deferred();

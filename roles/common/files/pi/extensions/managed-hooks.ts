@@ -160,7 +160,9 @@ async function setManagedPiSessionName(
     const liveName = ctx?.sessionManager?.getSessionName?.() || "";
     if (liveName !== currentName) return false;
     if (marker === currentName) lastManagedSessionName = currentName;
-    else if (inTmux() && lastManagedSessionName === currentName) lastManagedSessionName = "";
+    else if (replaceExistingName && inTmux() && lastManagedSessionName === currentName) {
+      lastManagedSessionName = "";
+    }
   }
   if (currentName === sessionName && (!inTmux() || currentName === lastManagedSessionName)) return true;
   if (!replaceExistingName && currentName && currentName !== lastManagedSessionName) return false;
