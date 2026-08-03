@@ -1215,6 +1215,29 @@ assert.equal(currentSessionName, "updated durable theme", "same explicit goal re
 assert.equal(managedPiSessionName, "updated durable theme", "same explicit goal repairs a truncated managed marker");
 assert.ok(calls.some((call) => call.command === "tmux-agent-state" && call.args.join(" ") === "set-identity goal updated durable theme"), "same explicit goal republishes the repaired tmux identity");
 
+currentSessionName = "name before explicit race";
+managedPiSessionName = "older managed name";
+markerReadDeferred = deferred();
+const pausedExplicitMarkerRead = markerReadDeferred;
+calls.length = 0;
+const namesBeforeExplicitRace = sessionNames.length;
+const explicitGoalDuringRename = withStdoutTTY(true, () => sessionGoalTool.execute(
+  "concurrent-manual-rename",
+  { goal: "concurrent explicit goal" },
+  subjectSignal,
+  undefined,
+  ctx,
+));
+await flushAsyncWork();
+assert.equal(activeMarkerReads, 1, "explicit goal pauses during the ownership marker read");
+currentSessionName = "concurrent manual rename";
+pausedExplicitMarkerRead.resolve();
+await explicitGoalDuringRename;
+assert.equal(currentSessionName, "concurrent manual rename", "explicit goal preserves a manual rename concurrent with marker classification");
+assert.equal(managedPiSessionName, "older managed name", "explicit goal does not claim the concurrent manual rename");
+assert.equal(sessionNames.length, namesBeforeExplicitRace, "explicit goal does not set a name after a concurrent manual rename");
+assert.equal(calls.some((call) => call.command === "tmux-agent-state" && call.args[1] === "goal"), false, "explicit goal does not publish identity after a concurrent manual rename");
+
 branchEntries = [
   { type: "custom", customType: "session-goal", data: { subject: "extension managed goal" } },
 ];
