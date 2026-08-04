@@ -9,7 +9,7 @@ const MANAGED_CHILD_MODEL_OVERRIDE = "PI_MANAGED_CHILD_MODEL";
 let cachedManagedChildAuthSignature;
 let cachedManagedChildModel = OPENAI_MANAGED_CHILD_MODEL;
 const SUBJECT_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.";
-const SUBJECT_MAX_LENGTH = 512;
+const SUBJECT_MAX_LENGTH = 80;
 const SESSION_GOAL_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase of at most 40 characters describing the new session's broad goal. Output only the phrase on one line, without quotes, a goal: prefix, or explanation.";
 const SESSION_GOAL_MAX_LENGTH = 80;
 const SESSION_GOAL_ENTRY_TYPE = "session-goal";
@@ -575,8 +575,15 @@ async function needsSubjectReminder(pi) {
 }
 
 function normalizeGeneratedSubject(output) {
+  if (typeof output !== "string") return "";
   const subject = output.trim();
   if (!subject || subject.length > SUBJECT_MAX_LENGTH || subject.includes("\n") || subject.includes("\r")) return "";
+  if (/\p{Cc}/u.test(subject) || !/^[\p{L}\p{N}]/u.test(subject)) return "";
+  if (/^[\p{L}_][\p{L}\p{N}_-]*\s*:/u.test(subject)) return "";
+  if (/^(["'`]).*\1$/u.test(subject)
+    || (subject.startsWith("{") && subject.endsWith("}"))
+    || (subject.startsWith("[") && subject.endsWith("]"))
+    || (subject.startsWith("<") && subject.endsWith(">"))) return "";
   return subject;
 }
 
@@ -631,7 +638,7 @@ async function setSubjectFromSubagent(pi, prompt, cwd, signal) {
 
   const subject = normalizeGeneratedSubject(result.stdout);
   if (!subject) {
-    warn("tmux subject child returned an invalid subject", "empty, multiline, or over 512 characters");
+    warn("tmux subject child returned an invalid subject", "not a plain one-line phrase of at most 80 characters");
     return false;
   }
 

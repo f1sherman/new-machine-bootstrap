@@ -645,6 +645,64 @@ for (const prompt of subjectChildPrompts) {
   }, `${prompt} keeps the validated child subject`);
 }
 
+subjectChildResult = ok("Update setup documentation\n");
+taskStatus = "";
+calls.length = 0;
+await handlers.get("before_agent_start")({
+  prompt: "update setup documentation",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, { cwd: "/repo", signal: subjectSignal });
+assert.deepEqual(calls.find((call) => call.command === "tmux-agent-subject"), {
+  command: "tmux-agent-subject",
+  args: ["set", "Update setup documentation"],
+}, "plain-text subject output is accepted");
+
+const maximumLengthSubject = "x".repeat(80);
+subjectChildResult = ok(`${maximumLengthSubject}\n`);
+taskStatus = "";
+calls.length = 0;
+await handlers.get("before_agent_start")({
+  prompt: "accept maximum-length subject",
+  systemPrompt: "",
+  systemPromptOptions: { cwd: "/repo" },
+}, { cwd: "/repo", signal: subjectSignal });
+assert.deepEqual(calls.find((call) => call.command === "tmux-agent-subject"), {
+  command: "tmux-agent-subject",
+  args: ["set", maximumLengthSubject],
+}, "80-character subject output is accepted");
+
+for (const [label, output] of [
+  ["JSON object", '{"summary":"Update setup documentation","description":"..."}'],
+  ["JSON array", '["Update setup documentation"]'],
+  ["control character", "Update\u0007 setup documentation"],
+  ["Markdown code wrapper", "```Update setup documentation```"],
+  ["Markdown bold wrapper", "**Update setup documentation**"],
+  ["Markdown heading wrapper", "# Update setup documentation"],
+  ["XML wrapper", "<summary>Update setup documentation</summary>"],
+  ["summary prefix", "summary: Update setup documentation"],
+  ["subject prefix", "subject: Update setup documentation"],
+  ["overlong phrase", "x".repeat(81)],
+]) {
+  subjectChildResult = ok(`${output}\n`);
+  taskStatus = "";
+  calls.length = 0;
+  await handlers.get("before_agent_start")({
+    prompt: `reject ${label}`,
+    systemPrompt: "",
+    systemPromptOptions: { cwd: "/repo" },
+  }, { cwd: "/repo", signal: subjectSignal });
+  assert.ok(
+    calls.some((call) => call.command === "pi" && !isGoalChildArgs(call.args)),
+    `${label} reaches child subject validation`,
+  );
+  assert.equal(
+    calls.some((call) => call.command === "tmux-agent-subject"),
+    false,
+    `${label} subject output is rejected`,
+  );
+}
+
 await flushAsyncWork();
 const subjectPromptSentinel = "prompt-sentinel-7f3c7b7f";
 for (const [label, failureResult, failureError, expectedMetadata] of [
