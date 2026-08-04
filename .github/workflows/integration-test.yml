@@ -33,6 +33,12 @@ jobs:
       - name: Test provision log provenance
         run: bash tests/provision-log-provenance.sh
 
+      - name: Verify mise GitHub token selection
+        run: bash tests/provision-mise-github-token.sh
+
+      - name: Verify missing Ruby installation
+        run: ruby tests/mise-ruby-install-contract.rb
+
       - name: Verify pinned binary privilege boundary
         run: bash tests/pinned-github-binary-privilege-boundary.sh
 

@@ -13,6 +13,10 @@ set -eo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/provision-lock"
 
+if [[ -z "${MISE_GITHUB_TOKEN:-}" && -n "${GH_TOKEN:-}" ]]; then
+  export MISE_GITHUB_TOKEN="$GH_TOKEN"
+fi
+
 LOGFILE_PATH=""
 PROVISION_LOG_DIR_PATH=""
 cleanup() {
