@@ -580,6 +580,13 @@ function normalizeGeneratedSubject(output) {
   if (!subject || subject.length > SUBJECT_MAX_LENGTH || subject.includes("\n") || subject.includes("\r")) return "";
   if (/\p{Cc}/u.test(subject) || !/^[\p{L}\p{N}]/u.test(subject)) return "";
   if (/^[\p{L}_][\p{L}\p{N}_-]*\s*:/u.test(subject)) return "";
+  let isJson = true;
+  try {
+    JSON.parse(subject);
+  } catch {
+    isJson = false;
+  }
+  if (isJson) return "";
   if (/^(["'`]).*\1$/u.test(subject)
     || (subject.startsWith("{") && subject.endsWith("}"))
     || (subject.startsWith("[") && subject.endsWith("]"))
