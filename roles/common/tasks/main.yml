@@ -632,7 +632,7 @@
   when: ansible_facts["os_family"] != "Darwin" or ansible_facts["architecture"] in ["arm64", "aarch64"]
 
 - name: Check if pinned Ruby version is installed
-  shell: "{{ mise_bin }} ls ruby | awk '$1 == \"ruby\" && $2 == \"{{ tool_versions.runtimes.ruby }}\" { found = 1 } END { exit(found ? 0 : 1) }'"
+  command: "{{ mise_bin }} where ruby@{{ tool_versions.runtimes.ruby }}"
   register: ruby_installed
   changed_when: false
   failed_when: false
