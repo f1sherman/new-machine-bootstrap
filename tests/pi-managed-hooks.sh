@@ -675,6 +675,10 @@ assert.deepEqual(calls.find((call) => call.command === "tmux-agent-subject"), {
 for (const [label, output] of [
   ["JSON object", '{"summary":"Update setup documentation","description":"..."}'],
   ["JSON array", '["Update setup documentation"]'],
+  ["JSON true", "true"],
+  ["JSON false", "false"],
+  ["JSON null", "null"],
+  ["JSON number", "123"],
   ["control character", "Update\u0007 setup documentation"],
   ["Markdown code wrapper", "```Update setup documentation```"],
   ["Markdown bold wrapper", "**Update setup documentation**"],
