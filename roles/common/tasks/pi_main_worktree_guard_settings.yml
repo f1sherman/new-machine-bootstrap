@@ -41,14 +41,15 @@
   set_fact:
     pi_preserved_packages: []
 
-- name: Preserve Pi packages other than managed server compaction
+- name: Preserve Pi packages other than managed compaction extensions
   set_fact:
     pi_preserved_packages: "{{ pi_preserved_packages + [item] }}"
   loop: "{{ pi_settings.get('packages', []) }}"
   when: >-
     ((item.source if item is mapping else item) |
-    regex_replace('@[^@]+$', '')) !=
-    'git:github.com/algal/pi-openai-server-compaction'
+    regex_search('^git:github\.com/algal/pi-openai-server-compaction(@[^@]+)?$')) is none and
+    ((item.source if item is mapping else item) |
+    regex_search('^npm:@ogulcancelik/pi-codex-compaction(@[^@]+)?$')) is none
 
 - name: Merge managed Pi settings
   set_fact:
@@ -57,7 +58,7 @@
         'hideThinkingBlock': true,
         'quietStartup': true,
         'collapseChangelog': true,
-        'packages': pi_preserved_packages + ['git:github.com/algal/pi-openai-server-compaction@8a3de2f3b0c178fdd6f73f2f94172dfc3943e466'],
+        'packages': pi_preserved_packages + ['npm:@ogulcancelik/pi-codex-compaction@0.1.3'],
         'subagents': {'agentOverrides': pi_subagent_main_worktree_guard_overrides}
       }, recursive=True) }}
 
