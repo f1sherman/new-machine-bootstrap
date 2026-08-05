@@ -299,11 +299,19 @@ function shellWrappedPayload(segment) {
   return match ? match[2] : "";
 }
 
-function splitShellSegments(command) {
-  const segments = [];
+function splitShellSteps(command) {
+  const steps = [];
   let current = "";
   let quote = "";
   let escaped = false;
+  let precedingSeparator = "";
+  let depth = 0;
+
+  const pushStep = (separator) => {
+    if (current.trim()) steps.push({ command: current.trim(), separator, precedingSeparator, depth });
+    current = "";
+    precedingSeparator = separator;
+  };
 
   for (let i = 0; i < command.length; i += 1) {
     const char = command[i];
@@ -328,21 +336,36 @@ function splitShellSegments(command) {
       continue;
     }
     if (char === "&" || char === "|") {
-      if (current.trim()) segments.push(current.trim());
-      current = "";
-      if (command[i + 1] === char) i += 1;
+      const separator = char === "|" && command[i + 1] === "&"
+        ? "|&"
+        : command[i + 1] === char ? char + char : char;
+      pushStep(separator);
+      if (separator.length === 2) i += 1;
       continue;
     }
-    if (char === ";" || char === "(" || char === ")" || char === "\n" || char === "\r") {
-      if (current.trim()) segments.push(current.trim());
-      current = "";
+    if (char === "(") {
+      pushStep(char);
+      depth += 1;
+      continue;
+    }
+    if (char === ")") {
+      pushStep(char);
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if (char === ";" || char === "\n" || char === "\r") {
+      pushStep(char);
       continue;
     }
     current += char;
   }
 
-  if (current.trim()) segments.push(current.trim());
-  return segments;
+  pushStep("");
+  return steps;
+}
+
+function splitShellSegments(command) {
+  return splitShellSteps(command).map((step) => step.command);
 }
 
 function splitCommandSegments(command) {
@@ -386,6 +409,118 @@ function gitCommandCwd(segment, fallbackCwd) {
   return selectedCwd;
 }
 
+function rawShellTokens(segment) {
+  const tokens = [];
+  let current = "";
+  let quote = "";
+  let escaped = false;
+
+  const pushToken = () => {
+    if (current) tokens.push(current);
+    current = "";
+  };
+
+  for (const char of segment) {
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+    if (char === "\\" && quote !== "'") {
+      current += char;
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      current += char;
+      if (char === quote) quote = "";
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      current += char;
+      quote = char;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      pushToken();
+      continue;
+    }
+    current += char;
+  }
+
+  if (quote || escaped) return { eligible: false, tokens: [] };
+  pushToken();
+  return { eligible: true, tokens };
+}
+
+function staticGitCOperand(rawOperand, allowHomeExpansion) {
+  if (!rawOperand || ["$", "`", "*", "?", "[", "]", "{", "}", "\\", "\n", "\r", "&", "|", ";", "(", ")", "<", ">"].some((character) => rawOperand.includes(character))) {
+    return { eligible: false, value: "" };
+  }
+
+  const singleQuoted = rawOperand.startsWith("'") && rawOperand.endsWith("'");
+  const doubleQuoted = rawOperand.startsWith('"') && rawOperand.endsWith('"');
+  const quoted = singleQuoted || doubleQuoted;
+  const outerQuote = singleQuoted ? "'" : doubleQuoted ? '"' : "";
+  if ((rawOperand.includes("'") || rawOperand.includes('"')) && !quoted) return { eligible: false, value: "" };
+  if (outerQuote && rawOperand.split(outerQuote).length !== 3) return { eligible: false, value: "" };
+
+  const value = quoted ? rawOperand.slice(1, -1) : rawOperand;
+  if (!value || rawOperand.startsWith("#")) return { eligible: false, value: "" };
+  if (quoted && value.startsWith("~")) return { eligible: false, value: "" };
+  if (!quoted && value.startsWith("~")) {
+    if (!allowHomeExpansion || (value !== "~" && !value.startsWith("~/")) || !process.env.HOME) {
+      return { eligible: false, value: "" };
+    }
+  }
+  return { eligible: true, value: quoted ? value : expandHome(value) };
+}
+
+function directGitSelection(segment, fallbackCwd) {
+  const parsed = rawShellTokens(segment);
+  const fallback = { eligible: false, cwd: fallbackCwd, staticCwds: [] };
+  if (!parsed.eligible) return fallback;
+
+  const gitIndex = parsed.tokens.indexOf("git");
+  if (gitIndex === -1) return fallback;
+
+  let eligible = gitIndex === 0;
+  let selectedCwd = fallbackCwd;
+  let selectedCwdKnown = eligible;
+  const staticCwds = [];
+  for (let i = gitIndex + 1; i < parsed.tokens.length; i += 1) {
+    const token = parsed.tokens[i];
+    if (token === "push") return { eligible, cwd: selectedCwd, staticCwds };
+
+    let rawOperand = "";
+    let allowHomeExpansion = false;
+    if (token === "-C") {
+      rawOperand = parsed.tokens[i + 1] || "";
+      allowHomeExpansion = true;
+      i += 1;
+    } else if (token.startsWith("-C") && token.length > 2) {
+      rawOperand = token.slice(2);
+    } else {
+      return { eligible: false, cwd: fallbackCwd, staticCwds };
+    }
+
+    const operand = staticGitCOperand(rawOperand, allowHomeExpansion);
+    if (!operand.eligible) return { eligible: false, cwd: fallbackCwd, staticCwds };
+    if (path.isAbsolute(operand.value)) {
+      selectedCwd = operand.value;
+      selectedCwdKnown = true;
+    } else if (selectedCwdKnown) {
+      selectedCwd = path.resolve(selectedCwd, operand.value);
+    } else {
+      eligible = false;
+      continue;
+    }
+    staticCwds.push(selectedCwd);
+  }
+
+  return { eligible: false, cwd: fallbackCwd, staticCwds };
+}
+
 function rawCommitBlockReason(command) {
   for (const segment of splitCommandSegments(command)) {
     const normalized = segment.replace(/\s+/g, " ").trim();
@@ -396,10 +531,23 @@ function rawCommitBlockReason(command) {
   return "";
 }
 
-function changedDirectory(segment, cwd) {
+function changedDirectoryOperand(segment) {
   const match = segment.replace(/\s+/g, " ").trim().match(/^cd(?:\s+--)?\s+([^\s;&|()]+)$/);
-  if (!match) return "";
-  const target = expandHome(unquoteShellToken(match[1]));
+  return match ? match[1] : "";
+}
+
+function isStaticCdOperand(operand) {
+  if (!operand || ["$", "`", "*", "?", "[", "]", "{", "}", "\\"].some((character) => operand.includes(character))) return false;
+
+  const target = unquoteShellToken(operand);
+  if (path.isAbsolute(target) || target.startsWith("./") || target.startsWith("../")) return true;
+  return operand === target && (target === "~" || target.startsWith("~/"));
+}
+
+function changedDirectory(segment, cwd) {
+  const operand = changedDirectoryOperand(segment);
+  if (!operand) return "";
+  const target = expandHome(unquoteShellToken(operand));
   return path.isAbsolute(target) ? target : path.resolve(cwd, target);
 }
 
@@ -414,6 +562,21 @@ async function anyMainBranch(pi, cwds) {
     if (await onMainBranch(pi, cwd)) return true;
   }
   return false;
+}
+
+async function allKnownBranches(pi, cwds) {
+  for (const cwd of cwds) {
+    if (!await branchName(pi, cwd)) return false;
+  }
+  return true;
+}
+
+async function allKnownNonMainBranches(pi, cwds) {
+  for (const cwd of cwds) {
+    const branch = await branchName(pi, cwd);
+    if (!branch || branch === "main") return false;
+  }
+  return true;
 }
 
 function gitPushPositionals(segment) {
@@ -441,22 +604,45 @@ function gitPushPositionals(segment) {
 async function pushMainBlockReason(pi, command, cwd) {
   const mainRef = "\\+?(([^\\s;&|()]+:)?(main|refs/heads/main)|:(main|refs/heads/main)?|:)";
   let segmentCwds = [cwd];
-  for (const segment of splitShellSegments(command)) {
+  let hasDirectoryTransitionCandidates = false;
+  let nextImmediateCdAnd = false;
+  let nextEligibleCdCwds = [];
+  let simpleAndPrefix = true;
+  for (const step of splitShellSteps(command)) {
+    const immediateCdAnd = nextImmediateCdAnd;
+    const eligibleCdCwds = nextEligibleCdCwds;
+    nextImmediateCdAnd = false;
+    nextEligibleCdCwds = [];
+
+    const segment = step.command;
     const payload = shellWrappedPayload(segment);
     if (payload) {
       for (const segmentCwd of segmentCwds) {
         const nestedReason = await pushMainBlockReason(pi, payload, segmentCwd);
         if (nestedReason) return nestedReason;
       }
+      simpleAndPrefix = false;
       continue;
     }
 
     const normalized = segment.replace(/\s+/g, " ").trim();
-    const nextCwds = segmentCwds.flatMap((segmentCwd) => changedDirectoryCandidates(segment, segmentCwd));
-    if (nextCwds.length > 0) {
-      segmentCwds = [...new Set(nextCwds)];
+    const cdStep = /^cd(?:\s|$)/.test(normalized);
+    if (cdStep) {
+      const operand = changedDirectoryOperand(segment);
+      const changedCwds = segmentCwds.map((segmentCwd) => changedDirectory(segment, segmentCwd)).filter(Boolean);
+      hasDirectoryTransitionCandidates = true;
+      if (changedCwds.length > 0) {
+        segmentCwds = [...new Set(segmentCwds.flatMap((segmentCwd) => changedDirectoryCandidates(segment, segmentCwd)))];
+      }
+      nextImmediateCdAnd = step.depth === 0 && step.separator === "&&";
+      if (nextImmediateCdAnd && simpleAndPrefix && isStaticCdOperand(operand)) {
+        nextEligibleCdCwds = [...new Set(changedCwds)];
+      }
+      simpleAndPrefix = simpleAndPrefix && step.depth === 0 && step.separator === "&&";
       continue;
     }
+
+    simpleAndPrefix = simpleAndPrefix && step.depth === 0 && step.separator === "&&";
 
     if (new RegExp(`${GIT_PREAMBLE}push(?:\\s+${SHELL_TOKEN})*\\s+${mainRef}([\\s;&|()]|$)`).test(normalized)) {
       return "Do not push to main directly. Open a PR.";
@@ -468,7 +654,38 @@ async function pushMainBlockReason(pi, command, cwd) {
     const isGitPush = new RegExp(`${GIT_PREAMBLE}push([\\s;&|()]|$)`).test(normalized);
     if (!isGitPush) continue;
 
-    const selectedCwds = segmentCwds.map((segmentCwd) => gitCommandCwd(segment, segmentCwd));
+    const conservativeSelections = segmentCwds.map((segmentCwd) => directGitSelection(segment, segmentCwd));
+    const directSelections = eligibleCdCwds.map((segmentCwd) => directGitSelection(segment, segmentCwd));
+    const narrowedCwds = [...new Set(directSelections.map((selection) => selection.cwd))];
+    const mayNarrow = immediateCdAnd
+      && eligibleCdCwds.length > 0
+      && step.depth === 0
+      && step.precedingSeparator === "&&"
+      && (step.separator === "" || step.separator === "&&")
+      && directSelections.every((selection) => selection.eligible)
+      && await allKnownNonMainBranches(pi, narrowedCwds);
+    const allDirectSelectionsEligible = conservativeSelections.length > 0
+      && conservativeSelections.every((selection) => selection.eligible);
+    const standaloneCwds = [...new Set(conservativeSelections.map((selection) => selection.cwd))];
+    const pipelineSeparators = ["|", "|&"];
+    const maySelectStandalone = !immediateCdAnd
+      && !hasDirectoryTransitionCandidates
+      && !pipelineSeparators.includes(step.precedingSeparator)
+      && !pipelineSeparators.includes(step.separator)
+      && allDirectSelectionsEligible
+      && conservativeSelections.every((selection) => selection.staticCwds.length > 0);
+    if (maySelectStandalone && !await allKnownBranches(pi, standaloneCwds)) {
+      return "Do not push to main directly. Open a PR.";
+    }
+    const fallbackCwds = [...new Set([
+      ...segmentCwds,
+      ...conservativeSelections.flatMap((selection) => selection.staticCwds),
+    ])];
+    const selectedCwds = mayNarrow
+      ? narrowedCwds
+      : maySelectStandalone
+        ? standaloneCwds
+        : fallbackCwds;
     const pushPositionals = gitPushPositionals(segment);
     const safePushMode = /(^|\s)(--dry-run|--tags)(\s|$)/.test(normalized);
     const headPush = pushPositionals.includes("HEAD");
