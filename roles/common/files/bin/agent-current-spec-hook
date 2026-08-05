@@ -60,8 +60,10 @@ normalize_candidate() {
   fi
 
   if [[ "$path" == /* ]]; then
-    if [[ "$path" == "$repo_root"/* ]]; then
-      local repo_path="${path#$repo_root/}"
+    local candidate_repo_root repo_path
+    candidate_repo_root="$(git -C "${path%/*}" rev-parse --show-toplevel 2>/dev/null || true)"
+    if [ -n "$candidate_repo_root" ] && [[ "$path" == "$candidate_repo_root"/* ]]; then
+      repo_path="${path#$candidate_repo_root/}"
       if is_spec_path "$repo_path"; then
         printf '%s\n' "$path"
       fi

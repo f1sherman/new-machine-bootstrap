@@ -169,6 +169,17 @@ Dir.mktmpdir do |tmp|
     configured_env
   )
 
+  assert_sets(
+    "absolute file_path uses its own repository",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    { "cwd" => repo, "tool_input" => { "file_path" => configured_spec } },
+    configured_spec,
+    configured_env.merge("TMUX_AGENT_WORKTREE_PATH" => bound_repo)
+  )
+
   assert_ignores(
     "default directory is ignored under configured directory",
     hook,
