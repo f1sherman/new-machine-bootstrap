@@ -1329,38 +1329,60 @@
   failed_when: pi_session_manager_plugin_linux.rc != 0
   when: ansible_facts["os_family"] == "Debian"
 
-- name: Install pinned OpenAI server compaction extension for Pi (macOS)
+- name: Use pinned Codex compaction extension for Pi (macOS)
   shell: |
     set -euo pipefail
-    package_dir="{{ ansible_facts['user_dir'] }}/.pi/agent/git/github.com/algal/pi-openai-server-compaction"
-    before="$(git -C "$package_dir" rev-parse HEAD 2>/dev/null || true)"
-    {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- \
-      pi install git:github.com/algal/pi-openai-server-compaction@8a3de2f3b0c178fdd6f73f2f94172dfc3943e466
-    after="$(git -C "$package_dir" rev-parse HEAD)"
-    [[ "$before" == "$after" ]] || echo changed
+    installed_packages="$({{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- pi list)"
+    if grep -Fq 'git:github.com/algal/pi-openai-server-compaction' <<< "$installed_packages"; then
+      {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- \
+        pi remove git:github.com/algal/pi-openai-server-compaction
+      echo changed
+    fi
+    if ! grep -Fq 'npm:@ogulcancelik/pi-codex-compaction@0.1.3' <<< "$installed_packages"; then
+      {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- \
+        pi install npm:@ogulcancelik/pi-codex-compaction@0.1.3
+      echo changed
+    fi
   args:
     executable: /bin/bash
-  register: pi_openai_server_compaction_macos
-  changed_when: "'changed' in pi_openai_server_compaction_macos.stdout_lines"
-  failed_when: pi_openai_server_compaction_macos.rc != 0
+  register: pi_codex_compaction_macos
+  changed_when: "'changed' in pi_codex_compaction_macos.stdout_lines"
+  failed_when: pi_codex_compaction_macos.rc != 0
   when: ansible_facts["os_family"] == "Darwin"
 
-- name: Install pinned OpenAI server compaction extension for Pi (Linux)
+- name: Remove legacy OpenAI server compaction checkout for Pi (macOS)
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/.pi/agent/git/github.com/algal/pi-openai-server-compaction"
+    state: absent
+  when: ansible_facts["os_family"] == "Darwin"
+
+- name: Use pinned Codex compaction extension for Pi (Linux)
   shell: |
     set -euo pipefail
-    package_dir="{{ ansible_facts['user_dir'] }}/.pi/agent/git/github.com/algal/pi-openai-server-compaction"
-    before="$(git -C "$package_dir" rev-parse HEAD 2>/dev/null || true)"
-    {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- \
-      pi install git:github.com/algal/pi-openai-server-compaction@8a3de2f3b0c178fdd6f73f2f94172dfc3943e466
-    after="$(git -C "$package_dir" rev-parse HEAD)"
-    [[ "$before" == "$after" ]] || echo changed
+    installed_packages="$({{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- pi list)"
+    if grep -Fq 'git:github.com/algal/pi-openai-server-compaction' <<< "$installed_packages"; then
+      {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- \
+        pi remove git:github.com/algal/pi-openai-server-compaction
+      echo changed
+    fi
+    if ! grep -Fq 'npm:@ogulcancelik/pi-codex-compaction@0.1.3' <<< "$installed_packages"; then
+      {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- \
+        pi install npm:@ogulcancelik/pi-codex-compaction@0.1.3
+      echo changed
+    fi
   args:
     executable: /bin/bash
-  register: pi_openai_server_compaction_linux
+  register: pi_codex_compaction_linux
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
-  changed_when: "'changed' in pi_openai_server_compaction_linux.stdout_lines"
-  failed_when: pi_openai_server_compaction_linux.rc != 0
+  changed_when: "'changed' in pi_codex_compaction_linux.stdout_lines"
+  failed_when: pi_codex_compaction_linux.rc != 0
+  when: ansible_facts["os_family"] == "Debian"
+
+- name: Remove legacy OpenAI server compaction checkout for Pi (Linux)
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/.pi/agent/git/github.com/algal/pi-openai-server-compaction"
+    state: absent
   when: ansible_facts["os_family"] == "Debian"
 
 - name: Create pi-coding-agent global extensions directory

@@ -29,12 +29,19 @@ raise "wrong model task include" unless model_include["include_tasks"] == "pi_mo
   "macOS" => "Darwin",
   "Linux" => "Debian",
 }.each do |platform, family|
-  task = by_name["Install pinned OpenAI server compaction extension for Pi (#{platform})"] or abort "missing #{platform} compaction extension task"
+  task = by_name["Use pinned Codex compaction extension for Pi (#{platform})"] or abort "missing #{platform} compaction extension task"
   shell = task.fetch("shell")
-  raise "wrong #{platform} compaction source" unless shell.include?("pi install git:github.com/algal/pi-openai-server-compaction@8a3de2f3b0c178fdd6f73f2f94172dfc3943e466")
-  raise "missing #{platform} revision comparison" unless shell.include?('before=') && shell.include?('after=')
+  raise "missing #{platform} legacy package removal" unless shell.include?("pi remove git:github.com/algal/pi-openai-server-compaction")
+  raise "wrong #{platform} compaction source" unless shell.include?("pi install npm:@ogulcancelik/pi-codex-compaction@0.1.3")
+  raise "missing #{platform} pinned-package presence check" unless shell.include?("grep -Fq 'npm:@ogulcancelik/pi-codex-compaction@0.1.3'")
   raise "wrong #{platform} platform condition" unless task["when"] == %(ansible_facts["os_family"] == "#{family}")
-  raise "missing #{platform} changed detection" unless task.fetch("changed_when").include?("stdout_lines")
+  register = platform == "macOS" ? "pi_codex_compaction_macos" : "pi_codex_compaction_linux"
+  raise "wrong #{platform} changed detection" unless task.fetch("changed_when") == %('changed' in #{register}.stdout_lines)
+
+  cleanup = by_name["Remove legacy OpenAI server compaction checkout for Pi (#{platform})"] or abort "missing #{platform} legacy checkout cleanup"
+  raise "wrong #{platform} legacy checkout" unless cleanup.fetch("file").fetch("path").end_with?("/.pi/agent/git/github.com/algal/pi-openai-server-compaction")
+  raise "wrong #{platform} cleanup state" unless cleanup.fetch("file").fetch("state") == "absent"
+  raise "wrong #{platform} cleanup condition" unless cleanup["when"] == %(ansible_facts["os_family"] == "#{family}")
 end
 
 settings_tasks = YAML.load_file(ARGV.fetch(1))
@@ -45,7 +52,7 @@ settings_names = settings_tasks.filter_map { |task| task["name"] if task.is_a?(H
   "Parse existing Pi settings or use empty object",
   "Build Pi subagent main worktree guard overrides",
   "Initialize preserved Pi package entries",
-  "Preserve Pi packages other than managed server compaction",
+  "Preserve Pi packages other than managed compaction extensions",
   "Merge managed Pi settings",
   "Write merged Pi settings.json",
 ].each { |name| raise "missing task: #{name}" unless settings_names.include?(name) }
@@ -69,6 +76,12 @@ cat > "$tmp_root/pi-agent/settings.json" <<'JSON'
     "npm:existing-package",
     {
       "source": "git:github.com/algal/pi-openai-server-compaction@previous-ref",
+      "extensions": []
+    },
+    "npm:@ogulcancelik/pi-codex-compaction@0.1.2",
+    "npm:@ogulcancelik/pi-codex-compaction",
+    {
+      "source": "npm:@ogulcancelik/pi-codex-compaction",
       "extensions": []
     }
   ],
@@ -127,8 +140,9 @@ settings="$tmp_root/pi-agent/settings.json"
 test "$(jq -r '.defaultModel' "$settings")" = existing-model
 test "$(jq -r '.theme' "$settings")" = existing-theme
 test "$(jq -r '.packages[0]' "$settings")" = npm:existing-package
-jq -e '[.packages[] | select((if type == "object" then .source else . end) | startswith("git:github.com/algal/pi-openai-server-compaction"))] | length == 1' "$settings" >/dev/null
-jq -e '.packages[] | select(. == "git:github.com/algal/pi-openai-server-compaction@8a3de2f3b0c178fdd6f73f2f94172dfc3943e466")' "$settings" >/dev/null
+jq -e '[.packages[] | select((if type == "object" then .source else . end) | startswith("git:github.com/algal/pi-openai-server-compaction"))] | length == 0' "$settings" >/dev/null
+jq -e '[.packages[] | select((if type == "object" then .source else . end) | startswith("npm:@ogulcancelik/pi-codex-compaction"))] | length == 1' "$settings" >/dev/null
+jq -e '.packages[] | select(. == "npm:@ogulcancelik/pi-codex-compaction@0.1.3")' "$settings" >/dev/null
 jq -e '.hideThinkingBlock == true and .quietStartup == true and .collapseChangelog == true' "$settings" >/dev/null
 test "$(jq -r '.subagents.agentOverrides.worker.model' "$settings")" = existing-worker-model
 test "$(jq -r '.subagents.agentOverrides["custom-agent"].thinking' "$settings")" = high
