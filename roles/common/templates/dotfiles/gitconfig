@@ -42,8 +42,6 @@
   prune = true
 [github]
   user = f1sherman
-[init]
-  templatedir = ~/.git_template
 [merge]
   conflictstyle = diff3
   tool = nvimdiff
