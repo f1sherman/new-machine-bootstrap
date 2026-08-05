@@ -180,6 +180,9 @@ jobs:
       - name: Verify Git init template contract
         run: bash tests/git-init-template-contract.sh
 
+      - name: Verify Git credential helper contract
+        run: bash tests/git-credential-helper-contract.sh
+
       - name: Verify managed global Git ignore
         run: bash tests/gitignore-contract.sh
 

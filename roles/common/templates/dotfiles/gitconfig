@@ -24,6 +24,13 @@
 {% if ansible_facts["os_family"] == "Darwin" %}
 [credential]
   helper = osxkeychain
+{% else %}
+[credential "https://github.com"]
+  helper =
+  helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+  helper =
+  helper = !/usr/bin/gh auth git-credential
 {% endif %}
 [delta]
   navigate = true
