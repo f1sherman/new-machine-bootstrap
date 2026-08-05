@@ -114,6 +114,15 @@ Dir.mktmpdir do |tmp|
   nested_worktree = File.join(repo, ".worktrees/current-worktree")
   make_repo(nested_worktree)
 
+  configured_directory = "docs/.solution-designs"
+  configured_spec = File.join(repo, configured_directory, "2026-05-12-configured.md")
+  FileUtils.mkdir_p(File.dirname(configured_spec))
+  File.write(configured_spec, "# Configured\n")
+  config_home = File.join(tmp, "config")
+  FileUtils.mkdir_p(File.join(config_home, "new-machine-bootstrap"))
+  File.write(File.join(config_home, "new-machine-bootstrap/spec-directory"), "docs/.solution-designs\n")
+  configured_env = { "XDG_CONFIG_HOME" => config_home }
+
   bin_dir = File.join(tmp, "bin")
   log_path = File.join(tmp, "tmux.log")
   write_fake_tmux(bin_dir, log_path)
@@ -147,6 +156,27 @@ Dir.mktmpdir do |tmp|
     { "cwd" => repo, "tool_input" => { "file_path" => "docs/superpowers/specs/2026-05-12-a-design.md" } },
     spec_a,
     { "TMUX_AGENT_WORKTREE_PATH" => File.join(tmp, "missing-repo") }
+  )
+
+  assert_sets(
+    "configured directory accepts structured file_path",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    { "cwd" => repo, "tool_input" => { "file_path" => "docs/.solution-designs/2026-05-12-configured.md" } },
+    configured_spec,
+    configured_env
+  )
+
+  assert_ignores(
+    "default directory is ignored under configured directory",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    { "cwd" => repo, "tool_input" => { "file_path" => "docs/superpowers/specs/2026-05-12-a-design.md" } },
+    configured_env
   )
 
   assert_ignores(
@@ -281,6 +311,27 @@ Dir.mktmpdir do |tmp|
     { "TMUX_AGENT_WORKTREE_PATH" => nested_worktree }
   )
 
+  assert_sets(
+    "configured directory accepts worktree-prefixed patch target",
+    hook,
+    repo,
+    bin_dir,
+    log_path,
+    {
+      "cwd" => repo,
+      "tool_input" => {
+        "command" => [
+          "*** Begin Patch",
+          "*** Add File: .worktrees/current-worktree/docs/.solution-designs/2026-05-12-prefixed.md",
+          "+# Prefixed",
+          "*** End Patch"
+        ].join("\n")
+      }
+    },
+    File.join(nested_worktree, "docs/.solution-designs/2026-05-12-prefixed.md"),
+    configured_env.merge("TMUX_AGENT_WORKTREE_PATH" => nested_worktree)
+  )
+
   assert_ignores(
     "other worktree-prefixed relative spec is ignored",
     hook,
@@ -384,6 +435,12 @@ Dir.mktmpdir do |tmp|
 end
 
 tasks = File.read(common_tasks)
+review_helpers = task_block(tasks, "Install tmux review helpers")
+unless review_helpers.include?("- { name: agent-spec-directory, mode: '0755' }")
+  fail_case("configured directory helper is installed", "agent-spec-directory is missing or has the wrong mode")
+end
+pass_case("configured directory helper is installed")
+
 unless tasks.include?("matcher='Bash|Edit|MultiEdit|Read|Write'")
   fail_case("Claude PostToolUse invokes current-spec hook for structured targets", "missing expanded Claude matcher")
 end

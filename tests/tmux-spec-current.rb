@@ -35,10 +35,10 @@ def git(*args)
   system(GIT_ENV, "git", *args, out: File::NULL) || raise("git #{args.join(' ')} failed")
 end
 
-def make_repo(path, specs)
+def make_repo(path, specs, directory: "docs/superpowers/specs")
   git("-c", "init.templateDir=", "init", "-q", path)
   git("-C", path, "commit", "-q", "--allow-empty", "-m", "init")
-  spec_dir = File.join(path, "docs/superpowers/specs")
+  spec_dir = File.join(path, directory)
   FileUtils.mkdir_p(spec_dir)
   specs.each do |name|
     File.write(File.join(spec_dir, name), "# #{name}\n")
@@ -98,6 +98,50 @@ Dir.mktmpdir do |tmp|
     fail_case("pane option wins", "expected #{expected.inspect}, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}")
   end
   pass_case("pane option wins")
+
+  configured_repo = File.join(tmp, "configured")
+  make_repo(configured_repo, ["old.md"])
+  configured_dir = File.join(configured_repo, "docs/.solution-designs")
+  FileUtils.mkdir_p(configured_dir)
+  configured_spec = File.join(configured_dir, "new.md")
+  File.write(configured_spec, "# New\n")
+  config_home = File.join(tmp, "config")
+  FileUtils.mkdir_p(File.join(config_home, "new-machine-bootstrap"))
+  File.write(File.join(config_home, "new-machine-bootstrap/spec-directory"), "docs/.solution-designs\n")
+  fake_tmux(File.join(tmp, "bin-configured"), pane_path: configured_repo)
+  stdout, stderr, status = run(
+    {
+      "TMUX" => "/tmp/tmux",
+      "TMUX_PANE" => "%35",
+      "TMUX_SPEC_TMUX_BIN" => File.join(tmp, "bin-configured/tmux"),
+      "XDG_CONFIG_HOME" => config_home
+    },
+    script
+  )
+  unless status.success? && stdout.strip == configured_spec
+    fail_case("configured directory replaces default", "stdout=#{stdout.inspect} stderr=#{stderr.inspect}")
+  end
+  pass_case("configured directory replaces default")
+
+  explicit_spec = File.join(configured_repo, "docs/superpowers/specs/old.md")
+  fake_tmux(
+    File.join(tmp, "bin-configured-option"),
+    pane_path: configured_repo,
+    option: "docs/superpowers/specs/old.md"
+  )
+  stdout, stderr, status = run(
+    {
+      "TMUX" => "/tmp/tmux",
+      "TMUX_PANE" => "%36",
+      "TMUX_SPEC_TMUX_BIN" => File.join(tmp, "bin-configured-option/tmux"),
+      "XDG_CONFIG_HOME" => config_home
+    },
+    script
+  )
+  unless status.success? && stdout.strip == explicit_spec
+    fail_case("explicit pane option wins over configured directory", "stdout=#{stdout.inspect} stderr=#{stderr.inspect}")
+  end
+  pass_case("explicit pane option wins over configured directory")
 
   single_repo = File.join(tmp, "single")
   make_repo(single_repo, ["2026-05-03-only.md"])
