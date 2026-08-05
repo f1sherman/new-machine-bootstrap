@@ -125,6 +125,8 @@ const customEntries = [];
 const appendEntryErrors = [];
 let sessionGoalTool;
 let branch = "main";
+const failedGitRootCwds = new Set();
+const failedBranchCwds = new Set();
 let branchEntries = [];
 let currentSessionName = "";
 let windowLabel = "pi main-repo";
@@ -290,10 +292,13 @@ const pi = {
     }
     if (command === "tmux-agent-subject") return subjectApplyResult;
     if (command === "git" && args.includes("rev-parse")) {
-      if (args.some((arg) => String(arg).startsWith("/missing"))) return fail();
-      return ok(args.some((arg) => String(arg).startsWith(worktreeRoot)) ? `${worktreeRoot}\n` : "/repo\n");
+      const dynamicCdCharacters = ["$", "`", "*", "?", "[", "]", "{", "}", "\\"];
+      if (args.some((arg) => failedGitRootCwds.has(String(arg)) || String(arg).startsWith("/missing") || dynamicCdCharacters.some((character) => String(arg).includes(character)))) return fail();
+      const featureCandidates = [worktreeRoot, "/repo/-", "/repo/~+", "/repo/~-", "/repo/feature-repo"];
+      return ok(args.some((arg) => featureCandidates.some((candidate) => String(arg).startsWith(candidate))) ? `${worktreeRoot}\n` : "/repo\n");
     }
     if (command === "git" && args.includes("branch")) {
+      if (args.some((arg) => failedBranchCwds.has(String(arg)))) return fail();
       return ok(args.includes(worktreeRoot) ? "feature\n" : `${branch}\n`);
     }
     return fail();
@@ -1817,11 +1822,111 @@ const implicitPushFeature = await handlers.get("tool_call")({
 }, { cwd: "/repo" });
 assert.equal(implicitPushFeature, undefined, "allows implicit push off main");
 branch = "main";
+const gitCFeatureImplicitPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `git -C ${worktreeRoot} push` },
+}, { cwd: "/repo" });
+assert.equal(gitCFeatureImplicitPush, undefined, "allows implicit push in feature repo selected by git -C with successful probes");
+
+failedGitRootCwds.add("/repo");
+const standaloneGitCFailedRootPushBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "git -C /repo push" },
+}, { cwd: worktreeRoot });
+failedGitRootCwds.clear();
+
+failedBranchCwds.add("/repo");
+const standaloneGitCFailedBranchPushBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "git -C /repo push" },
+}, { cwd: worktreeRoot });
+failedBranchCwds.clear();
+
+const dynamicCdInterveningGitCPushBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd "$TARGET" && true && git -C ${worktreeRoot} push` },
+}, { cwd: "/repo" });
+
+const staticCdInterveningGitCPushBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && true && git -C ${worktreeRoot} push` },
+}, { cwd: "/repo" });
+
+const bareCdInterveningGitCPushBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd && true && git -C ${worktreeRoot} push` },
+}, { cwd: "/repo" });
+
+const quotedWhitespaceCdInterveningGitCPushBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd "path with space" && true && git -C ${worktreeRoot} push` },
+}, { cwd: "/repo" });
+
+assert.deepEqual([
+  Boolean(standaloneGitCFailedRootPushBlock?.block),
+  Boolean(standaloneGitCFailedBranchPushBlock?.block),
+  Boolean(dynamicCdInterveningGitCPushBlock?.block),
+  Boolean(staticCdInterveningGitCPushBlock?.block),
+  Boolean(bareCdInterveningGitCPushBlock?.block),
+  Boolean(quotedWhitespaceCdInterveningGitCPushBlock?.block),
+], [true, true, true, true, true, true], "fails closed for unknown standalone git -C targets and preserves prior cd candidates");
+
+const standaloneGitCPipelineCommands = [
+  `git -C ${worktreeRoot} push | cat`,
+  `true | git -C ${worktreeRoot} push`,
+  `git -C ${worktreeRoot} push |& cat`,
+  `true |& git -C ${worktreeRoot} push`,
+];
+const standaloneGitCPipelineBlocks = [];
+for (const command of standaloneGitCPipelineCommands) {
+  standaloneGitCPipelineBlocks.push(await handlers.get("tool_call")({
+    toolName: "bash",
+    input: { command },
+  }, { cwd: "/repo" }));
+}
+assert.deepEqual(
+  standaloneGitCPipelineBlocks.map((result) => Boolean(result?.block)),
+  Array(4).fill(true),
+  "blocks standalone git -C replacement in pipeline contexts",
+);
+
+const relativeGitCFeatureImplicitPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `git -C ${path.relative("/repo", worktreeRoot)} push` },
+}, { cwd: "/repo" });
+assert.equal(relativeGitCFeatureImplicitPush, undefined, "allows ordinary relative git -C selection without CDPATH ambiguity");
+
+const homeGitCFeatureImplicitPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "git -C ~ push" },
+}, { cwd: "/repo" });
+assert.equal(homeGitCFeatureImplicitPush, undefined, "allows unquoted home expansion in git -C selection");
+
 const gitCImplicitPushMainBlock = await handlers.get("tool_call")({
   toolName: "bash",
   input: { command: "git -C /repo push" },
 }, { cwd: worktreeRoot });
 assert.equal(gitCImplicitPushMainBlock.block, true, "blocks implicit push to main in repo selected by git -C");
+
+const gitCTagsPushMain = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "git -C /repo push --tags" },
+}, { cwd: worktreeRoot });
+
+const gitCDryRunPushMain = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "git -C /repo push --dry-run" },
+}, { cwd: worktreeRoot });
+
+const gitCExplicitFeaturePushMain = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "git -C /repo push origin feature" },
+}, { cwd: worktreeRoot });
+assert.deepEqual([
+  gitCTagsPushMain,
+  gitCDryRunPushMain,
+  gitCExplicitFeaturePushMain,
+], [undefined, undefined, undefined], "allows safe push modes in a known main repo selected by standalone git -C");
 
 const quotedGitCImplicitPushMainBlock = await handlers.get("tool_call")({
   toolName: "bash",
@@ -1829,11 +1934,272 @@ const quotedGitCImplicitPushMainBlock = await handlers.get("tool_call")({
 }, { cwd: worktreeRoot });
 assert.equal(quotedGitCImplicitPushMainBlock.block, true, "blocks implicit push to main in quoted repo selected by git -C");
 
+const cdFeatureImplicitPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && git push` },
+}, { cwd: "/repo" });
+assert.equal(cdFeatureImplicitPush, undefined, "allows implicit push after required cd from main to feature repo");
+
+const cdFeatureGitCImplicitPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && git -C ${worktreeRoot} push` },
+}, { cwd: "/repo" });
+assert.equal(cdFeatureGitCImplicitPush, undefined, "allows post-cd narrowing after applying a supported git -C target");
+
+const gitDirEnvironmentPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && GIT_DIR=/repo/.git git push` },
+}, { cwd: "/repo" });
+
+const gitDirOptionPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && git --git-dir=/repo/.git push` },
+}, { cwd: "/repo" });
+
+const commandWrappedPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && command git push` },
+}, { cwd: "/repo" });
+assert.equal(commandWrappedPushMainBlock.block, true, "keeps the main cwd candidate for a wrapper-prefixed push");
+
+const cwdChangingWrapperPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && sudo --chdir=/repo git push` },
+}, { cwd: "/repo" });
+assert.equal(cwdChangingWrapperPushMainBlock.block, true, "keeps the main cwd candidate for a cwd-changing wrapper");
+
+failedGitRootCwds.add(worktreeRoot);
+const failedTargetGitRootPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && git push` },
+}, { cwd: "/repo" });
+failedGitRootCwds.clear();
+
+failedBranchCwds.add(worktreeRoot);
+const failedTargetBranchPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && git push` },
+}, { cwd: "/repo" });
+failedBranchCwds.clear();
+assert.equal(Boolean(gitDirEnvironmentPushMainBlock?.block), true, "keeps the main cwd candidate for an environment-prefixed push");
+assert.equal(Boolean(gitDirOptionPushMainBlock?.block), true, "keeps the main cwd candidate for an unsupported Git repository selector");
+assert.equal(Boolean(failedTargetGitRootPushMainBlock?.block), true, "keeps the main cwd candidate when the selected target Git root probe fails");
+assert.equal(Boolean(failedTargetBranchPushMainBlock?.block), true, "keeps the main cwd candidate when the selected target branch probe fails");
+
+const gitDirEnvironmentGitCPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && GIT_DIR=/repo/.git git -C ${worktreeRoot} push` },
+}, { cwd: "/repo" });
+
+const gitDirOptionGitCPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && git -C ${worktreeRoot} --git-dir=/repo/.git push` },
+}, { cwd: "/repo" });
+
+const commandWrappedGitCPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && command git -C ${worktreeRoot} push` },
+}, { cwd: "/repo" });
+
+failedGitRootCwds.add(worktreeRoot);
+const failedTargetGitRootGitCPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && git -C ${worktreeRoot} push` },
+}, { cwd: "/repo" });
+failedGitRootCwds.clear();
+
+failedBranchCwds.add(worktreeRoot);
+const failedTargetBranchGitCPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && git -C ${worktreeRoot} push` },
+}, { cwd: "/repo" });
+failedBranchCwds.clear();
+assert.deepEqual([
+  Boolean(gitDirEnvironmentGitCPushMainBlock?.block),
+  Boolean(gitDirOptionGitCPushMainBlock?.block),
+  Boolean(failedTargetGitRootGitCPushMainBlock?.block),
+  Boolean(failedTargetBranchGitCPushMainBlock?.block),
+  Boolean(commandWrappedGitCPushMainBlock?.block),
+], [true, true, true, true, true], "preserves the starting cwd when git -C narrowing is not proven");
+
+const dynamicPwdCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: 'cd "$PWD" && git push' },
+}, { cwd: "/repo" });
+assert.equal(dynamicPwdCdImplicitPushMainBlock.block, true, "blocks implicit push when cd uses a shell variable");
+
+const globCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot}* && git push` },
+}, { cwd: "/repo" });
+assert.equal(globCdImplicitPushMainBlock.block, true, "blocks implicit push when cd uses a glob");
+
+const commandSubstitutionCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: 'cd "$(pwd)" && git push' },
+}, { cwd: "/repo" });
+assert.equal(commandSubstitutionCdImplicitPushMainBlock.block, true, "blocks implicit push when cd uses command substitution");
+
+const backtickCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "cd `pwd` && git push" },
+}, { cwd: "/repo" });
+assert.equal(backtickCdImplicitPushMainBlock.block, true, "blocks implicit push when cd uses backticks");
+
+const braceCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot}{,} && git push` },
+}, { cwd: "/repo" });
+assert.equal(braceCdImplicitPushMainBlock.block, true, "blocks implicit push when cd uses brace expansion");
+
+const escapedCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot}\\suffix && git push` },
+}, { cwd: "/repo" });
+assert.equal(escapedCdImplicitPushMainBlock.block, true, "blocks implicit push when cd uses escaping");
+
+const previousDirectoryCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "cd - && git push" },
+}, { cwd: "/repo" });
+assert.equal(previousDirectoryCdImplicitPushMainBlock.block, true, "blocks implicit push when cd depends on OLDPWD");
+
+const previousTildeDirectoryCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "cd ~- && git push" },
+}, { cwd: "/repo" });
+assert.equal(previousTildeDirectoryCdImplicitPushMainBlock.block, true, "blocks implicit push when tilde cd depends on OLDPWD");
+
+const currentTildeDirectoryCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "cd ~+ && git push" },
+}, { cwd: "/repo" });
+assert.equal(currentTildeDirectoryCdImplicitPushMainBlock.block, true, "blocks implicit push when tilde cd depends on PWD");
+
+const bareRelativeCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "cd feature-repo && git push" },
+}, { cwd: "/repo" });
+assert.equal(bareRelativeCdImplicitPushMainBlock.block, true, "blocks implicit push when bare relative cd can use CDPATH");
+
+const quotedTildeCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "cd '~' && git push" },
+}, { cwd: "/repo" });
+assert.equal(quotedTildeCdImplicitPushMainBlock.block, true, "blocks implicit push when quoted tilde is not shell-expanded");
+
+const doubleQuotedTildeCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: 'cd "~/feature-repo" && git push' },
+}, { cwd: "/repo" });
+assert.equal(doubleQuotedTildeCdImplicitPushMainBlock.block, true, "blocks implicit push when double-quoted tilde is not shell-expanded");
+
+const relativeCdFeatureImplicitPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ./${path.relative("/repo", worktreeRoot)} && git push` },
+}, { cwd: "/repo" });
+assert.equal(relativeCdFeatureImplicitPush, undefined, "allows implicit push after an anchored relative cd into a feature repo");
+
+const tildeCdFeatureImplicitPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "cd ~ && git push" },
+}, { cwd: "/repo" });
+assert.equal(tildeCdFeatureImplicitPush, undefined, "allows implicit push after an unquoted static tilde cd into a feature repo");
+
+const prefixedCdFeatureImplicitPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `true && cd ${worktreeRoot} && git push` },
+}, { cwd: "/repo" });
+assert.equal(prefixedCdFeatureImplicitPush, undefined, "allows implicit push after a simple and-list requires cd");
+
+const pipedCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `true | cd ${worktreeRoot} && git push` },
+}, { cwd: "/repo" });
+assert.equal(pipedCdImplicitPushMainBlock.block, true, "blocks implicit push when cd is part of a pipeline");
+
+const failedCdChainImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && false || git push` },
+}, { cwd: "/repo" });
+assert.equal(failedCdChainImplicitPushMainBlock.block, true, "blocks implicit push when a cd chain can fail before an or-list");
+
+const laterListAfterCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && true; git push` },
+}, { cwd: "/repo" });
+assert.equal(laterListAfterCdImplicitPushMainBlock.block, true, "blocks implicit push after a continuing cd chain reaches a later list");
+
+const subshellCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `(cd ${worktreeRoot} && true); git push` },
+}, { cwd: "/repo" });
+assert.equal(subshellCdImplicitPushMainBlock.block, true, "blocks implicit push after a subshell restores the main cwd");
+
+const skippedCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `true || cd ${worktreeRoot} && git push` },
+}, { cwd: "/repo" });
+assert.equal(skippedCdImplicitPushMainBlock.block, true, "blocks implicit push when a preceding or-list can skip cd");
+
+const deniedCdEnvironmentGitCPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `true || cd ${worktreeRoot} && GIT_DIR=/repo/.git git -C ${worktreeRoot} push` },
+}, { cwd: "/repo" });
+
+const dynamicCdGitDirGitCPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd "$TARGET" && git -C ${worktreeRoot} --git-dir=/repo/.git push` },
+}, { cwd: "/repo" });
+
+const dynamicGitCCommands = [
+  `cd ${worktreeRoot} && git -C "$TARGET" push`,
+  `cd ${worktreeRoot} && git -C$TARGET push`,
+  `cd ${worktreeRoot} && git -C "$(pwd)" push`,
+  `cd ${worktreeRoot} && git -C ${worktreeRoot}* push`,
+  `cd ${worktreeRoot} && git -C ${worktreeRoot}{,} push`,
+  `cd ${worktreeRoot} && git -C \`pwd\` push`,
+  `cd ${worktreeRoot} && git -C ${worktreeRoot}\\suffix push`,
+  `cd ${worktreeRoot} && git -C "~" push`,
+  `cd ${worktreeRoot} && git -C~ push`,
+];
+const dynamicGitCPushBlocks = [];
+for (const command of dynamicGitCCommands) {
+  dynamicGitCPushBlocks.push(await handlers.get("tool_call")({
+    toolName: "bash",
+    input: { command },
+  }, { cwd: "/repo" }));
+}
+
+const pipedPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && git push | cat` },
+}, { cwd: "/repo" });
+
+const pipeAndPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `cd ${worktreeRoot} && git push |& cat` },
+}, { cwd: "/repo" });
+
+assert.deepEqual([
+  Boolean(deniedCdEnvironmentGitCPushMainBlock?.block),
+  Boolean(dynamicCdGitDirGitCPushMainBlock?.block),
+  ...dynamicGitCPushBlocks.map((result) => Boolean(result?.block)),
+  Boolean(pipedPushMainBlock?.block),
+  Boolean(pipeAndPushMainBlock?.block),
+], Array(13).fill(true), "preserves conservative push candidates unless every narrowing invariant holds");
+
 const cdImplicitPushMainBlock = await handlers.get("tool_call")({
   toolName: "bash",
   input: { command: "cd /repo && git push" },
 }, { cwd: worktreeRoot });
 assert.equal(cdImplicitPushMainBlock.block, true, "blocks implicit push after cd into main repo");
+
+const semicolonCdImplicitPushMainBlock = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "cd /repo; git push" },
+}, { cwd: worktreeRoot });
+assert.equal(semicolonCdImplicitPushMainBlock.block, true, "blocks implicit push after semicolon cd into main repo");
 
 const failedCdImplicitPushMainBlock = await handlers.get("tool_call")({
   toolName: "bash",
