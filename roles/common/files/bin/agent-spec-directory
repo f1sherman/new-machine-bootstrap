@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+default_directory='docs/superpowers/specs'
+config_root="${XDG_CONFIG_HOME:-${HOME:?HOME is required}/.config}"
+config_file="$config_root/new-machine-bootstrap/spec-directory"
+directory=''
+
+if [ -f "$config_file" ]; then
+  IFS= read -r directory < "$config_file" || true
+fi
+
+[ -n "$directory" ] || directory="$default_directory"
+while [[ "$directory" == ./* ]]; do directory="${directory#./}"; done
+while [[ "$directory" == */ ]]; do directory="${directory%/}"; done
+
+invalid=0
+case "$directory" in
+  ''|/*) invalid=1 ;;
+esac
+case "/$directory/" in
+  */../*) invalid=1 ;;
+esac
+
+if [ "$invalid" -eq 1 ]; then
+  printf 'agent-spec-directory: invalid spec directory: %s\n' "$directory" >&2
+  exit 1
+fi
+
+printf '%s\n' "$directory"
