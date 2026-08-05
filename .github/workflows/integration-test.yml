@@ -177,6 +177,9 @@ jobs:
       - name: Verify Claude agent subject hook settings
         run: bash tests/claude-agent-subject-hook-settings.sh
 
+      - name: Verify Git init template contract
+        run: bash tests/git-init-template-contract.sh
+
       - name: Verify managed global Git ignore
         run: bash tests/gitignore-contract.sh
 
