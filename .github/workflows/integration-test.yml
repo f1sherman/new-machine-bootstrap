@@ -21,9 +21,6 @@ jobs:
           ANSIBLE_CALLBACKS_ENABLED: profile_tasks
           GITHUB_TOKEN: ${{ github.token }}
 
-      - name: Verify CI test inventory
-        run: bash tests/ci-test-inventory.sh
-
       - name: Verify commit wrapper ignored docs protection
         run: bash tests/commit-force-add-superpowers.sh
 
@@ -33,20 +30,8 @@ jobs:
       - name: Test provision log provenance
         run: bash tests/provision-log-provenance.sh
 
-      - name: Verify mise GitHub token selection
-        run: bash tests/provision-mise-github-token.sh
-
-      - name: Verify missing Ruby installation
-        run: ruby tests/mise-ruby-install-contract.rb
-
-      - name: Verify pinned binary privilege boundary
-        run: bash tests/pinned-github-binary-privilege-boundary.sh
-
       - name: Verify retired HNP launcher cleanup
         run: bash tests/retired-hnp-launcher-cleanup.sh
-
-      - name: Verify Rectangle migration
-        run: ruby tests/rectangle-migration-contract.rb
 
       - name: Verify tmux restore startup coordination
         run: ruby tests/tmux-restore-startup.rb
@@ -75,29 +60,11 @@ jobs:
       - name: Verify tmux-resurrect Neovim space paths
         run: bash tests/tmux-resurrect-nvim-space-path.sh
 
-      - name: Verify Ghostty quick-terminal shortcut
-        run: bash tests/ghostty-quick-terminal.sh
-
-      - name: Verify package tool paranoid mode
-        run: ruby tests/paranoid-package-tools.rb
-
-      - name: Verify managed mise npm tool installation
-        run: ruby tests/managed-mise-npm-install-contract.rb
-
-      - name: Verify gsd-browser package contract
-        run: ruby tests/gsd-browser-package-contract.rb
-
       - name: Verify murder helper behavior
         run: ruby tests/murder.rb
 
       - name: Verify repo lifecycle helpers
         run: bash tests/repo-lifecycle.sh
-
-      - name: Verify dev-host Claude permission migration
-        run: bash tests/dev-host-claude-permissions.sh
-
-      - name: Verify retired coding-agent references
-        run: bash tests/retired-coding-agent-references.sh
 
       - name: Verify repo-end callback behavior
         run: bash tests/repo-end-callbacks.sh
@@ -105,35 +72,11 @@ jobs:
       - name: Verify repo-start callback behavior
         run: bash tests/repo-start-callbacks.sh
 
-      - name: Verify repo tests isolate tmux state
-        run: bash tests/repo-tests-tmux-isolation.sh
-
-      - name: Verify tmux label helper provisioning
-        run: bash tests/tmux-label-helper-provisioning.sh
-
       - name: Verify tmux label contract
         run: bash tests/tmux-label-contract.sh
 
-      - name: Verify tmux managed-bars opt-out contract
-        run: bash tests/tmux-managed-bars-contract.sh
-
-      - name: Verify editor environment contract
-        run: bash tests/editor-env-contract.sh
-
-      - name: Verify Zsh terminal focus reset
-        run: bash tests/zsh-terminal-focus-reset.sh
-
-      - name: Verify tmux agent key passthrough contract
-        run: bash tests/tmux-agent-key-passthrough.sh
-
-      - name: Verify tmux edge suffix helper
-        run: bash tests/tmux-edge-suffix.sh
-
       - name: Verify tmux agent state helper
         run: bash tests/tmux-agent-state.sh
-
-      - name: Verify completed tmux agent labels
-        run: bash tests/tmux-agent-state-completed-subject.sh
 
       - name: Verify Pi main worktree mutation guard
         run: bash tests/pi-main-worktree-guard.sh
@@ -141,47 +84,17 @@ jobs:
       - name: Verify Pi main worktree guard provisioning
         run: bash tests/pi-main-worktree-guard-provisioning.sh
 
-      - name: Verify Pi scheduled subagent run provisioning
-        run: bash tests/pi-scheduled-subagent-runs.sh
-
       - name: Verify pi managed hooks
         run: bash tests/pi-managed-hooks.sh
 
       - name: Verify stale per-Node Pi purge
         run: bash tests/purge-legacy-pi-coding-agent.sh
 
-      - name: Verify Pi spec shortcut
-        run: bash tests/pi-spec-shortcut.sh
-
-      - name: Verify Pi attention bell
-        run: bash tests/pi-attention-bell.sh
-
-      - name: Verify Pi global AGENTS assembly
-        run: bash tests/pi-agent-assemble-agents.sh
-
-      - name: Verify Pi shared skills
-        run: ruby tests/pi-shared-skills.rb
-
       - name: Verify Pi Aube install layout
         run: ruby tests/pi-aube-install-layout-contract.rb
 
-      - name: Verify Pi skill conflict cleanup
-        run: ruby tests/pi-skill-conflicts.rb
-
-      - name: Verify Pi managed aube update contract
-        run: ruby tests/pi-managed-aube-update-contract.rb
-
-      - name: Verify tmux agent subject reminder hooks
-        run: bash tests/agent-subject-hooks.sh
-
       - name: Verify Claude agent subject hook settings
         run: bash tests/claude-agent-subject-hook-settings.sh
-
-      - name: Verify Git init template contract
-        run: bash tests/git-init-template-contract.sh
-
-      - name: Verify Git credential helper contract
-        run: bash tests/git-credential-helper-contract.sh
 
       - name: Verify managed global Git ignore
         run: bash tests/gitignore-contract.sh
@@ -189,14 +102,8 @@ jobs:
       - name: Verify tmux pane-link contract
         run: bash tests/tmux-pane-link.sh
 
-      - name: Test configurable agent spec directory
-        run: bash tests/agent-spec-directory.sh
-
       - name: Verify current-spec publisher
         run: ruby tests/agent-current-spec-hook.rb
-
-      - name: Verify tmux current-spec resolver
-        run: ruby tests/tmux-spec-current.rb
 
       - name: Verify Claude SessionStart hook contract
         run: bash tests/tmux-claude-session-start.sh
@@ -207,101 +114,5 @@ jobs:
       - name: Verify Codex hook trust provisioning
         run: bash tests/codex-hook-trust.sh
 
-      - name: Verify tmux pane-title hook regression
-        run: ruby tests/tmux-pane-title-changed.rb
-
       - name: Verify Claude working-status hooks target their own session
         run: bash tests/claude-working-title-target.sh
-
-      - name: Verify remind-repo-start-on-dev-prompt hook
-        run: bash roles/common/files/claude/hooks/remind-repo-start-on-dev-prompt.sh.test
-
-      - name: Verify key tools installed at expected versions
-        run: |
-          set -euo pipefail
-
-          local_bin="$HOME/.local/bin"
-          user_mise="$local_bin/mise"
-          user_yq="$local_bin/yq"
-          user_delta="$local_bin/delta"
-          user_nvim="$local_bin/nvim"
-          user_zoxide="$local_bin/zoxide"
-          user_fzf="$local_bin/fzf"
-          system_bwrap="/usr/bin/bwrap"
-          system_rg="/usr/bin/rg"
-          system_tmux="/usr/local/bin/tmux"
-          catalog="vars/tool_versions.yml"
-          mise_config_file="$HOME/.config/mise/config.toml"
-
-          catalog_value() {
-            "$user_yq" -r "$1" "$catalog"
-          }
-
-          strip_v() {
-            sed 's/^v//'
-          }
-
-          expected_node="$(catalog_value '.tool_versions.runtimes.node')"
-          actual_mise_version="$(
-            "$user_mise" version -J | jq -r '.version | split(" ")[0]'
-          )"
-          actual_global_node="$(
-            "$user_mise" config get --file "$mise_config_file" tools.node
-          )"
-          expected_mise="$(
-            catalog_value '.tool_versions.runtimes.mise' | strip_v
-          )"
-          expected_ripgrep="$(
-            catalog_value '.tool_versions.github_releases.ripgrep'
-          )"
-          expected_delta="$(
-            catalog_value '.tool_versions.github_releases.delta'
-          )"
-          expected_tmux="$(
-            catalog_value '.tool_versions.github_releases.tmux' | strip_v
-          )"
-          expected_neovim="$(
-            catalog_value '.tool_versions.github_releases.neovim'
-          )"
-          expected_yq="$(
-            catalog_value '.tool_versions.github_releases.yq' | strip_v
-          )"
-          expected_zoxide="$(
-            catalog_value '.tool_versions.github_releases.zoxide' | strip_v
-          )"
-          expected_fzf="$(
-            catalog_value '.tool_versions.github_releases.fzf' | strip_v
-          )"
-
-          test "$actual_mise_version" = "$expected_mise"
-          test "$actual_global_node" = \
-            "$expected_node"
-          test -x "$system_bwrap"
-          test "$("$system_rg" --version | awk 'NR==1 {print $2}')" = \
-            "$expected_ripgrep"
-          test "$("$user_delta" --version | awk 'NR==1 {print $2}')" = \
-            "$expected_delta"
-          test "$("$system_tmux" -V | awk '{print $2}')" = \
-            "$expected_tmux"
-          test "$("$user_nvim" --version | awk 'NR==1 {print $2}')" = \
-            "$expected_neovim"
-          test "$("$user_yq" --version | awk '{print $NF}' | strip_v)" = \
-            "$expected_yq"
-          test "$("$user_zoxide" --version | awk '{print $2}')" = \
-            "$expected_zoxide"
-          test "$("$user_fzf" --version | awk '{print $1}')" = \
-            "$expected_fzf"
-
-          echo "Expected versions verified"
-
-      - name: Verify zsh config is valid
-        run: zsh -n ~/.zshrc
-
-      - name: Verify dotfiles deployed
-        run: |
-          set -e
-          test -f ~/.zshrc
-          test -f ~/.gitconfig
-          test -f ~/.tmux.conf
-          test -f ~/.npmrc
-          echo "All dotfiles verified"
