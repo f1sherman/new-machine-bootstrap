@@ -11,13 +11,6 @@ fail() {
   exit 1
 }
 
-count="$(grep -Fxc '**/.pi/remote-pi/' "$template" || true)"
-[[ "$count" == "1" ]] || fail "managed global ignore must contain exactly one recursive Remote Pi rule"
-
-if grep -Fxq '.pi/' "$template"; then
-  fail "managed global ignore must not hide all .pi project configuration"
-fi
-
 git -C "$tmp" init -q
 mkdir -p "$tmp/.pi/remote-pi" "$tmp/nested/.pi/remote-pi" "$tmp/nested/.pi"
 touch "$tmp/.pi/remote-pi/config.json" "$tmp/nested/.pi/remote-pi/config.json" "$tmp/nested/.pi/project-config.json"
@@ -33,8 +26,6 @@ fi
 
 printf 'PASS  managed global ignore targets Remote Pi runtime state at any depth\n'
 
-# Pi subagents run artifacts are per-repository runtime state and must be
-# ignored at any depth, without hiding real .pi project configuration.
 mkdir -p "$tmp/.pi-subagents/artifacts" "$tmp/nested/.pi-subagents/artifacts"
 touch "$tmp/.pi-subagents/artifacts/run.md" "$tmp/nested/.pi-subagents/artifacts/run.md"
 

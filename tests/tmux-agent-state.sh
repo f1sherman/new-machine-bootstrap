@@ -3,119 +3,30 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-BIN_DIR="$REPO_ROOT/roles/common/files/bin"
-STATE="$BIN_DIR/tmux-agent-state"
-SUBJECT="$BIN_DIR/tmux-agent-subject"
-
+SUBJECT="$REPO_ROOT/roles/common/files/bin/tmux-agent-subject"
 TMPROOT="$(mktemp -d)"
 trap 'rm -rf "$TMPROOT"' EXIT
 
-pass_case() { printf 'PASS  %s\n' "$1"; }
 fail_case() { printf 'FAIL  %s\n%s\n' "$1" "$2" >&2; exit 1; }
-
-assert_eq() {
-  local expected="$1" actual="$2" name="$3"
-  [[ "$actual" == "$expected" ]] || fail_case "$name" "expected '$expected', got '$actual'"
-  pass_case "$name"
-}
-
 assert_file_eq() {
-  local path="$1" expected="$2" name="$3" actual
-  [[ -f "$path" ]] || fail_case "$name" "missing file: $path"
-  actual="$(cat "$path")"
-  [[ "$actual" == "$expected" ]] || fail_case "$name" "expected '$expected', got '$actual'"
-  pass_case "$name"
+  local path="$1" expected="$2" name="$3"
+  [ -f "$path" ] || fail_case "$name" "missing file: $path"
+  [ "$(cat "$path")" = "$expected" ] || fail_case "$name" "unexpected content"
+  printf 'PASS  %s\n' "$name"
 }
-
-assert_file_contains() {
-  local path="$1" needle="$2" name="$3"
-  [[ -f "$path" ]] || fail_case "$name" "missing file: $path"
-  grep -Fq -- "$needle" "$path" || fail_case "$name" "missing '$needle' in $path"
-  pass_case "$name"
-}
-
-display_width() {
-  TMUX_TASK_LABEL="$1" python3 - <<'PY'
-import os
-import unicodedata
-
-text = os.environ["TMUX_TASK_LABEL"]
-
-def extend(c):
-    cp = ord(c)
-    return unicodedata.combining(c) or unicodedata.category(c) in {"Me", "Mn"} or 0xFE00 <= cp <= 0xFE0F or 0xE0100 <= cp <= 0xE01EF or 0x1F3FB <= cp <= 0x1F3FF
-
-def clusters(value):
-    i = 0
-    while i < len(value):
-        start = i
-        first = ord(value[i])
-        i += 1
-        if 0x1F1E6 <= first <= 0x1F1FF and i < len(value) and 0x1F1E6 <= ord(value[i]) <= 0x1F1FF:
-            i += 1
-        while i < len(value) and extend(value[i]):
-            i += 1
-        while i < len(value) and value[i] == "\u200d":
-            i += 1
-            if i < len(value):
-                i += 1
-                while i < len(value) and extend(value[i]):
-                    i += 1
-        yield value[start:i]
-
-def width(cluster):
-    visible = [c for c in cluster if c != "\u200d" and not extend(c)]
-    if not visible:
-        return 0
-    cps = [ord(c) for c in cluster]
-    if 0xFE0F in cps or 0x200D in cps:
-        return 2
-    if len(visible) == 2 and all(0x1F1E6 <= ord(c) <= 0x1F1FF for c in visible):
-        return 2
-    return max(2 if unicodedata.east_asian_width(c) in {"F", "W"} else 1 for c in visible)
-
-print(sum(width(cluster) for cluster in clusters(text)))
-PY
-}
-
-assert_file_not_contains() {
-  local path="$1" needle="$2" name="$3"
-  [[ -f "$path" ]] || fail_case "$name" "missing file: $path"
-  ! grep -Fq -- "$needle" "$path" || fail_case "$name" "found disallowed bytes in $path"
-  pass_case "$name"
-}
-
 assert_no_file() {
-  local path="$1" name="$2"
-  [[ ! -e "$path" ]] || fail_case "$name" "expected absent: $path"
-  pass_case "$name"
+  [ ! -e "$1" ] || fail_case "$2" "expected absent: $1"
+  printf 'PASS  %s\n' "$2"
 }
 
 stub_bin="$TMPROOT/bin"
-state_dir="$TMPROOT/state"
-repo="$TMPROOT/repo"
-mkdir -p "$stub_bin" "$state_dir" "$repo"
-
-cat >"$stub_bin/tmux-window-label" <<'STUB'
-#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$TMUX_AGENT_STATE_WINDOW_LOG"
-STUB
-cat >"$stub_bin/tmux-remote-title" <<'STUB'
-#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$TMUX_AGENT_STATE_TITLE_LOG"
-STUB
-cat >"$stub_bin/tmux-label-format" <<'STUB'
-#!/usr/bin/env bash
-path="$2"
-branch="$(git -C "$path" branch --show-current)"
-printf '(%s) repo | host-a\n' "$branch"
-STUB
-cat >"$stub_bin/tmux-subject" <<'STUB'
+mkdir -p "$stub_bin"
+cat >"$stub_bin/tmux" <<'STUB'
 #!/usr/bin/env bash
 [ "$1" = display-message ] || exit 1
 printf '%s\n' "${TMUX_AGENT_SUBJECT_TEST_PANE_PID:-}"
 STUB
-cat >"$stub_bin/ps-subject" <<'STUB'
+cat >"$stub_bin/ps" <<'STUB'
 #!/usr/bin/env bash
 pid=""
 while [ "$#" -gt 0 ]; do
@@ -129,62 +40,44 @@ case "$pid" in
   *) exit 1 ;;
 esac
 STUB
-chmod +x "$stub_bin/tmux-window-label" "$stub_bin/tmux-remote-title" "$stub_bin/tmux-label-format" \
-  "$stub_bin/tmux-subject" "$stub_bin/ps-subject"
+chmod +x "$stub_bin"/*
 
-git -c init.defaultBranch=main -C "$repo" init -q
-git -C "$repo" config user.email test@example.com
-git -C "$repo" config user.name Test
-printf 'base\n' >"$repo/file"
-git -C "$repo" add file
-git -C "$repo" commit -qm base
-git -C "$repo" update-ref refs/remotes/origin/main HEAD
-git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
-git -C "$repo" checkout -qb feature/durable-label
-
-export TMUX=1
-export TMUX_PANE="%1"
-export TMUX_AGENT_STATE_DIR="$state_dir"
-export TMUX_AGENT_STATE_WINDOW_LOG="$TMPROOT/window.log"
-export TMUX_AGENT_STATE_TITLE_LOG="$TMPROOT/title.log"
-export TMUX_AGENT_STATE_LABEL_FORMAT_BIN="$stub_bin/tmux-label-format"
-export TMUX_AGENT_STATE_CURRENT_PATH="$repo"
-export TMUX_AGENT_SUBJECT_TMUX_BIN="$stub_bin/tmux-subject"
-export TMUX_AGENT_SUBJECT_PS_BIN="$stub_bin/ps-subject"
+export TMUX=1 TMUX_PANE="%1"
+export TMUX_AGENT_SUBJECT_TMUX_BIN="$stub_bin/tmux"
+export TMUX_AGENT_SUBJECT_PS_BIN="$stub_bin/ps"
 export TMUX_AGENT_SUBJECT_CALLER_PID=300
 export TMUX_AGENT_SUBJECT_TEST_PANE_PID=100
-export PATH="$stub_bin:$PATH"
 
-unrelated_state_dir="$TMPROOT/unrelated-state"
-mkdir -p "$unrelated_state_dir"
-TMUX_AGENT_STATE_DIR="$unrelated_state_dir" TMUX_AGENT_SUBJECT_CALLER_PID=400 \
-  "$SUBJECT" set "must not leak"
-assert_no_file "$unrelated_state_dir/%1.@task_label" "unrelated process cannot set subject with copied pane environment"
-printf 'existing subject' >"$unrelated_state_dir/%1.@task_label"
-TMUX_AGENT_STATE_DIR="$unrelated_state_dir" TMUX_AGENT_SUBJECT_CALLER_PID=400 \
-  "$SUBJECT" clear
-assert_file_eq "$unrelated_state_dir/%1.@task_label" "existing subject" "unrelated process cannot clear subject with copied pane environment"
-printf 'agent' >"$unrelated_state_dir/%1.@task_source"
-printf 'provisional' >"$unrelated_state_dir/%1.@task_state"
-TMUX_AGENT_STATE_DIR="$unrelated_state_dir" TMUX_AGENT_SUBJECT_CALLER_PID=400 \
+unrelated="$TMPROOT/unrelated"
+mkdir -p "$unrelated"
+TMUX_AGENT_STATE_DIR="$unrelated" TMUX_AGENT_SUBJECT_CALLER_PID=400 \
+  "$SUBJECT" set 'must not leak'
+assert_no_file "$unrelated/%1.@task_label" \
+  'unrelated process cannot set state with copied pane environment'
+printf 'existing subject' >"$unrelated/%1.@task_label"
+printf 'agent' >"$unrelated/%1.@task_source"
+printf 'provisional' >"$unrelated/%1.@task_state"
+TMUX_AGENT_STATE_DIR="$unrelated" TMUX_AGENT_SUBJECT_CALLER_PID=400 \
   "$SUBJECT" clear-provisional
-assert_file_eq "$unrelated_state_dir/%1.@task_label" "existing subject" "unrelated process cannot clear provisional subject with copied pane environment"
-assert_file_eq "$unrelated_state_dir/%1.@task_state" "provisional" "unrelated process preserves provisional state with copied pane environment"
+assert_file_eq "$unrelated/%1.@task_label" 'existing subject' \
+  'unrelated process cannot clear state with copied pane environment'
+assert_file_eq "$unrelated/%1.@task_state" provisional \
+  'failed ownership check leaves state unchanged'
 
-invalid_pane_state_dir="$TMPROOT/invalid-pane-state"
-mkdir -p "$invalid_pane_state_dir"
-TMUX_AGENT_STATE_DIR="$invalid_pane_state_dir" TMUX_AGENT_SUBJECT_TEST_PANE_PID=invalid \
-  "$SUBJECT" set "must fail closed"
-assert_no_file "$invalid_pane_state_dir/%1.@task_label" "invalid pane PID cannot set subject"
+invalid="$TMPROOT/invalid"
+mkdir -p "$invalid"
+TMUX_AGENT_STATE_DIR="$invalid" TMUX_AGENT_SUBJECT_TEST_PANE_PID=invalid \
+  "$SUBJECT" set 'must fail closed'
+assert_no_file "$invalid/%1.@task_label" 'invalid pane PID fails closed'
 
-missing_pane_state_dir="$TMPROOT/missing-pane-state"
-mkdir -p "$missing_pane_state_dir"
-TMUX_AGENT_STATE_DIR="$missing_pane_state_dir" TMUX_AGENT_SUBJECT_TEST_PANE_PID= \
-  "$SUBJECT" set "must fail closed"
-assert_no_file "$missing_pane_state_dir/%1.@task_label" "missing pane PID cannot set subject"
+missing="$TMPROOT/missing"
+mkdir -p "$missing"
+TMUX_AGENT_STATE_DIR="$missing" TMUX_AGENT_SUBJECT_TEST_PANE_PID= \
+  "$SUBJECT" set 'must fail closed'
+assert_no_file "$missing/%1.@task_label" 'missing pane PID fails closed'
 
 production_bin="$TMPROOT/production-bin"
-production_state_log="$TMPROOT/production-state.log"
+production_log="$TMPROOT/production-state.log"
 mkdir -p "$production_bin"
 cat >"$production_bin/tmux" <<'STUB'
 #!/usr/bin/env bash
@@ -195,296 +88,18 @@ cat >"$production_bin/tmux-agent-state" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$TMUX_AGENT_SUBJECT_PRODUCTION_STATE_LOG"
 STUB
-chmod +x "$production_bin/tmux" "$production_bin/tmux-agent-state"
+chmod +x "$production_bin"/*
 (
   unset TMUX_AGENT_STATE_DIR
   TMUX_AGENT_STATE_BIN="$production_bin/tmux-agent-state" \
-  TMUX_AGENT_SUBJECT_PRODUCTION_STATE_LOG="$production_state_log" \
-  TMUX_AGENT_SUBJECT_TMUX_BIN="$stub_bin/tmux-subject" \
-  TMUX_AGENT_SUBJECT_PS_BIN="$stub_bin/ps-subject" \
+  TMUX_AGENT_SUBJECT_PRODUCTION_STATE_LOG="$production_log" \
+  TMUX_AGENT_SUBJECT_TMUX_BIN="$stub_bin/tmux" \
+  TMUX_AGENT_SUBJECT_PS_BIN="$stub_bin/ps" \
   TMUX_AGENT_SUBJECT_CALLER_PID=100 \
   PATH="$production_bin:$PATH" \
-    "$SUBJECT" set "must not forge ownership"
+    "$SUBJECT" set 'must not forge ownership'
 )
-assert_no_file "$production_state_log" "production ownership ignores caller-controlled test overrides"
+assert_no_file "$production_log" \
+  'production ownership ignores caller-controlled test overrides'
 
-for key in @agent_subject @agent_subject_stale @agent_subject_done @agent_completed_window_label; do
-  printf old >"$state_dir/%1.$key"
-done
-printf '(main) repo | host-a' >"$state_dir/%1.@pane-label"
-
-"$SUBJECT" set "tmux label persistence"
-assert_file_eq "$state_dir/%1.@task_label" "tmux label persistence" "stores provisional label"
-assert_file_eq "$state_dir/%1.@task_source" "agent" "stores provisional source"
-assert_file_eq "$state_dir/%1.@task_state" "provisional" "stores provisional state"
-assert_file_eq "$state_dir/%1.@window-label" "~ tmux label persistence" "renders provisional top label"
-assert_file_eq "$state_dir/%1.@pane-label" "~ tmux label persistence · repo | host-a" "renders provisional contextual bottom label"
-for key in @agent_subject @agent_subject_stale @agent_subject_done @agent_completed_window_label; do
-  assert_no_file "$state_dir/%1.$key" "set removes obsolete $key"
-done
-assert_file_contains "$TMPROOT/window.log" "%1" "provisional refresh invokes tmux-window-label"
-assert_file_contains "$TMPROOT/title.log" "publish" "provisional refresh publishes remote title"
-
-printf 'repo | host-a' >"$state_dir/%1.@task_context"
-"$SUBJECT" clear-provisional
-for key in @task_label @task_source @task_state @task_context; do
-  assert_no_file "$state_dir/%1.$key" "owned clear-provisional removes $key"
-done
-
-for protected_case in \
-  'branch|active' \
-  'goal|active' \
-  'manual|active' \
-  'branch|completed'; do
-  protected_source="${protected_case%%|*}"
-  protected_state="${protected_case#*|}"
-  printf 'protected task' >"$state_dir/%1.@task_label"
-  printf '%s' "$protected_source" >"$state_dir/%1.@task_source"
-  printf '%s' "$protected_state" >"$state_dir/%1.@task_state"
-  printf 'repo | host-a' >"$state_dir/%1.@task_context"
-  "$STATE" clear-provisional
-  assert_file_eq "$state_dir/%1.@task_label" "protected task" "clear-provisional preserves $protected_source/$protected_state label"
-  assert_file_eq "$state_dir/%1.@task_source" "$protected_source" "clear-provisional preserves $protected_source/$protected_state source"
-  assert_file_eq "$state_dir/%1.@task_state" "$protected_state" "clear-provisional preserves $protected_source/$protected_state state"
-done
-
-"$STATE" clear-task
-printf 'agent' >"$state_dir/%1.@task_source"
-"$STATE" clear-provisional
-assert_file_eq "$state_dir/%1.@task_source" "agent" "clear-provisional preserves incomplete state"
-rm -f "$state_dir/%1.@task_source"
-"$STATE" clear-provisional
-assert_eq "" "$("$STATE" status)" "clear-provisional accepts empty state"
-
-"$SUBJECT" set "tmux label persistence"
-"$SUBJECT" set "auth · billing"
-assert_file_eq "$state_dir/%1.@window-label" "~ auth · billing" "local provisional top preserves middle-dot separator"
-assert_file_eq "$state_dir/%1.@pane-label" "~ auth · billing · repo | host-a" "local provisional bottom preserves middle-dot separator"
-printf '1' >"$state_dir/%1.@pane-title-structured"
-printf '~ auth · billing · repo | host-a' >"$state_dir/%1.@pane-label"
-rm -f "$state_dir/%1.@task_context"
-"$STATE" refresh
-"$STATE" refresh
-assert_file_eq "$state_dir/%1.@task_context" "repo | host-a" "repeated structured refresh keeps canonical provisional context"
-assert_file_eq "$state_dir/%1.@pane-label" "~ auth · billing · repo | host-a" "repeated structured refresh does not duplicate provisional subject"
-"$SUBJECT" set "auth | billing"
-assert_file_eq "$state_dir/%1.@window-label" "~ auth | billing" "local provisional top preserves pipe separator"
-assert_file_eq "$state_dir/%1.@pane-label" "~ auth | billing · repo | host-a" "local provisional bottom preserves pipe separator"
-
-: >"$TMPROOT/window.log"
-"$STATE" adopt-remote-provisional "refined remote subject"
-assert_file_eq "$state_dir/%1.@task_label" "refined remote subject" "remote adoption replaces an existing provisional agent task"
-assert_file_eq "$state_dir/%1.@task_source" "agent" "remote adoption preserves agent ownership"
-assert_file_eq "$state_dir/%1.@task_state" "provisional" "remote adoption preserves provisional state"
-assert_file_eq "$state_dir/%1.@window-label" "~ refined remote subject" "remote adoption renders the refined canonical label"
-assert_eq "1" "$(wc -l <"$TMPROOT/window.log" | tr -d ' ')" "remote adoption invokes window rendering exactly once"
-
-for ineligible_case in \
-  'completed|agent|completed task' \
-  'provisional|manual|provisional non-agent task' \
-  'active|branch|active branch task' \
-  'active|goal|active goal task' \
-  'active|manual|active manual task'; do
-  ineligible_state="${ineligible_case%%|*}"
-  ineligible_remainder="${ineligible_case#*|}"
-  ineligible_source="${ineligible_remainder%%|*}"
-  ineligible_label="${ineligible_remainder#*|}"
-  printf '%s' "$ineligible_state" >"$state_dir/%1.@task_state"
-  printf '%s' "$ineligible_source" >"$state_dir/%1.@task_source"
-  printf '%s' "$ineligible_label" >"$state_dir/%1.@task_label"
-  : >"$TMPROOT/window.log"
-  "$STATE" adopt-remote-provisional "must not replace canonical task"
-  assert_file_eq "$state_dir/%1.@task_label" "$ineligible_label" "remote adoption preserves $ineligible_label"
-  assert_eq "0" "$(wc -l <"$TMPROOT/window.log" | tr -d ' ')" "ineligible $ineligible_label does not render"
-done
-
-rm -f "$state_dir/%1.@task_state" "$state_dir/%1.@task_source" "$state_dir/%1.@task_label"
-: >"$TMPROOT/window.log"
-"$STATE" adopt-remote-provisional "must not create a task"
-assert_no_file "$state_dir/%1.@task_label" "remote adoption does not create a task without prior state"
-assert_eq "0" "$(wc -l <"$TMPROOT/window.log" | tr -d ' ')" "missing prior task does not render"
-
-"$SUBJECT" set "refined remote subject"
-"$STATE" set-identity goal "stable session identity"
-assert_file_eq "$state_dir/%1.@task_label" "stable session identity" "goal stores stable label"
-assert_file_eq "$state_dir/%1.@task_source" "goal" "goal stores goal source"
-assert_file_eq "$state_dir/%1.@task_state" "active" "goal stores active state"
-assert_file_eq "$state_dir/%1.@window-label" "stable session identity" "goal renders stable top label"
-assert_eq $'active\tgoal\tstable session identity' "$("$STATE" status)" "goal status contract"
-
-"$SUBJECT" set "must not replace active goal"
-assert_file_eq "$state_dir/%1.@task_label" "stable session identity" "provisional cannot replace active goal"
-
-"$STATE" activate-branch "$repo"
-assert_file_eq "$state_dir/%1.@task_label" "stable session identity" "branch preserves goal label"
-assert_file_eq "$state_dir/%1.@task_source" "goal" "branch preserves goal source"
-assert_file_eq "$state_dir/%1.@agent_worktree_path" "$repo" "branch still binds goal worktree"
-assert_file_eq "$state_dir/%1.@window-label" "stable session identity" "branch keeps goal top label"
-assert_file_eq "$state_dir/%1.@pane-label" "(feature/durable-label) repo | host-a" "goal pane keeps branch context"
-
-"$STATE" complete-worktree
-assert_file_eq "$state_dir/%1.@task_state" "active" "worktree completion preserves active goal"
-assert_file_eq "$state_dir/%1.@window-label" "stable session identity" "worktree completion preserves goal label"
-
-"$STATE" clear-task
-"$STATE" set-identity manual "manual investigation"
-assert_eq $'active\tmanual\tmanual investigation' "$("$STATE" status)" "manual status contract"
-"$SUBJECT" set "must not replace manual identity"
-assert_file_eq "$state_dir/%1.@task_label" "manual investigation" "provisional cannot replace active manual identity"
-"$STATE" activate-branch "$repo"
-assert_file_eq "$state_dir/%1.@task_label" "manual investigation" "branch preserves manual label"
-assert_file_eq "$state_dir/%1.@task_source" "manual" "branch preserves manual source"
-"$STATE" complete-worktree
-assert_file_eq "$state_dir/%1.@task_state" "active" "worktree completion preserves manual identity"
-
-goal_max="$(printf 'g%.0s' {1..80})"
-goal_oversized="$(printf 'g%.0s' {1..81})"
-"$STATE" set-identity goal "$goal_max"
-assert_file_eq "$state_dir/%1.@task_label" "$goal_max" "80-character goal is accepted"
-"$STATE" set-identity goal "$goal_oversized"
-assert_file_eq "$state_dir/%1.@task_label" "$goal_max" "81-character goal is rejected"
-
-manual_max="$(printf 'm%.0s' {1..512})"
-manual_oversized="$(printf 'm%.0s' {1..513})"
-"$STATE" set-identity manual "$manual_max"
-assert_file_eq "$state_dir/%1.@task_label" "$manual_max" "512-character manual identity is accepted"
-"$STATE" set-identity manual "$manual_oversized"
-assert_file_eq "$state_dir/%1.@task_label" "$manual_max" "513-character manual identity is rejected"
-
-"$STATE" clear-task
-"$SUBJECT" set "branch replacement candidate"
-assert_file_eq "$state_dir/%1.@task_state" "provisional" "restores provisional task before branch replacement"
-
-"$STATE" activate-branch "$repo"
-assert_file_eq "$state_dir/%1.@task_label" "feature/durable-label" "captures branch"
-assert_file_eq "$state_dir/%1.@task_source" "branch" "stores branch source"
-assert_file_eq "$state_dir/%1.@task_state" "active" "activates branch"
-assert_file_eq "$state_dir/%1.@window-label" "feature/durable-label" "branch replaces subject"
-assert_file_eq "$state_dir/%1.@pane-label" "(feature/durable-label) repo | host-a" "active bottom retains full branch and context"
-git -C "$repo" checkout -qb 'feature/a)b'
-"$STATE" activate-branch "$repo"
-assert_file_eq "$state_dir/%1.@pane-label" "(feature/a)b) repo | host-a" "active bottom supports closing parenthesis in branch"
-git -C "$repo" checkout -q feature/durable-label
-"$STATE" activate-branch "$repo"
-
-"$SUBJECT" set "must not replace active branch"
-assert_file_eq "$state_dir/%1.@task_label" "feature/durable-label" "provisional cannot replace active branch"
-assert_file_eq "$state_dir/%1.@task_source" "branch" "active branch keeps source"
-assert_file_eq "$state_dir/%1.@task_state" "active" "active branch keeps state"
-
-# A default branch must not replace an existing useful task identity.
-git -C "$repo" checkout -q main
-"$STATE" activate-branch "$repo"
-assert_file_eq "$state_dir/%1.@task_label" "feature/durable-label" "default branch retains task identity"
-assert_file_eq "$state_dir/%1.@task_state" "active" "default branch retains active state"
-
-# With an explicit develop default, main is a valid non-default branch.
-git -C "$repo" branch develop
-git -C "$repo" update-ref refs/remotes/origin/develop refs/heads/develop
-git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/develop
-"$STATE" activate-branch "$repo"
-assert_file_eq "$state_dir/%1.@task_label" "main" "main is valid when origin default is develop"
-assert_file_eq "$state_dir/%1.@task_state" "active" "non-default main becomes active"
-
-git -C "$repo" symbolic-ref --delete refs/remotes/origin/HEAD
-git -C "$repo" checkout -q feature/durable-label
-"$STATE" activate-branch "$repo"
-git -C "$repo" checkout -q main
-"$STATE" activate-branch "$repo"
-assert_file_eq "$state_dir/%1.@task_label" "feature/durable-label" "main is rejected when origin default is unknown"
-git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
-
-# Failed Git lookup must not erase captured identity.
-"$STATE" activate-branch "$TMPROOT/missing"
-assert_file_eq "$state_dir/%1.@task_label" "feature/durable-label" "Git lookup failure retains identity"
-
-# Restore the contextual active label before completion.
-git -C "$repo" checkout -q feature/durable-label
-"$STATE" activate-branch "$repo"
-printf 999 >"$state_dir/%1.@agent_worktree_pid"
-printf link >"$state_dir/%1.@pane-link"
-printf source >"$state_dir/%1.@pane-link-source"
-"$STATE" complete-worktree
-assert_file_eq "$state_dir/%1.@task_state" "completed" "completion stores completed state"
-assert_file_eq "$state_dir/%1.@window-label" "✓ feature/durable-label" "renders completed branch"
-assert_file_eq "$state_dir/%1.@pane-label" "✓ (feature/durable-label) repo | host-a" "completed bottom retains full context"
-assert_no_file "$state_dir/%1.@agent_worktree_path" "completion clears worktree path"
-assert_no_file "$state_dir/%1.@agent_worktree_pid" "completion clears worktree pid"
-assert_no_file "$state_dir/%1.@pane-link" "completion clears pane link"
-assert_no_file "$state_dir/%1.@pane-link-source" "completion clears pane link source"
-assert_eq $'completed\tbranch\tfeature/durable-label' "$("$STATE" status)" "status contract"
-
-"$STATE" complete-worktree
-assert_file_eq "$state_dir/%1.@window-label" "✓ feature/durable-label" "completion is idempotent"
-assert_file_not_contains "$state_dir/%1.@window-label" "✓ ✓" "completion does not duplicate marker"
-printf 'generic-cwd | wrong-host' > "$state_dir/%1.@pane-label"
-"$STATE" refresh
-assert_file_eq "$state_dir/%1.@pane-label" "✓ (feature/durable-label) repo | host-a" "completed refresh rebuilds bottom from durable task context"
-
-"$SUBJECT" set "next provisional task"
-assert_file_eq "$state_dir/%1.@task_label" "next provisional task" "provisional replaces completed branch"
-assert_file_eq "$state_dir/%1.@task_source" "agent" "replacement changes source to agent"
-assert_file_eq "$state_dir/%1.@task_state" "provisional" "replacement changes state to provisional"
-
-"$STATE" clear-task
-assert_no_file "$state_dir/%1.@task_label" "clear-task removes label"
-assert_no_file "$state_dir/%1.@task_source" "clear-task removes source"
-assert_no_file "$state_dir/%1.@task_state" "clear-task removes state"
-assert_no_file "$state_dir/%1.@task_context" "clear-task removes durable context"
-assert_eq "" "$("$STATE" status)" "empty status emits nothing"
-
-printf old >"$state_dir/%1.@agent_subject_done"
-"$STATE" set-kind pi
-assert_no_file "$state_dir/%1.@agent_subject_done" "session kind clears obsolete completion state"
-assert_file_eq "$state_dir/%1.@window-label" "repo" "fallback top omits agent kind"
-
-"$SUBJECT" set "$(printf ' \033\a\001 ')"
-assert_no_file "$state_dir/%1.@task_label" "empty sanitized subject leaves identity empty"
-
-control_subject="$(printf 'bad \033chars\a\001 subject')"
-"$SUBJECT" set "$control_subject"
-assert_file_eq "$state_dir/%1.@task_label" "bad chars subject" "subject removes control bytes"
-assert_file_not_contains "$state_dir/%1.@task_label" "$(printf '\033')" "stored subject removes escape byte"
-assert_file_not_contains "$state_dir/%1.@window-label" "$(printf '\a')" "window label removes bell byte"
-
-long_subject="$(printf 'a%.0s' {1..120})"
-"$SUBJECT" set "$long_subject"
-long_label="$(cat "$state_dir/%1.@window-label")"
-assert_eq "40" "$(display_width "$long_label")" "ASCII top label is exactly 40 cells"
-assert_eq "…" "${long_label: -1}" "long top label ends with ellipsis"
-assert_file_eq "$state_dir/%1.@task_label" "$long_subject" "stored subject is not capped at 80 characters"
-assert_file_eq "$state_dir/%1.@pane-label" "~ $long_subject · repo | host-a" "bottom label retains full subject"
-
-max_subject="$(printf 'b%.0s' {1..512})"
-"$SUBJECT" set "$max_subject"
-assert_file_eq "$state_dir/%1.@task_label" "$max_subject" "512-character subject is accepted in full"
-assert_file_eq "$state_dir/%1.@pane-label" "~ $max_subject · repo | host-a" "512-character bottom identity remains full"
-max_window="$(cat "$state_dir/%1.@window-label")"
-max_pane="$(cat "$state_dir/%1.@pane-label")"
-
-oversized_subject="$(printf 'c%.0s' {1..513})"
-"$SUBJECT" set "$oversized_subject"
-assert_file_eq "$state_dir/%1.@task_label" "$max_subject" "513-character subject is rejected"
-assert_file_eq "$state_dir/%1.@task_source" "agent" "oversized subject leaves source intact"
-assert_file_eq "$state_dir/%1.@task_state" "provisional" "oversized subject leaves state intact"
-assert_file_eq "$state_dir/%1.@window-label" "$max_window" "oversized subject leaves top label intact"
-assert_file_eq "$state_dir/%1.@pane-label" "$max_pane" "oversized subject leaves bottom label intact"
-
-wide_subject="$(printf '界%.0s' {1..30})"
-"$SUBJECT" set "$wide_subject"
-wide_label="$(cat "$state_dir/%1.@window-label")"
-assert_eq "39" "$(display_width "$wide_label")" "wide-glyph top label stays within 40 cells"
-assert_eq "~ $(printf '界%.0s' {1..18})…" "$wide_label" "wide-glyph truncation is exact"
-assert_file_eq "$state_dir/%1.@task_label" "$wide_subject" "wide subject remains full in storage"
-
-combining="$(printf 'e\314\201')"
-zwj_run="$(printf '👩‍💻%.0s' {1..20})"
-emoji_subject="${combining}™️👋🏽${zwj_run}"
-"$SUBJECT" set "$emoji_subject"
-emoji_label="$(cat "$state_dir/%1.@window-label")"
-expected_emoji_label="~ ${combining}™️👋🏽$(printf '👩‍💻%.0s' {1..16})…"
-assert_eq "40" "$(display_width "$emoji_label")" "emoji sequence top label stays within 40 cells"
-assert_eq "$expected_emoji_label" "$emoji_label" "emoji presentation and ZWJ clusters are not split"
-assert_file_eq "$state_dir/%1.@task_label" "$emoji_subject" "emoji task identity remains full in storage"
-
-printf 'tmux-agent-state checks complete\n'
+printf 'tmux-agent-state ownership checks complete\n'

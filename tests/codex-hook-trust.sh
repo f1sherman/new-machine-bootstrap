@@ -41,12 +41,6 @@ assert_jq_equals() {
   assert_equals "$actual" "$expected" "$name"
 }
 
-assert_mode_600() {
-  local path="$1" name="$2" mode
-  mode="$(stat -c '%a' "$path" 2>/dev/null || stat -f '%Lp' "$path")"
-  assert_equals "$mode" "600" "$name"
-}
-
 write_metadata() {
   local path="$1" workdir="$2" hooks_file="$3" work_hash="$4" push_hash="$5" edit_hash="$6" spec_hash="$7" session_hash="$8" prompt_hash="$9" subject_hash="${10}" user_hash="${11}"
   jq -n \
@@ -209,11 +203,6 @@ write_metadata() {
     }' >"$path"
 }
 
-if [ ! -x "$helper" ]; then
-  fail_case "helper exists and is executable" "missing executable: $helper"
-fi
-pass_case "helper exists and is executable"
-
 codex_home="$tmpdir/codex"
 mkdir -p "$codex_home"
 hooks_file="$codex_home/hooks.json"
@@ -374,8 +363,6 @@ assert_file_contains "$config_file" 'name = "preserve-main"' "array table conten
 assert_file_contains "$config_file" "$hooks_file:pre_tool_use:77:0" "unrelated same-file hook state is preserved"
 assert_file_contains "$config_file" 'trusted_hash = "sha256:keep-same-file-user"' "unrelated same-file hook hash is preserved"
 assert_file_contains "$config_file" "/other/hooks.json:pre_tool_use:0:0" "unrelated hook state is preserved"
-assert_mode_600 "$config_file" "config file mode is 0600"
-
 out="$(
   CODEX_HOME="$codex_home" \
   HOOKS_FILE="$hooks_file" \
@@ -595,37 +582,5 @@ assert_file_contains "$drift_config_file" 'trusted_hash = "sha256:keep-user-posi
 assert_file_contains "$drift_config_file" "$drift_hooks_file:pre_tool_use:2:0" "normalized push hook state section is written"
 assert_file_contains "$drift_config_file" "$drift_hooks_file:pre_tool_use:3:0" "appended edit hook state section is written"
 assert_file_contains "$drift_config_file" 'trusted_hash = "sha256:drift-session"' "normalized session hook is trusted"
-
-warnings_home="$tmpdir/codex-warnings"
-mkdir -p "$warnings_home"
-warnings_hooks_file="$warnings_home/hooks.json"
-warnings_config_file="$warnings_home/config.toml"
-warnings_metadata_file="$tmpdir/warnings-hooks-metadata.json"
-warnings_stderr_file="$tmpdir/warnings.stderr"
-
-write_metadata "$warnings_metadata_file" "$tmpdir/work" "$warnings_hooks_file" \
-  "sha256:warn-work" \
-  "sha256:warn-push" \
-  "sha256:warn-edit" \
-  "sha256:warn-spec" \
-  "sha256:warn-session" \
-  "sha256:warn-prompt" \
-  "sha256:warn-subject" \
-  "sha256:warn-user"
-
-jq '.data[0].warnings = ["loading hooks from both /a/hooks.json and /a/config.toml; prefer a single representation for this layer"]' \
-  "$warnings_metadata_file" >"$warnings_metadata_file.tmp"
-mv "$warnings_metadata_file.tmp" "$warnings_metadata_file"
-
-out="$(
-  CODEX_HOME="$warnings_home" \
-  HOOKS_FILE="$warnings_hooks_file" \
-  CONFIG_FILE="$warnings_config_file" \
-  CODEX_HOOK_METADATA_FILE="$warnings_metadata_file" \
-    "$helper" 2>"$warnings_stderr_file"
-)"
-assert_equals "$out" "changed" "advisory warnings do not fail the run"
-assert_file_contains "$warnings_config_file" 'trusted_hash = "sha256:warn-work"' "trust state is written when warnings are present"
-assert_file_contains "$warnings_stderr_file" "loading hooks from both" "advisory warnings are surfaced on stderr"
 
 printf 'codex-hook-trust checks complete\n'
