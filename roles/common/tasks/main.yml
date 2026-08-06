@@ -1297,6 +1297,33 @@
   delay: 10
   changed_when: false
 
+# mise can retain an npm tool install whose Aube virtual-store targets were
+# removed. The install command then succeeds without restoring the broken
+# package symlinks. Verify the managed launcher and force a reinstall only when
+# the installed tool cannot start.
+- name: Repair broken managed Pi installation
+  shell: |
+    set -euo pipefail
+    pi_tool='npm:@earendil-works/pi-coding-agent@{{ tool_versions.runtimes.pi_coding_agent }}'
+    if "{{ mise_bin }}" exec "$pi_tool" -- pi --version >/dev/null 2>&1; then
+      echo unchanged
+      exit 0
+    fi
+    "{{ mise_bin }}" install --force --yes "$pi_tool"
+    "{{ mise_bin }}" exec "$pi_tool" -- pi --version >/dev/null
+    echo changed
+  args:
+    executable: /bin/bash
+  environment:
+    AUBE_PARANOID: "true"
+    MISE_NPM_PACKAGE_MANAGER: aube
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
+  register: common_mise_pi_repair_result
+  until: common_mise_pi_repair_result.rc == 0
+  retries: 3
+  delay: 10
+  changed_when: common_mise_pi_repair_result.stdout_lines | last == 'changed'
+
 - name: Install pi-subdir-context plugin for pi-coding-agent (macOS)
   command: "{{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} -- pi install npm:pi-subdir-context"
   register: pi_plugin_macos
