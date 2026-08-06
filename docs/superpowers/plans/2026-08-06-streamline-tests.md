@@ -301,7 +301,7 @@ printf 'after_lines='
 } | awk 'END { print NR }'
 ```
 
-Report file removal, test-code line removal, and latest available CI timing.
+Report file removal, test-code line removal, and the latest available CI duration.
 Distinguish test reduction from the unchanged provisioning duration.
 
 - [ ] **Step 5: Review the final diff**
