@@ -32,14 +32,16 @@ chmod +x "$TMP_ROOT/bin/"*
   XDG_STATE_HOME="$TMP_ROOT/state" \
   PROVISION_LOG_DIR="$TMP_ROOT/logs" \
   PROVISION_LOCK_DIR="$TMP_ROOT/lock" \
-  bin/provision --check --extra-vars ansible_become_pass=unique-secret \
-    --extra-vars=ansible_become_pass=equals-secret \
-    -eansible_become_pass=compact-secret --tags after-secret
+  bin/provision --check \
+    --extra-vars ansible_become_pass=unique-secret --tags after-separated \
+    --extra-vars=ansible_become_pass=equals-secret --skip-tags after-equals \
+    -eansible_become_pass=compact-secret --limit after-compact
 ) >"$TMP_ROOT/output" 2>&1
 
 log_path=$(readlink "$TMP_ROOT/logs/provision-latest.log")
 [[ -f "$log_path" ]]
-grep -Fq 'Provision invocation arguments: --check --extra-vars ansible_become_pass=[REDACTED] --extra-vars=ansible_become_pass=[REDACTED] -eansible_become_pass=[REDACTED] --tags after-secret' "$log_path"
-grep -Fq 'Executing command: ansible-playbook --inventory localhost, --connection local playbook.yml --check --extra-vars ansible_become_pass=[REDACTED] --extra-vars=ansible_become_pass=[REDACTED] -eansible_become_pass=[REDACTED] --tags after-secret' "$log_path"
 ! grep -Eq 'unique-secret|equals-secret|compact-secret' "$log_path"
-printf 'PASS  provision log redacts secret arguments without hiding later arguments\n'
+grep -Fq 'ansible_become_pass=[REDACTED] --tags after-separated' "$log_path"
+grep -Fq 'ansible_become_pass=[REDACTED] --skip-tags after-equals' "$log_path"
+grep -Fq 'ansible_become_pass=[REDACTED] --limit after-compact' "$log_path"
+printf 'PASS  provision log omits secrets and preserves each following argument\n'

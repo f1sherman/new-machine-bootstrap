@@ -223,6 +223,77 @@ git -C "$remote_proof_peer" push -q origin main
   fail_case "repo-end accepts remote merge proof" "worktree remains"
 pass_case "repo-end accepts remote branch merge proof"
 
+create_remote_repo end-local-ahead
+local_ahead_repo="$CREATED_REPO"
+local_ahead_feature="$TMPROOT/end-local-ahead-feature"
+git -C "$local_ahead_repo" worktree add -q -b feature/local-ahead \
+  "$local_ahead_feature" main
+commit_file "$local_ahead_feature" local-ahead.txt remote "remote feature commit"
+git -C "$local_ahead_feature" push -q -u origin feature/local-ahead
+commit_file "$local_ahead_feature" local-ahead.txt local-only "local-only feature commit"
+local_ahead_tip="$(git -C "$local_ahead_feature" rev-parse HEAD)"
+if (cd "$local_ahead_feature" && \
+  HOME="$TMPROOT/end-local-ahead-home" GIT_CONFIG_GLOBAL=/dev/null \
+  "$REPO_END_SCRIPT" >/dev/null 2>&1); then
+  fail_case "repo-end rejects commits absent from remote" \
+    "repo-end removed work that was not on the remote branch"
+fi
+[ -d "$local_ahead_feature" ] || \
+  fail_case "repo-end preserves local-ahead worktree" "worktree was removed"
+assert_equals \
+  "$(git -C "$local_ahead_repo" rev-parse refs/heads/feature/local-ahead)" \
+  "$local_ahead_tip" \
+  "repo-end preserves local-ahead branch tip"
+assert_git_has_file "$local_ahead_repo" "$local_ahead_tip" local-ahead.txt \
+  "repo-end preserves local-only commit content"
+
+create_remote_repo end-ambiguous-github-proof
+ambiguous_origin="$CREATED_ORIGIN"
+ambiguous_repo="$CREATED_REPO"
+ambiguous_feature="$TMPROOT/end-ambiguous-github-proof-feature"
+git -C "$ambiguous_repo" worktree add -q -b feature/ambiguous-proof \
+  "$ambiguous_feature" main
+commit_file "$ambiguous_feature" ambiguous.txt local "ambiguous feature commit"
+ambiguous_tip="$(git -C "$ambiguous_feature" rev-parse HEAD)"
+git -C "$ambiguous_repo" remote set-url origin \
+  git@github.com:example/end-ambiguous-github-proof.git
+ambiguous_bin="$TMPROOT/end-ambiguous-github-proof-bin"
+mkdir -p "$ambiguous_bin"
+cat >"$ambiguous_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'called\n' >"$AMBIGUOUS_GH_LOG"
+cat <<'JSON'
+[
+  {"number":10,"merged_at":"2026-07-04T02:00:00Z","base":{"ref":"main"},"head":{"ref":"feature/ambiguous-proof"}},
+  {"number":11,"merged_at":"2026-07-04T03:00:00Z","base":{"ref":"main"},"head":{"ref":"feature/ambiguous-proof"}}
+]
+JSON
+EOF
+cat >"$ambiguous_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$ambiguous_origin'
+EOF
+chmod +x "$ambiguous_bin/gh" "$ambiguous_bin/ssh"
+if (cd "$ambiguous_feature" && \
+  HOME="$TMPROOT/end-ambiguous-github-proof-home" \
+  AMBIGUOUS_GH_LOG="$TMPROOT/end-ambiguous-github-proof-gh.log" \
+  PATH="$ambiguous_bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$ambiguous_bin/ssh" "$REPO_END_SCRIPT" >/dev/null 2>&1); then
+  fail_case "repo-end rejects ambiguous GitHub merge proof" \
+    "repo-end accepted multiple merged pull requests as unique proof"
+fi
+[ -f "$TMPROOT/end-ambiguous-github-proof-gh.log" ] || \
+  fail_case "repo-end checks ambiguous GitHub merge proof" \
+    "GitHub pull request lookup was not exercised"
+[ -d "$ambiguous_feature" ] || \
+  fail_case "repo-end preserves ambiguous-proof worktree" "worktree was removed"
+assert_equals \
+  "$(git -C "$ambiguous_repo" rev-parse refs/heads/feature/ambiguous-proof)" \
+  "$ambiguous_tip" \
+  "repo-end preserves ambiguous-proof branch tip"
+assert_git_has_file "$ambiguous_repo" "$ambiguous_tip" ambiguous.txt \
+  "repo-end preserves ambiguous-proof commit content"
+
 create_remote_repo end-dirty-current
 dirty_current_repo="$CREATED_REPO"
 git -C "$dirty_current_repo" checkout -q -b feature/dirty-current
@@ -263,6 +334,21 @@ printf 'equivalent\n' >"$prune_repo/squashed.txt"
 git -C "$prune_repo" add squashed.txt
 git -C "$prune_repo" commit -q -m "squash equivalent"
 
+git -C "$prune_repo" checkout -q -b feature/prune-split-reverted main
+commit_file "$prune_repo" split-reverted.txt $'one\ntwo' \
+  "branch split reverted one"
+printf 'one\nTWO\n' >"$prune_repo/split-reverted.txt"
+git -C "$prune_repo" add split-reverted.txt
+git -C "$prune_repo" commit -q -m "branch split reverted two"
+git -C "$prune_repo" checkout -q main
+commit_file "$prune_repo" split-reverted.txt $'one\ntwo' \
+  "main split reverted one"
+printf 'one\nTWO\n' >"$prune_repo/split-reverted.txt"
+git -C "$prune_repo" add split-reverted.txt
+git -C "$prune_repo" commit -q -m "main split reverted two"
+git -C "$prune_repo" revert --no-edit --no-commit HEAD HEAD~1
+git -C "$prune_repo" commit -q -m "revert applied split sequence"
+
 git -C "$prune_repo" checkout -q -b feature/prune-unmerged main
 commit_file "$prune_repo" unmerged.txt unmerged "unmerged change"
 git -C "$prune_repo" checkout -q -b feature/prune-active main
@@ -283,7 +369,13 @@ if ! git -C "$prune_repo" show-ref --verify --quiet \
   refs/heads/feature/prune-unmerged; then
   fail_case "repo-end keeps unmerged branch" "unmerged branch was pruned"
 fi
-pass_case "repo-end prunes ancestor and squash merges but keeps unmerged work"
+if ! git -C "$prune_repo" show-ref --verify --quiet \
+  refs/heads/feature/prune-split-reverted; then
+  fail_case "repo-end keeps aggregate-reverted rewritten branch" \
+    "aggregate reverse patch caused destructive pruning"
+fi
+pass_case \
+  "repo-end prunes merged branches but keeps unmerged and aggregate-reverted work"
 
 create_remote_repo end-recovery
 recovery_repo="$CREATED_REPO"

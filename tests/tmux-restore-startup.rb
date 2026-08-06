@@ -58,6 +58,33 @@ class TmuxRestoreStartupTest < Minitest::Test
     results.each { |_out, _err, status| assert status.success? }
   end
 
+  def test_slow_restore_runs_once_and_waiter_never_uses_tmux_unlocked
+    env = helper_env(
+      "FAKE_RESTORE_DELAY" => "0.5",
+      "FAKE_RESTORE_SESSIONS" => "restored-one,restored-two",
+      "TMUX_ATTACH_LOCK_TIMEOUT" => "0.1"
+    )
+
+    restorer = Thread.new do
+      Open3.capture3(env.merge("FAKE_HELPER_LABEL" => "restorer"), HELPER)
+    end
+    wait_until { File.exist?(@restore_marker) }
+    waiter = Open3.capture3(
+      env.merge("FAKE_HELPER_LABEL" => "timed-out-waiter"),
+      HELPER
+    )
+    results = [restorer.value, waiter]
+    state = read_state
+
+    assert_equal 1, state.fetch("restore_invocations")
+    assert_equal [], state.fetch("unlocked_bootstrap_attempts"),
+      "waiting helper accessed tmux outside the startup lock"
+    results.each { |_out, _err, status| assert status.success? }
+    assert_equal ["timed-out-waiter"], fallback_invocations.map { |entry| entry.fetch("label") },
+      "only the waiting helper should time out to the fallback shell"
+    assert_event(/event=lock_failed\twait_seconds=\d+\treason=timeout/)
+  end
+
   def test_dead_reservation_is_reclaimed_and_cleaned_up
     dead_pid = Process.spawn(RbConfig.ruby, "-e", "exit")
     Process.wait(dead_pid)
