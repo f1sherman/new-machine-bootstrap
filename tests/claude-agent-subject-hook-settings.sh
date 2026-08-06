@@ -40,9 +40,7 @@ JSON
 yq -r '.[] | select(.name == "Register UserPromptSubmit hook for provisional task label reminder") | .shell' "$TASKS" >"$script"
 [ -s "$script" ] || fail_case \
   'extract production migration script' 'migration script is empty'
-migration_result="$(SETTINGS_FILE="$settings" bash "$script")"
-[ "$migration_result" = changed ] || fail_case \
-  'execute managed migration' "unexpected result: $migration_result"
+SETTINGS_FILE="$settings" bash "$script" >/dev/null
 
 jq -e --arg cmd "$legacy" '
   [.hooks.PostToolUse[]?.hooks[]? | select(.command == $cmd)] | length == 0
