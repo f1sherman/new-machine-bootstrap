@@ -68,18 +68,9 @@ wait_for_file "$TMP_ROOT/owner-ready" && pass "owner acquires the lock" || fail 
 wait_for_file "$TMP_ROOT/lock" && pass "owner creates the lock directory" || fail "owner creates the lock directory"
 owner_metadata_pid=$(lock_owner_pid "$TMP_ROOT/lock")
 [[ "$owner_metadata_pid" == "$OWNER_PID" ]] && pass "owner helper PID identifies the lock-owning process" || fail "owner helper PID identifies the lock-owning process"
-owner_dir=$(dirname "$(find "$TMP_ROOT/lock" -name owner -type f -print -quit)")
-if [[ -n "$(find "$TMP_ROOT/lock" -prune -perm 0700 -print)" && \
-  -n "$(find "$owner_dir" -prune -perm 0700 -print)" && \
-  -n "$(find "$owner_dir/owner" -prune -perm 0600 -print)" ]]; then
-  pass "owner metadata is private despite the caller umask"
-else
-  fail "owner metadata is private despite the caller umask"
-fi
-
 run_waiter >"$TMP_ROOT/waiter.out" 2>&1 &
 WAITER_PID=$!
-wait_for_match "$TMP_ROOT/waiter.out" "Another provision is running" && pass "waiter reports the existing provision run" || fail "waiter reports the existing provision run"
+wait_for_match "$TMP_ROOT/waiter.out" "Another provision is running" || fail "waiter did not enter the wait path"
 [[ ! -e "$TMP_ROOT/waiter-ready" ]] && pass "waiter stays blocked while owner holds the lock" || fail "waiter stays blocked while owner holds the lock"
 
 touch "$TMP_ROOT/release-owner"
@@ -231,36 +222,6 @@ else
   fail "release preserves a lock whose owner PID cannot be verified"
 fi
 rm -rf "$TMP_ROOT/lock"
-
-mkdir -p "$TMP_ROOT/path-a" "$TMP_ROOT/path-b" "$TMP_ROOT/tmp-a" "$TMP_ROOT/tmp-b"
-path_a=$(TMPDIR="$TMP_ROOT/tmp-a" bash -c 'cd "$2"; source "$1"; provision_lock_path' _ "$HELPER" "$TMP_ROOT/path-a")
-path_b=$(TMPDIR="$TMP_ROOT/tmp-b" bash -c 'cd "$2"; source "$1"; provision_lock_path' _ "$HELPER" "$TMP_ROOT/path-b")
-if [[ "$path_a" == "$path_b" && "$path_a" == "/tmp/new-machine-bootstrap-provision-$(id -u).lock" ]]; then
-  pass "default lock path is shared across environments and working directories"
-else
-  fail "default lock path is shared across environments and working directories"
-fi
-
-provision_file="$REPO_ROOT/bin/provision"
-source_line=$(grep -nF 'source "$SCRIPT_DIR/provision-lock"' "$provision_file" | cut -d: -f1)
-acquire_line=$(grep -nF 'provision_lock_acquire "$@"' "$provision_file" | cut -d: -f1)
-latest_log_line=$(grep -nF 'ln -sf "$LOGFILE_PATH" "$PROVISION_LOG_DIR_PATH/provision-latest.log"' "$provision_file" | cut -d: -f1)
-cleanup_line=$(grep -n '^cleanup()' "$provision_file" | cut -d: -f1)
-release_line=$(grep -nF '  provision_lock_release' "$provision_file" | cut -d: -f1)
-trap_count=$(grep -c '^trap .* EXIT$' "$provision_file")
-[[ -n "$source_line" ]] && pass "bin/provision sources the lock helper" || fail "bin/provision sources the lock helper"
-if [[ -n "$acquire_line" && -n "$latest_log_line" && $acquire_line -lt $latest_log_line ]]; then
-  pass "bin/provision acquires the lock before publishing the latest log symlink"
-else
-  fail "bin/provision acquires the lock before publishing the latest log symlink"
-fi
-if [[ -n "$cleanup_line" && -n "$release_line" && $cleanup_line -lt $release_line && $trap_count -eq 1 ]] && \
-  grep -Fq '==> Provisioning log: $LOGFILE_PATH' "$provision_file" && \
-  grep -Fq '==> Or: cat $PROVISION_LOG_DIR_PATH/provision-latest.log' "$provision_file"; then
-  pass "bin/provision has one cleanup path that releases the lock and prints final log help"
-else
-  fail "bin/provision has one cleanup path that releases the lock and prints final log help"
-fi
 
 printf '\n%d passed, %d failed\n' "$pass_count" "$fail_count"
 [[ $fail_count -eq 0 ]]

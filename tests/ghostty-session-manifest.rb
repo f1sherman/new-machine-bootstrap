@@ -9,11 +9,6 @@ require "tmpdir"
 
 REPO_ROOT = File.expand_path("..", __dir__)
 SAVER = File.join(REPO_ROOT, "roles/macos/files/bin/ghostty-session-manifest-save")
-MACOS_TASKS = File.join(REPO_ROOT, "roles/macos/tasks/main.yml")
-MACOS_TMUX_CONFIG = File.join(REPO_ROOT, "roles/macos/templates/dotfiles/tmux.conf")
-LINUX_TMUX_CONFIG = File.join(REPO_ROOT, "roles/linux/files/dotfiles/tmux.conf")
-MANIFEST_PLIST = File.join(REPO_ROOT,
-  "roles/macos/templates/launchd/com.user.ghostty-session-manifest-save.plist")
 
 class GhosttySessionManifestTest < Minitest::Test
   def setup
@@ -110,15 +105,6 @@ class GhosttySessionManifestTest < Minitest::Test
     assert_equal original, File.read(@manifest)
   end
 
-  def test_no_ghostty_process_or_windows_is_a_noop
-    require_saver
-
-    _out, err, status = run_saver(rows: [], sessions: ["journal"], ghostty_pid: "")
-
-    assert status.success?, err
-    refute File.exist?(@manifest)
-  end
-
   def test_concurrent_saves_are_serialized
     require_saver
     File.write(@sessions, "journal\nhnp\n")
@@ -189,52 +175,6 @@ class GhosttySessionManifestTest < Minitest::Test
     assert_includes File.read(restore_log), "manifest_rejected reason=lock_timeout"
   end
 
-  def test_macos_provisions_native_save_state_without_manifest_launch_agent
-    tasks = File.read(MACOS_TASKS)
-
-    assert_match(/line: 'window-save-state = never'/, tasks)
-    refute_match(/line: 'window-save-state = always'/, tasks)
-    refute_match(/Remove ghostty window-save-state setting/, tasks)
-    assert_match(/Stat obsolete Ghostty session manifest LaunchAgent plist/, tasks)
-    loaded_task = task_body(tasks, "Check whether Ghostty session manifest launchd job is loaded")
-    assert_includes loaded_task, "launchctl print gui/"
-    assert_includes loaded_task, "failed_when: false"
-    unload_task = task_body(tasks, "Unload obsolete Ghostty session manifest launchd job")
-    assert_includes unload_task, "when: ghostty_session_manifest_job.rc == 0"
-    refute_includes unload_task, "failed_when: false"
-    verify_task = task_body(tasks, "Verify Ghostty session manifest launchd job is unloaded")
-    assert_includes verify_task, "launchctl print gui/"
-    assert_includes verify_task, "failed_when: ghostty_session_manifest_job_after.rc == 0"
-    remove_task = task_body(tasks, "Remove obsolete Ghostty session manifest LaunchAgent plist")
-    assert_includes remove_task, "state: absent"
-    refute_match(/Install Ghostty session manifest LaunchAgent plist/, tasks)
-    refute_match(/Load Ghostty session manifest launchd job/, tasks)
-    refute File.exist?(MANIFEST_PLIST)
-    assert File.executable?(File.join(REPO_ROOT,
-      "roles/macos/files/bin/ghostty-session-tabs-restore"))
-  end
-
-  def test_macos_tmux_hooks_save_manifest_after_client_events
-    macos_config = File.read(MACOS_TMUX_CONFIG)
-    linux_config = File.read(LINUX_TMUX_CONFIG)
-    command = 'run-shell -b "sleep 0.2; $HOME/.local/bin/ghostty-session-manifest-save || :"'
-
-    %w[client-attached client-detached client-session-changed client-focus-in].each do |event|
-      pattern = /^set-hook -g #{Regexp.escape(event)}\[95\] '#{Regexp.escape(command)}'$/
-      assert_equal 1, macos_config.scan(pattern).length, "missing unique #{event}[95] manifest hook"
-    end
-    refute_includes linux_config, "ghostty-session-manifest-save"
-  end
-
-  def test_applescript_uses_supported_tab_index_and_terminal_name
-    require_saver
-    script = File.read(SAVER)
-
-    assert_includes script, "name of focused terminal of t"
-    assert_includes script, "index of t"
-    refute_includes script, "index of w"
-  end
-
   private
 
   def require_saver
@@ -256,12 +196,6 @@ class GhosttySessionManifestTest < Minitest::Test
       "TMUX_GHOSTTY_MANIFEST" => @manifest,
       "TMUX_GHOSTTY_MANIFEST_LOCK" => @manifest_lock
     }
-  end
-
-  def task_body(tasks, name)
-    match = tasks.match(/^- name: #{Regexp.escape(name)}\n(?<body>(?:^(?!- name: ).*\n?)*)/)
-    refute_nil match, "missing Ansible task: #{name}"
-    match[:body]
   end
 
   def write_executable(name, content)

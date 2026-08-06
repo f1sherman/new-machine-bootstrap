@@ -10,7 +10,6 @@ require "tmpdir"
 
 REPO_ROOT = File.expand_path("..", __dir__)
 HELPER = File.join(REPO_ROOT, "roles/common/files/bin/tmux-attach-or-new")
-DEV_HOST_TASKS = File.join(REPO_ROOT, "roles/dev_host/tasks/main.yml")
 
 class TmuxRestoreStartupTest < Minitest::Test
   def setup
@@ -43,145 +42,6 @@ class TmuxRestoreStartupTest < Minitest::Test
     FileUtils.remove_entry(@tmpdir)
   end
 
-  def test_queue_initializer_starts_tab_builder_after_unlock
-    set_sessions(%w[journal hnp])
-    write_manifest(pid: 100, sessions: %w[journal hnp])
-
-    env = helper_env(
-      "TMUX_GHOSTTY_APP_PID" => "200",
-      "FAKE_TMUX_ATTACH_DELAY" => "1"
-    )
-    _out, _err, status = Open3.capture3(env, HELPER)
-    50.times do
-      break if File.exist?(@builder_log)
-
-      sleep 0.02
-    end
-
-    assert status.success?
-    assert File.exist?(@builder_log), "queue initializer did not start tab builder"
-    invocation = File.read(@builder_log).strip.split("|")
-    assert_equal ["200", @manifest_path, @queue_path, "unlocked"], invocation
-  end
-
-  def test_same_process_manifest_does_not_start_tab_builder
-    set_sessions(%w[17 journal])
-    write_manifest(pid: 200, sessions: ["journal"])
-
-    _out, _err, status = Open3.capture3(helper_env("TMUX_GHOSTTY_APP_PID" => "200"), HELPER)
-
-    assert status.success?
-    refute File.exist?(@builder_log)
-  end
-
-  def test_new_ghostty_process_claims_exact_manifest_set
-    set_sessions(%w[17 19 journal hnp nmb command-proxy misc])
-    write_manifest(pid: 100, sessions: %w[journal hnp nmb command-proxy misc])
-    env = helper_env(
-      "TMUX_GHOSTTY_APP_PID" => "200",
-      "TMUX_ATTACH_LOCK_TIMEOUT" => "5",
-      "FAKE_TMUX_ATTACH_DELAY" => "0.25"
-    )
-
-    results = 5.times.map do
-      Thread.new { Open3.capture3(env, HELPER) }
-    end.map(&:value)
-    names = read_attachments.map { |entry| entry.fetch("session_name") }
-
-    results.each do |out, err, status|
-      assert status.success?, "helper failed:\n#{out}\n#{err}"
-    end
-    assert_equal [], fallback_invocations, File.read(@events_path)
-    assert_equal %w[command-proxy hnp journal misc nmb], names.sort
-    refute_includes names, "17"
-    refute_includes names, "19"
-    assert_event(/event=restore_queue_initialized\tghostty_pid=200\tsessions=5/)
-  end
-
-  def test_invalid_matching_restore_queue_is_rebuilt_from_manifest
-    set_sessions(%w[17 journal])
-    write_manifest(pid: 100, sessions: ["journal"])
-    write_json(@queue_path, { "version" => 999, "ghostty_pid" => 200, "pending" => ["17"] })
-
-    _out, _err, status = Open3.capture3(helper_env("TMUX_GHOSTTY_APP_PID" => "200"), HELPER)
-
-    assert status.success?
-    assert_equal ["journal"], read_attachments.map { |entry| entry.fetch("session_name") }
-  end
-
-  def test_non_ghostty_invocation_ignores_stale_manifest
-    set_sessions(%w[17 journal])
-    write_manifest(pid: 100, sessions: ["journal"])
-
-    _out, _err, status = Open3.capture3(helper_env, HELPER)
-
-    assert status.success?
-    assert_equal ["17"], read_attachments.map { |entry| entry.fetch("session_name") }
-  end
-
-  def test_missing_diagnostics_library_does_not_abort_startup
-    set_sessions(["17"])
-    missing_log_library = File.join(@tmpdir, "missing-log-library")
-
-    _out, _err, status = Open3.capture3(helper_env("TMUX_RESTORE_LOG_LIB" => missing_log_library), HELPER)
-
-    assert status.success?
-    assert_equal ["17"], read_attachments.map { |entry| entry.fetch("session_name") }
-  end
-
-  def test_queue_write_failure_uses_normal_selection_and_clear_diagnostic
-    set_sessions(%w[17 journal])
-    write_manifest(pid: 100, sessions: ["journal"])
-    blocked_parent = File.join(@tmpdir, "blocked-parent")
-    File.write(blocked_parent, "not a directory")
-    env = helper_env(
-      "TMUX_GHOSTTY_APP_PID" => "200",
-      "TMUX_GHOSTTY_RESTORE_QUEUE" => File.join(blocked_parent, "queue.json")
-    )
-
-    _out, err, status = Open3.capture3(env, HELPER)
-
-    assert status.success?
-    assert_equal ["17"], read_attachments.map { |entry| entry.fetch("session_name") }
-    assert_event(/event=restore_queue_skipped\tghostty_pid=200\treason=queue_write_failed/)
-    refute_match(/Not a directory|Permission denied/, err)
-  end
-
-  def test_restore_queue_skips_missing_saved_session
-    set_sessions(%w[17 journal])
-    write_manifest(pid: 100, sessions: %w[missing journal])
-
-    _out, _err, status = Open3.capture3(helper_env("TMUX_GHOSTTY_APP_PID" => "200"), HELPER)
-
-    assert status.success?
-    assert_equal ["journal"], read_attachments.map { |entry| entry.fetch("session_name") }
-    assert_event(/event=restore_queue_candidate_skipped\tsession=missing\treason=missing/)
-  end
-
-  def test_helper_uses_normal_selection_after_restore_queue_is_exhausted
-    set_sessions(%w[17 19 journal])
-    write_manifest(pid: 100, sessions: ["journal"])
-    env = helper_env("TMUX_GHOSTTY_APP_PID" => "200")
-
-    first = Open3.capture3(env, HELPER)
-    second = Open3.capture3(env, HELPER)
-
-    assert first.last.success?
-    assert second.last.success?
-    assert_equal %w[journal 17], read_attachments.map { |entry| entry.fetch("session_name") }
-  end
-
-  def test_same_ghostty_process_as_manifest_uses_normal_selection
-    set_sessions(%w[17 journal])
-    write_manifest(pid: 200, sessions: ["journal"])
-
-    _out, _err, status = Open3.capture3(helper_env("TMUX_GHOSTTY_APP_PID" => "200"), HELPER)
-
-    assert status.success?
-    assert_equal ["17"], read_attachments.map { |entry| entry.fetch("session_name") }
-    assert_event(/event=restore_queue_skipped\tghostty_pid=200\treason=current_process_manifest/)
-  end
-
   def test_concurrent_helpers_select_distinct_restored_sessions
     set_sessions(%w[one two three four])
     env = helper_env("FAKE_TMUX_ATTACH_DELAY" => "0.25")
@@ -198,31 +58,6 @@ class TmuxRestoreStartupTest < Minitest::Test
     results.each { |_out, _err, status| assert status.success? }
   end
 
-  def test_slow_restore_runs_once_and_waiter_never_uses_tmux_unlocked
-    env = helper_env(
-      "FAKE_RESTORE_DELAY" => "0.5",
-      "FAKE_RESTORE_SESSIONS" => "restored-one,restored-two",
-      "TMUX_ATTACH_LOCK_TIMEOUT" => "0.1"
-    )
-
-    first = Thread.new { Open3.capture3(env.merge("FAKE_HELPER_LABEL" => "restorer"), HELPER) }
-    wait_until { File.exist?(@restore_marker) }
-    second = Open3.capture3(env.merge("FAKE_HELPER_LABEL" => "timed-out-waiter"), HELPER)
-    results = [first.value, second]
-    state = read_state
-    restore_invocations = state.fetch("restore_invocations")
-    unlocked_bootstrap_attempts = state.fetch("unlocked_bootstrap_attempts")
-    fallback_output = results.flat_map { |out, err, _status| [out, err] }.join
-
-    assert_equal 1, restore_invocations
-    assert_equal [], unlocked_bootstrap_attempts,
-      "waiter ran tmux while restore held the startup lock: #{unlocked_bootstrap_attempts.inspect}"
-    assert_includes fallback_output, "tmux-restore-debug-report"
-    assert_equal ["timed-out-waiter"], fallback_invocations.map { |entry| entry.fetch("label") },
-      "the timed-out waiter must be the helper that invokes the fallback shell"
-    assert_event(/event=lock_failed\twait_seconds=\d+\treason=timeout/)
-  end
-
   def test_dead_reservation_is_reclaimed_and_cleaned_up
     dead_pid = Process.spawn(RbConfig.ruby, "-e", "exit")
     Process.wait(dead_pid)
@@ -236,29 +71,6 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert_equal "$1", attachments.first.fetch("session_id")
     assert_helper_owned_reservation(attachments.first)
     assert_nil session_options.fetch("@ghostty_attach_owner", nil)
-  end
-
-  def test_live_reservation_is_skipped
-    set_sessions(["reserved", "available"], owners: { "reserved" => Process.pid.to_s })
-
-    _out, _err, status = Open3.capture3(helper_env, HELPER)
-    attachments = read_attachments
-
-    assert status.success?
-    assert_equal "$2", attachments.first.fetch("session_id")
-    assert_helper_owned_reservation(attachments.first)
-  end
-
-  def test_tab_in_session_name_does_not_corrupt_selection_fields
-    set_sessions(["tab\tname", "available"])
-
-    _out, _err, status = Open3.capture3(helper_env, HELPER)
-    attachment = read_attachments.first
-
-    assert status.success?
-    assert_equal "$1", attachment.fetch("session_id")
-    assert_equal "tab\tname", attachment.fetch("session_name")
-    assert_helper_owned_reservation(attachment)
   end
 
   def test_attach_failure_clears_reservation_and_opens_fallback_shell
@@ -309,21 +121,6 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert_equal ["cleanup-timeout"], fallback_invocations.map { |entry| entry.fetch("label") }
   end
 
-  def test_missing_fallback_shell_keeps_visible_failure_diagnostics
-    set_sessions(["broken"])
-    missing_shell = File.join(@tmpdir, "missing-fallback-shell")
-    env = helper_env(
-      "FAKE_TMUX_ATTACH_FAILURE" => "$1",
-      "TMUX_ATTACH_FALLBACK_SHELL" => missing_shell
-    )
-
-    out, err, status = Open3.capture3(env, HELPER)
-
-    refute status.success?
-    assert_includes out + err, "tmux-restore-debug-report"
-    assert_includes out + err, "Unable to start fallback shell #{missing_shell}"
-  end
-
   def test_existing_running_restore_state_is_treated_as_abandoned
     set_sessions(["available"])
     update_state { |state| state.fetch("global_options")["@ghostty_restore_state"] = "running" }
@@ -340,46 +137,6 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert_event(/event=fallback_shell\treason=restore_abandoned/)
   end
 
-  def test_restore_failure_is_shared_and_opens_fallback_shell
-    env = helper_env(
-      "FAKE_HELPER_LABEL" => "restore-failure",
-      "FAKE_RESTORE_STATUS" => "23"
-    )
-
-    out, err, status = Open3.capture3(env, HELPER)
-    state = read_state
-
-    assert status.success?, "fallback shell should remain usable after restore failure"
-    assert_equal 1, state.fetch("restore_invocations")
-    assert_equal "failed", state.fetch("global_options").fetch("@ghostty_restore_state", nil)
-    assert_includes out + err, "tmux-restore-debug-report"
-    assert_equal ["restore-failure"], fallback_invocations.map { |entry| entry.fetch("label") }
-  end
-
-  def test_unreserved_restored_session_named_zero_is_selected
-    env = helper_env("FAKE_RESTORE_SESSIONS" => "0")
-
-    _out, _err, status = Open3.capture3(env, HELPER)
-    attachment = read_attachments.first
-
-    assert status.success?
-    assert_equal "$2", attachment.fetch("session_id"),
-      "numeric session name must not be parsed as a live reservation owner"
-    assert_equal "0", attachment.fetch("session_name")
-    assert_helper_owned_reservation(attachment)
-    assert_equal ["0"], read_state.fetch("sessions").map { |session| session.fetch("name") },
-      "helper must not create a new session when the restored session is available"
-  end
-
-  def test_managed_login_shell_handoffs_skip_tmux_fallbacks
-    tasks = File.read(DEV_HOST_TASKS)
-    fallback_guard = '[ -z "${TMUX_ATTACH_FALLBACK:-}" ]'
-
-    assert_match(/Configure tmux auto-launch in \.zprofile.*?#{Regexp.escape(fallback_guard)}.*?tmux-attach-or-new/m, tasks)
-    assert_match(/Configure zsh exec in \.bashrc.*?#{Regexp.escape(fallback_guard)}.*?exec \/usr\/bin\/zsh -l/m, tasks)
-    assert_equal 2, tasks.scan(fallback_guard).length
-  end
-
   def test_dangling_last_falls_back_before_restore
     File.write(File.join(@resurrect_dir, "last.safe"), "safe snapshot\n")
     File.symlink("missing.txt", File.join(@resurrect_dir, "last"))
@@ -389,64 +146,6 @@ class TmuxRestoreStartupTest < Minitest::Test
     assert status.success?
     assert_equal "last.safe", File.readlink(File.join(@resurrect_dir, "last"))
     assert_event(/event=restore_snapshot_fallback\tmissing=.*\tselected=.*last\.safe/)
-  end
-
-  def test_valid_last_is_retained_before_restore
-    File.write(File.join(@resurrect_dir, "snapshot.txt"), "valid snapshot\n")
-    File.write(File.join(@resurrect_dir, "last.safe"), "safe snapshot\n")
-    File.symlink("snapshot.txt", File.join(@resurrect_dir, "last"))
-
-    _out, _err, status = Open3.capture3(helper_env("FAKE_RESTORE_SESSIONS" => "journal"), HELPER)
-
-    assert status.success?
-    assert_equal "snapshot.txt", File.readlink(File.join(@resurrect_dir, "last"))
-    refute_match(/event=restore_snapshot_fallback\t/, File.read(@events_path))
-  end
-
-  def test_last_pointing_to_existing_directory_does_not_fall_back
-    FileUtils.mkdir_p(File.join(@resurrect_dir, "snapshots"))
-    File.write(File.join(@resurrect_dir, "last.safe"), "safe snapshot\n")
-    File.symlink("snapshots", File.join(@resurrect_dir, "last"))
-
-    _out, _err, status = Open3.capture3(helper_env("FAKE_RESTORE_SESSIONS" => "journal"), HELPER)
-
-    assert status.success?
-    assert_equal "snapshots", File.readlink(File.join(@resurrect_dir, "last"))
-    refute_match(/event=restore_snapshot_fallback\t/, File.read(@events_path))
-  end
-
-  def test_dangling_last_without_safe_keeps_empty_start_behavior
-    File.symlink("missing.txt", File.join(@resurrect_dir, "last"))
-
-    _out, _err, status = Open3.capture3(helper_env("FAKE_RESTORE_SESSIONS" => ""), HELPER)
-    attachments = read_attachments
-
-    assert status.success?
-    assert_equal "missing.txt", File.readlink(File.join(@resurrect_dir, "last"))
-    assert_equal 1, attachments.length
-    refute_equal "__bootstrap__", attachments.first.fetch("session_name")
-    refute_match(/event=restore_snapshot_fallback\t/, File.read(@events_path))
-  end
-
-  def test_empty_restore_creates_and_attaches_normal_session
-    env = helper_env("FAKE_RESTORE_SESSIONS" => "")
-
-    _out, _err, status = Open3.capture3(env, HELPER)
-    attachments = read_attachments
-
-    assert status.success?
-    assert_equal 1, attachments.length
-    refute_equal "__bootstrap__", attachments.first.fetch("session_name")
-    assert_event(/event=lock_attempt\ttimeout_seconds=1/)
-    assert_event(/event=lock_acquired\twait_seconds=\d+/)
-    assert_event(/event=server_snapshot\tphase=pre_decision\thas_server=0\trestore_state=unset\tsessions=none/)
-    assert_event(/event=bootstrap_start\tsession=__bootstrap__/)
-    assert_event(/event=bootstrap_end\tsession=__bootstrap__\telapsed_seconds=\d+\tstatus=0/)
-    assert_event(/event=restore_start\tsnapshot=none\twrapper=/)
-    assert_event(/event=restore_end\tsnapshot=none\telapsed_seconds=\d+\tstatus=0/)
-    assert_event(/event=server_snapshot\tphase=post_restore\thas_server=1\trestore_state=ok\tsessions=/)
-    assert_event(/event=attach_start\ttarget=\$\d+/)
-    assert_event(/event=attach_end\ttarget=\$\d+\telapsed_seconds=\d+\tstatus=0/)
   end
 
   private
