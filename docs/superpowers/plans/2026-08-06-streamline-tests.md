@@ -276,20 +276,29 @@ Expected: provisioning succeeds. Check mode reports no unintended changes.
 Compare the branch with `main`:
 
 ```bash
-printf 'before_files=';
-{ git ls-tree -r --name-only main tests;
-  printf '%s\n' roles/common/files/claude/hooks/remind-repo-start-on-dev-prompt.sh.test;
-} | wc -l
-printf 'after_files=';
-{ find tests -maxdepth 1 -type f;
-  test -f roles/common/files/claude/hooks/remind-repo-start-on-dev-prompt.sh.test &&
-    printf '%s\n' roles/common/files/claude/hooks/remind-repo-start-on-dev-prompt.sh.test;
-} | wc -l
-printf 'before_lines='; git show main:tests >/dev/null 2>&1 ||
+hook=roles/common/files/claude/hooks/remind-repo-start-on-dev-prompt.sh.test
+printf 'before_files='
+{
+  git ls-tree -r --name-only main tests
+  git cat-file -e "main:$hook" 2>/dev/null && printf '%s\n' "$hook"
+} | awk 'NF { count++ } END { print count + 0 }'
+printf 'after_files='
+{
+  find tests -maxdepth 1 -type f -print
+  test ! -f "$hook" || printf '%s\n' "$hook"
+} | awk 'NF { count++ } END { print count + 0 }'
+printf 'before_lines='
+{
   git ls-tree -r --name-only main tests |
-    xargs -I{} git show main:{} |
-    wc -l
-printf 'after_lines='; wc -l tests/* | tail -1
+    while IFS= read -r path; do git show "main:$path"; done
+  git cat-file -e "main:$hook" 2>/dev/null && git show "main:$hook"
+} | awk 'END { print NR }'
+printf 'after_lines='
+{
+  find tests -maxdepth 1 -type f -print0 |
+    while IFS= read -r -d '' path; do cat "$path"; done
+  test ! -f "$hook" || cat "$hook"
+} | awk 'END { print NR }'
 ```
 
 Report file removal, test-code line removal, and latest available CI timing.

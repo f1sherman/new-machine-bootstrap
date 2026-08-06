@@ -32,15 +32,6 @@ wait_for_file() {
   while [[ ! -e "$path" && $attempt -lt 100 ]]; do sleep 0.05; attempt=$((attempt + 1)); done
   [[ -e "$path" ]]
 }
-wait_for_match() {
-  local path=$1 expected=$2 attempt=0
-  while [[ $attempt -lt 100 ]]; do
-    [[ -f "$path" ]] && grep -Fq "$expected" "$path" && return 0
-    sleep 0.05
-    attempt=$((attempt + 1))
-  done
-  return 1
-}
 lock_owner_pid() {
   local lock_dir=$1 owner_file
   for owner_file in "$lock_dir/owner" "$lock_dir"/owner-*/owner; do
@@ -70,8 +61,16 @@ owner_metadata_pid=$(lock_owner_pid "$TMP_ROOT/lock")
 [[ "$owner_metadata_pid" == "$OWNER_PID" ]] && pass "owner helper PID identifies the lock-owning process" || fail "owner helper PID identifies the lock-owning process"
 run_waiter >"$TMP_ROOT/waiter.out" 2>&1 &
 WAITER_PID=$!
-wait_for_match "$TMP_ROOT/waiter.out" "Another provision is running" || fail "waiter did not enter the wait path"
-[[ ! -e "$TMP_ROOT/waiter-ready" ]] && pass "waiter stays blocked while owner holds the lock" || fail "waiter stays blocked while owner holds the lock"
+wait_for_file "$TMP_ROOT/waiter-started" || fail "waiter process did not start"
+sleep 0.1
+waiting_owner_pid=$(lock_owner_pid "$TMP_ROOT/lock" 2>/dev/null || true)
+if kill -0 "$WAITER_PID" 2>/dev/null && \
+  [[ "$waiting_owner_pid" == "$OWNER_PID" ]] && \
+  [[ ! -e "$TMP_ROOT/waiter-ready" ]]; then
+  pass "waiter stays blocked while owner holds the lock"
+else
+  fail "waiter stays blocked while owner holds the lock"
+fi
 
 touch "$TMP_ROOT/release-owner"
 wait "$OWNER_PID"
@@ -110,7 +109,7 @@ live_owner_dir="$TMP_ROOT/lock/owner-$$-$live_owner_checksum-live-1"
 mkdir -p "$live_owner_dir"
 run_waiter >"$TMP_ROOT/waiter.out" 2>&1 &
 WAITER_PID=$!
-wait_for_match "$TMP_ROOT/waiter.out" "Another provision is running"
+wait_for_file "$TMP_ROOT/waiter-started"
 sleep 7
 if [[ -d "$live_owner_dir" && ! -e "$TMP_ROOT/waiter-ready" ]]; then
   pass "live owner with incomplete metadata is not reclaimed"
@@ -186,7 +185,7 @@ WAITER_PID=$!
 wait_for_file "$TMP_ROOT/waiter-started" || true
 waiter_child_pid=$(cat "$TMP_ROOT/waiter-started" 2>/dev/null || true)
 [[ "$waiter_child_pid" == "$WAITER_PID" ]] && pass "waiter helper PID identifies the waiting process" || fail "waiter helper PID identifies the waiting process"
-wait_for_match "$TMP_ROOT/waiter.out" "Another provision is running" || true
+sleep 0.1
 kill "$WAITER_PID" 2>/dev/null || true
 if wait "$WAITER_PID"; then
   waiter_status=0
