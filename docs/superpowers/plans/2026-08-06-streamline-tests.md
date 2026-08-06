@@ -276,11 +276,11 @@ Expected: provisioning succeeds. Check mode reports no unintended changes.
 Compare the branch with `main`:
 
 ```bash
-printf 'before_files='; 
+printf 'before_files=';
 { git ls-tree -r --name-only main tests;
   printf '%s\n' roles/common/files/claude/hooks/remind-repo-start-on-dev-prompt.sh.test;
 } | wc -l
-printf 'after_files='; 
+printf 'after_files=';
 { find tests -maxdepth 1 -type f;
   test -f roles/common/files/claude/hooks/remind-repo-start-on-dev-prompt.sh.test &&
     printf '%s\n' roles/common/files/claude/hooks/remind-repo-start-on-dev-prompt.sh.test;
