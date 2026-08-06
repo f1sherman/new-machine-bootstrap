@@ -99,7 +99,7 @@ create_squash_merged_worktree() {
   git -C "$repo" push -q origin main
 
   CREATED_REPO="$repo"
-  CREATED_WORKTREE="$feature_path"
+  CREATED_WORKTREE="$(realpath "$feature_path")"
 }
 
 run_case() {
