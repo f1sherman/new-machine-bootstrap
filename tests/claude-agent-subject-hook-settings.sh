@@ -38,7 +38,22 @@ cat >"$settings" <<JSON
 JSON
 
 yq -r '.[] | select(.name == "Register UserPromptSubmit hook for provisional task label reminder") | .shell' "$TASKS" >"$script"
-SETTINGS_FILE="$settings" bash "$script" >/dev/null
+[ -s "$script" ] || fail_case \
+  'extract production migration script' 'migration script is empty'
+migration_result="$(SETTINGS_FILE="$settings" bash "$script")"
+[ "$migration_result" = changed ] || fail_case \
+  'execute managed migration' "unexpected result: $migration_result"
+
+jq -e --arg cmd "$legacy" '
+  [.hooks.PostToolUse[]?.hooks[]? | select(.command == $cmd)] | length == 0
+' "$settings" >/dev/null || fail_case \
+  'remove legacy managed hook' "$(cat "$settings")"
+
+jq -e --arg cmd "$managed" '
+  .hooks.UserPromptSubmit
+  | any((.hooks // []) == [{"type":"command", "command":$cmd}])
+' "$settings" >/dev/null || fail_case \
+  'install managed prompt hook as its own entry' "$(cat "$settings")"
 
 jq -e --arg cmd "$user_post" '
   .hooks.PostToolUse
