@@ -48,6 +48,18 @@ export TMUX_AGENT_SUBJECT_PS_BIN="$stub_bin/ps"
 export TMUX_AGENT_SUBJECT_CALLER_PID=300
 export TMUX_AGENT_SUBJECT_TEST_PANE_PID=100
 
+authorized="$TMPROOT/authorized"
+mkdir -p "$authorized"
+TMUX_AGENT_STATE_DIR="$authorized" \
+TMUX_AGENT_STATE_CURRENT_PATH="$TMPROOT/project" \
+  "$SUBJECT" set 'authorized descendant'
+assert_file_eq "$authorized/%1.@task_label" 'authorized descendant' \
+  'authorized descendant sets the production task label'
+assert_file_eq "$authorized/%1.@task_source" agent \
+  'authorized descendant sets the production task source'
+assert_file_eq "$authorized/%1.@task_state" provisional \
+  'authorized descendant sets the production task state'
+
 unrelated="$TMPROOT/unrelated"
 mkdir -p "$unrelated"
 TMUX_AGENT_STATE_DIR="$unrelated" TMUX_AGENT_SUBJECT_CALLER_PID=400 \
