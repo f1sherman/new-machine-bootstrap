@@ -6,10 +6,10 @@ Approved in conversation on 2026-08-06.
 
 ## Goal
 
-Make automated tests exceptional rather than automatic. Retain tests only when
-they protect material, realistic regression risks. Remove low-value tests from
-this repository. Update managed agent guidance so future pull requests apply the
-same policy before they add tests.
+Make automated tests exceptional rather than automatic in this repository.
+Retain tests only when they protect material, realistic regression risks. Remove
+low-value tests from this repository. Update repository-local agent guidance so
+future pull requests apply the same policy before they add tests.
 
 ## Non-goals
 
@@ -19,6 +19,7 @@ same policy before they add tests.
 - Do not require a fixed test count or coverage percentage.
 - Do not test static configuration merely to prove that the repository contains
   the requested configuration.
+- Do not change global Pi, Claude, Codex, skill, or quick-PR guidance.
 
 ## Baseline
 
@@ -95,24 +96,21 @@ obsolete-helper absence checks, and completed migration greps.
 The workflow will list only retained tests. The CI inventory meta-test will be
 removed because it verifies bookkeeping rather than production behavior.
 
-## Guidance and prompt changes
+## Repository-local guidance change
 
-Apply the policy at all relevant instruction layers:
+Add the four-gate policy to this repository's `CLAUDE.md`. The `AGENTS.md`
+symlink points to this file, so the same local instruction applies to Pi, Codex,
+Claude, and other agents that load either conventional filename while they work
+in this repository.
 
-1. Add the four-gate policy to the managed global Pi guidance in
-   `roles/common/files/pi/AGENTS.md.d/00-base.md`.
-2. Align the existing testing rule in the managed global Claude guidance at
-   `roles/common/files/claude/CLAUDE.md.d/00-base.md`.
-3. Add the policy to this repository's local `CLAUDE.md`, which also supplies
-   `AGENTS.md` through its symlink.
-4. Update the shared and Pi quick-PR skills so their specification, planning,
-   and execution instructions do not require automatic TDD. They must require
-   TDD only when the proposed test passes the test-value gate. They must permit
-   manual or end-to-end verification when no valuable automated test exists.
+The rule must tell agents not to add tests automatically for each change. It must
+permit manual or end-to-end verification when no valuable automated test exists.
+Do not change the managed global guidance under `roles/common/files/` or any
+shared skill. Those files control behavior in other repositories and are outside
+this policy's scope.
 
-Keep the policy concise and identical in meaning across guidance files. Do not
-add an automated policy-enforcement test. Such a test would restate guidance and
-violate the policy itself.
+Do not add an automated policy-enforcement test. Such a test would restate
+guidance and violate the policy itself.
 
 ## Verification
 
@@ -120,7 +118,8 @@ Verification will use evidence appropriate to the change:
 
 - Run every retained automated test on the implementation worktree where the
   local platform supports it.
-- Run `bin/provision` to deploy the updated managed guidance.
+- Run `bin/provision` to verify the retained integration checks against a real
+  provisioned environment.
 - Run `bin/provision --check` to verify idempotence when supported.
 - Validate the edited YAML and shell/Ruby syntax.
 - Inspect the final workflow to confirm that every referenced test exists and
@@ -129,8 +128,8 @@ Verification will use evidence appropriate to the change:
   expected CI runtime.
 - Review the final diff to confirm that no production behavior was removed.
 
-The absence of a new automated test for this policy is intentional. The changed
-agent guidance and pull-request prompts are the enforcement mechanism.
+The absence of a new automated test for this policy is intentional. The
+repository-local agent guidance is the enforcement mechanism.
 
 ## Success criteria
 
@@ -139,6 +138,6 @@ agent guidance and pull-request prompts are the enforcement mechanism.
 - Approximately 65% to 75% of current test-file review units are removed unless
   detailed review finds concrete material risks that justify a smaller reduction.
 - The integration workflow passes with the retained suite.
-- Managed Pi, Claude, and quick-PR guidance applies the same policy to future
-  work.
-- Provisioning deploys the guidance without changing unrelated managed state.
+- Repository-local `CLAUDE.md` and its `AGENTS.md` symlink apply the policy to
+  future work in this repository.
+- No global managed guidance or shared skill changes.
