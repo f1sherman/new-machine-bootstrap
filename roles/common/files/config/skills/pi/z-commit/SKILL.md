@@ -29,8 +29,9 @@ Use this process:
 ```
 
 4. Wait for the subagent so the handoff behaves like a foreground step.
-5. Validate the result yourself. Read the new `HEAD`, inspect the paths changed between the old and new commits, and run `git status --short`.
-   - Success requires `HEAD` to advance, every requested file to appear in the new commit range, and the worktree to be clean.
+5. Validate the result yourself. Read the new `HEAD`, inspect the paths changed between the old and new commits, and run `git status --short -- <requested files>`.
+   - Success requires `HEAD` to advance, every requested file to appear in the new commit range, and no requested file to remain changed or staged.
    - If `HEAD` did not advance and none of the requested files has a change to commit, report `No changes to commit.`
-   - Otherwise, report failure with the failed check and the worker's actual error output. Do not treat a clean final worktree as evidence that the worker made no change.
+   - Otherwise, report failure with the failed check and the worker's actual error output. Do not treat clean requested paths as evidence that the worker made no change.
+   - Ignore unrelated worktree changes when classifying the commit result. Leave those changes untouched.
 6. Report the validated result to the user.
