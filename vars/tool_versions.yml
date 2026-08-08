@@ -31,3 +31,7 @@ tool_versions:
     ruby: 4.0.2
     # renovate: datasource=npm depName=@earendil-works/pi-coding-agent
     pi_coding_agent: 0.83.0
+
+  pi_packages:
+    # renovate: datasource=npm depName=pi-session-manager
+    session_manager: 0.1.0
