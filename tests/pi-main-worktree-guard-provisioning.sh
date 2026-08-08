@@ -48,7 +48,7 @@ jq -e '[.packages[] | select((if type == "object" then .source else . end) |
   startswith("git:github.com/algal/pi-openai-server-compaction"))] | length == 0' \
   "$settings" >/dev/null
 jq -e '[.packages[] | select((if type == "object" then .source else . end) |
-  startswith("npm:@ogulcancelik/pi-codex-compaction"))] | length == 1' \
+  startswith("npm:@ogulcancelik/pi-codex-compaction"))] | length == 2' \
   "$settings" >/dev/null
 test "$(jq -r '.subagents.agentOverrides.worker.model' "$settings")" = \
   existing-worker-model
