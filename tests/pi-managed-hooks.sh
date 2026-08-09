@@ -7,6 +7,8 @@ EXTENSION="$REPO_ROOT/roles/common/files/pi/extensions/managed-hooks.ts"
 TMPROOT="$(mktemp -d)"
 trap 'rm -rf "$TMPROOT"' EXIT
 cp "$EXTENSION" "$TMPROOT/managed-hooks.mjs"
+mkdir -p "$TMPROOT/worktree/docs/superpowers/specs"
+: >"$TMPROOT/worktree/docs/superpowers/specs/design.md"
 
 node_cmd=(node)
 if ! command -v node >/dev/null 2>&1; then
@@ -33,6 +35,7 @@ let taskStatus = "";
 let goalChildDeferred;
 let goalChildIgnoresAbort = false;
 let publishedIdentity = { source: "", subject: "" };
+let fallbackRestores = 0;
 const failedGitRootCwds = new Set();
 const failedBranchCwds = new Set();
 
@@ -65,6 +68,11 @@ async function withStdoutTTY(callback) {
 function isGoalChild(args) {
   const index = args.indexOf("--system-prompt");
   return index !== -1 && args[index + 1].includes("session's broad goal");
+}
+
+function isSubjectChild(args) {
+  const index = args.indexOf("--system-prompt");
+  return index !== -1 && args[index + 1].includes("user's task");
 }
 
 function abortable(promise, signal) {
@@ -108,6 +116,11 @@ const pi = {
     }
     if (command === "tmux-agent-state" && args[0] === "clear-task") {
       taskStatus = "";
+      publishedIdentity = { source: "", subject: "" };
+      return ok();
+    }
+    if (command === "tmux-agent-worktree" && args[0] === "sync-current") {
+      fallbackRestores += 1;
       return ok();
     }
     if (command === "tmux-agent-state" || command.startsWith("tmux-")) return ok();
@@ -117,6 +130,7 @@ const pi = {
         ? goalChildDeferred.promise
         : abortable(goalChildDeferred.promise, options.signal);
     }
+    if (command === "pi" && isSubjectChild(args)) return ok("nested process subject\n");
     if (command === "git" && args.includes("rev-parse")) {
       const dynamic = ["$", "`", "*", "?", "[", "]", "{", "}", "\\"];
       if (args.some((arg) => failedGitRootCwds.has(String(arg))
@@ -163,6 +177,16 @@ assert.equal(calls.some((call) => call.command === "tmux-update-pane-label"
   || (call.command === "tmux-agent-state" && call.args[0] === "set-kind")), false,
   "non-TTY session_start does not mutate tmux state");
 
+currentSessionName = "";
+taskStatus = "active\tmanual\tstale resume name";
+publishedIdentity = { source: "manual", subject: "stale resume name" };
+const resumeFallbacks = fallbackRestores;
+await withStdoutTTY(() => handlers.get("session_start")({ reason: "resume" }, ctx));
+assert.deepEqual(publishedIdentity, { source: "", subject: "" },
+  "an unnamed resume clears a stale manual Pi identity");
+assert.equal(fallbackRestores, resumeFallbacks + 1,
+  "an unnamed resume restores worktree fallback state");
+
 currentSessionName = "restored session name";
 await withStdoutTTY(() => handlers.get("session_start")({ reason: "resume" }, ctx));
 assert.deepEqual(publishedIdentity, {
@@ -195,8 +219,46 @@ assert.equal(calls.some((call) => call.command === "tmux-agent-worktree"
   && call.args[0] === "sync-current"), true,
   "clearing a manual Pi name restores worktree fallback state");
 
+currentSessionName = "";
+taskStatus = "active\tmanual\tstale tree name";
+publishedIdentity = { source: "manual", subject: "stale tree name" };
+const treeFallbacks = fallbackRestores;
+await withStdoutTTY(() => handlers.get("session_tree")({}, ctx));
+assert.deepEqual(publishedIdentity, { source: "", subject: "" },
+  "unnamed tree navigation clears a stale manual Pi identity");
+assert.equal(fallbackRestores, treeFallbacks + 1,
+  "unnamed tree navigation restores worktree fallback state");
+
+currentSessionName = "named nested session";
+taskStatus = "completed\tmanual\tfinished task";
+const nestedBeforeAgentStart = calls.length;
+await handlers.get("before_agent_start")({
+  prompt: "continue nested work",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+assert.equal(calls.slice(nestedBeforeAgentStart).some((call) =>
+  call.command === "tmux-agent-subject" && call.args[0] === "set"), false,
+  "non-TTY before_agent_start does not mutate the tmux subject");
+
+const nestedSpecWrites = calls.filter((call) => call.command === "tmux"
+  && call.args[0] === "set-option"
+  && call.args.includes("@agent_current_spec_path")).length;
+await handlers.get("tool_call")({
+  toolName: "edit",
+  input: { path: `${worktreeRoot}/docs/superpowers/specs/design.md` },
+}, ctx);
+await handlers.get("tool_result")({
+  toolName: "bash",
+  input: { command: "cat docs/superpowers/specs/design.md" },
+  isError: false,
+}, ctx);
+assert.equal(calls.filter((call) => call.command === "tmux"
+  && call.args[0] === "set-option"
+  && call.args.includes("@agent_current_spec_path")).length, nestedSpecWrites,
+  "non-TTY edit and bash events do not write the tmux spec path");
 
 currentSessionName = "";
+taskStatus = "";
 goalChildIgnoresAbort = true;
 goalChildDeferred = deferred();
 const staleInitialGoal = goalChildDeferred;
