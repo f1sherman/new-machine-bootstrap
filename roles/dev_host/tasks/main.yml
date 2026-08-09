@@ -5,17 +5,13 @@
     state: directory
     mode: '0755'
 
-- name: Configure tmux auto-launch in .zprofile
+- name: Remove tmux auto-launch from .zprofile
   blockinfile:
     path: '{{ ansible_facts["user_dir"] }}/.zprofile'
     create: yes
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - TMUX"
-    block: |
-      # Launch tmux on interactive login (SSH)
-      if [ -z "$TMUX" ] && [ -z "${TMUX_ATTACH_FALLBACK:-}" ] && [ -t 0 ]; then
-        exec {{ ansible_facts["user_dir"] }}/.local/bin/tmux-attach-or-new
-      fi
+    state: absent
 
 - name: Configure zsh exec in .bashrc
   blockinfile:
@@ -24,7 +20,7 @@
     mode: 0644
     marker: "# {mark} ANSIBLE MANAGED BLOCK - ZSH"
     block: |
-      # Switch to zsh on interactive login (zsh will then launch tmux via .zprofile)
+      # Switch to zsh on interactive login
       if [ -z "$TMUX" ] && [ -z "${TMUX_ATTACH_FALLBACK:-}" ] && [ -t 0 ]; then
         exec /usr/bin/zsh -l
       fi
