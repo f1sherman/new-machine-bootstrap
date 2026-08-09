@@ -134,6 +134,7 @@ async function writeTmuxIdentity(pi, source, subject) {
 }
 
 async function applyTmuxSubject(pi, subject) {
+  if (!ownsTmuxPane()) return false;
   const result = await exec(pi, "tmux-agent-subject", ["set", subject]);
   if (result.code !== 0 || result.killed) {
     console.warn("[managed-hooks] tmux-agent-subject set failed", {
@@ -825,6 +826,7 @@ function superpowersSpecPathsInCommand(command, cwd, repoRoot) {
 }
 
 async function setCurrentSpec(pi, specPath) {
+  if (!ownsTmuxPane()) return;
   await exec(pi, "tmux", ["set-option", "-p", "-t", process.env.TMUX_PANE, "@agent_current_spec_path", specPath]);
 }
 
@@ -922,6 +924,14 @@ export default function managedHooks(pi) {
     return writeTmuxIdentity(pi, "manual", normalizedExpectedName);
   }
 
+  async function synchronizeCurrentSessionName(pi, ctx, expectedName) {
+    const normalizedExpectedName = expectedName?.trim() || "";
+    const liveName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
+    if (liveName !== normalizedExpectedName) return false;
+    if (liveName) return publishCurrentSessionName(pi, ctx, liveName);
+    return clearPublishedSessionName(pi, ctx);
+  }
+
   function applySessionName(pi, ctx, subject, options = {}) {
     return serializeNameOperation(async () => {
       const normalized = normalizeSessionGoalSubject(subject);
@@ -1014,7 +1024,7 @@ export default function managedHooks(pi) {
       await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);
     }
     await bindPaneSessionFile(pi, ctx);
-    await serializeNameOperation(() => publishCurrentSessionName(
+    await serializeNameOperation(() => synchronizeCurrentSessionName(
       pi,
       ctx,
       ctx?.sessionManager?.getSessionName?.(),
@@ -1024,12 +1034,11 @@ export default function managedHooks(pi) {
   pi.on("session_info_changed", async (event, ctx) => {
     const eventName = event.name?.trim() || "";
     renderSessionFooter(ctx, eventName);
-    await serializeNameOperation(async () => {
-      const liveName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
-      if (liveName !== eventName) return;
-      if (eventName) await publishCurrentSessionName(pi, ctx, eventName);
-      else await clearPublishedSessionName(pi, ctx);
-    });
+    await serializeNameOperation(() => synchronizeCurrentSessionName(
+      pi,
+      ctx,
+      eventName,
+    ));
   });
 
   pi.on("session_shutdown", async () => {
@@ -1039,7 +1048,7 @@ export default function managedHooks(pi) {
 
   pi.on("session_tree", async (_event, ctx) => {
     resetSessionGoalLifecycle(ctx);
-    await serializeNameOperation(() => publishCurrentSessionName(
+    await serializeNameOperation(() => synchronizeCurrentSessionName(
       pi,
       ctx,
       ctx?.sessionManager?.getSessionName?.(),
