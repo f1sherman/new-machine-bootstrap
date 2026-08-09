@@ -284,6 +284,27 @@ assert.deepEqual(publishedIdentity, {
   subject: "manual name during generation",
 });
 
+currentSessionName = "";
+taskStatus = "";
+goalChildIgnoresAbort = true;
+goalChildDeferred = deferred();
+const staleGoalAfterClear = goalChildDeferred;
+const sessionNameCountBeforeClear = sessionNames.length;
+await handlers.get("before_agent_start")({
+  prompt: "clear name during initial evaluation",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+await withStdoutTTY(() => handlers.get("session_info_changed")({ name: "" }, ctx));
+staleGoalAfterClear.resolve(ok("stale goal after clear\n"));
+goalChildDeferred = undefined;
+goalChildIgnoresAbort = false;
+await flushAsyncWork();
+assert.equal(currentSessionName, "",
+  "clearing the name wins over stale automatic generation");
+assert.equal(sessionNames.length, sessionNameCountBeforeClear,
+  "stale automatic generation does not restore a cleared name");
+
 branch = "main";
 const destructiveCases = [
   "git worktree add ../x",

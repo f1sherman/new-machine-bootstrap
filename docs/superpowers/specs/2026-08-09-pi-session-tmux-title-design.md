@@ -1,5 +1,10 @@
 # Pi Session tmux Title Design
 
+## Related PRs
+
+- Introduced by: #354
+- Related: #367, #406
+
 ## Problem
 
 Pi currently stores two values that usually contain the same text:

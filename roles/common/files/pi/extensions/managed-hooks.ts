@@ -992,9 +992,13 @@ export default function managedHooks(pi) {
     })();
   }
 
-  function resetSessionGoalLifecycle(ctx) {
+  function invalidateInitialSessionGoal() {
     sessionGoalGeneration += 1;
     sessionGoalRunning?.controller.abort();
+  }
+
+  function resetSessionGoalLifecycle(ctx) {
+    invalidateInitialSessionGoal();
     renderSessionFooter(ctx);
   }
 
@@ -1032,6 +1036,7 @@ export default function managedHooks(pi) {
   });
 
   pi.on("session_info_changed", async (event, ctx) => {
+    invalidateInitialSessionGoal();
     const eventName = event.name?.trim() || "";
     renderSessionFooter(ctx, eventName);
     await serializeNameOperation(() => synchronizeCurrentSessionName(
@@ -1042,8 +1047,7 @@ export default function managedHooks(pi) {
   });
 
   pi.on("session_shutdown", async () => {
-    sessionGoalGeneration += 1;
-    sessionGoalRunning?.controller.abort();
+    invalidateInitialSessionGoal();
   });
 
   pi.on("session_tree", async (_event, ctx) => {
