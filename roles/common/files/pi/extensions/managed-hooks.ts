@@ -99,7 +99,7 @@ async function tmuxOption(pi, key) {
 }
 
 async function refreshTmuxLabels(pi) {
-  if (!inTmux()) return;
+  if (!ownsTmuxPane()) return;
   await exec(pi, "tmux-update-pane-label", [process.env.TMUX_PANE]);
   await exec(pi, "tmux-window-label", [process.env.TMUX_PANE]);
 }
@@ -1009,8 +1009,10 @@ export default function managedHooks(pi) {
   pi.on("session_start", async (_event, ctx) => {
     resetSessionGoalLifecycle(ctx);
     await syncTmuxSubjectFromSession(pi, ctx);
-    await refreshTmuxLabels(pi);
-    await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);
+    if (ownsTmuxPane()) {
+      await refreshTmuxLabels(pi);
+      await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);
+    }
     await bindPaneSessionFile(pi, ctx);
     await serializeNameOperation(() => publishCurrentSessionName(
       pi,

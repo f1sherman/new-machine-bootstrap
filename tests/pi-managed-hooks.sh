@@ -158,6 +158,10 @@ publishedIdentity = { source: "", subject: "" };
 await handlers.get("session_start")({ reason: "resume" }, ctx);
 assert.deepEqual(publishedIdentity, { source: "", subject: "" },
   "an unnamed resumed session does not replace the tmux fallback");
+assert.equal(calls.some((call) => call.command === "tmux-update-pane-label"
+  || call.command === "tmux-window-label"
+  || (call.command === "tmux-agent-state" && call.args[0] === "set-kind")), false,
+  "non-TTY session_start does not mutate tmux state");
 
 currentSessionName = "restored session name";
 await withStdoutTTY(() => handlers.get("session_start")({ reason: "resume" }, ctx));
