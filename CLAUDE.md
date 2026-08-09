@@ -65,7 +65,7 @@ After making changes, apply them with `bin/provision` when the environment allow
 - macOS-only helper scripts and tools
 
 **Dev Host Role** (`roles/dev_host/`):
-- tmux auto-launch on login
+- tmux helpers for manual session management
 - `~/projects` workspace setup
 - project trust configuration for Claude
 
@@ -141,7 +141,7 @@ ansible-playbook playbook.yml --check
 - Debian-based host
 - passwordless sudo required
 - headless/SSH-focused environment
-- tmux launches on login
+- tmux sessions are listed and attached manually after login
 
 **Shared**:
 - Existing configurations are backed up before overwrite
