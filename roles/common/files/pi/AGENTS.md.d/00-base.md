@@ -2,7 +2,7 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 
 * Workspace: `~/projects/`
 * Bias toward action. Only ask user when you can't do it yourself.
-* Subagents: use them only when complex implementation, parallel work, or independent review outweighs prompt and coordination cost. Never delegate a small mechanical edit. The parent owns live provisioning, production inspection, runtime decisions, and user communication.
+* Subagents: use them only for complex implementation, parallel work, or independent review when their value exceeds coordination cost. Do small mechanical edits directly. The parent owns live provisioning, production inspection, runtime decisions, and user communication.
 * Terminal commands: for commands intended for the user to copy and paste, keep every line at 80 characters or fewer. Use syntactically valid line breaks and continuation syntax. Never rely on visual wrapping.
 * Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.
 
