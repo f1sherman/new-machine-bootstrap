@@ -171,16 +171,16 @@ record_successful_provision() {
   printf 'provisioned_at=%s\n' "$(timestamp)" > "$marker"
 }
 
-say_message() {
-  mac_os && say "$1" 2>/dev/null
-  return 0
+play_notification_sound() {
+  mac_os || return 0
+  afplay /System/Library/Sounds/Blow.aiff >/dev/null 2>&1 || true
 }
 
 execute_command() {
   log_info "Executing command: $1"
   if ! eval "$1"; then
     log_error "Command failed: $1"
-    say_message "provisioning failed"
+    play_notification_sound
     exit 1
   fi
   log_info "Command completed successfully"
@@ -375,7 +375,7 @@ log_info "Gathering facts (this may take a moment)..."
 output=$(mktemp)
 if ! "${cmd_parts[@]}" 2>&1 | tee -a "$LOGFILE_PATH" | tee "$output"; then
   log_error "Command failed: $cmd"
-  say_message "provisioning failed"
+  play_notification_sound
   rm -f "$output"
   exit 1
 fi
@@ -396,6 +396,6 @@ rm -f "$output"
 elapsed=$(($(date +%s) - PROVISIONING_START))
 log_info "Provisioning took $elapsed seconds."
 
-say_message "provisioning complete"
+play_notification_sound
 
 log_info "Log saved to: $LOGFILE_PATH"
