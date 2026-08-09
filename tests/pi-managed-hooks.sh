@@ -24,18 +24,12 @@ const extensionPath = process.argv[2];
 const worktreeRoot = process.env.PI_HOOK_TEST_WORKTREE;
 const handlers = new Map();
 const calls = [];
-const entries = [];
 const sessionNames = [];
 let goalTool;
 let currentSessionName = "";
 let activeSessionFile = "/sessions/current.jsonl";
-let branchEntries = [];
 let branch = "main";
-let managedSessionName = "";
-let markerWriteDeferred;
-let markerReadDeferred;
-let activeMarkerWrites = 0;
-let maxActiveMarkerWrites = 0;
+let taskStatus = "";
 let goalChildDeferred;
 let goalChildIgnoresAbort = false;
 let publishedIdentity = { source: "", subject: "" };
@@ -96,41 +90,26 @@ const pi = {
     currentSessionName = name;
     sessionNames.push(name);
   },
-  appendEntry(customType, data) {
-    entries.push({ customType, data });
-  },
   async exec(command, args, options = {}) {
     calls.push({ command, args });
     if (command === "tmux" && args[0] === "show-options") {
-      if (args.at(-1) === "@pi_managed_session_name") {
-        const wait = markerReadDeferred;
-        markerReadDeferred = undefined;
-        if (wait) await wait.promise;
-        return managedSessionName ? ok(`${managedSessionName}\n`) : fail();
-      }
       if (args.at(-1) === "@agent_worktree_path") return ok(`${worktreeRoot}\n`);
       if (args.at(-1) === "@window-label") return ok("pi main-repo\n");
       return fail();
     }
-    if (command === "tmux" && args[0] === "set-option") {
-      if (args.includes("@pi_managed_session_name")) {
-        activeMarkerWrites += 1;
-        maxActiveMarkerWrites = Math.max(maxActiveMarkerWrites, activeMarkerWrites);
-        try {
-          const wait = markerWriteDeferred;
-          if (wait) await wait.promise;
-          managedSessionName = args.at(-1);
-        } finally {
-          activeMarkerWrites -= 1;
-        }
-      }
-      return ok();
-    }
+    if (command === "tmux" && args[0] === "set-option") return ok();
     if (command === "tmux-agent-state" && args[0] === "set-identity") {
       publishedIdentity = { source: args[1], subject: args[2] };
+      taskStatus = `active\t${args[1]}\t${args[2]}`;
       return ok();
     }
-    if (command === "tmux-agent-state" && args[0] === "status") return fail();
+    if (command === "tmux-agent-state" && args[0] === "status") {
+      return taskStatus ? ok(`${taskStatus}\n`) : fail();
+    }
+    if (command === "tmux-agent-state" && args[0] === "clear-task") {
+      taskStatus = "";
+      return ok();
+    }
     if (command === "tmux-agent-state" || command.startsWith("tmux-")) return ok();
     if (command === "pi" && isGoalChild(args)) {
       if (!goalChildDeferred) return ok("generated goal\n");
@@ -166,7 +145,6 @@ const ctx = {
   sessionManager: {
     getSessionName() { return currentSessionName; },
     getSessionFile() { return activeSessionFile; },
-    getBranch() { return branchEntries; },
   },
 };
 
@@ -175,8 +153,46 @@ process.env.TMUX_PANE = "%1";
 const { default: install } = await import(pathToFileURL(extensionPath));
 install(pi);
 
-branchEntries = [];
-await handlers.get("session_tree")({}, ctx);
+currentSessionName = "";
+publishedIdentity = { source: "", subject: "" };
+await handlers.get("session_start")({ reason: "resume" }, ctx);
+assert.deepEqual(publishedIdentity, { source: "", subject: "" },
+  "an unnamed resumed session does not replace the tmux fallback");
+
+currentSessionName = "restored session name";
+await withStdoutTTY(() => handlers.get("session_start")({ reason: "resume" }, ctx));
+assert.deepEqual(publishedIdentity, {
+  source: "manual",
+  subject: "restored session name",
+}, "same-pane resume publishes the restored Pi session name");
+
+await withStdoutTTY(() => goalTool.execute(
+  "rename-session",
+  { goal: "new broad name" },
+  ctx.signal,
+  undefined,
+  ctx,
+));
+assert.equal(currentSessionName, "new broad name");
+assert.deepEqual(publishedIdentity, {
+  source: "manual",
+  subject: "new broad name",
+});
+assert.equal(calls.some((call) => call.command === "tmux"
+  && call.args.includes("@pi_managed_session_name")), false,
+  "single-name flow does not use the old tmux ownership marker");
+
+currentSessionName = "";
+await withStdoutTTY(() => handlers.get("session_info_changed")({ name: "" }, ctx));
+assert.equal(calls.some((call) => call.command === "tmux-agent-state"
+  && call.args[0] === "clear-task"), true,
+  "clearing a manual Pi name clears the published task");
+assert.equal(calls.some((call) => call.command === "tmux-agent-worktree"
+  && call.args[0] === "sync-current"), true,
+  "clearing a manual Pi name restores worktree fallback state");
+
+
+currentSessionName = "";
 goalChildIgnoresAbort = true;
 goalChildDeferred = deferred();
 const staleInitialGoal = goalChildDeferred;
@@ -184,137 +200,23 @@ await handlers.get("before_agent_start")({
   prompt: "initial evaluator prompt",
   systemPromptOptions: { cwd: "/repo" },
 }, ctx);
-await withStdoutTTY(() => goalTool.execute(
-  "explicit-winner",
-  { goal: "explicit race winner" },
-  ctx.signal,
-  undefined,
-  ctx,
-));
-goalChildDeferred = undefined;
-staleInitialGoal.resolve(ok("stale generated goal\n"));
-goalChildIgnoresAbort = false;
 await flushAsyncWork();
-assert.equal(entries.some((entry) => entry.data.subject === "stale generated goal"), false,
-  "stale asynchronous goal does not overwrite an explicit persisted goal");
-assert.equal(entries.at(-1).data.subject, "explicit race winner");
-
-branchEntries = [];
-currentSessionName = "";
-managedSessionName = "";
-await handlers.get("session_tree")({}, ctx);
-goalChildDeferred = undefined;
-markerWriteDeferred = deferred();
-maxActiveMarkerWrites = 0;
-await withStdoutTTY(() => handlers.get("before_agent_start")({
-  prompt: "slow automatic goal",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx));
-await flushAsyncWork();
-const explicitAfterAutomatic = withStdoutTTY(() => goalTool.execute(
-  "serialized-explicit",
-  { goal: "serialized explicit winner" },
-  ctx.signal,
-  undefined,
-  ctx,
-));
-await flushAsyncWork();
-assert.equal(maxActiveMarkerWrites, 1,
-  "goal persistence serializes marker ownership writes");
-const blockedMarkerWrite = markerWriteDeferred;
-markerWriteDeferred = undefined;
-blockedMarkerWrite.resolve();
-await explicitAfterAutomatic;
-await flushAsyncWork();
-assert.equal(entries.at(-1).data.subject, "serialized explicit winner");
-assert.equal(currentSessionName, "serialized explicit winner");
-assert.equal(managedSessionName, "serialized explicit winner");
-
-branchEntries = [];
-currentSessionName = "";
-managedSessionName = "";
-await handlers.get("session_tree")({}, ctx);
-markerWriteDeferred = deferred();
-sessionNames.length = 0;
-const automaticDuringRename = withStdoutTTY(() => goalTool.execute(
-  "manual-rename-race",
-  { goal: "durable automatic goal" },
-  ctx.signal,
-  undefined,
-  ctx,
-));
-await flushAsyncWork();
-currentSessionName = "manual name during persistence";
+currentSessionName = "manual name during generation";
 await withStdoutTTY(() => handlers.get("session_info_changed")({
   name: currentSessionName,
 }, ctx));
-const renameMarkerWrite = markerWriteDeferred;
-markerWriteDeferred = undefined;
-renameMarkerWrite.resolve();
-await automaticDuringRename;
-assert.equal(currentSessionName, "manual name during persistence",
-  "manual rename wins while automatic marker persistence is pending");
-assert.equal(sessionNames.length, 0,
-  "pending automatic work does not rename over the manual owner");
-assert.deepEqual(publishedIdentity, {
-  source: "manual",
-  subject: "manual name during persistence",
-});
-
-branchEntries = [{
-  type: "custom",
-  customType: "session-goal",
-  data: { subject: "queued automatic goal" },
-}];
-currentSessionName = "queued automatic goal";
-managedSessionName = "queued automatic goal";
-await handlers.get("session_tree")({}, ctx);
-markerReadDeferred = deferred();
-const pausedMarkerRead = markerReadDeferred;
-publishedIdentity = { source: "", subject: "" };
-await withStdoutTTY(async () => {
-  const staleAutomaticPublication = handlers.get("session_info_changed")({
-    name: "queued automatic goal",
-  }, ctx);
-  await flushAsyncWork();
-  currentSessionName = "new manual name";
-  const manualPublication = handlers.get("session_info_changed")({
-    name: "new manual name",
-  }, ctx);
-  pausedMarkerRead.resolve();
-  await Promise.all([staleAutomaticPublication, manualPublication]);
-});
-assert.deepEqual(publishedIdentity, { source: "manual", subject: "new manual name" },
-  "manual identity remains final after stale ownership classification resumes");
-assert.equal(calls.some((call) => call.command === "tmux-agent-state"
-  && call.args.join(" ") === "set-identity goal queued automatic goal"), false,
-  "stale automatic ownership is not published");
-
-branchEntries = [];
-currentSessionName = "";
-managedSessionName = "";
-await handlers.get("session_tree")({}, ctx);
-goalChildIgnoresAbort = true;
-goalChildDeferred = deferred();
-const abandonedGeneration = goalChildDeferred;
-const entriesBeforeNavigation = entries.length;
-await handlers.get("before_agent_start")({
-  prompt: "source session prompt",
-  systemPromptOptions: { cwd: "/repo" },
-}, ctx);
-branchEntries = [{
-  type: "custom",
-  customType: "session-goal",
-  data: { subject: "destination goal" },
-}];
-activeSessionFile = "/sessions/destination.jsonl";
-await handlers.get("session_tree")({}, ctx);
+staleInitialGoal.resolve(ok("stale generated goal\n"));
 goalChildDeferred = undefined;
-abandonedGeneration.resolve(ok("abandoned source goal\n"));
 goalChildIgnoresAbort = false;
 await flushAsyncWork();
-assert.equal(entries.length, entriesBeforeNavigation,
-  "tree navigation invalidates pending persistence from the prior session");
+assert.equal(currentSessionName, "manual name during generation",
+  "manual name wins over stale automatic generation");
+assert.equal(sessionNames.includes("stale generated goal"), false,
+  "stale automatic generation does not rename the session");
+assert.deepEqual(publishedIdentity, {
+  source: "manual",
+  subject: "manual name during generation",
+});
 
 branch = "main";
 const destructiveCases = [
