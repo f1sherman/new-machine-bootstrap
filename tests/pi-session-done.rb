@@ -3,6 +3,8 @@
 require "fileutils"
 require "json"
 require "open3"
+require "socket"
+require "timeout"
 require "tmpdir"
 
 repo_root = File.expand_path("..", __dir__)
@@ -30,8 +32,21 @@ Dir.mktmpdir("pi-session-done") do |tmpdir|
   File.write(fake_asr, <<~RUBY)
     #!/usr/bin/env ruby
     require "json"
+    require "socket"
     File.open(ENV.fetch("ASR_CALL_CAPTURE"), "a") do |file|
       file.puts(JSON.generate({ "argv" => ARGV, "sync_socket" => ENV["ASR_SYNC_SOCKET"] }))
+    end
+    if ENV["FAKE_ASR_SYNC"] == "1"
+      File.write(ENV.fetch("FAKE_SOURCE_DONE"), "done")
+      socket = UNIXSocket.new(ENV.fetch("ASR_SYNC_SOCKET"))
+      socket.puts(JSON.generate(
+        "action" => "done",
+        "source" => "pi",
+        "hostname" => "dev",
+        "session_id" => ENV.fetch("PI_SESSION_ID")
+      ))
+      response = JSON.parse(socket.gets)
+      exit(response == { "ok" => true, "status" => "done" } ? 0 : 3)
     end
     exit Integer(ENV.fetch("FAKE_ASR_EXIT", "0"))
   RUBY
@@ -101,16 +116,39 @@ Dir.mktmpdir("pi-session-done") do |tmpdir|
 
   stdout, _stderr, status = run_helper.call(
     "ASR_SYNC_SOCKET" => "/tmp/asr-sync.sock",
-    "FAKE_ASR_EXIT" => "1"
+    "FAKE_ASR_EXIT" => "3"
   )
   captured = calls.call
-  assert.call(!status.success?, "synchronization failure exits nonzero", stdout)
+  assert.call(status.exitstatus == 3, "synchronization failure exits with status 3", stdout)
   assert.call(
     stdout == "Source session session-1 is done, but laptop synchronization failed.\n",
     "synchronization failure reports the partial result",
     stdout.inspect
   )
   assert.call(captured.length == 1, "synchronization failure does not retry ASR", captured.inspect)
+
+  [1, 2].each do |exit_status|
+    stdout, stderr, status = run_helper.call(
+      "ASR_SYNC_SOCKET" => "/tmp/asr-sync.sock",
+      "FAKE_ASR_EXIT" => exit_status.to_s
+    )
+    captured = calls.call
+    assert.call(
+      status.exitstatus == exit_status,
+      "ASR status #{exit_status} remains distinct",
+      "status=#{status.exitstatus} stderr=#{stderr.inspect}"
+    )
+    assert.call(
+      stdout.empty? && stderr.include?("Could not mark source session session-1 done."),
+      "ASR status #{exit_status} does not claim source completion",
+      "stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+    )
+    assert.call(
+      captured.length == 1,
+      "ASR status #{exit_status} does not retry ASR",
+      captured.inspect
+    )
+  end
 
   stdout, stderr, status = run_helper.call(
     "TASK_STATUS" => "complete",
@@ -123,6 +161,66 @@ Dir.mktmpdir("pi-session-done") do |tmpdir|
     "helper does not infer completion from unrelated state",
     "stdout=#{stdout.inspect} calls=#{calls.call.inspect}"
   )
+
+  socket_path = File.join(tmpdir, "sync.sock")
+  source_done_path = File.join(tmpdir, "source-done")
+  server = UNIXServer.new(socket_path)
+  request_queue = Queue.new
+  release_reader, release_writer = IO.pipe
+  server_thread = Thread.new do
+    client = server.accept
+    request_queue << client.gets
+    release_reader.read(1)
+    client.puts(JSON.generate("ok" => true, "status" => "done"))
+    client.close
+  end
+
+  helper_env = {
+    "ASR_SYNC_SOCKET" => socket_path,
+    "FAKE_ASR_SYNC" => "1",
+    "FAKE_SOURCE_DONE" => source_done_path
+  }
+  helper_stdin, helper_stdout, helper_stderr, helper_wait = Open3.popen3(
+    base_env.merge(helper_env),
+    helper
+  )
+  helper_stdin.close
+  request = JSON.parse(Timeout.timeout(5) { request_queue.pop })
+  assert.call(
+    request == {
+      "action" => "done",
+      "source" => "pi",
+      "hostname" => "dev",
+      "session_id" => "session-1"
+    },
+    "ASR sends the exact completion request",
+    request.inspect
+  )
+  assert.call(
+    File.read(source_done_path) == "done",
+    "source record is done before laptop acknowledgment"
+  )
+  assert.call(
+    helper_wait.join(0.1).nil?,
+    "helper waits for laptop acknowledgment"
+  )
+
+  release_writer.write("x")
+  release_writer.close
+  helper_status = helper_wait.value
+  helper_output = helper_stdout.read
+  helper_error = helper_stderr.read
+  assert.call(helper_status.success?, "helper succeeds after acknowledgment", helper_error)
+  assert.call(
+    helper_output == "Marked source and laptop session session-1 done.\n",
+    "helper claims both records only after acknowledgment",
+    helper_output.inspect
+  )
+ensure
+  release_reader&.close unless release_reader&.closed?
+  release_writer&.close unless release_writer&.closed?
+  server&.close
+  server_thread&.join(1)
 end
 
 puts "\n#{passed} passed, #{failed} failed"
