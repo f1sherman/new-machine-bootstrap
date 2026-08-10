@@ -31,6 +31,8 @@ const registeredToolNames = [];
 let sessionNameTool;
 let currentSessionName = "";
 let activeSessionFile = "/sessions/current.jsonl";
+let activeSessionId = "019fe7a6-a219-7548-a6ef-1f23885864f4";
+let asrResultQueue = [];
 let branch = "main";
 let taskStatus = "";
 let goalChildDeferred;
@@ -102,6 +104,12 @@ const pi = {
   },
   async exec(command, args, options = {}) {
     calls.push({ command, args });
+    if (command === "asr") {
+      const queued = asrResultQueue.shift();
+      if (queued instanceof Error) throw queued;
+      if (queued?.promise) return queued.promise;
+      return queued || ok();
+    }
     if (command === "tmux" && args[0] === "show-options") {
       if (args.at(-1) === "@agent_worktree_path") return ok(`${worktreeRoot}\n`);
       if (args.at(-1) === "@window-label") return ok("pi main-repo\n");
@@ -161,6 +169,7 @@ const ctx = {
   sessionManager: {
     getSessionName() { return currentSessionName; },
     getSessionFile() { return activeSessionFile; },
+    getSessionId() { return activeSessionId; },
   },
 };
 
@@ -168,6 +177,148 @@ process.env.TMUX = "1";
 process.env.TMUX_PANE = "%1";
 const { default: install } = await import(pathToFileURL(extensionPath));
 install(pi);
+
+const registryCalls = () => calls.filter((call) => call.command === "asr");
+const clearCalls = () => { calls.length = 0; };
+
+const savedTmux = process.env.TMUX;
+const savedTmuxPane = process.env.TMUX_PANE;
+delete process.env.TMUX;
+delete process.env.TMUX_PANE;
+currentSessionName = "restored registry name";
+clearCalls();
+await handlers.get("session_start")({}, ctx);
+await flushAsyncWork();
+assert.deepEqual(registryCalls(), [{
+  command: "asr",
+  args: [
+    "register", "--source", "pi", "--session-id", activeSessionId,
+    "--local", "--status", "active",
+    "--name", "restored registry name", "--cwd", "/repo",
+    "--adapter", "pi-local",
+    "--adapter-config", JSON.stringify({ session_file: activeSessionFile }),
+  ],
+}], "persistent session start publishes the name-only registry record");
+assert.equal(registryCalls()[0].args.includes("--goal"), false,
+  "registry registration does not publish separate goal state");
+
+activeSessionFile = "";
+clearCalls();
+await handlers.get("session_start")({}, ctx);
+await flushAsyncWork();
+assert.equal(registryCalls().length, 0, "ephemeral session start is not registered");
+activeSessionFile = "/sessions/current.jsonl";
+activeSessionId = "";
+clearCalls();
+await handlers.get("session_start")({}, ctx);
+await flushAsyncWork();
+assert.equal(registryCalls().length, 0,
+  "session start without a native session ID is not registered");
+activeSessionId = "019fe7a6-a219-7548-a6ef-1f23885864f4";
+
+clearCalls();
+currentSessionName = "registry name outside tmux";
+await handlers.get("session_info_changed")({ name: currentSessionName }, ctx);
+await flushAsyncWork();
+assert.deepEqual(registryCalls(), [{
+  command: "asr",
+  args: [
+    "update", "--source", "pi", "--session-id", activeSessionId,
+    "--name", "registry name outside tmux",
+  ],
+}], "session name changes publish outside tmux");
+
+clearCalls();
+const firstDelayedRegistryUpdate = deferred();
+const secondDelayedRegistryUpdate = deferred();
+asrResultQueue.push(firstDelayedRegistryUpdate, secondDelayedRegistryUpdate);
+const firstRegistryUpdate = handlers.get("session_info_changed")({
+  name: "first registry name",
+}, ctx);
+await flushAsyncWork();
+const secondRegistryUpdate = handlers.get("session_info_changed")({
+  name: "second registry name",
+}, ctx);
+await Promise.all([firstRegistryUpdate, secondRegistryUpdate]);
+await flushAsyncWork();
+assert.deepEqual(registryCalls().map((call) => call.args.at(-1)), [
+  "first registry name",
+], "registry name updates wait for earlier publication");
+firstDelayedRegistryUpdate.resolve(ok());
+await flushAsyncWork();
+assert.deepEqual(registryCalls().map((call) => call.args.at(-1)), [
+  "first registry name",
+  "second registry name",
+], "serialized registry updates leave the newest name last");
+secondDelayedRegistryUpdate.resolve(ok());
+await flushAsyncWork();
+
+clearCalls();
+const delayedRegistryStart = deferred();
+asrResultQueue.push(delayedRegistryStart);
+let delayedStartSettled = false;
+const delayedStart = handlers.get("session_start")({}, ctx).then(() => {
+  delayedStartSettled = true;
+});
+await flushAsyncWork();
+assert.equal(delayedStartSettled, true,
+  "session start continues while registry registration is pending");
+delayedRegistryStart.resolve(ok());
+await delayedStart;
+await flushAsyncWork();
+
+process.env.TMUX = savedTmux;
+process.env.TMUX_PANE = savedTmuxPane;
+clearCalls();
+const delayedRegistryName = deferred();
+asrResultQueue.push(delayedRegistryName);
+currentSessionName = "name completes before registry";
+publishedIdentity = { source: "", subject: "" };
+let delayedNameSettled = false;
+const delayedName = withStdoutTTY(
+  () => handlers.get("session_info_changed")({ name: currentSessionName }, ctx),
+).then(() => {
+  delayedNameSettled = true;
+});
+await flushAsyncWork();
+assert.equal(delayedNameSettled, true,
+  "session name synchronization continues while registry publication is pending");
+assert.deepEqual(publishedIdentity, {
+  source: "manual",
+  subject: "name completes before registry",
+}, "tmux name synchronization completes while registry publication is pending");
+delayedRegistryName.resolve(ok());
+await delayedName;
+await flushAsyncWork();
+
+clearCalls();
+asrResultQueue.push(fail());
+await assert.doesNotReject(
+  handlers.get("session_start")({}, ctx),
+  "nonzero registry registration does not reject session start",
+);
+await flushAsyncWork();
+asrResultQueue.push(new Error("registry unavailable"));
+await assert.doesNotReject(
+  handlers.get("session_info_changed")({ name: currentSessionName }, ctx),
+  "thrown registry update does not reject session name synchronization",
+);
+await flushAsyncWork();
+
+clearCalls();
+await handlers.get("session_tree")({}, ctx);
+await flushAsyncWork();
+assert.equal(registryCalls().length, 0,
+  "session tree changes do not publish separate registry state");
+await handlers.get("session_shutdown")({}, ctx);
+await flushAsyncWork();
+assert.equal(registryCalls().some((call) => call.args[0] === "done"), false,
+  "session shutdown never marks a registry record done");
+
+currentSessionName = "";
+taskStatus = "";
+publishedIdentity = { source: "", subject: "" };
+clearCalls();
 
 currentSessionName = "";
 publishedIdentity = { source: "", subject: "" };

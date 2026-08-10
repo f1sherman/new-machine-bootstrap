@@ -17,6 +17,8 @@ tool_versions:
     zoxide: v0.10.0
 
   git_tags:
+    # renovate: datasource=github-tags depName=f1sherman/agent-session-registry
+    agent_session_registry: v0.2.0
     # renovate: datasource=github-tags depName=junegunn/fzf
     fzf: v0.74.2
     # renovate: datasource=github-tags depName=tmux-plugins/tpm

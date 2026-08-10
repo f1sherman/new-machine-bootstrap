@@ -651,6 +651,48 @@
   command: "{{ mise_bin }} use --global ruby@{{ tool_versions.runtimes.ruby }}"
   when: current_global_ruby.stdout != tool_versions.runtimes.ruby
 
+- name: Install Ruby sqlite3 gem for agent session registry
+  shell: |
+    set -euo pipefail
+    if {{ mise_bin }} exec ruby@{{ tool_versions.runtimes.ruby }} -- \
+      ruby -e 'require "sqlite3"' 2>/dev/null; then
+      echo unchanged
+    else
+      {{ mise_bin }} exec ruby@{{ tool_versions.runtimes.ruby }} -- \
+        gem install sqlite3 --no-document
+      echo changed
+    fi
+  args:
+    executable: /bin/bash
+  register: agent_session_registry_sqlite3
+  changed_when: agent_session_registry_sqlite3.stdout_lines[-1] == 'changed'
+
+- name: Install agent session registry
+  git:
+    repo: https://github.com/f1sherman/agent-session-registry.git
+    dest: '{{ ansible_facts["user_dir"] }}/.local/share/agent-session-registry'
+    version: '{{ tool_versions.git_tags.agent_session_registry }}'
+    update: yes
+    force: no
+
+- name: Link agent session registry executable
+  file:
+    src: '{{ ansible_facts["user_dir"] }}/.local/share/agent-session-registry/bin/asr'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/asr'
+    state: link
+
+- name: Create agent session registry adapter directory
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.local/lib/agent-session-registry/adapters'
+    state: directory
+    mode: 0755
+
+- name: Install Pi session registry adapter
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/agent-session-registry/adapters/pi-local'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/lib/agent-session-registry/adapters/pi-local'
+    mode: 0755
+
 - name: Configure Claude Code vim mode in ~/.claude.json
   shell: |
     python3 -c '

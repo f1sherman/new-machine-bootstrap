@@ -1,0 +1,30 @@
+#!/usr/bin/env ruby
+
+require "json"
+require "pathname"
+
+action, _registry_key, raw_config = ARGV
+abort "Unsupported adapter action: #{action}" unless action == "resume"
+
+begin
+  config = JSON.parse(raw_config.to_s)
+rescue JSON::ParserError
+  abort "Invalid adapter config JSON"
+end
+
+abort "Adapter config must be a JSON object" unless config.is_a?(Hash)
+
+begin
+  session_file_value = config.fetch("session_file")
+rescue KeyError
+  abort "Adapter config must include session_file"
+end
+
+abort "Session file must be absolute and readable" unless session_file_value.is_a?(String)
+
+session_file = Pathname.new(session_file_value)
+unless session_file.absolute? && session_file.file? && session_file.readable?
+  abort "Session file must be absolute and readable"
+end
+
+exec "pi", "--session", session_file.to_s
