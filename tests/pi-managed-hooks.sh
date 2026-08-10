@@ -216,13 +216,17 @@ assert.equal(calls.some((call) => call.command === "tmux"
   "single-name flow does not use the old tmux ownership marker");
 
 currentSessionName = "";
+const clearTaskCallsBeforeNameClear = calls.filter((call) =>
+  call.command === "tmux-agent-state" && call.args[0] === "clear-task").length;
+const fallbacksBeforeNameClear = fallbackRestores;
 await withStdoutTTY(() => handlers.get("session_info_changed")({ name: "" }, ctx));
-assert.equal(calls.some((call) => call.command === "tmux-agent-state"
-  && call.args[0] === "clear-task"), true,
-  "clearing a manual Pi name clears the published task");
-assert.equal(calls.some((call) => call.command === "tmux-agent-worktree"
-  && call.args[0] === "sync-current"), true,
-  "clearing a manual Pi name restores worktree fallback state");
+assert.equal(calls.filter((call) => call.command === "tmux-agent-state"
+  && call.args[0] === "clear-task").length, clearTaskCallsBeforeNameClear + 1,
+  "clearing a manual Pi name clears the published task once");
+assert.equal(fallbackRestores, fallbacksBeforeNameClear + 1,
+  "clearing a manual Pi name restores worktree fallback state once");
+assert.deepEqual(publishedIdentity, { source: "", subject: "" },
+  "clearing a manual Pi name removes the published identity");
 
 currentSessionName = "";
 taskStatus = "active\tmanual\tstale tree name";
@@ -261,6 +265,24 @@ assert.equal(calls.filter((call) => call.command === "tmux"
   && call.args[0] === "set-option"
   && call.args.includes("@agent_current_spec_path")).length, nestedSpecWrites,
   "non-TTY edit and bash events do not write the tmux spec path");
+
+currentSessionName = "";
+taskStatus = "";
+publishedIdentity = { source: "", subject: "" };
+goalChildDeferred = undefined;
+await withStdoutTTY(async () => {
+  await handlers.get("before_agent_start")({
+    prompt: "initial automatic naming prompt",
+    systemPromptOptions: { cwd: "/repo" },
+  }, ctx);
+  await flushAsyncWork();
+});
+assert.equal(currentSessionName, "generated goal",
+  "successful automatic naming sets the Pi session name");
+assert.deepEqual(publishedIdentity, {
+  source: "manual",
+  subject: "generated goal",
+}, "successful automatic naming publishes the generated session name");
 
 currentSessionName = "";
 taskStatus = "";

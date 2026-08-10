@@ -336,8 +336,7 @@ Run:
 
 ```bash
 if rg -n 'set_session_goal|Set Session Goal' \
-  roles/common/files/pi/extensions/managed-hooks.ts \
-  tests/pi-managed-hooks.sh; then
+  roles/common/files/pi/extensions/managed-hooks.ts; then
   exit 1
 fi
 ```
