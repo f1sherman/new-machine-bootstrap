@@ -671,7 +671,11 @@
   git:
     repo: https://github.com/f1sherman/agent-session-registry.git
     dest: '{{ ansible_facts["user_dir"] }}/.local/share/agent-session-registry'
-    version: '{{ tool_versions.git_tags.agent_session_registry }}'
+    version: >-
+      {{
+        agent_session_registry_version_override
+        | default(tool_versions.git_tags.agent_session_registry, true)
+      }}
     update: yes
     force: no
 
