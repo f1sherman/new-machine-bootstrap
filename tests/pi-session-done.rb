@@ -204,6 +204,17 @@ Dir.mktmpdir("pi-session-done") do |tmpdir|
     helper_wait.join(0.1).nil?,
     "helper waits for laptop acknowledgment"
   )
+  pre_ack_output = if IO.select([helper_stdout], nil, nil, 0.2)
+    helper_stdout.read_nonblock(4096, exception: false)
+  else
+    ""
+  end
+  pre_ack_output = "" if [:wait_readable, nil].include?(pre_ack_output)
+  assert.call(
+    !pre_ack_output.include?("Marked source and laptop session"),
+    "helper does not claim both records before acknowledgment",
+    pre_ack_output.inspect
+  )
 
   release_writer.write("x")
   release_writer.close
