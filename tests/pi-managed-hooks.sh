@@ -267,6 +267,28 @@ delayedRegistryStart.resolve(ok());
 await delayedStart;
 await flushAsyncWork();
 
+clearCalls();
+const delayedRegistrationBeforeDone = deferred();
+asrResultQueue.push(delayedRegistrationBeforeDone);
+await handlers.get("session_start")({}, ctx);
+await flushAsyncWork();
+let doneToolCallSettled = false;
+const doneToolCall = handlers.get("tool_call")({
+  toolName: "bash",
+  input: {
+    command: 'asr done --source pi --session-id "$PI_SESSION_ID"',
+  },
+}, ctx).then(() => {
+  doneToolCallSettled = true;
+});
+await flushAsyncWork();
+assert.equal(doneToolCallSettled, false,
+  "explicit session completion waits for pending registry registration");
+delayedRegistrationBeforeDone.resolve(ok());
+await doneToolCall;
+assert.equal(doneToolCallSettled, true,
+  "explicit session completion continues after registry registration");
+
 process.env.TMUX = savedTmux;
 process.env.TMUX_PANE = savedTmuxPane;
 clearCalls();

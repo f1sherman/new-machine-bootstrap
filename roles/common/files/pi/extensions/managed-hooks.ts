@@ -13,6 +13,7 @@ const SUBJECT_MAX_LENGTH = 80;
 const SESSION_GOAL_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase of at most 40 characters describing the new session's broad goal. Output only the phrase on one line, without quotes, a goal: prefix, or explanation.";
 const SESSION_GOAL_MAX_LENGTH = 80;
 const SESSION_NAME_STATUS_KEY = "sm";
+const SESSION_DONE_COMMAND = 'asr done --source pi --session-id "$PI_SESSION_ID"';
 const REPO_START_TRIGGERS = /(^|\s)(?:z-fix|z-spec-first|z-quick-pr|superpowers:systematic-debugging|superpowers:brainstorming)(?=\s|$)/i;
 const SHELL_TOKEN = "[^\\s;&|()]+";
 const GIT_PREAMBLE = "(^|[;&|()])\\s*(?:(?:(?:if|then|do|elif|while|until)\\s+|!\\s+)*)((?:(?:[A-Za-z_][A-Za-z0-9_]*)=\\S+\\s+|command\\s+|env\\s+|sudo(?:\\s+-\\S+)*\\s+|time(?:\\s+-\\S+)*\\s+)*)git(?:\\s+-\\S+(?:\\s+\\S+)*)*\\s+";
@@ -1139,8 +1140,10 @@ export default function managedHooks(pi) {
 
   pi.on("tool_call", async (event, ctx) => {
     if (event.toolName === "bash") {
-      const reason = await bashCommandBlockReason(pi, event.input.command || "", ctx.cwd);
+      const command = event.input.command || "";
+      const reason = await bashCommandBlockReason(pi, command, ctx.cwd);
       if (reason) return { block: true, reason };
+      if (command.trim() === SESSION_DONE_COMMAND) await registryPublicationChain;
       return;
     }
 
