@@ -576,6 +576,46 @@
     - src: roles/common/templates/dotfiles/aube/config.toml
       dest: .config/aube/config.toml
 
+- name: Check if pinned herdr version is installed
+  command: "{{ mise_bin }} where herdr@{{ tool_versions.runtimes.herdr }}"
+  register: herdr_installed
+  changed_when: false
+  failed_when: false
+
+- name: Install herdr via mise
+  command: "{{ mise_bin }} install herdr@{{ tool_versions.runtimes.herdr }}"
+  when: herdr_installed.rc != 0
+
+- name: Check if herdr-mirror plugin is installed
+  shell: |
+    {{ mise_bin }} exec herdr@{{ tool_versions.runtimes.herdr }} -- \
+      herdr plugin list mirror | grep -q '^- mirror '
+  args:
+    executable: /bin/bash
+  register: herdr_mirror_installed
+  changed_when: false
+  failed_when: false
+
+- name: Install herdr-mirror plugin
+  command: >-
+    {{ mise_bin }} exec herdr@{{ tool_versions.runtimes.herdr }} --
+    herdr plugin install nikok6/herdr-mirror --yes
+  when: herdr_mirror_installed.rc != 0
+
+- name: Create herdr-mirror config directory
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/.config/herdr-mirror"
+    state: directory
+    mode: '0755'
+
+- name: Keep remote herdr workspaces running when a local mirror closes
+  lineinfile:
+    path: "{{ ansible_facts['user_dir'] }}/.config/herdr-mirror/hosts.toml"
+    line: 'close_remote_on_local_close = false'
+    insertbefore: BOF
+    create: true
+    mode: '0644'
+
 - name: Heal any broken mise-managed Node.js installs (Linux)
   include_tasks: '{{ playbook_dir }}/roles/common/tasks/heal_mise_node_installs.yml'
   when: ansible_facts["os_family"] == "Debian"
