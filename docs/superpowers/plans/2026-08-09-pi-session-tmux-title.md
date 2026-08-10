@@ -4,14 +4,15 @@
 
 **Goal:** Make the built-in Pi session name the only session identity and always publish it as the tmux tab title.
 
-**Architecture:** Simplify `managed-hooks.ts` so automatic goal generation and `set_session_goal` write Pi's built-in session name. Publish that name through the existing `tmux-agent-state set-identity` pipeline on startup, resume, tree navigation, and name changes. Remove the separate custom goal entry, footer goal state, tmux managed-name marker, and precedence logic.
+**Architecture:** Simplify `managed-hooks.ts` so automatic goal generation and `set_session_name({ name })` write Pi's built-in session name. Publish that name through the existing `tmux-agent-state set-identity` pipeline on startup, resume, tree navigation, and name changes. Remove the separate custom goal entry, footer goal state, tmux managed-name marker, and precedence logic.
 
 **Tech Stack:** TypeScript Pi extension, Node.js test harness, Bash, tmux helper scripts
 
 ## Global Constraints
 
 - The term "goal" remains guidance for choosing a broad, stable session name; it is not separate stored state.
-- The most recent call to automatic naming, `set_session_goal`, or `/name` wins, except automatic naming only runs for an unnamed session.
+- The most recent call to automatic naming, `set_session_name`, or `/name` wins, except automatic naming only runs for an unnamed session.
+- Register only `set_session_name({ name })`; do not keep a `set_session_goal` compatibility alias.
 - Nested, print-mode, and subagent Pi processes must not change tmux state.
 - Existing tmux formatting, truncation, indicators, remote titles, branch labels, and directory fallbacks remain unchanged.
 - Title update failures must not interrupt Pi.
@@ -26,7 +27,7 @@
 
 **Interfaces:**
 - Consumes: Pi `session_start`, `session_info_changed`, `session_tree`, and `before_agent_start` events; `pi.setSessionName(name)`; `ctx.sessionManager.getSessionName()`; `tmux-agent-state set-identity manual <name>`.
-- Produces: `set_session_goal({ goal })`, which validates the phrase, sets the Pi session name, and publishes the live name to the owning tmux pane.
+- Produces: `set_session_name({ name })`, which validates the phrase, sets the Pi session name, and publishes the live name to the owning tmux pane.
 
 - [ ] **Step 1: Replace goal-storage test fixtures with single-name assertions**
 
@@ -48,9 +49,9 @@ assert.deepEqual(publishedIdentity, {
   subject: "restored session name",
 }, "same-pane resume publishes the restored Pi session name");
 
-await withStdoutTTY(() => goalTool.execute(
+await withStdoutTTY(() => sessionNameTool.execute(
   "rename-session",
-  { goal: "new broad name" },
+  { name: "new broad name" },
   ctx.signal,
   undefined,
   ctx,
@@ -75,7 +76,7 @@ Run:
 bash tests/pi-managed-hooks.sh
 ```
 
-Expected: FAIL because resume publication still depends on old goal and marker ownership, and `set_session_goal` still appends a custom goal entry.
+Expected: FAIL because resume publication still depends on old goal and marker ownership, and the old goal tool still appends a custom goal entry.
 
 - [ ] **Step 3: Remove separate goal and marker state**
 
@@ -160,7 +161,7 @@ async function clearPublishedSessionName(pi, ctx) {
 
 - [ ] **Step 5: Wire lifecycle events to the single-name path**
 
-Make `set_session_goal` call `applySessionName()` without custom entry persistence.
+Make `set_session_name({ name })` call `applySessionName()` without custom entry persistence.
 
 On `session_start`, cancel stale generation, render the current name, set tmux agent kind, bind the pane session file, and publish the current name. Do not condition publication on the previous `@persist_pi_session_file` value.
 
@@ -237,3 +238,132 @@ git log -3 --oneline
 ```
 
 Expected: no whitespace errors, no uncommitted implementation files, and separate design, plan, and implementation commits.
+
+### Task 3: Rename the public session tool
+
+**Files:**
+- Modify: `roles/common/files/pi/extensions/managed-hooks.ts`
+- Test: `tests/pi-managed-hooks.sh`
+
+**Interfaces:**
+- Consumes: Pi `registerTool()` and the existing `applySessionName(pi, ctx, subject)` helper.
+- Produces: `set_session_name({ name: string })`, which returns `details: { name }` and publishes the validated live session name.
+
+- [ ] **Step 1: Write a failing public-interface test**
+
+Change the test harness to record registered tool names and capture only the new tool:
+
+```javascript
+const registeredToolNames = [];
+let sessionNameTool;
+
+registerTool(definition) {
+  registeredToolNames.push(definition.name);
+  if (definition.name === "set_session_name") sessionNameTool = definition;
+},
+```
+
+Replace the tool invocation with the new parameter and assert that no compatibility alias exists:
+
+```javascript
+const renameResult = await withStdoutTTY(() => sessionNameTool.execute(
+  "rename-session",
+  { name: "new broad name" },
+  ctx.signal,
+  undefined,
+  ctx,
+));
+assert.equal(currentSessionName, "new broad name");
+assert.deepEqual(renameResult.details, { name: "new broad name" });
+assert.equal(registeredToolNames.includes("set_session_goal"), false,
+  "the extension does not register the old goal tool alias");
+```
+
+- [ ] **Step 2: Run the focused test and confirm it fails**
+
+Run:
+
+```bash
+bash tests/pi-managed-hooks.sh
+```
+
+Expected: FAIL because `sessionNameTool` is undefined while the extension still registers `set_session_goal`.
+
+- [ ] **Step 3: Rename the registered tool and its public data**
+
+Replace the public registration in `managed-hooks.ts` with:
+
+```javascript
+pi.registerTool({
+  name: "set_session_name",
+  label: "Set Session Name",
+  description: "Set the durable broad name and automatic identity for the current Pi session. Call only when the user's overall objective materially changes. Keep the existing name during implementation phases, debugging steps, testing, deployment, PR work, and other subtasks. Prefer at most 40 characters.",
+  parameters: {
+    type: "object",
+    properties: {
+      name: { type: "string", description: "Concise broad session name that describes the overall objective, not the current step; prefer at most 40 characters (maximum 80)" },
+    },
+    required: ["name"],
+    additionalProperties: false,
+  },
+  async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    const name = await applySessionName(pi, ctx, params.name);
+    return {
+      content: [{ type: "text", text: `Session name set to: ${name}` }],
+      details: { name },
+    };
+  },
+});
+```
+
+Change the validation error in `applySessionName()` from `Session goal must` to `Session name must`. Keep internal automatic-generation helpers unchanged because they still generate a broad goal phrase for an unnamed session.
+
+- [ ] **Step 4: Run focused verification**
+
+Run:
+
+```bash
+bash tests/pi-managed-hooks.sh
+bash tests/tmux-agent-state.sh
+git diff --check
+```
+
+Expected: both test scripts exit 0, and the diff check prints no errors.
+
+- [ ] **Step 5: Confirm the old public name is absent**
+
+Run:
+
+```bash
+if rg -n 'set_session_goal|Set Session Goal' \
+  roles/common/files/pi/extensions/managed-hooks.ts \
+  tests/pi-managed-hooks.sh; then
+  exit 1
+fi
+```
+
+Expected: no matches and exit 0.
+
+- [ ] **Step 6: Commit the rename**
+
+Commit these files with the repository commit workflow:
+
+```text
+roles/common/files/pi/extensions/managed-hooks.ts
+tests/pi-managed-hooks.sh
+```
+
+Use commit message: `Rename Pi session naming tool`.
+
+- [ ] **Step 7: Provision and verify the managed extension**
+
+Run:
+
+```bash
+bin/provision
+cmp \
+  roles/common/files/pi/extensions/managed-hooks.ts \
+  "$HOME/.pi/agent/extensions/managed-hooks.ts"
+```
+
+Expected: provisioning succeeds and `cmp` exits 0.
