@@ -611,6 +611,7 @@
 - name: Keep remote herdr workspaces running when a local mirror closes
   lineinfile:
     path: "{{ ansible_facts['user_dir'] }}/.config/herdr-mirror/hosts.toml"
+    regexp: '^close_remote_on_local_close\s*='
     line: 'close_remote_on_local_close = false'
     insertbefore: BOF
     create: true
