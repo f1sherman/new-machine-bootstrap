@@ -382,3 +382,122 @@ cmp \
 ```
 
 Expected: provisioning succeeds and both `cmp` commands exit 0.
+
+### Task 4: Rename the managed session update skill
+
+**Files:**
+- Move: `roles/common/files/config/skills/pi/z-update-session-goal/SKILL.md` to `roles/common/files/config/skills/pi/z-update-session-name/SKILL.md`
+- Modify: `roles/common/tasks/main.yml`
+
+**Interfaces:**
+- Consumes: the `set_session_name({ name })` tool from Task 3 and Ansible's Pi skill installation task.
+- Produces: `/skill:z-update-session-name [optional wording]`. Provisioning removes the obsolete `~/.pi/agent/skills/z-update-session-goal` directory.
+
+- [ ] **Step 1: Rename the managed skill**
+
+Move the skill directory:
+
+```bash
+mkdir -p roles/common/files/config/skills/pi/z-update-session-name
+mv \
+  roles/common/files/config/skills/pi/z-update-session-goal/SKILL.md \
+  roles/common/files/config/skills/pi/z-update-session-name/SKILL.md
+rmdir roles/common/files/config/skills/pi/z-update-session-goal
+```
+
+Replace the skill content with:
+
+```markdown
+---
+name: z-update-session-name
+description: Update the durable broad name and automatic identity of the current Pi session. User-invoked when the session theme changes.
+disable-model-invocation: true
+---
+
+# Update Session Name
+
+Update the current Pi session's durable broad name.
+
+- If arguments were supplied after the skill command, treat them as the requested theme.
+- If no arguments were supplied, infer the broad theme from the current conversation.
+- Normalize the result into one concise noun phrase targeting 40 characters or fewer, with no quotes or `name:` prefix.
+- Call `set_session_name({ name })` exactly once. Pass the phrase as `name`.
+- Report the applied name briefly.
+
+Do not edit Pi session files. Do not invoke tmux helpers or rename git branches directly. The `set_session_name` tool is the only mutation interface.
+```
+
+Do not retain a source alias at the old path.
+
+- [ ] **Step 2: Remove the obsolete deployed skill during provisioning**
+
+Before `Install Pi skills to ~/.pi/agent/skills` in `roles/common/tasks/main.yml`, add:
+
+```yaml
+- name: Remove obsolete Pi session goal skill
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.pi/agent/skills/z-update-session-goal'
+    state: absent
+```
+
+Keep the existing recursive Pi skill copy task unchanged.
+
+- [ ] **Step 3: Run source validation**
+
+Run:
+
+```bash
+ansible-playbook playbook.yml --syntax-check
+if test -e \
+  roles/common/files/config/skills/pi/z-update-session-goal; then
+  exit 1
+fi
+rg -F 'name: z-update-session-name' \
+  roles/common/files/config/skills/pi/z-update-session-name/SKILL.md
+rg -F 'set_session_name({ name })' \
+  roles/common/files/config/skills/pi/z-update-session-name/SKILL.md
+git diff --check
+```
+
+Expected: syntax validation succeeds, the old source path is absent, both searches print the new skill lines, and the diff check prints no errors.
+
+Do not add a static automated test for the skill text. The repository test policy requires behavioral protection for complex production behavior. Provisioning and deployed-state checks execute the production installation path and provide stronger evidence for this rename.
+
+- [ ] **Step 4: Provision and verify deployed state**
+
+Run:
+
+```bash
+bin/provision
+test ! -e "$HOME/.pi/agent/skills/z-update-session-goal"
+cmp \
+  roles/common/files/config/skills/pi/z-update-session-name/SKILL.md \
+  "$HOME/.pi/agent/skills/z-update-session-name/SKILL.md"
+```
+
+Expected: provisioning succeeds, the obsolete deployed directory is absent, and the new deployed skill matches its managed source.
+
+- [ ] **Step 5: Run final focused verification**
+
+Run:
+
+```bash
+bash tests/pi-managed-hooks.sh
+bash tests/tmux-agent-state.sh
+git diff --check
+git status --short
+```
+
+Expected: both test scripts exit 0, the diff check prints no errors, and only the planned skill rename and Ansible task are present before commit.
+
+- [ ] **Step 6: Commit the rename**
+
+Commit these paths with the repository commit workflow:
+
+```text
+roles/common/files/config/skills/pi/z-update-session-goal/SKILL.md
+roles/common/files/config/skills/pi/z-update-session-name/SKILL.md
+roles/common/tasks/main.yml
+```
+
+Use commit message: `Rename Pi session update skill`.
