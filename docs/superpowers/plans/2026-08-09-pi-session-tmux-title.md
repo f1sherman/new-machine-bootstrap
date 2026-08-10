@@ -243,11 +243,12 @@ Expected: no whitespace errors, no uncommitted implementation files, and separat
 
 **Files:**
 - Modify: `roles/common/files/pi/extensions/managed-hooks.ts`
+- Modify: `roles/common/files/config/skills/pi/z-update-session-goal/SKILL.md`
 - Test: `tests/pi-managed-hooks.sh`
 
 **Interfaces:**
-- Consumes: Pi `registerTool()` and the existing `applySessionName(pi, ctx, subject)` helper.
-- Produces: `set_session_name({ name: string })`, which returns `details: { name }` and publishes the validated live session name.
+- Consumes: Pi `registerTool()`, the existing `applySessionName(pi, ctx, subject)` helper, and the managed `z-update-session-goal` skill.
+- Produces: `set_session_name({ name: string })`, which returns `details: { name }` and publishes the validated live session name. The managed skill calls this interface exactly once.
 
 - [ ] **Step 1: Write a failing public-interface test**
 
@@ -318,6 +319,14 @@ pi.registerTool({
 
 Change the validation error in `applySessionName()` from `Session goal must` to `Session name must`. Keep internal automatic-generation helpers unchanged because they still generate a broad goal phrase for an unnamed session.
 
+Update `z-update-session-goal/SKILL.md` to call the new public interface:
+
+```markdown
+- Call `set_session_name({ name })` exactly once. Pass the phrase as `name`.
+```
+
+Change its final mutation-interface sentence to name `set_session_name`. Keep the skill name because "goal" describes its user-facing purpose, not separate storage.
+
 - [ ] **Step 4: Run focused verification**
 
 Run:
@@ -336,12 +345,15 @@ Run:
 
 ```bash
 if rg -n 'set_session_goal|Set Session Goal' \
-  roles/common/files/pi/extensions/managed-hooks.ts; then
+  roles/common/files/pi/extensions/managed-hooks.ts \
+  roles/common/files/config/skills/pi/z-update-session-goal/SKILL.md; then
   exit 1
 fi
+rg -F 'set_session_name({ name })' \
+  roles/common/files/config/skills/pi/z-update-session-goal/SKILL.md
 ```
 
-Expected: no matches and exit 0.
+Expected: the first search has no matches. The second search prints the skill instruction.
 
 - [ ] **Step 6: Commit the rename**
 
@@ -349,6 +361,7 @@ Commit these files with the repository commit workflow:
 
 ```text
 roles/common/files/pi/extensions/managed-hooks.ts
+roles/common/files/config/skills/pi/z-update-session-goal/SKILL.md
 tests/pi-managed-hooks.sh
 ```
 
@@ -363,6 +376,9 @@ bin/provision
 cmp \
   roles/common/files/pi/extensions/managed-hooks.ts \
   "$HOME/.pi/agent/extensions/managed-hooks.ts"
+cmp \
+  roles/common/files/config/skills/pi/z-update-session-goal/SKILL.md \
+  "$HOME/.pi/agent/skills/z-update-session-goal/SKILL.md"
 ```
 
-Expected: provisioning succeeds and `cmp` exits 0.
+Expected: provisioning succeeds and both `cmp` commands exit 0.
