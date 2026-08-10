@@ -693,6 +693,12 @@
     dest: '{{ ansible_facts["user_dir"] }}/.local/lib/agent-session-registry/adapters/pi-local'
     mode: 0755
 
+- name: Install Pi session completion helper
+  copy:
+    src: '{{ playbook_dir }}/roles/common/files/bin/pi-session-done'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/pi-session-done'
+    mode: 0755
+
 - name: Configure Claude Code vim mode in ~/.claude.json
   shell: |
     python3 -c '

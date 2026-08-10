@@ -8,8 +8,10 @@ disable-model-invocation: true
 
 Run this only because the user explicitly requested that the current session be marked done.
 
-1. Confirm `PI_SESSION_FILE` and `PI_SESSION_ID` are non-empty.
-2. Run `asr done --source pi --session-id "$PI_SESSION_ID"` exactly once.
-3. Report the session ID that was marked done.
+1. Run `pi-session-done` exactly once.
+2. Report the helper result. Do not run `asr done` separately.
 
-Do not accept or substitute another session ID. Do not infer completion from task success, verification, pull-request state, shutdown, inactivity, or goodbye wording.
+The helper requires the current `PI_SESSION_FILE` and `PI_SESSION_ID`. Do not
+accept or substitute another session ID. Do not infer completion from task
+success, verification, pull-request state, shutdown, inactivity, or goodbye
+wording.
