@@ -27,7 +27,8 @@ const worktreeRoot = process.env.PI_HOOK_TEST_WORKTREE;
 const handlers = new Map();
 const calls = [];
 const sessionNames = [];
-let goalTool;
+const registeredToolNames = [];
+let sessionNameTool;
 let currentSessionName = "";
 let activeSessionFile = "/sessions/current.jsonl";
 let branch = "main";
@@ -92,7 +93,8 @@ const pi = {
     handlers.set(event, handler);
   },
   registerTool(definition) {
-    if (definition.name === "set_session_goal") goalTool = definition;
+    registeredToolNames.push(definition.name);
+    if (definition.name === "set_session_name") sessionNameTool = definition;
   },
   setSessionName(name) {
     currentSessionName = name;
@@ -194,14 +196,17 @@ assert.deepEqual(publishedIdentity, {
   subject: "restored session name",
 }, "same-pane resume publishes the restored Pi session name");
 
-await withStdoutTTY(() => goalTool.execute(
+const renameResult = await withStdoutTTY(() => sessionNameTool.execute(
   "rename-session",
-  { goal: "new broad name" },
+  { name: "new broad name" },
   ctx.signal,
   undefined,
   ctx,
 ));
 assert.equal(currentSessionName, "new broad name");
+assert.deepEqual(renameResult.details, { name: "new broad name" });
+assert.equal(registeredToolNames.includes("set_session_goal"), false,
+  "the extension does not register the old goal tool alias");
 assert.deepEqual(publishedIdentity, {
   source: "manual",
   subject: "new broad name",

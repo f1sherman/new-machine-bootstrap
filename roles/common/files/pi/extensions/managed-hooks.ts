@@ -937,7 +937,7 @@ export default function managedHooks(pi) {
       const normalized = normalizeSessionGoalSubject(subject);
       if (!normalized) {
         throw new Error(
-          "Session goal must be one line, unquoted, and at most 80 characters.",
+          "Session name must be one line, unquoted, and at most 80 characters.",
         );
       }
       if (options.onlyIfUnnamed
@@ -1003,20 +1003,23 @@ export default function managedHooks(pi) {
   }
 
   pi.registerTool({
-    name: "set_session_goal",
-    label: "Set Session Goal",
-    description: "Set the durable broad goal and automatic identity for the current Pi session. Call only when the user's overall objective materially changes. Keep the existing goal during implementation phases, debugging steps, testing, deployment, PR work, and other subtasks. Prefer at most 40 characters.",
+    name: "set_session_name",
+    label: "Set Session Name",
+    description: "Set the durable broad name and automatic identity for the current Pi session. Call only when the user's overall objective materially changes. Keep the existing name during implementation phases, debugging steps, testing, deployment, PR work, and other subtasks. Prefer at most 40 characters.",
     parameters: {
       type: "object",
       properties: {
-        goal: { type: "string", description: "Concise broad session goal that describes the overall objective, not the current step; prefer at most 40 characters (maximum 80)" },
+        name: { type: "string", description: "Concise broad session name that describes the overall objective, not the current step; prefer at most 40 characters (maximum 80)" },
       },
-      required: ["goal"],
+      required: ["name"],
       additionalProperties: false,
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const goal = await applySessionName(pi, ctx, params.goal);
-      return { content: [{ type: "text", text: `Session goal set to: ${goal}` }], details: { goal } };
+      const name = await applySessionName(pi, ctx, params.name);
+      return {
+        content: [{ type: "text", text: `Session name set to: ${name}` }],
+        details: { name },
+      };
     },
   });
 
