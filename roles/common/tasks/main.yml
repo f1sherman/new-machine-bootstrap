@@ -2452,6 +2452,11 @@
     dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/_commit/commit.sh'
     mode: '0755'
 
+- name: Remove obsolete Pi session goal skill
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.pi/agent/skills/z-update-session-goal'
+    state: absent
+
 - name: Install Pi skills to ~/.pi/agent/skills
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/pi/'
