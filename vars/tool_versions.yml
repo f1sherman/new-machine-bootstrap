@@ -28,6 +28,8 @@ tool_versions:
     # renovate: datasource=github-releases depName=jdx/mise
     mise: v2026.8.1
     aube: 1.19.0
+    # renovate: datasource=github-releases depName=herdrdev/herdr
+    herdr: 0.8.0
     # renovate: datasource=node-version depName=node
     node: 24.19.0
     ruby: 4.0.2
