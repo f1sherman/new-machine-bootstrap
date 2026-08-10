@@ -1,0 +1,33 @@
+#!/usr/bin/env ruby
+
+abort "pi-session-done accepts no arguments" unless ARGV.empty?
+
+session_file = ENV.fetch("PI_SESSION_FILE", "").strip
+abort "PI_SESSION_FILE is required" if session_file.empty?
+
+session_id = ENV.fetch("PI_SESSION_ID", "").strip
+abort "PI_SESSION_ID is required" if session_id.empty?
+
+sync_socket_present = !ENV.fetch("ASR_SYNC_SOCKET", "").strip.empty?
+success = system(
+  "asr",
+  "done",
+  "--source", "pi",
+  "--session-id", session_id
+)
+
+if success
+  if sync_socket_present
+    puts "Marked source and laptop session #{session_id} done."
+  else
+    puts "Marked source session #{session_id} done."
+  end
+  exit 0
+end
+
+if sync_socket_present
+  puts "Source session #{session_id} is done, but laptop synchronization failed."
+else
+  warn "Could not mark source session #{session_id} done."
+end
+exit 1
