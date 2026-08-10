@@ -904,6 +904,7 @@ export default function managedHooks(pi) {
   let sessionGoalGeneration = 0;
   let sessionGoalRunning;
   let nameOperationChain = Promise.resolve();
+  let registryPublicationChain = Promise.resolve();
 
   function requestIsCurrent(request, ctx) {
     const sessionFile = ctx?.sessionManager?.getSessionFile?.() || "";
@@ -914,6 +915,53 @@ export default function managedHooks(pi) {
     const result = nameOperationChain.then(operation);
     nameOperationChain = result.catch(() => {});
     return result;
+  }
+
+  function serializeRegistryPublication(operation) {
+    const result = registryPublicationChain.then(operation);
+    registryPublicationChain = result.catch(() => {});
+    return result;
+  }
+
+  function registrySession(ctx) {
+    const sessionId = ctx?.sessionManager?.getSessionId?.()?.trim() || "";
+    const sessionFile = ctx?.sessionManager?.getSessionFile?.()?.trim() || "";
+    if (!sessionId || !sessionFile) return undefined;
+    return { sessionId, sessionFile };
+  }
+
+  async function runRegistryCommand(pi, args) {
+    try {
+      const result = await pi.exec("asr", args, { timeout: COMMAND_TIMEOUT_MS });
+      if (result.code === 0 && !result.killed) return true;
+      warn(`asr ${args[0]} failed`, result.stderr || `exit ${result.code}`);
+    } catch (error) {
+      warn(`asr ${args[0]} failed`, error);
+    }
+    return false;
+  }
+
+  function registerSession(pi, ctx) {
+    const session = registrySession(ctx);
+    if (!session) return Promise.resolve(false);
+    const name = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
+    const cwd = ctx?.cwd || "";
+    return serializeRegistryPublication(() => runRegistryCommand(pi, [
+      "register", "--source", "pi", "--session-id", session.sessionId,
+      "--local", "--status", "active",
+      "--name", name, "--cwd", cwd,
+      "--adapter", "pi-local",
+      "--adapter-config", JSON.stringify({ session_file: session.sessionFile }),
+    ]));
+  }
+
+  function updateSessionName(pi, ctx, name) {
+    const session = registrySession(ctx);
+    if (!session) return Promise.resolve(false);
+    return serializeRegistryPublication(() => runRegistryCommand(pi, [
+      "update", "--source", "pi", "--session-id", session.sessionId,
+      "--name", name,
+    ]));
   }
 
   async function publishCurrentSessionName(pi, ctx, expectedName) {
@@ -1025,6 +1073,7 @@ export default function managedHooks(pi) {
 
   pi.on("session_start", async (_event, ctx) => {
     resetSessionGoalLifecycle(ctx);
+    void registerSession(pi, ctx);
     await syncTmuxSubjectFromSession(pi, ctx);
     if (ownsTmuxPane()) {
       await refreshTmuxLabels(pi);
@@ -1041,6 +1090,7 @@ export default function managedHooks(pi) {
   pi.on("session_info_changed", async (event, ctx) => {
     invalidateInitialSessionGoal();
     const eventName = event.name?.trim() || "";
+    void updateSessionName(pi, ctx, eventName);
     renderSessionFooter(ctx, eventName);
     await serializeNameOperation(() => synchronizeCurrentSessionName(
       pi,

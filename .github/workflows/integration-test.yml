@@ -87,6 +87,9 @@ jobs:
       - name: Verify pi managed hooks
         run: bash tests/pi-managed-hooks.sh
 
+      - name: Verify Pi session registry adapter
+        run: ruby tests/pi-session-registry-adapter.rb
+
       - name: Verify stale per-Node Pi purge
         run: bash tests/purge-legacy-pi-coding-agent.sh
 
