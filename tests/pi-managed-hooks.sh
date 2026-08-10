@@ -276,7 +276,7 @@ let doneToolCallSettled = false;
 const doneToolCall = handlers.get("tool_call")({
   toolName: "bash",
   input: {
-    command: 'asr done --source pi --session-id "$PI_SESSION_ID"',
+    command: "pi-session-done",
   },
 }, ctx).then(() => {
   doneToolCallSettled = true;
