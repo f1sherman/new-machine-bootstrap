@@ -23,7 +23,7 @@ The term "goal" remains an instruction for choosing a broad, stable session name
 ## Behavior
 
 - Automatic goal generation sets the Pi session name when the session has no name.
-- `set_session_goal` sets the Pi session name.
+- `set_session_name` sets the Pi session name through a `name` parameter.
 - `/name` sets the same Pi session name through Pi's built-in behavior.
 - The most recent setter wins.
 - On interactive session start, resume, reload, fork, and tree navigation, the extension publishes the current Pi session name to the owning tmux pane.
@@ -36,7 +36,7 @@ The term "goal" remains an instruction for choosing a broad, stable session name
 
 Remove the managed `session-goal` custom entry, separate goal footer status, goal restoration, and name-versus-goal reconciliation logic from `managed-hooks.ts`.
 
-Keep the `set_session_goal` tool because its semantic guidance tells the agent when to rename the session. Its implementation will validate the requested phrase and call `pi.setSessionName()`.
+Replace `set_session_goal({ goal })` with `set_session_name({ name })`. Do not keep a compatibility alias. The tool description will continue to tell the agent to use a broad, stable name that describes the session goal. Its implementation will validate the requested phrase and call `pi.setSessionName()`.
 
 Use one serialized tmux publication path. It will read the current live session name, verify that the process owns the tmux pane, and publish the name as a manual persistent identity. Publication will use `tmux-agent-state set-identity`, which already refreshes pane labels, window labels, indicators, and remote title state.
 
@@ -53,7 +53,7 @@ Serialized publication and live-name checks will prevent an older asynchronous o
 Add focused behavioral coverage to `tests/pi-managed-hooks.sh` for:
 
 - Automatic goal generation setting the session name without a custom goal entry.
-- `set_session_goal` changing the session name.
+- `set_session_name` changing the session name through its `name` parameter.
 - `/name`-style `session_info_changed` publication.
 - Same-pane resume publishing the restored session name.
 - A later name change replacing the earlier title.
