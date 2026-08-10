@@ -24,7 +24,7 @@ The term "goal" remains an instruction for choosing a broad, stable session name
 
 - Automatic goal generation sets the Pi session name when the session has no name.
 - `set_session_name` sets the Pi session name through a `name` parameter.
-- The existing `z-update-session-goal` skill calls `set_session_name({ name })`.
+- The `z-update-session-name` skill calls `set_session_name({ name })`.
 - `/name` sets the same Pi session name through Pi's built-in behavior.
 - The most recent setter wins.
 - On interactive session start, resume, reload, fork, and tree navigation, the extension publishes the current Pi session name to the owning tmux pane.
@@ -37,7 +37,7 @@ The term "goal" remains an instruction for choosing a broad, stable session name
 
 Remove the managed `session-goal` custom entry, separate goal footer status, goal restoration, and name-versus-goal reconciliation logic from `managed-hooks.ts`.
 
-Replace `set_session_goal({ goal })` with `set_session_name({ name })`. Do not keep a compatibility alias. Update the managed `z-update-session-goal` skill to use the new tool and parameter. Keep the skill name because "goal" describes when the user invokes it, not a separate stored value. The tool description will continue to tell the agent to use a broad, stable name that describes the session goal. Its implementation will validate the requested phrase and call `pi.setSessionName()`.
+Replace `set_session_goal({ goal })` with `set_session_name({ name })`. Do not keep a compatibility alias. Rename the managed `z-update-session-goal` skill to `z-update-session-name`, and update it to use the new tool and parameter. Do not keep a skill alias. Provisioning will remove the old deployed skill directory because Ansible's recursive copy does not remove source directories that were renamed. The tool and skill descriptions will continue to tell the agent to use a broad, stable name that describes the session goal. The tool implementation will validate the requested phrase and call `pi.setSessionName()`.
 
 Use one serialized tmux publication path. It will read the current live session name, verify that the process owns the tmux pane, and publish the name as a manual persistent identity. Publication will use `tmux-agent-state set-identity`, which already refreshes pane labels, window labels, indicators, and remote title state.
 
@@ -61,7 +61,7 @@ Add focused behavioral coverage to `tests/pi-managed-hooks.sh` for:
 - Unnamed sessions preserving tmux fallback state.
 - Non-interactive Pi processes not changing tmux state.
 
-Run the focused managed-hooks test, the relevant tmux state test, and `bin/provision`. Verify that the managed and deployed `z-update-session-goal` skill calls only `set_session_name({ name })`. Confirm in a live tmux pane that a resumed named Pi session changes the tab title to its restored session name.
+Run the focused managed-hooks test, the relevant tmux state test, and `bin/provision`. Verify that the managed and deployed `z-update-session-name` skill calls only `set_session_name({ name })`. Verify that the old deployed `z-update-session-goal` directory is absent. Confirm in a live tmux pane that a resumed named Pi session changes the tab title to its restored session name.
 
 ## Scope
 
