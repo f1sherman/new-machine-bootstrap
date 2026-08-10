@@ -42,7 +42,8 @@ Dir.mktmpdir("pi-session-done") do |tmpdir|
     "ASR_CALL_CAPTURE" => capture_path,
     "PI_SESSION_FILE" => "/home/brian/.pi/agent/sessions/project/session.jsonl",
     "PI_SESSION_ID" => "session-1",
-    "FAKE_ASR_EXIT" => "0"
+    "FAKE_ASR_EXIT" => "0",
+    "ASR_SYNC_SOCKET" => nil
   }
 
   run_helper = lambda do |env = {}, *arguments|
