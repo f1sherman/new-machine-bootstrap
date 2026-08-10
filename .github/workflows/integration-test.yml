@@ -90,6 +90,9 @@ jobs:
       - name: Verify Pi session registry adapter
         run: ruby tests/pi-session-registry-adapter.rb
 
+      - name: Verify Pi session completion
+        run: ruby tests/pi-session-done.rb
+
       - name: Verify stale per-Node Pi purge
         run: bash tests/purge-legacy-pi-coding-agent.sh
 
