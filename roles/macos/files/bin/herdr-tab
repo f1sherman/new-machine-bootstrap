@@ -1,0 +1,59 @@
+#!/bin/bash
+set -euo pipefail
+
+launcher="$HOME/.local/bin/herdr-launch"
+
+if [[ ! -x "$launcher" ]]; then
+  echo "Herdr launcher is not installed: $launcher" >&2
+  exit 1
+fi
+
+ghostty_pid="${GHOSTTY_APP_PID:-}"
+if [[ -z "$ghostty_pid" && -n "${TMUX:-}" ]]; then
+  ghostty_pid="$(tmux display-message -p '#{client_pid}')"
+else
+  ghostty_pid="${ghostty_pid:-$PPID}"
+fi
+
+while [[ "$ghostty_pid" =~ ^[0-9]+$ && "$ghostty_pid" -gt 1 ]]; do
+  process_command="$(ps -p "$ghostty_pid" -o command=)"
+  if [[ "$process_command" == */Ghostty.app/Contents/MacOS/ghostty* ]]; then
+    break
+  fi
+  ghostty_pid="$(ps -p "$ghostty_pid" -o ppid= | tr -d ' ')"
+done
+
+if [[ ! "$ghostty_pid" =~ ^[0-9]+$ || "$ghostty_pid" -le 1 ]]; then
+  echo "Cannot find the Ghostty process for this terminal." >&2
+  exit 1
+fi
+
+exec osascript -l JavaScript - "$ghostty_pid" "$launcher" <<'JXA'
+function run(argv) {
+  const ghostty = Application(Number(argv[0]));
+  const windows = ghostty.windows();
+
+  if (windows.length === 0) {
+    throw new Error("Ghostty has no windows");
+  }
+
+  let targetWindow;
+  try {
+    targetWindow = ghostty.frontWindow();
+  } catch (_) {
+    targetWindow = windows[0];
+  }
+  if (!targetWindow || !targetWindow.exists()) {
+    targetWindow = windows[0];
+  }
+
+  const configuration = ghostty.newSurfaceConfiguration();
+  configuration.command = argv[1];
+  const tab = ghostty.newTab({
+    in: targetWindow,
+    withConfiguration: configuration,
+  });
+  ghostty.selectTab(tab);
+  ghostty.activateWindow(targetWindow);
+}
+JXA
