@@ -13,7 +13,6 @@ const SUBJECT_MAX_LENGTH = 80;
 const SESSION_GOAL_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase of at most 40 characters describing the new session's broad goal. Output only the phrase on one line, without quotes, a goal: prefix, or explanation.";
 const SESSION_GOAL_MAX_LENGTH = 80;
 const SESSION_NAME_STATUS_KEY = "sm";
-const SESSION_DONE_COMMAND = "pi-session-done";
 const REPO_START_TRIGGERS = /(^|\s)(?:z-fix|z-spec-first|z-quick-pr|superpowers:systematic-debugging|superpowers:brainstorming)(?=\s|$)/i;
 const SHELL_TOKEN = "[^\\s;&|()]+";
 const GIT_PREAMBLE = "(^|[;&|()])\\s*(?:(?:(?:if|then|do|elif|while|until)\\s+|!\\s+)*)((?:(?:[A-Za-z_][A-Za-z0-9_]*)=\\S+\\s+|command\\s+|env\\s+|sudo(?:\\s+-\\S+)*\\s+|time(?:\\s+-\\S+)*\\s+)*)git(?:\\s+-\\S+(?:\\s+\\S+)*)*\\s+";
@@ -1088,6 +1087,51 @@ export default function managedHooks(pi) {
     },
   });
 
+  pi.registerTool({
+    name: "done_session",
+    label: "Complete and Quit Session",
+    description: "Mark the current persistent Pi session done and quit. Use only after the user explicitly asks.",
+    parameters: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    async execute(_toolCallId, _params, signal, _onUpdate, ctx) {
+      const session = registrySession(ctx);
+      if (!session) {
+        throw new Error("The current Pi session is not persistent.");
+      }
+
+      await registryPublicationChain;
+
+      let result;
+      try {
+        result = await pi.exec("/usr/bin/env", [
+          `PI_SESSION_ID=${session.sessionId}`,
+          `PI_SESSION_FILE=${session.sessionFile}`,
+          "pi-session-done",
+        ], { timeout: COMMAND_TIMEOUT_MS, signal });
+      } catch (error) {
+        throw new Error(`Could not complete the current Pi session: ${String(error)}`);
+      }
+
+      const detail = (result.stdout || result.stderr || "").trim();
+      if (result.killed) {
+        throw new Error(detail || "Session completion was cancelled.");
+      }
+      if (result.code !== 0) {
+        throw new Error(detail || `Session completion failed with status ${result.code}.`);
+      }
+
+      ctx.shutdown();
+      return {
+        content: [{ type: "text", text: detail || "Session marked done. Shutting down." }],
+        details: { status: 0, sessionId: session.sessionId },
+        terminate: true,
+      };
+    },
+  });
+
   pi.on("session_start", async (_event, ctx) => {
     resetSessionGoalLifecycle(ctx);
     void registerSession(pi, ctx);
@@ -1159,7 +1203,6 @@ export default function managedHooks(pi) {
       const command = event.input.command || "";
       const reason = await bashCommandBlockReason(pi, command, ctx.cwd);
       if (reason) return { block: true, reason };
-      if (command.trim() === SESSION_DONE_COMMAND) await registryPublicationChain;
       return;
     }
 
