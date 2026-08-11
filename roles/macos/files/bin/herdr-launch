@@ -1,0 +1,12 @@
+#!/bin/bash
+set -euo pipefail
+
+mise_bin="${MISE_BIN:-$HOME/.local/bin/mise}"
+herdr_version="$($mise_bin latest --installed herdr)"
+
+if [[ -z "$herdr_version" ]]; then
+  echo "Herdr is not installed through mise." >&2
+  exit 1
+fi
+
+exec "$mise_bin" exec "herdr@$herdr_version" -- herdr "$@"
