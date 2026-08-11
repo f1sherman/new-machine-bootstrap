@@ -702,6 +702,7 @@
   when:
     - herdr_keys_changed
     - not ansible_check_mode
+    - herdr_server_status.rc == 0
     - (herdr_server_status.stdout | from_json).running | bool
 
 - name: Check if herdr-mirror plugin is installed
