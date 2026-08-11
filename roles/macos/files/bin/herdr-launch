@@ -2,7 +2,7 @@
 set -euo pipefail
 
 mise_bin="${MISE_BIN:-$HOME/.local/bin/mise}"
-herdr_version="$($mise_bin latest --installed herdr)"
+herdr_version="$("$mise_bin" latest --installed herdr)"
 
 if [[ -z "$herdr_version" ]]; then
   echo "Herdr is not installed through mise." >&2
