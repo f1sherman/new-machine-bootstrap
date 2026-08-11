@@ -587,31 +587,95 @@
   command: "{{ mise_bin }} install herdr@{{ tool_versions.runtimes.herdr }}"
   when: herdr_installed.rc != 0
 
-- name: Align Herdr navigation keys with tmux
+- name: Check for existing Herdr configuration
+  stat:
+    path: "{{ ansible_facts['user_dir'] }}/.config/herdr/config.toml"
+  register: herdr_config
+
+- name: Remove obsolete Herdr keys block before table migration
   blockinfile:
     path: "{{ ansible_facts['user_dir'] }}/.config/herdr/config.toml"
     marker: "# {mark} ANSIBLE MANAGED BLOCK - HERDR KEYS"
+    state: absent
+  register: herdr_keys_migration
+  when: herdr_config.stat.exists
+
+- name: Read existing Herdr configuration
+  slurp:
+    path: "{{ ansible_facts['user_dir'] }}/.config/herdr/config.toml"
+  register: herdr_config_content
+  when: herdr_config.stat.exists
+
+- name: Detect an existing Herdr keys table
+  set_fact:
+    herdr_keys_table_exists: >-
+      {{
+        (
+          herdr_config_content.content | b64decode
+          if herdr_config.stat.exists
+          else ''
+        )
+        is regex('(?m)^\[keys\]\s*(?:#.*)?$')
+      }}
+
+- name: Create Herdr keys table
+  lineinfile:
+    path: "{{ ansible_facts['user_dir'] }}/.config/herdr/config.toml"
+    line: '[keys]'
     insertbefore: BOF
     create: true
     mode: '0644'
-    block: |
-      [keys]
-      workspace_picker = ["prefix+w", "alt+8"]
-      goto = ["prefix+g", "alt+w"]
-      previous_workspace = "alt+9"
-      next_workspace = "alt+0"
-      new_tab = ["prefix+c", "alt+t"]
-      previous_tab = ["prefix+p", "alt+p"]
-      next_tab = ["prefix+n", "alt+n"]
-      copy_mode = ["prefix+[", "alt+y"]
-      focus_pane_left = ["prefix+h", "ctrl+h"]
-      focus_pane_down = ["prefix+j", "ctrl+j"]
-      focus_pane_up = ["prefix+k", "ctrl+k"]
-      focus_pane_right = ["prefix+l", "ctrl+l"]
-      last_pane = "ctrl+\\"
-      split_vertical = ["prefix+v", "alt+\\"]
-      split_horizontal = ["prefix+minus", "alt+minus"]
+  register: herdr_keys_table
+  when: not herdr_keys_table_exists
+
+- name: Align Herdr navigation keys with tmux
+  lineinfile:
+    path: "{{ ansible_facts['user_dir'] }}/.config/herdr/config.toml"
+    regexp: '^{{ item.key }}\s*='
+    line: '{{ item.key }} = {{ item.value }}'
+    insertafter: '^\[keys\]\s*(?:#.*)?$'
+    mode: '0644'
+  loop:
+    - key: workspace_picker
+      value: '["prefix+w", "alt+8"]'
+    - key: goto
+      value: '["prefix+g", "alt+w"]'
+    - key: previous_workspace
+      value: '"alt+9"'
+    - key: next_workspace
+      value: '"alt+0"'
+    - key: new_tab
+      value: '["prefix+c", "alt+t"]'
+    - key: previous_tab
+      value: '["prefix+p", "alt+p"]'
+    - key: next_tab
+      value: '["prefix+n", "alt+n"]'
+    - key: copy_mode
+      value: '["prefix+[", "alt+y"]'
+    - key: focus_pane_left
+      value: '["prefix+h", "ctrl+h"]'
+    - key: focus_pane_down
+      value: '["prefix+j", "ctrl+j"]'
+    - key: focus_pane_up
+      value: '["prefix+k", "ctrl+k"]'
+    - key: focus_pane_right
+      value: '["prefix+l", "ctrl+l"]'
+    - key: last_pane
+      value: '"ctrl+\\"'
+    - key: split_vertical
+      value: '["prefix+v", "alt+\\"]'
+    - key: split_horizontal
+      value: '["prefix+minus", "alt+minus"]'
   register: herdr_keys
+
+- name: Record Herdr key changes
+  set_fact:
+    herdr_keys_changed: >-
+      {{
+        herdr_keys_migration.changed | default(false)
+        or herdr_keys_table.changed | default(false)
+        or herdr_keys.changed | default(false)
+      }}
 
 - name: Validate Herdr configuration
   command: >-
@@ -627,7 +691,7 @@
   changed_when: false
   failed_when: false
   when:
-    - herdr_keys.changed
+    - herdr_keys_changed
     - not ansible_check_mode
 
 - name: Reload Herdr configuration
@@ -635,7 +699,7 @@
     {{ mise_bin }} exec herdr@{{ tool_versions.runtimes.herdr }} --
     herdr server reload-config
   when:
-    - herdr_keys.changed
+    - herdr_keys_changed
     - not ansible_check_mode
     - herdr_server_status.rc == 0
 
