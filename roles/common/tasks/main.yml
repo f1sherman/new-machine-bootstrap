@@ -556,7 +556,7 @@
   changed_when: false
   when: ansible_facts["os_family"] == "Debian"
 
-- name: Ensure machine-wide mise and aube config directories exist
+- name: Ensure machine-wide tool config directories exist
   file:
     path: "{{ ansible_facts['user_dir'] }}/{{ item }}"
     state: directory
@@ -564,6 +564,7 @@
   loop:
     - .config/mise
     - .config/aube
+    - .config/herdr
 
 - name: Install machine-wide mise and aube configuration
   template:
@@ -585,6 +586,58 @@
 - name: Install herdr via mise
   command: "{{ mise_bin }} install herdr@{{ tool_versions.runtimes.herdr }}"
   when: herdr_installed.rc != 0
+
+- name: Align Herdr navigation keys with tmux
+  blockinfile:
+    path: "{{ ansible_facts['user_dir'] }}/.config/herdr/config.toml"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - HERDR KEYS"
+    insertbefore: BOF
+    create: true
+    mode: '0644'
+    block: |
+      [keys]
+      workspace_picker = ["prefix+w", "alt+8"]
+      goto = ["prefix+g", "alt+w"]
+      previous_workspace = "alt+9"
+      next_workspace = "alt+0"
+      new_tab = ["prefix+c", "alt+t"]
+      previous_tab = ["prefix+p", "alt+p"]
+      next_tab = ["prefix+n", "alt+n"]
+      copy_mode = ["prefix+[", "alt+y"]
+      focus_pane_left = ["prefix+h", "ctrl+h"]
+      focus_pane_down = ["prefix+j", "ctrl+j"]
+      focus_pane_up = ["prefix+k", "ctrl+k"]
+      focus_pane_right = ["prefix+l", "ctrl+l"]
+      last_pane = "ctrl+\\"
+      split_vertical = ["prefix+v", "alt+\\"]
+      split_horizontal = ["prefix+minus", "alt+minus"]
+  register: herdr_keys
+
+- name: Validate Herdr configuration
+  command: >-
+    {{ mise_bin }} exec herdr@{{ tool_versions.runtimes.herdr }} --
+    herdr config check
+  changed_when: false
+
+- name: Check if Herdr server is running after key changes
+  command: >-
+    {{ mise_bin }} exec herdr@{{ tool_versions.runtimes.herdr }} --
+    herdr status server
+  register: herdr_server_status
+  changed_when: false
+  failed_when: false
+  when:
+    - herdr_keys.changed
+    - not ansible_check_mode
+
+- name: Reload Herdr configuration
+  command: >-
+    {{ mise_bin }} exec herdr@{{ tool_versions.runtimes.herdr }} --
+    herdr server reload-config
+  when:
+    - herdr_keys.changed
+    - not ansible_check_mode
+    - herdr_server_status.rc == 0
 
 - name: Check if herdr-mirror plugin is installed
   shell: |
