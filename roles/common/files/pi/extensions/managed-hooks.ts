@@ -1115,7 +1115,10 @@ export default function managedHooks(pi) {
         throw new Error(`Could not complete the current Pi session: ${String(error)}`);
       }
 
-      const detail = (result.stdout || result.stderr || "").trim();
+      const detail = [result.stdout, result.stderr]
+        .map((stream) => stream?.trim())
+        .filter(Boolean)
+        .join("\n");
       if (result.killed) {
         throw new Error(detail || "Session completion was cancelled.");
       }

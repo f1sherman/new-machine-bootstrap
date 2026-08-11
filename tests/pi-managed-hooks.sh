@@ -327,7 +327,12 @@ assert.equal(shutdownCalls, 1,
   "successful completion requests graceful shutdown once");
 assert.equal(doneResult.terminate, true,
   "successful completion stops the follow-up model turn");
-assert.deepEqual(calls.find((call) => call.command === "/usr/bin/env"), {
+const sessionDoneCalls = calls.filter((call) => (
+  call.command === "/usr/bin/env" && call.args.at(-1) === "pi-session-done"
+));
+assert.equal(sessionDoneCalls.length, 1,
+  "done_session invokes the completion helper exactly once");
+assert.deepEqual(sessionDoneCalls[0], {
   command: "/usr/bin/env",
   args: [
     `PI_SESSION_ID=${activeSessionId}`,
@@ -339,13 +344,17 @@ assert.deepEqual(calls.find((call) => call.command === "/usr/bin/env"), {
 shutdownCalls = 0;
 sessionDoneResultQueue.push({
   stdout: "Source session is done, but laptop synchronization failed.\n",
-  stderr: "",
+  stderr: "ASR synchronization failed after helper completion.\n",
   code: 3,
   killed: false,
 });
 await assert.rejects(
   doneSessionTool.execute("done-sync-failed", {}, ctx.signal, undefined, ctx),
-  /laptop synchronization failed/,
+  (error) => {
+    assert.match(error.message, /laptop synchronization failed/);
+    assert.match(error.message, /ASR synchronization failed/);
+    return true;
+  },
 );
 assert.equal(shutdownCalls, 0,
   "synchronization failure keeps Pi open");
