@@ -615,7 +615,7 @@
           if herdr_config.stat.exists
           else ''
         )
-        is regex('(?m)^\[keys\]\s*(?:#.*)?$')
+        is regex('(?m)^\[\s*keys\s*\]\s*(?:#.*)?$')
       }}
 
 - name: Create Herdr keys table
@@ -633,7 +633,7 @@
     path: "{{ ansible_facts['user_dir'] }}/.config/herdr/config.toml"
     regexp: '^{{ item.key }}\s*='
     line: '{{ item.key }} = {{ item.value }}'
-    insertafter: '^\[keys\]\s*(?:#.*)?$'
+    insertafter: '^\[\s*keys\s*\]\s*(?:#.*)?$'
     create: true
     mode: '0644'
   loop:
