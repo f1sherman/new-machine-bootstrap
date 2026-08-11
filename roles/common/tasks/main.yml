@@ -634,6 +634,7 @@
     regexp: '^{{ item.key }}\s*='
     line: '{{ item.key }} = {{ item.value }}'
     insertafter: '^\[keys\]\s*(?:#.*)?$'
+    create: true
     mode: '0644'
   loop:
     - key: workspace_picker
