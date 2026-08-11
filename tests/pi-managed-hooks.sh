@@ -29,6 +29,9 @@ const calls = [];
 const sessionNames = [];
 const registeredToolNames = [];
 let sessionNameTool;
+let doneSessionTool;
+let shutdownCalls = 0;
+let sessionDoneResultQueue = [];
 let currentSessionName = "";
 let activeSessionFile = "/sessions/current.jsonl";
 let activeSessionId = "019fe7a6-a219-7548-a6ef-1f23885864f4";
@@ -97,6 +100,7 @@ const pi = {
   registerTool(definition) {
     registeredToolNames.push(definition.name);
     if (definition.name === "set_session_name") sessionNameTool = definition;
+    if (definition.name === "done_session") doneSessionTool = definition;
   },
   setSessionName(name) {
     currentSessionName = name;
@@ -104,6 +108,12 @@ const pi = {
   },
   async exec(command, args, options = {}) {
     calls.push({ command, args });
+    if (command === "/usr/bin/env" && args.at(-1) === "pi-session-done") {
+      const queued = sessionDoneResultQueue.shift();
+      if (queued instanceof Error) throw queued;
+      if (queued?.promise) return queued.promise;
+      return queued || ok();
+    }
     if (command === "asr") {
       const queued = asrResultQueue.shift();
       if (queued instanceof Error) throw queued;
@@ -162,6 +172,9 @@ const pi = {
 const ctx = {
   cwd: "/repo",
   signal: new AbortController().signal,
+  shutdown() {
+    shutdownCalls += 1;
+  },
   ui: {
     theme: { fg(_color, value) { return value; } },
     setStatus() {},
@@ -272,22 +285,76 @@ const delayedRegistrationBeforeDone = deferred();
 asrResultQueue.push(delayedRegistrationBeforeDone);
 await handlers.get("session_start")({}, ctx);
 await flushAsyncWork();
-let doneToolCallSettled = false;
-const doneToolCall = handlers.get("tool_call")({
-  toolName: "bash",
-  input: {
-    command: "pi-session-done",
-  },
-}, ctx).then(() => {
-  doneToolCallSettled = true;
+sessionDoneResultQueue.push(ok("Marked source session current done.\n"));
+let doneSettled = false;
+const doneResultPromise = doneSessionTool.execute(
+  "done-session",
+  {},
+  ctx.signal,
+  undefined,
+  ctx,
+).then((result) => {
+  doneSettled = true;
+  return result;
 });
 await flushAsyncWork();
-assert.equal(doneToolCallSettled, false,
-  "explicit session completion waits for pending registry registration");
+assert.equal(doneSettled, false,
+  "done_session waits for pending registry registration");
 delayedRegistrationBeforeDone.resolve(ok());
-await doneToolCall;
-assert.equal(doneToolCallSettled, true,
-  "explicit session completion continues after registry registration");
+const doneResult = await doneResultPromise;
+assert.equal(shutdownCalls, 1,
+  "successful completion requests graceful shutdown once");
+assert.equal(doneResult.terminate, true,
+  "successful completion stops the follow-up model turn");
+assert.deepEqual(calls.find((call) => call.command === "/usr/bin/env"), {
+  command: "/usr/bin/env",
+  args: [
+    `PI_SESSION_ID=${activeSessionId}`,
+    `PI_SESSION_FILE=${activeSessionFile}`,
+    "pi-session-done",
+  ],
+}, "done_session passes the current identity without a shell");
+
+shutdownCalls = 0;
+sessionDoneResultQueue.push({
+  stdout: "Source session is done, but laptop synchronization failed.\n",
+  stderr: "",
+  code: 3,
+  killed: false,
+});
+await assert.rejects(
+  doneSessionTool.execute("done-sync-failed", {}, ctx.signal, undefined, ctx),
+  /laptop synchronization failed/,
+);
+assert.equal(shutdownCalls, 0,
+  "synchronization failure keeps Pi open");
+
+sessionDoneResultQueue.push({ stdout: "", stderr: "failed", code: 1, killed: false });
+await assert.rejects(
+  doneSessionTool.execute("done-failed", {}, ctx.signal, undefined, ctx),
+  /failed/,
+);
+assert.equal(shutdownCalls, 0, "ordinary failure keeps Pi open");
+
+sessionDoneResultQueue.push({ stdout: "", stderr: "", code: 0, killed: true });
+await assert.rejects(
+  doneSessionTool.execute("done-killed", {}, ctx.signal, undefined, ctx),
+  /cancelled/,
+);
+assert.equal(shutdownCalls, 0, "cancelled completion keeps Pi open");
+
+const persistentSessionId = activeSessionId;
+activeSessionId = "";
+clearCalls();
+await assert.rejects(
+  doneSessionTool.execute("done-ephemeral", {}, ctx.signal, undefined, ctx),
+  /not persistent/,
+);
+assert.equal(calls.some((call) => call.command === "/usr/bin/env"), false,
+  "completion without a persistent identity does not invoke the helper");
+assert.equal(shutdownCalls, 0,
+  "completion without a persistent identity keeps Pi open");
+activeSessionId = persistentSessionId;
 
 process.env.TMUX = savedTmux;
 process.env.TMUX_PANE = savedTmuxPane;

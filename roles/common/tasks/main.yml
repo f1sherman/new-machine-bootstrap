@@ -2462,6 +2462,8 @@
     - resume-handoff
     - spec-first
     - spec-to-pr
+    - z-session-done
+    - z-mark-done
     - z-spec-to-pr
 
 - name: Install common skills to ~/.claude/skills
