@@ -600,6 +600,14 @@
   register: herdr_keys_migration
   when: herdr_config.stat.exists
 
+- name: Move misplaced Herdr onboarding setting before the keys table
+  replace:
+    path: "{{ ansible_facts['user_dir'] }}/.config/herdr/config.toml"
+    regexp: '(?ms)^(\[keys\][\s\S]*?)^(onboarding\s*=\s*false)\s*$'
+    replace: '\2\n\1'
+  register: herdr_onboarding_migration
+  when: herdr_config.stat.exists
+
 - name: Read existing Herdr configuration
   slurp:
     path: "{{ ansible_facts['user_dir'] }}/.config/herdr/config.toml"
@@ -622,7 +630,7 @@
   lineinfile:
     path: "{{ ansible_facts['user_dir'] }}/.config/herdr/config.toml"
     line: '[keys]'
-    insertbefore: BOF
+    insertbefore: '^\s*\['
     create: true
     mode: '0644'
   register: herdr_keys_table
@@ -674,6 +682,7 @@
     herdr_keys_changed: >-
       {{
         herdr_keys_migration.changed | default(false)
+        or herdr_onboarding_migration.changed | default(false)
         or herdr_keys_table.changed | default(false)
         or herdr_keys.changed | default(false)
       }}
