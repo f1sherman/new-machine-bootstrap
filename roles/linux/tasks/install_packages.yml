@@ -161,7 +161,7 @@
     linux_mise_bin: "{{ mise_check.stdout | trim if mise_check.rc == 0 else (mise_bin | default('')) }}"
 
 - name: Check installed mise version
-  shell: "{{ linux_mise_bin }} --version | awk '{print $2}'"
+  shell: "{{ linux_mise_bin }} --version | awk '{print $1}'"
   args:
     executable: /bin/bash
   register: linux_mise_version
