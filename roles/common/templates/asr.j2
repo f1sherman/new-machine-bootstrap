@@ -1,0 +1,4 @@
+#!/bin/bash
+
+exec {{ agent_session_registry_ruby_bin | quote }} \
+  {{ agent_session_registry_source_bin | quote }} "$@"

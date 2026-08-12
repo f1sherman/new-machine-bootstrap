@@ -843,6 +843,11 @@
   command: "{{ mise_bin }} install ruby@{{ tool_versions.runtimes.ruby }}"
   when: ruby_installed.rc != 0
 
+- name: Resolve pinned Ruby path
+  command: "{{ mise_bin }} where ruby@{{ tool_versions.runtimes.ruby }}"
+  register: pinned_ruby_path
+  changed_when: false
+
 - name: Get current global Ruby version from mise config
   shell: grep '^ruby = ' ~/.config/mise/config.toml 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo ""
   register: current_global_ruby
@@ -880,11 +885,15 @@
     update: yes
     force: no
 
-- name: Link agent session registry executable
-  file:
-    src: '{{ ansible_facts["user_dir"] }}/.local/share/agent-session-registry/bin/asr'
+- name: Install agent session registry executable
+  template:
+    src: asr.j2
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin/asr'
-    state: link
+    mode: 0755
+  vars:
+    agent_session_registry_ruby_bin: '{{ pinned_ruby_path.stdout }}/bin/ruby'
+    agent_session_registry_source_bin: >-
+      {{ ansible_facts["user_dir"] }}/.local/share/agent-session-registry/bin/asr
 
 - name: Create agent session registry adapter directory
   file:
