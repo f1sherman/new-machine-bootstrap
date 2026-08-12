@@ -24,20 +24,22 @@
       *) echo "unsupported gsd-browser platform: $(uname -s)-$(uname -m)" >&2; exit 1 ;;
     esac
 
-    release_json="$(curl -fsSL https://api.github.com/repos/open-gsd/gsd-browser/releases/latest)"
-    tag="$(printf '%s\n' "$release_json" | jq -r '.tag_name')"
-    if [ -z "$tag" ] || [ "$tag" = "null" ]; then
-      echo "could not resolve latest gsd-browser release" >&2
-      exit 1
+    version="{{ tool_versions.runtimes.gsd_browser }}"
+    current_version=""
+    if [ -x "$node_bin/gsd-browser" ]; then
+      current_version="$("$node_bin/gsd-browser" --version 2>/dev/null | awk 'NR == 1 {print $2}' || true)"
     fi
 
-    url="https://github.com/open-gsd/gsd-browser/releases/download/${tag}/${asset}"
-    tmp="$(mktemp "$node_bin/.gsd-browser.XXXXXX")"
-    trap 'rm -f "$tmp"' EXIT
-    curl -fsSL -o "$tmp" "$url"
-    chmod 0755 "$tmp"
-    mv -f "$tmp" "$node_bin/gsd-browser"
-    trap - EXIT
+    if [ "$current_version" != "$version" ]; then
+      url="https://github.com/open-gsd/gsd-browser/releases/download/v${version}/${asset}"
+      tmp="$(mktemp "$node_bin/.gsd-browser.XXXXXX")"
+      trap 'rm -f "$tmp"' EXIT
+      curl -fsSL --retry 5 --retry-all-errors --retry-max-time 120 \
+        -o "$tmp" "$url"
+      chmod 0755 "$tmp"
+      mv -f "$tmp" "$node_bin/gsd-browser"
+      trap - EXIT
+    fi
   args:
     executable: /bin/bash
   register: mise_node_global_tools_gsd_browser_install_result

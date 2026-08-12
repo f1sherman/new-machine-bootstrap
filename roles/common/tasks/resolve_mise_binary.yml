@@ -19,8 +19,8 @@
             mise_on_path.stdout | trim
           ],
           [
-            mise_on_path.stdout | trim,
             ansible_facts['user_dir'] + '/.local/bin/mise',
+            mise_on_path.stdout | trim,
             '/opt/homebrew/bin/mise',
             '/usr/local/bin/mise'
           ]

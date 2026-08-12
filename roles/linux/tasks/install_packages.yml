@@ -141,8 +141,8 @@
 - name: Check for existing mise binary
   shell: |
     candidates=(
-      "$(command -v mise 2>/dev/null || true)"
       "{{ ansible_facts['user_dir'] }}/.local/bin/mise"
+      "$(command -v mise 2>/dev/null || true)"
       "/opt/homebrew/bin/mise"
       "/usr/local/bin/mise"
     )
@@ -175,6 +175,10 @@
     executable: /bin/bash
   environment:
     MISE_VERSION: "{{ tool_versions.runtimes.mise }}"
+  register: linux_mise_install_result
+  until: linux_mise_install_result.rc == 0
+  retries: 5
+  delay: 10
   when:
     - linux_mise_bin | length == 0 or (linux_mise_version.stdout | default('')) != (tool_versions.runtimes.mise | regex_replace('^v', ''))
 

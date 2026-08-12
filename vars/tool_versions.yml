@@ -28,6 +28,8 @@ tool_versions:
     # renovate: datasource=github-releases depName=jdx/mise
     mise: v2026.8.2
     aube: 1.19.0
+    # renovate: datasource=github-releases depName=open-gsd/gsd-browser
+    gsd_browser: 0.2.1
     # renovate: datasource=github-releases depName=herdrdev/herdr
     herdr: 0.8.0
     # renovate: datasource=node-version depName=node
