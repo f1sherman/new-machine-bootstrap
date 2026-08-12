@@ -170,7 +170,9 @@
   when: linux_mise_bin | length > 0
 
 - name: Install mise
-  shell: curl -fsSL https://mise.run | sh
+  shell: |
+    set -o pipefail
+    curl -fsSL https://mise.run | sh
   args:
     executable: /bin/bash
   environment:
