@@ -749,7 +749,7 @@
 - name: Check if herdr-mirror plugin is installed
   shell: |
     {{ mise_bin }} exec herdr@{{ tool_versions.runtimes.herdr }} -- \
-      herdr plugin list mirror | grep -q '^- mirror '
+      herdr plugin list --plugin mirror | grep -q '^- mirror '
   args:
     executable: /bin/bash
   register: herdr_mirror_installed
@@ -760,6 +760,10 @@
   command: >-
     {{ mise_bin }} exec herdr@{{ tool_versions.runtimes.herdr }} --
     herdr plugin install nikok6/herdr-mirror --yes
+  register: herdr_mirror_install
+  retries: 3
+  delay: 10
+  until: herdr_mirror_install.rc == 0
   when: herdr_mirror_installed.rc != 0
 
 - name: Create herdr-mirror config directory
