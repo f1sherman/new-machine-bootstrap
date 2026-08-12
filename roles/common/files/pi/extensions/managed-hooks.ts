@@ -716,10 +716,11 @@ async function canonicalSessionNameStatus(pi) {
 }
 
 async function clearPublishedSessionName(pi, ctx) {
-  if (!ownsTmuxPane()) return false;
+  const herdrCleared = await renameCurrentHerdrTab(pi, "");
+  if (!ownsTmuxPane()) return herdrCleared;
   const status = await canonicalSessionNameStatus(pi);
   if (status.kind !== "non-branch"
-    || !["goal", "manual"].includes(status.source)) return false;
+    || !["goal", "manual"].includes(status.source)) return herdrCleared;
   await exec(pi, "tmux-agent-state", ["clear-task"]);
   const cwd = await boundWorktreePath(pi, ctx?.cwd || "");
   await exec(pi, "tmux-agent-worktree", ["sync-current"], { cwd });
