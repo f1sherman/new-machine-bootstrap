@@ -228,6 +228,19 @@ assert.deepEqual(registryCalls(), [{
   ],
 }], "session name changes publish outside tmux");
 
+process.env.HERDR_ENV = "1";
+process.env.HERDR_TAB_ID = "w1:t2";
+clearCalls();
+currentSessionName = "renamed Herdr session";
+await withStdoutTTY(() => handlers.get("session_info_changed")({
+  name: currentSessionName,
+}, ctx));
+assert.ok(calls.some((call) => call.command === "herdr"
+  && call.args.join(" ") === "tab rename w1:t2 renamed Herdr session"),
+  "session name changes rename the containing Herdr tab");
+delete process.env.HERDR_ENV;
+delete process.env.HERDR_TAB_ID;
+
 clearCalls();
 const firstDelayedRegistryUpdate = deferred();
 const secondDelayedRegistryUpdate = deferred();

@@ -82,6 +82,18 @@ function ownsTmuxPane() {
   return inTmux() && Boolean(process.stdout.isTTY);
 }
 
+function currentHerdrTabId() {
+  if (process.env.HERDR_ENV !== "1" || !process.stdout.isTTY) return "";
+  return process.env.HERDR_TAB_ID?.trim() || "";
+}
+
+async function renameCurrentHerdrTab(pi, name) {
+  const tabId = currentHerdrTabId();
+  if (!tabId) return false;
+  const result = await exec(pi, "herdr", ["tab", "rename", tabId, name]);
+  return result.code === 0 && !result.killed;
+}
+
 function stateFile(key) {
   if (!process.env.TMUX_AGENT_STATE_DIR || !process.env.TMUX_PANE) return undefined;
   return path.join(process.env.TMUX_AGENT_STATE_DIR, `${process.env.TMUX_PANE}.${key}`);
@@ -967,9 +979,12 @@ export default function managedHooks(pi) {
 
   async function publishCurrentSessionName(pi, ctx, expectedName) {
     const normalizedExpectedName = expectedName?.trim() || "";
-    if (!normalizedExpectedName || !ownsTmuxPane()) return false;
+    if (!normalizedExpectedName) return false;
     const liveName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
     if (liveName !== normalizedExpectedName) return false;
+
+    const herdrPublished = await renameCurrentHerdrTab(pi, normalizedExpectedName);
+    if (!ownsTmuxPane()) return herdrPublished;
     return writeTmuxIdentity(pi, "manual", normalizedExpectedName);
   }
 
