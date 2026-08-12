@@ -202,7 +202,7 @@
   lineinfile:
     path: '{{ ansible_facts["user_dir"] }}/Library/Application Support/com.mitchellh.ghostty/config'
     regexp: '^command\s*='
-    line: 'command = {{ ansible_facts["user_dir"] }}/.local/bin/tmux-attach-or-new'
+    line: 'command = {{ ansible_facts["user_dir"] }}/.local/bin/ghostty-tab-launch'
     create: yes
     mode: 0644
 - name: Disable ghostty native window state restoration
