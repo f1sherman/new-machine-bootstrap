@@ -693,16 +693,48 @@
     herdr config check
   changed_when: false
 
-- name: Check if Herdr server is running after key changes
+- name: Check if Herdr server is running
   command: >-
     {{ mise_bin }} exec herdr@{{ tool_versions.runtimes.herdr }} --
     herdr status server --json
   register: herdr_server_status
   changed_when: false
   failed_when: false
+  when: not ansible_check_mode
+
+- name: Stop Herdr server when its protocol needs an upgrade
+  command: >-
+    {{ mise_bin }} exec herdr@{{ tool_versions.runtimes.herdr }} --
+    herdr server stop
+  register: herdr_server_stop
   when:
-    - herdr_keys_changed
     - not ansible_check_mode
+    - herdr_server_status.rc == 0
+    - (herdr_server_status.stdout | from_json).running | bool
+    - (herdr_server_status.stdout | from_json).restart_needed | default(false) | bool
+
+- name: Start Herdr server with the pinned version
+  shell: >-
+    nohup {{ mise_bin }} exec herdr@{{ tool_versions.runtimes.herdr }} --
+    herdr server >> "{{ ansible_facts['user_dir'] }}/.herdr-server.log"
+    2>&1 < /dev/null 9>&- &
+  args:
+    executable: /bin/bash
+  when: herdr_server_stop.changed | default(false)
+
+- name: Wait for upgraded Herdr server
+  command: >-
+    {{ mise_bin }} exec herdr@{{ tool_versions.runtimes.herdr }} --
+    herdr status server --json
+  register: herdr_restarted_server_status
+  changed_when: false
+  retries: 10
+  delay: 1
+  until:
+    - herdr_restarted_server_status.rc == 0
+    - (herdr_restarted_server_status.stdout | from_json).running | bool
+    - (herdr_restarted_server_status.stdout | from_json).compatible | bool
+  when: herdr_server_stop.changed | default(false)
 
 - name: Reload Herdr configuration
   command: >-
