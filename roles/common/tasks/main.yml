@@ -650,9 +650,9 @@
     - key: goto
       value: '["prefix+g", "alt+w"]'
     - key: previous_workspace
-      value: '"alt+9"'
+      value: '["alt+9", "shift+alt+p"]'
     - key: next_workspace
-      value: '"alt+0"'
+      value: '["alt+0", "shift+alt+n"]'
     - key: new_tab
       value: '["prefix+c", "alt+t"]'
     - key: previous_tab
