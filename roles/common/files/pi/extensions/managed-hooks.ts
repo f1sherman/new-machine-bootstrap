@@ -1069,7 +1069,7 @@ export default function managedHooks(pi) {
   pi.registerTool({
     name: "set_session_name",
     label: "Set Session Name",
-    description: "Set the durable broad name and automatic identity for the current Pi session. Call only when the user's overall objective materially changes. Keep the existing name during implementation phases, debugging steps, testing, deployment, PR work, and other subtasks. Prefer at most 40 characters.",
+    description: "Set the durable broad name and automatic identity for the current Pi session. Do not call by default. Call only when the user starts a new top-level objective that is clearly unrelated to the current objective. Keep the existing name for follow-ups, scope refinements, implementation phases, debugging, testing, deployment, review, PR work, and issues discovered while completing the current objective. Prefer at most 40 characters.",
     parameters: {
       type: "object",
       properties: {
