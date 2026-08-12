@@ -99,6 +99,12 @@ jobs:
       - name: Verify Pi Aube install layout
         run: ruby tests/pi-aube-install-layout-contract.rb
 
+      - name: Verify mise install selection
+        run: ruby tests/mise-install-selection.rb
+
+      - name: Verify gsd-browser install behavior
+        run: ruby tests/gsd-browser-install.rb
+
       - name: Verify Claude agent subject hook settings
         run: bash tests/claude-agent-subject-hook-settings.sh
 
