@@ -146,7 +146,7 @@ trap 'forward_signal HUP 129' HUP
 trap 'forward_signal INT 130' INT
 trap 'forward_signal TERM 143' TERM
 
-"$HOME/.local/bin/herdr-launch" &
+"$HOME/.local/bin/herdr-launch" <&0 &
 herdr_pid=$!
 set +e
 wait "$herdr_pid"
