@@ -1,0 +1,156 @@
+#!/bin/bash
+set -euo pipefail
+
+umask 077
+
+pathprepend() {
+  local dir="${1%/}"
+  [[ -d "$dir" ]] || return 0
+  PATH=":$PATH:"
+  PATH="${PATH//:$dir:/:}"
+  PATH="${PATH#:}"
+  PATH="${PATH%:}"
+  PATH="$dir:$PATH"
+}
+
+PATH="${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+pathprepend "/usr/local/bin"
+pathprepend "/opt/homebrew/bin"
+export PATH
+
+state_dir="${GHOSTTY_TAB_LAUNCH_STATE_DIR:-$HOME/.local/state/ghostty-tab-launch}"
+lock_file="$state_dir/lock"
+lock_held=0
+marker=""
+herdr_pid=""
+
+find_ghostty_pid() {
+  local pid command parent
+
+  if [[ -n "${GHOSTTY_TAB_LAUNCH_APP_PID:-}" ]]; then
+    pid="$GHOSTTY_TAB_LAUNCH_APP_PID"
+    [[ "$pid" =~ ^[0-9]+$ ]] && [[ "$pid" -gt 1 ]] || return 1
+    printf '%s\n' "$pid"
+    return 0
+  fi
+
+  pid="$PPID"
+  while [[ "$pid" =~ ^[0-9]+$ ]] && [[ "$pid" -gt 1 ]]; do
+    command="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+    if [[ "$command" == */Ghostty.app/Contents/MacOS/ghostty* ]]; then
+      printf '%s\n' "$pid"
+      return 0
+    fi
+    parent="$(ps -p "$pid" -o ppid= 2>/dev/null | tr -d '[:space:]' || true)"
+    [[ "$parent" =~ ^[0-9]+$ ]] || return 1
+    pid="$parent"
+  done
+  return 1
+}
+
+release_lock() {
+  if [[ "$lock_held" == 1 ]]; then
+    flock -u 9 || true
+    lock_held=0
+  fi
+}
+
+acquire_lock() {
+  if ! flock -w 5 9; then
+    echo "Timed out waiting for the Ghostty tab launch lock." >&2
+    return 1
+  fi
+  lock_held=1
+}
+
+read_live_owner() {
+  local owner command
+
+  [[ -f "$marker" ]] || return 1
+  owner="$(cat "$marker" 2>/dev/null || true)"
+  if [[ ! "$owner" =~ ^[0-9]+$ ]] || ! kill -0 "$owner" 2>/dev/null; then
+    rm -f "$marker"
+    return 1
+  fi
+
+  command="$(ps -p "$owner" -o command= 2>/dev/null || true)"
+  if [[ "$command" != *ghostty-tab-launch ]]; then
+    rm -f "$marker"
+    return 1
+  fi
+
+  printf '%s\n' "$owner"
+}
+
+# shellcheck disable=SC2329 # Called by the EXIT trap through cleanup.
+remove_owned_marker() {
+  local owner
+
+  [[ -n "$marker" ]] || return 0
+  if ! acquire_lock; then
+    return 0
+  fi
+  owner="$(cat "$marker" 2>/dev/null || true)"
+  if [[ "$owner" == "$$" ]]; then
+    rm -f "$marker"
+  fi
+  release_lock
+}
+
+# shellcheck disable=SC2329 # Called by the EXIT trap.
+cleanup() {
+  release_lock
+  remove_owned_marker
+}
+
+# shellcheck disable=SC2329 # Called by the signal traps.
+forward_signal() {
+  local signal="$1"
+  local status="$2"
+
+  trap - HUP INT TERM
+  if [[ -n "$herdr_pid" ]] && kill -0 "$herdr_pid" 2>/dev/null; then
+    kill -s "$signal" "$herdr_pid" 2>/dev/null || true
+    sleep 0.5
+    if kill -0 "$herdr_pid" 2>/dev/null; then
+      kill -KILL "$herdr_pid" 2>/dev/null || true
+    fi
+    wait "$herdr_pid" 2>/dev/null || true
+  fi
+  exit "$status"
+}
+
+mkdir -p "$state_dir"
+chmod 700 "$state_dir"
+exec 9>"$lock_file"
+
+ghostty_pid="$(find_ghostty_pid)" || {
+  echo "Cannot find the Ghostty process for this terminal." >&2
+  exit 1
+}
+marker="$state_dir/herdr-$ghostty_pid.pid"
+
+acquire_lock
+if read_live_owner >/dev/null; then
+  release_lock
+  exec "$HOME/.local/bin/tmux-attach-or-new"
+fi
+
+temporary_marker="$marker.$$"
+printf '%s\n' "$$" >"$temporary_marker"
+mv -f "$temporary_marker" "$marker"
+release_lock
+
+trap cleanup EXIT
+trap 'forward_signal HUP 129' HUP
+trap 'forward_signal INT 130' INT
+trap 'forward_signal TERM 143' TERM
+
+"$HOME/.local/bin/herdr-launch" &
+herdr_pid=$!
+set +e
+wait "$herdr_pid"
+status=$?
+set -e
+herdr_pid=""
+exit "$status"
