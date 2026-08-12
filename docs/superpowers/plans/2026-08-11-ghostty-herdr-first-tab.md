@@ -6,7 +6,7 @@
 
 **Architecture:** Ghostty runs a new `ghostty-tab-launch` dispatcher for every surface. The dispatcher identifies its Ghostty ancestor and uses a locked, per-Ghostty-PID live-owner marker to select either `herdr-launch` or `tmux-attach-or-new` without changing either command's behavior.
 
-**Tech Stack:** Bash, macOS `ps`, `mkdir` locking, Ansible, Ghostty configuration
+**Tech Stack:** Bash, macOS `ps`, `flock`, Ansible, Ghostty configuration
 
 ## Global Constraints
 
@@ -32,8 +32,9 @@
 
 - [ ] **Step 1: Build a failing disposable behavior harness**
 
-Create a temporary fixture outside the repository. Copy the planned production
-path into the fixture only after implementation. Stub `herdr-launch` so it
+Create a disposable, untracked fixture inside the isolated worktree and remove
+it before committing. Copy the planned production path into the fixture only
+after implementation. Stub `herdr-launch` so it
 records `herdr`, waits on a release file, and exits with a configured status.
 Stub `tmux-attach-or-new` so it records `tmux`. Invoke the production dispatcher
 with isolated values for `HOME`, `GHOSTTY_TAB_LAUNCH_STATE_DIR`, and
@@ -62,14 +63,15 @@ Herdr nonzero exit                            -> same exit status and no marker
 
 - [ ] **Step 2: Implement the dispatcher**
 
-Create `roles/macos/files/bin/ghostty-tab-launch` with Bash strict mode. Implement
-these focused functions:
+Create `roles/macos/files/bin/ghostty-tab-launch` with Bash strict mode. Normalize
+`PATH` for Homebrew so the GUI-launched command can find `flock`. Implement these
+focused functions:
 
 ```bash
 find_ghostty_pid()       # print numeric Ghostty ancestor PID or fail
 read_live_owner()        # print a validated live launcher PID or fail
 remove_owned_marker()    # remove marker only when it still contains $$
-release_lock()           # remove the atomic mkdir lock when held
+release_lock()           # release the flock lock when held
 cleanup()                # release lock and remove this process's marker
 ```
 
@@ -78,10 +80,10 @@ Use `GHOSTTY_TAB_LAUNCH_APP_PID` when set; otherwise walk from `$PPID` through
 matches `*/Ghostty.app/Contents/MacOS/ghostty*`. Reject a nonnumeric PID or a
 walk that reaches PID 1 without finding Ghostty.
 
-Create the state directory with `umask 077` and `mkdir -p`. Acquire one
-coordination lock with atomic `mkdir`, retry briefly when another dispatcher
-owns it, and reclaim the lock only when its recorded owner PID is dead. Store
-the lock owner PID inside the lock directory.
+Create the state directory with `umask 077` and `mkdir -p`. Open one lock file
+on file descriptor 9 and acquire it with `flock -w 5 9`. Kernel lock ownership
+prevents stale-lock reclamation races and releases the lock when a dispatcher
+dies.
 
 Use marker `$state_dir/herdr-$ghostty_pid.pid`. A live marker must be numeric,
 respond to `kill -0`, and have a `ps -p "$owner" -o command=` value ending in
@@ -96,7 +98,8 @@ exec "$HOME/.local/bin/tmux-attach-or-new"
 Otherwise, write `$$` to a temporary marker, atomically rename it to the final
 marker, release the lock, and run `herdr-launch` as a child. Preserve its exit
 status. Install EXIT, HUP, INT, and TERM handling that removes the marker only
-when it is still owned by `$$`.
+when it is still owned by `$$`. Forward signals to Herdr, then terminate it after
+a short grace period if it does not exit so cleanup cannot wait indefinitely.
 
 - [ ] **Step 3: Configure Ghostty to use the dispatcher**
 
