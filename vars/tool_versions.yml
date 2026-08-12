@@ -26,7 +26,7 @@ tool_versions:
 
   runtimes:
     # renovate: datasource=github-releases depName=jdx/mise
-    mise: v2026.8.1
+    mise: v2026.8.2
     aube: 1.19.0
     # renovate: datasource=github-releases depName=herdrdev/herdr
     herdr: 0.8.0
