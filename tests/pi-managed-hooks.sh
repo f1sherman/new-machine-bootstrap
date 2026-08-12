@@ -238,6 +238,14 @@ await withStdoutTTY(() => handlers.get("session_info_changed")({
 assert.ok(calls.some((call) => call.command === "herdr"
   && call.args.join(" ") === "tab rename w1:t2 renamed Herdr session"),
   "session name changes rename the containing Herdr tab");
+
+clearCalls();
+currentSessionName = "";
+await withStdoutTTY(() => handlers.get("session_info_changed")({ name: "" }, ctx));
+assert.deepEqual(calls.find((call) => call.command === "herdr"), {
+  command: "herdr",
+  args: ["tab", "rename", "w1:t2", ""],
+}, "clearing a session name clears the containing Herdr tab name");
 delete process.env.HERDR_ENV;
 delete process.env.HERDR_TAB_ID;
 
