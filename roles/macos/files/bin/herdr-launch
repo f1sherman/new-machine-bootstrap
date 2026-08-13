@@ -5,12 +5,9 @@ set -euo pipefail
 # package-manager locations for commands started by the long-running server.
 export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
 
-mise_bin="${MISE_BIN:-$HOME/.local/bin/mise}"
-herdr_version="$("$mise_bin" latest --installed herdr)"
-
-if [[ -z "$herdr_version" ]]; then
-  echo "Herdr is not installed through mise." >&2
+if ! herdr_bin="$(command -v herdr)"; then
+  echo "Herdr is not installed or is not available on PATH." >&2
   exit 1
 fi
 
-exec "$mise_bin" exec "herdr@$herdr_version" -- herdr "$@"
+exec "$herdr_bin" "$@"
