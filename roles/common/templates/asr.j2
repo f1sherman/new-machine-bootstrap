@@ -1,4 +1,7 @@
 #!/bin/bash
 
+: "${ASR_ADAPTER_TIMEOUT:=15}"
+export ASR_ADAPTER_TIMEOUT
+
 exec {{ agent_session_registry_ruby_bin | quote }} \
   {{ agent_session_registry_source_bin | quote }} "$@"
