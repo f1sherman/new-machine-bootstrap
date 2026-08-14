@@ -1,0 +1,294 @@
+#!/usr/bin/env ruby
+
+require "digest"
+require "fileutils"
+require "json"
+require "optparse"
+require "pathname"
+require "time"
+
+PRODUCER_PATTERN = /\A[a-z0-9][a-z0-9-]{0,63}\z/
+CLASSIFICATIONS = %w[reload restart].freeze
+MAX_REASON_BYTES = 200
+MANIFEST_KEYS = %w[schema inputs].freeze
+PATH_KEYS = %w[type name root path].freeze
+VALUE_KEYS = %w[type name value].freeze
+
+class PublisherError < StandardError; end
+
+class PiSessionStalenessPublisher
+  def initialize(arguments, environment = ENV)
+    @arguments = arguments.dup
+    @environment = environment
+  end
+
+  def run
+    operation = @arguments.shift
+    raise PublisherError, "operation must be reconcile" unless operation == "reconcile"
+
+    options = parse_options
+    validate_options(options)
+    inputs = load_manifest(options.fetch(:manifest))
+    generation = fingerprint(inputs)
+    reconcile(options, generation)
+  end
+
+  private
+
+  def parse_options
+    options = {}
+    parser = OptionParser.new do |config|
+      config.on("--producer ID") { |value| options[:producer] = value }
+      config.on("--classification CLASSIFICATION") { |value| options[:classification] = value }
+      config.on("--reason TEXT") { |value| options[:reason] = value }
+      config.on("--manifest FILE") { |value| options[:manifest] = value }
+    end
+    parser.parse!(@arguments)
+    raise PublisherError, "unexpected arguments: #{@arguments.join(" ")}" unless @arguments.empty?
+
+    options
+  rescue OptionParser::ParseError => error
+    raise PublisherError, error.message
+  end
+
+  def validate_options(options)
+    %i[producer classification reason manifest].each do |key|
+      value = options[key]
+      raise PublisherError, "missing --#{key}" unless value.is_a?(String) && !value.empty?
+      reject_nul(value, key.to_s)
+    end
+    unless PRODUCER_PATTERN.match?(options[:producer])
+      raise PublisherError, "invalid producer identifier"
+    end
+    unless CLASSIFICATIONS.include?(options[:classification])
+      raise PublisherError, "classification must be reload or restart"
+    end
+    if options[:reason].bytesize > MAX_REASON_BYTES
+      raise PublisherError, "reason exceeds #{MAX_REASON_BYTES} bytes"
+    end
+  end
+
+  def load_manifest(path)
+    manifest = JSON.parse(File.binread(path))
+    validate_hash(manifest, MANIFEST_KEYS, "manifest")
+    raise PublisherError, "manifest schema must be 1" unless manifest["schema"] == 1
+    inputs = manifest["inputs"]
+    raise PublisherError, "manifest inputs must be an array" unless inputs.is_a?(Array)
+
+    names = {}
+    inputs.each_with_index do |input, index|
+      validate_input(input, index)
+      name = input.fetch("name")
+      raise PublisherError, "duplicate input name: #{name}" if names.key?(name)
+      names[name] = true
+    end
+    inputs
+  rescue JSON::ParserError => error
+    raise PublisherError, "invalid manifest JSON: #{error.message}"
+  end
+
+  def validate_input(input, index)
+    raise PublisherError, "input #{index} must be an object" unless input.is_a?(Hash)
+    type = input["type"]
+    case type
+    when "path"
+      validate_hash(input, PATH_KEYS, "path input")
+      validate_string(input["name"], "input name", empty: false)
+      validate_string(input["root"], "input root", empty: false)
+      validate_string(input["path"], "input path")
+      raise PublisherError, "input root must be absolute" unless Pathname.new(input["root"]).absolute?
+      validate_relative_path(input["path"])
+    when "value"
+      validate_hash(input, VALUE_KEYS, "value input")
+      validate_string(input["name"], "input name", empty: false)
+      validate_string(input["value"], "input value")
+    else
+      raise PublisherError, "input type must be path or value"
+    end
+  end
+
+  def validate_hash(value, keys, label)
+    raise PublisherError, "#{label} must be an object" unless value.is_a?(Hash)
+    actual = value.keys
+    unless actual.all? { |key| key.is_a?(String) } && actual.sort == keys.sort
+      raise PublisherError, "#{label} has invalid keys"
+    end
+  end
+
+  def validate_string(value, label, empty: true)
+    raise PublisherError, "#{label} must be a string" unless value.is_a?(String)
+    raise PublisherError, "#{label} must not be empty" if !empty && value.empty?
+    reject_nul(value, label)
+  end
+
+  def reject_nul(value, label)
+    raise PublisherError, "#{label} contains a NUL byte" if value.include?("\0")
+  end
+
+  def validate_relative_path(path)
+    pathname = Pathname.new(path)
+    raise PublisherError, "input path must be relative" if pathname.absolute?
+    segments = path.split(/[\\\/]/, -1)
+    if segments.include?(".") || segments.include?("..")
+      raise PublisherError, "input path contains a dot segment"
+    end
+  end
+
+  def fingerprint(inputs)
+    digest = Digest::SHA256.new
+    inputs.sort_by { |input| input.fetch("name").b }.each do |input|
+      add_field(digest, "input")
+      add_field(digest, input.fetch("name"))
+      add_field(digest, input.fetch("type"))
+      if input.fetch("type") == "value"
+        add_field(digest, input.fetch("value"))
+      else
+        path = File.join(input.fetch("root"), input.fetch("path"))
+        hash_path(digest, input.fetch("name"), path, "")
+      end
+    end
+    "sha256:#{digest.hexdigest}"
+  end
+
+  def hash_path(digest, input_name, path, relative_path)
+    stat = File.lstat(path)
+    type = file_type(stat)
+    add_field(digest, input_name)
+    add_field(digest, relative_path)
+    add_field(digest, type)
+    add_field(digest, stat.executable? ? "executable" : "not-executable")
+
+    case type
+    when "symlink"
+      add_field(digest, File.readlink(path))
+    when "file"
+      add_file_field(digest, path, stat.size)
+    when "directory"
+      entries = Dir.children(path).sort_by(&:b)
+      entries.each do |entry|
+        child_relative = relative_path.empty? ? entry : File.join(relative_path, entry)
+        hash_path(digest, input_name, File.join(path, entry), child_relative)
+      end
+    end
+  rescue Errno::ENOENT
+    add_field(digest, input_name)
+    add_field(digest, relative_path)
+    add_field(digest, "missing")
+  end
+
+  def file_type(stat)
+    return "symlink" if stat.symlink?
+    return "file" if stat.file?
+    return "directory" if stat.directory?
+
+    "other"
+  end
+
+  def add_field(digest, value)
+    bytes = value.to_s.b
+    digest << [bytes.bytesize].pack("Q>") << bytes
+  end
+
+  def add_file_field(digest, path, size)
+    digest << [size].pack("Q>")
+    File.open(path, "rb") do |file|
+      while (chunk = file.read(64 * 1024))
+        digest << chunk
+      end
+    end
+  end
+
+  def reconcile(options, generation)
+    state_root = @environment["XDG_STATE_HOME"]
+    if state_root.nil? || state_root.empty?
+      home = @environment["HOME"]
+      raise PublisherError, "HOME is not set" if home.nil? || home.empty?
+      state_root = File.join(home, ".local", "state")
+    end
+
+    base_directory = File.join(state_root, "pi-session-staleness", "v1")
+    producer_directory = File.join(base_directory, "producers")
+    secure_directory(base_directory)
+    secure_directory(producer_directory)
+
+    producer = options.fetch(:producer)
+    record_path = File.join(producer_directory, "#{producer}.json")
+    lock_path = File.join(producer_directory, "#{producer}.lock")
+    File.open(lock_path, File::RDWR | File::CREAT, 0o600) do |lock|
+      lock.chmod(0o600)
+      lock.flock(File::LOCK_EX) or raise PublisherError, "cannot lock producer record"
+      record = read_record(record_path, producer)
+      classification = options.fetch(:classification)
+      current = record[classification]
+      return if current && current["generation"] == generation
+
+      record[classification] = {
+        "generation" => generation,
+        "changedAt" => Time.now.utc.iso8601(3),
+        "reason" => options.fetch(:reason),
+      }
+      atomic_write(record_path, JSON.generate(record) << "\n")
+    end
+  end
+
+  def secure_directory(path)
+    FileUtils.mkdir_p(path, mode: 0o700)
+    File.chmod(0o700, path)
+  end
+
+  def read_record(path, producer)
+    return {"schema" => 1, "producer" => producer} unless File.exist?(path)
+
+    record = JSON.parse(File.binread(path))
+    validate_record(record, producer)
+    record
+  rescue JSON::ParserError => error
+    raise PublisherError, "invalid producer record JSON: #{error.message}"
+  end
+
+  def validate_record(record, producer)
+    raise PublisherError, "producer record must be an object" unless record.is_a?(Hash)
+    allowed = ["schema", "producer", *CLASSIFICATIONS]
+    unless record.keys.all? { |key| allowed.include?(key) }
+      raise PublisherError, "producer record has invalid keys"
+    end
+    raise PublisherError, "producer record schema must be 1" unless record["schema"] == 1
+    raise PublisherError, "producer record identifier mismatch" unless record["producer"] == producer
+    CLASSIFICATIONS.each do |classification|
+      entry = record[classification]
+      next unless entry
+      validate_hash(entry, %w[generation changedAt reason], "producer classification")
+      %w[generation changedAt reason].each do |key|
+        validate_string(entry[key], "producer #{key}", empty: false)
+      end
+      unless /\Asha256:[0-9a-f]{64}\z/.match?(entry["generation"])
+        raise PublisherError, "producer generation is invalid"
+      end
+    end
+  end
+
+  def atomic_write(path, content)
+    directory = File.dirname(path)
+    temporary = File.join(directory, ".#{File.basename(path)}.#{Process.pid}.#{rand(1 << 32)}.tmp")
+    begin
+      File.open(temporary, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
+        file.chmod(0o600)
+        file.write(content)
+        file.flush
+        file.fsync
+      end
+      File.rename(temporary, path)
+      File.open(directory, "rb") { |file| file.fsync }
+    ensure
+      File.unlink(temporary) if File.exist?(temporary)
+    end
+  end
+end
+
+begin
+  PiSessionStalenessPublisher.new(ARGV).run
+rescue StandardError => error
+  message = error.message.to_s.gsub(/[\r\n]+/, " ")
+  warn "pi-session-staleness-publish: #{message}"
+  exit 1
+end
