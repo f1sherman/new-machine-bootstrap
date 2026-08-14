@@ -72,8 +72,9 @@ is_live_agent() {
 
 ind_activity=""
 ind_pr_state=""
+ind_pi_stale=""
 capture_ind_marker() {
-  local title="${1:-}" values
+  local title="${1:-}" values remainder
   case "$title" in
     *"[nmb-ind="*"]"*) ;;
     *) return 0 ;;
@@ -81,11 +82,18 @@ capture_ind_marker() {
   values="${title##*\[nmb-ind=}"
   values="${values%%]*}"
   ind_activity="${values%%,*}"
-  ind_pr_state="${values#*,}"
+  remainder="${values#*,}"
+  if [ "$remainder" != "$values" ]; then
+    ind_pr_state="${remainder%%,*}"
+    if [ "${remainder#*,}" != "$remainder" ]; then
+      ind_pi_stale="${remainder#*,}"
+    fi
+  fi
 }
 if is_remote_candidate_command "$effective_command"; then
   capture_ind_marker "$pane_title"
-  [ -n "$ind_activity$ind_pr_state" ] || capture_ind_marker "$window_name"
+  [ -n "$ind_activity$ind_pr_state$ind_pi_stale" ] || \
+    capture_ind_marker "$window_name"
 fi
 
 cached_window_label=""
@@ -104,14 +112,37 @@ if is_live_agent; then
 fi
 task_label_resolved=""
 
+task_compatible_remote_label() {
+  local title="${1:-}" before after values remainder suffix
+  case "$title" in
+    *"[nmb-ind="*"]"*) ;;
+    *) printf '%s\n' "$title"; return 0 ;;
+  esac
+  before="${title%%\[nmb-ind=*}"
+  after="${title#*\[nmb-ind=}"
+  values="${after%%]*}"
+  remainder="${values#*,}"
+  if [ "$remainder" = "$values" ] || [ "${remainder#*,}" = "$remainder" ]; then
+    printf '%s\n' "$title"
+    return 0
+  fi
+  suffix="${after#*]}"
+  printf '%s[nmb-ind=%s,%s]%s\n' \
+    "$before" "${values%%,*}" "${remainder%%,*}" "$suffix"
+}
+
 task_from_remote_label() {
+  local title
   [ -x "$task_label_helper" ] || return 1
-  "$task_label_helper" extract-remote "${1:-}"
+  title="$(task_compatible_remote_label "${1:-}")"
+  "$task_label_helper" extract-remote "$title"
 }
 
 render_remote_label() {
+  local title
   [ -x "$task_label_helper" ] || return 1
-  "$task_label_helper" render-remote "${1:-}"
+  title="$(task_compatible_remote_label "${1:-}")"
+  "$task_label_helper" render-remote "$title"
 }
 
 remote_host_suffix() {
@@ -198,17 +229,22 @@ label="$(truncate_window_name "$label")"
 
 activity=""
 pr_state=""
+pi_stale=""
 if is_live_agent; then
   activity="$(tmux show-options -qv -p -t "$pane_id" "@agent_activity" 2>/dev/null || true)"
   pr_state="$(tmux show-options -qv -p -t "$pane_id" "@pr_state" 2>/dev/null || true)"
+  if [ "$agent_kind" = "pi" ]; then
+    pi_stale="$(tmux show-options -qv -p -t "$pane_id" "@pi_stale" 2>/dev/null || true)"
+  fi
 fi
-if [ -z "$activity" ] && [ -z "$pr_state" ]; then
+if [ -z "$activity$pr_state$pi_stale" ]; then
   activity="$ind_activity"
   pr_state="$ind_pr_state"
+  pi_stale="$ind_pi_stale"
 fi
 glyphs=""
-if { [ -n "$activity" ] || [ -n "$pr_state" ]; } && [ -x "$glyphs_helper" ]; then
-  glyphs="$("$glyphs_helper" "$activity" "$pr_state" 2>/dev/null || true)"
+if [ -n "$activity$pr_state$pi_stale" ] && [ -x "$glyphs_helper" ]; then
+  glyphs="$("$glyphs_helper" "$activity" "$pr_state" "$pi_stale" 2>/dev/null || true)"
 fi
 mutation_status=0
 if [ -n "$glyphs" ]; then

@@ -204,11 +204,13 @@ formatted_remote_label() {
 }
 
 append_ind_marker() {
-  local title="$1" activity pr_state
+  local title="$1" activity pr_state pi_stale
   activity="$(read_pane_option "@agent_activity" 2>/dev/null || true)"
   pr_state="$(read_pane_option "@pr_state" 2>/dev/null || true)"
-  if [ -n "$activity" ] || [ -n "$pr_state" ]; then
-    printf '%s [nmb-ind=%s,%s]\n' "$title" "$activity" "$pr_state"
+  pi_stale="$(read_pane_option "@pi_stale" 2>/dev/null || true)"
+  if [ -n "$activity$pr_state$pi_stale" ]; then
+    printf '%s [nmb-ind=%s,%s,%s]\n' \
+      "$title" "$activity" "$pr_state" "$pi_stale"
   else
     printf '%s\n' "$title"
   fi

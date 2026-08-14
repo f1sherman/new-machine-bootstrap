@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Maps agent-activity and PR-state names to tmux tab glyphs. Prints the glyph
-# prefix (with trailing space) or nothing when neither value maps.
+# Maps agent activity, PR state, and Pi stale state to tmux tab glyphs. Prints
+# the glyph prefix (with trailing space) or nothing when no value maps.
 activity="${1:-}"
 pr_state="${2:-}"
+pi_stale="${3:-}"
 out=""
 
 case "$activity" in
@@ -20,6 +21,11 @@ case "$pr_state" in
   approved) out+='#[fg=#b5bd68]●' ;;
   merged) out+='#[fg=#8957e5]●' ;;
   closed) out+='#[fg=#cf4f4f,dim]●' ;;
+esac
+
+case "$pi_stale" in
+  reload) out+='#[fg=#ffff00]↻' ;;
+  restart) out+='#[fg=#cc6666]⟳' ;;
 esac
 
 if [ -n "$out" ]; then

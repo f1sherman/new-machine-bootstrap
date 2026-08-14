@@ -7,6 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 BIN_DIR="$REPO_ROOT/roles/common/files/bin"
 REMOTE_TITLE="$BIN_DIR/tmux-remote-title"
+WINDOW_LABEL="$BIN_DIR/tmux-window-label"
+GLYPHS="$BIN_DIR/tmux-indicator-glyphs"
 TITLE_TRANSITION="$BIN_DIR/tmux-title-transition"
 
 TMPROOT="$(mktemp -d)"
@@ -79,6 +81,19 @@ wait_for_file_line() {
   fail_case "$name" "missing exact line '$line' in $path after waiting"
 }
 
+wait_for_file() {
+  local path="$1" name="$2" attempts=0
+  while [ "$attempts" -lt 100 ]; do
+    if [ -f "$path" ]; then
+      pass_case "$name"
+      return 0
+    fi
+    sleep 0.02
+    attempts=$((attempts + 1))
+  done
+  fail_case "$name" "missing $path after waiting"
+}
+
 wait_for_process_exit() {
   local pid="$1" name="$2" attempts=0 status
   while [ "$attempts" -lt 100 ]; do
@@ -106,6 +121,113 @@ assert_no_file() {
   pass_case "$name"
 }
 
+assert_equals "$("$GLYPHS" "" "" reload)" \
+  '#[fg=#ffff00]↻ ' "local reload badge"
+assert_equals "$("$GLYPHS" "" "" restart)" \
+  '#[fg=#cc6666]⟳ ' "local restart badge"
+assert_equals "$("$GLYPHS" working approved restart)" \
+  '⏳#[fg=#b5bd68]●#[fg=#cc6666]⟳ ' \
+  "restart badge with activity and PR state"
+
+indicator_tmux_dir="$TMPROOT/indicator-tmux-bin"
+indicator_log="$TMPROOT/indicator-window-label.log"
+mkdir -p "$indicator_tmux_dir"
+cat >"$indicator_tmux_dir/tmux" <<'STUB'
+#!/usr/bin/env bash
+target=""
+previous=""
+for argument in "$@"; do
+  if [ "$previous" = "-t" ]; then
+    target="$argument"
+  fi
+  previous="$argument"
+done
+case "$1" in
+  display-message)
+    printf '@1__NMB_TMUX_FIELD__1__NMB_TMUX_FIELD__old-window__NMB_TMUX_FIELD__/dev/null__NMB_TMUX_FIELD__/tmp/project__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%s__NMB_TMUX_FIELD__%s\n' \
+      "${TMUX_TEST_COMMAND:-ssh}" "${TMUX_TEST_TITLE:-}" "$target"
+    ;;
+  show-options)
+    case "${*: -1}" in
+      @window-label) printf '%s' "${TMUX_TEST_WINDOW_LABEL:-}" ;;
+      @task_state) printf '%s' "${TMUX_TEST_TASK_STATE:-}" ;;
+      @task_source) printf '%s' "${TMUX_TEST_TASK_SOURCE:-}" ;;
+      @task_label) printf '%s' "${TMUX_TEST_TASK_LABEL:-}" ;;
+      @agent_kind) printf '%s' "${TMUX_TEST_AGENT_KIND:-}" ;;
+      @agent_activity) printf '%s' "${TMUX_TEST_ACTIVITY:-}" ;;
+      @pr_state) printf '%s' "${TMUX_TEST_PR_STATE:-}" ;;
+      @pi_stale)
+        if [ -n "${TMUX_TEST_SELECTED_STALE:-}" ]; then
+          case "$target" in
+            %2) printf '%s' "$TMUX_TEST_SELECTED_STALE" ;;
+            *) printf 'restart' ;;
+          esac
+        else
+          printf '%s' "${TMUX_TEST_PI_STALE:-}"
+        fi
+        ;;
+    esac
+    ;;
+  set-option|rename-window)
+    printf '%s\n' "$*" >> "$TMUX_WINDOW_LABEL_LOG"
+    ;;
+esac
+STUB
+chmod +x "$indicator_tmux_dir/tmux"
+
+run_window_label_case() {
+  : > "$indicator_log"
+  TMUX_WINDOW_LABEL_LOG="$indicator_log" \
+    PATH="$indicator_tmux_dir:$PATH" "$WINDOW_LABEL" "${1:-%1}"
+}
+
+TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=working,draft]' \
+  run_window_label_case
+assert_file_contains "$indicator_log" \
+  'set-option -wq -t @1 @window-indicators ⏳#[fg=#808080]● ' \
+  "old two-field remote marker"
+
+TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=,approved,reload]' \
+  run_window_label_case
+assert_file_contains "$indicator_log" \
+  'set-option -wq -t @1 @window-indicators #[fg=#b5bd68]●#[fg=#ffff00]↻ ' \
+  "new reload three-field remote marker renders"
+
+TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=waiting,,restart]' \
+  run_window_label_case
+assert_file_contains "$indicator_log" \
+  'set-option -wq -t @1 @window-indicators 💬#[fg=#cc6666]⟳ ' \
+  "new restart three-field remote marker renders"
+
+TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=,,unknown]' \
+  run_window_label_case
+assert_file_contains "$indicator_log" \
+  'set-option -wqu -t @1 @window-indicators' \
+  "unknown stale value renders no badge"
+
+TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=,,reload]' \
+  run_window_label_case
+assert_file_contains "$indicator_log" 'rename-window -t @1 feature/remote' \
+  "remote marker is stripped from the visible task label"
+
+TMUX_TEST_AGENT_KIND=pi TMUX_TEST_COMMAND=pi \
+TMUX_TEST_WINDOW_LABEL=local-task TMUX_TEST_TASK_STATE=active \
+TMUX_TEST_TASK_SOURCE=branch TMUX_TEST_TASK_LABEL=local-task \
+TMUX_TEST_PI_STALE=restart \
+TMUX_TEST_TITLE='(feature/remote) project | remote-host [nmb-ind=working,draft,reload]' \
+  run_window_label_case
+assert_file_contains "$indicator_log" \
+  'set-option -wq -t @1 @window-indicators #[fg=#cc6666]⟳ ' \
+  "local live-Pi state takes precedence over remote fallback"
+
+TMUX_TEST_AGENT_KIND=pi TMUX_TEST_COMMAND=pi \
+TMUX_TEST_WINDOW_LABEL=selected-task TMUX_TEST_TASK_STATE=active \
+TMUX_TEST_TASK_SOURCE=branch TMUX_TEST_TASK_LABEL=selected-task \
+TMUX_TEST_SELECTED_STALE=reload run_window_label_case %2
+assert_file_contains "$indicator_log" \
+  'set-option -wq -t @1 @window-indicators #[fg=#ffff00]↻ ' \
+  "active-pane recalculation reads the selected pane state"
+
 remote_publish_tmux_dir="$TMPROOT/remote-publish-tmux-bin"
 remote_publish_visible="$TMPROOT/remote-publish-visible"
 remote_publish_other="$TMPROOT/remote-publish-other"
@@ -126,11 +248,31 @@ case "$1" in
       @task_label) printf 'status check' ;;
       @task_state) printf 'provisional' ;;
       @task_context) printf 'project' ;;
+      @agent_activity) printf '%s' "${TMUX_TEST_ACTIVITY:-}" ;;
+      @pr_state) printf '%s' "${TMUX_TEST_PR_STATE:-}" ;;
+      @pi_stale) printf '%s' "${TMUX_TEST_PI_STALE:-}" ;;
     esac
     ;;
 esac
 STUB
 chmod +x "$remote_publish_tmux_dir/tmux"
+
+remote_reload_title="$(
+  TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host \
+  TMUX_TEST_PI_STALE=reload PATH="$remote_publish_tmux_dir:$PATH" \
+    "$REMOTE_TITLE" print
+)"
+assert_equals "$remote_reload_title" \
+  '~ status check · project | remote-host [nmb-ind=,,reload]' \
+  "new reload three-field remote marker"
+remote_restart_title="$(
+  TMUX_PANE=%31 TMUX_REMOTE_TITLE_HOST_TAG=remote-host \
+  TMUX_TEST_ACTIVITY=waiting TMUX_TEST_PI_STALE=restart \
+  PATH="$remote_publish_tmux_dir:$PATH" "$REMOTE_TITLE" print
+)"
+assert_equals "$remote_restart_title" \
+  '~ status check · project | remote-host [nmb-ind=waiting,,restart]' \
+  "new restart three-field remote marker"
 
 TMUX_PANE=%31 \
 TMUX_REMOTE_TITLE_HOST_TAG=remote-host \
@@ -160,7 +302,15 @@ mkdir -p "$transition_bin"
 cat >"$transition_bin/tmux-window-label" <<'STUB'
 #!/usr/bin/env bash
 printf 'label-start\t%s\n' "${2:-}" >> "$TMUX_TITLE_TRANSITION_LOG"
-[ "${2:-}" != old ] || sleep 0.2
+if [ "${2:-}" = old ]; then
+  while [ ! -f "$TMUX_TITLE_TRANSITION_RELEASE" ]; do
+    sleep 0.01
+  done
+elif [ "${2:-}" = reused-pid ]; then
+  while [ ! -f "$TMUX_TITLE_TRANSITION_REUSED_REQUEST" ]; do
+    sleep 0.01
+  done
+fi
 printf 'label-end\t%s\n' "${2:-}" >> "$TMUX_TITLE_TRANSITION_LOG"
 STUB
 cat >"$transition_bin/tmux-remote-title" <<'STUB'
@@ -169,8 +319,10 @@ printf 'publish\t%s\t%s\n' "${TMUX_REMOTE_TITLE_SUPPRESS_EDGE:-0}" "${1:-}" >> "
 STUB
 chmod +x "$transition_bin/tmux-window-label" "$transition_bin/tmux-remote-title"
 
+transition_release="$TMPROOT/transition-release"
 SSH_CONNECTION=test TMUX_TITLE_TRANSITION_STATE_DIR="$transition_state" \
-TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
+TMUX_TITLE_TRANSITION_LOG="$transition_log" \
+TMUX_TITLE_TRANSITION_RELEASE="$transition_release" PATH="$transition_bin:$PATH" \
   "$TITLE_TRANSITION" %1 0001 old 0 &
 old_transition_pid=$!
 wait_for_file_line "$transition_log" $'label-start\told' \
@@ -179,14 +331,17 @@ transition_lock="$transition_state/default._1/worker.lock"
 assert_equals "$(cat "$transition_lock/owner")" "$old_transition_pid"$'\t'0001 \
   "active transition records PID and request identity"
 SSH_CONNECTION=test TMUX_TITLE_TRANSITION_STATE_DIR="$transition_state" \
-TMUX_TITLE_TRANSITION_LOG="$transition_log" PATH="$transition_bin:$PATH" \
+TMUX_TITLE_TRANSITION_LOG="$transition_log" \
+TMUX_TITLE_TRANSITION_RELEASE="$transition_release" PATH="$transition_bin:$PATH" \
   "$TITLE_TRANSITION" %1 0002 new 1 &
 new_transition_pid=$!
-sleep 0.05
+wait_for_file "$transition_state/default._1/requests/0002" \
+  "waiting transition records its request"
 assert_equals "$(cat "$transition_lock/owner")" "$old_transition_pid"$'\t'0001 \
   "waiting transition does not steal the live-owner lock"
 assert_file_not_contains "$transition_log" $'label-start\tnew' \
   "waiting transition does not render under the live-owner lock"
+: > "$transition_release"
 wait "$old_transition_pid" "$new_transition_pid"
 assert_line_before "$transition_log" $'label-end\told' $'label-start\tnew' \
   "newer transition waits for the prior renderer"
@@ -252,12 +407,15 @@ reused_pid_log="$TMPROOT/reused-pid.log"
 reused_pid_lock="$reused_pid_state/default._8/worker.lock"
 mkdir -p "$reused_pid_lock"
 printf '%s\n' "$$" > "$reused_pid_lock/owner"
+reused_pid_request="$reused_pid_state/default._8/requests/0002"
 TMUX_TITLE_TRANSITION_STATE_DIR="$reused_pid_state" \
-TMUX_TITLE_TRANSITION_LOG="$reused_pid_log" PATH="$transition_bin:$PATH" \
-  "$TITLE_TRANSITION" %8 0001 reused-pid 0 &
+TMUX_TITLE_TRANSITION_LOG="$reused_pid_log" \
+TMUX_TITLE_TRANSITION_REUSED_REQUEST="$reused_pid_request" \
+PATH="$transition_bin:$PATH" "$TITLE_TRANSITION" %8 0001 reused-pid 0 &
 reused_pid_transition=$!
-sleep 0.1
-: > "$reused_pid_state/default._8/requests/0002"
+wait_for_file_line "$reused_pid_log" $'label-start\treused-pid' \
+  "reused-PID transition starts rendering"
+: > "$reused_pid_request"
 wait_for_process_exit "$reused_pid_transition" \
   "transition recovers a lock with a reused PID"
 assert_file_line "$reused_pid_log" $'label-end\treused-pid' \
