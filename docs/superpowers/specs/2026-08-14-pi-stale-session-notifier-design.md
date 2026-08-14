@@ -27,9 +27,9 @@ not warn.
 
 - `new-machine-bootstrap` (NMB) owns the Pi executable, base Pi resources, and
   tmux indicator transport.
-- `bootstrap-brian-john` (BBJ) owns private Pi extensions, private skills,
-  BetterUp packages, and the project package stores that it reconciles.
-- Other repositories can participate through the same publisher contract.
+- A private producer owns managed extensions, skills, packages, and the
+  project package store that it reconciles.
+- Each participating repository can use the same publisher contract.
 - Standard provisioning is cooperative. Each repository declares the
   effective deployed inputs that it owns.
 - A global producer change can warn every Pi process. Project-scoped warnings
@@ -80,8 +80,9 @@ NMB owns the generic feature:
 - the local and remote tmux badge rendering;
 - NMB's own Pi resource manifest.
 
-BBJ owns only its producer declaration and reconciliation calls. Future
-repositories use the NMB publisher without copying its implementation.
+A private producer owns only its producer declaration and reconciliation
+calls. Each later participating repository uses the NMB publisher without
+copying its implementation.
 
 ## State contract
 
@@ -94,8 +95,9 @@ ${XDG_STATE_HOME:-~/.local/state}/pi-session-staleness/v1/producers/
 ```
 
 The directory mode is `0700`. Each producer record is a `0600` JSON file. The
-producer identifier must match `[a-z0-9][a-z0-9-]{0,63}`. Initial identifiers
-are `new-machine-bootstrap` and `bootstrap-brian-john`.
+producer identifier must match `[a-z0-9][a-z0-9-]{0,63}`. The initial producer
+identifier is `new-machine-bootstrap`. A later participating repository
+selects its own identifier when it enrolls.
 
 Each producer writes only its own file. This prevents one repository from
 removing another repository's state.
@@ -196,7 +198,7 @@ The following changes increment a producer's `reload` generation:
 - Pi package membership, version, or effective content;
 - package-provided tools;
 - load-time MCP configuration;
-- project package stores changed by managed provisioning.
+- project package store content changed by managed provisioning.
 
 Pi `/reload` re-resolves settings and packages and reloads these resources.
 
@@ -227,8 +229,10 @@ The following changes do not update either generation:
 
 ## Provisioning lifecycle
 
-Each participating provisioner reconciles its declared state after possible
-Pi mutations. Check and diff runs never publish.
+Each participating repository reconciles its declared state after possible
+Pi mutations. Ansible check mode never publishes because it does not change
+effective state. An apply run publishes even when --diff is enabled, because
+--diff changes only reporting and does not make the run read-only.
 
 Reconciliation must also run from the provisioner's cleanup path after a
 partial failure. This is necessary because a failed provision can still
@@ -243,9 +247,9 @@ The existing provision lock serializes normal runs. The publisher still uses
 atomic per-producer writes so future independent publishers are safe.
 
 NMB's manifest covers its Pi executable, Node runtime identity, base settings,
-models, keybindings, context, extensions, and skills. BBJ's manifest covers
-its installed extensions, skills, global BetterUp packages, settings changes,
-and project package stores that BBJ actually mutates.
+models, keybindings, context, extensions, and skills. A private producer's
+manifest covers its installed extensions, skills, managed packages, settings
+changes, and project package store content that it actually mutates.
 
 ## Extension lifecycle
 
@@ -411,9 +415,10 @@ Use two running Pi processes and verify these behaviors empirically:
 4. `/reload` clears the reload footer and tmux badge.
 5. A simulated runtime change survives `/reload` and clears only in a new Pi
    process.
-6. A BBJ package or private extension change produces the same reload warning.
+6. A managed package or private producer extension change produces the same
+   reload warning.
 7. A failed provision that changed a declared Pi input still warns.
-8. Local and DevPod Pi panes show the correct tmux badge.
+8. Local and remote development host Pi panes show the correct tmux badge.
 
 ## Rollout
 
@@ -425,16 +430,17 @@ installs the watcher.
 
 After deployment, run one explicit `/reload` or restart in each existing Pi
 process that should receive future warnings. Verify a controlled reload-class
-change locally and in one DevPod.
+change locally and on one remote development host.
 
-### Phase 2: BBJ
+### Phase 2: Private producer
 
-BBJ registers its producer and reconciles the effective private resources it
-owns. The first BBJ producer record warns Pi processes that were already
-running because a new resource owner appeared after their baseline.
+A private producer registers and reconciles the effective managed resources it
+owns. Its first producer record warns Pi processes that were already running
+because a new resource owner appeared after their baseline.
 
-Verify a BetterUp package change and a private extension change. Confirm that
-a second no-op BBJ provision does not modify the producer record.
+Verify a managed package change and a private producer extension change.
+Confirm that a second no-op private producer provision does not modify the
+producer record.
 
 ### Future producers
 
@@ -464,7 +470,8 @@ must not edit another producer's record.
 - Direct project-local `.pi` edits are not detected unless that repository
   publishes state. Guessing Pi's resolved package set is intentionally out of
   scope.
-- A global BBJ package-store change can warn sessions in unrelated projects.
-  Project-scoped records are a later extension if this becomes noisy.
+- A global project package store change can warn sessions in unrelated
+  projects. Project-scoped records are a later extension if this becomes
+  noisy.
 - Existing processes cannot use a watcher that they have not loaded. The
   rollout requires one explicit reload or restart.
