@@ -28,7 +28,7 @@
 - Consumes: `HERDR_ENV`, `SSH_CONNECTION`, `TMUX`, `TMUX_ATTACH_FALLBACK`, terminal state from `test -t 0`, and `~/.local/bin/tmux-attach-or-new`.
 - Produces: an Ansible-managed `.zprofile` block that conditionally replaces the login shell with `tmux-attach-or-new`.
 
-- [ ] **Step 1: Record the failing production behavior**
+- [x] **Step 1: Record the failing production behavior**
 
 Run from the controller:
 
@@ -39,7 +39,7 @@ ssh dev 'grep -F "HERDR_ENV" ~/.zprofile || true; \
 
 Expected before the fix: no `HERDR_ENV` condition is present. A plain interactive SSH login stays outside tmux, as already reproduced.
 
-- [ ] **Step 2: Restore the managed profile block**
+- [x] **Step 2: Restore the managed profile block**
 
 Replace the removal task with this task body:
 
@@ -61,11 +61,11 @@ Replace the removal task with this task body:
       fi
 ```
 
-- [ ] **Step 3: Align repository guidance**
+- [x] **Step 3: Align repository guidance**
 
 Change the Dev Host Role bullet to `tmux auto-launch for SSH sessions outside Herdr`. Change the Linux Dev Host note to `tmux attaches automatically for interactive SSH logins outside Herdr`.
 
-- [ ] **Step 4: Validate syntax and review the patch**
+- [x] **Step 4: Validate syntax and review the patch**
 
 Run:
 
@@ -77,7 +77,7 @@ git diff -- roles/dev_host/tasks/main.yml CLAUDE.md
 
 Expected: syntax check succeeds, diff check prints nothing, and the diff contains only the guarded launch task and matching documentation.
 
-- [ ] **Step 5: Commit the implementation**
+- [x] **Step 5: Commit the implementation**
 
 Run the repository commit helper with explicit paths and message `Restore SSH tmux launch outside Herdr`.
 
@@ -90,41 +90,41 @@ Run the repository commit helper with explicit paths and message `Restore SSH tm
 - Consumes: the committed feature branch and `bin/provision` on `dev`.
 - Produces: live evidence for ordinary SSH, Herdr-marked login, non-interactive SSH, and idempotent provisioning.
 
-- [ ] **Step 1: Push the feature branch for the dev checkout**
+- [x] **Step 1: Push the feature branch for the dev checkout**
 
 Push `fix/restore-ssh-tmux-outside-herdr` to `origin` without creating the pull request yet.
 
-- [ ] **Step 2: Create a temporary branch worktree on dev**
+- [x] **Step 2: Create a temporary branch worktree on dev**
 
 Fetch the branch in `/home/brian/projects/new-machine-bootstrap`, then create `/home/brian/projects/new-machine-bootstrap/.worktrees/restore-ssh-tmux-outside-herdr` from `origin/fix/restore-ssh-tmux-outside-herdr`. Do not modify the deployed checkout directly.
 
-- [ ] **Step 3: Provision from the dev worktree**
+- [x] **Step 3: Provision from the dev worktree**
 
 Run `bin/provision` directly in the remote worktree. Require zero failed and unreachable tasks.
 
-- [ ] **Step 4: Verify the profile contract**
+- [x] **Step 4: Verify the profile contract**
 
 Check that `~/.zprofile` contains the managed block and all five guards. Confirm `~/.local/bin/tmux-attach-or-new` is executable.
 
-- [ ] **Step 5: Verify ordinary interactive SSH**
+- [x] **Step 5: Verify ordinary interactive SSH**
 
 Use a forced TTY login with scripted input that prints `TMUX` and exits. Expected: `TMUX` is nonempty, which proves the login entered tmux.
 
-- [ ] **Step 6: Verify the Herdr exception**
+- [x] **Step 6: Verify the Herdr exception**
 
 Use a forced TTY login that starts `env HERDR_ENV=1 zsh -l`, prints `HERDR_ENV` and `TMUX`, and exits. Expected: `HERDR_ENV=1` and `TMUX` is empty.
 
-- [ ] **Step 7: Verify non-interactive SSH**
+- [x] **Step 7: Verify non-interactive SSH**
 
 Run `ssh dev 'test -z "${TMUX:-}"'`. Expected: exit status 0.
 
-- [ ] **Step 8: Verify idempotence**
+- [x] **Step 8: Verify idempotence**
 
 Run `bin/provision` a second time from the remote worktree. Require zero failed and unreachable tasks and no unexpected changes.
 
-- [ ] **Step 9: Remove the temporary dev worktree**
+- [x] **Step 9: Retain the active implementation worktree**
 
-Remove only the remote feature worktree. Leave the live managed profile in place for new SSH logins.
+The controller and `dev` are the same host, so the provisioning worktree is also the active implementation worktree. Retain it through pull request creation. Leave the live managed profile in place for new SSH logins.
 
 ### Task 3: Final branch verification and pull request
 
