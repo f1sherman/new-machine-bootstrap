@@ -151,6 +151,6 @@ Expected: syntax succeeds, diff check is empty, and the branch contains no uncom
 
 If checkbox tracking changed the plan, commit only the plan with an imperative message. Otherwise, report no tracking change.
 
-- [ ] **Step 3: Create the pull request**
+- [x] **Step 3: Create the pull request**
 
 Invoke the repository pull-request workflow. Include a `## Verification` section that reports only author-initiated evidence not duplicated by normal PR automation.
