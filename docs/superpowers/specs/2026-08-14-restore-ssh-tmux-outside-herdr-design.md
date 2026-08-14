@@ -68,7 +68,7 @@ A retained automated test is not justified by the repository's material-value
 gates. This is a small shell preference whose failure is immediate and easy to
 diagnose. Verification will instead execute the production behavior:
 
-1. Run Ansible syntax and check-mode validation for the worktree.
+1. Run Ansible syntax validation for the worktree.
 2. Provision the Linux development host from the worktree.
 3. Confirm a plain interactive SSH login enters tmux.
 4. Confirm a forced interactive login with `HERDR_ENV=1` stays outside tmux.
