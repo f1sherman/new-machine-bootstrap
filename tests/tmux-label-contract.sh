@@ -9,6 +9,8 @@ BIN_DIR="$REPO_ROOT/roles/common/files/bin"
 REMOTE_TITLE="$BIN_DIR/tmux-remote-title"
 WINDOW_LABEL="$BIN_DIR/tmux-window-label"
 GLYPHS="$BIN_DIR/tmux-indicator-glyphs"
+TASK_LABEL="$BIN_DIR/tmux-task-label"
+PANE_TITLE_CHANGED="$BIN_DIR/tmux-pane-title-changed"
 TITLE_TRANSITION="$BIN_DIR/tmux-title-transition"
 
 TMPROOT="$(mktemp -d)"
@@ -120,6 +122,67 @@ assert_no_file() {
   fi
   pass_case "$name"
 }
+
+assert_rejected() {
+  local name="$1"
+  shift
+  if "$@" >/dev/null 2>&1; then
+    fail_case "$name" "command unexpectedly succeeded: $*"
+  fi
+  pass_case "$name"
+}
+
+three_field_marked_title='feature/remote · project | remote-host [nmb-task=goal] [nmb-ind=,,reload]'
+assert_equals "$("$TASK_LABEL" extract-remote "$three_field_marked_title")" \
+  'feature/remote' "normal extraction accepts three-field marker"
+
+three_field_provisional_title='~ status check · project | remote-host [nmb-ind=,,reload]'
+assert_equals "$("$TASK_LABEL" extract-remote-provisional \
+  "$three_field_provisional_title")" \
+  'status check' "provisional extraction accepts three-field marker"
+assert_rejected "one-field indicator marker remains malformed" \
+  "$TASK_LABEL" extract-remote-provisional \
+  '~ status check · project | remote-host [nmb-ind=reload]'
+assert_rejected "four-field indicator marker remains malformed" \
+  "$TASK_LABEL" extract-remote-provisional \
+  '~ status check · project | remote-host [nmb-ind=,,,reload]'
+
+pane_changed_bin="$TMPROOT/pane-title-changed-bin"
+pane_changed_log="$TMPROOT/pane-title-changed.log"
+mkdir -p "$pane_changed_bin"
+cat >"$pane_changed_bin/tmux" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  display-message)
+    printf '%s__NMB_TMUX_FIELD__ssh\n' "$TMUX_TEST_TITLE"
+    ;;
+  show-options)
+    case "${*: -1}" in
+      @pane-title-structured) printf '1' ;;
+      @task_state) printf 'provisional' ;;
+      @task_source) printf 'agent' ;;
+    esac
+    ;;
+esac
+STUB
+cat >"$pane_changed_bin/tmux-agent-state" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\t%s\t%s\n' "$TMUX_PANE" "$1" "$2" > "$TMUX_PANE_CHANGED_LOG"
+STUB
+cat >"$pane_changed_bin/tmux-sync-pane-border-status" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+chmod +x "$pane_changed_bin/tmux" \
+  "$pane_changed_bin/tmux-agent-state" \
+  "$pane_changed_bin/tmux-sync-pane-border-status"
+TMUX_TEST_TITLE="$three_field_provisional_title" \
+TMUX_PANE_CHANGED_LOG="$pane_changed_log" \
+TMUX_AGENT_STATE_BIN="$pane_changed_bin/tmux-agent-state" \
+PATH="$pane_changed_bin:$PATH" "$PANE_TITLE_CHANGED" %41
+assert_file_line "$pane_changed_log" \
+  $'%41\tadopt-remote-provisional\tstatus check' \
+  "pane title change adopts provisional three-field marker"
 
 assert_equals "$("$GLYPHS" "" "" reload)" \
   '#[fg=#ffff00]↻ ' "local reload badge"

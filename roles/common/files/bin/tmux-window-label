@@ -112,37 +112,14 @@ if is_live_agent; then
 fi
 task_label_resolved=""
 
-task_compatible_remote_label() {
-  local title="${1:-}" before after values remainder suffix
-  case "$title" in
-    *"[nmb-ind="*"]"*) ;;
-    *) printf '%s\n' "$title"; return 0 ;;
-  esac
-  before="${title%%\[nmb-ind=*}"
-  after="${title#*\[nmb-ind=}"
-  values="${after%%]*}"
-  remainder="${values#*,}"
-  if [ "$remainder" = "$values" ] || [ "${remainder#*,}" = "$remainder" ]; then
-    printf '%s\n' "$title"
-    return 0
-  fi
-  suffix="${after#*]}"
-  printf '%s[nmb-ind=%s,%s]%s\n' \
-    "$before" "${values%%,*}" "${remainder%%,*}" "$suffix"
-}
-
 task_from_remote_label() {
-  local title
   [ -x "$task_label_helper" ] || return 1
-  title="$(task_compatible_remote_label "${1:-}")"
-  "$task_label_helper" extract-remote "$title"
+  "$task_label_helper" extract-remote "${1:-}"
 }
 
 render_remote_label() {
-  local title
   [ -x "$task_label_helper" ] || return 1
-  title="$(task_compatible_remote_label "${1:-}")"
-  "$task_label_helper" render-remote "$title"
+  "$task_label_helper" render-remote "${1:-}"
 }
 
 remote_host_suffix() {
