@@ -34,6 +34,11 @@ CASES = [
   :prior_record_survives_hash_failure,
   :post_rename_failure_restores_prior_record,
   :post_rename_failure_removes_first_record,
+  :rollback_rename_failure_retains_artifact,
+  :rollback_sync_failure_retains_artifact,
+  :first_write_cleanup_failure_is_reported,
+  :rollback_artifact_unlink_failure_is_nonfatal,
+  :stale_rollback_artifact_is_reconciled,
   :readers_never_observe_partial_json,
 ].freeze
 
@@ -115,24 +120,51 @@ class PublisherTest
     File.dirname(record_path)
   end
 
-  def directory_sync_failure_environment
-    wrapper = File.join(@root, "fail-directory-sync.rb")
+  def fault_environment(directory_sync_failures: 0, rollback_rename: false, rollback_unlink: false)
+    wrapper = File.join(@root, "publisher-faults.rb")
     File.write(wrapper, <<~RUBY)
       class << File
         alias_method :publisher_original_open, :open
+        alias_method :publisher_original_rename, :rename
+        alias_method :publisher_original_unlink, :unlink
 
         def open(path, *arguments, **options, &block)
-          if path == ENV["PUBLISHER_FAIL_DIRECTORY_SYNC"]
+          remaining = ENV.fetch("PUBLISHER_DIRECTORY_SYNC_FAILURES", "0").to_i
+          if path == ENV["PUBLISHER_DIRECTORY"] && remaining.positive?
+            ENV["PUBLISHER_DIRECTORY_SYNC_FAILURES"] = (remaining - 1).to_s
             raise IOError, "injected directory sync failure"
           end
           publisher_original_open(path, *arguments, **options, &block)
         end
+
+        def rename(source, destination)
+          if ENV["PUBLISHER_FAIL_ROLLBACK_RENAME"] == "1" &&
+              source.include?(".rollback")
+            raise IOError, "injected rollback rename failure"
+          end
+          publisher_original_rename(source, destination)
+        end
+
+        def unlink(path)
+          if ENV["PUBLISHER_FAIL_ROLLBACK_UNLINK"] == "1" &&
+              path.end_with?(".rollback")
+            raise IOError, "injected rollback unlink failure"
+          end
+          publisher_original_unlink(path)
+        end
       end
     RUBY
     {
-      "PUBLISHER_FAIL_DIRECTORY_SYNC" => producer_directory,
+      "PUBLISHER_DIRECTORY" => producer_directory,
+      "PUBLISHER_DIRECTORY_SYNC_FAILURES" => directory_sync_failures.to_s,
+      "PUBLISHER_FAIL_ROLLBACK_RENAME" => rollback_rename ? "1" : "0",
+      "PUBLISHER_FAIL_ROLLBACK_UNLINK" => rollback_unlink ? "1" : "0",
       "RUBYOPT" => "-r#{wrapper}",
     }
+  end
+
+  def rollback_artifacts
+    Dir.glob(File.join(producer_directory, ".test-producer.json.*.rollback"))
   end
 
   def generation(classification = "reload", producer = "test-producer")
@@ -378,16 +410,87 @@ class PublisherTest
     reconcile!(manifest([value_input("version", "before")]))
     bytes = File.binread(record_path)
     changed = manifest([value_input("version", "after")])
-    assert_rejected(changed, environment: directory_sync_failure_environment)
+    assert_rejected(changed, environment: fault_environment(directory_sync_failures: 1))
     assert_equal(bytes, File.binread(record_path))
     assert_equal([], Dir.glob(File.join(producer_directory, ".test-producer.json.*")))
   end
 
   def post_rename_failure_removes_first_record
     input = manifest([value_input("version", "first")])
-    assert_rejected(input, environment: directory_sync_failure_environment)
+    assert_rejected(input, environment: fault_environment(directory_sync_failures: 1))
     assert(!File.exist?(record_path), "failed first write left a producer record")
     assert_equal([], Dir.glob(File.join(producer_directory, ".test-producer.json.*")))
+  end
+
+  def rollback_rename_failure_retains_artifact
+    reconcile!(manifest([value_input("version", "before")]))
+    bytes = File.binread(record_path)
+    changed = manifest([value_input("version", "after")])
+    _stdout, stderr, status = reconcile(
+      changed,
+      environment: fault_environment(directory_sync_failures: 1, rollback_rename: true),
+    )
+    assert(!status.success?, "rollback rename failure succeeded")
+    assert(stderr.include?("injected rollback rename failure"), "rollback failure not reported: #{stderr}")
+    assert_equal(1, rollback_artifacts.length)
+    assert_equal(bytes, File.binread(rollback_artifacts.first))
+  end
+
+  def rollback_sync_failure_retains_artifact
+    reconcile!(manifest([value_input("version", "before")]))
+    bytes = File.binread(record_path)
+    changed = manifest([value_input("version", "after")])
+    _stdout, stderr, status = reconcile(
+      changed,
+      environment: fault_environment(directory_sync_failures: 2),
+    )
+    assert(!status.success?, "rollback sync failure succeeded")
+    assert(stderr.include?("rollback failed"), "rollback sync failure not reported: #{stderr}")
+    assert_equal(bytes, File.binread(record_path))
+    assert_equal(1, rollback_artifacts.length)
+    assert_equal(bytes, File.binread(rollback_artifacts.first))
+  end
+
+  def first_write_cleanup_failure_is_reported
+    input = manifest([value_input("version", "first")])
+    _stdout, stderr, status = reconcile(
+      input,
+      environment: fault_environment(directory_sync_failures: 2),
+    )
+    assert(!status.success?, "first-write cleanup failure succeeded")
+    assert(stderr.include?("first-write rollback failed"), "cleanup failure not reported: #{stderr}")
+    assert(!File.exist?(record_path), "failed first write left a producer record")
+  end
+
+  def rollback_artifact_unlink_failure_is_nonfatal
+    reconcile!(manifest([value_input("version", "before")]))
+    prior_generation = generation
+    changed = manifest([value_input("version", "after")])
+    _stdout, stderr, status = reconcile(
+      changed,
+      environment: fault_environment(rollback_unlink: true),
+    )
+    assert(status.success?, "durable commit failed because rollback cleanup failed: #{stderr}")
+    assert(
+      stderr.start_with?("pi-session-staleness-publish: warning: "),
+      "cleanup warning lacks prefix: #{stderr.inspect}",
+    )
+    assert(stderr.include?("injected rollback unlink failure"), "cleanup failure not reported: #{stderr}")
+    assert(prior_generation != generation, "durable commit did not update the record")
+    assert_equal(1, rollback_artifacts.length)
+  end
+
+  def stale_rollback_artifact_is_reconciled
+    reconcile!(manifest([value_input("version", "before")]))
+    changed = manifest([value_input("version", "after")])
+    _stdout, _stderr, status = reconcile(
+      changed,
+      environment: fault_environment(rollback_unlink: true),
+    )
+    assert(status.success?, "fault setup did not leave a committed record")
+    assert_equal(1, rollback_artifacts.length)
+    reconcile!(changed)
+    assert_equal([], rollback_artifacts)
   end
 
   def readers_never_observe_partial_json

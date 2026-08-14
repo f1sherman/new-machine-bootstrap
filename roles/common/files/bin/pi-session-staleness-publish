@@ -223,7 +223,10 @@ class PiSessionStalenessPublisher
       lock.chmod(0o600)
       lock.flock(File::LOCK_EX) or raise PublisherError, "cannot lock producer record"
       record = read_record(record_path, producer)
-      File.chmod(0o600, record_path) if File.exist?(record_path)
+      if File.exist?(record_path)
+        File.chmod(0o600, record_path)
+        remove_stale_rollbacks(record_path)
+      end
       classification = options.fetch(:classification)
       current = record[classification]
       return if current && current["generation"] == generation
@@ -304,24 +307,72 @@ class PiSessionStalenessPublisher
       File.rename(temporary, path)
       replaced = true
       synchronize_directory(directory)
-    rescue StandardError
-      rollback_replacement(path, rollback, directory, had_prior_record) if replaced
-      raise
+    rescue StandardError => write_error
+      if replaced
+        begin
+          rollback_replacement(path, rollback, directory, had_prior_record)
+        rescue StandardError => rollback_error
+          raise PublisherError, "write failed: #{write_error.message}; #{rollback_error.message}"
+        end
+      end
+      raise write_error
     ensure
       File.unlink(temporary) if File.exist?(temporary)
-      File.unlink(rollback) if File.exist?(rollback)
     end
+
+    remove_committed_rollback(rollback, directory) if had_prior_record
   end
 
   def rollback_replacement(path, rollback, directory, had_prior_record)
     if had_prior_record
-      File.rename(rollback, path)
+      restore = "#{rollback}.restore"
+      begin
+        File.link(rollback, restore)
+        File.rename(restore, path)
+        synchronize_directory(directory)
+      rescue StandardError => error
+        raise PublisherError,
+          "prior-record rollback failed: #{error.message}; rollback artifact retained at #{rollback}"
+      ensure
+        File.unlink(restore) if File.exist?(restore)
+      end
+      remove_committed_rollback(rollback, directory)
     else
-      File.unlink(path) if File.exist?(path)
+      begin
+        File.unlink(path) if File.exist?(path)
+        synchronize_directory(directory)
+      rescue StandardError => error
+        raise PublisherError, "first-write rollback failed: #{error.message}"
+      end
     end
+  end
+
+  def remove_committed_rollback(rollback, directory)
+    File.unlink(rollback)
     synchronize_directory(directory)
-  rescue StandardError
-    nil
+  rescue StandardError => error
+    publisher_warning("rollback artifact cleanup failed: #{error.message}")
+  end
+
+  def remove_stale_rollbacks(record_path)
+    directory = File.dirname(record_path)
+    prefix = ".#{File.basename(record_path)}."
+    Dir.children(directory).each do |entry|
+      next unless entry.start_with?(prefix) && entry.end_with?(".rollback")
+
+      rollback = File.join(directory, entry)
+      begin
+        File.unlink(rollback)
+        synchronize_directory(directory)
+      rescue StandardError => error
+        publisher_warning("stale rollback artifact cleanup failed: #{error.message}")
+      end
+    end
+  end
+
+  def publisher_warning(message)
+    sanitized = message.to_s.gsub(/[\r\n]+/, " ")
+    warn "pi-session-staleness-publish: warning: #{sanitized}"
   end
 
   def synchronize_directory(directory)
