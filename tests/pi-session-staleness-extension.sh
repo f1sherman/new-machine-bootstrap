@@ -13,6 +13,7 @@ import { pathToFileURL } from "node:url";
 
 const ADAPTERS = Symbol.for("nmb.pi-session-staleness.adapters");
 const PROCESS_STATE = Symbol.for("nmb.pi-session-staleness.process-state");
+const RELOAD_STATE = Symbol.for("nmb.pi-session-staleness.reload-state");
 const STATUS_KEY = "pi-session-staleness";
 const generation = (character) => `sha256:${character.repeat(64)}`;
 const changedAt = "2026-02-24T12:34:56.789Z";
@@ -33,6 +34,7 @@ function record(producer, values = {}) {
 
 function resetProcessState() {
   delete globalThis[PROCESS_STATE];
+  delete globalThis[RELOAD_STATE];
 }
 
 function environment(initialRecords = {}, options = {}) {
@@ -51,7 +53,11 @@ function environment(initialRecords = {}, options = {}) {
   globalThis[ADAPTERS] = {
     stateDirectory: "/state/producers",
     async readDirectory() {
-      if (directoryError) throw new Error(directoryError);
+      if (directoryError) {
+        throw directoryError instanceof Error
+          ? directoryError
+          : new Error(directoryError);
+      }
       return [...records.keys()];
     },
     async readFile(path) {
@@ -166,7 +172,10 @@ async function transitionsAndNotifications() {
 
   env.records.set("beta.json", record("beta", { reload: generation("c") }));
   await env.poll();
-  assert.deepEqual(env.lastStatus(), [STATUS_KEY, undefined], "later producer enrollment gets a baseline");
+  assert.deepEqual(env.lastStatus(), [
+    STATUS_KEY,
+    "warning:↻ Pi changed — /reload",
+  ], "a producer first observed after startup is stale");
 
   env.records.set("alpha.json", record("alpha", {
     reload: generation("d"),
@@ -208,6 +217,40 @@ async function transitionsAndNotifications() {
     "error:⟳ Pi changed — restart Pi",
   ], "restart state is monotonic for the process");
   assert.equal(env.notifications.length, restartNotificationCount, "restored restart generation does not notify again");
+}
+
+async function laterClassificationUsesDeclaredSeverity() {
+  resetProcessState();
+  const reload = environment({ "alpha.json": record("alpha") });
+  extension(reload.pi);
+  await reload.start();
+  reload.records.set("alpha.json", record("alpha", { reload: generation("a") }));
+  await reload.poll();
+  assert.deepEqual(reload.lastStatus(), [STATUS_KEY, "warning:↻ Pi changed — /reload"],
+    "a reload classification first observed after startup is stale");
+
+  resetProcessState();
+  const restart = environment({ "alpha.json": record("alpha") });
+  extension(restart.pi);
+  await restart.start();
+  restart.records.set("alpha.json", record("alpha", { restart: generation("b") }));
+  await restart.poll();
+  assert.deepEqual(restart.lastStatus(), [STATUS_KEY, "error:⟳ Pi changed — restart Pi"],
+    "a restart classification first observed after startup is stale");
+}
+
+async function malformedStartupDoesNotCompleteBaseline() {
+  resetProcessState();
+  const env = environment({ "alpha.json": "{broken" });
+  extension(env.pi);
+  await env.start();
+  assert.deepEqual(env.lastStatus(), [STATUS_KEY, "warning:Pi staleness check failed"],
+    "malformed startup state reports a check failure");
+
+  env.records.set("alpha.json", record("alpha", { reload: generation("a") }));
+  await env.poll();
+  assert.deepEqual(env.lastStatus(), [STATUS_KEY, undefined],
+    "first complete snapshot after malformed startup establishes the baseline");
 }
 
 async function restoredReloadAndMalformedState() {
@@ -256,6 +299,68 @@ async function restoredReloadAndMalformedState() {
   const missingLogs = env.logs.length;
   await env.poll();
   assert.equal(env.logs.length, missingLogs, "directory failure logs are deduplicated");
+}
+
+async function classificationRemovalPreservesKnownState() {
+  resetProcessState();
+  const env = environment({
+    "alpha.json": record("alpha", {
+      reload: generation("a"),
+      restart: generation("b"),
+    }),
+  });
+  extension(env.pi);
+  await env.start();
+
+  env.records.set("alpha.json", record("alpha", { reload: generation("c") }));
+  await env.poll();
+  env.records.set("alpha.json", record("alpha"));
+  await env.poll();
+  assert.deepEqual(env.lastStatus(), [STATUS_KEY, "warning:↻ Pi changed — /reload"],
+    "removing a known reload classification does not clear reload stale state");
+
+  env.records.set("alpha.json", record("alpha", { restart: generation("d") }));
+  await env.poll();
+  env.records.set("alpha.json", record("alpha"));
+  await env.poll();
+  assert.deepEqual(env.lastStatus(), [STATUS_KEY, "error:⟳ Pi changed — restart Pi"],
+    "removing a known restart classification does not clear restart stale state");
+}
+
+async function missingDirectoryEnrollmentBehavior() {
+  resetProcessState();
+  const missing = new Error("state directory missing");
+  missing.code = "ENOENT";
+  const env = environment({}, { directoryError: missing });
+  extension(env.pi);
+  await env.start();
+  assert.deepEqual(env.lastStatus(), [STATUS_KEY, undefined],
+    "initial missing state directory is an empty complete snapshot");
+  assert.equal(env.logs.length, 0, "initial missing state directory is not a failure");
+
+  env.setDirectoryError(undefined);
+  env.records.set("alpha.json", record("alpha", { reload: generation("a") }));
+  await env.poll();
+  assert.deepEqual(env.lastStatus(), [STATUS_KEY, "warning:↻ Pi changed — /reload"],
+    "first producer after an empty startup is stale");
+
+  env.setDirectoryError(missing);
+  await env.poll();
+  assert.deepEqual(env.lastStatus(), [STATUS_KEY, "warning:↻ Pi changed — /reload"],
+    "later missing directory preserves stale state");
+  assert.ok(env.logs.some((line) => line.includes("state directory read failed")),
+    "later missing directory follows fail-safe error handling");
+
+  resetProcessState();
+  const current = environment({
+    "alpha.json": record("alpha", { reload: generation("a") }),
+  });
+  extension(current.pi);
+  await current.start();
+  current.setDirectoryError(missing);
+  await current.poll();
+  assert.deepEqual(current.lastStatus(), [STATUS_KEY, "warning:Pi staleness check failed"],
+    "missing directory after enrollment shows check failure when current");
 }
 
 async function unreadableRecordPreservesStateAndPolling() {
@@ -338,6 +443,27 @@ async function tmuxPublicationAndFailureHandling() {
   }
 }
 
+async function mixedReplacementRetainsReloadState() {
+  resetProcessState();
+  const first = environment({
+    "alpha.json": record("alpha", { reload: generation("a") }),
+  });
+  extension(first.pi);
+  await first.start();
+  first.records.set("alpha.json", record("alpha", { reload: generation("b") }));
+  await first.poll();
+  await first.shutdown();
+
+  const second = environment({
+    "alpha.json": record("alpha", { reload: generation("b") }),
+    "broken.json": "{broken",
+  });
+  extension(second.pi);
+  await second.start();
+  assert.deepEqual(second.lastStatus(), [STATUS_KEY, "warning:↻ Pi changed — /reload"],
+    "mixed replacement snapshot retains the previous reload baseline and warning");
+}
+
 async function replacementBaselinesAndProcessPersistence() {
   resetProcessState();
   const first = environment({
@@ -367,10 +493,15 @@ async function replacementBaselinesAndProcessPersistence() {
 
 await startupBaselineAndLifecycle();
 await transitionsAndNotifications();
+await laterClassificationUsesDeclaredSeverity();
+await malformedStartupDoesNotCompleteBaseline();
 await restoredReloadAndMalformedState();
+await classificationRemovalPreservesKnownState();
+await missingDirectoryEnrollmentBehavior();
 await unreadableRecordPreservesStateAndPolling();
 await watcherSchedulesEarlyPoll();
 await tmuxPublicationAndFailureHandling();
+await mixedReplacementRetainsReloadState();
 await replacementBaselinesAndProcessPersistence();
 delete globalThis[ADAPTERS];
 console.log("Pi session staleness extension behavior passed");
