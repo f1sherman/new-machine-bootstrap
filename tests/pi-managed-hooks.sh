@@ -36,6 +36,7 @@ let currentSessionName = "";
 let activeSessionFile = "/sessions/current.jsonl";
 let activeSessionId = "019fe7a6-a219-7548-a6ef-1f23885864f4";
 let asrResultQueue = [];
+let herdrWorkspaceResultQueue = [];
 let branch = "main";
 let taskStatus = "";
 let goalChildDeferred;
@@ -120,6 +121,13 @@ const pi = {
       if (queued?.promise) return queued.promise;
       return queued || ok();
     }
+    if (command === "herdr" && args[0] === "workspace" && args[1] === "get") {
+      const queued = herdrWorkspaceResultQueue.shift();
+      if (queued instanceof Error) throw queued;
+      if (queued?.promise) return queued.promise;
+      return queued || fail();
+    }
+    if (command === "herdr") return ok();
     if (command === "tmux" && args[0] === "show-options") {
       if (args.at(-1) === "@agent_worktree_path") return ok(`${worktreeRoot}\n`);
       if (args.at(-1) === "@window-label") return ok("pi main-repo\n");
@@ -243,24 +251,77 @@ assert.deepEqual(registryCalls(), [{
 
 process.env.HERDR_ENV = "1";
 process.env.HERDR_TAB_ID = "w1:t2";
+process.env.HERDR_WORKSPACE_ID = "w1";
+const workspaceResult = (tabCount) => ok(JSON.stringify({
+  id: "cli:workspace:get",
+  result: { workspace: { workspace_id: "w1", tab_count: tabCount } },
+}));
+const herdrCalls = () => calls.filter((call) => call.command === "herdr");
+
 clearCalls();
+herdrWorkspaceResultQueue.push(workspaceResult(1));
 currentSessionName = "renamed Herdr session";
 await withStdoutTTY(() => handlers.get("session_info_changed")({
   name: currentSessionName,
 }, ctx));
-assert.ok(calls.some((call) => call.command === "herdr"
-  && call.args.join(" ") === "tab rename w1:t2 renamed Herdr session"),
-  "session name changes rename the containing Herdr tab");
+assert.deepEqual(herdrCalls(), [{
+  command: "herdr",
+  args: ["tab", "rename", "w1:t2", "renamed Herdr session"],
+}, {
+  command: "herdr",
+  args: ["workspace", "get", "w1"],
+}, {
+  command: "herdr",
+  args: ["workspace", "rename", "w1", "renamed Herdr session"],
+}], "session name changes rename a single-tab Herdr workspace and its tab");
 
 clearCalls();
+herdrWorkspaceResultQueue.push(workspaceResult(1));
 currentSessionName = "";
 await withStdoutTTY(() => handlers.get("session_info_changed")({ name: "" }, ctx));
-assert.deepEqual(calls.find((call) => call.command === "herdr"), {
+assert.deepEqual(herdrCalls(), [{
   command: "herdr",
   args: ["tab", "rename", "w1:t2", ""],
-}, "clearing a session name clears the containing Herdr tab name");
+}, {
+  command: "herdr",
+  args: ["workspace", "get", "w1"],
+}, {
+  command: "herdr",
+  args: ["workspace", "rename", "w1", ""],
+}], "clearing a session name clears a single-tab Herdr workspace and its tab");
+
+clearCalls();
+herdrWorkspaceResultQueue.push(workspaceResult(2));
+currentSessionName = "shared workspace tab";
+await withStdoutTTY(() => handlers.get("session_info_changed")({
+  name: currentSessionName,
+}, ctx));
+assert.deepEqual(herdrCalls(), [{
+  command: "herdr",
+  args: ["tab", "rename", "w1:t2", "shared workspace tab"],
+}, {
+  command: "herdr",
+  args: ["workspace", "get", "w1"],
+}], "session name changes preserve a multi-tab Herdr workspace name");
+
+for (const lookupResult of [fail(), ok("not json")]) {
+  clearCalls();
+  herdrWorkspaceResultQueue.push(lookupResult);
+  currentSessionName = "lookup unavailable";
+  await withStdoutTTY(() => handlers.get("session_info_changed")({
+    name: currentSessionName,
+  }, ctx));
+  assert.deepEqual(herdrCalls(), [{
+    command: "herdr",
+    args: ["tab", "rename", "w1:t2", "lookup unavailable"],
+  }, {
+    command: "herdr",
+    args: ["workspace", "get", "w1"],
+  }], "workspace lookup failures do not block Herdr tab renames");
+}
 delete process.env.HERDR_ENV;
 delete process.env.HERDR_TAB_ID;
+delete process.env.HERDR_WORKSPACE_ID;
 
 clearCalls();
 const firstDelayedRegistryUpdate = deferred();
