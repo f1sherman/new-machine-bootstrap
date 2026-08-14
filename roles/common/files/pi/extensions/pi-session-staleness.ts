@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 const ADAPTERS_SYMBOL = Symbol.for("nmb.pi-session-staleness.adapters");
 const PROCESS_STATE_SYMBOL = Symbol.for("nmb.pi-session-staleness.process-state");
+const RELOAD_STATE_SYMBOL = Symbol.for("nmb.pi-session-staleness.reload-state");
 const STATUS_KEY = "pi-session-staleness";
 const POLL_INTERVAL_MS = 10_000;
 const PRODUCER_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -114,8 +115,12 @@ function parseRecord(fileName, content) {
 export default function piSessionStaleness(pi) {
   const adapters = createAdapters(pi);
   const shared = processState();
-  const reloadBaseline = new Map();
-  const knownRecords = new Map();
+  const previousReloadState = globalThis[RELOAD_STATE_SYMBOL];
+  const reloadBaseline = new Map(previousReloadState?.reloadBaseline);
+  const knownRecords = new Map(previousReloadState?.knownRecords);
+  let baselineComplete = previousReloadState?.baselineComplete ?? false;
+  let hasEnrolledProducer = previousReloadState?.hasEnrolledProducer ?? false;
+  let startupSnapshot = true;
   let timer;
   let watcher;
   let context;
@@ -148,26 +153,72 @@ export default function piSessionStaleness(pi) {
     }
   }
 
+  function saveReloadState() {
+    globalThis[RELOAD_STATE_SYMBOL] = {
+      reloadBaseline: new Map(reloadBaseline),
+      knownRecords: new Map(knownRecords),
+      baselineComplete,
+      hasEnrolledProducer,
+    };
+  }
+
+  function mergeRecord(record) {
+    const previous = knownRecords.get(record.producer);
+    const merged = { ...record };
+    for (const classification of CLASSIFICATIONS) {
+      if (!Object.hasOwn(record, classification) && previous?.[classification]) {
+        merged[classification] = previous[classification];
+      }
+    }
+    knownRecords.set(record.producer, merged);
+    hasEnrolledProducer = true;
+    return merged;
+  }
+
   function observeRecord(record) {
     const producer = record.producer;
-    knownRecords.set(producer, record);
+    mergeRecord(record);
 
-    const reload = record.reload;
-    if (reload) {
-      if (!reloadBaseline.has(producer)) {
-        reloadBaseline.set(producer, reload.generation);
-      } else if (reload.generation !== reloadBaseline.get(producer)) {
-        notify(producer, "reload", reload);
+    if (record.reload) {
+      if (!reloadBaseline.has(producer)
+        || record.reload.generation !== reloadBaseline.get(producer)) {
+        notify(producer, "reload", record.reload);
       }
     }
 
-    const restart = record.restart;
-    if (restart) {
-      if (!shared.restartBaseline.has(producer)) {
-        shared.restartBaseline.set(producer, restart.generation);
-      } else if (restart.generation !== shared.restartBaseline.get(producer)) {
-        shared.restartStale.set(producer, restart);
-        notify(producer, "restart", restart);
+    if (record.restart) {
+      if (!shared.restartBaseline.has(producer)
+        || record.restart.generation !== shared.restartBaseline.get(producer)) {
+        shared.restartStale.set(producer, record.restart);
+        notify(producer, "restart", record.restart);
+      }
+    }
+  }
+
+  function establishBaseline(records) {
+    for (const record of records.values()) {
+      const merged = mergeRecord(record);
+      if (record.reload) reloadBaseline.set(record.producer, merged.reload.generation);
+      if (record.restart && !shared.restartBaseline.has(record.producer)) {
+        shared.restartBaseline.set(record.producer, merged.restart.generation);
+      }
+    }
+    baselineComplete = true;
+  }
+
+  function replaceReloadBaseline(records) {
+    for (const record of records.values()) {
+      const merged = mergeRecord(record);
+      if (record.reload) reloadBaseline.set(record.producer, merged.reload.generation);
+      if (record.restart) {
+        if (!shared.restartBaseline.has(record.producer)) {
+          shared.restartStale.set(record.producer, record.restart);
+          notify(record.producer, "restart", record.restart);
+        } else if (record.restart.generation
+          !== shared.restartBaseline.get(record.producer)) {
+          shared.restartStale.set(record.producer, record.restart);
+          notify(record.producer, "restart", record.restart);
+        }
       }
     }
   }
@@ -176,8 +227,8 @@ export default function piSessionStaleness(pi) {
     if (shared.restartStale.size > 0) return "restart";
     for (const [producer, record] of knownRecords) {
       if (record.reload
-        && reloadBaseline.has(producer)
-        && record.reload.generation !== reloadBaseline.get(producer)) {
+        && (!reloadBaseline.has(producer)
+          || record.reload.generation !== reloadBaseline.get(producer))) {
         return "reload";
       }
     }
@@ -239,7 +290,16 @@ export default function piSessionStaleness(pi) {
       fileNames = await adapters.readDirectory(adapters.stateDirectory);
       if (!Array.isArray(fileNames)) throw new Error("directory result is not an array");
     } catch (error) {
+      if (error?.code === "ENOENT" && !hasEnrolledProducer) {
+        baselineComplete = true;
+        startupSnapshot = false;
+        saveReloadState();
+        publishStatus(undefined, false);
+        await publishTmux(undefined);
+        return;
+      }
       failed = true;
+      startupSnapshot = false;
       reportFailure(`state directory read failed: ${error.message}`);
       const severity = currentSeverity();
       publishStatus(severity, failed);
@@ -247,16 +307,28 @@ export default function piSessionStaleness(pi) {
       return;
     }
 
+    const snapshot = new Map();
     for (const fileName of [...fileNames].sort()) {
       if (typeof fileName !== "string" || !fileName.endsWith(".json")) continue;
       try {
         const content = await adapters.readFile(join(adapters.stateDirectory, fileName));
-        observeRecord(parseRecord(fileName, content));
+        const record = parseRecord(fileName, content);
+        snapshot.set(record.producer, record);
       } catch (error) {
         failed = true;
         reportFailure(`record read failed for ${fileName}: ${error.message}`);
       }
     }
+
+    if (!baselineComplete) {
+      if (!failed) establishBaseline(snapshot);
+    } else if (startupSnapshot && !failed) {
+      replaceReloadBaseline(snapshot);
+    } else {
+      for (const record of snapshot.values()) observeRecord(record);
+    }
+    startupSnapshot = false;
+    saveReloadState();
 
     const severity = currentSeverity();
     publishStatus(severity, failed);
