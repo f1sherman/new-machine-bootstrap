@@ -135,7 +135,7 @@ The controller and `dev` are the same host, so the provisioning worktree is also
 - Consumes: completed implementation and live verification evidence.
 - Produces: a clean feature branch and an open GitHub pull request.
 
-- [ ] **Step 1: Run final repository checks**
+- [x] **Step 1: Run final repository checks**
 
 Run:
 
@@ -147,7 +147,7 @@ git status --short --branch
 
 Expected: syntax succeeds, diff check is empty, and the branch contains no uncommitted implementation files.
 
-- [ ] **Step 2: Commit plan tracking if changed**
+- [x] **Step 2: Commit plan tracking if changed**
 
 If checkbox tracking changed the plan, commit only the plan with an imperative message. Otherwise, report no tracking change.
 
