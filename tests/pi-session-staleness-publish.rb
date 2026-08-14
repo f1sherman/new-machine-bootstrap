@@ -8,14 +8,18 @@ require "tmpdir"
 COMMAND = File.expand_path("../roles/common/files/bin/pi-session-staleness-publish", __dir__)
 CASES = [
   :stable_directory_order,
+  :manifest_relative_path_change,
   :file_content_change,
   :symlink_target_change,
   :executable_bit_change,
+  :executable_mode_bits_ignore_ownership,
   :missing_path_change,
   :value_change,
   :no_op_preserves_bytes_and_mtime,
   :classification_updates_are_independent,
+  :invalid_present_classification,
   :producer_records_are_independent,
+  :existing_state_directory_is_secured,
   :invalid_operation,
   :invalid_identifier,
   :invalid_classification,
@@ -128,6 +132,17 @@ class PublisherTest
     assert_equal(first, generation)
   end
 
+  def manifest_relative_path_change
+    first_path = File.join(@root, "first")
+    second_path = File.join(@root, "second")
+    File.write(first_path, "same content")
+    File.link(first_path, second_path)
+    reconcile!(manifest([path_input("file", @root, "first")]))
+    first = generation
+    reconcile!(manifest([path_input("file", @root, "second")]))
+    assert(first != generation, "manifest-relative path did not change generation")
+  end
+
   def file_content_change
     file = File.join(@root, "file")
     File.write(file, "before")
@@ -160,6 +175,18 @@ class PublisherTest
     File.chmod(0o700, file)
     reconcile!(input)
     assert(first != generation, "executable bit did not change generation")
+  end
+
+  def executable_mode_bits_ignore_ownership
+    file = File.join(@root, "script")
+    File.write(file, "echo ok\n")
+    File.chmod(0o600, file)
+    input = manifest([path_input("script", @root, "script")])
+    reconcile!(input)
+    first = generation
+    File.chmod(0o601, file)
+    reconcile!(input)
+    assert(first != generation, "non-owner executable bit did not change generation")
   end
 
   def missing_path_change
@@ -205,6 +232,18 @@ class PublisherTest
     assert(record.key?("restart"), "restart state was not added")
   end
 
+  def invalid_present_classification
+    input = manifest([value_input("version", "one")])
+    reconcile!(input)
+    [nil, false].each do |invalid_entry|
+      invalid_record = record.merge("restart" => invalid_entry)
+      File.write(record_path, JSON.generate(invalid_record) << "\n")
+      bytes = File.binread(record_path)
+      assert_rejected(input, classification: "restart")
+      assert_equal(bytes, File.binread(record_path))
+    end
+  end
+
   def producer_records_are_independent
     input = manifest([value_input("version", "one")])
     reconcile!(input, producer: "producer-one")
@@ -212,6 +251,14 @@ class PublisherTest
     reconcile!(input, producer: "producer-two")
     assert_equal(first_bytes, File.binread(record_path("producer-one")))
     assert(File.file?(record_path("producer-two")), "second producer record missing")
+  end
+
+  def existing_state_directory_is_secured
+    application_directory = File.join(@state, "pi-session-staleness")
+    FileUtils.mkdir_p(application_directory)
+    File.chmod(0o777, application_directory)
+    reconcile!(manifest([]))
+    assert_equal(0o700, File.stat(application_directory).mode & 0o777)
   end
 
   def invalid_operation
