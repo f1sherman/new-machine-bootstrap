@@ -89,6 +89,11 @@ valid_edge_marker() {
   [[ -n "$marker" && "$marker" =~ ^h?j?k?l?$ ]]
 }
 
+valid_indicator_marker() {
+  local marker="$1"
+  [[ "$marker" =~ ^[^,]*,[^,]*(,[^,]*)?$ ]]
+}
+
 strip_title_markers() {
   local title="$1" marker base
 
@@ -101,7 +106,7 @@ strip_title_markers() {
   if [[ "$title" =~ ^(.*)\ \[nmb-ind=([^][]*)\]$ ]]; then
     base="${BASH_REMATCH[1]}"
     marker="${BASH_REMATCH[2]}"
-    [[ "$marker" =~ ^[^,]*,[^,]*$ ]] || return 1
+    valid_indicator_marker "$marker" || return 1
     title="$base"
   fi
   if [[ "$title" =~ ^(.*)\ \[nmb-task=(goal|manual)\]$ ]]; then
@@ -123,7 +128,7 @@ task_marker_source() {
   if [[ "$title" =~ ^(.*)\ \[nmb-ind=([^][]*)\]$ ]]; then
     base="${BASH_REMATCH[1]}"
     marker="${BASH_REMATCH[2]}"
-    [[ "$marker" =~ ^[^,]*,[^,]*$ ]] || return 1
+    valid_indicator_marker "$marker" || return 1
     title="$base"
   fi
   [[ "$title" =~ \ \[nmb-task=(goal|manual)\]$ ]] || return 1
