@@ -1,0 +1,187 @@
+#!/usr/bin/env ruby
+
+require "json"
+require "open3"
+require "pathname"
+require "tempfile"
+
+PREFIX = "pi-session-staleness-reconcile-new-machine-bootstrap"
+PRODUCER = "new-machine-bootstrap"
+RELOAD_REASON = "Managed Pi resources changed"
+RESTART_REASON = "Managed Pi runtime changed"
+GUARD_ROLES = %w[
+  worker reviewer delegate planner oracle scout context-builder researcher
+].freeze
+MANAGED_MODELS = %w[gpt-5.6-luna gpt-5.6-sol gpt-5.6-terra].freeze
+MANAGED_SKILLS = %w[
+  z-approve-spec z-catchup z-commit z-convert-skill-from-claude
+  z-convert-skill-from-codex z-create-handoff z-create-ics z-deep-research
+  z-done z-fix z-generate-codex-auth z-humanizer z-macos-keychain-secrets
+  z-quick-pr z-recover-agent-sessions z-resume-claude-session
+  z-resume-codex-session z-resume-handoff z-spec-first z-stop-skill
+  z-update-session-name
+].freeze
+
+class ReconcileError < StandardError; end
+
+def read_json(path)
+  JSON.parse(File.binread(path))
+rescue Errno::ENOENT, JSON::ParserError => error
+  raise ReconcileError, "cannot read #{path}: #{error.message}"
+end
+
+def command_output(*command)
+  output, status = Open3.capture2e(*command)
+  return output.strip if status.success? && !output.strip.empty?
+
+  raise ReconcileError, "command failed: #{command.join(" ")}: #{output.strip}"
+end
+
+def resolve_mise(home)
+  candidates = [File.join(home, ".local", "bin", "mise")]
+  ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).each do |directory|
+    candidates << File.join(directory, "mise")
+  end
+  candidates.find { |path| File.file?(path) && File.executable?(path) } or
+    raise ReconcileError, "cannot resolve mise"
+end
+
+def resolve_pi_package_root(mise)
+  install_root = command_output(mise, "where", "npm:@earendil-works/pi-coding-agent")
+  nested_root = File.join(
+    install_root,
+    "node_modules",
+    "@earendil-works",
+    "pi-coding-agent",
+  )
+  return Pathname.new(nested_root).realpath.to_s if File.file?(File.join(nested_root, "package.json"))
+
+  launcher = File.join(install_root, "bin", "pi")
+  executable = Pathname.new(launcher).realpath
+  package_root = executable.dirname.dirname
+  return package_root.to_s if File.file?(package_root.join("package.json"))
+
+  raise ReconcileError, "cannot resolve managed Pi package root from #{install_root}"
+rescue Errno::ENOENT => error
+  raise ReconcileError, "cannot resolve managed Pi package root: #{error.message}"
+end
+
+def path_input(name, root, path)
+  {"type" => "path", "name" => name, "root" => root, "path" => path}
+end
+
+def value_input(name, value)
+  {"type" => "value", "name" => name, "value" => value}
+end
+
+def sort_json_value(value)
+  case value
+  when Hash
+    value.keys.sort.to_h { |key| [key, sort_json_value(value.fetch(key))] }
+  when Array
+    value.map { |entry| sort_json_value(entry) }
+  else
+    value
+  end
+end
+
+def sorted_json(value)
+  JSON.generate(sort_json_value(value))
+end
+
+def publish(publisher, classification, reason, inputs)
+  Tempfile.create(["pi-session-staleness-", ".json"]) do |manifest|
+    manifest.write(JSON.generate({"schema" => 1, "inputs" => inputs}))
+    manifest.flush
+    system(
+      publisher,
+      "reconcile",
+      "--producer", PRODUCER,
+      "--classification", classification,
+      "--reason", reason,
+      "--manifest", manifest.path,
+    ) or raise ReconcileError, "publisher failed for #{classification} classification"
+  end
+end
+
+def run
+  home = ENV.fetch("HOME")
+  agent_root = File.join(home, ".pi", "agent")
+  settings = read_json(File.join(agent_root, "settings.json"))
+  models = read_json(File.join(agent_root, "models.json"))
+  guard_path = File.join(agent_root, "extensions", "main-worktree-guard.ts")
+  overrides = settings.dig("subagents", "agentOverrides") || {}
+  managed_settings = {
+    "hideThinkingBlock" => settings["hideThinkingBlock"],
+    "quietStartup" => settings["quietStartup"],
+    "collapseChangelog" => settings["collapseChangelog"],
+    "mainWorktreeGuardRoles" => GUARD_ROLES.to_h do |role|
+      extensions = overrides.dig(role, "subagentOnlyExtensions")
+      [role, extensions.is_a?(Array) && extensions.include?(guard_path)]
+    end,
+  }
+  provider = models.dig("providers", "openai-codex") || {}
+  overrides = provider["modelOverrides"] || {}
+  managed_models = {
+    "providers" => {
+      "openai-codex" => {
+        "modelOverrides" => MANAGED_MODELS.to_h { |model| [model, overrides[model]] },
+      },
+    },
+  }
+
+  reload_paths = %w[
+    keybindings.json
+    AGENTS.md.d/00-base.md
+    extensions/managed-hooks.ts
+    extensions/main-worktree-guard.ts
+    extensions/pi-attention-bell.ts
+    extensions/spec-shortcut.ts
+    extensions/pi-session-staleness.ts
+    extensions/subagent/config.json
+    npm/node_modules/pi-session-manager
+  ]
+  reload_inputs = reload_paths.map do |path|
+    path_input("agent-#{path.tr("/", "-")}", agent_root, path)
+  end
+  MANAGED_SKILLS.each do |skill|
+    reload_inputs << path_input("skill-#{skill}", agent_root, "skills/#{skill}")
+  end
+  reload_inputs << value_input("managed-settings", sorted_json(managed_settings))
+  reload_inputs << value_input("managed-model-overrides", sorted_json(managed_models))
+
+  mise = resolve_mise(home)
+  pi_package_root = resolve_pi_package_root(mise)
+  node_executable = command_output(mise, "which", "node")
+  unless File.file?(node_executable) && File.executable?(node_executable)
+    raise ReconcileError, "managed Node.js executable is invalid: #{node_executable}"
+  end
+  pi_manifest = read_json(File.join(pi_package_root, "package.json"))
+  pi_version = pi_manifest["version"]
+  unless pi_version.is_a?(String) && !pi_version.empty?
+    raise ReconcileError, "managed Pi package version is missing"
+  end
+  node_version = command_output(node_executable, "--version")
+
+  restart_inputs = [
+    path_input("pi-symlink", home, ".local/bin/pi"),
+    path_input("pi-package-root", pi_package_root, ""),
+    path_input("node-executable", File.dirname(node_executable), File.basename(node_executable)),
+    value_input("pi-package-version", pi_version),
+    value_input("node-version", node_version),
+  ]
+
+  publisher = File.expand_path("pi-session-staleness-publish", __dir__)
+  unless File.file?(publisher) && File.executable?(publisher)
+    raise ReconcileError, "publisher is missing or not executable: #{publisher}"
+  end
+  publish(publisher, "reload", RELOAD_REASON, reload_inputs)
+  publish(publisher, "restart", RESTART_REASON, restart_inputs)
+end
+
+begin
+  run
+rescue StandardError => error
+  warn "#{PREFIX}: #{error.message.to_s.gsub(/[\r\n]+/, " ")}"
+  exit 1
+end

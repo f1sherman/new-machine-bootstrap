@@ -19,13 +19,42 @@ fi
 
 LOGFILE_PATH=""
 PROVISION_LOG_DIR_PATH=""
+PLAYBOOK_STARTED=false
+SKIP_STALENESS_PUBLISH=false
+for argument in "$@"; do
+  if [[ "$argument" == "--check" || "$argument" == "-C" ]]; then
+    SKIP_STALENESS_PUBLISH=true
+  fi
+done
+
 cleanup() {
-  provision_lock_release
+  local provision_status=$?
+  local reconcile_status=0
+  local reconcile_command
+  trap - EXIT
+
+  if $PLAYBOOK_STARTED && ! $SKIP_STALENESS_PUBLISH; then
+    reconcile_command=${PI_SESSION_STALENESS_RECONCILE_BIN:-$HOME/.local/bin/pi-session-staleness-reconcile-new-machine-bootstrap}
+    set +e
+    "$reconcile_command"
+    reconcile_status=$?
+    set -e
+    if [[ $reconcile_status -ne 0 ]]; then
+      log_error "Pi session staleness reconciliation failed with status $reconcile_status: $reconcile_command"
+    fi
+  fi
+
+  provision_lock_release || true
   if [[ -n "$LOGFILE_PATH" ]]; then
     echo ""
     echo "==> Provisioning log: $LOGFILE_PATH"
     echo "==> Or: cat $PROVISION_LOG_DIR_PATH/provision-latest.log"
   fi
+
+  if [[ $provision_status -ne 0 ]]; then
+    exit "$provision_status"
+  fi
+  exit "$reconcile_status"
 }
 trap cleanup EXIT
 
@@ -373,11 +402,23 @@ log_info "Executing command: $cmd"
 log_info "Gathering facts (this may take a moment)..."
 
 output=$(mktemp)
-if ! "${cmd_parts[@]}" 2>&1 | tee -a "$LOGFILE_PATH" | tee "$output"; then
+PLAYBOOK_STARTED=true
+set +e
+"${cmd_parts[@]}" 2>&1 | tee -a "$LOGFILE_PATH" | tee "$output"
+pipeline_status=("${PIPESTATUS[@]}")
+set -e
+playbook_status=${pipeline_status[0]}
+if [[ $playbook_status -eq 0 ]]; then
+  playbook_status=${pipeline_status[1]}
+fi
+if [[ $playbook_status -eq 0 ]]; then
+  playbook_status=${pipeline_status[2]}
+fi
+if [[ $playbook_status -ne 0 ]]; then
   log_error "Command failed: $cmd"
   play_notification_sound
   rm -f "$output"
-  exit 1
+  exit "$playbook_status"
 fi
 
 record_successful_provision
