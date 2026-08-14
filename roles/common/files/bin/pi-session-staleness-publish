@@ -184,7 +184,7 @@ class PiSessionStalenessPublisher
     return "file" if stat.file?
     return "directory" if stat.directory?
 
-    "other"
+    raise PublisherError, "unsupported path type: #{stat.ftype}"
   end
 
   def add_field(digest, value)
@@ -222,10 +222,11 @@ class PiSessionStalenessPublisher
     File.open(lock_path, File::RDWR | File::CREAT, 0o600) do |lock|
       lock.chmod(0o600)
       lock.flock(File::LOCK_EX) or raise PublisherError, "cannot lock producer record"
+      recover_required_artifact(record_path)
       record = read_record(record_path, producer)
       if File.exist?(record_path)
         File.chmod(0o600, record_path)
-        remove_stale_rollbacks(record_path)
+        remove_cleanup_artifacts(record_path)
       end
       classification = options.fetch(:classification)
       current = record[classification]
@@ -293,9 +294,11 @@ class PiSessionStalenessPublisher
     basename = File.basename(path)
     nonce = "#{Process.pid}.#{rand(1 << 32)}"
     temporary = File.join(directory, ".#{basename}.#{nonce}.tmp")
-    rollback = File.join(directory, ".#{basename}.#{nonce}.rollback")
+    recovery = File.join(directory, ".#{basename}.#{nonce}.recovery-required")
+    cleanup = File.join(directory, ".#{basename}.#{nonce}.cleanup-only")
     had_prior_record = File.exist?(path)
     replaced = false
+    rollback_attempted = false
     begin
       File.open(temporary, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
         file.chmod(0o600)
@@ -303,14 +306,28 @@ class PiSessionStalenessPublisher
         file.flush
         file.fsync
       end
-      File.link(path, rollback) if had_prior_record
+      create_durable_recovery(path, recovery, directory) if had_prior_record
       File.rename(temporary, path)
       replaced = true
       synchronize_directory(directory)
-    rescue StandardError => write_error
-      if replaced
+      if had_prior_record
         begin
-          rollback_replacement(path, rollback, directory, had_prior_record)
+          convert_recovery_to_cleanup(recovery, cleanup, directory)
+        rescue StandardError => conversion_error
+          rollback_attempted = true
+          begin
+            restore_prior_record(path, recovery, cleanup, directory)
+          rescue StandardError => restoration_error
+            raise PublisherError,
+              "recovery conversion failed: #{conversion_error.message}; #{restoration_error.message}"
+          end
+          raise PublisherError, "recovery conversion failed: #{conversion_error.message}"
+        end
+      end
+    rescue StandardError => write_error
+      if replaced && !rollback_attempted
+        begin
+          rollback_replacement(path, recovery, cleanup, directory, had_prior_record)
         rescue StandardError => rollback_error
           raise PublisherError, "write failed: #{write_error.message}; #{rollback_error.message}"
         end
@@ -320,23 +337,27 @@ class PiSessionStalenessPublisher
       File.unlink(temporary) if File.exist?(temporary)
     end
 
-    remove_committed_rollback(rollback, directory) if had_prior_record
+    remove_cleanup_artifact(cleanup, directory) if had_prior_record
   end
 
-  def rollback_replacement(path, rollback, directory, had_prior_record)
+  def create_durable_recovery(path, recovery, directory)
+    File.link(path, recovery)
+    synchronize_directory(directory)
+  rescue StandardError => error
+    begin
+      File.unlink(recovery) if File.exist?(recovery)
+      synchronize_directory(directory)
+    rescue StandardError => cleanup_error
+      raise PublisherError,
+        "recovery creation failed: #{error.message}; cleanup failed: #{cleanup_error.message}"
+    end
+    raise PublisherError, "recovery creation failed: #{error.message}"
+  end
+
+  def rollback_replacement(path, recovery, cleanup, directory, had_prior_record)
     if had_prior_record
-      restore = "#{rollback}.restore"
-      begin
-        File.link(rollback, restore)
-        File.rename(restore, path)
-        synchronize_directory(directory)
-      rescue StandardError => error
-        raise PublisherError,
-          "prior-record rollback failed: #{error.message}; rollback artifact retained at #{rollback}"
-      ensure
-        File.unlink(restore) if File.exist?(restore)
-      end
-      remove_committed_rollback(rollback, directory)
+      restore_prior_record(path, recovery, cleanup, directory)
+      remove_cleanup_artifact(cleanup, directory)
     else
       begin
         File.unlink(path) if File.exist?(path)
@@ -347,27 +368,66 @@ class PiSessionStalenessPublisher
     end
   end
 
-  def remove_committed_rollback(rollback, directory)
-    File.unlink(rollback)
-    synchronize_directory(directory)
-  rescue StandardError => error
-    publisher_warning("rollback artifact cleanup failed: #{error.message}")
+  def restore_prior_record(path, recovery, cleanup, directory)
+    if !File.exist?(recovery) && File.exist?(cleanup)
+      File.rename(cleanup, recovery)
+      synchronize_directory(directory)
+    end
+    unless File.exist?(recovery)
+      raise PublisherError, "prior-record rollback failed: recovery-required artifact is missing"
+    end
+
+    restore = "#{recovery}.restore"
+    begin
+      File.link(recovery, restore)
+      File.rename(restore, path)
+      synchronize_directory(directory)
+    rescue StandardError => error
+      raise PublisherError,
+        "prior-record rollback failed: #{error.message}; recovery artifact retained at #{recovery}"
+    ensure
+      File.unlink(restore) if File.exist?(restore)
+    end
+    convert_recovery_to_cleanup(recovery, cleanup, directory)
   end
 
-  def remove_stale_rollbacks(record_path)
+  def convert_recovery_to_cleanup(recovery, cleanup, directory)
+    File.rename(recovery, cleanup)
+    synchronize_directory(directory)
+  end
+
+  def remove_cleanup_artifact(cleanup, directory)
+    File.unlink(cleanup)
+    synchronize_directory(directory)
+  rescue StandardError => error
+    publisher_warning("cleanup-only artifact removal failed: #{error.message}")
+  end
+
+  def recover_required_artifact(record_path)
+    artifacts = artifact_paths(record_path, ".recovery-required")
+    if artifacts.length > 1
+      raise PublisherError, "multiple recovery-required artifacts exist"
+    end
+    return if artifacts.empty?
+
+    recovery = artifacts.first
+    cleanup = recovery.sub(/\.recovery-required\z/, ".cleanup-only")
+    restore_prior_record(record_path, recovery, cleanup, File.dirname(record_path))
+  end
+
+  def remove_cleanup_artifacts(record_path)
+    directory = File.dirname(record_path)
+    artifact_paths(record_path, ".cleanup-only").each do |cleanup|
+      remove_cleanup_artifact(cleanup, directory)
+    end
+  end
+
+  def artifact_paths(record_path, suffix)
     directory = File.dirname(record_path)
     prefix = ".#{File.basename(record_path)}."
-    Dir.children(directory).each do |entry|
-      next unless entry.start_with?(prefix) && entry.end_with?(".rollback")
-
-      rollback = File.join(directory, entry)
-      begin
-        File.unlink(rollback)
-        synchronize_directory(directory)
-      rescue StandardError => error
-        publisher_warning("stale rollback artifact cleanup failed: #{error.message}")
-      end
-    end
+    Dir.children(directory).filter_map do |entry|
+      File.join(directory, entry) if entry.start_with?(prefix) && entry.end_with?(suffix)
+    end.sort_by(&:b)
   end
 
   def publisher_warning(message)

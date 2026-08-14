@@ -32,10 +32,13 @@ CASES = [
   :relative_root,
   :escaping_relative_path,
   :prior_record_survives_hash_failure,
+  :fifo_is_rejected_without_changing_prior_record,
+  :durable_recovery_creation_failure_preserves_prior_record,
   :post_rename_failure_restores_prior_record,
   :post_rename_failure_removes_first_record,
   :rollback_rename_failure_retains_artifact,
   :rollback_sync_failure_retains_artifact,
+  :next_run_recovers_after_failed_restoration,
   :first_write_cleanup_failure_is_reported,
   :rollback_artifact_unlink_failure_is_nonfatal,
   :stale_rollback_artifact_is_reconciled,
@@ -120,7 +123,13 @@ class PublisherTest
     File.dirname(record_path)
   end
 
-  def fault_environment(directory_sync_failures: 0, rollback_rename: false, rollback_unlink: false)
+  def fault_environment(
+    directory_sync_failures: 0,
+    directory_sync_failure_calls: [],
+    rollback_rename: false,
+    rollback_unlink: false,
+    destination_rename_marker: nil
+  )
     wrapper = File.join(@root, "publisher-faults.rb")
     File.write(wrapper, <<~RUBY)
       class << File
@@ -129,42 +138,64 @@ class PublisherTest
         alias_method :publisher_original_unlink, :unlink
 
         def open(path, *arguments, **options, &block)
-          remaining = ENV.fetch("PUBLISHER_DIRECTORY_SYNC_FAILURES", "0").to_i
-          if path == ENV["PUBLISHER_DIRECTORY"] && remaining.positive?
-            ENV["PUBLISHER_DIRECTORY_SYNC_FAILURES"] = (remaining - 1).to_s
-            raise IOError, "injected directory sync failure"
+          if path == ENV["PUBLISHER_DIRECTORY"]
+            call = ENV.fetch("PUBLISHER_DIRECTORY_SYNC_CALL", "0").to_i + 1
+            ENV["PUBLISHER_DIRECTORY_SYNC_CALL"] = call.to_s
+            failures = ENV.fetch("PUBLISHER_DIRECTORY_SYNC_FAILURE_CALLS", "")
+              .split(",").reject(&:empty?).map(&:to_i)
+            raise IOError, "injected directory sync failure" if failures.include?(call)
           end
           publisher_original_open(path, *arguments, **options, &block)
         end
 
         def rename(source, destination)
+          marker = ENV["PUBLISHER_DESTINATION_RENAME_MARKER"]
+          if marker && destination == ENV["PUBLISHER_RECORD_PATH"]
+            publisher_original_open(marker, "ab") { |file| file.puts(source) }
+          end
           if ENV["PUBLISHER_FAIL_ROLLBACK_RENAME"] == "1" &&
-              source.include?(".rollback")
+              (source.end_with?(".restore") || source.include?(".rollback"))
             raise IOError, "injected rollback rename failure"
           end
           publisher_original_rename(source, destination)
         end
 
         def unlink(path)
-          if ENV["PUBLISHER_FAIL_ROLLBACK_UNLINK"] == "1" &&
-              path.end_with?(".rollback")
+          cleanup_artifact = path.end_with?(".cleanup-only") || path.end_with?(".rollback")
+          if ENV["PUBLISHER_FAIL_ROLLBACK_UNLINK"] == "1" && cleanup_artifact
             raise IOError, "injected rollback unlink failure"
           end
           publisher_original_unlink(path)
         end
       end
     RUBY
+    failure_calls = directory_sync_failure_calls
+    if failure_calls.empty? && directory_sync_failures.positive?
+      failure_calls = (1..directory_sync_failures).to_a
+    end
     {
       "PUBLISHER_DIRECTORY" => producer_directory,
-      "PUBLISHER_DIRECTORY_SYNC_FAILURES" => directory_sync_failures.to_s,
+      "PUBLISHER_DIRECTORY_SYNC_CALL" => "0",
+      "PUBLISHER_DIRECTORY_SYNC_FAILURE_CALLS" => failure_calls.join(","),
       "PUBLISHER_FAIL_ROLLBACK_RENAME" => rollback_rename ? "1" : "0",
       "PUBLISHER_FAIL_ROLLBACK_UNLINK" => rollback_unlink ? "1" : "0",
+      "PUBLISHER_DESTINATION_RENAME_MARKER" => destination_rename_marker,
+      "PUBLISHER_RECORD_PATH" => record_path,
       "RUBYOPT" => "-r#{wrapper}",
-    }
+    }.compact
+  end
+
+  def recovery_artifacts
+    Dir.glob(File.join(producer_directory, ".test-producer.json.*.recovery-required"))
+  end
+
+  def cleanup_artifacts
+    Dir.glob(File.join(producer_directory, ".test-producer.json.*.cleanup-only"))
   end
 
   def rollback_artifacts
-    Dir.glob(File.join(producer_directory, ".test-producer.json.*.rollback"))
+    recovery_artifacts + cleanup_artifacts +
+      Dir.glob(File.join(producer_directory, ".test-producer.json.*.rollback"))
   end
 
   def generation(classification = "reload", producer = "test-producer")
@@ -406,11 +437,40 @@ class PublisherTest
     JSON.parse(File.read(record_path))
   end
 
+  def fifo_is_rejected_without_changing_prior_record
+    reconcile!(manifest([value_input("version", "before")]))
+    bytes = File.binread(record_path)
+    fifo = File.join(@root, "unsupported-fifo")
+    system("mkfifo", fifo) or raise "could not create FIFO"
+    assert_rejected(manifest([path_input("fifo", @root, "unsupported-fifo")]))
+    assert_equal(bytes, File.binread(record_path))
+  end
+
+  def durable_recovery_creation_failure_preserves_prior_record
+    reconcile!(manifest([value_input("version", "before")]))
+    bytes = File.binread(record_path)
+    marker = File.join(@root, "destination-renames")
+    changed = manifest([value_input("version", "after")])
+    assert_rejected(
+      changed,
+      environment: fault_environment(
+        directory_sync_failure_calls: [1],
+        destination_rename_marker: marker,
+      ),
+    )
+    assert_equal(bytes, File.binread(record_path))
+    assert(!File.exist?(marker), "destination replacement started before recovery was durable")
+    assert_equal([], rollback_artifacts)
+  end
+
   def post_rename_failure_restores_prior_record
     reconcile!(manifest([value_input("version", "before")]))
     bytes = File.binread(record_path)
     changed = manifest([value_input("version", "after")])
-    assert_rejected(changed, environment: fault_environment(directory_sync_failures: 1))
+    assert_rejected(
+      changed,
+      environment: fault_environment(directory_sync_failure_calls: [2]),
+    )
     assert_equal(bytes, File.binread(record_path))
     assert_equal([], Dir.glob(File.join(producer_directory, ".test-producer.json.*")))
   end
@@ -428,12 +488,15 @@ class PublisherTest
     changed = manifest([value_input("version", "after")])
     _stdout, stderr, status = reconcile(
       changed,
-      environment: fault_environment(directory_sync_failures: 1, rollback_rename: true),
+      environment: fault_environment(
+        directory_sync_failure_calls: [2],
+        rollback_rename: true,
+      ),
     )
     assert(!status.success?, "rollback rename failure succeeded")
     assert(stderr.include?("injected rollback rename failure"), "rollback failure not reported: #{stderr}")
-    assert_equal(1, rollback_artifacts.length)
-    assert_equal(bytes, File.binread(rollback_artifacts.first))
+    assert_equal(1, recovery_artifacts.length)
+    assert_equal(bytes, File.binread(recovery_artifacts.first))
   end
 
   def rollback_sync_failure_retains_artifact
@@ -442,13 +505,33 @@ class PublisherTest
     changed = manifest([value_input("version", "after")])
     _stdout, stderr, status = reconcile(
       changed,
-      environment: fault_environment(directory_sync_failures: 2),
+      environment: fault_environment(directory_sync_failure_calls: [2, 3]),
     )
     assert(!status.success?, "rollback sync failure succeeded")
     assert(stderr.include?("rollback failed"), "rollback sync failure not reported: #{stderr}")
     assert_equal(bytes, File.binread(record_path))
-    assert_equal(1, rollback_artifacts.length)
-    assert_equal(bytes, File.binread(rollback_artifacts.first))
+    assert_equal(1, recovery_artifacts.length)
+    assert_equal(bytes, File.binread(recovery_artifacts.first))
+  end
+
+  def next_run_recovers_after_failed_restoration
+    before = manifest([value_input("version", "before")])
+    reconcile!(before)
+    bytes = File.binread(record_path)
+    changed = manifest([value_input("version", "after")])
+    _stdout, _stderr, status = reconcile(
+      changed,
+      environment: fault_environment(
+        directory_sync_failure_calls: [2],
+        rollback_rename: true,
+      ),
+    )
+    assert(!status.success?, "failed restoration unexpectedly succeeded")
+    assert_equal(1, recovery_artifacts.length)
+
+    reconcile!(before)
+    assert_equal(bytes, File.binread(record_path))
+    assert_equal([], recovery_artifacts)
   end
 
   def first_write_cleanup_failure_is_reported
