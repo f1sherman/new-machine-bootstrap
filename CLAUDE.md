@@ -65,7 +65,7 @@ After making changes, apply them with `bin/provision` when the environment allow
 - macOS-only helper scripts and tools
 
 **Dev Host Role** (`roles/dev_host/`):
-- tmux helpers for manual session management
+- tmux auto-launch for SSH sessions outside Herdr
 - `~/projects` workspace setup
 - project trust configuration for Claude
 
@@ -141,7 +141,7 @@ ansible-playbook playbook.yml --check
 - Debian-based host
 - passwordless sudo required
 - headless/SSH-focused environment
-- tmux sessions are listed and attached manually after login
+- tmux attaches automatically for interactive SSH logins outside Herdr
 
 **Shared**:
 - Existing configurations are backed up before overwrite
