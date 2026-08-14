@@ -16,8 +16,11 @@ CASES = [
   :missing_path_change,
   :value_change,
   :no_op_preserves_bytes_and_mtime,
+  :no_op_secures_record_mode,
   :classification_updates_are_independent,
   :invalid_present_classification,
+  :invalid_prior_reason,
+  :invalid_prior_changed_at,
   :producer_records_are_independent,
   :existing_state_directory_is_secured,
   :invalid_operation,
@@ -29,6 +32,8 @@ CASES = [
   :relative_root,
   :escaping_relative_path,
   :prior_record_survives_hash_failure,
+  :post_rename_failure_restores_prior_record,
+  :post_rename_failure_removes_first_record,
   :readers_never_observe_partial_json,
 ].freeze
 
@@ -81,9 +86,9 @@ class PublisherTest
     {"type" => "value", "name" => name, "value" => value}
   end
 
-  def reconcile(manifest_path, producer: "test-producer", classification: "reload", reason: "resources changed", operation: "reconcile")
+  def reconcile(manifest_path, producer: "test-producer", classification: "reload", reason: "resources changed", operation: "reconcile", environment: {})
     Open3.capture3(
-      {"HOME" => @home, "XDG_STATE_HOME" => @state},
+      {"HOME" => @home, "XDG_STATE_HOME" => @state}.merge(environment),
       COMMAND,
       operation,
       "--producer", producer,
@@ -104,6 +109,30 @@ class PublisherTest
 
   def record(producer = "test-producer")
     JSON.parse(File.read(record_path(producer)))
+  end
+
+  def producer_directory
+    File.dirname(record_path)
+  end
+
+  def directory_sync_failure_environment
+    wrapper = File.join(@root, "fail-directory-sync.rb")
+    File.write(wrapper, <<~RUBY)
+      class << File
+        alias_method :publisher_original_open, :open
+
+        def open(path, *arguments, **options, &block)
+          if path == ENV["PUBLISHER_FAIL_DIRECTORY_SYNC"]
+            raise IOError, "injected directory sync failure"
+          end
+          publisher_original_open(path, *arguments, **options, &block)
+        end
+      end
+    RUBY
+    {
+      "PUBLISHER_FAIL_DIRECTORY_SYNC" => producer_directory,
+      "RUBYOPT" => "-r#{wrapper}",
+    }
   end
 
   def generation(classification = "reload", producer = "test-producer")
@@ -224,6 +253,18 @@ class PublisherTest
     assert_equal(mtime, File.stat(record_path).mtime)
   end
 
+  def no_op_secures_record_mode
+    input = manifest([value_input("version", "same")])
+    reconcile!(input)
+    bytes = File.binread(record_path)
+    mtime = File.stat(record_path).mtime
+    File.chmod(0o666, record_path)
+    reconcile!(input)
+    assert_equal(0o600, File.stat(record_path).mode & 0o777)
+    assert_equal(bytes, File.binread(record_path))
+    assert_equal(mtime, File.stat(record_path).mtime)
+  end
+
   def classification_updates_are_independent
     reconcile!(manifest([value_input("reload", "one")]), classification: "reload")
     reload_state = record.fetch("reload")
@@ -240,6 +281,30 @@ class PublisherTest
       File.write(record_path, JSON.generate(invalid_record) << "\n")
       bytes = File.binread(record_path)
       assert_rejected(input, classification: "restart")
+      assert_equal(bytes, File.binread(record_path))
+    end
+  end
+
+  def invalid_prior_reason
+    input = manifest([value_input("version", "one")])
+    reconcile!(input)
+    invalid_record = record
+    invalid_record.fetch("reload")["reason"] = "x" * 201
+    File.write(record_path, JSON.generate(invalid_record) << "\n")
+    bytes = File.binread(record_path)
+    assert_rejected(input)
+    assert_equal(bytes, File.binread(record_path))
+  end
+
+  def invalid_prior_changed_at
+    input = manifest([value_input("version", "one")])
+    reconcile!(input)
+    ["yesterday", "2025-01-02T03:04:05Z", "2025-01-02T03:04:05.678+00:00"].each do |changed_at|
+      invalid_record = record
+      invalid_record.fetch("reload")["changedAt"] = changed_at
+      File.write(record_path, JSON.generate(invalid_record) << "\n")
+      bytes = File.binread(record_path)
+      assert_rejected(input)
       assert_equal(bytes, File.binread(record_path))
     end
   end
@@ -307,6 +372,22 @@ class PublisherTest
     assert_rejected(bad)
     assert_equal(bytes, File.binread(record_path))
     JSON.parse(File.read(record_path))
+  end
+
+  def post_rename_failure_restores_prior_record
+    reconcile!(manifest([value_input("version", "before")]))
+    bytes = File.binread(record_path)
+    changed = manifest([value_input("version", "after")])
+    assert_rejected(changed, environment: directory_sync_failure_environment)
+    assert_equal(bytes, File.binread(record_path))
+    assert_equal([], Dir.glob(File.join(producer_directory, ".test-producer.json.*")))
+  end
+
+  def post_rename_failure_removes_first_record
+    input = manifest([value_input("version", "first")])
+    assert_rejected(input, environment: directory_sync_failure_environment)
+    assert(!File.exist?(record_path), "failed first write left a producer record")
+    assert_equal([], Dir.glob(File.join(producer_directory, ".test-producer.json.*")))
   end
 
   def readers_never_observe_partial_json

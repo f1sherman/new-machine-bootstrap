@@ -223,6 +223,7 @@ class PiSessionStalenessPublisher
       lock.chmod(0o600)
       lock.flock(File::LOCK_EX) or raise PublisherError, "cannot lock producer record"
       record = read_record(record_path, producer)
+      File.chmod(0o600, record_path) if File.exist?(record_path)
       classification = options.fetch(:classification)
       current = record[classification]
       return if current && current["generation"] == generation
@@ -269,12 +270,29 @@ class PiSessionStalenessPublisher
       unless /\Asha256:[0-9a-f]{64}\z/.match?(entry["generation"])
         raise PublisherError, "producer generation is invalid"
       end
+      if entry["reason"].bytesize > MAX_REASON_BYTES
+        raise PublisherError, "producer reason exceeds #{MAX_REASON_BYTES} bytes"
+      end
+      unless valid_changed_at?(entry["changedAt"])
+        raise PublisherError, "producer changedAt is invalid"
+      end
     end
+  end
+
+  def valid_changed_at?(value)
+    Time.iso8601(value).utc.iso8601(3) == value
+  rescue ArgumentError
+    false
   end
 
   def atomic_write(path, content)
     directory = File.dirname(path)
-    temporary = File.join(directory, ".#{File.basename(path)}.#{Process.pid}.#{rand(1 << 32)}.tmp")
+    basename = File.basename(path)
+    nonce = "#{Process.pid}.#{rand(1 << 32)}"
+    temporary = File.join(directory, ".#{basename}.#{nonce}.tmp")
+    rollback = File.join(directory, ".#{basename}.#{nonce}.rollback")
+    had_prior_record = File.exist?(path)
+    replaced = false
     begin
       File.open(temporary, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
         file.chmod(0o600)
@@ -282,11 +300,32 @@ class PiSessionStalenessPublisher
         file.flush
         file.fsync
       end
+      File.link(path, rollback) if had_prior_record
       File.rename(temporary, path)
-      File.open(directory, "rb") { |file| file.fsync }
+      replaced = true
+      synchronize_directory(directory)
+    rescue StandardError
+      rollback_replacement(path, rollback, directory, had_prior_record) if replaced
+      raise
     ensure
       File.unlink(temporary) if File.exist?(temporary)
+      File.unlink(rollback) if File.exist?(rollback)
     end
+  end
+
+  def rollback_replacement(path, rollback, directory, had_prior_record)
+    if had_prior_record
+      File.rename(rollback, path)
+    else
+      File.unlink(path) if File.exist?(path)
+    end
+    synchronize_directory(directory)
+  rescue StandardError
+    nil
+  end
+
+  def synchronize_directory(directory)
+    File.open(directory, "rb") { |file| file.fsync }
   end
 end
 
