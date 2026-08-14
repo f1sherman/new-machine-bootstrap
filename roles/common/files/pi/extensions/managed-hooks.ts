@@ -86,11 +86,40 @@ function currentHerdrTabId() {
   return process.env.HERDR_TAB_ID?.trim() || "";
 }
 
+function currentHerdrWorkspaceId() {
+  if (process.env.HERDR_ENV !== "1" || !process.stdout.isTTY) return "";
+  return process.env.HERDR_WORKSPACE_ID?.trim() || "";
+}
+
 async function renameCurrentHerdrTab(pi, name) {
   const tabId = currentHerdrTabId();
   if (!tabId) return false;
   const result = await exec(pi, "herdr", ["tab", "rename", tabId, name]);
   return result.code === 0 && !result.killed;
+}
+
+async function renameCurrentHerdrWorkspaceIfSingleTab(pi, name) {
+  const workspaceId = currentHerdrWorkspaceId();
+  if (!workspaceId) return false;
+  const result = await exec(pi, "herdr", ["workspace", "get", workspaceId]);
+  if (result.code !== 0 || result.killed) return false;
+
+  let response;
+  try {
+    response = JSON.parse(result.stdout);
+  } catch {
+    return false;
+  }
+  if (response?.result?.workspace?.tab_count !== 1) return false;
+
+  const renamed = await exec(pi, "herdr", ["workspace", "rename", workspaceId, name]);
+  return renamed.code === 0 && !renamed.killed;
+}
+
+async function renameCurrentHerdrLabels(pi, name) {
+  const tabRenamed = await renameCurrentHerdrTab(pi, name);
+  const workspaceRenamed = await renameCurrentHerdrWorkspaceIfSingleTab(pi, name);
+  return tabRenamed || workspaceRenamed;
 }
 
 function stateFile(key) {
@@ -715,7 +744,7 @@ async function canonicalSessionNameStatus(pi) {
 }
 
 async function clearPublishedSessionName(pi, ctx) {
-  const herdrCleared = await renameCurrentHerdrTab(pi, "");
+  const herdrCleared = await renameCurrentHerdrLabels(pi, "");
   if (!ownsTmuxPane()) return herdrCleared;
   const status = await canonicalSessionNameStatus(pi);
   if (status.kind !== "non-branch"
@@ -983,7 +1012,7 @@ export default function managedHooks(pi) {
     const liveName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
     if (liveName !== normalizedExpectedName) return false;
 
-    const herdrPublished = await renameCurrentHerdrTab(pi, normalizedExpectedName);
+    const herdrPublished = await renameCurrentHerdrLabels(pi, normalizedExpectedName);
     if (!ownsTmuxPane()) return herdrPublished;
     return writeTmuxIdentity(pi, "manual", normalizedExpectedName);
   }
