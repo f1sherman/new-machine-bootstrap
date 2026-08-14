@@ -143,7 +143,9 @@ class PiSessionStalenessPublisher
       if input.fetch("type") == "value"
         add_field(digest, input.fetch("value"))
       else
-        path = File.join(input.fetch("root"), input.fetch("path"))
+        relative_path = input.fetch("path")
+        add_field(digest, relative_path)
+        path = File.join(input.fetch("root"), relative_path)
         hash_path(digest, input.fetch("name"), path, "")
       end
     end
@@ -156,7 +158,8 @@ class PiSessionStalenessPublisher
     add_field(digest, input_name)
     add_field(digest, relative_path)
     add_field(digest, type)
-    add_field(digest, stat.executable? ? "executable" : "not-executable")
+    executable = (stat.mode & 0o111) != 0
+    add_field(digest, executable ? "executable" : "not-executable")
 
     case type
     when "symlink"
@@ -206,8 +209,10 @@ class PiSessionStalenessPublisher
       state_root = File.join(home, ".local", "state")
     end
 
-    base_directory = File.join(state_root, "pi-session-staleness", "v1")
+    application_directory = File.join(state_root, "pi-session-staleness")
+    base_directory = File.join(application_directory, "v1")
     producer_directory = File.join(base_directory, "producers")
+    secure_directory(application_directory)
     secure_directory(base_directory)
     secure_directory(producer_directory)
 
@@ -255,8 +260,8 @@ class PiSessionStalenessPublisher
     raise PublisherError, "producer record schema must be 1" unless record["schema"] == 1
     raise PublisherError, "producer record identifier mismatch" unless record["producer"] == producer
     CLASSIFICATIONS.each do |classification|
+      next unless record.key?(classification)
       entry = record[classification]
-      next unless entry
       validate_hash(entry, %w[generation changedAt reason], "producer classification")
       %w[generation changedAt reason].each do |key|
         validate_string(entry[key], "producer #{key}", empty: false)
