@@ -157,6 +157,18 @@
     - { name: tmux-restore-handler-claude_session_id, mode: '0755' }
     - { name: tmux-restore-handler-pi_session_file, mode: '0755' }
 
+- name: Install Pi session staleness publisher
+  copy:
+    src: bin/pi-session-staleness-publish
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/pi-session-staleness-publish'
+    mode: '0755'
+
+- name: Install NMB Pi session staleness reconciler
+  copy:
+    src: bin/pi-session-staleness-reconcile-new-machine-bootstrap
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/pi-session-staleness-reconcile-new-machine-bootstrap'
+    mode: '0755'
+
 - name: Remove legacy public worktree helpers
   file:
     path: '{{ ansible_facts["user_dir"] }}/.local/bin/{{ item }}'
@@ -2533,6 +2545,28 @@
     src: '{{ playbook_dir }}/roles/common/files/config/skills/pi/z-commit/commit.sh'
     dest: '{{ ansible_facts["user_dir"] }}/.pi/agent/skills/z-commit/commit.sh'
     mode: '0755'
+
+- name: Reconcile managed Pi session staleness baseline
+  command: '{{ ansible_facts["user_dir"] }}/.local/bin/pi-session-staleness-reconcile-new-machine-bootstrap'
+  environment:
+    HOME: '{{ ansible_facts["user_dir"] }}'
+    PATH: '{{ ansible_facts["user_dir"] }}/.local/bin:{{ ansible_facts["user_dir"] }}/.local/share/mise/shims:{{ ansible_facts["env"]["PATH"] }}'
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Install Pi session staleness watcher
+  copy:
+    src: pi/extensions/pi-session-staleness.ts
+    dest: '{{ ansible_facts["user_dir"] }}/.pi/agent/extensions/pi-session-staleness.ts'
+    mode: '0644'
+
+- name: Reconcile managed Pi baseline after watcher installation
+  command: '{{ ansible_facts["user_dir"] }}/.local/bin/pi-session-staleness-reconcile-new-machine-bootstrap'
+  environment:
+    HOME: '{{ ansible_facts["user_dir"] }}'
+    PATH: '{{ ansible_facts["user_dir"] }}/.local/bin:{{ ansible_facts["user_dir"] }}/.local/share/mise/shims:{{ ansible_facts["env"]["PATH"] }}'
+  changed_when: false
+  when: not ansible_check_mode
 
 - name: Remove legacy GSD state
   file:
