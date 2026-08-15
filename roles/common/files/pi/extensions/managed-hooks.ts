@@ -933,11 +933,11 @@ function streamShape(value) {
   };
 }
 
-function sessionGoalFailureDetails(value, validation = "", reasonOverride = "") {
-  if (reasonOverride) return { reason: reasonOverride };
-  if (value instanceof Error) return { reason: "exception" };
+function sessionGoalFailureDetails(value, validation = "", stage = "evaluation") {
+  if (value instanceof Error) return { stage, reason: "exception" };
 
   return {
+    stage,
     reason: validation ? "invalid-output" : value?.killed ? "timeout" : "exit",
     ...(validation ? { validation } : {}),
     code: value?.code,
@@ -947,10 +947,10 @@ function sessionGoalFailureDetails(value, validation = "", reasonOverride = "") 
   };
 }
 
-function recordSessionGoalFailure(value, validation = "", reasonOverride = "") {
+function recordSessionGoalFailure(value, validation = "", stage = "evaluation") {
   console.warn(
-    "[managed-hooks] session goal child failed",
-    sessionGoalFailureDetails(value, validation, reasonOverride),
+    "[managed-hooks] session goal failed",
+    sessionGoalFailureDetails(value, validation, stage),
   );
 }
 
