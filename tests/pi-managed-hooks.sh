@@ -24,6 +24,7 @@ import { pathToFileURL } from "node:url";
 
 const extensionPath = process.argv[2];
 const worktreeRoot = process.env.PI_HOOK_TEST_WORKTREE;
+const asrCommand = path.join(process.env.HOME, ".local", "bin", "asr");
 const handlers = new Map();
 const calls = [];
 const sessionNames = [];
@@ -115,7 +116,7 @@ const pi = {
       if (queued?.promise) return queued.promise;
       return queued || ok();
     }
-    if (command === "asr") {
+    if (command === asrCommand) {
       const queued = asrResultQueue.shift();
       if (queued instanceof Error) throw queued;
       if (queued?.promise) return queued.promise;
@@ -199,7 +200,7 @@ process.env.TMUX_PANE = "%1";
 const { default: install } = await import(pathToFileURL(extensionPath));
 install(pi);
 
-const registryCalls = () => calls.filter((call) => call.command === "asr");
+const registryCalls = () => calls.filter((call) => call.command === asrCommand);
 const clearCalls = () => { calls.length = 0; };
 
 const savedTmux = process.env.TMUX;
@@ -211,7 +212,7 @@ clearCalls();
 await handlers.get("session_start")({}, ctx);
 await flushAsyncWork();
 assert.deepEqual(registryCalls(), [{
-  command: "asr",
+  command: asrCommand,
   args: [
     "register", "--source", "pi", "--session-id", activeSessionId,
     "--local", "--status", "active",
@@ -242,7 +243,7 @@ currentSessionName = "registry name outside tmux";
 await handlers.get("session_info_changed")({ name: currentSessionName }, ctx);
 await flushAsyncWork();
 assert.deepEqual(registryCalls(), [{
-  command: "asr",
+  command: asrCommand,
   args: [
     "update", "--source", "pi", "--session-id", activeSessionId,
     "--name", "registry name outside tmux",

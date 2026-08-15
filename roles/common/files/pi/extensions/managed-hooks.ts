@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const COMMAND_TIMEOUT_MS = 5000;
+const ASR_COMMAND = path.resolve(process.env.HOME || "/", ".local", "bin", "asr");
 const SUBJECT_CHILD_TIMEOUT_MS = 15000;
 const CODEX_MANAGED_CHILD_MODEL = "openai-codex/gpt-5.6-luna";
 const OPENAI_MANAGED_CHILD_MODEL = "openai/gpt-5.6-luna";
@@ -974,7 +975,7 @@ export default function managedHooks(pi) {
 
   async function runRegistryCommand(pi, args) {
     try {
-      const result = await pi.exec("asr", args, { timeout: COMMAND_TIMEOUT_MS });
+      const result = await pi.exec(ASR_COMMAND, args, { timeout: COMMAND_TIMEOUT_MS });
       if (result.code === 0 && !result.killed) return true;
       warn(`asr ${args[0]} failed`, result.stderr || `exit ${result.code}`);
     } catch (error) {
