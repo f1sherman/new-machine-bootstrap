@@ -635,8 +635,9 @@ await handlers.get("before_agent_start")({
 await flushAsyncWork();
 assert.equal(warnings.length, invalidGoalWarningIndex + 1,
   "invalid goal output emits one diagnostic");
-assert.equal(warnings.at(-1)[0], "[managed-hooks] session goal child failed");
+assert.equal(warnings.at(-1)[0], "[managed-hooks] session goal failed");
 assert.deepEqual(warnings.at(-1)[1], {
+  stage: "evaluation",
   reason: "invalid-output",
   validation: "multiline",
   code: 0,
@@ -662,6 +663,7 @@ await handlers.get("before_agent_start")({
 }, ctx);
 await flushAsyncWork();
 assert.deepEqual(warnings.at(-1)[1], {
+  stage: "evaluation",
   reason: "exit",
   code: 7,
   killed: false,
@@ -679,6 +681,7 @@ await handlers.get("before_agent_start")({
 }, ctx);
 await flushAsyncWork();
 assert.deepEqual(warnings.at(-1)[1], {
+  stage: "evaluation",
   reason: "timeout",
   code: 0,
   killed: true,
@@ -696,6 +699,7 @@ await handlers.get("before_agent_start")({
 }, ctx);
 await flushAsyncWork();
 assert.deepEqual(warnings.at(-1)[1], {
+  stage: "evaluation",
   reason: "exception",
 }, "child exception omits mutable exception metadata");
 assert.equal(JSON.stringify(warnings.at(-1)).includes("private exception"), false,
@@ -711,7 +715,8 @@ await handlers.get("before_agent_start")({
 await flushAsyncWork();
 sessionNameError = undefined;
 assert.deepEqual(warnings.at(-1)[1], {
-  reason: "name-application",
+  stage: "name-application",
+  reason: "exception",
 }, "name application failure is distinct from child evaluation failure");
 assert.equal(JSON.stringify(warnings.at(-1)).includes("private application"), false,
   "name application diagnostics omit exception and prompt content");
