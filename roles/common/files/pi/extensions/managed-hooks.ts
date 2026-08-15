@@ -895,12 +895,24 @@ async function updateCurrentSpecFromBash(pi, event, ctx) {
   await setCurrentSpec(pi, specPaths[0]);
 }
 
-function normalizeSessionGoalSubject(value) {
-  if (typeof value !== "string" || value.includes("\n") || value.includes("\r")) return "";
+function inspectSessionGoalSubject(value) {
+  if (typeof value !== "string") return { subject: "", reason: "non-string" };
+  if (value.includes("\n") || value.includes("\r")) {
+    return { subject: "", reason: "multiline" };
+  }
   const subject = value.trim().replace(/ +/g, " ");
-  if (!subject || subject.length > SESSION_GOAL_MAX_LENGTH) return "";
-  if (/\p{Cc}/u.test(subject) || /^goal\s*:/i.test(subject) || /["'`]/.test(subject)) return "";
-  return subject;
+  if (!subject) return { subject: "", reason: "empty" };
+  if (subject.length > SESSION_GOAL_MAX_LENGTH) {
+    return { subject: "", reason: "too-long" };
+  }
+  if (/\p{Cc}/u.test(subject)) return { subject: "", reason: "control-character" };
+  if (/^goal\s*:/i.test(subject)) return { subject: "", reason: "prefix" };
+  if (/["'`]/.test(subject)) return { subject: "", reason: "quotes" };
+  return { subject, reason: "" };
+}
+
+function normalizeSessionGoalSubject(value) {
+  return inspectSessionGoalSubject(value).subject;
 }
 
 function renderSessionFooter(ctx, sessionName = ctx?.sessionManager?.getSessionName?.()) {
@@ -911,17 +923,41 @@ function renderSessionFooter(ctx, sessionName = ctx?.sessionManager?.getSessionN
   );
 }
 
-function sessionGoalFailureDetails(value) {
+function streamShape(value) {
+  const type = typeof value;
+  if (type !== "string") return { type, length: 0, lines: 0 };
   return {
-    name: value instanceof Error ? value.name || "Error" : "SessionGoalChildResult",
-    code: value?.code,
-    exitCode: value?.exitCode,
-    killed: value?.killed,
+    type,
+    length: value.length,
+    lines: value.length === 0 ? 0 : value.split(/\r\n|\r|\n/).length,
   };
 }
 
-function recordSessionGoalFailure(value) {
-  console.warn("[managed-hooks] session goal child failed", sessionGoalFailureDetails(value));
+function sessionGoalFailureDetails(value, validation = "") {
+  if (value instanceof Error) {
+    return {
+      reason: /timeout/i.test(value.name) || /timed?\s*out/i.test(value.message)
+        ? "timeout"
+        : "exception",
+      name: value.name || "Error",
+    };
+  }
+
+  return {
+    reason: validation ? "invalid-output" : value?.killed ? "killed" : "exit",
+    ...(validation ? { validation } : {}),
+    code: value?.code,
+    killed: Boolean(value?.killed),
+    stdout: streamShape(value?.stdout),
+    stderr: streamShape(value?.stderr),
+  };
+}
+
+function recordSessionGoalFailure(value, validation = "") {
+  console.warn(
+    "[managed-hooks] session goal child failed",
+    sessionGoalFailureDetails(value, validation),
+  );
 }
 
 async function evaluateInitialSessionGoal(pi, request, signal) {
@@ -1070,14 +1106,19 @@ export default function managedHooks(pi) {
           if (requestIsCurrent(request, request.ctx)) recordSessionGoalFailure(result);
           return;
         }
-        const subject = normalizeSessionGoalSubject(
+        const inspected = inspectSessionGoalSubject(
           typeof result.stdout === "string" ? result.stdout.trimEnd() : result.stdout,
         );
-        if (!subject) {
-          if (requestIsCurrent(request, request.ctx)) recordSessionGoalFailure(result);
+        if (!inspected.subject) {
+          if (requestIsCurrent(request, request.ctx)) {
+            recordSessionGoalFailure(result, inspected.reason);
+          }
           return;
         }
-        await applySessionName(pi, request.ctx, subject, { onlyIfUnnamed: true, request });
+        await applySessionName(pi, request.ctx, inspected.subject, {
+          onlyIfUnnamed: true,
+          request,
+        });
       } catch (error) {
         if (requestIsCurrent(request, request.ctx)) recordSessionGoalFailure(error);
       } finally {

@@ -29,6 +29,8 @@ const handlers = new Map();
 const calls = [];
 const sessionNames = [];
 const registeredToolNames = [];
+const warnings = [];
+console.warn = (...args) => warnings.push(args);
 let sessionNameTool;
 let doneSessionTool;
 let shutdownCalls = 0;
@@ -42,6 +44,7 @@ let branch = "main";
 let taskStatus = "";
 let goalChildDeferred;
 let goalChildIgnoresAbort = false;
+let goalChildResultQueue = [];
 let publishedIdentity = { source: "", subject: "" };
 let fallbackRestores = 0;
 const failedGitRootCwds = new Set();
@@ -154,6 +157,9 @@ const pi = {
     }
     if (command === "tmux-agent-state" || command.startsWith("tmux-")) return ok();
     if (command === "pi" && isGoalChild(args)) {
+      const queued = goalChildResultQueue.shift();
+      if (queued instanceof Error) throw queued;
+      if (queued) return queued;
       if (!goalChildDeferred) return ok("generated goal\n");
       return goalChildIgnoresAbort
         ? goalChildDeferred.promise
@@ -615,6 +621,84 @@ assert.deepEqual(publishedIdentity, {
   source: "manual",
   subject: "generated goal",
 }, "successful automatic naming publishes the generated session name");
+
+currentSessionName = "";
+const invalidGoalOutput = "private first line\nprivate second line\n";
+goalChildResultQueue.push(ok(invalidGoalOutput));
+const invalidGoalWarningIndex = warnings.length;
+await handlers.get("before_agent_start")({
+  prompt: "prompt content must not be logged",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.equal(warnings.length, invalidGoalWarningIndex + 1,
+  "invalid goal output emits one diagnostic");
+assert.equal(warnings.at(-1)[0], "[managed-hooks] session goal child failed");
+assert.deepEqual(warnings.at(-1)[1], {
+  reason: "invalid-output",
+  validation: "multiline",
+  code: 0,
+  killed: false,
+  stdout: { type: "string", length: invalidGoalOutput.length, lines: 3 },
+  stderr: { type: "string", length: 0, lines: 0 },
+}, "invalid goal output reports safe shape and validation details");
+assert.equal(JSON.stringify(warnings.at(-1)).includes("private first line"), false,
+  "invalid goal diagnostics do not include generated output");
+assert.equal(JSON.stringify(warnings.at(-1)).includes("prompt content"), false,
+  "invalid goal diagnostics do not include prompt content");
+
+currentSessionName = "";
+goalChildResultQueue.push({
+  stdout: "private failed output",
+  stderr: "provider details",
+  code: 7,
+  killed: false,
+});
+await handlers.get("before_agent_start")({
+  prompt: "another private prompt",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.deepEqual(warnings.at(-1)[1], {
+  reason: "exit",
+  code: 7,
+  killed: false,
+  stdout: { type: "string", length: 21, lines: 1 },
+  stderr: { type: "string", length: 16, lines: 1 },
+}, "failed goal child reports exit and stream shape without stream content");
+assert.equal(JSON.stringify(warnings.at(-1)).includes("provider details"), false,
+  "failed goal diagnostics do not include stderr content");
+
+currentSessionName = "";
+goalChildResultQueue.push({ stdout: "", stderr: "", code: 1, killed: true });
+await handlers.get("before_agent_start")({
+  prompt: "private killed prompt",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.deepEqual(warnings.at(-1)[1], {
+  reason: "killed",
+  code: 1,
+  killed: true,
+  stdout: { type: "string", length: 0, lines: 0 },
+  stderr: { type: "string", length: 0, lines: 0 },
+}, "killed goal child reports the termination state");
+
+currentSessionName = "";
+const timeoutError = new Error("timed out while processing private prompt content");
+timeoutError.name = "TimeoutError";
+goalChildResultQueue.push(timeoutError);
+await handlers.get("before_agent_start")({
+  prompt: "private exception prompt",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+assert.deepEqual(warnings.at(-1)[1], {
+  reason: "timeout",
+  name: "TimeoutError",
+}, "timeout exception reports its safe classification and name");
+assert.equal(JSON.stringify(warnings.at(-1)).includes("private prompt"), false,
+  "exception diagnostics do not include error message content");
 
 currentSessionName = "";
 taskStatus = "";
