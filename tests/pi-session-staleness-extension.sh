@@ -49,6 +49,7 @@ function environment(initialRecords = {}, options = {}) {
   let directoryError = options.directoryError;
   let watchError = options.watchError;
   let execError = options.execError;
+  const execResults = [...(options.execResults ?? [])];
 
   globalThis[ADAPTERS] = {
     stateDirectory: "/state/producers",
@@ -87,7 +88,7 @@ function environment(initialRecords = {}, options = {}) {
     async exec(command, args) {
       execs.push([command, args]);
       if (execError) throw new Error(execError);
-      return { code: 0, stdout: "", stderr: "" };
+      return execResults.shift() ?? { code: 0, killed: false, stdout: "", stderr: "" };
     },
   };
 
@@ -410,6 +411,27 @@ async function unreadableRecordPreservesStateAndPolling() {
   await env.poll();
   assert.deepEqual(env.lastStatus(), [STATUS_KEY, "warning:↻ Pi changed — /reload"],
     "missing record preserves known stale state");
+  assert.ok(env.logs.some((line) => line.includes("known producer record missing: alpha.json")),
+    "missing record is reported even when a stale warning takes precedence");
+}
+
+async function missingKnownRecordReportsFailure() {
+  resetProcessState();
+  const env = environment({
+    "alpha.json": record("alpha", { reload: generation("a") }),
+  });
+  extension(env.pi);
+  await env.start();
+
+  env.records.delete("alpha.json");
+  await env.poll();
+  assert.deepEqual(env.lastStatus(), [STATUS_KEY, "warning:Pi staleness check failed"],
+    "a missing known record reports a check failure when otherwise current");
+  assert.ok(env.logs.some((line) => line.includes("known producer record missing: alpha.json")),
+    "a missing known record has a distinct failure log");
+  const failureCount = env.logs.length;
+  await env.poll();
+  assert.equal(env.logs.length, failureCount, "missing record failures are rate-limited");
 }
 
 async function watcherSchedulesEarlyPoll() {
@@ -456,6 +478,40 @@ async function tmuxPublicationAndFailureHandling() {
     await env.shutdown();
     assert.ok(env.execs.slice(-3).some(([command, args]) => command === "tmux"
       && args.includes("-u")), "shutdown unsets tmux option");
+
+    resetProcessState();
+    const resolvedFailure = environment({
+      "alpha.json": record("alpha", { reload: generation("a") }),
+    }, { execResults: [
+      { code: 0, killed: false, stdout: "", stderr: "" },
+      {
+        code: 1,
+        killed: false,
+        stdout: "",
+        stderr: `tmux refused ${"x".repeat(1_000)}`,
+      },
+    ] });
+    extension(resolvedFailure.pi);
+    await resolvedFailure.start();
+    assert.equal(resolvedFailure.execs.filter(([command]) => command === "tmux").length, 1,
+      "a resolved nonzero refresh result stops publication");
+    assert.equal(resolvedFailure.logs.length, 1, "a resolved tmux failure logs once");
+    assert.match(resolvedFailure.logs[0], /tmux-window-label.*exit code 1.*tmux refused/,
+      "a resolved tmux failure includes useful result details");
+    assert.ok(Buffer.byteLength(resolvedFailure.logs[0], "utf8") <= 300,
+      "a resolved tmux failure log is bounded");
+    await resolvedFailure.poll();
+    assert.equal(resolvedFailure.execs.filter(([command]) => command === "tmux").length, 2,
+      "a resolved refresh failure retries publication on a later poll");
+    assert.deepEqual(resolvedFailure.execs.slice(-2).map(([command]) => command),
+      ["tmux-window-label", "tmux-remote-title"],
+      "successful retry completes both refresh commands");
+    const resolvedFailureLogCount = resolvedFailure.logs.length;
+    await resolvedFailure.poll();
+    assert.equal(resolvedFailure.logs.length, resolvedFailureLogCount,
+      "resolved tmux failures remain rate-limited after recovery");
+    assert.equal(resolvedFailure.execs.filter(([command]) => command === "tmux").length, 2,
+      "successful retry caches publication only after all commands succeed");
 
     resetProcessState();
     const failing = environment({
@@ -528,9 +584,10 @@ await validProducerChangesDuringMalformedStartup();
 await restoredReloadAndMalformedState();
 await classificationRemovalPreservesKnownState();
 await missingDirectoryEnrollmentBehavior();
-await unreadableRecordPreservesStateAndPolling();
-await watcherSchedulesEarlyPoll();
 await tmuxPublicationAndFailureHandling();
+await unreadableRecordPreservesStateAndPolling();
+await missingKnownRecordReportsFailure();
+await watcherSchedulesEarlyPoll();
 await mixedReplacementRetainsReloadState();
 await replacementBaselinesAndProcessPersistence();
 delete globalThis[ADAPTERS];

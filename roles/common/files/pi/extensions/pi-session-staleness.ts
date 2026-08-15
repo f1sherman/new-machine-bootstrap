@@ -10,6 +10,7 @@ const POLL_INTERVAL_MS = 10_000;
 const PRODUCER_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const GENERATION_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const MAX_REASON_BYTES = 200;
+const MAX_EXEC_DETAIL_BYTES = 160;
 const CLASSIFICATIONS = ["reload", "restart"];
 
 function defaultStateDirectory() {
@@ -254,19 +255,37 @@ export default function piSessionStaleness(pi) {
     }
   }
 
+  function boundedExecDetail(value) {
+    const text = String(value ?? "").trim();
+    let detail = "";
+    for (const character of text) {
+      if (Buffer.byteLength(detail + character, "utf8") > MAX_EXEC_DETAIL_BYTES) break;
+      detail += character;
+    }
+    return detail;
+  }
+
+  async function checkedExec(command, args) {
+    let result;
+    try {
+      result = await adapters.exec(command, args);
+    } catch (error) {
+      throw new Error(`${command} failed: ${boundedExecDetail(error.message)}`);
+    }
+    if (result?.code === 0 && result.killed !== true) return;
+
+    const outcome = result?.killed === true
+      ? "was killed"
+      : `failed with exit code ${result?.code ?? "unknown"}`;
+    const detail = boundedExecDetail(result?.stderr || result?.stdout);
+    throw new Error(`${command} ${outcome}${detail ? `: ${detail}` : ""}`);
+  }
+
   async function refreshTmux() {
     const pane = process.env.TMUX_PANE;
     if (!pane) return;
-    for (const [command, args] of [
-      ["tmux-window-label", [pane]],
-      ["tmux-remote-title", ["publish"]],
-    ]) {
-      try {
-        await adapters.exec(command, args);
-      } catch (error) {
-        reportFailure(`${command} failed: ${error.message}`);
-      }
-    }
+    await checkedExec("tmux-window-label", [pane]);
+    await checkedExec("tmux-remote-title", ["publish"]);
   }
 
   async function publishTmux(severity, force = false) {
@@ -277,9 +296,9 @@ export default function piSessionStaleness(pi) {
       ? ["set-option", "-p", "-t", pane, "@pi_stale", severity]
       : ["set-option", "-p", "-u", "-t", pane, "@pi_stale"];
     try {
-      await adapters.exec("tmux", args);
-      tmuxPublished = severity;
+      await checkedExec("tmux", args);
       await refreshTmux();
+      tmuxPublished = severity;
     } catch (error) {
       reportFailure(`tmux publication failed: ${error.message}`);
     }
@@ -309,6 +328,7 @@ export default function piSessionStaleness(pi) {
       return;
     }
 
+    const listedFileNames = new Set(fileNames);
     const snapshot = new Map();
     for (const fileName of [...fileNames].sort()) {
       if (typeof fileName !== "string" || !fileName.endsWith(".json")) continue;
@@ -320,6 +340,13 @@ export default function piSessionStaleness(pi) {
         failed = true;
         reportFailure(`record read failed for ${fileName}: ${error.message}`);
       }
+    }
+
+    for (const producer of knownRecords.keys()) {
+      const fileName = `${producer}.json`;
+      if (listedFileNames.has(fileName)) continue;
+      failed = true;
+      reportFailure(`known producer record missing: ${fileName}`);
     }
 
     if (!baselineComplete) {
