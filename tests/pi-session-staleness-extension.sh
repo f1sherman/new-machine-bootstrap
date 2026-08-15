@@ -599,6 +599,11 @@ async function mixedReplacementRetainsReloadState() {
   await second.start();
   assert.deepEqual(second.lastStatus(), [STATUS_KEY, "warning:↻ Pi changed — /reload"],
     "mixed replacement snapshot retains the previous reload baseline and warning");
+
+  second.records.set("broken.json", record("broken"));
+  await second.poll();
+  assert.deepEqual(second.lastStatus(), [STATUS_KEY, undefined],
+    "first complete replacement snapshot clears the prior reload warning");
 }
 
 async function replacementBaselinesAndProcessPersistence() {
