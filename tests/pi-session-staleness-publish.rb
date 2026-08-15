@@ -42,6 +42,7 @@ CASES = [
   :first_write_cleanup_failure_is_reported,
   :rollback_artifact_unlink_failure_is_nonfatal,
   :stale_rollback_artifact_is_reconciled,
+  :same_producer_observations_hash_under_lock,
   :readers_never_observe_partial_json,
 ].freeze
 
@@ -574,6 +575,103 @@ class PublisherTest
     assert_equal(1, rollback_artifacts.length)
     reconcile!(changed)
     assert_equal([], rollback_artifacts)
+  end
+
+  def same_producer_observations_hash_under_lock
+    observed = File.join(@root, "observed")
+    File.write(observed, "old")
+    input = manifest([path_input("observed", @root, "observed")])
+    ready = File.join(@root, "old-observation-ready")
+    release = File.join(@root, "release-old-observation")
+    wrapper = File.join(@root, "block-input-read.rb")
+    File.write(wrapper, <<~RUBY)
+      class << File
+        alias_method :publisher_original_open_for_observation, :open
+
+        def open(path, *arguments, **options, &block)
+          return publisher_original_open_for_observation(path, *arguments, **options, &block) unless
+            path == ENV["PUBLISHER_BLOCKED_INPUT"] && block
+
+          publisher_original_open_for_observation(path, *arguments, **options) do |file|
+            publisher_original_open_for_observation(
+              ENV.fetch("PUBLISHER_OBSERVATION_READY"), "wb"
+            ) { |marker| marker.write("ready") }
+            sleep 0.01 until File.exist?(ENV.fetch("PUBLISHER_OBSERVATION_RELEASE"))
+            block.call(file)
+          end
+        end
+      end
+    RUBY
+    command = [
+      COMMAND, "reconcile",
+      "--producer", "test-producer",
+      "--classification", "reload",
+      "--reason", "resources changed",
+      "--manifest", input,
+    ]
+    base_environment = {"HOME" => @home, "XDG_STATE_HOME" => @state}
+    old_stdout = File.join(@root, "old.stdout")
+    old_stderr = File.join(@root, "old.stderr")
+    old_pid = Process.spawn(
+      base_environment.merge(
+        "PUBLISHER_BLOCKED_INPUT" => observed,
+        "PUBLISHER_OBSERVATION_READY" => ready,
+        "PUBLISHER_OBSERVATION_RELEASE" => release,
+        "RUBYOPT" => "-r#{wrapper}",
+      ),
+      *command,
+      out: old_stdout,
+      err: old_stderr,
+    )
+    500.times do
+      break if File.exist?(ready)
+      sleep 0.01
+    end
+    assert(File.exist?(ready), "old observation did not reach the controlled input read")
+
+    replacement = File.join(@root, "observed.new")
+    File.write(replacement, "new")
+    File.rename(replacement, observed)
+    reconcile!(input, producer: "expected-producer")
+    expected_generation = generation("reload", "expected-producer")
+    new_stdout = File.join(@root, "new.stdout")
+    new_stderr = File.join(@root, "new.stderr")
+    new_pid = Process.spawn(
+      base_environment,
+      *command,
+      out: new_stdout,
+      err: new_stderr,
+    )
+    500.times do
+      break if File.exist?(record_path) && generation == expected_generation
+      sleep 0.01
+    end
+    File.write(release, "release")
+
+    [
+      [old_pid, old_stdout, old_stderr],
+      [new_pid, new_stdout, new_stderr],
+    ].each do |pid, stdout_path, stderr_path|
+      _waited_pid, status = Process.wait2(pid)
+      output = File.read(stderr_path) + File.read(stdout_path)
+      assert(status.success?, "concurrent publisher failed: #{output}")
+    end
+
+    assert_equal(
+      expected_generation,
+      generation,
+      "a stale pre-lock observation replaced the current generation",
+    )
+  ensure
+    Process.kill("TERM", old_pid) if old_pid && process_running?(old_pid)
+    Process.kill("TERM", new_pid) if new_pid && process_running?(new_pid)
+  end
+
+  def process_running?(pid)
+    Process.kill(0, pid)
+    true
+  rescue Errno::ESRCH
+    false
   end
 
   def readers_never_observe_partial_json
