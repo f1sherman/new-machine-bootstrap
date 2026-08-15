@@ -49,6 +49,7 @@ function environment(initialRecords = {}, options = {}) {
   let directoryError = options.directoryError;
   let watchError = options.watchError;
   let execError = options.execError;
+  let notificationError = options.notificationError;
   const execResults = [...(options.execResults ?? [])];
 
   globalThis[ADAPTERS] = {
@@ -101,7 +102,10 @@ function environment(initialRecords = {}, options = {}) {
     ui: {
       theme: { fg: (color, text) => `${color}:${text}` },
       setStatus(key, value) { statuses.push([key, value]); },
-      notify(message, severity) { notifications.push([message, severity]); },
+      notify(message, severity) {
+        if (notificationError) throw new Error(notificationError);
+        notifications.push([message, severity]);
+      },
     },
   };
 
@@ -118,6 +122,7 @@ function environment(initialRecords = {}, options = {}) {
     watches,
     setDirectoryError(value) { directoryError = value; },
     setExecError(value) { execError = value; },
+    setNotificationError(value) { notificationError = value; },
     setWatchError(value) { watchError = value; },
     async start() { await handlers.get("session_start")({}, ctx); },
     async shutdown() { await handlers.get("session_shutdown")({}, ctx); },
@@ -281,6 +286,53 @@ async function validProducerChangesDuringMalformedStartup() {
   await env.poll();
   assert.deepEqual(env.lastStatus(), [STATUS_KEY, undefined],
     "the provisional generation clears the warning after snapshot recovery");
+}
+
+async function laterProducerDuringMalformedStartupIsStale() {
+  resetProcessState();
+  const env = environment({ "broken.json": "{broken" });
+  extension(env.pi);
+  await env.start();
+
+  env.records.set("beta.json", record("beta", { reload: generation("a") }));
+  await env.poll();
+  assert.deepEqual(env.lastStatus(), [STATUS_KEY, "warning:↻ Pi changed — /reload"],
+    "a producer absent from the startup listing cannot receive a provisional baseline");
+  assert.match(env.notifications.at(-1)[0], /beta/,
+    "the later producer receives a reload notification");
+
+  env.records.set("beta.json", record("beta", {
+    reload: generation("a"), restart: generation("b"),
+  }));
+  await env.poll();
+  assert.deepEqual(env.lastStatus(), [STATUS_KEY, "error:⟳ Pi changed — restart Pi"],
+    "restart takes precedence for a later producer while startup remains incomplete");
+  assert.equal(env.notifications.at(-1)[1], "error",
+    "the later producer receives the restart notification severity");
+}
+
+async function notificationFailureRetriesUntilDelivered() {
+  resetProcessState();
+  const env = environment({
+    "alpha.json": record("alpha", { reload: generation("a") }),
+  }, { notificationError: "UI temporarily unavailable" });
+  extension(env.pi);
+  await env.start();
+
+  env.records.set("alpha.json", record("alpha", { reload: generation("b") }));
+  await env.poll();
+  assert.equal(env.notifications.length, 0, "a thrown notification is not delivered");
+  assert.ok(env.logs.some((line) => line.includes(
+    "notification failed: UI temporarily unavailable",
+  )), "a thrown notification is logged through the failure limiter");
+
+  env.setNotificationError(undefined);
+  await env.poll();
+  assert.equal(env.notifications.length, 1,
+    "the same generation is retried after a transient notification failure");
+  await env.poll();
+  assert.equal(env.notifications.length, 1,
+    "a successfully delivered notification is deduplicated");
 }
 
 async function restoredReloadAndMalformedState() {
@@ -581,6 +633,8 @@ await transitionsAndNotifications();
 await laterClassificationUsesDeclaredSeverity();
 await malformedStartupDoesNotCompleteBaseline();
 await validProducerChangesDuringMalformedStartup();
+await laterProducerDuringMalformedStartupIsStale();
+await notificationFailureRetriesUntilDelivered();
 await restoredReloadAndMalformedState();
 await classificationRemovalPreservesKnownState();
 await missingDirectoryEnrollmentBehavior();

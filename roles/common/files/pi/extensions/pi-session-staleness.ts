@@ -121,6 +121,9 @@ export default function piSessionStaleness(pi) {
   const knownRecords = new Map(previousReloadState?.knownRecords);
   let baselineComplete = previousReloadState?.baselineComplete ?? false;
   let hasEnrolledProducer = previousReloadState?.hasEnrolledProducer ?? false;
+  let startupProducerFileNames = previousReloadState?.startupProducerFileNames
+    ? new Set(previousReloadState.startupProducerFileNames)
+    : undefined;
   let startupSnapshot = true;
   let timer;
   let watcher;
@@ -142,13 +145,13 @@ export default function piSessionStaleness(pi) {
 
   function notify(producer, classification, entry) {
     const key = `${producer}\0${classification}\0${entry.generation}`;
-    if (shared.notifications.has(key)) return;
-    shared.notifications.add(key);
+    if (shared.notifications.has(key) || !context) return;
     try {
-      context?.ui.notify(
+      context.ui.notify(
         `Pi changed (${producer}): ${entry.reason}`,
         classification === "restart" ? "error" : "warning",
       );
+      shared.notifications.add(key);
     } catch (error) {
       reportFailure(`notification failed: ${error.message}`);
     }
@@ -160,6 +163,9 @@ export default function piSessionStaleness(pi) {
       knownRecords: new Map(knownRecords),
       baselineComplete,
       hasEnrolledProducer,
+      startupProducerFileNames: startupProducerFileNames
+        ? new Set(startupProducerFileNames)
+        : undefined,
     };
   }
 
@@ -198,6 +204,10 @@ export default function piSessionStaleness(pi) {
 
   function observeStartupSnapshot(records) {
     for (const record of records.values()) {
+      if (!startupProducerFileNames?.has(`${record.producer}.json`)) {
+        observeRecord(record);
+        continue;
+      }
       const merged = mergeRecord(record);
       if (record.reload && !reloadBaseline.has(record.producer)) {
         reloadBaseline.set(record.producer, merged.reload.generation);
@@ -329,6 +339,12 @@ export default function piSessionStaleness(pi) {
     }
 
     const listedFileNames = new Set(fileNames);
+    if (!startupProducerFileNames) {
+      startupProducerFileNames = new Set(fileNames.filter((fileName) => {
+        if (typeof fileName !== "string" || !fileName.endsWith(".json")) return false;
+        return PRODUCER_PATTERN.test(fileName.slice(0, -5));
+      }));
+    }
     const snapshot = new Map();
     for (const fileName of [...fileNames].sort()) {
       if (typeof fileName !== "string" || !fileName.endsWith(".json")) continue;
