@@ -25,8 +25,12 @@ assert = lambda do |condition, name, detail = nil|
 end
 
 Dir.mktmpdir("pi-session-done") do |tmpdir|
-  fake_bin = File.join(tmpdir, "bin")
+  fake_bin = File.join(tmpdir, ".local", "bin")
+  shadow_bin = File.join(tmpdir, "system-bin")
   FileUtils.mkdir_p(fake_bin)
+  FileUtils.mkdir_p(shadow_bin)
+  File.write(File.join(shadow_bin, "asr"), "#!/bin/sh\nexit 99\n")
+  FileUtils.chmod(0o755, File.join(shadow_bin, "asr"))
   capture_path = File.join(tmpdir, "asr-calls.jsonl")
   fake_asr = File.join(fake_bin, "asr")
   File.write(fake_asr, <<~RUBY)
@@ -53,7 +57,8 @@ Dir.mktmpdir("pi-session-done") do |tmpdir|
   FileUtils.chmod(0o755, fake_asr)
 
   base_env = {
-    "PATH" => "#{fake_bin}:#{ENV.fetch("PATH")}",
+    "HOME" => tmpdir,
+    "PATH" => "#{shadow_bin}:#{ENV.fetch("PATH")}",
     "ASR_CALL_CAPTURE" => capture_path,
     "PI_SESSION_FILE" => "/home/brian/.pi/agent/sessions/project/session.jsonl",
     "PI_SESSION_ID" => "session-1",
