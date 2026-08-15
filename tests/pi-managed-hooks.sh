@@ -32,6 +32,7 @@ const registeredToolNames = [];
 const warnings = [];
 console.warn = (...args) => warnings.push(args);
 let sessionNameTool;
+let sessionNameError;
 let doneSessionTool;
 let shutdownCalls = 0;
 let sessionDoneResultQueue = [];
@@ -108,6 +109,7 @@ const pi = {
     if (definition.name === "done_session") doneSessionTool = definition;
   },
   setSessionName(name) {
+    if (sessionNameError) throw sessionNameError;
     currentSessionName = name;
     sessionNames.push(name);
   },
@@ -670,35 +672,49 @@ assert.equal(JSON.stringify(warnings.at(-1)).includes("provider details"), false
   "failed goal diagnostics do not include stderr content");
 
 currentSessionName = "";
-goalChildResultQueue.push({ stdout: "", stderr: "", code: 1, killed: true });
+goalChildResultQueue.push({ stdout: "", stderr: "", code: 0, killed: true });
 await handlers.get("before_agent_start")({
-  prompt: "private killed prompt",
+  prompt: "private timeout prompt",
   systemPromptOptions: { cwd: "/repo" },
 }, ctx);
 await flushAsyncWork();
 assert.deepEqual(warnings.at(-1)[1], {
-  reason: "killed",
-  code: 1,
+  reason: "timeout",
+  code: 0,
   killed: true,
   stdout: { type: "string", length: 0, lines: 0 },
   stderr: { type: "string", length: 0, lines: 0 },
-}, "killed goal child reports the termination state");
+}, "timed-out goal child reports the production exec result shape");
 
 currentSessionName = "";
-const timeoutError = new Error("timed out while processing private prompt content");
-timeoutError.name = "TimeoutError";
-goalChildResultQueue.push(timeoutError);
+const privateException = new Error("private exception message");
+privateException.name = "private exception name";
+goalChildResultQueue.push(privateException);
 await handlers.get("before_agent_start")({
   prompt: "private exception prompt",
   systemPromptOptions: { cwd: "/repo" },
 }, ctx);
 await flushAsyncWork();
 assert.deepEqual(warnings.at(-1)[1], {
-  reason: "timeout",
-  name: "TimeoutError",
-}, "timeout exception reports its safe classification and name");
-assert.equal(JSON.stringify(warnings.at(-1)).includes("private prompt"), false,
-  "exception diagnostics do not include error message content");
+  reason: "exception",
+}, "child exception omits mutable exception metadata");
+assert.equal(JSON.stringify(warnings.at(-1)).includes("private exception"), false,
+  "exception diagnostics do not include exception or prompt content");
+
+currentSessionName = "";
+sessionNameError = new Error("private application failure");
+goalChildResultQueue.push(ok("valid generated goal\n"));
+await handlers.get("before_agent_start")({
+  prompt: "private application prompt",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+sessionNameError = undefined;
+assert.deepEqual(warnings.at(-1)[1], {
+  reason: "name-application",
+}, "name application failure is distinct from child evaluation failure");
+assert.equal(JSON.stringify(warnings.at(-1)).includes("private application"), false,
+  "name application diagnostics omit exception and prompt content");
 
 currentSessionName = "";
 taskStatus = "";

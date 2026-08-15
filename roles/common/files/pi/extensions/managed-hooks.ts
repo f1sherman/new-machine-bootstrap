@@ -933,18 +933,12 @@ function streamShape(value) {
   };
 }
 
-function sessionGoalFailureDetails(value, validation = "") {
-  if (value instanceof Error) {
-    return {
-      reason: /timeout/i.test(value.name) || /timed?\s*out/i.test(value.message)
-        ? "timeout"
-        : "exception",
-      name: value.name || "Error",
-    };
-  }
+function sessionGoalFailureDetails(value, validation = "", reasonOverride = "") {
+  if (reasonOverride) return { reason: reasonOverride };
+  if (value instanceof Error) return { reason: "exception" };
 
   return {
-    reason: validation ? "invalid-output" : value?.killed ? "killed" : "exit",
+    reason: validation ? "invalid-output" : value?.killed ? "timeout" : "exit",
     ...(validation ? { validation } : {}),
     code: value?.code,
     killed: Boolean(value?.killed),
@@ -953,10 +947,10 @@ function sessionGoalFailureDetails(value, validation = "") {
   };
 }
 
-function recordSessionGoalFailure(value, validation = "") {
+function recordSessionGoalFailure(value, validation = "", reasonOverride = "") {
   console.warn(
     "[managed-hooks] session goal child failed",
-    sessionGoalFailureDetails(value, validation),
+    sessionGoalFailureDetails(value, validation, reasonOverride),
   );
 }
 
@@ -1115,10 +1109,16 @@ export default function managedHooks(pi) {
           }
           return;
         }
-        await applySessionName(pi, request.ctx, inspected.subject, {
-          onlyIfUnnamed: true,
-          request,
-        });
+        try {
+          await applySessionName(pi, request.ctx, inspected.subject, {
+            onlyIfUnnamed: true,
+            request,
+          });
+        } catch (error) {
+          if (requestIsCurrent(request, request.ctx)) {
+            recordSessionGoalFailure(error, "", "name-application");
+          }
+        }
       } catch (error) {
         if (requestIsCurrent(request, request.ctx)) recordSessionGoalFailure(error);
       } finally {
