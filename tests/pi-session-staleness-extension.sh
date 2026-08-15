@@ -253,6 +253,35 @@ async function malformedStartupDoesNotCompleteBaseline() {
     "first complete snapshot after malformed startup establishes the baseline");
 }
 
+async function validProducerChangesDuringMalformedStartup() {
+  resetProcessState();
+  const env = environment({
+    "alpha.json": record("alpha", { reload: generation("a") }),
+    "broken.json": "{broken",
+  });
+  extension(env.pi);
+  await env.start();
+  assert.deepEqual(env.lastStatus(), [STATUS_KEY, "warning:Pi staleness check failed"],
+    "malformed startup state reports a check failure");
+
+  env.records.set("alpha.json", record("alpha", { reload: generation("b") }));
+  await env.poll();
+  assert.deepEqual(env.lastStatus(), [STATUS_KEY, "warning:↻ Pi changed — /reload"],
+    "a valid producer change warns while another startup record remains malformed");
+  assert.match(env.notifications.at(-1)[0], /alpha/,
+    "the provisional baseline change identifies the valid producer");
+
+  env.records.set("broken.json", record("broken", { reload: generation("c") }));
+  await env.poll();
+  assert.deepEqual(env.lastStatus(), [STATUS_KEY, "warning:↻ Pi changed — /reload"],
+    "snapshot recovery does not rebase a change detected from provisional state");
+
+  env.records.set("alpha.json", record("alpha", { reload: generation("a") }));
+  await env.poll();
+  assert.deepEqual(env.lastStatus(), [STATUS_KEY, undefined],
+    "the provisional generation clears the warning after snapshot recovery");
+}
+
 async function restoredReloadAndMalformedState() {
   resetProcessState();
   const env = environment({
@@ -495,6 +524,7 @@ await startupBaselineAndLifecycle();
 await transitionsAndNotifications();
 await laterClassificationUsesDeclaredSeverity();
 await malformedStartupDoesNotCompleteBaseline();
+await validProducerChangesDuringMalformedStartup();
 await restoredReloadAndMalformedState();
 await classificationRemovalPreservesKnownState();
 await missingDirectoryEnrollmentBehavior();

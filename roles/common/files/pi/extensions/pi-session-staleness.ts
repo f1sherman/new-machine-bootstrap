@@ -195,15 +195,17 @@ export default function piSessionStaleness(pi) {
     }
   }
 
-  function establishBaseline(records) {
+  function observeStartupSnapshot(records) {
     for (const record of records.values()) {
       const merged = mergeRecord(record);
-      if (record.reload) reloadBaseline.set(record.producer, merged.reload.generation);
+      if (record.reload && !reloadBaseline.has(record.producer)) {
+        reloadBaseline.set(record.producer, merged.reload.generation);
+      }
       if (record.restart && !shared.restartBaseline.has(record.producer)) {
         shared.restartBaseline.set(record.producer, merged.restart.generation);
       }
+      observeRecord(record);
     }
-    baselineComplete = true;
   }
 
   function replaceReloadBaseline(records) {
@@ -321,7 +323,8 @@ export default function piSessionStaleness(pi) {
     }
 
     if (!baselineComplete) {
-      if (!failed) establishBaseline(snapshot);
+      observeStartupSnapshot(snapshot);
+      if (!failed) baselineComplete = true;
     } else if (startupSnapshot && !failed) {
       replaceReloadBaseline(snapshot);
     } else {

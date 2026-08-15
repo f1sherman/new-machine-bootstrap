@@ -29,8 +29,7 @@ class PiSessionStalenessPublisher
     options = parse_options
     validate_options(options)
     inputs = load_manifest(options.fetch(:manifest))
-    generation = fingerprint(inputs)
-    reconcile(options, generation)
+    reconcile(options, inputs)
   end
 
   private
@@ -201,7 +200,7 @@ class PiSessionStalenessPublisher
     end
   end
 
-  def reconcile(options, generation)
+  def reconcile(options, inputs)
     state_root = @environment["XDG_STATE_HOME"]
     if state_root.nil? || state_root.empty?
       home = @environment["HOME"]
@@ -222,6 +221,7 @@ class PiSessionStalenessPublisher
     File.open(lock_path, File::RDWR | File::CREAT, 0o600) do |lock|
       lock.chmod(0o600)
       lock.flock(File::LOCK_EX) or raise PublisherError, "cannot lock producer record"
+      generation = fingerprint(inputs)
       recover_required_artifact(record_path)
       record = read_record(record_path, producer)
       if File.exist?(record_path)
