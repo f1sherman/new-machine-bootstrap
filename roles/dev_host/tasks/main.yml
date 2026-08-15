@@ -16,6 +16,7 @@
       if [ -z "$TMUX" ] &&
          [ -z "${TMUX_ATTACH_FALLBACK:-}" ] &&
          [ "${HERDR_ENV:-}" != "1" ] &&
+         [ "${HNP_HERDR_SSH:-}" != "1" ] &&
          [ -n "${SSH_CONNECTION:-}" ] &&
          [ -t 0 ]; then
         exec {{ ansible_facts["user_dir"] }}/.local/bin/tmux-attach-or-new
