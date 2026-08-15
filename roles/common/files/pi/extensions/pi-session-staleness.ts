@@ -330,7 +330,6 @@ export default function piSessionStaleness(pi) {
         return;
       }
       failed = true;
-      startupSnapshot = false;
       reportFailure(`state directory read failed: ${error.message}`);
       const severity = currentSeverity();
       publishStatus(severity, failed);
@@ -368,12 +367,16 @@ export default function piSessionStaleness(pi) {
     if (!baselineComplete) {
       observeStartupSnapshot(snapshot);
       if (!failed) baselineComplete = true;
-    } else if (startupSnapshot && !failed) {
-      replaceReloadBaseline(snapshot);
+    } else if (startupSnapshot) {
+      if (failed) {
+        for (const record of snapshot.values()) observeRecord(record);
+      } else {
+        replaceReloadBaseline(snapshot);
+      }
     } else {
       for (const record of snapshot.values()) observeRecord(record);
     }
-    startupSnapshot = false;
+    if (baselineComplete && !failed) startupSnapshot = false;
     saveReloadState();
 
     const severity = currentSeverity();
