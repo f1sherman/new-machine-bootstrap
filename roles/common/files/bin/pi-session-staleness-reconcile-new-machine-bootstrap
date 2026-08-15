@@ -132,7 +132,7 @@ def run
 
   reload_paths = %w[
     keybindings.json
-    AGENTS.md.d/00-base.md
+    AGENTS.md
     extensions/managed-hooks.ts
     extensions/main-worktree-guard.ts
     extensions/pi-attention-bell.ts

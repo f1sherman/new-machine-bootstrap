@@ -274,7 +274,7 @@ The reload manifest must include these producer-owned effective inputs:
 
 ```text
 ~/.pi/agent/keybindings.json
-~/.pi/agent/AGENTS.md.d/00-base.md
+~/.pi/agent/AGENTS.md
 ~/.pi/agent/extensions/managed-hooks.ts
 ~/.pi/agent/extensions/main-worktree-guard.ts
 ~/.pi/agent/extensions/pi-attention-bell.ts
