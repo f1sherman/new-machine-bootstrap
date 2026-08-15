@@ -11,8 +11,9 @@ session_id = ENV.fetch("PI_SESSION_ID", "").strip
 abort "PI_SESSION_ID is required" if session_id.empty?
 
 sync_socket_present = !ENV.fetch("ASR_SYNC_SOCKET", "").strip.empty?
+asr_command = File.join(Dir.home, ".local", "bin", "asr")
 system(
-  "asr",
+  asr_command,
   "done",
   "--source", "pi",
   "--session-id", session_id
