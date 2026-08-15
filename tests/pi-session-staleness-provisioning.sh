@@ -3,6 +3,7 @@
 set -euo pipefail
 
 REPOSITORY_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+RUBY_DIR=$(dirname "$(command -v ruby)")
 TMP_ROOT=$(mktemp -d)
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
@@ -15,6 +16,12 @@ assert_equal() {
   local expected=$1 actual=$2 message=$3
   [[ "$actual" == "$expected" ]] ||
     fail "$message: expected $expected, got $actual"
+}
+
+assert_not_equal() {
+  local unexpected=$1 actual=$2 message=$3
+  [[ "$actual" != "$unexpected" ]] ||
+    fail "$message: did not change from $unexpected"
 }
 
 assert_contains() {
@@ -147,5 +154,80 @@ assert_equal 0 "$(wc -l <"$case_root/ansible-calls" | tr -d ' ')" \
 assert_equal 0 "$(wc -l <"$case_root/reconcile-calls" | tr -d ' ')" \
   "pre-Ansible failure reconcile count"
 [[ "$status" -ne 0 ]] || fail "pre-Ansible failure succeeded"
+
+case_root="$TMP_ROOT/production-reconciler"
+home="$case_root/home"
+mkdir -p \
+  "$home/.local/bin" \
+  "$home/.pi/agent/AGENTS.md.d" \
+  "$home/runtime/node/bin" \
+  "$home/runtime/pi/node_modules/@earendil-works/pi-coding-agent"
+cp \
+  "$REPOSITORY_ROOT/roles/common/files/bin/pi-session-staleness-publish" \
+  "$home/.local/bin/pi-session-staleness-publish"
+cp \
+  "$REPOSITORY_ROOT/roles/common/files/bin/"\
+"pi-session-staleness-reconcile-new-machine-bootstrap" \
+  "$home/.local/bin/pi-session-staleness-reconcile-new-machine-bootstrap"
+chmod +x "$home/.local/bin/pi-session-staleness-"*
+printf '{}\n' >"$home/.pi/agent/settings.json"
+printf '{}\n' >"$home/.pi/agent/models.json"
+printf 'loaded instructions\n' >"$home/.pi/agent/AGENTS.md"
+printf 'loaded instructions\n' >"$home/.pi/agent/AGENTS.md.d/00-base.md"
+printf '{"version":"1.0.0"}\n' \
+  >"$home/runtime/pi/node_modules/@earendil-works/"\
+"pi-coding-agent/package.json"
+cat >"$home/.local/bin/mise" <<'STUB'
+#!/bin/bash
+case "$1 $2" in
+  "where npm:@earendil-works/pi-coding-agent")
+    printf '%s\n' "$HOME/runtime/pi"
+    ;;
+  "which node")
+    printf '%s\n' "$HOME/runtime/node/bin/node"
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+STUB
+cat >"$home/runtime/node/bin/node" <<'STUB'
+#!/bin/bash
+[[ "${1:-}" == "--version" ]] || exit 1
+printf 'v24.0.0\n'
+STUB
+chmod +x "$home/.local/bin/mise" "$home/runtime/node/bin/node"
+
+reconciler="$home/.local/bin/"\
+"pi-session-staleness-reconcile-new-machine-bootstrap"
+record="$home/.local/state/pi-session-staleness/v1/producers/"\
+"new-machine-bootstrap.json"
+read_generation() {
+  local classification=$1
+  ruby -rjson -e \
+    'puts JSON.parse(File.binread(ARGV[0])).fetch(ARGV[1]).fetch("generation")' \
+    "$record" "$classification"
+}
+run_reconciler() {
+  HOME="$home" PATH="$home/.local/bin:$RUBY_DIR:/usr/bin:/bin" \
+    "$reconciler"
+}
+
+run_reconciler
+reload_baseline=$(read_generation reload)
+restart_baseline=$(read_generation restart)
+printf 'fragment changed before assembly\n' \
+  >"$home/.pi/agent/AGENTS.md.d/00-base.md"
+run_reconciler
+assert_equal "$reload_baseline" "$(read_generation reload)" \
+  "unassembled instruction fragment reload generation"
+assert_equal "$restart_baseline" "$(read_generation restart)" \
+  "unassembled instruction fragment restart generation"
+printf 'assembled instructions changed\n' >"$home/.pi/agent/AGENTS.md"
+run_reconciler
+assert_not_equal "$reload_baseline" "$(read_generation reload)" \
+  "assembled instructions reload generation"
+assert_equal "$restart_baseline" "$(read_generation restart)" \
+  "assembled instructions restart generation"
 
 printf '%s\n' "Pi session staleness provisioning behavior passed"
