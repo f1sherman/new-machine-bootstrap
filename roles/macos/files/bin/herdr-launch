@@ -10,4 +10,4 @@ if ! herdr_bin="$(command -v herdr)"; then
   exit 1
 fi
 
-exec "$herdr_bin" "$@"
+exec "$herdr_bin" --remote dev "$@"
