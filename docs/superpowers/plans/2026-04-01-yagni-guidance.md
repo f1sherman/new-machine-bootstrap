@@ -12,7 +12,7 @@
 
 - Use the exact bullet `* Follow the YAGNI principle.` in both fragments.
 - Do not add an automated test that only asserts static prose.
-- Verify the deployed files through provisioning and an idempotence check.
+- Verify the deployed files through provisioning and a check-mode run.
 
 ---
 
@@ -75,7 +75,7 @@ grep -Fx '* Follow the YAGNI principle.' ~/.claude/CLAUDE.md
 
 Expected: Each command prints the exact guidance once.
 
-- [ ] **Step 6: Verify idempotence**
+- [ ] **Step 6: Run provisioning in check mode**
 
 Run:
 
@@ -83,7 +83,7 @@ Run:
 bin/provision --check
 ```
 
-Expected: Provisioning succeeds and reports no remaining changes.
+Expected: Provisioning succeeds. Inspect any reported managed-state drift separately.
 
 - [ ] **Step 7: Commit the managed guidance**
 
