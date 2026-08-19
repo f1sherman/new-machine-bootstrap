@@ -18,7 +18,7 @@ same.
 
 Run provisioning from the feature worktree. Confirm that both deployed files
 contain the exact guidance. Run provisioning in check mode and confirm that it
-reports no remaining changes.
+succeeds. Inspect any reported managed-state drift separately.
 
 No automated test is needed. Such a test would only assert static prose and
 would not provide material behavioral protection.
