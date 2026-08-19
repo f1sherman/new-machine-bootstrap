@@ -21,6 +21,10 @@ If you're not sure whether something is managed by this repo, default to making 
 
 After making changes, apply them with `bin/provision` when the environment allows.
 
+## Provisioning History
+
+When useful, inspect `/tmp/provision-*.log`; `ls -t /tmp/provision-*.log` lists runs newest first. Each log records its source worktree, branch, commit, repository state, invocation arguments, changed-task output, and completion status. Compare that provenance with your current worktree before deciding whether deployed state may have affected your work. Do not assume unexpected deployed state is a source-code regression.
+
 ## Project Structure
 - `macos` - Ruby bootstrap script for initial macOS setup
 - `bin/setup` - One-time macOS system setup that requires sudo
