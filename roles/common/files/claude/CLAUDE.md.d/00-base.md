@@ -2,6 +2,7 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 
 * Workspace: `~/projects/`
 * Bias toward action. Only ask user when you can't do it yourself.
+* Follow the YAGNI principle.
 * Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.
 
 Provisioning history: when useful, inspect `/tmp/provision-*.log`; `ls -t /tmp/provision-*.log` lists runs newest first. Each log records its source worktree, branch, commit, repository state, invocation arguments, changed-task output, and completion status. Compare that provenance with your current worktree before deciding whether deployed state may have affected your work. Do not assume unexpected deployed state is a source-code regression.
