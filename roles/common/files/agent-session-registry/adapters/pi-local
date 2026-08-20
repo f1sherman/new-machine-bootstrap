@@ -1,7 +1,17 @@
 #!/usr/bin/env ruby
 
+require "digest"
 require "json"
+require "open3"
 require "pathname"
+
+HERDR_WORKSPACE_ID_PATTERN = /\Aw[1-9][0-9]*\z/
+HERDR_PANE_ID_PATTERN = /\A(w[1-9][0-9]*):p[1-9][0-9]*\z/
+SESSION_ID_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9._-]*\z/
+MAX_TIMEOUT_SECONDS = 60.0
+MAX_POLL_INTERVAL_SECONDS = 1.0
+
+class HerdrResumeError < StandardError; end
 
 action, _registry_key, raw_config = ARGV
 abort "Unsupported adapter action: #{action}" unless action == "resume"
@@ -27,4 +37,240 @@ unless session_file.absolute? && session_file.file? && session_file.readable?
   abort "Session file must be absolute and readable"
 end
 
-exec "pi", "--session", session_file.to_s
+exec "pi", "--session", session_file.to_s unless ENV["HERDR_ENV"] == "1"
+
+
+def bounded_positive_float(key, default, maximum)
+  value = Float(ENV.fetch(key, default))
+  raise HerdrResumeError, "Invalid adapter timing value" unless
+    value.finite? && value.positive? && value <= maximum
+  value
+rescue ArgumentError
+  raise HerdrResumeError, "Invalid adapter timing value"
+end
+
+
+def session_id_for(path)
+  header = JSON.parse(File.open(path, &:gets))
+  id = header["id"] if header.is_a?(Hash) && header["type"] == "session"
+  raise HerdrResumeError, "Invalid authoritative Pi session file" unless
+    id.is_a?(String) && SESSION_ID_PATTERN.match?(id) &&
+      File.basename(path).end_with?("_#{id}.jsonl")
+  id
+rescue JSON::ParserError, TypeError
+  raise HerdrResumeError, "Invalid authoritative Pi session file"
+end
+
+
+def capture_herdr(*arguments, timeout:)
+  stdin = stdout = stderr = wait_thread = nil
+  stdout_reader = stderr_reader = nil
+  stdin, stdout, stderr, wait_thread = Open3.popen3("herdr", *arguments)
+  stdin.close
+  stdout_reader = Thread.new { stdout.read }
+  stderr_reader = Thread.new { stderr.read }
+  stdout_reader.report_on_exception = false
+  stderr_reader.report_on_exception = false
+  unless wait_thread.join(timeout)
+    Process.kill("TERM", wait_thread.pid)
+    unless wait_thread.join(0.2)
+      Process.kill("KILL", wait_thread.pid)
+      wait_thread.join
+    end
+    stdout_reader.join
+    stderr_reader.join
+    raise HerdrResumeError, "Herdr command timed out"
+  end
+  stdout_reader.join
+  stderr_reader.join
+  [stdout_reader.value, stderr_reader.value, wait_thread.value]
+rescue Errno::ENOENT
+  raise HerdrResumeError, "Herdr command is unavailable"
+rescue Errno::ESRCH
+  wait_thread&.join
+  raise HerdrResumeError, "Herdr command timed out"
+ensure
+  stdin&.close unless stdin&.closed?
+  stdout&.close unless stdout&.closed?
+  stderr&.close unless stderr&.closed?
+end
+
+
+def command_error(label, stderr)
+  detail = stderr.strip
+  detail.empty? ? label : "#{label}: #{detail}"
+end
+
+
+def parse_result(stdout, label, expected_type)
+  envelope = JSON.parse(stdout)
+  raise HerdrResumeError, "Invalid #{label} response" unless
+    envelope.is_a?(Hash) && envelope.keys.sort == %w[id result] &&
+      envelope["id"].is_a?(String) && !envelope["id"].empty?
+  result = envelope["result"]
+  raise HerdrResumeError, "Invalid #{label} response" unless
+    result.is_a?(Hash) && result["type"] == expected_type
+  result
+rescue JSON::ParserError
+  raise HerdrResumeError, "Invalid #{label} response"
+end
+
+
+def validate_pair(workspace_id, pane_id)
+  pane_workspace = HERDR_PANE_ID_PATTERN.match(pane_id)&.[](1)
+  raise HerdrResumeError, "Invalid Herdr pane identity" unless
+    workspace_id.is_a?(String) &&
+      HERDR_WORKSPACE_ID_PATTERN.match?(workspace_id) &&
+      pane_workspace == workspace_id
+  {workspace_id: workspace_id, pane_id: pane_id}
+end
+
+
+def matching_panes(session_file, timeout:)
+  stdout, stderr, status = capture_herdr("agent", "list", timeout: timeout)
+  raise HerdrResumeError, command_error("Herdr agent list failed", stderr) unless
+    status.success?
+  result = parse_result(stdout, "Herdr agent list", "agent_list")
+  agents = result["agents"]
+  raise HerdrResumeError, "Invalid Herdr agent list" unless
+    result.keys.sort == %w[agents type] && agents.is_a?(Array)
+
+  matches = agents.filter_map do |agent|
+    raise HerdrResumeError, "Invalid Herdr agent list" unless agent.is_a?(Hash)
+    reported_agent = agent["agent"]
+    raise HerdrResumeError, "Invalid Herdr agent list" unless
+      reported_agent.nil? || reported_agent.is_a?(String)
+    next unless reported_agent == "pi"
+
+    report = agent["agent_session"]
+    next if report.nil?
+    raise HerdrResumeError, "Invalid Herdr Pi session report" unless report.is_a?(Hash)
+    next unless report["source"] == "integration:pi"
+    raise HerdrResumeError, "Invalid Herdr Pi session report" unless
+      report.keys.sort == %w[agent kind source value] &&
+        report["agent"] == "pi" && report["kind"] == "path" &&
+        report["value"].is_a?(String)
+    next unless report["value"] == session_file
+
+    validate_pair(agent["workspace_id"], agent["pane_id"])
+  end
+  raise HerdrResumeError, "Multiple Herdr panes report the local session file" if
+    matches.length > 1
+  matches
+end
+
+
+def create_workspace(name, timeout:)
+  stdout, stderr, status = capture_herdr(
+    "workspace", "create", "--cwd", Dir.pwd,
+    "--label", name, "--no-focus", timeout: timeout
+  )
+  raise HerdrResumeError, command_error("Herdr workspace create failed", stderr) unless
+    status.success?
+
+  envelope = JSON.parse(stdout)
+  raw_result = envelope["result"] if envelope.is_a?(Hash)
+  raw_workspace = raw_result.dig("workspace", "workspace_id") if raw_result.is_a?(Hash)
+  raw_pane = raw_result.dig("root_pane", "pane_id") if raw_result.is_a?(Hash)
+  safe_pair = begin
+    validate_pair(raw_workspace, raw_pane)
+  rescue HerdrResumeError
+    nil
+  end
+  yield safe_pair if block_given? && safe_pair
+
+  result = parse_result(stdout, "Herdr workspace create", "workspace_created")
+  raise HerdrResumeError, "Invalid Herdr workspace create response" unless
+    result.keys.sort == %w[root_pane tab type workspace] &&
+      result["workspace"].is_a?(Hash) && result["tab"].is_a?(Hash) &&
+      result["root_pane"].is_a?(Hash)
+  validate_pair(
+    result.dig("workspace", "workspace_id"),
+    result.dig("root_pane", "pane_id")
+  )
+rescue JSON::ParserError
+  raise HerdrResumeError, "Invalid Herdr workspace create response"
+end
+
+
+def start_agent(name, pair, session_file, timeout:)
+  stdout, stderr, status = capture_herdr(
+    "agent", "start", name, "--kind", "pi", "--pane", pair.fetch(:pane_id),
+    "--", "pi", "--session", session_file, timeout: timeout
+  )
+  raise HerdrResumeError, command_error("Herdr agent start failed", stderr) unless
+    status.success?
+  result = parse_result(stdout, "Herdr agent start", "agent_started")
+  agent = result["agent"]
+  raise HerdrResumeError, "Invalid Herdr agent start response" unless
+    agent.is_a?(Hash) && agent["workspace_id"] == pair.fetch(:workspace_id) &&
+      agent["pane_id"] == pair.fetch(:pane_id)
+end
+
+
+def focus_workspace(workspace_id, timeout:)
+  _stdout, stderr, status = capture_herdr(
+    "workspace", "focus", workspace_id, timeout: timeout
+  )
+  raise HerdrResumeError, command_error("Herdr workspace focus failed", stderr) unless
+    status.success?
+end
+
+
+def close_workspace(workspace_id, timeout:)
+  capture_herdr("workspace", "close", workspace_id, timeout: timeout)
+rescue HerdrResumeError
+  nil
+end
+
+owned_pair = nil
+validated = false
+begin
+  session_file_path = session_file.to_s
+  session_id_for(session_file_path)
+  timeout = bounded_positive_float("ASR_ADAPTER_TIMEOUT", "15", MAX_TIMEOUT_SECONDS)
+  poll_interval = bounded_positive_float(
+    "ASR_ADAPTER_POLL_INTERVAL", "0.1", MAX_POLL_INTERVAL_SECONDS
+  )
+  deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+  remaining = -> do
+    value = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    raise HerdrResumeError, "Herdr Pi session registration timed out" unless value.positive?
+    value
+  end
+
+  matches = matching_panes(session_file_path, timeout: remaining.call)
+  if matches.one?
+    validated = true
+    focus_workspace(matches.first.fetch(:workspace_id), timeout: remaining.call)
+    exit 0
+  end
+
+  name = "asr-local-#{Digest::SHA256.hexdigest(session_file_path)[0, 20]}"
+  owned_pair = create_workspace(name, timeout: remaining.call) do |safe_pair|
+    owned_pair = safe_pair
+  end
+  start_agent(name, owned_pair, session_file_path, timeout: remaining.call)
+
+  loop do
+    matches = matching_panes(session_file_path, timeout: remaining.call)
+    unless matches.empty?
+      raise HerdrResumeError, "Recovered Herdr pane identity changed" unless
+        matches.one? && matches.first == owned_pair
+      validated = true
+      break
+    end
+    remaining_time = remaining.call
+    if remaining_time <= poll_interval
+      sleep(remaining_time)
+      raise HerdrResumeError, "Herdr Pi session registration timed out"
+    end
+    sleep(poll_interval)
+  end
+
+  focus_workspace(owned_pair.fetch(:workspace_id), timeout: remaining.call)
+rescue HerdrResumeError => error
+  close_workspace(owned_pair.fetch(:workspace_id), timeout: 1) if owned_pair && !validated
+  warn error.message
+  exit 1
+end
