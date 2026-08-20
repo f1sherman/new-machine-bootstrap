@@ -208,11 +208,11 @@ def start_agent(name, pair, session_file, timeout:)
 end
 
 
-def focus_workspace(workspace_id, timeout:)
+def focus_pane(pane_id, timeout:)
   _stdout, stderr, status = capture_herdr(
-    "workspace", "focus", workspace_id, timeout: timeout
+    "agent", "focus", pane_id, timeout: timeout
   )
-  raise HerdrResumeError, command_error("Herdr workspace focus failed", stderr) unless
+  raise HerdrResumeError, command_error("Herdr agent focus failed", stderr) unless
     status.success?
 end
 
@@ -242,7 +242,7 @@ begin
   matches = matching_panes(session_file_path, timeout: remaining.call)
   if matches.one?
     validated = true
-    focus_workspace(matches.first.fetch(:workspace_id), timeout: remaining.call)
+    focus_pane(matches.first.fetch(:pane_id), timeout: remaining.call)
     exit 0
   end
 
@@ -268,7 +268,7 @@ begin
     sleep(poll_interval)
   end
 
-  focus_workspace(owned_pair.fetch(:workspace_id), timeout: remaining.call)
+  focus_pane(owned_pair.fetch(:pane_id), timeout: remaining.call)
 rescue HerdrResumeError => error
   close_workspace(owned_pair.fetch(:workspace_id), timeout: 1) if owned_pair && !validated
   warn error.message
