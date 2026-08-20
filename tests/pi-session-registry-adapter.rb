@@ -76,10 +76,10 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
       puts JSON.generate("id" => "test:start", "result" => {
         "type" => "agent_started", "agent" => started_agent
       })
-    elsif command == ["workspace", "focus"]
+    elsif command == ["agent", "focus"]
       abort "focus failed" if state["fail_focus"]
       puts JSON.generate("id" => "test:focus", "result" => {
-        "type" => "workspace_focused", "workspace_id" => ARGV.fetch(2)
+        "type" => "agent_focused", "pane_id" => ARGV.fetch(2)
       })
     elsif command == ["workspace", "close"]
       puts JSON.generate("id" => "test:close", "result" => {
@@ -101,8 +101,8 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
       "HERDR_TEST_LOG" => herdr_log,
       "HERDR_TEST_STATE" => herdr_state,
       "HERDR_ENV" => nil,
-      "ASR_ADAPTER_TIMEOUT" => "0.3",
-      "ASR_ADAPTER_POLL_INTERVAL" => "0.01"
+      "ASR_ADAPTER_TIMEOUT" => "1",
+      "ASR_ADAPTER_POLL_INTERVAL" => "0.1"
     }
     env["HERDR_ENV"] = herdr_env unless herdr_env.nil?
     result = Open3.capture3(
@@ -156,8 +156,8 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
     "resume", config, herdr_env: "1", state: {"agents" => [official_agent.call]}
   )
   assert.call(status.success?, "one official match focuses successfully", "stdout:\n#{stdout}\nstderr:\n#{stderr}")
-  assert.call(commands == [["agent", "list"], ["workspace", "focus", "w1"]],
-    "one official match focuses exact workspace without starting Pi", commands.inspect)
+  assert.call(commands == [["agent", "list"], ["agent", "focus", "w1:p1"]],
+    "one official match focuses exact pane without starting Pi", commands.inspect)
   assert.call(!File.exist?(capture_path), "one official match does not exec Pi in current terminal")
 
   expected_name = "asr-local-#{Digest::SHA256.hexdigest(session_file)[0, 20]}"
@@ -173,7 +173,7 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
   start = commands.find { |argv| argv.take(2) == ["agent", "start"] }
   assert.call(start == ["agent", "start", expected_name, "--kind", "pi", "--pane", "w2:p1", "--", "pi", "--session", session_file],
     "recovery starts exact Pi session in exact pane", start.inspect)
-  assert.call(commands.last == ["workspace", "focus", "w2"], "recovery focuses validated workspace", commands.last.inspect)
+  assert.call(commands.last == ["agent", "focus", "w2:p1"], "recovery focuses validated pane", commands.last.inspect)
 
   _stdout, stderr, status, commands = run_adapter.call(
     "resume", config, herdr_env: "1",
@@ -199,6 +199,15 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
   assert.call(!status.success? && stderr.include?("Invalid Herdr pane identity"), "invalid matching IDs fail closed", stderr)
   assert.call(commands == [["agent", "list"]], "invalid matching IDs create nothing", commands.inspect)
 
+  mismatched_pair = official_agent.call(workspace: "w1", pane: "w2:p1")
+  _stdout, stderr, status, commands = run_adapter.call(
+    "resume", config, herdr_env: "1", state: {"agents" => [mismatched_pair]}
+  )
+  assert.call(!status.success? && stderr.include?("Invalid Herdr pane identity"),
+    "individually valid mismatched workspace and pane IDs fail closed", stderr)
+  assert.call(commands == [["agent", "list"]],
+    "mismatched workspace and pane IDs create and focus nothing", commands.inspect)
+
   invalid_path = official_agent.call
   invalid_path["agent_session"]["value"] = 4
   _stdout, stderr, status, commands = run_adapter.call(
@@ -217,7 +226,7 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
     "resume", config, herdr_env: "1",
     state: {"agents" => [], "publish_agent" => published, "fail_focus" => true}
   )
-  assert.call(!status.success? && stderr.include?("Herdr workspace focus failed"), "post-validation focus failure is reported", stderr)
+  assert.call(!status.success? && stderr.include?("Herdr agent focus failed"), "post-validation focus failure is reported", stderr)
   assert.call(!commands.any? { |argv| argv.take(2) == ["workspace", "close"] },
     "post-validation focus failure preserves recovered workspace", commands.inspect)
 
