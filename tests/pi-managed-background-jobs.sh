@@ -74,6 +74,7 @@ const warnings = [];
 const ids = [];
 let makeLogError;
 let spawnError;
+let closeError;
 let readTailError;
 let pendingReadTail;
 const adapters = {
@@ -96,7 +97,10 @@ const adapters = {
     if (pendingReadTail) return pendingReadTail.promise;
     return (logContents.get(logPath) || "").slice(-maxBytes);
   },
-  close(fd) { closeCalls.push(fd); },
+  close(fd) {
+    closeCalls.push(fd);
+    if (closeError) throw closeError;
+  },
   killProcessGroup(pid, signal) { killCalls.push({ pid, signal }); },
   setTimeout(callback, milliseconds) {
     const timer = { callback, milliseconds, cleared: false };
@@ -163,6 +167,11 @@ assert.equal(classify("bin/test-ruby"), true);
 assert.equal(classify("ssh dev 'bin/provision --tags common_role'"), true);
 assert.equal(classify("ssh -o BatchMode=yes dev './bin/test ci'"), true);
 assert.equal(classify("ssh -F /tmp/ssh-config dev './bin/test ci'"), false);
+assert.equal(classify("ssh -I /tmp/provider.so dev bin/test"), false);
+assert.equal(classify("ssh -J bastion dev bin/test"), false);
+assert.equal(classify("ssh -o ProxyJump=bastion dev bin/test"), false);
+assert.equal(classify("ssh -o PKCS11Provider=/tmp/provider.so dev bin/test"), false);
+assert.equal(classify("ssh -o SecurityKeyProvider=/tmp/provider.so dev bin/test"), false);
 assert.equal(classify("ssh -o 'ProxyCommand=touch /tmp/pwn' dev bin/test"), false);
 assert.equal(classify("ssh -o 'LocalCommand=touch /tmp/pwn' dev bin/test"), false);
 assert.equal(classify("ssh -o PermitLocalCommand=yes dev bin/test"), false);
@@ -306,7 +315,7 @@ await registeredBash.execute(
 );
 assert.equal(
   spawnCalls.at(-1).command,
-  "ssh -F /dev/null -o 'ForkAfterAuthentication=no' -o 'ProxyCommand=none' -o 'PermitLocalCommand=no' -o 'KnownHostsCommand=none' '-o' 'BatchMode=yes' 'dev' './bin/test ci'",
+  "ssh -F /dev/null -o 'BatchMode=yes' -o 'ForkAfterAuthentication=no' -o 'ProxyCommand=none' -o 'PermitLocalCommand=no' -o 'KnownHostsCommand=none' '-o' 'BatchMode=yes' 'dev' './bin/test ci'",
   "managed SSH disables config and command-executing local hooks",
 );
 sshConfigChild.emitExit(0);
@@ -545,6 +554,7 @@ await assert.rejects(
 makeLogError = undefined;
 
 spawnError = new Error("spawn denied");
+closeError = new Error("close denied");
 ids.push("bg-spawn-error");
 await assert.rejects(
   registeredBash.execute(
@@ -552,7 +562,10 @@ await assert.rejects(
   ),
   /spawn denied/,
 );
+assert.match(warnings.at(-1), /close denied/,
+  "descriptor close failures after spawn errors are logged");
 spawnError = undefined;
+closeError = undefined;
 
 ids.push("bg-tail-error");
 const tailErrorChild = new ControlledChild(4207);

@@ -13,12 +13,12 @@ const MANAGED_EXECUTABLES = new Set([
   "bin/test-ruby", "./bin/test-ruby",
 ]);
 const SSH_VALUE_OPTIONS = new Set([
-  "b", "c", "D", "E", "e", "I", "i", "J", "L", "l", "m",
-  "o", "p", "R", "S", "w",
+  "b", "c", "D", "e", "i", "L", "l", "m", "o", "p", "R", "w",
 ]);
 const SSH_LOCAL_COMMAND_OPTIONS = new Set([
   "forkafterauthentication", "knownhostscommand", "localcommand",
-  "permitlocalcommand", "proxycommand",
+  "permitlocalcommand", "pkcs11provider", "proxycommand", "proxyjump",
+  "securitykeyprovider",
 ]);
 const SSH_FLAG_OPTIONS = new Set([
   "4", "6", "A", "a", "C", "g", "K", "k", "M", "n", "q", "T",
@@ -178,6 +178,7 @@ function managedExecutionCommand(command, classification) {
   if (classification.kind !== "ssh") return command;
   return [
     "ssh", "-F", "/dev/null",
+    "-o", shellQuote("BatchMode=yes"),
     "-o", shellQuote("ForkAfterAuthentication=no"),
     "-o", shellQuote("ProxyCommand=none"),
     "-o", shellQuote("PermitLocalCommand=no"),
@@ -420,7 +421,11 @@ export default function managedBackgroundJobs(pi) {
         logFd: log.fd,
       });
     } catch (error) {
-      try { adapters.close(log.fd); } catch {}
+      try {
+        adapters.close(log.fd);
+      } catch (closeError) {
+        adapters.warn(`could not close log descriptor for ${id}: ${closeError.message}`);
+      }
       throw new Error(`Could not start managed background job ${id}: ${error.message}`);
     }
     try { adapters.close(log.fd); } catch (error) {
