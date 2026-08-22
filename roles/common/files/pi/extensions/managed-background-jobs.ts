@@ -557,8 +557,8 @@ export default function managedBackgroundJobs(pi) {
     const job = shared.active;
     if (!job || job.finished) return;
     job.suppressCompletion = true;
-    terminateJob(job);
-    await job.terminationPromise;
+    const terminationStarted = terminateJob(job);
+    if (terminationStarted) await job.terminationPromise;
     await job.exitPromise;
   });
 

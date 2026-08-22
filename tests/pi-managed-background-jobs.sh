@@ -558,6 +558,31 @@ assert.equal(shutdownResolved, true);
 assert.equal(sentMessages.length, messagesBeforeQuit,
   "quit does not inject completion into a shutting-down session");
 
+ids.push("bg-quit-finishing");
+const finishingQuitChild = new ControlledChild(4214);
+spawnQueue.push(finishingQuitChild);
+pendingReadTail = deferred();
+await registeredBash.execute(
+  "call-quit-finishing", { command: "bin/test" }, undefined, undefined, context,
+);
+const messagesBeforeFinishingQuit = sentMessages.length;
+finishingQuitChild.emitExit(0);
+await flush();
+let finishingShutdownResolved = false;
+const finishingShutdown = latestHandler("session_shutdown")({ reason: "quit" }, context)
+  .then(() => { finishingShutdownResolved = true; });
+await flush();
+assert.equal(finishingShutdownResolved, true,
+  "shutdown does not wait on termination after child completion starts");
+assert.equal(sentMessages.length, messagesBeforeFinishingQuit,
+  "quit suppresses completion that was already reading the log");
+pendingReadTail.resolve("late completion");
+pendingReadTail = undefined;
+await finishingShutdown;
+await flush();
+assert.equal(sentMessages.length, messagesBeforeFinishingQuit,
+  "late log completion stays suppressed after quit");
+
 makeLogError = new Error("disk full");
 ids.push("bg-log-error");
 await assert.rejects(
