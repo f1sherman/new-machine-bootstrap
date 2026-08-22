@@ -782,6 +782,7 @@ const destructiveCases = [
   "git -C /repo\\ x commit -m test",
   'git -C $(pwd) commit -m test',
   'git -C $(dirname $(pwd)) commit -m test',
+  'git -C `dirname "$PWD"` commit -m test',
   "git --git-dir /repo/.git commit -m test",
   'git --git-dir="/repo with spaces/.git" commit -m test',
   "git --no-pager commit -m test",
@@ -789,8 +790,10 @@ const destructiveCases = [
   "bash -lc 'git commit -m test'",
   "echo ok; git commit -m test",
   "echo $(git commit -m nested)",
+  "echo `git commit -m nested-backtick`",
   "echo \"<<'EOF'\"\necho $(git commit -m after-quoted-marker)",
   "cat <<EOF\n$(git commit -m expanded)\nEOF",
+  "cat <<ONE <<'TWO'\n$(git commit -m expanded-first)\nONE\nliteral second body\nTWO",
   "git push origin HEAD:main",
   "git push origin :main",
   "git push origin :",
@@ -846,6 +849,8 @@ const safeMainCases = [
   "git add docs/superpowers/specs/design.md",
   "cat <<'EOF'\ngit branch example\nEOF",
   "cat <<'EOF'\n$(git commit -m literal)\nEOF",
+  "cat <<'ONE' <<'TWO'\n$(git commit -m literal-one)\nONE\n$(git commit -m literal-two)\nTWO",
+  "cat <<E\"OF\"\n$(git commit -m literal-mixed-quote)\nEOF",
   `git -C ${worktreeRoot} push`,
   `cd ./${path.relative("/repo", worktreeRoot)} && git push`,
 ];
@@ -882,6 +887,13 @@ result = await handlers.get("tool_call")({
 }, { ...ctx, cwd: worktreeRoot });
 assert.equal(result?.block, true,
   "blocks a nested push after its command substitution changes to main");
+
+result = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "echo `cd /repo && git push`" },
+}, { ...ctx, cwd: worktreeRoot });
+assert.equal(result?.block, true,
+  "blocks a nested push after its backtick substitution changes to main");
 
 branch = "feature";
 result = await handlers.get("tool_call")({

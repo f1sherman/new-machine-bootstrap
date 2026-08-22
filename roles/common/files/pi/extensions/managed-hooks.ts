@@ -264,6 +264,34 @@ function shellWrappedPayload(segment) {
   return match ? match[2] : "";
 }
 
+function shellBacktickSubstitutionEnd(command, start) {
+  let quote = "";
+  let escaped = false;
+
+  for (let i = start + 1; i < command.length; i += 1) {
+    const char = command[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) quote = "";
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === "`") return i;
+  }
+
+  return -1;
+}
+
 function shellCommandSubstitutionEnd(command, start) {
   let depth = 1;
   let quote = "";
@@ -278,6 +306,13 @@ function shellCommandSubstitutionEnd(command, start) {
     if (char === "\\" && quote !== "'") {
       escaped = true;
       continue;
+    }
+    if (quote !== "'" && char === "`") {
+      const substitutionEnd = shellBacktickSubstitutionEnd(command, i);
+      if (substitutionEnd !== -1) {
+        i = substitutionEnd;
+        continue;
+      }
     }
     if (quote) {
       if (char === quote) quote = "";
@@ -299,10 +334,12 @@ function shellCommandSubstitutionEnd(command, start) {
 
 function quotedHeredocBodyRanges(command) {
   const ranges = [];
+  const pending = [];
   let active;
   let offset = 0;
 
-  function markerFor(line) {
+  function markersFor(line) {
+    const markers = [];
     let quote = "";
     let escaped = false;
 
@@ -331,18 +368,44 @@ function quotedHeredocBodyRanges(command) {
       if (stripTabs) cursor += 1;
       while (/\s/.test(line[cursor] ?? "")) cursor += 1;
 
-      const delimiterQuote = line[cursor];
-      if (delimiterQuote === "'" || delimiterQuote === '"') {
-        const end = line.indexOf(delimiterQuote, cursor + 1);
-        if (end > cursor + 1) {
-          return { delimiter: line.slice(cursor + 1, end), stripTabs };
+      let delimiter = "";
+      let delimiterQuote = "";
+      let literal = false;
+      let end = cursor;
+      for (; end < line.length; end += 1) {
+        const delimiterChar = line[end];
+        if (delimiterQuote) {
+          if (delimiterChar === delimiterQuote) {
+            delimiterQuote = "";
+          } else if (delimiterChar === "\\" && delimiterQuote === '"' && end + 1 < line.length) {
+            literal = true;
+            delimiter += line[end + 1];
+            end += 1;
+          } else {
+            delimiter += delimiterChar;
+          }
+          continue;
         }
-      } else if (delimiterQuote === "\\") {
-        const delimiter = line.slice(cursor + 1).match(/^[^\s;&|]+/)?.[0];
-        if (delimiter) return { delimiter, stripTabs };
+        if (delimiterChar === "'" || delimiterChar === '"') {
+          literal = true;
+          delimiterQuote = delimiterChar;
+          continue;
+        }
+        if (delimiterChar === "\\" && end + 1 < line.length) {
+          literal = true;
+          delimiter += line[end + 1];
+          end += 1;
+          continue;
+        }
+        if (/\s/.test(delimiterChar) || ";&|<>".includes(delimiterChar)) break;
+        delimiter += delimiterChar;
+      }
+      if (delimiter && !delimiterQuote) {
+        markers.push({ delimiter, stripTabs, literal });
+        i = end - 1;
       }
     }
-    return undefined;
+    return markers;
   }
 
   for (const lineWithEnding of command.match(/[^\n]*(?:\n|$)/g) ?? []) {
@@ -351,25 +414,26 @@ function quotedHeredocBodyRanges(command) {
     if (active) {
       const candidate = active.stripTabs ? line.replace(/^\t+/, "") : line;
       if (candidate === active.delimiter) {
-        ranges.push({ start: active.start, end: offset });
-        active = undefined;
+        if (active.literal) ranges.push({ start: active.start, end: offset });
+        const next = pending.shift();
+        active = next ? { ...next, start: offset + lineWithEnding.length } : undefined;
       }
       offset += lineWithEnding.length;
       continue;
     }
 
-    const marker = markerFor(line);
+    pending.push(...markersFor(line));
+    const marker = pending.shift();
     if (marker) {
       active = {
-        delimiter: marker.delimiter,
-        stripTabs: marker.stripTabs,
+        ...marker,
         start: offset + lineWithEnding.length,
       };
     }
     offset += lineWithEnding.length;
   }
 
-  if (active) ranges.push({ start: active.start, end: command.length });
+  if (active?.literal) ranges.push({ start: active.start, end: command.length });
   return ranges;
 }
 
@@ -403,6 +467,13 @@ function shellCommandSubstitutions(command) {
     }
     if (!quote && char === "'") {
       quote = "'";
+      continue;
+    }
+    if (char === "`") {
+      const end = shellBacktickSubstitutionEnd(command, i);
+      if (end === -1) continue;
+      substitutions.push({ start: i, end, payload: command.slice(i + 1, end) });
+      i = end;
       continue;
     }
     if (char === '"') {
@@ -457,6 +528,14 @@ function splitShellSteps(command) {
       current += char;
       escaped = true;
       continue;
+    }
+    if (quote !== "'" && char === "`") {
+      const substitutionEnd = shellBacktickSubstitutionEnd(command, i);
+      if (substitutionEnd !== -1) {
+        current += command.slice(i, substitutionEnd + 1);
+        i = substitutionEnd;
+        continue;
+      }
     }
     if (!quote && char === "$" && command[i + 1] === "(") {
       const substitutionEnd = shellCommandSubstitutionEnd(command, i);
@@ -561,7 +640,8 @@ function rawShellTokens(segment) {
     current = "";
   };
 
-  for (const char of segment) {
+  for (let i = 0; i < segment.length; i += 1) {
+    const char = segment[i];
     if (escaped) {
       current += char;
       escaped = false;
@@ -571,6 +651,14 @@ function rawShellTokens(segment) {
       current += char;
       escaped = true;
       continue;
+    }
+    if (quote !== "'" && char === "`") {
+      const substitutionEnd = shellBacktickSubstitutionEnd(segment, i);
+      if (substitutionEnd !== -1) {
+        current += segment.slice(i, substitutionEnd + 1);
+        i = substitutionEnd;
+        continue;
+      }
     }
     if (quote) {
       current += char;
