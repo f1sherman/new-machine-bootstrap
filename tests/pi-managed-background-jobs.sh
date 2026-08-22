@@ -222,11 +222,12 @@ for (const [timeout, message] of [
   [Number.POSITIVE_INFINITY, "Invalid timeout: must be a finite number of seconds"],
   [2_147_483.648, "Invalid timeout: maximum is 2147483.647 seconds"],
 ]) {
-  const invalidTimeout = await registeredBash.execute(
-    "invalid-timeout", { command: "bin/test", timeout }, undefined, undefined, context,
+  await assert.rejects(
+    registeredBash.execute(
+      "invalid-timeout", { command: "bin/test", timeout }, undefined, undefined, context,
+    ),
+    (error) => error.message === message,
   );
-  assert.equal(invalidTimeout.isError, true);
-  assert.equal(invalidTimeout.content[0].text, message);
 }
 assert.equal(spawnCalls.length, spawnCountBeforeInvalidTimeouts,
   "invalid managed timeouts do not spawn a process");
@@ -248,11 +249,12 @@ assert.equal(spawnCalls.at(-1).options.env.PI_PROVIDER, "openai");
 assert.equal(spawnCalls.at(-1).options.env.PI_MODEL, "gpt-test");
 assert.equal(spawnCalls.at(-1).options.env.PI_REASONING_LEVEL, "high");
 
-const secondResult = await registeredBash.execute(
-  "call-2", { command: "./bin/test ci" }, undefined, undefined, context,
+await assert.rejects(
+  registeredBash.execute(
+    "call-2", { command: "./bin/test ci" }, undefined, undefined, context,
+  ),
+  /bg-1 is already active/,
 );
-assert.equal(secondResult.isError, true);
-assert.match(secondResult.content[0].text, /bg-1 is already active/);
 
 for (const toolName of ["write", "edit", "bash", "subagent", "custom-tool"]) {
   const blocked = latestHandler("tool_call")({ toolName, input: {} }, context);
@@ -322,11 +324,13 @@ pendingTailChild.emitExit(0);
 await flush();
 assert.deepEqual(latestHandler("session_before_switch")({}, context), { cancel: true },
   "session switching stays blocked until completion injection finishes");
-const startDuringCompletion = await registeredBash.execute(
-  "call-during-completion", { command: "bin/test-ruby" }, undefined, undefined, context,
+await assert.rejects(
+  registeredBash.execute(
+    "call-during-completion", { command: "bin/test-ruby" }, undefined, undefined, context,
+  ),
+  /is already active/,
+  "a second managed job cannot start while completion is pending",
 );
-assert.equal(startDuringCompletion.isError, true,
-  "a second managed job cannot start while completion is pending");
 assert.equal(sentMessages.length, messagesBeforePendingTail);
 pendingReadTail.resolve("pending tail complete");
 pendingReadTail = undefined;
@@ -441,6 +445,26 @@ assert.deepEqual(activeToolChanges.at(-1), [
   "read", "grep", "find", "ls", "bash", "edit", "write", "subagent",
 ]);
 
+ids.push("bg-reload-gap");
+const reloadGapChild = new ControlledChild(4215);
+spawnQueue.push(reloadGapChild);
+await registeredBash.execute(
+  "call-reload-gap", { command: "bin/test" }, undefined, undefined, context,
+);
+const messagesBeforeReloadGap = sentMessages.length;
+latestHandler("session_shutdown")({ reason: "reload" }, context);
+reloadGapChild.emitExit(0);
+await flush();
+assert.equal(sentMessages.length, messagesBeforeReloadGap,
+  "an exit in the reload gap does not use the stale controller");
+module.default(pi);
+registeredBash = registeredTools.at(-1);
+latestHandler("session_start")({}, context);
+await flush();
+assert.equal(sentMessages.length, messagesBeforeReloadGap + 1,
+  "the replacement controller completes an exit from the reload gap");
+assert.equal(sentMessages.at(-1).message.details.id, "bg-reload-gap");
+
 ids.push("bg-reload-pending");
 const reloadPendingChild = new ControlledChild(4213);
 spawnQueue.push(reloadPendingChild);
@@ -512,20 +536,22 @@ assert.equal(sentMessages.length, messagesBeforeQuit,
 
 makeLogError = new Error("disk full");
 ids.push("bg-log-error");
-const logFailure = await registeredBash.execute(
-  "call-8", { command: "bin/test" }, undefined, undefined, context,
+await assert.rejects(
+  registeredBash.execute(
+    "call-8", { command: "bin/test" }, undefined, undefined, context,
+  ),
+  /disk full/,
 );
-assert.equal(logFailure.isError, true);
-assert.match(logFailure.content[0].text, /disk full/);
 makeLogError = undefined;
 
 spawnError = new Error("spawn denied");
 ids.push("bg-spawn-error");
-const spawnFailure = await registeredBash.execute(
-  "call-9", { command: "bin/test" }, undefined, undefined, context,
+await assert.rejects(
+  registeredBash.execute(
+    "call-9", { command: "bin/test" }, undefined, undefined, context,
+  ),
+  /spawn denied/,
 );
-assert.equal(spawnFailure.isError, true);
-assert.match(spawnFailure.content[0].text, /spawn denied/);
 spawnError = undefined;
 
 ids.push("bg-tail-error");

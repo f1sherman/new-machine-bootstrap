@@ -267,8 +267,8 @@ function processState() {
   return created;
 }
 
-function textResult(text, isError = false) {
-  return { content: [{ type: "text", text }], details: undefined, isError };
+function textResult(text) {
+  return { content: [{ type: "text", text }], details: undefined };
 }
 
 function boundedTail(tail) {
@@ -397,15 +397,10 @@ export default function managedBackgroundJobs(pi) {
 
   async function startManagedJob(command, classification, timeoutSeconds, ctx) {
     if (shared.active && !shared.active.finished) {
-      return textResult(`Managed background job ${shared.active.id} is already active.`, true);
+      throw new Error(`Managed background job ${shared.active.id} is already active.`);
     }
 
-    let timeoutMs;
-    try {
-      timeoutMs = resolveTimeoutMs(timeoutSeconds);
-    } catch (error) {
-      return textResult(error.message, true);
-    }
+    const timeoutMs = resolveTimeoutMs(timeoutSeconds);
 
     const id = adapters.randomId();
     const startedAt = adapters.now();
@@ -414,7 +409,7 @@ export default function managedBackgroundJobs(pi) {
     try {
       log = adapters.makeLog(sessionId, id);
     } catch (error) {
-      return textResult(`Could not create a managed background job log: ${error.message}`, true);
+      throw new Error(`Could not create a managed background job log: ${error.message}`);
     }
 
     let child;
@@ -426,7 +421,7 @@ export default function managedBackgroundJobs(pi) {
       });
     } catch (error) {
       try { adapters.close(log.fd); } catch {}
-      return textResult(`Could not start managed background job ${id}: ${error.message}`, true);
+      throw new Error(`Could not start managed background job ${id}: ${error.message}`);
     }
     try { adapters.close(log.fd); } catch (error) {
       adapters.warn(`could not close log descriptor for ${id}: ${error.message}`);
@@ -435,7 +430,7 @@ export default function managedBackgroundJobs(pi) {
       child.once("error", (error) => {
         adapters.warn(`could not start ${id}: ${error.message}`);
       });
-      return textResult(`Could not start managed background job ${id}: child has no process ID.`, true);
+      throw new Error(`Could not start managed background job ${id}: child has no process ID.`);
     }
 
     const job = {
@@ -457,6 +452,7 @@ export default function managedBackgroundJobs(pi) {
       timedOut: false,
       suppressCompletion: false,
       exited: false,
+      exitResult: undefined,
       resolveExit: undefined,
       exitPromise: undefined,
     };
@@ -473,6 +469,7 @@ export default function managedBackgroundJobs(pi) {
     const finishFromChild = (code, signal) => {
       if (!job.exited) {
         job.exited = true;
+        job.exitResult = { code, signal };
         job.resolveExit();
       }
       Promise.resolve(shared.controller?.finishJob(job, code, signal)).catch((error) => {
@@ -514,7 +511,15 @@ export default function managedBackgroundJobs(pi) {
 
   pi.on("session_start", () => {
     shared.controller = { finishJob, terminateJob, applyGate };
-    if (shared.active && !shared.active.finished) applyGate(shared.active);
+    if (shared.active && !shared.active.finished) {
+      applyGate(shared.active);
+      if (shared.active.exitResult && !shared.active.finishing) {
+        const { code, signal } = shared.active.exitResult;
+        Promise.resolve(finishJob(shared.active, code, signal)).catch((error) => {
+          adapters.warn(`completion failed for ${shared.active?.id || "managed job"}: ${error.message}`);
+        });
+      }
+    }
   });
 
   const blockSessionChange = (_event, ctx) => {
@@ -526,7 +531,10 @@ export default function managedBackgroundJobs(pi) {
   pi.on("session_before_fork", blockSessionChange);
 
   pi.on("session_shutdown", async (event) => {
-    if (event.reason === "reload") return;
+    if (event.reason === "reload") {
+      shared.controller = undefined;
+      return;
+    }
     const job = shared.active;
     if (!job || job.finished) return;
     job.suppressCompletion = true;
