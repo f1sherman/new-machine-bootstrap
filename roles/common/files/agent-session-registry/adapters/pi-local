@@ -5,8 +5,8 @@ require "json"
 require "open3"
 require "pathname"
 
-HERDR_WORKSPACE_ID_PATTERN = /\Aw[1-9][0-9]*\z/
-HERDR_PANE_ID_PATTERN = /\A(w[1-9][0-9]*):p[1-9][0-9]*\z/
+HERDR_WORKSPACE_ID_PATTERN = /\Aw[A-Za-z0-9]+\z/
+HERDR_PANE_ID_PATTERN = /\A(w[A-Za-z0-9]+):p[A-Za-z0-9]+\z/
 SESSION_ID_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9._-]*\z/
 MAX_TIMEOUT_SECONDS = 60.0
 MAX_POLL_INTERVAL_SECONDS = 1.0
@@ -145,7 +145,7 @@ def matching_panes(session_file, timeout:)
     report = agent["agent_session"]
     next if report.nil?
     raise HerdrResumeError, "Invalid Herdr Pi session report" unless report.is_a?(Hash)
-    next unless report["source"] == "integration:pi"
+    next unless report["source"] == "herdr:pi"
     raise HerdrResumeError, "Invalid Herdr Pi session report" unless
       report.keys.sort == %w[agent kind source value] &&
         report["agent"] == "pi" && report["kind"] == "path" &&
