@@ -162,6 +162,7 @@ assert.equal(classify("./bin/test ci"), true);
 assert.equal(classify("bin/test-ruby"), true);
 assert.equal(classify("ssh dev 'bin/provision --tags common_role'"), true);
 assert.equal(classify("ssh -o BatchMode=yes dev './bin/test ci'"), true);
+assert.equal(classify("ssh -F /tmp/ssh-config dev './bin/test ci'"), true);
 assert.equal(classify("ssh dev 'cd /repo && ./bin/test ci'"), true);
 assert.equal(classify("bin/provision | tee /tmp/log"), false);
 assert.equal(classify("bin/test\nprintf unsafe"), false);
@@ -169,6 +170,7 @@ assert.equal(classify("env CI=1 bin/test"), false);
 assert.equal(classify("bin/test $(date)"), false);
 assert.equal(classify("ssh dev 'bin/test; rm -rf /tmp/x'"), false);
 assert.equal(classify('ssh dev bin/test "$NMB_REMOTE_ARGS"'), false);
+assert.equal(classify('ssh -F "$HOME/.ssh/config" dev bin/test'), false);
 assert.equal(classify("ssh dev 'bin/test $NMB_REMOTE_ARGS'"), false);
 assert.equal(classify("ssh dev 'bin/test *.sh'"), false);
 assert.equal(classify("ssh dev 'bin/test file?.sh'"), false);
@@ -201,7 +203,29 @@ const delegateResult = await registeredBash.execute(
 );
 assert.equal(delegateResult.content[0].text, "delegated: printf safe");
 assert.equal(builtInCalls.length, 1);
-assert.equal(builtInCalls[0].cwd, process.cwd());
+assert.equal(builtInCalls[0].cwd, context.cwd,
+  "delegated Bash uses the current session working directory");
+const movedContext = { ...context, cwd: "/repo/other-session" };
+await registeredBash.execute(
+  "delegate-2", { command: "pwd" }, undefined, undefined, movedContext,
+);
+assert.equal(builtInCalls.at(-1).cwd, "/repo/other-session");
+
+const spawnCountBeforeInvalidTimeouts = spawnCalls.length;
+for (const [timeout, message] of [
+  [0, "Invalid timeout: must be a finite number of seconds"],
+  [-1, "Invalid timeout: must be a finite number of seconds"],
+  [Number.POSITIVE_INFINITY, "Invalid timeout: must be a finite number of seconds"],
+  [2_147_483.648, "Invalid timeout: maximum is 2147483.647 seconds"],
+]) {
+  const invalidTimeout = await registeredBash.execute(
+    "invalid-timeout", { command: "bin/test", timeout }, undefined, undefined, context,
+  );
+  assert.equal(invalidTimeout.isError, true);
+  assert.equal(invalidTimeout.content[0].text, message);
+}
+assert.equal(spawnCalls.length, spawnCountBeforeInvalidTimeouts,
+  "invalid managed timeouts do not spawn a process");
 
 ids.push("bg-1");
 const firstChild = new ControlledChild(4201);
@@ -263,6 +287,24 @@ firstChild.emitExit(0);
 await flush();
 assert.equal(activeToolChanges.length, changesAfterFirstFinish);
 assert.equal(sentMessages.length, 1);
+
+ids.push("bg-ssh-config");
+const sshConfigChild = new ControlledChild(4214);
+spawnQueue.push(sshConfigChild);
+await registeredBash.execute(
+  "call-ssh-config",
+  { command: "ssh -F /tmp/ssh-config dev './bin/test ci'" },
+  undefined,
+  undefined,
+  context,
+);
+assert.equal(
+  spawnCalls.at(-1).command,
+  "ssh -o 'ForkAfterAuthentication=no' '-F' '/tmp/ssh-config' 'dev' './bin/test ci'",
+  "managed SSH forces background forking off before loading SSH configuration",
+);
+sshConfigChild.emitExit(0);
+await flush();
 
 ids.push("bg-pending-tail");
 const pendingTailChild = new ControlledChild(4210);
@@ -327,6 +369,23 @@ assert.equal(normalTimeoutTimer.cleared, true,
 assert.equal(killCalls.length, killsBeforeNormalCompletion,
   "normal completion does not terminate the process group");
 assert.equal(sentMessages.at(-1).message.details.timedOut, false);
+
+ids.push("bg-timeout-max");
+const timeoutMaxChild = new ControlledChild(4215);
+spawnQueue.push(timeoutMaxChild);
+await registeredBash.execute(
+  "call-timeout-max",
+  { command: "bin/test", timeout: 2_147_483.647 },
+  undefined,
+  undefined,
+  context,
+);
+const maxTimeoutTimer = timers.at(-1);
+assert.equal(maxTimeoutTimer.milliseconds, 2_147_483_647,
+  "the built-in Bash maximum timeout remains valid");
+timeoutMaxChild.emitExit(0);
+await flush();
+assert.equal(maxTimeoutTimer.cleared, true);
 
 ids.push("bg-failure");
 const failureChild = new ControlledChild(4202);
@@ -425,10 +484,27 @@ ids.push("bg-quit");
 const quitChild = new ControlledChild(4206);
 spawnQueue.push(quitChild);
 await registeredBash.execute("call-7", { command: "bin/test" }, undefined, undefined, context);
-latestHandler("session_shutdown")({ reason: "quit" }, context);
-assert.deepEqual(killCalls.at(-1), { pid: 4206, signal: "SIGTERM" });
-quitChild.emitExit(null, "SIGTERM");
+const messagesBeforeQuit = sentMessages.length;
+let shutdownResolved = false;
+const shutdownPromise = latestHandler("session_shutdown")({ reason: "quit" }, context)
+  .then(() => { shutdownResolved = true; });
 await flush();
+assert.deepEqual(killCalls.at(-1), { pid: 4206, signal: "SIGTERM" });
+assert.equal(shutdownResolved, false,
+  "shutdown waits while the process ignores SIGTERM");
+const shutdownKillTimer = timers.at(-1);
+assert.equal(shutdownKillTimer.milliseconds, 5000);
+shutdownKillTimer.callback();
+assert.deepEqual(killCalls.at(-1), { pid: 4206, signal: "SIGKILL" });
+await flush();
+assert.equal(shutdownResolved, false,
+  "shutdown waits for process exit after SIGKILL");
+quitChild.emitExit(null, "SIGKILL");
+await shutdownPromise;
+await flush();
+assert.equal(shutdownResolved, true);
+assert.equal(sentMessages.length, messagesBeforeQuit,
+  "quit does not inject completion into a shutting-down session");
 
 makeLogError = new Error("disk full");
 ids.push("bg-log-error");

@@ -26,6 +26,8 @@ const SSH_REMOTE_EXPANSION_CHARACTERS = new Set([
 const COMPLETION_TAIL_BYTES = 16 * 1024;
 const COMPLETION_TAIL_LINES = 200;
 const CANCEL_GRACE_MS = 5000;
+const MAX_TIMEOUT_MS = 2_147_483_647;
+const MAX_TIMEOUT_SECONDS = MAX_TIMEOUT_MS / 1000;
 
 function shellWords(command, allowAnd = false) {
   const words = [];
@@ -151,16 +153,42 @@ export function classifyManagedCommand(command) {
   if (!words?.length) return undefined;
   if (MANAGED_EXECUTABLES.has(words[0])) return { kind: "local", words };
   if (words[0] !== "ssh") return undefined;
+  if (words.some((word) => [...word].some(
+    (character) => SSH_REMOTE_EXPANSION_CHARACTERS.has(character),
+  ))) return undefined;
 
   const remoteStart = sshRemoteStart(words);
   if (remoteStart < 0 || remoteStart >= words.length) return undefined;
   const remoteWords = words.slice(remoteStart);
-  if (remoteWords.some((word) => [...word].some(
-    (character) => SSH_REMOTE_EXPANSION_CHARACTERS.has(character),
-  ))) return undefined;
   const remoteCommand = remoteWords.join(" ");
   if (!classifyRemoteCommand(remoteCommand)) return undefined;
   return { kind: "ssh", words, remoteCommand };
+}
+
+function shellQuote(word) {
+  return `'${word.replaceAll("'", `'\\''`)}'`;
+}
+
+function managedExecutionCommand(command, classification) {
+  if (classification.kind !== "ssh") return command;
+  return [
+    "ssh",
+    "-o",
+    shellQuote("ForkAfterAuthentication=no"),
+    ...classification.words.slice(1).map(shellQuote),
+  ].join(" ");
+}
+
+function resolveTimeoutMs(timeout) {
+  if (timeout === undefined) return undefined;
+  if (!Number.isFinite(timeout) || timeout <= 0) {
+    throw new Error("Invalid timeout: must be a finite number of seconds");
+  }
+  const timeoutMs = timeout * 1000;
+  if (timeoutMs > MAX_TIMEOUT_MS) {
+    throw new Error(`Invalid timeout: maximum is ${MAX_TIMEOUT_SECONDS} seconds`);
+  }
+  return timeoutMs;
 }
 
 function currentEnvironment(ctx) {
@@ -281,12 +309,20 @@ export default function managedBackgroundJobs(pi) {
 
     const endedAt = adapters.now();
     let tail = "";
-    try {
-      tail = boundedTail(await adapters.readTail(job.logPath, COMPLETION_TAIL_BYTES));
-    } catch (error) {
-      adapters.warn(`could not read ${job.logPath}: ${error.message}`);
+    if (!job.suppressCompletion) {
+      try {
+        tail = boundedTail(await adapters.readTail(job.logPath, COMPLETION_TAIL_BYTES));
+      } catch (error) {
+        adapters.warn(`could not read ${job.logPath}: ${error.message}`);
+      }
     }
 
+    if (job.suppressCompletion) {
+      job.finished = true;
+      job.finishing = false;
+      if (shared.active === job) shared.active = undefined;
+      return;
+    }
     if (shared.controller?.finishJob !== finishJob) {
       job.finishing = false;
       return shared.controller?.finishJob(job, code, signal);
@@ -352,9 +388,16 @@ export default function managedBackgroundJobs(pi) {
     return true;
   }
 
-  async function startManagedJob(command, timeoutSeconds, ctx) {
+  async function startManagedJob(command, classification, timeoutSeconds, ctx) {
     if (shared.active && !shared.active.finished) {
       return textResult(`Managed background job ${shared.active.id} is already active.`, true);
+    }
+
+    let timeoutMs;
+    try {
+      timeoutMs = resolveTimeoutMs(timeoutSeconds);
+    } catch (error) {
+      return textResult(error.message, true);
     }
 
     const id = adapters.randomId();
@@ -369,7 +412,7 @@ export default function managedBackgroundJobs(pi) {
 
     let child;
     try {
-      child = adapters.spawn(command, {
+      child = adapters.spawn(managedExecutionCommand(command, classification), {
         cwd: ctx.cwd,
         env: currentEnvironment(ctx),
         logFd: log.fd,
@@ -403,21 +446,28 @@ export default function managedBackgroundJobs(pi) {
       toolsRestored: false,
       killTimer: undefined,
       timeoutTimer: undefined,
-      timeoutSeconds: Number.isFinite(timeoutSeconds) && timeoutSeconds > 0
-        ? timeoutSeconds
-        : undefined,
+      timeoutSeconds,
       timedOut: false,
+      suppressCompletion: false,
+      exited: false,
+      resolveExit: undefined,
+      exitPromise: undefined,
     };
+    job.exitPromise = new Promise((resolve) => { job.resolveExit = resolve; });
     job.controller = shared.controller;
     shared.active = job;
-    if (job.timeoutSeconds) {
+    if (timeoutMs !== undefined) {
       job.timeoutTimer = adapters.setTimeout(() => {
         if (shared.active !== job || job.finishing || job.finished) return;
         job.timedOut = true;
         terminateJob(job);
-      }, job.timeoutSeconds * 1000);
+      }, timeoutMs);
     }
     const finishFromChild = (code, signal) => {
+      if (!job.exited) {
+        job.exited = true;
+        job.resolveExit();
+      }
       Promise.resolve(shared.controller?.finishJob(job, code, signal)).catch((error) => {
         adapters.warn(`completion failed for ${job.id}: ${error.message}`);
       });
@@ -437,10 +487,12 @@ export default function managedBackgroundJobs(pi) {
     ...builtIn,
     executionMode: "sequential",
     async execute(toolCallId, params, signal, onUpdate, ctx) {
-      if (!classifyManagedCommand(params.command)) {
-        return builtIn.execute(toolCallId, params, signal, onUpdate, ctx);
+      const classification = classifyManagedCommand(params.command);
+      if (!classification) {
+        const contextualBuiltIn = createBashToolDefinition(ctx.cwd);
+        return contextualBuiltIn.execute(toolCallId, params, signal, onUpdate, ctx);
       }
-      return startManagedJob(params.command, params.timeout, ctx);
+      return startManagedJob(params.command, classification, params.timeout, ctx);
     },
   });
 
@@ -466,8 +518,13 @@ export default function managedBackgroundJobs(pi) {
   pi.on("session_before_switch", blockSessionChange);
   pi.on("session_before_fork", blockSessionChange);
 
-  pi.on("session_shutdown", (event) => {
-    if (event.reason !== "reload") terminateJob(shared.active);
+  pi.on("session_shutdown", async (event) => {
+    if (event.reason === "reload") return;
+    const job = shared.active;
+    if (!job || job.finished) return;
+    job.suppressCompletion = true;
+    terminateJob(job);
+    await job.exitPromise;
   });
 
   pi.registerCommand("background-jobs", {
