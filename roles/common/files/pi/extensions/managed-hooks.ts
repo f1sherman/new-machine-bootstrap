@@ -16,7 +16,7 @@ const SESSION_GOAL_MAX_LENGTH = 80;
 const SESSION_NAME_STATUS_KEY = "sm";
 const REPO_START_TRIGGERS = /(^|\s)(?:z-fix|z-spec-first|z-quick-pr|superpowers:systematic-debugging|superpowers:brainstorming)(?=\s|$)/i;
 const SHELL_TOKEN = "[^\\s;&|()]+";
-const SHELL_VALUE_PART = String.raw`(?:'[^']*'|"(?:\\.|[^"\\])*"|\$\((?:'[^']*'|"(?:\\.|[^"\\])*"|\\.|[^()'"\\])*\)|\\.|(?!\$\()[^\s;&|()'"\\])`;
+const SHELL_VALUE_PART = String.raw`(?:'[^']*'|"(?:\\.|[^"\\])*"|\\.|[^\s;&|()'"\\])`;
 const SHELL_VALUE = `(?:${SHELL_VALUE_PART})+`;
 const GIT_GLOBAL_LONG_VALUE_OPTION = "(?:git-dir|work-tree|namespace|super-prefix|config-env|exec-path)";
 const GIT_GLOBAL_OPTION = `(?:(?:-C|-c)(?:${SHELL_VALUE}|\\s+${SHELL_VALUE})|--${GIT_GLOBAL_LONG_VALUE_OPTION}(?:=${SHELL_VALUE}|\\s+${SHELL_VALUE})|--(?!${GIT_GLOBAL_LONG_VALUE_OPTION}(?:=|\\s|$))\\S+|-(?![-Cc])\\S+)`;
@@ -297,6 +297,56 @@ function shellCommandSubstitutionEnd(command, start) {
   return -1;
 }
 
+function shellCommandSubstitutions(command) {
+  const substitutions = [];
+  let quote = "";
+  let escaped = false;
+
+  for (let i = 0; i < command.length; i += 1) {
+    const char = command[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\" && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+    if (quote === "'") {
+      if (char === "'") quote = "";
+      continue;
+    }
+    if (!quote && char === "'") {
+      quote = "'";
+      continue;
+    }
+    if (char === '"') {
+      quote = quote === '"' ? "" : '"';
+      continue;
+    }
+    if (char !== "$" || command[i + 1] !== "(") continue;
+
+    const end = shellCommandSubstitutionEnd(command, i);
+    if (end === -1) continue;
+    substitutions.push({ start: i, end, payload: command.slice(i + 2, end) });
+    i = end;
+  }
+
+  return substitutions;
+}
+
+function normalizeShellCommand(command) {
+  let cursor = 0;
+  let masked = "";
+  for (const substitution of shellCommandSubstitutions(command)) {
+    masked += command.slice(cursor, substitution.start);
+    masked += "__command_substitution__";
+    cursor = substitution.end + 1;
+  }
+  masked += command.slice(cursor);
+  return masked.replace(/\s+/g, " ").trim();
+}
+
 function splitShellSteps(command) {
   const steps = [];
   let current = "";
@@ -529,7 +579,7 @@ function directGitSelection(segment, fallbackCwd) {
 
 function rawCommitBlockReason(command) {
   for (const segment of splitCommandSegments(command)) {
-    const normalized = segment.replace(/\s+/g, " ").trim();
+    const normalized = normalizeShellCommand(segment);
     if (new RegExp(`${GIT_PREAMBLE}commit([\\s;&|()]|$)`).test(normalized)) {
       return "Do not run git commit directly. Use the z-commit skill instead.";
     }
@@ -621,6 +671,13 @@ async function pushMainBlockReason(pi, command, cwd) {
     nextEligibleCdCwds = [];
 
     const segment = step.command;
+    for (const substitution of shellCommandSubstitutions(segment)) {
+      for (const segmentCwd of segmentCwds) {
+        const nestedReason = await pushMainBlockReason(pi, substitution.payload, segmentCwd);
+        if (nestedReason) return nestedReason;
+      }
+    }
+
     const payload = shellWrappedPayload(segment);
     if (payload) {
       for (const segmentCwd of segmentCwds) {
@@ -631,7 +688,7 @@ async function pushMainBlockReason(pi, command, cwd) {
       continue;
     }
 
-    const normalized = segment.replace(/\s+/g, " ").trim();
+    const normalized = normalizeShellCommand(segment);
     const cdStep = /^cd(?:\s|$)/.test(normalized);
     if (cdStep) {
       const operand = changedDirectoryOperand(segment);
@@ -724,7 +781,7 @@ function forceAddOperandsTargetSuperpowersDocs(segment, cwd) {
 function forceAddSuperpowersDocsBlockReason(command, cwd) {
   let segmentCwd = cwd;
   for (const segment of splitCommandSegments(command)) {
-    const normalized = segment.replace(/\s+/g, " ").trim();
+    const normalized = normalizeShellCommand(segment);
     const nextCwd = changedDirectory(segment, segmentCwd);
     if (nextCwd) {
       segmentCwd = nextCwd;
@@ -742,6 +799,11 @@ function forceAddSuperpowersDocsBlockReason(command, cwd) {
 }
 
 async function bashCommandBlockReason(pi, command, cwd) {
+  for (const substitution of shellCommandSubstitutions(command)) {
+    const nestedReason = await bashCommandBlockReason(pi, substitution.payload, cwd);
+    if (nestedReason) return nestedReason;
+  }
+
   return worktreeCommandBlockReason(command)
     || rawCommitBlockReason(command)
     || await pushMainBlockReason(pi, command, cwd)
@@ -749,7 +811,7 @@ async function bashCommandBlockReason(pi, command, cwd) {
 }
 
 function worktreeCommandBlockReason(command) {
-  const normalized = command.replace(/\s+/g, " ").trim();
+  const normalized = normalizeShellCommand(command);
   if (new RegExp(`${GIT_PREAMBLE}worktree\\s+add(?:\\s|$)`).test(normalized)) {
     return "Do not run git worktree add directly. Use repo-start instead.";
   }

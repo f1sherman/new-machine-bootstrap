@@ -781,12 +781,14 @@ const destructiveCases = [
   'git -c user.name="A B" commit -m test',
   "git -C /repo\\ x commit -m test",
   'git -C $(pwd) commit -m test',
+  'git -C $(dirname $(pwd)) commit -m test',
   "git --git-dir /repo/.git commit -m test",
   'git --git-dir="/repo with spaces/.git" commit -m test',
   "git --no-pager commit -m test",
   "sudo -E git commit -m test",
   "bash -lc 'git commit -m test'",
   "echo ok; git commit -m test",
+  "echo $(git commit -m nested)",
   "git push origin HEAD:main",
   "git push origin :main",
   "git push origin :",
@@ -870,6 +872,13 @@ assert.equal(longInspectionResult, undefined,
   "allows a long multi-line Git inspection command");
 assert.ok(inspectionElapsedMs < 1000,
   `parses a long multi-line Git inspection command promptly (${inspectionElapsedMs} ms)`);
+
+result = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "echo $(cd /repo && git push)" },
+}, { ...ctx, cwd: worktreeRoot });
+assert.equal(result?.block, true,
+  "blocks a nested push after its command substitution changes to main");
 
 branch = "feature";
 result = await handlers.get("tool_call")({
