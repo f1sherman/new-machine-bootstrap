@@ -16,7 +16,10 @@ const SESSION_GOAL_MAX_LENGTH = 80;
 const SESSION_NAME_STATUS_KEY = "sm";
 const REPO_START_TRIGGERS = /(^|\s)(?:z-fix|z-spec-first|z-quick-pr|superpowers:systematic-debugging|superpowers:brainstorming)(?=\s|$)/i;
 const SHELL_TOKEN = "[^\\s;&|()]+";
-const GIT_PREAMBLE = "(^|[;&|()])\\s*(?:(?:(?:if|then|do|elif|while|until)\\s+|!\\s+)*)((?:(?:[A-Za-z_][A-Za-z0-9_]*)=\\S+\\s+|command\\s+|env\\s+|sudo(?:\\s+-\\S+)*\\s+|time(?:\\s+-\\S+)*\\s+)*)git(?:\\s+-\\S+(?:\\s+\\S+)*)*\\s+";
+const SHELL_VALUE = "(?:'[^']*'|\"[^\"]*\"|[^\\s;&|()'\"]+)";
+const GIT_GLOBAL_LONG_VALUE_OPTION = "(?:git-dir|work-tree|namespace|super-prefix|config-env|exec-path)";
+const GIT_GLOBAL_OPTION = `(?:(?:-C|-c)(?:${SHELL_VALUE}|\\s+${SHELL_VALUE})|--${GIT_GLOBAL_LONG_VALUE_OPTION}(?:=${SHELL_VALUE}|\\s+${SHELL_VALUE})|--(?!${GIT_GLOBAL_LONG_VALUE_OPTION}(?:=|\\s|$))\\S+|-(?![-Cc])\\S+)`;
+const GIT_PREAMBLE = `(^|[;&|()])\\s*(?:(?:(?:if|then|do|elif|while|until)\\s+|!\\s+)*)((?:(?:[A-Za-z_][A-Za-z0-9_]*)=\\S+\\s+|command\\s+|env\\s+|sudo(?:\\s+-\\S+)*\\s+|time(?:\\s+-\\S+)*\\s+)*)git(?:\\s+${GIT_GLOBAL_OPTION})*\\s+`;
 
 function warn(message, error) {
   const detail = error instanceof Error ? error.message : String(error ?? "unknown error");
