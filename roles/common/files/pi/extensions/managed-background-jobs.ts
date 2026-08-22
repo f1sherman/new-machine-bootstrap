@@ -16,9 +16,9 @@ const SSH_VALUE_OPTIONS = new Set([
   "b", "c", "D", "e", "i", "L", "l", "m", "o", "p", "R", "w",
 ]);
 const SSH_LOCAL_COMMAND_OPTIONS = new Set([
-  "forkafterauthentication", "knownhostscommand", "localcommand",
-  "permitlocalcommand", "pkcs11provider", "proxycommand", "proxyjump",
-  "securitykeyprovider",
+  "controlmaster", "controlpath", "controlpersist", "forkafterauthentication",
+  "knownhostscommand", "localcommand", "permitlocalcommand", "pkcs11provider",
+  "proxycommand", "proxyjump", "securitykeyprovider",
 ]);
 const SSH_FLAG_OPTIONS = new Set([
   "4", "6", "A", "a", "C", "g", "K", "k", "M", "n", "q", "T",
@@ -179,6 +179,9 @@ function managedExecutionCommand(command, classification) {
   return [
     "ssh", "-F", "/dev/null",
     "-o", shellQuote("BatchMode=yes"),
+    "-o", shellQuote("ControlMaster=no"),
+    "-o", shellQuote("ControlPath=none"),
+    "-o", shellQuote("ControlPersist=no"),
     "-o", shellQuote("ForkAfterAuthentication=no"),
     "-o", shellQuote("ProxyCommand=none"),
     "-o", shellQuote("PermitLocalCommand=no"),

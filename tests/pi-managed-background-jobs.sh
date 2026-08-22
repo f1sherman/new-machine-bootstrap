@@ -177,6 +177,9 @@ assert.equal(classify("ssh -o=SecurityKeyProvider=/tmp/provider.so dev bin/test"
 assert.equal(classify("ssh -o 'ProxyCommand=touch /tmp/pwn' dev bin/test"), false);
 assert.equal(classify("ssh -o 'LocalCommand=touch /tmp/pwn' dev bin/test"), false);
 assert.equal(classify("ssh -o PermitLocalCommand=yes dev bin/test"), false);
+assert.equal(classify("ssh -o ControlMaster=yes dev bin/test"), false);
+assert.equal(classify("ssh -o ControlPersist=yes dev bin/test"), false);
+assert.equal(classify("ssh -o ControlPath=/tmp/ssh-master dev bin/test"), false);
 assert.equal(classify("ssh -o 'KnownHostsCommand=touch /tmp/pwn' dev bin/test"), false);
 assert.equal(classify("ssh dev 'cd /repo && ./bin/test ci'"), true);
 assert.equal(classify("bin/provision | tee /tmp/log"), false);
@@ -317,7 +320,7 @@ await registeredBash.execute(
 );
 assert.equal(
   spawnCalls.at(-1).command,
-  "ssh -F /dev/null -o 'BatchMode=yes' -o 'ForkAfterAuthentication=no' -o 'ProxyCommand=none' -o 'PermitLocalCommand=no' -o 'KnownHostsCommand=none' '-o' 'BatchMode=yes' 'dev' './bin/test ci'",
+  "ssh -F /dev/null -o 'BatchMode=yes' -o 'ControlMaster=no' -o 'ControlPath=none' -o 'ControlPersist=no' -o 'ForkAfterAuthentication=no' -o 'ProxyCommand=none' -o 'PermitLocalCommand=no' -o 'KnownHostsCommand=none' '-o' 'BatchMode=yes' 'dev' './bin/test ci'",
   "managed SSH disables config and command-executing local hooks",
 );
 sshConfigChild.emitExit(0);
