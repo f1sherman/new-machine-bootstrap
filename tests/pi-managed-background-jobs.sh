@@ -169,7 +169,9 @@ assert.equal(classify("ssh -o BatchMode=yes dev.example.com './bin/test ci'"), t
 assert.equal(classify("ssh user@192.0.2.1 bin/test"), true);
 assert.equal(classify("ssh user@2001:db8::1 bin/test"), true);
 assert.equal(classify("ssh localhost bin/test"), true);
+assert.equal(classify("ssh user@localhost bin/test"), true);
 assert.equal(classify("ssh dev bin/test"), false);
+assert.equal(classify("ssh user@dev bin/test"), false);
 assert.equal(classify("ssh -F /tmp/ssh-config dev.example.com './bin/test ci'"), false);
 assert.equal(classify("ssh -I /tmp/provider.so dev.example.com bin/test"), false);
 assert.equal(classify("ssh -J bastion dev.example.com bin/test"), false);
