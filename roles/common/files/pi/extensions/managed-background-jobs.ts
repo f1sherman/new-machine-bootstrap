@@ -153,6 +153,13 @@ function sshRemoteStart(words) {
   return destinationFound ? index : -1;
 }
 
+function isExplicitSshDestination(destination) {
+  const host = destination.slice(destination.lastIndexOf("@") + 1);
+  return host === "localhost"
+    || host.includes(".")
+    || host.includes(":");
+}
+
 export function classifyManagedCommand(command) {
   const words = shellWords(command);
   if (!words?.length) return undefined;
@@ -164,6 +171,7 @@ export function classifyManagedCommand(command) {
 
   const remoteStart = sshRemoteStart(words);
   if (remoteStart < 0 || remoteStart >= words.length) return undefined;
+  if (!isExplicitSshDestination(words[remoteStart - 1])) return undefined;
   const remoteWords = words.slice(remoteStart);
   const remoteCommand = remoteWords.join(" ");
   if (!classifyRemoteCommand(remoteCommand)) return undefined;
@@ -177,7 +185,7 @@ function shellQuote(word) {
 function managedExecutionCommand(command, classification) {
   if (classification.kind !== "ssh") return command;
   return [
-    "ssh",
+    "ssh", "-F", "/dev/null",
     "-o", shellQuote("BatchMode=yes"),
     "-o", shellQuote("ControlMaster=no"),
     "-o", shellQuote("ControlPath=none"),

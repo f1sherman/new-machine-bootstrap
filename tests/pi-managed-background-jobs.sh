@@ -164,49 +164,53 @@ const classify = (command) => Boolean(module.classifyManagedCommand(command));
 assert.equal(classify("bin/provision --limit dev"), true);
 assert.equal(classify("./bin/test ci"), true);
 assert.equal(classify("bin/test-ruby"), true);
-assert.equal(classify("ssh dev 'bin/provision --tags common_role'"), true);
-assert.equal(classify("ssh -o BatchMode=yes dev './bin/test ci'"), true);
-assert.equal(classify("ssh -F /tmp/ssh-config dev './bin/test ci'"), false);
-assert.equal(classify("ssh -I /tmp/provider.so dev bin/test"), false);
-assert.equal(classify("ssh -J bastion dev bin/test"), false);
-assert.equal(classify("ssh -o ProxyJump=bastion dev bin/test"), false);
-assert.equal(classify("ssh -o PKCS11Provider=/tmp/provider.so dev bin/test"), false);
-assert.equal(classify("ssh -o=PKCS11Provider=/tmp/provider.so dev bin/test"), false);
-assert.equal(classify("ssh -o SecurityKeyProvider=/tmp/provider.so dev bin/test"), false);
-assert.equal(classify("ssh -o=SecurityKeyProvider=/tmp/provider.so dev bin/test"), false);
-assert.equal(classify("ssh -o 'ProxyCommand=touch /tmp/pwn' dev bin/test"), false);
-assert.equal(classify("ssh -o 'LocalCommand=touch /tmp/pwn' dev bin/test"), false);
-assert.equal(classify("ssh -o PermitLocalCommand=yes dev bin/test"), false);
-assert.equal(classify("ssh -o ControlMaster=yes dev bin/test"), false);
-assert.equal(classify("ssh -o ControlPersist=yes dev bin/test"), false);
-assert.equal(classify("ssh -o ControlPath=/tmp/ssh-master dev bin/test"), false);
-assert.equal(classify("ssh -o 'KnownHostsCommand=touch /tmp/pwn' dev bin/test"), false);
-assert.equal(classify("ssh dev 'cd /repo && ./bin/test ci'"), true);
+assert.equal(classify("ssh dev.example.com 'bin/provision --tags common_role'"), true);
+assert.equal(classify("ssh -o BatchMode=yes dev.example.com './bin/test ci'"), true);
+assert.equal(classify("ssh user@192.0.2.1 bin/test"), true);
+assert.equal(classify("ssh user@2001:db8::1 bin/test"), true);
+assert.equal(classify("ssh localhost bin/test"), true);
+assert.equal(classify("ssh dev bin/test"), false);
+assert.equal(classify("ssh -F /tmp/ssh-config dev.example.com './bin/test ci'"), false);
+assert.equal(classify("ssh -I /tmp/provider.so dev.example.com bin/test"), false);
+assert.equal(classify("ssh -J bastion dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o ProxyJump=bastion dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o PKCS11Provider=/tmp/provider.so dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o=PKCS11Provider=/tmp/provider.so dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o SecurityKeyProvider=/tmp/provider.so dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o=SecurityKeyProvider=/tmp/provider.so dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o 'ProxyCommand=touch /tmp/pwn' dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o 'LocalCommand=touch /tmp/pwn' dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o PermitLocalCommand=yes dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o ControlMaster=yes dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o ControlPersist=yes dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o ControlPath=/tmp/ssh-master dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o 'KnownHostsCommand=touch /tmp/pwn' dev.example.com bin/test"), false);
+assert.equal(classify("ssh dev.example.com 'cd /repo && ./bin/test ci'"), true);
 assert.equal(classify("bin/provision | tee /tmp/log"), false);
 assert.equal(classify("bin/test\nprintf unsafe"), false);
 assert.equal(classify("env CI=1 bin/test"), false);
 assert.equal(classify("bin/test $(date)"), false);
-assert.equal(classify("ssh dev 'bin/test; rm -rf /tmp/x'"), false);
-assert.equal(classify('ssh dev bin/test "$NMB_REMOTE_ARGS"'), false);
-assert.equal(classify('ssh -F "$HOME/.ssh/config" dev bin/test'), false);
-assert.equal(classify("ssh dev 'bin/test $NMB_REMOTE_ARGS'"), false);
-assert.equal(classify("ssh dev 'bin/test *.sh'"), false);
-assert.equal(classify("ssh dev 'bin/test file?.sh'"), false);
-assert.equal(classify("ssh dev 'bin/test files[0-9]'"), false);
-assert.equal(classify("ssh dev 'bin/test {safe,unsafe}'"), false);
-assert.equal(classify("ssh dev 'bin/test ~/suite'"), false);
-assert.equal(classify("ssh -f dev bin/test"), false);
-assert.equal(classify("ssh -vf dev bin/test"), false);
-assert.equal(classify("ssh -N dev bin/test"), false);
-assert.equal(classify("ssh -vs dev bin/test"), false);
-assert.equal(classify("ssh -G dev bin/test"), false);
-assert.equal(classify("ssh -V dev bin/test"), false);
-assert.equal(classify("ssh -O check dev bin/test"), false);
-assert.equal(classify("ssh -Q cipher dev bin/test"), false);
-assert.equal(classify("ssh -W host:22 dev bin/test"), false);
-assert.equal(classify("ssh -o ForkAfterAuthentication=yes dev bin/test"), false);
-assert.equal(classify("ssh -o 'ForkAfterAuthentication yes' dev bin/test"), false);
-assert.equal(classify("ssh -oForkAfterAuthentication=yes dev bin/test"), false);
+assert.equal(classify("ssh dev.example.com 'bin/test; rm -rf /tmp/x'"), false);
+assert.equal(classify('ssh dev.example.com bin/test "$NMB_REMOTE_ARGS"'), false);
+assert.equal(classify('ssh -F "$HOME/.ssh/config" dev.example.com bin/test'), false);
+assert.equal(classify("ssh dev.example.com 'bin/test $NMB_REMOTE_ARGS'"), false);
+assert.equal(classify("ssh dev.example.com 'bin/test *.sh'"), false);
+assert.equal(classify("ssh dev.example.com 'bin/test file?.sh'"), false);
+assert.equal(classify("ssh dev.example.com 'bin/test files[0-9]'"), false);
+assert.equal(classify("ssh dev.example.com 'bin/test {safe,unsafe}'"), false);
+assert.equal(classify("ssh dev.example.com 'bin/test ~/suite'"), false);
+assert.equal(classify("ssh -f dev.example.com bin/test"), false);
+assert.equal(classify("ssh -vf dev.example.com bin/test"), false);
+assert.equal(classify("ssh -N dev.example.com bin/test"), false);
+assert.equal(classify("ssh -vs dev.example.com bin/test"), false);
+assert.equal(classify("ssh -G dev.example.com bin/test"), false);
+assert.equal(classify("ssh -V dev.example.com bin/test"), false);
+assert.equal(classify("ssh -O check dev.example.com bin/test"), false);
+assert.equal(classify("ssh -Q cipher dev.example.com bin/test"), false);
+assert.equal(classify("ssh -W host:22 dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o ForkAfterAuthentication=yes dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o 'ForkAfterAuthentication yes' dev.example.com bin/test"), false);
+assert.equal(classify("ssh -oForkAfterAuthentication=yes dev.example.com bin/test"), false);
 assert.equal(classify("ssh -p dev bin/test"), false);
 assert.equal(classify("ssh dev"), false);
 assert.equal(classify("bin/test 'unterminated"), false);
@@ -313,15 +317,15 @@ const sshConfigChild = new ControlledChild(4214);
 spawnQueue.push(sshConfigChild);
 await registeredBash.execute(
   "call-ssh-config",
-  { command: "ssh -o BatchMode=yes dev './bin/test ci'" },
+  { command: "ssh -o BatchMode=yes dev.example.com './bin/test ci'" },
   undefined,
   undefined,
   context,
 );
 assert.equal(
   spawnCalls.at(-1).command,
-  "ssh -o 'BatchMode=yes' -o 'ControlMaster=no' -o 'ControlPath=none' -o 'ControlPersist=no' -o 'ForkAfterAuthentication=no' -o 'ProxyCommand=none' -o 'PermitLocalCommand=no' -o 'KnownHostsCommand=none' '-o' 'BatchMode=yes' 'dev' './bin/test ci'",
-  "managed SSH preserves host connection settings and disables command-executing local hooks",
+  "ssh -F /dev/null -o 'BatchMode=yes' -o 'ControlMaster=no' -o 'ControlPath=none' -o 'ControlPersist=no' -o 'ForkAfterAuthentication=no' -o 'ProxyCommand=none' -o 'PermitLocalCommand=no' -o 'KnownHostsCommand=none' '-o' 'BatchMode=yes' 'dev.example.com' './bin/test ci'",
+  "managed SSH rejects aliases and disables configuration hooks",
 );
 sshConfigChild.emitExit(0);
 await flush();
