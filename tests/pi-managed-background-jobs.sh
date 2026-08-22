@@ -320,8 +320,8 @@ await registeredBash.execute(
 );
 assert.equal(
   spawnCalls.at(-1).command,
-  "ssh -F /dev/null -o 'BatchMode=yes' -o 'ControlMaster=no' -o 'ControlPath=none' -o 'ControlPersist=no' -o 'ForkAfterAuthentication=no' -o 'ProxyCommand=none' -o 'PermitLocalCommand=no' -o 'KnownHostsCommand=none' '-o' 'BatchMode=yes' 'dev' './bin/test ci'",
-  "managed SSH disables config and command-executing local hooks",
+  "ssh -o 'BatchMode=yes' -o 'ControlMaster=no' -o 'ControlPath=none' -o 'ControlPersist=no' -o 'ForkAfterAuthentication=no' -o 'ProxyCommand=none' -o 'PermitLocalCommand=no' -o 'KnownHostsCommand=none' '-o' 'BatchMode=yes' 'dev' './bin/test ci'",
+  "managed SSH preserves host config and disables command-executing local hooks",
 );
 sshConfigChild.emitExit(0);
 await flush();
@@ -631,6 +631,7 @@ assert.match(warnings.at(-1), /child failed/);
 assert.equal(sentMessages.at(-1).message.details.code, null);
 assert.equal(sentMessages.at(-1).message.details.signal, null);
 
+activeTools = ["read", "grep", "find", "ls", "bash", "edit", "write", "subagent"];
 ids.push("bg-restore-error");
 const restoreErrorChild = new ControlledChild(4209);
 spawnQueue.push(restoreErrorChild);
@@ -639,18 +640,24 @@ const messagesBeforeRestoreError = sentMessages.length;
 setActiveToolsError = new Error("tool restore denied");
 restoreErrorChild.emitExit(0);
 await flush();
-setActiveToolsError = undefined;
 assert.match(warnings.at(-1), /could not restore tools for bg-restore-error: tool restore denied/);
 assert.equal(sentMessages.length, messagesBeforeRestoreError + 1,
   "tool restoration failure does not prevent completion injection");
 assert.equal(sentMessages.at(-1).message.details.id, "bg-restore-error");
 assert.equal(sentMessages.at(-1).message.details.code, 0);
 assert.deepEqual(sentMessages.at(-1).options, { triggerTurn: true, deliverAs: "steer" });
+assert.equal(globalThis[STATE].active.id, "bg-restore-error",
+  "a failed tool restoration keeps recovery state");
+assert.equal(activeTools.includes("bash"), false,
+  "a failed tool restoration keeps the fake tool list gated");
 
+setActiveToolsError = undefined;
 await commands.get("background-jobs").handler("", context);
 assert.match(notices.at(-1).message, /bg-restore-error completed/);
-assert.equal(activeTools.includes("bash"), false,
-  "the controlled Pi API failure leaves the fake tool list gated");
+assert.equal(globalThis[STATE].active, undefined,
+  "the status command releases recovered job state");
+assert.equal(activeTools.includes("bash"), true,
+  "the status command retries tool restoration");
 assert.equal(closeCalls.length, spawnCalls.length + 1,
   "every successful log creation closes its parent descriptor");
 

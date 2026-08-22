@@ -177,7 +177,7 @@ function shellQuote(word) {
 function managedExecutionCommand(command, classification) {
   if (classification.kind !== "ssh") return command;
   return [
-    "ssh", "-F", "/dev/null",
+    "ssh",
     "-o", shellQuote("BatchMode=yes"),
     "-o", shellQuote("ControlMaster=no"),
     "-o", shellQuote("ControlPath=none"),
@@ -303,13 +303,21 @@ export default function managedBackgroundJobs(pi) {
   }
 
   function restoreTools(job) {
-    if (job.toolsRestored) return;
+    if (job.toolsRestored) return true;
     try {
       pi.setActiveTools(job.savedActiveTools);
       job.toolsRestored = true;
+      return true;
     } catch (error) {
       adapters.warn(`could not restore tools for ${job.id}: ${error.message}`);
+      return false;
     }
+  }
+
+  function restoreAndRelease(job) {
+    const restored = restoreTools(job);
+    if (restored && job.finished && shared.active === job) shared.active = undefined;
+    return restored;
   }
 
   async function finishJob(job, code, signal) {
@@ -374,7 +382,7 @@ export default function managedBackgroundJobs(pi) {
       restoreTools(job);
       job.finished = true;
       job.finishing = false;
-      if (shared.active === job) shared.active = undefined;
+      if (job.toolsRestored && shared.active === job) shared.active = undefined;
     }
   }
 
@@ -408,8 +416,10 @@ export default function managedBackgroundJobs(pi) {
   }
 
   async function startManagedJob(command, classification, timeoutSeconds, ctx) {
-    if (shared.active && !shared.active.finished) {
-      throw new Error(`Managed background job ${shared.active.id} is already active.`);
+    if (shared.active?.finished) restoreAndRelease(shared.active);
+    if (shared.active) {
+      const detail = shared.active.finished ? " has pending tool restoration." : " is already active.";
+      throw new Error(`Managed background job ${shared.active.id}${detail}`);
     }
 
     const timeoutMs = resolveTimeoutMs(timeoutSeconds);
@@ -523,17 +533,24 @@ export default function managedBackgroundJobs(pi) {
   });
 
   pi.on("tool_call", (event) => {
-    if (!shared.active || READ_ONLY_TOOLS.has(event.toolName)) return undefined;
+    const job = shared.active;
+    if (!job) return undefined;
+    if (job.finished && restoreAndRelease(job)) return undefined;
+    if (READ_ONLY_TOOLS.has(event.toolName)) return undefined;
     return {
       block: true,
-      reason: "A managed background job is active. Only read-only inspection tools are available.",
+      reason: job.finished
+        ? "A managed background job finished, but tool restoration is pending. Only read-only inspection tools are available."
+        : "A managed background job is active. Only read-only inspection tools are available.",
       terminate: false,
     };
   });
 
   pi.on("session_start", () => {
     shared.controller = { finishJob, terminateJob, applyGate };
-    if (shared.active && !shared.active.finished) {
+    if (shared.active?.finished) {
+      restoreAndRelease(shared.active);
+    } else if (shared.active) {
       applyGate(shared.active);
       if (shared.active.exitResult && !shared.active.finishing) {
         const { code, signal } = shared.active.exitResult;
@@ -545,8 +562,10 @@ export default function managedBackgroundJobs(pi) {
   });
 
   const blockSessionChange = (_event, ctx) => {
+    if (shared.active?.finished && restoreAndRelease(shared.active)) return undefined;
     if (!shared.active) return undefined;
-    ctx.ui.notify(`Managed background job ${shared.active.id} is still active.`, "warning");
+    const state = shared.active.finished ? "has pending tool restoration" : "is still active";
+    ctx.ui.notify(`Managed background job ${shared.active.id} ${state}.`, "warning");
     return { cancel: true };
   };
   pi.on("session_before_switch", blockSessionChange);
@@ -568,8 +587,10 @@ export default function managedBackgroundJobs(pi) {
   pi.registerCommand("background-jobs", {
     description: "Show the active or most recent managed background job",
     handler: async (_args, ctx) => {
+      if (shared.active?.finished) restoreAndRelease(shared.active);
       if (shared.active) {
-        ctx.ui.notify(`Managed background job ${shared.active.id} is active. Log: ${shared.active.logPath}`, "info");
+        const state = shared.active.finished ? "completed with tool restoration pending" : "is active";
+        ctx.ui.notify(`Managed background job ${shared.active.id} ${state}. Log: ${shared.active.logPath}`, "info");
       } else if (shared.last) {
         ctx.ui.notify(`Managed background job ${shared.last.id} completed. Log: ${shared.last.logPath}`, "info");
       } else {
