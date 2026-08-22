@@ -17,7 +17,7 @@ const SSH_VALUE_OPTIONS = new Set([
   "O", "o", "p", "Q", "R", "S", "W", "w",
 ]);
 const SSH_FLAG_OPTIONS = new Set([
-  "4", "6", "A", "a", "C", "f", "G", "g", "K", "k", "M", "N", "n",
+  "4", "6", "A", "a", "C", "G", "g", "K", "k", "M", "N", "n",
   "q", "s", "T", "t", "V", "v", "X", "x", "Y", "y",
 ]);
 const SSH_REMOTE_EXPANSION_CHARACTERS = new Set([
@@ -103,6 +103,11 @@ function classifyRemoteCommand(remoteCommand) {
   return words[0] === "cd" && Boolean(words[1]) && MANAGED_EXECUTABLES.has(words[3]);
 }
 
+function sshOptionForks(option, value) {
+  return option === "o"
+    && /^ForkAfterAuthentication(?:=|\s+)yes$/i.test(value.trim());
+}
+
 function sshRemoteStart(words) {
   let index = 1;
   let destinationFound = false;
@@ -118,15 +123,19 @@ function sshRemoteStart(words) {
     if (!destinationFound && word.startsWith("-") && word !== "-") {
       const optionText = word.slice(1);
       if (!optionText) return -1;
-      if (SSH_VALUE_OPTIONS.has(optionText[0])) {
-        if (optionText.length === 1) {
+      const option = optionText[0];
+      if (SSH_VALUE_OPTIONS.has(option)) {
+        let value = optionText.slice(1);
+        if (!value) {
           index += 1;
           if (index >= words.length) return -1;
+          value = words[index];
         }
+        if (sshOptionForks(option, value)) return -1;
         index += 1;
         continue;
       }
-      if (![...optionText].every((option) => SSH_FLAG_OPTIONS.has(option))) return -1;
+      if (![...optionText].every((flag) => SSH_FLAG_OPTIONS.has(flag))) return -1;
       index += 1;
       continue;
     }
@@ -231,6 +240,19 @@ function boundedTail(tail) {
   return tail.split(/\r?\n/).slice(-COMPLETION_TAIL_LINES).join("\n");
 }
 
+function completionMessage(job, status, durationMs, tail) {
+  const lines = [
+    `Managed background job ${job.id} completed with ${status} after ${durationMs}ms.`,
+    `Full log: ${job.logPath}`,
+  ];
+  if (tail) {
+    const tailLines = tail.split("\n");
+    const availableTailLines = COMPLETION_TAIL_LINES - lines.length - 2;
+    lines.push("", "Output tail:", ...tailLines.slice(-availableTailLines));
+  }
+  return lines.join("\n");
+}
+
 export default function managedBackgroundJobs(pi) {
   const adapters = globalThis[ADAPTERS_SYMBOL] || defaultAdapters();
   const shared = processState();
@@ -252,51 +274,55 @@ export default function managedBackgroundJobs(pi) {
   }
 
   async function finishJob(job, code, signal) {
-    if (job.finished) return;
-    job.finished = true;
+    if (job.finishing || job.finished) return;
+    job.finishing = true;
     if (job.killTimer) adapters.clearTimeout(job.killTimer);
-    if (shared.active === job) shared.active = undefined;
-    restoreTools(job);
 
     const endedAt = adapters.now();
-    let tail = "";
     try {
-      tail = boundedTail(await adapters.readTail(job.logPath, COMPLETION_TAIL_BYTES));
-    } catch (error) {
-      adapters.warn(`could not read ${job.logPath}: ${error.message}`);
-    }
-    const status = signal ? `signal ${signal}` : `exit ${code ?? "unknown"}`;
-    const durationMs = Math.max(0, endedAt - job.startedAt);
-    const completion = {
-      id: job.id,
-      pid: job.pid,
-      command: job.command,
-      cwd: job.cwd,
-      startedAt: job.startedAt,
-      endedAt,
-      durationMs,
-      code,
-      signal,
-      logPath: job.logPath,
-      tail,
-    };
-    shared.last = completion;
-    const tailSection = tail ? `\n\nOutput tail:\n${tail}` : "";
-    const completionText = `Managed background job ${job.id} completed with ${status} after ${durationMs}ms.\nFull log: ${job.logPath}${tailSection}`;
-    try {
-      pi.sendMessage({
-        customType: "managed-background-job-complete",
-        content: completionText,
-        display: true,
-        details: completion,
-      }, { triggerTurn: true, deliverAs: "steer" });
-    } catch (error) {
-      adapters.warn(`could not inject completion for ${job.id}: ${error.message}`);
+      let tail = "";
+      try {
+        tail = boundedTail(await adapters.readTail(job.logPath, COMPLETION_TAIL_BYTES));
+      } catch (error) {
+        adapters.warn(`could not read ${job.logPath}: ${error.message}`);
+      }
+      const status = signal ? `signal ${signal}` : `exit ${code ?? "unknown"}`;
+      const durationMs = Math.max(0, endedAt - job.startedAt);
+      const completion = {
+        id: job.id,
+        pid: job.pid,
+        command: job.command,
+        cwd: job.cwd,
+        startedAt: job.startedAt,
+        endedAt,
+        durationMs,
+        code,
+        signal,
+        logPath: job.logPath,
+        tail,
+      };
+      shared.last = completion;
+      restoreTools(job);
+      try {
+        pi.sendMessage({
+          customType: "managed-background-job-complete",
+          content: completionMessage(job, status, durationMs, tail),
+          display: true,
+          details: completion,
+        }, { triggerTurn: true, deliverAs: "steer" });
+      } catch (error) {
+        adapters.warn(`could not inject completion for ${job.id}: ${error.message}`);
+      }
+    } finally {
+      restoreTools(job);
+      job.finished = true;
+      job.finishing = false;
+      if (shared.active === job) shared.active = undefined;
     }
   }
 
   function terminateJob(job) {
-    if (!job || job.finished) return false;
+    if (!job || job.finishing || job.finished) return false;
     try {
       adapters.killProcessGroup(job.pid, "SIGTERM");
     } catch (error) {
@@ -360,6 +386,7 @@ export default function managedBackgroundJobs(pi) {
       startedAt,
       logPath: log.path,
       savedActiveTools: pi.getActiveTools(),
+      finishing: false,
       finished: false,
       controller: undefined,
       toolsRestored: false,

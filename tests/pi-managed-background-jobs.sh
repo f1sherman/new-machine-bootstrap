@@ -75,6 +75,7 @@ const ids = [];
 let makeLogError;
 let spawnError;
 let readTailError;
+let pendingReadTail;
 const adapters = {
   spawnQueue,
   now: () => clock,
@@ -92,6 +93,7 @@ const adapters = {
   },
   async readTail(logPath, maxBytes) {
     if (readTailError) throw readTailError;
+    if (pendingReadTail) return pendingReadTail.promise;
     return (logContents.get(logPath) || "").slice(-maxBytes);
   },
   close(fd) { closeCalls.push(fd); },
@@ -141,6 +143,11 @@ const context = {
   ui: { notify(message, level) { notices.push({ message, level }); } },
 };
 
+const deferred = () => {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+};
 const flush = async () => {
   for (let index = 0; index < 8; index += 1) {
     await new Promise((resolve) => setImmediate(resolve));
@@ -168,6 +175,11 @@ assert.equal(classify("ssh dev 'bin/test file?.sh'"), false);
 assert.equal(classify("ssh dev 'bin/test files[0-9]'"), false);
 assert.equal(classify("ssh dev 'bin/test {safe,unsafe}'"), false);
 assert.equal(classify("ssh dev 'bin/test ~/suite'"), false);
+assert.equal(classify("ssh -f dev bin/test"), false);
+assert.equal(classify("ssh -vf dev bin/test"), false);
+assert.equal(classify("ssh -o ForkAfterAuthentication=yes dev bin/test"), false);
+assert.equal(classify("ssh -o 'ForkAfterAuthentication yes' dev bin/test"), false);
+assert.equal(classify("ssh -oForkAfterAuthentication=yes dev bin/test"), false);
 assert.equal(classify("ssh -p dev bin/test"), false);
 assert.equal(classify("ssh dev"), false);
 assert.equal(classify("bin/test 'unterminated"), false);
@@ -236,12 +248,42 @@ assert.equal(sentMessages[0].message.details.code, 0);
 assert.equal(sentMessages[0].message.details.durationMs, 1500);
 assert.equal(sentMessages[0].message.details.logPath, "/tmp/pi-background-jobs/session-1/bg-1.log");
 assert.equal(sentMessages[0].message.details.tail.split("\n").length, 200);
+assert.equal(sentMessages[0].message.content.split("\n").length, 200,
+  "the complete injected message is capped at 200 lines");
 assert.deepEqual(sentMessages[0].options, { triggerTurn: true, deliverAs: "steer" });
 const changesAfterFirstFinish = activeToolChanges.length;
 firstChild.emitExit(0);
 await flush();
 assert.equal(activeToolChanges.length, changesAfterFirstFinish);
 assert.equal(sentMessages.length, 1);
+
+ids.push("bg-pending-tail");
+const pendingTailChild = new ControlledChild(4210);
+spawnQueue.push(pendingTailChild);
+await registeredBash.execute(
+  "call-pending-tail", { command: "bin/test" }, undefined, undefined, context,
+);
+pendingReadTail = deferred();
+const messagesBeforePendingTail = sentMessages.length;
+pendingTailChild.emitExit(0);
+await flush();
+assert.deepEqual(latestHandler("session_before_switch")({}, context), { cancel: true },
+  "session switching stays blocked until completion injection finishes");
+const startDuringCompletion = await registeredBash.execute(
+  "call-during-completion", { command: "bin/test-ruby" }, undefined, undefined, context,
+);
+assert.equal(startDuringCompletion.isError, true,
+  "a second managed job cannot start while completion is pending");
+assert.equal(sentMessages.length, messagesBeforePendingTail);
+pendingReadTail.resolve("pending tail complete");
+pendingReadTail = undefined;
+await flush();
+assert.equal(sentMessages.length, messagesBeforePendingTail + 1);
+assert.equal(sentMessages.at(-1).message.details.id, "bg-pending-tail");
+assert.equal(activeTools.includes("bash"), true,
+  "the normal tool set is restored after completion injection finishes");
+assert.equal(latestHandler("session_before_switch")({}, context), undefined,
+  "session switching is allowed after completion injection finishes");
 
 ids.push("bg-failure");
 const failureChild = new ControlledChild(4202);
