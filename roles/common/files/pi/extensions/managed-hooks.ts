@@ -378,9 +378,13 @@ function quotedHeredocBodyRanges(command) {
           if (delimiterChar === delimiterQuote) {
             delimiterQuote = "";
           } else if (delimiterChar === "\\" && delimiterQuote === '"' && end + 1 < line.length) {
-            literal = true;
-            delimiter += line[end + 1];
-            end += 1;
+            const escapedCharacter = line[end + 1];
+            if (["$", "`", '"', "\\"].includes(escapedCharacter)) {
+              delimiter += escapedCharacter;
+              end += 1;
+            } else {
+              delimiter += delimiterChar;
+            }
           } else {
             delimiter += delimiterChar;
           }

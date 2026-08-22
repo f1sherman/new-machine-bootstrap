@@ -851,6 +851,7 @@ const safeMainCases = [
   "cat <<'EOF'\n$(git commit -m literal)\nEOF",
   "cat <<'ONE' <<'TWO'\n$(git commit -m literal-one)\nONE\n$(git commit -m literal-two)\nTWO",
   "cat <<E\"OF\"\n$(git commit -m literal-mixed-quote)\nEOF",
+  "cat <<E\"\\Q\"\nEQ\n$(git commit -m literal-backslash)\nE\\Q",
   `git -C ${worktreeRoot} push`,
   `cd ./${path.relative("/repo", worktreeRoot)} && git push`,
 ];
