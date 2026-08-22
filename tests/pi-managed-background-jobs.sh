@@ -112,6 +112,7 @@ const registeredTools = [];
 const activeToolChanges = [];
 const sentMessages = [];
 let activeTools = ["read", "grep", "find", "ls", "bash", "edit", "write", "subagent"];
+let setActiveToolsError;
 const pi = {
   activeToolChanges,
   on(event, handler) {
@@ -122,6 +123,7 @@ const pi = {
   registerCommand(name, definition) { commands.set(name, definition); },
   getActiveTools() { return [...activeTools]; },
   setActiveTools(tools) {
+    if (setActiveToolsError) throw setActiveToolsError;
     activeTools = [...tools];
     activeToolChanges.push([...tools]);
   },
@@ -159,6 +161,13 @@ assert.equal(classify("bin/test\nprintf unsafe"), false);
 assert.equal(classify("env CI=1 bin/test"), false);
 assert.equal(classify("bin/test $(date)"), false);
 assert.equal(classify("ssh dev 'bin/test; rm -rf /tmp/x'"), false);
+assert.equal(classify('ssh dev bin/test "$NMB_REMOTE_ARGS"'), false);
+assert.equal(classify("ssh dev 'bin/test $NMB_REMOTE_ARGS'"), false);
+assert.equal(classify("ssh dev 'bin/test *.sh'"), false);
+assert.equal(classify("ssh dev 'bin/test file?.sh'"), false);
+assert.equal(classify("ssh dev 'bin/test files[0-9]'"), false);
+assert.equal(classify("ssh dev 'bin/test {safe,unsafe}'"), false);
+assert.equal(classify("ssh dev 'bin/test ~/suite'"), false);
 assert.equal(classify("ssh -p dev bin/test"), false);
 assert.equal(classify("ssh dev"), false);
 assert.equal(classify("bin/test 'unterminated"), false);
@@ -332,9 +341,26 @@ assert.match(warnings.at(-1), /child failed/);
 assert.equal(sentMessages.at(-1).message.details.code, null);
 assert.equal(sentMessages.at(-1).message.details.signal, null);
 
+ids.push("bg-restore-error");
+const restoreErrorChild = new ControlledChild(4209);
+spawnQueue.push(restoreErrorChild);
+await registeredBash.execute("call-12", { command: "bin/test" }, undefined, undefined, context);
+const messagesBeforeRestoreError = sentMessages.length;
+setActiveToolsError = new Error("tool restore denied");
+restoreErrorChild.emitExit(0);
+await flush();
+setActiveToolsError = undefined;
+assert.match(warnings.at(-1), /could not restore tools for bg-restore-error: tool restore denied/);
+assert.equal(sentMessages.length, messagesBeforeRestoreError + 1,
+  "tool restoration failure does not prevent completion injection");
+assert.equal(sentMessages.at(-1).message.details.id, "bg-restore-error");
+assert.equal(sentMessages.at(-1).message.details.code, 0);
+assert.deepEqual(sentMessages.at(-1).options, { triggerTurn: true, deliverAs: "steer" });
+
 await commands.get("background-jobs").handler("", context);
-assert.match(notices.at(-1).message, /bg-child-error completed/);
-assert.equal(activeTools.includes("bash"), true);
+assert.match(notices.at(-1).message, /bg-restore-error completed/);
+assert.equal(activeTools.includes("bash"), false,
+  "the controlled Pi API failure leaves the fake tool list gated");
 assert.equal(closeCalls.length, spawnCalls.length + 1,
   "every successful log creation closes its parent descriptor");
 

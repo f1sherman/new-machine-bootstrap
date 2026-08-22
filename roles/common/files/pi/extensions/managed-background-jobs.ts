@@ -20,6 +20,9 @@ const SSH_FLAG_OPTIONS = new Set([
   "4", "6", "A", "a", "C", "f", "G", "g", "K", "k", "M", "N", "n",
   "q", "s", "T", "t", "V", "v", "X", "x", "Y", "y",
 ]);
+const SSH_REMOTE_EXPANSION_CHARACTERS = new Set([
+  "$", "`", "*", "?", "[", "]", "{", "}", "~",
+]);
 const COMPLETION_TAIL_BYTES = 16 * 1024;
 const COMPLETION_TAIL_LINES = 200;
 const CANCEL_GRACE_MS = 5000;
@@ -142,7 +145,11 @@ export function classifyManagedCommand(command) {
 
   const remoteStart = sshRemoteStart(words);
   if (remoteStart < 0 || remoteStart >= words.length) return undefined;
-  const remoteCommand = words.slice(remoteStart).join(" ");
+  const remoteWords = words.slice(remoteStart);
+  if (remoteWords.some((word) => [...word].some(
+    (character) => SSH_REMOTE_EXPANSION_CHARACTERS.has(character),
+  ))) return undefined;
+  const remoteCommand = remoteWords.join(" ");
   if (!classifyRemoteCommand(remoteCommand)) return undefined;
   return { kind: "ssh", words, remoteCommand };
 }
@@ -236,8 +243,12 @@ export default function managedBackgroundJobs(pi) {
 
   function restoreTools(job) {
     if (job.toolsRestored) return;
-    job.toolsRestored = true;
-    pi.setActiveTools(job.savedActiveTools);
+    try {
+      pi.setActiveTools(job.savedActiveTools);
+      job.toolsRestored = true;
+    } catch (error) {
+      adapters.warn(`could not restore tools for ${job.id}: ${error.message}`);
+    }
   }
 
   async function finishJob(job, code, signal) {
