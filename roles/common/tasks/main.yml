@@ -1520,6 +1520,12 @@
     dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/extensions/managed-hooks.ts"
     mode: '0644'
 
+- name: Install Pi managed background jobs extension
+  copy:
+    src: pi/extensions/managed-background-jobs.ts
+    dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/extensions/managed-background-jobs.ts"
+    mode: '0644'
+
 - name: Install Pi main worktree mutation guard
   copy:
     src: pi/extensions/main-worktree-guard.ts
