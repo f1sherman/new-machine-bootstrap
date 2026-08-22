@@ -196,7 +196,7 @@ end
 def start_agent(name, pair, session_file, timeout:)
   stdout, stderr, status = capture_herdr(
     "agent", "start", name, "--kind", "pi", "--pane", pair.fetch(:pane_id),
-    "--", "pi", "--session", session_file, timeout: timeout
+    "--", "--session", session_file, timeout: timeout
   )
   raise HerdrResumeError, command_error("Herdr agent start failed", stderr) unless
     status.success?

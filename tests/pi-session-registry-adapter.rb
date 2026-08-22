@@ -171,8 +171,8 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
   assert.call(create == ["workspace", "create", "--cwd", tmpdir, "--label", expected_name, "--no-focus"],
     "recovery creates deterministic unfocused workspace in current directory", create.inspect)
   start = commands.find { |argv| argv.take(2) == ["agent", "start"] }
-  assert.call(start == ["agent", "start", expected_name, "--kind", "pi", "--pane", "w2Q:pA", "--", "pi", "--session", session_file],
-    "recovery starts exact Pi session in exact pane", start.inspect)
+  assert.call(start == ["agent", "start", expected_name, "--kind", "pi", "--pane", "w2Q:pA", "--", "--session", session_file],
+    "recovery lets Herdr select Pi and passes only session arguments", start.inspect)
   assert.call(commands.last == ["agent", "focus", "w2Q:pA"], "recovery focuses validated pane", commands.last.inspect)
 
   _stdout, stderr, status, commands = run_adapter.call(
