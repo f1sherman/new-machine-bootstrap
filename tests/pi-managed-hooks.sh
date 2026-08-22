@@ -778,6 +778,8 @@ const destructiveCases = [
   "env X=1 git -C /repo branch -m old new",
   "git commit -m test",
   "git -c advice.detachedHead=false commit -m test",
+  'git -c user.name="A B" commit -m test',
+  "git -C /repo\\ x commit -m test",
   "git --git-dir /repo/.git commit -m test",
   'git --git-dir="/repo with spaces/.git" commit -m test',
   "git --no-pager commit -m test",
@@ -855,6 +857,7 @@ const longInspectionCommand = [
   `git ${Array.from({ length: 25 }, () => "-C/repo").join(" ")} rev-parse HEAD`,
   `git ${Array.from({ length: 25 }, () => "--no-pager").join(" ")} rev-parse HEAD`,
   `git ${Array.from({ length: 25 }, () => "--git-dir=/repo/.git").join(" ")} rev-parse HEAD`,
+  `git ${Array.from({ length: 25 }, () => '-c user.name="A B"').join(" ")} rev-parse HEAD`,
 ].join("\n");
 const inspectionStartedAt = performance.now();
 const longInspectionResult = await handlers.get("tool_call")({
