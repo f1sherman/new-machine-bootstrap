@@ -162,7 +162,11 @@ assert.equal(classify("./bin/test ci"), true);
 assert.equal(classify("bin/test-ruby"), true);
 assert.equal(classify("ssh dev 'bin/provision --tags common_role'"), true);
 assert.equal(classify("ssh -o BatchMode=yes dev './bin/test ci'"), true);
-assert.equal(classify("ssh -F /tmp/ssh-config dev './bin/test ci'"), true);
+assert.equal(classify("ssh -F /tmp/ssh-config dev './bin/test ci'"), false);
+assert.equal(classify("ssh -o 'ProxyCommand=touch /tmp/pwn' dev bin/test"), false);
+assert.equal(classify("ssh -o 'LocalCommand=touch /tmp/pwn' dev bin/test"), false);
+assert.equal(classify("ssh -o PermitLocalCommand=yes dev bin/test"), false);
+assert.equal(classify("ssh -o 'KnownHostsCommand=touch /tmp/pwn' dev bin/test"), false);
 assert.equal(classify("ssh dev 'cd /repo && ./bin/test ci'"), true);
 assert.equal(classify("bin/provision | tee /tmp/log"), false);
 assert.equal(classify("bin/test\nprintf unsafe"), false);
@@ -293,15 +297,15 @@ const sshConfigChild = new ControlledChild(4214);
 spawnQueue.push(sshConfigChild);
 await registeredBash.execute(
   "call-ssh-config",
-  { command: "ssh -F /tmp/ssh-config dev './bin/test ci'" },
+  { command: "ssh -o BatchMode=yes dev './bin/test ci'" },
   undefined,
   undefined,
   context,
 );
 assert.equal(
   spawnCalls.at(-1).command,
-  "ssh -o 'ForkAfterAuthentication=no' '-F' '/tmp/ssh-config' 'dev' './bin/test ci'",
-  "managed SSH forces background forking off before loading SSH configuration",
+  "ssh -F /dev/null -o 'ForkAfterAuthentication=no' -o 'ProxyCommand=none' -o 'PermitLocalCommand=no' -o 'KnownHostsCommand=none' '-o' 'BatchMode=yes' 'dev' './bin/test ci'",
+  "managed SSH disables config and command-executing local hooks",
 );
 sshConfigChild.emitExit(0);
 await flush();

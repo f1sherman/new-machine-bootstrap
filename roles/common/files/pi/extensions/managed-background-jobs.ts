@@ -13,8 +13,12 @@ const MANAGED_EXECUTABLES = new Set([
   "bin/test-ruby", "./bin/test-ruby",
 ]);
 const SSH_VALUE_OPTIONS = new Set([
-  "b", "c", "D", "E", "e", "F", "I", "i", "J", "L", "l", "m",
+  "b", "c", "D", "E", "e", "I", "i", "J", "L", "l", "m",
   "o", "p", "R", "S", "w",
+]);
+const SSH_LOCAL_COMMAND_OPTIONS = new Set([
+  "forkafterauthentication", "knownhostscommand", "localcommand",
+  "permitlocalcommand", "proxycommand",
 ]);
 const SSH_FLAG_OPTIONS = new Set([
   "4", "6", "A", "a", "C", "g", "K", "k", "M", "n", "q", "T",
@@ -105,9 +109,10 @@ function classifyRemoteCommand(remoteCommand) {
   return words[0] === "cd" && Boolean(words[1]) && MANAGED_EXECUTABLES.has(words[3]);
 }
 
-function sshOptionForks(option, value) {
-  return option === "o"
-    && /^ForkAfterAuthentication(?:=|\s+)yes$/i.test(value.trim());
+function unsafeSshOption(option, value) {
+  if (option !== "o") return false;
+  const name = value.trim().split(/(?:=|\s+)/, 1)[0].toLowerCase();
+  return SSH_LOCAL_COMMAND_OPTIONS.has(name);
 }
 
 function sshRemoteStart(words) {
@@ -133,7 +138,7 @@ function sshRemoteStart(words) {
           if (index >= words.length) return -1;
           value = words[index];
         }
-        if (sshOptionForks(option, value)) return -1;
+        if (unsafeSshOption(option, value)) return -1;
         index += 1;
         continue;
       }
@@ -172,9 +177,11 @@ function shellQuote(word) {
 function managedExecutionCommand(command, classification) {
   if (classification.kind !== "ssh") return command;
   return [
-    "ssh",
-    "-o",
-    shellQuote("ForkAfterAuthentication=no"),
+    "ssh", "-F", "/dev/null",
+    "-o", shellQuote("ForkAfterAuthentication=no"),
+    "-o", shellQuote("ProxyCommand=none"),
+    "-o", shellQuote("PermitLocalCommand=no"),
+    "-o", shellQuote("KnownHostsCommand=none"),
     ...classification.words.slice(1).map(shellQuote),
   ].join(" ");
 }
