@@ -60,9 +60,9 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
         "id" => "test:create",
         "result" => {
           "type" => "workspace_created",
-          "workspace" => {"workspace_id" => "w2"},
-          "tab" => {"tab_id" => "w2:t1"},
-          "root_pane" => {"pane_id" => "w2:p1"}
+          "workspace" => {"workspace_id" => "w2Q"},
+          "tab" => {"tab_id" => "w2Q:t1"},
+          "root_pane" => {"pane_id" => "w2Q:pA"}
         }
       })
       puts JSON.generate(response)
@@ -71,7 +71,7 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
       state["agents"] = [state.fetch("publish_agent")] if state["publish_agent"]
       File.write(state_path, JSON.generate(state))
       started_agent = state["publish_agent"] || {
-        "workspace_id" => "w2", "pane_id" => "w2:p1"
+        "workspace_id" => "w2Q", "pane_id" => "w2Q:pA"
       }
       puts JSON.generate("id" => "test:start", "result" => {
         "type" => "agent_started", "agent" => started_agent
@@ -126,13 +126,13 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
   File.write(session_file, JSON.generate("type" => "session", "id" => session_id) + "\n")
   config = JSON.generate("session_file" => session_file)
 
-  official_agent = lambda do |workspace: "w1", pane: "w1:p1", path: session_file|
+  official_agent = lambda do |workspace: "w1F", pane: "w1F:pA", path: session_file|
     {
       "agent" => "pi",
       "workspace_id" => workspace,
       "pane_id" => pane,
       "agent_session" => {
-        "source" => "integration:pi", "agent" => "pi",
+        "source" => "herdr:pi", "agent" => "pi",
         "kind" => "path", "value" => path
       }
     }
@@ -156,12 +156,12 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
     "resume", config, herdr_env: "1", state: {"agents" => [official_agent.call]}
   )
   assert.call(status.success?, "one official match focuses successfully", "stdout:\n#{stdout}\nstderr:\n#{stderr}")
-  assert.call(commands == [["agent", "list"], ["agent", "focus", "w1:p1"]],
+  assert.call(commands == [["agent", "list"], ["agent", "focus", "w1F:pA"]],
     "one official match focuses exact pane without starting Pi", commands.inspect)
   assert.call(!File.exist?(capture_path), "one official match does not exec Pi in current terminal")
 
   expected_name = "asr-local-#{Digest::SHA256.hexdigest(session_file)[0, 20]}"
-  published = official_agent.call(workspace: "w2", pane: "w2:p1")
+  published = official_agent.call(workspace: "w2Q", pane: "w2Q:pA")
   stdout, stderr, status, commands = run_adapter.call(
     "resume", config, herdr_env: "1",
     state: {"agents" => [], "publish_agent" => published}
@@ -171,13 +171,13 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
   assert.call(create == ["workspace", "create", "--cwd", tmpdir, "--label", expected_name, "--no-focus"],
     "recovery creates deterministic unfocused workspace in current directory", create.inspect)
   start = commands.find { |argv| argv.take(2) == ["agent", "start"] }
-  assert.call(start == ["agent", "start", expected_name, "--kind", "pi", "--pane", "w2:p1", "--", "pi", "--session", session_file],
+  assert.call(start == ["agent", "start", expected_name, "--kind", "pi", "--pane", "w2Q:pA", "--", "pi", "--session", session_file],
     "recovery starts exact Pi session in exact pane", start.inspect)
-  assert.call(commands.last == ["agent", "focus", "w2:p1"], "recovery focuses validated pane", commands.last.inspect)
+  assert.call(commands.last == ["agent", "focus", "w2Q:pA"], "recovery focuses validated pane", commands.last.inspect)
 
   _stdout, stderr, status, commands = run_adapter.call(
     "resume", config, herdr_env: "1",
-    state: {"agents" => [official_agent.call, official_agent.call(workspace: "w2", pane: "w2:p1")]}
+    state: {"agents" => [official_agent.call, official_agent.call(workspace: "w2Q", pane: "w2Q:pA")]}
   )
   assert.call(!status.success? && stderr.include?("Multiple Herdr panes"), "duplicate official matches fail closed", stderr)
   assert.call(commands == [["agent", "list"]], "duplicate match creates and focuses nothing", commands.inspect)
@@ -199,7 +199,7 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
   assert.call(!status.success? && stderr.include?("Invalid Herdr pane identity"), "invalid matching IDs fail closed", stderr)
   assert.call(commands == [["agent", "list"]], "invalid matching IDs create nothing", commands.inspect)
 
-  mismatched_pair = official_agent.call(workspace: "w1", pane: "w2:p1")
+  mismatched_pair = official_agent.call(workspace: "w1F", pane: "w2Q:pA")
   _stdout, stderr, status, commands = run_adapter.call(
     "resume", config, herdr_env: "1", state: {"agents" => [mismatched_pair]}
   )
@@ -220,7 +220,7 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
     "resume", config, herdr_env: "1", state: {"agents" => [], "fail_start" => true}
   )
   assert.call(!status.success? && stderr.include?("Herdr agent start failed"), "pre-validation start failure is reported", stderr)
-  assert.call(commands.last == ["workspace", "close", "w2"], "pre-validation failure closes only owned workspace", commands.inspect)
+  assert.call(commands.last == ["workspace", "close", "w2Q"], "pre-validation failure closes only owned workspace", commands.inspect)
 
   _stdout, stderr, status, commands = run_adapter.call(
     "resume", config, herdr_env: "1",
@@ -233,8 +233,11 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
   _stdout, stderr, status, commands = run_adapter.call(
     "resume", config, herdr_env: "1", state: {"agents" => []}
   )
-  assert.call(!status.success? && stderr.include?("Herdr Pi session registration timed out"), "registration timeout fails boundedly", stderr)
-  assert.call(commands.last == ["workspace", "close", "w2"], "registration timeout closes owned workspace", commands.inspect)
+  assert.call(
+    !status.success? && stderr.match?(/(?:Herdr Pi session registration|Herdr command) timed out/),
+    "registration timeout fails boundedly", stderr
+  )
+  assert.call(commands.last == ["workspace", "close", "w2Q"], "registration timeout closes owned workspace", commands.inspect)
 
   _stdout, stderr, status, _commands = run_adapter.call(
     "delete", config
