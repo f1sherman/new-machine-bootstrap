@@ -299,9 +299,51 @@ function shellCommandSubstitutionEnd(command, start) {
 
 function quotedHeredocBodyRanges(command) {
   const ranges = [];
-  const markerPattern = /(?:^|[\s;&|])<<(-?)\s*(?:'([^']+)'|"([^"]+)"|\\([^\s;&|]+))/;
   let active;
   let offset = 0;
+
+  function markerFor(line) {
+    let quote = "";
+    let escaped = false;
+
+    for (let i = 0; i < line.length; i += 1) {
+      const char = line[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\" && quote !== "'") {
+        escaped = true;
+        continue;
+      }
+      if (quote) {
+        if (char === quote) quote = "";
+        continue;
+      }
+      if (char === "'" || char === '"') {
+        quote = char;
+        continue;
+      }
+      if (line.slice(i, i + 2) !== "<<" || line[i + 2] === "<") continue;
+
+      let cursor = i + 2;
+      const stripTabs = line[cursor] === "-";
+      if (stripTabs) cursor += 1;
+      while (/\s/.test(line[cursor] ?? "")) cursor += 1;
+
+      const delimiterQuote = line[cursor];
+      if (delimiterQuote === "'" || delimiterQuote === '"') {
+        const end = line.indexOf(delimiterQuote, cursor + 1);
+        if (end > cursor + 1) {
+          return { delimiter: line.slice(cursor + 1, end), stripTabs };
+        }
+      } else if (delimiterQuote === "\\") {
+        const delimiter = line.slice(cursor + 1).match(/^[^\s;&|]+/)?.[0];
+        if (delimiter) return { delimiter, stripTabs };
+      }
+    }
+    return undefined;
+  }
 
   for (const lineWithEnding of command.match(/[^\n]*(?:\n|$)/g) ?? []) {
     if (!lineWithEnding) continue;
@@ -316,11 +358,11 @@ function quotedHeredocBodyRanges(command) {
       continue;
     }
 
-    const marker = line.match(markerPattern);
+    const marker = markerFor(line);
     if (marker) {
       active = {
-        delimiter: marker[2] || marker[3] || marker[4],
-        stripTabs: marker[1] === "-",
+        delimiter: marker.delimiter,
+        stripTabs: marker.stripTabs,
         start: offset + lineWithEnding.length,
       };
     }

@@ -789,6 +789,7 @@ const destructiveCases = [
   "bash -lc 'git commit -m test'",
   "echo ok; git commit -m test",
   "echo $(git commit -m nested)",
+  "echo \"<<'EOF'\"\necho $(git commit -m after-quoted-marker)",
   "cat <<EOF\n$(git commit -m expanded)\nEOF",
   "git push origin HEAD:main",
   "git push origin :main",
