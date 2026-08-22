@@ -111,7 +111,7 @@ function classifyRemoteCommand(remoteCommand) {
 
 function unsafeSshOption(option, value) {
   if (option !== "o") return false;
-  const name = value.trim().split(/(?:=|\s+)/, 1)[0].toLowerCase();
+  const name = value.trim().replace(/^=/, "").split(/(?:=|\s+)/, 1)[0].toLowerCase();
   return SSH_LOCAL_COMMAND_OPTIONS.has(name);
 }
 
@@ -310,9 +310,8 @@ export default function managedBackgroundJobs(pi) {
   }
 
   async function finishJob(job, code, signal) {
-    if (job.finishing || job.finished) return;
+    if (job.finishing || job.finished || (job.terminationRequested && job.killTimer)) return;
     job.finishing = true;
-    if (job.killTimer) adapters.clearTimeout(job.killTimer);
     if (job.timeoutTimer) adapters.clearTimeout(job.timeoutTimer);
 
     const endedAt = adapters.now();
@@ -378,6 +377,7 @@ export default function managedBackgroundJobs(pi) {
 
   function terminateJob(job) {
     if (!job || job.finishing || job.finished) return false;
+    job.terminationRequested = true;
     try {
       adapters.killProcessGroup(job.pid, "SIGTERM");
     } catch (error) {
@@ -385,11 +385,19 @@ export default function managedBackgroundJobs(pi) {
     }
     if (!job.killTimer) {
       job.killTimer = adapters.setTimeout(() => {
-        if (shared.active !== job || job.finished) return;
+        job.killTimer = undefined;
         try {
           adapters.killProcessGroup(job.pid, "SIGKILL");
         } catch (error) {
           adapters.warn(`could not kill ${job.id}: ${error.message}`);
+        } finally {
+          job.resolveTermination();
+        }
+        if (job.exited && !job.finished && job.exitResult) {
+          const { code, signal } = job.exitResult;
+          Promise.resolve(shared.controller?.finishJob(job, code, signal)).catch((error) => {
+            adapters.warn(`completion failed for ${job.id}: ${error.message}`);
+          });
         }
       }, CANCEL_GRACE_MS);
     }
@@ -456,12 +464,16 @@ export default function managedBackgroundJobs(pi) {
       timeoutSeconds,
       timedOut: false,
       suppressCompletion: false,
+      terminationRequested: false,
+      terminationPromise: undefined,
+      resolveTermination: undefined,
       exited: false,
       exitResult: undefined,
       resolveExit: undefined,
       exitPromise: undefined,
     };
     job.exitPromise = new Promise((resolve) => { job.resolveExit = resolve; });
+    job.terminationPromise = new Promise((resolve) => { job.resolveTermination = resolve; });
     job.controller = shared.controller;
     shared.active = job;
     if (timeoutMs !== undefined) {
@@ -477,9 +489,11 @@ export default function managedBackgroundJobs(pi) {
         job.exitResult = { code, signal };
         job.resolveExit();
       }
-      Promise.resolve(shared.controller?.finishJob(job, code, signal)).catch((error) => {
-        adapters.warn(`completion failed for ${job.id}: ${error.message}`);
-      });
+      if (!job.terminationRequested || !job.killTimer) {
+        Promise.resolve(shared.controller?.finishJob(job, code, signal)).catch((error) => {
+          adapters.warn(`completion failed for ${job.id}: ${error.message}`);
+        });
+      }
     };
     child.once("exit", finishFromChild);
     child.once("error", (error) => {
@@ -544,6 +558,7 @@ export default function managedBackgroundJobs(pi) {
     if (!job || job.finished) return;
     job.suppressCompletion = true;
     terminateJob(job);
+    await job.terminationPromise;
     await job.exitPromise;
   });
 
