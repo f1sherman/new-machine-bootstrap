@@ -177,6 +177,13 @@ assert.equal(classify("ssh dev 'bin/test {safe,unsafe}'"), false);
 assert.equal(classify("ssh dev 'bin/test ~/suite'"), false);
 assert.equal(classify("ssh -f dev bin/test"), false);
 assert.equal(classify("ssh -vf dev bin/test"), false);
+assert.equal(classify("ssh -N dev bin/test"), false);
+assert.equal(classify("ssh -vs dev bin/test"), false);
+assert.equal(classify("ssh -G dev bin/test"), false);
+assert.equal(classify("ssh -V dev bin/test"), false);
+assert.equal(classify("ssh -O check dev bin/test"), false);
+assert.equal(classify("ssh -Q cipher dev bin/test"), false);
+assert.equal(classify("ssh -W host:22 dev bin/test"), false);
 assert.equal(classify("ssh -o ForkAfterAuthentication=yes dev bin/test"), false);
 assert.equal(classify("ssh -o 'ForkAfterAuthentication yes' dev bin/test"), false);
 assert.equal(classify("ssh -oForkAfterAuthentication=yes dev bin/test"), false);
@@ -285,6 +292,42 @@ assert.equal(activeTools.includes("bash"), true,
 assert.equal(latestHandler("session_before_switch")({}, context), undefined,
   "session switching is allowed after completion injection finishes");
 
+ids.push("bg-timeout");
+const timeoutChild = new ControlledChild(4211);
+spawnQueue.push(timeoutChild);
+await registeredBash.execute(
+  "call-timeout", { command: "bin/test", timeout: 30 }, undefined, undefined, context,
+);
+const timeoutTimer = timers.at(-1);
+assert.equal(timeoutTimer.milliseconds, 30_000,
+  "managed Bash timeout is scheduled in milliseconds");
+const killsBeforeTimeout = killCalls.length;
+timeoutTimer.callback();
+assert.deepEqual(killCalls.at(-1), { pid: 4211, signal: "SIGTERM" });
+assert.equal(killCalls.length, killsBeforeTimeout + 1);
+clock = 33_000;
+timeoutChild.emitExit(null, "SIGTERM");
+await flush();
+assert.equal(sentMessages.at(-1).message.details.timedOut, true);
+assert.equal(sentMessages.at(-1).message.details.timeoutSeconds, 30);
+assert.match(sentMessages.at(-1).message.content, /timeout after 30s/);
+
+ids.push("bg-timeout-normal");
+const timeoutNormalChild = new ControlledChild(4212);
+spawnQueue.push(timeoutNormalChild);
+await registeredBash.execute(
+  "call-timeout-normal", { command: "bin/test", timeout: 60 }, undefined, undefined, context,
+);
+const normalTimeoutTimer = timers.at(-1);
+const killsBeforeNormalCompletion = killCalls.length;
+timeoutNormalChild.emitExit(0);
+await flush();
+assert.equal(normalTimeoutTimer.cleared, true,
+  "normal completion clears the managed Bash timeout");
+assert.equal(killCalls.length, killsBeforeNormalCompletion,
+  "normal completion does not terminate the process group");
+assert.equal(sentMessages.at(-1).message.details.timedOut, false);
+
 ids.push("bg-failure");
 const failureChild = new ControlledChild(4202);
 spawnQueue.push(failureChild);
@@ -334,6 +377,49 @@ await flush();
 assert.deepEqual(activeToolChanges.at(-1), [
   "read", "grep", "find", "ls", "bash", "edit", "write", "subagent",
 ]);
+
+ids.push("bg-reload-pending");
+const reloadPendingChild = new ControlledChild(4213);
+spawnQueue.push(reloadPendingChild);
+await registeredBash.execute(
+  "call-reload-pending", { command: "bin/test" }, undefined, undefined, context,
+);
+pendingReadTail = deferred();
+const oldMessageCount = sentMessages.length;
+reloadPendingChild.emitExit(0);
+await flush();
+const reloadedMessages = [];
+const reloadedToolChanges = [];
+let reloadedActiveTools = ["read", "grep", "find", "ls", "bash", "edit", "write", "subagent"];
+const reloadedPi = {
+  ...pi,
+  getActiveTools() { return [...reloadedActiveTools]; },
+  setActiveTools(tools) {
+    reloadedActiveTools = [...tools];
+    reloadedToolChanges.push([...tools]);
+  },
+  sendMessage(message, options) { reloadedMessages.push({ message, options }); },
+};
+module.default(reloadedPi);
+latestHandler("session_start")({}, context);
+assert.deepEqual(reloadedToolChanges.at(-1), ["read", "grep", "find", "ls"]);
+pendingReadTail.resolve("reload overlap complete");
+pendingReadTail = undefined;
+await flush();
+assert.equal(sentMessages.length, oldMessageCount,
+  "the stale extension does not inject completion after reload");
+assert.equal(reloadedMessages.length, 1,
+  "the current extension injects completion after reload");
+assert.equal(reloadedMessages[0].message.details.id, "bg-reload-pending");
+assert.deepEqual(reloadedToolChanges.at(-1), [
+  "read", "grep", "find", "ls", "bash", "edit", "write", "subagent",
+]);
+assert.equal(latestHandler("session_before_switch")({}, context), undefined,
+  "reload-overlap completion clears active state");
+activeTools = ["read", "grep", "find", "ls", "bash", "edit", "write", "subagent"];
+module.default(pi);
+latestHandler("session_start")({}, context);
+registeredBash = registeredTools.at(-1);
 
 ids.push("bg-quit");
 const quitChild = new ControlledChild(4206);

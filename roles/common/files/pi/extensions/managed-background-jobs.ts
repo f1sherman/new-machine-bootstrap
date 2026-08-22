@@ -14,11 +14,11 @@ const MANAGED_EXECUTABLES = new Set([
 ]);
 const SSH_VALUE_OPTIONS = new Set([
   "b", "c", "D", "E", "e", "F", "I", "i", "J", "L", "l", "m",
-  "O", "o", "p", "Q", "R", "S", "W", "w",
+  "o", "p", "R", "S", "w",
 ]);
 const SSH_FLAG_OPTIONS = new Set([
-  "4", "6", "A", "a", "C", "G", "g", "K", "k", "M", "N", "n",
-  "q", "s", "T", "t", "V", "v", "X", "x", "Y", "y",
+  "4", "6", "A", "a", "C", "g", "K", "k", "M", "n", "q", "T",
+  "t", "v", "X", "x", "Y", "y",
 ]);
 const SSH_REMOTE_EXPANSION_CHARACTERS = new Set([
   "$", "`", "*", "?", "[", "]", "{", "}", "~",
@@ -277,16 +277,25 @@ export default function managedBackgroundJobs(pi) {
     if (job.finishing || job.finished) return;
     job.finishing = true;
     if (job.killTimer) adapters.clearTimeout(job.killTimer);
+    if (job.timeoutTimer) adapters.clearTimeout(job.timeoutTimer);
 
     const endedAt = adapters.now();
+    let tail = "";
     try {
-      let tail = "";
-      try {
-        tail = boundedTail(await adapters.readTail(job.logPath, COMPLETION_TAIL_BYTES));
-      } catch (error) {
-        adapters.warn(`could not read ${job.logPath}: ${error.message}`);
-      }
-      const status = signal ? `signal ${signal}` : `exit ${code ?? "unknown"}`;
+      tail = boundedTail(await adapters.readTail(job.logPath, COMPLETION_TAIL_BYTES));
+    } catch (error) {
+      adapters.warn(`could not read ${job.logPath}: ${error.message}`);
+    }
+
+    if (shared.controller?.finishJob !== finishJob) {
+      job.finishing = false;
+      return shared.controller?.finishJob(job, code, signal);
+    }
+
+    try {
+      const status = job.timedOut
+        ? `timeout after ${job.timeoutSeconds}s`
+        : signal ? `signal ${signal}` : `exit ${code ?? "unknown"}`;
       const durationMs = Math.max(0, endedAt - job.startedAt);
       const completion = {
         id: job.id,
@@ -298,6 +307,8 @@ export default function managedBackgroundJobs(pi) {
         durationMs,
         code,
         signal,
+        timedOut: job.timedOut,
+        timeoutSeconds: job.timeoutSeconds,
         logPath: job.logPath,
         tail,
       };
@@ -341,7 +352,7 @@ export default function managedBackgroundJobs(pi) {
     return true;
   }
 
-  async function startManagedJob(command, ctx) {
+  async function startManagedJob(command, timeoutSeconds, ctx) {
     if (shared.active && !shared.active.finished) {
       return textResult(`Managed background job ${shared.active.id} is already active.`, true);
     }
@@ -391,9 +402,21 @@ export default function managedBackgroundJobs(pi) {
       controller: undefined,
       toolsRestored: false,
       killTimer: undefined,
+      timeoutTimer: undefined,
+      timeoutSeconds: Number.isFinite(timeoutSeconds) && timeoutSeconds > 0
+        ? timeoutSeconds
+        : undefined,
+      timedOut: false,
     };
     job.controller = shared.controller;
     shared.active = job;
+    if (job.timeoutSeconds) {
+      job.timeoutTimer = adapters.setTimeout(() => {
+        if (shared.active !== job || job.finishing || job.finished) return;
+        job.timedOut = true;
+        terminateJob(job);
+      }, job.timeoutSeconds * 1000);
+    }
     const finishFromChild = (code, signal) => {
       Promise.resolve(shared.controller?.finishJob(job, code, signal)).catch((error) => {
         adapters.warn(`completion failed for ${job.id}: ${error.message}`);
@@ -417,7 +440,7 @@ export default function managedBackgroundJobs(pi) {
       if (!classifyManagedCommand(params.command)) {
         return builtIn.execute(toolCallId, params, signal, onUpdate, ctx);
       }
-      return startManagedJob(params.command, ctx);
+      return startManagedJob(params.command, params.timeout, ctx);
     },
   });
 
