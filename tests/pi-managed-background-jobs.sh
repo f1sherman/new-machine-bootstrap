@@ -186,6 +186,9 @@ assert.equal(classify("ssh -o PermitLocalCommand=yes dev.example.com bin/test"),
 assert.equal(classify("ssh -o ControlMaster=yes dev.example.com bin/test"), false);
 assert.equal(classify("ssh -o ControlPersist=yes dev.example.com bin/test"), false);
 assert.equal(classify("ssh -o ControlPath=/tmp/ssh-master dev.example.com bin/test"), false);
+assert.equal(classify("ssh -o Hostname=dev.example.com 192.0.2.1 bin/test"), false);
+assert.equal(classify("ssh -o 'Hostname dev.example.com' 192.0.2.1 bin/test"), false);
+assert.equal(classify("ssh -oHostname=dev.example.com 192.0.2.1 bin/test"), false);
 assert.equal(classify("ssh -o 'KnownHostsCommand=touch /tmp/pwn' dev.example.com bin/test"), false);
 assert.equal(classify("ssh dev.example.com 'cd /repo && ./bin/test ci'"), false);
 assert.equal(classify("bin/provision | tee /tmp/log"), false);

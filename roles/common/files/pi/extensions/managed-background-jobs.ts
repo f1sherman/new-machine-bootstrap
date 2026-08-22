@@ -17,7 +17,7 @@ const SSH_VALUE_OPTIONS = new Set([
 ]);
 const SSH_LOCAL_COMMAND_OPTIONS = new Set([
   "controlmaster", "controlpath", "controlpersist", "forkafterauthentication",
-  "knownhostscommand", "localcommand", "permitlocalcommand", "pkcs11provider",
+  "hostname", "knownhostscommand", "localcommand", "permitlocalcommand", "pkcs11provider",
   "proxycommand", "proxyjump", "securitykeyprovider",
 ]);
 const SSH_FLAG_OPTIONS = new Set([
