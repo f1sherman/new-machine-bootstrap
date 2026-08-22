@@ -780,6 +780,7 @@ const destructiveCases = [
   "git -c advice.detachedHead=false commit -m test",
   'git -c user.name="A B" commit -m test',
   "git -C /repo\\ x commit -m test",
+  'git -C $(pwd) commit -m test',
   "git --git-dir /repo/.git commit -m test",
   'git --git-dir="/repo with spaces/.git" commit -m test',
   "git --no-pager commit -m test",

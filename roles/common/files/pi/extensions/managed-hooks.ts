@@ -16,7 +16,7 @@ const SESSION_GOAL_MAX_LENGTH = 80;
 const SESSION_NAME_STATUS_KEY = "sm";
 const REPO_START_TRIGGERS = /(^|\s)(?:z-fix|z-spec-first|z-quick-pr|superpowers:systematic-debugging|superpowers:brainstorming)(?=\s|$)/i;
 const SHELL_TOKEN = "[^\\s;&|()]+";
-const SHELL_VALUE_PART = String.raw`(?:'[^']*'|"(?:\\.|[^"\\])*"|\\.|[^\s;&|()'"\\])`;
+const SHELL_VALUE_PART = String.raw`(?:'[^']*'|"(?:\\.|[^"\\])*"|\$\((?:'[^']*'|"(?:\\.|[^"\\])*"|\\.|[^()'"\\])*\)|\\.|(?!\$\()[^\s;&|()'"\\])`;
 const SHELL_VALUE = `(?:${SHELL_VALUE_PART})+`;
 const GIT_GLOBAL_LONG_VALUE_OPTION = "(?:git-dir|work-tree|namespace|super-prefix|config-env|exec-path)";
 const GIT_GLOBAL_OPTION = `(?:(?:-C|-c)(?:${SHELL_VALUE}|\\s+${SHELL_VALUE})|--${GIT_GLOBAL_LONG_VALUE_OPTION}(?:=${SHELL_VALUE}|\\s+${SHELL_VALUE})|--(?!${GIT_GLOBAL_LONG_VALUE_OPTION}(?:=|\\s|$))\\S+|-(?![-Cc])\\S+)`;
@@ -264,6 +264,39 @@ function shellWrappedPayload(segment) {
   return match ? match[2] : "";
 }
 
+function shellCommandSubstitutionEnd(command, start) {
+  let depth = 1;
+  let quote = "";
+  let escaped = false;
+
+  for (let i = start + 2; i < command.length; i += 1) {
+    const char = command[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\" && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) quote = "";
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === "(") depth += 1;
+    if (char === ")") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+
+  return -1;
+}
+
 function splitShellSteps(command) {
   const steps = [];
   let current = "";
@@ -289,6 +322,14 @@ function splitShellSteps(command) {
       current += char;
       escaped = true;
       continue;
+    }
+    if (!quote && char === "$" && command[i + 1] === "(") {
+      const substitutionEnd = shellCommandSubstitutionEnd(command, i);
+      if (substitutionEnd !== -1) {
+        current += command.slice(i, substitutionEnd + 1);
+        i = substitutionEnd;
+        continue;
+      }
     }
     if (quote) {
       current += char;
