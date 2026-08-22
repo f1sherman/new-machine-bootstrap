@@ -320,8 +320,8 @@ await registeredBash.execute(
 );
 assert.equal(
   spawnCalls.at(-1).command,
-  "ssh -o 'BatchMode=yes' -o 'ControlMaster=no' -o 'ControlPath=none' -o 'ControlPersist=no' -o 'ForkAfterAuthentication=no' -o 'ProxyCommand=none' -o 'PermitLocalCommand=no' -o 'KnownHostsCommand=none' '-o' 'BatchMode=yes' 'dev' './bin/test ci'",
-  "managed SSH preserves host config and disables command-executing local hooks",
+  "ssh -F /dev/null -o 'BatchMode=yes' -o 'ControlMaster=no' -o 'ControlPath=none' -o 'ControlPersist=no' -o 'ForkAfterAuthentication=no' -o 'ProxyCommand=none' -o 'PermitLocalCommand=no' -o 'KnownHostsCommand=none' '-o' 'BatchMode=yes' 'dev' './bin/test ci'",
+  "managed SSH disables user config and command-executing local hooks",
 );
 sshConfigChild.emitExit(0);
 await flush();

@@ -177,7 +177,7 @@ function shellQuote(word) {
 function managedExecutionCommand(command, classification) {
   if (classification.kind !== "ssh") return command;
   return [
-    "ssh",
+    "ssh", "-F", "/dev/null",
     "-o", shellQuote("BatchMode=yes"),
     "-o", shellQuote("ControlMaster=no"),
     "-o", shellQuote("ControlPath=none"),
