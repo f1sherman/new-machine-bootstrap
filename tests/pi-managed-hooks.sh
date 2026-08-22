@@ -789,6 +789,7 @@ const destructiveCases = [
   "bash -lc 'git commit -m test'",
   "echo ok; git commit -m test",
   "echo $(git commit -m nested)",
+  "cat <<EOF\n$(git commit -m expanded)\nEOF",
   "git push origin HEAD:main",
   "git push origin :main",
   "git push origin :",
@@ -843,6 +844,7 @@ const safeMainCases = [
   "git push origin feature",
   "git add docs/superpowers/specs/design.md",
   "cat <<'EOF'\ngit branch example\nEOF",
+  "cat <<'EOF'\n$(git commit -m literal)\nEOF",
   `git -C ${worktreeRoot} push`,
   `cd ./${path.relative("/repo", worktreeRoot)} && git push`,
 ];

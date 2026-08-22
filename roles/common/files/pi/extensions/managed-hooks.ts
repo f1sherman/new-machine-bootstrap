@@ -297,12 +297,55 @@ function shellCommandSubstitutionEnd(command, start) {
   return -1;
 }
 
+function quotedHeredocBodyRanges(command) {
+  const ranges = [];
+  const markerPattern = /(?:^|[\s;&|])<<(-?)\s*(?:'([^']+)'|"([^"]+)"|\\([^\s;&|]+))/;
+  let active;
+  let offset = 0;
+
+  for (const lineWithEnding of command.match(/[^\n]*(?:\n|$)/g) ?? []) {
+    if (!lineWithEnding) continue;
+    const line = lineWithEnding.replace(/\n$/, "").replace(/\r$/, "");
+    if (active) {
+      const candidate = active.stripTabs ? line.replace(/^\t+/, "") : line;
+      if (candidate === active.delimiter) {
+        ranges.push({ start: active.start, end: offset });
+        active = undefined;
+      }
+      offset += lineWithEnding.length;
+      continue;
+    }
+
+    const marker = line.match(markerPattern);
+    if (marker) {
+      active = {
+        delimiter: marker[2] || marker[3] || marker[4],
+        stripTabs: marker[1] === "-",
+        start: offset + lineWithEnding.length,
+      };
+    }
+    offset += lineWithEnding.length;
+  }
+
+  if (active) ranges.push({ start: active.start, end: command.length });
+  return ranges;
+}
+
 function shellCommandSubstitutions(command) {
   const substitutions = [];
+  const literalRanges = quotedHeredocBodyRanges(command);
+  let literalRangeIndex = 0;
   let quote = "";
   let escaped = false;
 
   for (let i = 0; i < command.length; i += 1) {
+    while (literalRanges[literalRangeIndex]?.end <= i) literalRangeIndex += 1;
+    const literalRange = literalRanges[literalRangeIndex];
+    if (literalRange && literalRange.start <= i) {
+      i = literalRange.end - 1;
+      continue;
+    }
+
     const char = command[i];
     if (escaped) {
       escaped = false;
