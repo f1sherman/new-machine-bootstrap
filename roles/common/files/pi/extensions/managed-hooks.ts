@@ -16,7 +16,11 @@ const SESSION_GOAL_MAX_LENGTH = 80;
 const SESSION_NAME_STATUS_KEY = "sm";
 const REPO_START_TRIGGERS = /(^|\s)(?:z-fix|z-spec-first|z-quick-pr|superpowers:systematic-debugging|superpowers:brainstorming)(?=\s|$)/i;
 const SHELL_TOKEN = "[^\\s;&|()]+";
-const GIT_PREAMBLE = "(^|[;&|()])\\s*(?:(?:(?:if|then|do|elif|while|until)\\s+|!\\s+)*)((?:(?:[A-Za-z_][A-Za-z0-9_]*)=\\S+\\s+|command\\s+|env\\s+|sudo(?:\\s+-\\S+)*\\s+|time(?:\\s+-\\S+)*\\s+)*)git(?:\\s+-\\S+(?:\\s+\\S+)*)*\\s+";
+const SHELL_VALUE_PART = String.raw`(?:'[^']*'|"(?:\\.|[^"\\])*"|\\.|[^\s;&|()'"\\])`;
+const SHELL_VALUE = `(?:${SHELL_VALUE_PART})+`;
+const GIT_GLOBAL_LONG_VALUE_OPTION = "(?:git-dir|work-tree|namespace|super-prefix|config-env|exec-path)";
+const GIT_GLOBAL_OPTION = `(?:(?:-C|-c)(?:${SHELL_VALUE}|\\s+${SHELL_VALUE})|--${GIT_GLOBAL_LONG_VALUE_OPTION}(?:=${SHELL_VALUE}|\\s+${SHELL_VALUE})|--(?!${GIT_GLOBAL_LONG_VALUE_OPTION}(?:=|\\s|$))\\S+|-(?![-Cc])\\S+)`;
+const GIT_PREAMBLE = `(^|[;&|()])\\s*(?:(?:(?:if|then|do|elif|while|until)\\s+|!\\s+)*)((?:(?:[A-Za-z_][A-Za-z0-9_]*)=\\S+\\s+|command\\s+|env\\s+|sudo(?:\\s+-\\S+)*\\s+|time(?:\\s+-\\S+)*\\s+)*)git(?:\\s+${GIT_GLOBAL_OPTION})*\\s+`;
 
 function warn(message, error) {
   const detail = error instanceof Error ? error.message : String(error ?? "unknown error");
@@ -260,6 +264,249 @@ function shellWrappedPayload(segment) {
   return match ? match[2] : "";
 }
 
+function shellBacktickSubstitutionEnd(command, start) {
+  let quote = "";
+  let escaped = false;
+
+  for (let i = start + 1; i < command.length; i += 1) {
+    const char = command[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) quote = "";
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === "`") return i;
+  }
+
+  return -1;
+}
+
+function shellCommandSubstitutionEnd(command, start) {
+  let depth = 1;
+  let quote = "";
+  let escaped = false;
+
+  for (let i = start + 2; i < command.length; i += 1) {
+    const char = command[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\" && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+    if (quote !== "'" && char === "`") {
+      const substitutionEnd = shellBacktickSubstitutionEnd(command, i);
+      if (substitutionEnd !== -1) {
+        i = substitutionEnd;
+        continue;
+      }
+    }
+    if (quote) {
+      if (char === quote) quote = "";
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === "(") depth += 1;
+    if (char === ")") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+
+  return -1;
+}
+
+function quotedHeredocBodyRanges(command) {
+  const ranges = [];
+  const pending = [];
+  let active;
+  let offset = 0;
+
+  function markersFor(line) {
+    const markers = [];
+    let quote = "";
+    let escaped = false;
+
+    for (let i = 0; i < line.length; i += 1) {
+      const char = line[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\" && quote !== "'") {
+        escaped = true;
+        continue;
+      }
+      if (quote) {
+        if (char === quote) quote = "";
+        continue;
+      }
+      if (char === "'" || char === '"') {
+        quote = char;
+        continue;
+      }
+      if (line.slice(i, i + 2) !== "<<" || line[i + 2] === "<") continue;
+
+      let cursor = i + 2;
+      const stripTabs = line[cursor] === "-";
+      if (stripTabs) cursor += 1;
+      while (/\s/.test(line[cursor] ?? "")) cursor += 1;
+
+      let delimiter = "";
+      let delimiterQuote = "";
+      let literal = false;
+      let end = cursor;
+      for (; end < line.length; end += 1) {
+        const delimiterChar = line[end];
+        if (delimiterQuote) {
+          if (delimiterChar === delimiterQuote) {
+            delimiterQuote = "";
+          } else if (delimiterChar === "\\" && delimiterQuote === '"' && end + 1 < line.length) {
+            const escapedCharacter = line[end + 1];
+            if (["$", "`", '"', "\\"].includes(escapedCharacter)) {
+              delimiter += escapedCharacter;
+              end += 1;
+            } else {
+              delimiter += delimiterChar;
+            }
+          } else {
+            delimiter += delimiterChar;
+          }
+          continue;
+        }
+        if (delimiterChar === "'" || delimiterChar === '"') {
+          literal = true;
+          delimiterQuote = delimiterChar;
+          continue;
+        }
+        if (delimiterChar === "\\" && end + 1 < line.length) {
+          literal = true;
+          delimiter += line[end + 1];
+          end += 1;
+          continue;
+        }
+        if (/\s/.test(delimiterChar) || ";&|<>".includes(delimiterChar)) break;
+        delimiter += delimiterChar;
+      }
+      if (delimiter && !delimiterQuote) {
+        markers.push({ delimiter, stripTabs, literal });
+        i = end - 1;
+      }
+    }
+    return markers;
+  }
+
+  for (const lineWithEnding of command.match(/[^\n]*(?:\n|$)/g) ?? []) {
+    if (!lineWithEnding) continue;
+    const line = lineWithEnding.replace(/\n$/, "").replace(/\r$/, "");
+    if (active) {
+      const candidate = active.stripTabs ? line.replace(/^\t+/, "") : line;
+      if (candidate === active.delimiter) {
+        if (active.literal) ranges.push({ start: active.start, end: offset });
+        const next = pending.shift();
+        active = next ? { ...next, start: offset + lineWithEnding.length } : undefined;
+      }
+      offset += lineWithEnding.length;
+      continue;
+    }
+
+    pending.push(...markersFor(line));
+    const marker = pending.shift();
+    if (marker) {
+      active = {
+        ...marker,
+        start: offset + lineWithEnding.length,
+      };
+    }
+    offset += lineWithEnding.length;
+  }
+
+  if (active?.literal) ranges.push({ start: active.start, end: command.length });
+  return ranges;
+}
+
+function shellCommandSubstitutions(command) {
+  const substitutions = [];
+  const literalRanges = quotedHeredocBodyRanges(command);
+  let literalRangeIndex = 0;
+  let quote = "";
+  let escaped = false;
+
+  for (let i = 0; i < command.length; i += 1) {
+    while (literalRanges[literalRangeIndex]?.end <= i) literalRangeIndex += 1;
+    const literalRange = literalRanges[literalRangeIndex];
+    if (literalRange && literalRange.start <= i) {
+      i = literalRange.end - 1;
+      continue;
+    }
+
+    const char = command[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\" && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+    if (quote === "'") {
+      if (char === "'") quote = "";
+      continue;
+    }
+    if (!quote && char === "'") {
+      quote = "'";
+      continue;
+    }
+    if (char === "`") {
+      const end = shellBacktickSubstitutionEnd(command, i);
+      if (end === -1) continue;
+      substitutions.push({ start: i, end, payload: command.slice(i + 1, end) });
+      i = end;
+      continue;
+    }
+    if (char === '"') {
+      quote = quote === '"' ? "" : '"';
+      continue;
+    }
+    if (char !== "$" || command[i + 1] !== "(") continue;
+
+    const end = shellCommandSubstitutionEnd(command, i);
+    if (end === -1) continue;
+    substitutions.push({ start: i, end, payload: command.slice(i + 2, end) });
+    i = end;
+  }
+
+  return substitutions;
+}
+
+function normalizeShellCommand(command) {
+  let cursor = 0;
+  let masked = "";
+  for (const substitution of shellCommandSubstitutions(command)) {
+    masked += command.slice(cursor, substitution.start);
+    masked += "__command_substitution__";
+    cursor = substitution.end + 1;
+  }
+  masked += command.slice(cursor);
+  return masked.replace(/\s+/g, " ").trim();
+}
+
 function splitShellSteps(command) {
   const steps = [];
   let current = "";
@@ -285,6 +532,22 @@ function splitShellSteps(command) {
       current += char;
       escaped = true;
       continue;
+    }
+    if (quote !== "'" && char === "`") {
+      const substitutionEnd = shellBacktickSubstitutionEnd(command, i);
+      if (substitutionEnd !== -1) {
+        current += command.slice(i, substitutionEnd + 1);
+        i = substitutionEnd;
+        continue;
+      }
+    }
+    if (!quote && char === "$" && command[i + 1] === "(") {
+      const substitutionEnd = shellCommandSubstitutionEnd(command, i);
+      if (substitutionEnd !== -1) {
+        current += command.slice(i, substitutionEnd + 1);
+        i = substitutionEnd;
+        continue;
+      }
     }
     if (quote) {
       current += char;
@@ -381,7 +644,8 @@ function rawShellTokens(segment) {
     current = "";
   };
 
-  for (const char of segment) {
+  for (let i = 0; i < segment.length; i += 1) {
+    const char = segment[i];
     if (escaped) {
       current += char;
       escaped = false;
@@ -391,6 +655,14 @@ function rawShellTokens(segment) {
       current += char;
       escaped = true;
       continue;
+    }
+    if (quote !== "'" && char === "`") {
+      const substitutionEnd = shellBacktickSubstitutionEnd(segment, i);
+      if (substitutionEnd !== -1) {
+        current += segment.slice(i, substitutionEnd + 1);
+        i = substitutionEnd;
+        continue;
+      }
     }
     if (quote) {
       current += char;
@@ -484,7 +756,7 @@ function directGitSelection(segment, fallbackCwd) {
 
 function rawCommitBlockReason(command) {
   for (const segment of splitCommandSegments(command)) {
-    const normalized = segment.replace(/\s+/g, " ").trim();
+    const normalized = normalizeShellCommand(segment);
     if (new RegExp(`${GIT_PREAMBLE}commit([\\s;&|()]|$)`).test(normalized)) {
       return "Do not run git commit directly. Use the z-commit skill instead.";
     }
@@ -576,6 +848,13 @@ async function pushMainBlockReason(pi, command, cwd) {
     nextEligibleCdCwds = [];
 
     const segment = step.command;
+    for (const substitution of shellCommandSubstitutions(segment)) {
+      for (const segmentCwd of segmentCwds) {
+        const nestedReason = await pushMainBlockReason(pi, substitution.payload, segmentCwd);
+        if (nestedReason) return nestedReason;
+      }
+    }
+
     const payload = shellWrappedPayload(segment);
     if (payload) {
       for (const segmentCwd of segmentCwds) {
@@ -586,7 +865,7 @@ async function pushMainBlockReason(pi, command, cwd) {
       continue;
     }
 
-    const normalized = segment.replace(/\s+/g, " ").trim();
+    const normalized = normalizeShellCommand(segment);
     const cdStep = /^cd(?:\s|$)/.test(normalized);
     if (cdStep) {
       const operand = changedDirectoryOperand(segment);
@@ -679,7 +958,7 @@ function forceAddOperandsTargetSuperpowersDocs(segment, cwd) {
 function forceAddSuperpowersDocsBlockReason(command, cwd) {
   let segmentCwd = cwd;
   for (const segment of splitCommandSegments(command)) {
-    const normalized = segment.replace(/\s+/g, " ").trim();
+    const normalized = normalizeShellCommand(segment);
     const nextCwd = changedDirectory(segment, segmentCwd);
     if (nextCwd) {
       segmentCwd = nextCwd;
@@ -697,6 +976,11 @@ function forceAddSuperpowersDocsBlockReason(command, cwd) {
 }
 
 async function bashCommandBlockReason(pi, command, cwd) {
+  for (const substitution of shellCommandSubstitutions(command)) {
+    const nestedReason = await bashCommandBlockReason(pi, substitution.payload, cwd);
+    if (nestedReason) return nestedReason;
+  }
+
   return worktreeCommandBlockReason(command)
     || rawCommitBlockReason(command)
     || await pushMainBlockReason(pi, command, cwd)
@@ -704,7 +988,7 @@ async function bashCommandBlockReason(pi, command, cwd) {
 }
 
 function worktreeCommandBlockReason(command) {
-  const normalized = command.replace(/\s+/g, " ").trim();
+  const normalized = normalizeShellCommand(command);
   if (new RegExp(`${GIT_PREAMBLE}worktree\\s+add(?:\\s|$)`).test(normalized)) {
     return "Do not run git worktree add directly. Use repo-start instead.";
   }

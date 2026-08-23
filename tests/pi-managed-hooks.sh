@@ -773,12 +773,27 @@ branch = "main";
 const destructiveCases = [
   "git worktree add ../x",
   "command git -C /repo worktree remove ../x",
+  'git -C "/repo with spaces" worktree add ../x',
   "git switch -c new-branch",
   "env X=1 git -C /repo branch -m old new",
   "git commit -m test",
+  "git -c advice.detachedHead=false commit -m test",
+  'git -c user.name="A B" commit -m test',
+  "git -C /repo\\ x commit -m test",
+  'git -C $(pwd) commit -m test',
+  'git -C $(dirname $(pwd)) commit -m test',
+  'git -C `dirname "$PWD"` commit -m test',
+  "git --git-dir /repo/.git commit -m test",
+  'git --git-dir="/repo with spaces/.git" commit -m test',
+  "git --no-pager commit -m test",
   "sudo -E git commit -m test",
   "bash -lc 'git commit -m test'",
   "echo ok; git commit -m test",
+  "echo $(git commit -m nested)",
+  "echo `git commit -m nested-backtick`",
+  "echo \"<<'EOF'\"\necho $(git commit -m after-quoted-marker)",
+  "cat <<EOF\n$(git commit -m expanded)\nEOF",
+  "cat <<ONE <<'TWO'\n$(git commit -m expanded-first)\nONE\nliteral second body\nTWO",
   "git push origin HEAD:main",
   "git push origin :main",
   "git push origin :",
@@ -824,11 +839,19 @@ assert.equal(result?.block, true, "fails closed when the selected branch cannot 
 
 const safeMainCases = [
   "git branch --list feature",
+  "git grep branch README.md",
+  "git grep commit README.md",
+  "git grep worktree README.md",
   "bash ~/.local/share/skills/_commit/commit.sh message",
   "git push --tags",
   "git push --dry-run",
   "git push origin feature",
   "git add docs/superpowers/specs/design.md",
+  "cat <<'EOF'\ngit branch example\nEOF",
+  "cat <<'EOF'\n$(git commit -m literal)\nEOF",
+  "cat <<'ONE' <<'TWO'\n$(git commit -m literal-one)\nONE\n$(git commit -m literal-two)\nTWO",
+  "cat <<E\"OF\"\n$(git commit -m literal-mixed-quote)\nEOF",
+  "cat <<E\"\\Q\"\nEQ\n$(git commit -m literal-backslash)\nE\\Q",
   `git -C ${worktreeRoot} push`,
   `cd ./${path.relative("/repo", worktreeRoot)} && git push`,
 ];
@@ -839,6 +862,39 @@ for (const command of safeMainCases) {
   }, ctx);
   assert.equal(allowed, undefined, `allows non-destructive Git command: ${command}`);
 }
+
+const longInspectionCommand = [
+  ...Array.from({ length: 25 }, (_, index) =>
+    `git -C /repo rev-parse HEAD > /tmp/revision-${index}.txt`),
+  `git ${Array.from({ length: 25 }, () => "-C/repo").join(" ")} rev-parse HEAD`,
+  `git ${Array.from({ length: 25 }, () => "--no-pager").join(" ")} rev-parse HEAD`,
+  `git ${Array.from({ length: 25 }, () => "--git-dir=/repo/.git").join(" ")} rev-parse HEAD`,
+  `git ${Array.from({ length: 25 }, () => '-c user.name="A B"').join(" ")} rev-parse HEAD`,
+].join("\n");
+const inspectionStartedAt = performance.now();
+const longInspectionResult = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: longInspectionCommand },
+}, ctx);
+const inspectionElapsedMs = performance.now() - inspectionStartedAt;
+assert.equal(longInspectionResult, undefined,
+  "allows a long multi-line Git inspection command");
+assert.ok(inspectionElapsedMs < 1000,
+  `parses a long multi-line Git inspection command promptly (${inspectionElapsedMs} ms)`);
+
+result = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "echo $(cd /repo && git push)" },
+}, { ...ctx, cwd: worktreeRoot });
+assert.equal(result?.block, true,
+  "blocks a nested push after its command substitution changes to main");
+
+result = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: "echo `cd /repo && git push`" },
+}, { ...ctx, cwd: worktreeRoot });
+assert.equal(result?.block, true,
+  "blocks a nested push after its backtick substitution changes to main");
 
 branch = "feature";
 result = await handlers.get("tool_call")({
