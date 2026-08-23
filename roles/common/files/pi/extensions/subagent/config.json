@@ -1,4 +1,5 @@
 {
+  "artifactDir": "session",
   "scheduledRuns": {
     "enabled": true
   }
