@@ -4,7 +4,7 @@
 
 **Goal:** Keep pi-subagents runtime state out of Git worktrees and store normal artifacts with Pi sessions.
 
-**Architecture:** Extend the managed global Git ignore template with the current runtime path. Add the explicit artifact storage policy to the existing recursive Pi settings merge so unrelated settings and agent overrides remain intact.
+**Architecture:** Extend the managed global Git ignore template with the current runtime path. Add the explicit artifact storage policy to the managed pi-subagents extension configuration while preserving scheduled runs.
 
 **Tech Stack:** Ansible, Jinja/YAML, Git ignore patterns, JSON
 
@@ -14,7 +14,7 @@
 
 - Preserve the legacy `**/.pi-subagents/` ignore rule.
 - Manage `subagents.artifactDir` with the exact value `session`.
-- Preserve unrelated Pi settings and existing `subagents.agentOverrides`.
+- Preserve the existing `scheduledRuns.enabled: true` extension setting.
 - Do not delete existing runtime data during provisioning.
 - Do not add an automated test for declarative configuration.
 
@@ -24,11 +24,12 @@
 
 **Files:**
 - Modify: `roles/common/templates/dotfiles/gitignore`
-- Modify: `roles/common/tasks/pi_main_worktree_guard_settings.yml`
+- Modify: `roles/common/files/pi/extensions/subagent/config.json`
+- Modify: `roles/common/tasks/main.yml`
 
 **Interfaces:**
-- Consumes: the existing global Git ignore template and recursive `pi_settings | combine(..., recursive=True)` merge.
-- Produces: a global ignore rule for `.pi/subagents/` and `subagents.artifactDir: session` in managed Pi settings.
+- Consumes: the existing global Git ignore template and managed pi-subagents extension configuration.
+- Produces: a global ignore rule for `.pi/subagents/` and `artifactDir: session` in the deployed extension configuration.
 
 - [x] **Step 1: Add the current pi-subagents runtime path**
 
@@ -36,14 +37,13 @@ Add `**/.pi/subagents/` below the existing `**/.pi-subagents/` rule. Keep both p
 
 - [x] **Step 2: Add explicit session artifact storage**
 
-Change the managed subagent settings map to include the exact value below while retaining `agentOverrides`:
+Add the exact top-level value below to `roles/common/files/pi/extensions/subagent/config.json` while retaining `scheduledRuns.enabled: true`:
 
-```yaml
-'subagents': {
-  'artifactDir': 'session',
-  'agentOverrides': pi_subagent_main_worktree_guard_overrides
-}
+```json
+"artifactDir": "session"
 ```
+
+Rename the copy task to describe the complete Pi subagent configuration.
 
 - [x] **Step 3: Verify the ignore rule behavior**
 
@@ -56,23 +56,17 @@ git -c core.excludesFile="$temporary_file" \
 
 Expected: the command identifies `**/.pi/subagents/` as the matching rule.
 
-- [x] **Step 4: Verify the settings merge behavior**
+- [x] **Step 4: Verify the extension configuration**
 
-Use an Ansible debug expression with representative settings that contain an unrelated top-level key and an existing subagent override. Confirm the merged value contains:
+Parse the managed JSON and require both settings:
 
-```json
-{
-  "unrelated": true,
-  "subagents": {
-    "artifactDir": "session",
-    "agentOverrides": {
-      "worker": {
-        "subagentOnlyExtensions": ["existing", "guard"]
-      }
-    }
-  }
-}
+```bash
+jq -e \
+  '.artifactDir == "session" and .scheduledRuns.enabled == true' \
+  roles/common/files/pi/extensions/subagent/config.json
 ```
+
+Expected: the command exits successfully.
 
 - [x] **Step 5: Run repository validation**
 
@@ -87,4 +81,4 @@ Expected: both commands exit successfully.
 
 - [x] **Step 6: Commit the implementation**
 
-Commit the two managed configuration files and this completed plan with an imperative message.
+Commit the managed configuration files, task label, and this completed plan with an imperative message.

@@ -1476,7 +1476,7 @@
     state: directory
     mode: '0755'
 
-- name: Enable Pi scheduled subagent runs
+- name: Install Pi subagent configuration
   copy:
     src: pi/extensions/subagent/config.json
     dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/extensions/subagent/config.json"
