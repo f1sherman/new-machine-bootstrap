@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { isIP } from "node:net";
 import { spawn } from "node:child_process";
 import { createBashToolDefinition } from "@earendil-works/pi-coding-agent";
 
@@ -152,7 +153,7 @@ function sshRemoteStart(words) {
 
 function isIpSshDestination(destination) {
   const host = destination.slice(destination.lastIndexOf("@") + 1);
-  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) || host.includes(":");
+  return isIP(host) !== 0;
 }
 
 export function classifyManagedCommand(command) {

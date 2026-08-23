@@ -175,6 +175,8 @@ assert.equal(classify("ssh -o BatchMode=yes dev.example.com './bin/test ci'"), f
 assert.equal(classify("ssh user@192.0.2.1 bin/test"), false);
 assert.equal(classify("ssh -F /dev/null user@192.0.2.1 bin/test"), true);
 assert.equal(classify("ssh -F/dev/null user@2001:db8::1 bin/test"), true);
+assert.equal(classify("ssh -F /dev/null foo:bar bin/test"), false);
+assert.equal(classify("ssh -F /dev/null 999.0.2.1 bin/test"), false);
 assert.equal(classify("ssh -F /dev/null -l brian -p 22 -i /tmp/key 192.0.2.1 bin/test"), true);
 assert.equal(classify('ssh -F /dev/null 192.0.2.1 "bin/test foo\\ bar"'), true);
 assert.equal(classify("ssh localhost bin/test"), false);
