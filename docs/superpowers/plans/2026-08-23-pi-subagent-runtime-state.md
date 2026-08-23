@@ -30,11 +30,11 @@
 - Consumes: the existing global Git ignore template and recursive `pi_settings | combine(..., recursive=True)` merge.
 - Produces: a global ignore rule for `.pi/subagents/` and `subagents.artifactDir: session` in managed Pi settings.
 
-- [ ] **Step 1: Add the current pi-subagents runtime path**
+- [x] **Step 1: Add the current pi-subagents runtime path**
 
 Add `**/.pi/subagents/` below the existing `**/.pi-subagents/` rule. Keep both patterns.
 
-- [ ] **Step 2: Add explicit session artifact storage**
+- [x] **Step 2: Add explicit session artifact storage**
 
 Change the managed subagent settings map to include the exact value below while retaining `agentOverrides`:
 
@@ -45,7 +45,7 @@ Change the managed subagent settings map to include the exact value below while 
 }
 ```
 
-- [ ] **Step 3: Verify the ignore rule behavior**
+- [x] **Step 3: Verify the ignore rule behavior**
 
 Create a temporary excludes file from the managed template and run:
 
@@ -56,7 +56,7 @@ git -c core.excludesFile="$temporary_file" \
 
 Expected: the command identifies `**/.pi/subagents/` as the matching rule.
 
-- [ ] **Step 4: Verify the settings merge behavior**
+- [x] **Step 4: Verify the settings merge behavior**
 
 Use an Ansible debug expression with representative settings that contain an unrelated top-level key and an existing subagent override. Confirm the merged value contains:
 
@@ -74,7 +74,7 @@ Use an Ansible debug expression with representative settings that contain an unr
 }
 ```
 
-- [ ] **Step 5: Run repository validation**
+- [x] **Step 5: Run repository validation**
 
 Run:
 
@@ -85,6 +85,6 @@ git diff --check
 
 Expected: both commands exit successfully.
 
-- [ ] **Step 6: Commit the implementation**
+- [x] **Step 6: Commit the implementation**
 
 Commit the two managed configuration files and this completed plan with an imperative message.
