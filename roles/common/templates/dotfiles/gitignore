@@ -14,8 +14,9 @@ CLAUDE.local.md
 # Remote Pi per-repository runtime state
 **/.pi/remote-pi/
 
-# Pi subagents per-repository run artifacts
+# Pi subagents per-repository runtime state
 **/.pi-subagents/
+**/.pi/subagents/
 
 .bg-shell/
 .repo.yml
