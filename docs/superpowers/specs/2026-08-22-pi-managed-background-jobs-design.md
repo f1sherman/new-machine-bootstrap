@@ -198,6 +198,8 @@ out of scope.
 ## Errors
 
 - If spawn fails, restore tools and return a Bash tool error. Do not create a job.
+- If the read-only gate fails after spawn, terminate the process group and
+  suppress its completion message.
 - If log creation fails, return an error and do not start the child.
 - If a job is already active, an allowlisted Bash call returns an error. The
   read-only gate normally prevents this path, but the check remains required.

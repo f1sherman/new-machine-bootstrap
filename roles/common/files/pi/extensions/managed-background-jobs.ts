@@ -516,7 +516,14 @@ export default function managedBackgroundJobs(pi) {
       adapters.warn(`child process failed for ${job.id}: ${error.message}`);
       finishFromChild(null, null);
     });
-    applyGate(job);
+    try {
+      applyGate(job);
+    } catch (error) {
+      job.suppressCompletion = true;
+      terminateJob(job);
+      restoreTools(job);
+      throw error;
+    }
     return textResult(`Managed background job ${id} started.\nPID: ${job.pid}\nCommand: ${command}\nFull log: ${log.path}`);
   }
 

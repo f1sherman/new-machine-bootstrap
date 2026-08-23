@@ -190,7 +190,9 @@ pi.registerTool({
 
 Use the extension installation working directory, not a later session directory,
 in the built-in definition. On successful spawn, save `pi.getActiveTools()` and
-set only the intersection with `read`, `grep`, `find`, and `ls`.
+set only the intersection with `read`, `grep`, `find`, and `ls`. If this gate
+fails, terminate the spawned process group, restore the saved tools, suppress the
+completion message, and return the gate error.
 
 Register a `tool_call` handler that returns this result for every other tool while
 a job is active:

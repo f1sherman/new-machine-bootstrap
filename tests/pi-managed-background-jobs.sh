@@ -119,6 +119,7 @@ const activeToolChanges = [];
 const sentMessages = [];
 let activeTools = ["read", "grep", "find", "ls", "bash", "edit", "write", "subagent"];
 let setActiveToolsError;
+let setActiveToolsErrorOnce;
 const pi = {
   activeToolChanges,
   on(event, handler) {
@@ -129,6 +130,11 @@ const pi = {
   registerCommand(name, definition) { commands.set(name, definition); },
   getActiveTools() { return [...activeTools]; },
   setActiveTools(tools) {
+    if (setActiveToolsErrorOnce) {
+      const error = setActiveToolsErrorOnce;
+      setActiveToolsErrorOnce = undefined;
+      throw error;
+    }
     if (setActiveToolsError) throw setActiveToolsError;
     activeTools = [...tools];
     activeToolChanges.push([...tools]);
@@ -261,6 +267,30 @@ for (const [timeout, message] of [
 }
 assert.equal(spawnCalls.length, spawnCountBeforeInvalidTimeouts,
   "invalid managed timeouts do not spawn a process");
+
+ids.push("bg-gate-error");
+const gateErrorChild = new ControlledChild(4215);
+spawnQueue.push(gateErrorChild);
+setActiveToolsErrorOnce = new Error("tool gate denied");
+const messagesBeforeGateError = sentMessages.length;
+await assert.rejects(
+  registeredBash.execute(
+    "gate-error", { command: "bin/test" }, undefined, undefined, context,
+  ),
+  /tool gate denied/,
+);
+assert.deepEqual(killCalls.at(-1), { pid: 4215, signal: "SIGTERM" },
+  "a gate failure terminates the spawned process group");
+assert.equal(globalThis[STATE].active.id, "bg-gate-error",
+  "a gate failure keeps process state until termination completes");
+gateErrorChild.emitExit(null, "SIGTERM");
+const gateKillTimer = timers.at(-1);
+gateKillTimer.callback();
+await flush();
+assert.equal(globalThis[STATE].active, undefined,
+  "a terminated gate-failure job releases process state");
+assert.equal(sentMessages.length, messagesBeforeGateError,
+  "a gate-failure job does not inject a completion message");
 
 ids.push("bg-1");
 const firstChild = new ControlledChild(4201);
