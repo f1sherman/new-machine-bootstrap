@@ -57,10 +57,7 @@
         'quietStartup': true,
         'collapseChangelog': true,
         'packages': pi_preserved_packages,
-        'subagents': {
-          'artifactDir': 'session',
-          'agentOverrides': pi_subagent_main_worktree_guard_overrides
-        }
+        'subagents': {'agentOverrides': pi_subagent_main_worktree_guard_overrides}
       }, recursive=True) }}
 
 - name: Write merged Pi settings.json

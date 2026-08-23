@@ -20,7 +20,7 @@ The managed global Git ignore file excludes the legacy `.pi-subagents/` path. Cu
 ## Recommended approach
 
 1. Add `**/.pi/subagents/` to the managed global Git ignore template. Keep the legacy rule for older installations.
-2. Manage `subagents.artifactDir` as `session` in Pi `settings.json` while preserving the existing recursive settings merge.
+2. Manage `artifactDir` as `session` in the pi-subagents extension configuration while preserving scheduled-run configuration.
 
 The ignore rule protects repositories when an old process or an explicit project-scoped feature writes runtime state. The explicit setting keeps normal artifacts under Pi's session directory and makes the desired policy independent of package defaults.
 
@@ -40,13 +40,13 @@ The current default is session storage, but existing long-lived processes still 
 
 ## Data and configuration flow
 
-Provisioning renders the global Git ignore file from `roles/common/templates/dotfiles/gitignore`. Provisioning also reads the existing Pi settings, recursively merges managed values, and writes the result. The new `artifactDir` value must coexist with `agentOverrides` and preserve unrelated user settings.
+Provisioning renders the global Git ignore file from `roles/common/templates/dotfiles/gitignore`. Provisioning copies `roles/common/files/pi/extensions/subagent/config.json` to the pi-subagents extension configuration path. The new `artifactDir` value must coexist with the existing scheduled-run setting.
 
 ## Verification
 
 - Parse the Ansible playbook with `ansible-playbook --syntax-check`.
 - Confirm the rendered ignore pattern matches `.pi/subagents/` with `git check-ignore` against a temporary excludes file.
-- Exercise the settings merge expression with representative existing settings and confirm that `artifactDir` is `session`, agent overrides remain present, and unrelated keys remain present.
+- Parse the managed pi-subagents configuration as JSON and confirm that `artifactDir` is `session` and scheduled runs remain enabled.
 - Run `git diff --check`.
 
 No automated test is justified. The change is declarative configuration without complex behavior, and focused provisioning or manual verification catches errors directly.
