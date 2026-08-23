@@ -38,9 +38,10 @@ The first release supports these managed commands:
 - Pi terminates the process group during a normal Pi quit. This prevents orphan
   jobs. Extension reload preserves the job.
 - Pi blocks session replacement and session fork while a job is active.
-- A simple SSH form can contain SSH options and one host. The remote command must
-  be one quoted shell word or the remaining SSH arguments. The remote command can
-  start with a simple `cd PATH &&` prefix.
+- A managed SSH form must include `-F /dev/null` as an explicit opt-in. It must
+  use an IP destination. Commands that need user SSH configuration stay
+  synchronous. The remote command must be one quoted shell word or the remaining
+  SSH arguments. The remote command can start with a simple `cd PATH &&` prefix.
 - Commands that the strict classifier does not recognize continue to use the
   normal synchronous Bash tool.
 
@@ -103,8 +104,9 @@ sibling tool calls in parallel before the extension limits the active tools.
 ### Strict command classifier
 
 The classifier uses a small shell-word parser. It accepts plain, single-quoted,
-double-quoted, and backslash-escaped words. It rejects shell control syntax at
-command level.
+double-quoted, and backslash-escaped words. It preserves a backslash inside
+double quotes when the local shell preserves it. It rejects shell control syntax
+at command level.
 
 A local command matches only when its executable is an exact allowlisted path.
 Arguments can be ordinary shell words. The classifier does not rewrite the raw
@@ -113,13 +115,18 @@ command.
 An SSH command matches only when:
 
 1. The local executable is `ssh`.
-2. Options and their required values are complete.
-3. There is exactly one destination.
-4. The remote command parses as a supported local command, with an optional
+2. The command explicitly requests `-F /dev/null`.
+3. Options and their required values are complete. Caller-supplied `-o`, X11,
+   tunnel, proxy, and control-master options are not allowed.
+4. There is exactly one IP destination.
+5. The remote command parses as a supported local command, with an optional
    `cd PATH &&` prefix.
-5. No additional shell operation exists outside that remote command.
+6. No additional shell operation exists outside that remote command.
 
-If parsing is incomplete or ambiguous, the command is not a match.
+The explicit empty configuration keeps managed execution from changing the
+meaning of commands that need `Host *` or host-specific settings. Such commands
+stay synchronous. If parsing is incomplete or ambiguous, the command is not a
+match.
 
 ### Process and log management
 

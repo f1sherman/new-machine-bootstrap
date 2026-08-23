@@ -13,16 +13,10 @@ const MANAGED_EXECUTABLES = new Set([
   "bin/test-ruby", "./bin/test-ruby",
 ]);
 const SSH_VALUE_OPTIONS = new Set([
-  "b", "c", "D", "e", "i", "L", "l", "m", "o", "p", "R", "w",
-]);
-const SSH_LOCAL_COMMAND_OPTIONS = new Set([
-  "controlmaster", "controlpath", "controlpersist", "forkafterauthentication",
-  "hostname", "knownhostscommand", "localcommand", "permitlocalcommand", "pkcs11provider",
-  "proxycommand", "proxyjump", "securitykeyprovider",
+  "b", "c", "e", "F", "i", "l", "m", "p",
 ]);
 const SSH_FLAG_OPTIONS = new Set([
-  "4", "6", "A", "a", "C", "g", "K", "k", "M", "n", "q", "T",
-  "t", "v", "X", "x", "Y", "y",
+  "4", "6", "A", "a", "C", "K", "k", "n", "q", "T", "t", "v", "x", "y",
 ]);
 const SSH_REMOTE_EXPANSION_CHARACTERS = new Set([
   "$", "`", "*", "?", "[", "]", "{", "}", "~",
@@ -56,7 +50,12 @@ function shellWords(command, allowAnd = false) {
       continue;
     }
     if (character === "\\" && quote !== "'") {
-      escaped = true;
+      const nextCharacter = command[index + 1];
+      if (quote === '"' && !["$", "`", '"', "\\", "\n"].includes(nextCharacter)) {
+        word += character;
+      } else {
+        escaped = true;
+      }
       started = true;
       continue;
     }
@@ -109,15 +108,10 @@ function classifyRemoteCommand(remoteCommand) {
   return words[0] === "cd" && Boolean(words[1]) && MANAGED_EXECUTABLES.has(words[3]);
 }
 
-function unsafeSshOption(option, value) {
-  if (option !== "o") return false;
-  const name = value.trim().replace(/^=/, "").split(/(?:=|\s+)/, 1)[0].toLowerCase();
-  return SSH_LOCAL_COMMAND_OPTIONS.has(name);
-}
-
 function sshRemoteStart(words) {
   let index = 1;
   let destinationFound = false;
+  let emptyConfigRequested = false;
   while (index < words.length) {
     const word = words[index];
     if (!destinationFound && word === "--") {
@@ -138,7 +132,10 @@ function sshRemoteStart(words) {
           if (index >= words.length) return -1;
           value = words[index];
         }
-        if (unsafeSshOption(option, value)) return -1;
+        if (option === "F") {
+          if (value !== "/dev/null") return -1;
+          emptyConfigRequested = true;
+        }
         index += 1;
         continue;
       }
@@ -150,7 +147,7 @@ function sshRemoteStart(words) {
     index += 1;
     break;
   }
-  return destinationFound ? index : -1;
+  return destinationFound && emptyConfigRequested ? index : -1;
 }
 
 function isIpSshDestination(destination) {
@@ -183,7 +180,7 @@ function shellQuote(word) {
 function managedExecutionCommand(command, classification) {
   if (classification.kind !== "ssh") return command;
   return [
-    "ssh", "-F", "/dev/null",
+    "ssh", "-x",
     "-o", shellQuote("BatchMode=yes"),
     "-o", shellQuote("ControlMaster=no"),
     "-o", shellQuote("ControlPath=none"),

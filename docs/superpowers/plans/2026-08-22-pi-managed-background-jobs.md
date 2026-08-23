@@ -118,12 +118,15 @@ type ManagedClassification =
 function classifyManagedCommand(command: string): ManagedClassification;
 ```
 
-For SSH, parse common no-value options and value options (`-b`, `-c`, `-D`,
-`-E`, `-e`, `-F`, `-I`, `-i`, `-J`, `-L`, `-l`, `-m`, `-O`, `-o`, `-p`,
-`-Q`, `-R`, `-S`, `-W`, `-w`). Require one destination. Join the remaining
-words as the remote command only after the local tokenizer has established safe
-word boundaries. Accept either an allowlisted executable or `cd PATH &&`
-followed by one allowlisted executable. Reject any other remote control syntax.
+For SSH, accept only narrow connection flags and the value options `-b`, `-c`,
+`-e`, `-F`, `-i`, `-l`, `-m`, and `-p`. Reject caller-supplied `-o` options,
+X11 forwarding, tunnels, proxy options, and control-master options. Require an
+explicit `-F /dev/null` and one IP destination. Commands that need user SSH
+configuration stay synchronous. Join the remaining words as the remote command
+only after the local tokenizer has established safe word boundaries. Preserve
+backslashes that remain literal inside local double quotes. Accept either an
+allowlisted executable or `cd PATH &&` followed by one allowlisted executable.
+Reject any other remote control syntax.
 
 Export the classifier only as a named test seam. The default export remains the
 Pi extension installer.
