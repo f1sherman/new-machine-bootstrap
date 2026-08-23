@@ -14,7 +14,7 @@ const MANAGED_EXECUTABLES = new Set([
   "bin/test-ruby", "./bin/test-ruby",
 ]);
 const SSH_VALUE_OPTIONS = new Set([
-  "b", "c", "e", "i", "l", "m", "p",
+  "b", "c", "e", "F", "i", "l", "m", "p",
 ]);
 const SSH_FLAG_OPTIONS = new Set([
   "4", "6", "A", "a", "C", "K", "k", "n", "q", "T", "t", "v", "x", "y",
@@ -112,6 +112,7 @@ function classifyRemoteCommand(remoteCommand) {
 function sshRemoteStart(words) {
   let index = 1;
   let destinationFound = false;
+  let emptyConfigRequested = false;
   while (index < words.length) {
     const word = words[index];
     if (!destinationFound && word === "--") {
@@ -132,6 +133,10 @@ function sshRemoteStart(words) {
           if (index >= words.length) return -1;
           value = words[index];
         }
+        if (option === "F") {
+          if (value !== "/dev/null") return -1;
+          emptyConfigRequested = true;
+        }
         index += 1;
         continue;
       }
@@ -143,7 +148,7 @@ function sshRemoteStart(words) {
     index += 1;
     break;
   }
-  return destinationFound ? index : -1;
+  return destinationFound && emptyConfigRequested ? index : -1;
 }
 
 function isIpSshDestination(destination) {
@@ -176,7 +181,7 @@ function shellQuote(word) {
 function managedExecutionCommand(command, classification) {
   if (classification.kind !== "ssh") return command;
   return [
-    "ssh", "-F", "/dev/null", "-x",
+    "ssh", "-x",
     "-o", shellQuote("BatchMode=yes"),
     "-o", shellQuote("ControlMaster=no"),
     "-o", shellQuote("ControlPath=none"),

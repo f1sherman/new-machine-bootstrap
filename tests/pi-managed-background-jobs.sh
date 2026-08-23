@@ -172,17 +172,17 @@ assert.equal(classify("./bin/test ci"), true);
 assert.equal(classify("bin/test-ruby"), true);
 assert.equal(classify("ssh dev.example.com 'bin/provision --tags common_role'"), false);
 assert.equal(classify("ssh -o BatchMode=yes dev.example.com './bin/test ci'"), false);
-assert.equal(classify("ssh user@192.0.2.1 bin/test"), true);
-assert.equal(classify("ssh user@2001:db8::1 bin/test"), true);
+assert.equal(classify("ssh user@192.0.2.1 bin/test"), false);
+assert.equal(classify("ssh -F /dev/null user@2001:db8::1 bin/test"), true);
 assert.equal(classify("ssh foo:bar bin/test"), false);
 assert.equal(classify("ssh 999.0.2.1 bin/test"), false);
-assert.equal(classify("ssh -l brian -p 22 -i /tmp/key 192.0.2.1 bin/test"), true);
-assert.equal(classify('ssh 192.0.2.1 "bin/test foo\\ bar"'), true);
+assert.equal(classify("ssh -F /dev/null -l brian -p 22 -i /tmp/key 192.0.2.1 bin/test"), true);
+assert.equal(classify('ssh 192.0.2.1 "bin/test foo\\ bar"'), false);
 assert.equal(classify("ssh localhost bin/test"), false);
 assert.equal(classify("ssh user@localhost bin/test"), false);
 assert.equal(classify("ssh dev bin/test"), false);
 assert.equal(classify("ssh user@dev bin/test"), false);
-assert.equal(classify("ssh -F /dev/null 192.0.2.1 './bin/test ci'"), false);
+assert.equal(classify("ssh -F /dev/null 192.0.2.1 './bin/test ci'"), true);
 assert.equal(classify("ssh -F /tmp/ssh-config 192.0.2.1 './bin/test ci'"), false);
 assert.equal(classify("ssh -I /tmp/provider.so 192.0.2.1 bin/test"), false);
 assert.equal(classify("ssh -J bastion 192.0.2.1 bin/test"), false);
@@ -205,7 +205,7 @@ assert.equal(classify("ssh -o XAuthLocation=/tmp/pwn 192.0.2.1 bin/test"), false
 assert.equal(classify("ssh -o ForwardX11=yes 192.0.2.1 bin/test"), false);
 assert.equal(classify("ssh -X 192.0.2.1 bin/test"), false);
 assert.equal(classify("ssh -Y 192.0.2.1 bin/test"), false);
-assert.equal(classify("ssh 192.0.2.1 'cd /repo && ./bin/test ci'"), true);
+assert.equal(classify("ssh -F /dev/null 192.0.2.1 'cd /repo && ./bin/test ci'"), true);
 assert.equal(classify("bin/provision | tee /tmp/log"), false);
 assert.equal(classify("bin/test\nprintf unsafe"), false);
 assert.equal(classify("env CI=1 bin/test"), false);
@@ -241,9 +241,9 @@ assert.equal(registeredBash.executionMode, "sequential");
 assert.equal(registeredBash.promptSnippet, "fake");
 
 const delegateResult = await registeredBash.execute(
-  "delegate-1", { command: "ssh dev.example.com bin/test" }, undefined, undefined, context,
+  "delegate-1", { command: "ssh user@192.0.2.1 bin/test" }, undefined, undefined, context,
 );
-assert.equal(delegateResult.content[0].text, "delegated: ssh dev.example.com bin/test");
+assert.equal(delegateResult.content[0].text, "delegated: ssh user@192.0.2.1 bin/test");
 assert.equal(builtInCalls.length, 1);
 assert.equal(builtInCalls[0].cwd, context.cwd,
   "delegated Bash uses the current session working directory");
@@ -361,15 +361,15 @@ const sshConfigChild = new ControlledChild(4214);
 spawnQueue.push(sshConfigChild);
 await registeredBash.execute(
   "call-ssh-config",
-  { command: 'ssh -l brian -p 22 -i /tmp/key 192.0.2.1 "./bin/test foo\\ bar"' },
+  { command: 'ssh -F /dev/null -l brian -p 22 -i /tmp/key 192.0.2.1 "./bin/test foo\\ bar"' },
   undefined,
   undefined,
   context,
 );
 assert.equal(
   spawnCalls.at(-1).command,
-  "ssh -F /dev/null -x -o 'BatchMode=yes' -o 'ControlMaster=no' -o 'ControlPath=none' -o 'ControlPersist=no' -o 'ForkAfterAuthentication=no' -o 'ProxyCommand=none' -o 'PermitLocalCommand=no' -o 'KnownHostsCommand=none' '-l' 'brian' '-p' '22' '-i' '/tmp/key' '192.0.2.1' './bin/test foo\\ bar'",
-  "managed SSH injects an empty config and keeps the double-quote backslash",
+  "ssh -x -o 'BatchMode=yes' -o 'ControlMaster=no' -o 'ControlPath=none' -o 'ControlPersist=no' -o 'ForkAfterAuthentication=no' -o 'ProxyCommand=none' -o 'PermitLocalCommand=no' -o 'KnownHostsCommand=none' '-F' '/dev/null' '-l' 'brian' '-p' '22' '-i' '/tmp/key' '192.0.2.1' './bin/test foo\\ bar'",
+  "managed SSH keeps the explicit empty config and double-quote backslash",
 );
 sshConfigChild.emitExit(0);
 await flush();
