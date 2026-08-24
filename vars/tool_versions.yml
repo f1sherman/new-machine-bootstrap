@@ -2,7 +2,7 @@
 tool_versions:
   github_releases:
     # renovate: datasource=github-releases depName=junegunn/fzf
-    fzf: v0.74.2
+    fzf: v0.74.3
     # renovate: datasource=github-releases depName=BurntSushi/ripgrep
     ripgrep: 15.2.0
     # renovate: datasource=github-releases depName=dandavison/delta
@@ -20,7 +20,7 @@ tool_versions:
     # renovate: datasource=github-tags depName=f1sherman/agent-session-registry
     agent_session_registry: v0.3.0
     # renovate: datasource=github-tags depName=junegunn/fzf
-    fzf: v0.74.2
+    fzf: v0.74.3
     # renovate: datasource=github-tags depName=tmux-plugins/tpm
     tpm: v3.1.0
 
