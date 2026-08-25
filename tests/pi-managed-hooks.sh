@@ -49,6 +49,7 @@ let goalChildResultQueue = [];
 let publishedIdentity = { source: "", subject: "" };
 let fallbackRestores = 0;
 let sessionContextIsStale = false;
+let staleContextReads = 0;
 const failedGitRootCwds = new Set();
 const failedBranchCwds = new Set();
 
@@ -203,7 +204,10 @@ const ctx = {
     getSessionId() { return activeSessionId; },
   }, {
     get(target, property) {
-      if (sessionContextIsStale) throw new Error("stale extension context");
+      if (sessionContextIsStale) {
+        staleContextReads += 1;
+        throw new Error("stale extension context");
+      }
       return target[property];
     },
   }),
@@ -792,6 +796,8 @@ goalChildIgnoresAbort = false;
 await flushAsyncWork();
 sessionContextIsStale = false;
 assert.equal(currentSessionName, "",
+  "automatic naming does not restore a name after shutdown");
+assert.equal(staleContextReads, 0,
   "automatic naming does not read a stale context after shutdown");
 
 branch = "main";
