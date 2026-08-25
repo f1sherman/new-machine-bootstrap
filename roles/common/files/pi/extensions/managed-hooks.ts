@@ -1349,10 +1349,10 @@ export default function managedHooks(pi) {
           "Session name must be one line, unquoted, and at most 80 characters.",
         );
       }
-      if (options.onlyIfUnnamed
-        && (!requestIsCurrent(options.request)
-          || ctx?.sessionManager?.getSessionName?.())) {
-        return ctx?.sessionManager?.getSessionName?.() || "";
+      if (options.onlyIfUnnamed && !requestIsCurrent(options.request)) return "";
+      if (options.onlyIfUnnamed) {
+        const liveName = ctx?.sessionManager?.getSessionName?.() || "";
+        if (liveName) return liveName;
       }
       pi.setSessionName(normalized);
       renderSessionFooter(ctx, normalized);
