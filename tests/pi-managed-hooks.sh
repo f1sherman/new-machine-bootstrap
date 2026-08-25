@@ -48,6 +48,7 @@ let goalChildIgnoresAbort = false;
 let goalChildResultQueue = [];
 let publishedIdentity = { source: "", subject: "" };
 let fallbackRestores = 0;
+let sessionContextIsStale = false;
 const failedGitRootCwds = new Set();
 const failedBranchCwds = new Set();
 
@@ -196,11 +197,16 @@ const ctx = {
     theme: { fg(_color, value) { return value; } },
     setStatus() {},
   },
-  sessionManager: {
+  sessionManager: new Proxy({
     getSessionName() { return currentSessionName; },
     getSessionFile() { return activeSessionFile; },
     getSessionId() { return activeSessionId; },
-  },
+  }, {
+    get(target, property) {
+      if (sessionContextIsStale) throw new Error("stale extension context");
+      return target[property];
+    },
+  }),
 };
 
 process.env.TMUX = "1";
@@ -768,6 +774,25 @@ assert.equal(currentSessionName, "",
   "clearing the name wins over stale automatic generation");
 assert.equal(sessionNames.length, sessionNameCountBeforeClear,
   "stale automatic generation does not restore a cleared name");
+
+currentSessionName = "";
+goalChildIgnoresAbort = true;
+goalChildDeferred = deferred();
+const staleGoalAfterShutdown = goalChildDeferred;
+await handlers.get("before_agent_start")({
+  prompt: "shutdown during initial evaluation",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx);
+await flushAsyncWork();
+await handlers.get("session_shutdown")({}, ctx);
+sessionContextIsStale = true;
+staleGoalAfterShutdown.resolve(ok("stale goal after shutdown\n"));
+goalChildDeferred = undefined;
+goalChildIgnoresAbort = false;
+await flushAsyncWork();
+sessionContextIsStale = false;
+assert.equal(currentSessionName, "",
+  "automatic naming does not read a stale context after shutdown");
 
 branch = "main";
 const destructiveCases = [

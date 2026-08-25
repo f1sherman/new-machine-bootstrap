@@ -1260,12 +1260,13 @@ async function evaluateInitialSessionGoal(pi, request, signal) {
 export default function managedHooks(pi) {
   let sessionGoalGeneration = 0;
   let sessionGoalRunning;
+  let currentSessionFile = "";
   let nameOperationChain = Promise.resolve();
   let registryPublicationChain = Promise.resolve();
 
-  function requestIsCurrent(request, ctx) {
-    const sessionFile = ctx?.sessionManager?.getSessionFile?.() || "";
-    return request.generation === sessionGoalGeneration && request.sessionFile === sessionFile;
+  function requestIsCurrent(request) {
+    return request.generation === sessionGoalGeneration
+      && request.sessionFile === currentSessionFile;
   }
 
   function serializeNameOperation(operation) {
@@ -1349,7 +1350,7 @@ export default function managedHooks(pi) {
         );
       }
       if (options.onlyIfUnnamed
-        && (!requestIsCurrent(options.request, ctx)
+        && (!requestIsCurrent(options.request)
           || ctx?.sessionManager?.getSessionName?.())) {
         return ctx?.sessionManager?.getSessionName?.() || "";
       }
@@ -1381,14 +1382,14 @@ export default function managedHooks(pi) {
       try {
         const result = await evaluateInitialSessionGoal(pi, request, running.controller.signal);
         if (result.code !== 0 || result.killed) {
-          if (requestIsCurrent(request, request.ctx)) recordSessionGoalFailure(result);
+          if (requestIsCurrent(request)) recordSessionGoalFailure(result);
           return;
         }
         const inspected = inspectSessionGoalSubject(
           typeof result.stdout === "string" ? result.stdout.trimEnd() : result.stdout,
         );
         if (!inspected.subject) {
-          if (requestIsCurrent(request, request.ctx)) {
+          if (requestIsCurrent(request)) {
             recordSessionGoalFailure(result, inspected.reason);
           }
           return;
@@ -1399,12 +1400,12 @@ export default function managedHooks(pi) {
             request,
           });
         } catch (error) {
-          if (requestIsCurrent(request, request.ctx)) {
+          if (requestIsCurrent(request)) {
             recordSessionGoalFailure(error, "", "name-application");
           }
         }
       } catch (error) {
-        if (requestIsCurrent(request, request.ctx)) recordSessionGoalFailure(error);
+        if (requestIsCurrent(request)) recordSessionGoalFailure(error);
       } finally {
         if (sessionGoalRunning === running) sessionGoalRunning = undefined;
       }
@@ -1418,6 +1419,7 @@ export default function managedHooks(pi) {
 
   function resetSessionGoalLifecycle(ctx) {
     invalidateInitialSessionGoal();
+    currentSessionFile = ctx?.sessionManager?.getSessionFile?.() || "";
     renderSessionFooter(ctx);
   }
 
@@ -1520,6 +1522,7 @@ export default function managedHooks(pi) {
 
   pi.on("session_shutdown", async () => {
     invalidateInitialSessionGoal();
+    currentSessionFile = "";
   });
 
   pi.on("session_tree", async (_event, ctx) => {
