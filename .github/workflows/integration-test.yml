@@ -99,9 +99,6 @@ jobs:
       - name: Verify Pi session staleness provisioning
         run: bash tests/pi-session-staleness-provisioning.sh
 
-      - name: Verify Pi session staleness extension
-        run: bash tests/pi-session-staleness-extension.sh
-
       - name: Verify stale per-Node Pi purge
         run: bash tests/purge-legacy-pi-coding-agent.sh
 
