@@ -203,6 +203,22 @@ def workspace_inventory(timeout:)
 end
 
 
+def acquire_recovery_lock(path, remaining:, poll_interval:)
+  lock = File.open(path, File::RDONLY)
+  until lock.flock(File::LOCK_EX | File::LOCK_NB)
+    wait = remaining.call
+    sleep([wait, poll_interval].min)
+  end
+  lock
+rescue SystemCallError
+  lock&.close
+  raise HerdrResumeError, "Unable to lock authoritative Pi session file"
+rescue HerdrResumeError, AdapterTermination, Interrupt
+  lock&.close
+  raise
+end
+
+
 def attributable_workspace_pair(name, cwd, baseline_ids, timeout:)
   candidates = workspace_inventory(timeout: timeout).select do |workspace|
     !baseline_ids.include?(workspace["workspace_id"]) &&
@@ -301,6 +317,7 @@ creation_started = false
 workspace_ids_before_create = nil
 recovery_name = nil
 recovery_cwd = nil
+recovery_lock = nil
 termination_signal = nil
 previous_term_handler = Signal.trap("TERM") { raise AdapterTermination, "TERM" }
 begin
@@ -317,6 +334,16 @@ begin
     value
   end
 
+  matches = matching_panes(session_file_path, timeout: remaining.call)
+  if matches.one?
+    validated = true
+    focus_pane(matches.first.fetch(:pane_id), timeout: remaining.call)
+    exit 0
+  end
+
+  recovery_lock = acquire_recovery_lock(
+    session_file_path, remaining: remaining, poll_interval: poll_interval
+  )
   matches = matching_panes(session_file_path, timeout: remaining.call)
   if matches.one?
     validated = true
@@ -369,6 +396,8 @@ ensure
   end
   close_workspace(owned_pair.fetch(:workspace_id), timeout: 1) if
     owned_pair && !validated
+  recovery_lock&.flock(File::LOCK_UN)
+  recovery_lock&.close
   Signal.trap("TERM", previous_term_handler)
 end
 

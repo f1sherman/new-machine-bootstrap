@@ -329,6 +329,78 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
       "#{signal} interruption closes only owned workspace", commands.inspect)
   end
 
+  FileUtils.rm_f(herdr_log)
+  FileUtils.rm_f(herdr_block_marker)
+  File.write(herdr_state, JSON.generate("agents" => [], "block_start" => true))
+  concurrent_env = {
+    "PATH" => "#{fake_bin}:#{ENV.fetch("PATH")}",
+    "PI_ARGV_CAPTURE" => capture_path,
+    "HERDR_TEST_LOG" => herdr_log,
+    "HERDR_TEST_STATE" => herdr_state,
+    "HERDR_TEST_BLOCK_MARKER" => herdr_block_marker,
+    "HERDR_ENV" => "1",
+    "ASR_ADAPTER_TIMEOUT" => "10",
+    "ASR_ADAPTER_POLL_INTERVAL" => "0.05"
+  }
+  concurrent_outputs = 2.times.map do |index|
+    [
+      File.join(tmpdir, "concurrent-#{index}-stdout"),
+      File.join(tmpdir, "concurrent-#{index}-stderr")
+    ]
+  end
+  first_pid = Process.spawn(
+    concurrent_env, adapter, "resume", "pi:host:session-1", config,
+    chdir: tmpdir, out: concurrent_outputs[0][0], err: concurrent_outputs[0][1]
+  )
+  second_pid = nil
+  begin
+    Timeout.timeout(5) { sleep 0.01 until File.exist?(herdr_block_marker) }
+    FileUtils.rm_f(herdr_block_marker)
+    second_pid = Process.spawn(
+      concurrent_env, adapter, "resume", "pi:host:session-1", config,
+      chdir: tmpdir, out: concurrent_outputs[1][0], err: concurrent_outputs[1][1]
+    )
+    sleep 0.25
+    commands = File.readlines(herdr_log, chomp: true).map { |line| JSON.parse(line) }
+    create_count = commands.count { |argv| argv.take(2) == ["workspace", "create"] }
+    serialized = create_count == 1
+    assert.call(serialized,
+      "concurrent same-session recovery serializes before workspace creation",
+      commands.inspect)
+
+    if serialized
+      File.write(herdr_state, JSON.generate(
+        "agents" => [], "publish_agent" => published
+      ))
+      Process.kill("TERM", first_pid)
+      _pid, first_status = Timeout.timeout(5) { Process.waitpid2(first_pid) }
+      _pid, second_status = Timeout.timeout(5) { Process.waitpid2(second_pid) }
+      commands = File.readlines(herdr_log, chomp: true).map { |line| JSON.parse(line) }
+      create_indexes = commands.each_index.select do |index|
+        commands[index].take(2) == ["workspace", "create"]
+      end
+      close_index = commands.index(["workspace", "close", "w2Q"])
+      assert.call(!first_status.success? && second_status.success?,
+        "waiting concurrent recovery continues after interrupted owner")
+      assert.call(create_indexes.length == 2 && close_index && close_index < create_indexes.last,
+        "interrupted owner cleans before waiting recovery creates",
+        commands.inspect)
+    end
+  ensure
+    [first_pid, second_pid].compact.each do |pid|
+      begin
+        Process.kill("KILL", pid)
+      rescue Errno::ESRCH
+        nil
+      end
+      begin
+        Process.waitpid(pid)
+      rescue Errno::ECHILD
+        nil
+      end
+    end
+  end
+
   %w[INT TERM].each do |signal|
     status, stderr, commands, child_alive = interrupt_adapter.call(
       signal, config, state: {"agents" => [], "block_create" => true}
