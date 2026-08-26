@@ -157,10 +157,17 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
       Timeout.timeout(5) do
         sleep 0.01 until File.exist?(herdr_block_marker)
       end
+      blocked_child_pid = Integer(File.read(herdr_block_marker))
       Process.kill(signal, pid)
       _waited_pid, status = Timeout.timeout(5) { Process.waitpid2(pid) }
       commands = File.readlines(herdr_log, chomp: true).map { |line| JSON.parse(line) }
-      [status, File.read(stderr_path), commands]
+      child_alive = begin
+        Process.kill(0, blocked_child_pid)
+        true
+      rescue Errno::ESRCH
+        false
+      end
+      [status, File.read(stderr_path), commands, child_alive]
     ensure
       begin
         Process.kill("KILL", -pid)
@@ -289,21 +296,24 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
     "failed cleanup targets only owned workspace", commands.inspect)
 
   %w[INT TERM].each do |signal|
-    status, stderr, commands = interrupt_adapter.call(
+    status, stderr, commands, child_alive = interrupt_adapter.call(
       signal, config, state: {"agents" => [], "block_start" => true}
     )
     assert.call(!status.success?, "#{signal} interruption preserves failure status", stderr)
+    assert.call(!child_alive, "#{signal} interruption reaps blocked Herdr child")
     assert.call(commands.last == ["workspace", "close", "w2Q"],
       "#{signal} interruption closes only owned workspace", commands.inspect)
   end
 
   %w[INT TERM].each do |signal|
-    status, stderr, commands = interrupt_adapter.call(
+    status, stderr, commands, child_alive = interrupt_adapter.call(
       signal, config,
       state: {"agents" => [], "publish_agent" => published, "block_focus" => true}
     )
     assert.call(!status.success?,
       "#{signal} post-validation interruption preserves failure status", stderr)
+    assert.call(!child_alive,
+      "#{signal} post-validation interruption reaps blocked Herdr child")
     assert.call(!commands.include?(["workspace", "close", "w2Q"]),
       "#{signal} post-validation interruption preserves recovered workspace",
       commands.inspect)
