@@ -4,6 +4,7 @@ require "digest"
 require "fileutils"
 require "json"
 require "open3"
+require "timeout"
 require "tmpdir"
 
 repo_root = File.expand_path("..", __dir__)
@@ -32,6 +33,7 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
   capture_path = File.join(tmpdir, "pi-argv.json")
   herdr_log = File.join(tmpdir, "herdr-log.jsonl")
   herdr_state = File.join(tmpdir, "herdr-state.json")
+  herdr_block_marker = File.join(tmpdir, "herdr-block-marker")
 
   File.write(File.join(fake_bin, "pi"), <<~RUBY)
     #!/usr/bin/env ruby
@@ -68,6 +70,10 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
       puts JSON.generate(response)
     elsif command == ["agent", "start"]
       abort "start failed" if state["fail_start"]
+      if state["block_start"]
+        File.write(ENV.fetch("HERDR_TEST_BLOCK_MARKER"), Process.pid.to_s)
+        sleep
+      end
       state["agents"] = [state.fetch("publish_agent")] if state["publish_agent"]
       File.write(state_path, JSON.generate(state))
       started_agent = state["publish_agent"] || {
@@ -78,6 +84,10 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
       })
     elsif command == ["agent", "focus"]
       abort "focus failed" if state["fail_focus"]
+      if state["block_focus"]
+        File.write(ENV.fetch("HERDR_TEST_BLOCK_MARKER"), Process.pid.to_s)
+        sleep
+      end
       puts JSON.generate("id" => "test:focus", "result" => {
         "type" => "agent_focused", "pane_id" => ARGV.fetch(2)
       })
@@ -101,6 +111,7 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
       "PI_ARGV_CAPTURE" => capture_path,
       "HERDR_TEST_LOG" => herdr_log,
       "HERDR_TEST_STATE" => herdr_state,
+      "HERDR_TEST_BLOCK_MARKER" => herdr_block_marker,
       "HERDR_ENV" => nil,
       "ASR_ADAPTER_TIMEOUT" => "1",
       "ASR_ADAPTER_POLL_INTERVAL" => "0.1"
@@ -120,6 +131,48 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
       []
     end
     [*result, commands]
+  end
+
+  interrupt_adapter = lambda do |signal, raw_config, state:|
+    FileUtils.rm_f(herdr_log)
+    FileUtils.rm_f(herdr_block_marker)
+    File.write(herdr_state, JSON.generate(state))
+    stdout_path = File.join(tmpdir, "interrupt-#{signal}-stdout")
+    stderr_path = File.join(tmpdir, "interrupt-#{signal}-stderr")
+    env = {
+      "PATH" => "#{fake_bin}:#{ENV.fetch("PATH")}",
+      "PI_ARGV_CAPTURE" => capture_path,
+      "HERDR_TEST_LOG" => herdr_log,
+      "HERDR_TEST_STATE" => herdr_state,
+      "HERDR_TEST_BLOCK_MARKER" => herdr_block_marker,
+      "HERDR_ENV" => "1",
+      "ASR_ADAPTER_TIMEOUT" => "10",
+      "ASR_ADAPTER_POLL_INTERVAL" => "0.1"
+    }
+    pid = Process.spawn(
+      env, adapter, "resume", "pi:host:session-1", raw_config,
+      chdir: tmpdir, out: stdout_path, err: stderr_path, pgroup: true
+    )
+    begin
+      Timeout.timeout(5) do
+        sleep 0.01 until File.exist?(herdr_block_marker)
+      end
+      Process.kill(signal, pid)
+      _waited_pid, status = Timeout.timeout(5) { Process.waitpid2(pid) }
+      commands = File.readlines(herdr_log, chomp: true).map { |line| JSON.parse(line) }
+      [status, File.read(stderr_path), commands]
+    ensure
+      begin
+        Process.kill("KILL", -pid)
+      rescue Errno::ESRCH
+        nil
+      end
+      begin
+        Process.waitpid(pid)
+      rescue Errno::ECHILD
+        nil
+      end
+    end
   end
 
   session_id = "019ff8e1-b7d4-7cc6-901f-b9b7bc3e7fd9"
@@ -234,6 +287,27 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
   )
   assert.call(commands.last == ["workspace", "close", "w2Q"],
     "failed cleanup targets only owned workspace", commands.inspect)
+
+  %w[INT TERM].each do |signal|
+    status, stderr, commands = interrupt_adapter.call(
+      signal, config, state: {"agents" => [], "block_start" => true}
+    )
+    assert.call(!status.success?, "#{signal} interruption preserves failure status", stderr)
+    assert.call(commands.last == ["workspace", "close", "w2Q"],
+      "#{signal} interruption closes only owned workspace", commands.inspect)
+  end
+
+  %w[INT TERM].each do |signal|
+    status, stderr, commands = interrupt_adapter.call(
+      signal, config,
+      state: {"agents" => [], "publish_agent" => published, "block_focus" => true}
+    )
+    assert.call(!status.success?,
+      "#{signal} post-validation interruption preserves failure status", stderr)
+    assert.call(!commands.include?(["workspace", "close", "w2Q"]),
+      "#{signal} post-validation interruption preserves recovered workspace",
+      commands.inspect)
+  end
 
   _stdout, stderr, status, commands = run_adapter.call(
     "resume", config, herdr_env: "1",
