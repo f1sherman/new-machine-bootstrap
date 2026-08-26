@@ -137,7 +137,6 @@ def run
     extensions/main-worktree-guard.ts
     extensions/pi-attention-bell.ts
     extensions/spec-shortcut.ts
-    extensions/pi-session-staleness.ts
     extensions/subagent/config.json
     npm/node_modules/pi-session-manager
   ]

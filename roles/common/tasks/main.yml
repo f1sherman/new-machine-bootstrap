@@ -2554,19 +2554,10 @@
   changed_when: false
   when: not ansible_check_mode
 
-- name: Install Pi session staleness watcher
-  copy:
-    src: pi/extensions/pi-session-staleness.ts
-    dest: '{{ ansible_facts["user_dir"] }}/.pi/agent/extensions/pi-session-staleness.ts'
-    mode: '0644'
-
-- name: Reconcile managed Pi baseline after watcher installation
-  command: '{{ ansible_facts["user_dir"] }}/.local/bin/pi-session-staleness-reconcile-new-machine-bootstrap'
-  environment:
-    HOME: '{{ ansible_facts["user_dir"] }}'
-    PATH: '{{ ansible_facts["user_dir"] }}/.local/bin:{{ ansible_facts["user_dir"] }}/.local/share/mise/shims:{{ ansible_facts["env"]["PATH"] }}'
-  changed_when: false
-  when: not ansible_check_mode
+- name: Remove obsolete local Pi session staleness extension
+  file:
+    path: '{{ ansible_facts["user_dir"] }}/.pi/agent/extensions/pi-session-staleness.ts'
+    state: absent
 
 - name: Remove legacy GSD state
   file:
