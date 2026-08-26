@@ -56,6 +56,14 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
       puts JSON.generate("id" => "test:list", "result" => {
         "type" => "agent_list", "agents" => state.fetch("agents", [])
       })
+    elsif command == ["workspace", "list"]
+      puts JSON.generate("id" => "test:workspaces", "result" => {
+        "type" => "workspace_list", "workspaces" => state.fetch("workspaces", [])
+      })
+    elsif command == ["pane", "list"]
+      puts JSON.generate("id" => "test:panes", "result" => {
+        "type" => "pane_list", "panes" => state.fetch("panes", [])
+      })
     elsif command == ["workspace", "create"]
       abort "create failed" if state["fail_create"]
       response = state.fetch("create_response", {
@@ -67,6 +75,21 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
           "root_pane" => {"pane_id" => "w2Q:pA"}
         }
       })
+      if state["block_create"]
+        unless state["skip_created_workspace"]
+          state["workspaces"] = state.fetch("workspaces", []) + [{
+            "workspace_id" => "w2Q", "label" => ARGV[ARGV.index("--label") + 1],
+            "pane_count" => 1, "tab_count" => 1
+          }]
+          state["panes"] = state.fetch("panes", []) + [{
+            "workspace_id" => "w2Q", "pane_id" => "w2Q:pA",
+            "cwd" => ARGV[ARGV.index("--cwd") + 1]
+          }]
+        end
+        File.write(state_path, JSON.generate(state))
+        File.write(ENV.fetch("HERDR_TEST_BLOCK_MARKER"), Process.pid.to_s)
+        sleep
+      end
       puts JSON.generate(response)
     elsif command == ["agent", "start"]
       abort "start failed" if state["fail_start"]
@@ -105,6 +128,7 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
   run_adapter = lambda do |action, raw_config, herdr_env: nil, state: {}|
     FileUtils.rm_f(capture_path)
     FileUtils.rm_f(herdr_log)
+    FileUtils.rm_f(herdr_block_marker)
     File.write(herdr_state, JSON.generate(state))
     env = {
       "PATH" => "#{fake_bin}:#{ENV.fetch("PATH")}",
@@ -307,6 +331,19 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
 
   %w[INT TERM].each do |signal|
     status, stderr, commands, child_alive = interrupt_adapter.call(
+      signal, config, state: {"agents" => [], "block_create" => true}
+    )
+    assert.call(!status.success?,
+      "#{signal} during create preserves failure status", stderr)
+    assert.call(!child_alive,
+      "#{signal} during create reaps blocked Herdr child")
+    assert.call(commands.last == ["workspace", "close", "w2Q"],
+      "#{signal} during create closes only the newly attributable workspace",
+      commands.inspect)
+  end
+
+  %w[INT TERM].each do |signal|
+    status, stderr, commands, child_alive = interrupt_adapter.call(
       signal, config,
       state: {"agents" => [], "publish_agent" => published, "block_focus" => true}
     )
@@ -335,6 +372,32 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
     "registration timeout fails boundedly", stderr
   )
   assert.call(commands.last == ["workspace", "close", "w2Q"], "registration timeout closes owned workspace", commands.inspect)
+
+  _stdout, stderr, status, commands = run_adapter.call(
+    "resume", config, herdr_env: "1",
+    state: {"agents" => [], "block_create" => true}
+  )
+  assert.call(!status.success? && stderr.include?("Herdr command timed out"),
+    "workspace create timeout fails boundedly", stderr)
+  assert.call(commands.last == ["workspace", "close", "w2Q"],
+    "workspace create timeout closes only the newly attributable workspace",
+    commands.inspect)
+
+  existing_workspace = {
+    "workspace_id" => "w1F", "label" => expected_name,
+    "pane_count" => 1, "tab_count" => 1
+  }
+  existing_pane = {"workspace_id" => "w1F", "pane_id" => "w1F:pA", "cwd" => tmpdir}
+  _stdout, _stderr, _status, commands = run_adapter.call(
+    "resume", config, herdr_env: "1",
+    state: {
+      "agents" => [], "block_create" => true, "skip_created_workspace" => true,
+      "workspaces" => [existing_workspace], "panes" => [existing_pane]
+    }
+  )
+  assert.call(!commands.any? { |argv| argv.take(2) == ["workspace", "close"] },
+    "workspace create timeout never closes a matching pre-existing workspace",
+    commands.inspect)
 
   _stdout, stderr, status, _commands = run_adapter.call(
     "delete", config
