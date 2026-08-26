@@ -13,6 +13,15 @@ MAX_POLL_INTERVAL_SECONDS = 1.0
 
 class HerdrResumeError < StandardError; end
 
+class AdapterTermination < Exception
+  attr_reader :signal
+
+  def initialize(signal)
+    @signal = signal
+    super
+  end
+end
+
 action, _registry_key, raw_config = ARGV
 abort "Unsupported adapter action: #{action}" unless action == "resume"
 
@@ -228,6 +237,8 @@ end
 
 owned_pair = nil
 validated = false
+termination_signal = nil
+previous_term_handler = Signal.trap("TERM") { raise AdapterTermination, "TERM" }
 begin
   session_file_path = session_file.to_s
   session_id_for(session_file_path)
@@ -273,7 +284,18 @@ begin
 
   focus_pane(owned_pair.fetch(:pane_id), timeout: remaining.call)
 rescue HerdrResumeError => error
-  close_workspace(owned_pair.fetch(:workspace_id), timeout: 1) if owned_pair && !validated
   warn error.message
   exit 1
+rescue AdapterTermination => error
+  termination_signal = error.signal
+ensure
+  close_workspace(owned_pair.fetch(:workspace_id), timeout: 1) if
+    owned_pair && !validated
+  Signal.trap("TERM", previous_term_handler)
+end
+
+if termination_signal
+  Signal.trap(termination_signal, "DEFAULT")
+  Process.kill(termination_signal, Process.pid)
+  sleep
 end
