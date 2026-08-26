@@ -71,6 +71,25 @@ rescue JSON::ParserError, TypeError
 end
 
 
+def terminate_herdr_child(wait_thread)
+  return unless wait_thread&.alive?
+
+  begin
+    Process.kill("TERM", wait_thread.pid)
+  rescue Errno::ESRCH
+    nil
+  end
+  unless wait_thread.join(0.2)
+    begin
+      Process.kill("KILL", wait_thread.pid)
+    rescue Errno::ESRCH
+      nil
+    end
+    wait_thread.join
+  end
+end
+
+
 def capture_herdr(*arguments, timeout:)
   stdin = stdout = stderr = wait_thread = nil
   stdout_reader = stderr_reader = nil
@@ -81,11 +100,7 @@ def capture_herdr(*arguments, timeout:)
   stdout_reader.report_on_exception = false
   stderr_reader.report_on_exception = false
   unless wait_thread.join(timeout)
-    Process.kill("TERM", wait_thread.pid)
-    unless wait_thread.join(0.2)
-      Process.kill("KILL", wait_thread.pid)
-      wait_thread.join
-    end
+    terminate_herdr_child(wait_thread)
     stdout_reader.join
     stderr_reader.join
     raise HerdrResumeError, "Herdr command timed out"
@@ -99,6 +114,7 @@ rescue Errno::ESRCH
   wait_thread&.join
   raise HerdrResumeError, "Herdr command timed out"
 ensure
+  terminate_herdr_child(wait_thread)
   stdin&.close unless stdin&.closed?
   stdout&.close unless stdout&.closed?
   stderr&.close unless stderr&.closed?
