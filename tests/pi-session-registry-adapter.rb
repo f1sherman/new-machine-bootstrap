@@ -82,6 +82,7 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
         "type" => "agent_focused", "pane_id" => ARGV.fetch(2)
       })
     elsif command == ["workspace", "close"]
+      abort "close failed" if state["fail_close"]
       puts JSON.generate("id" => "test:close", "result" => {
         "type" => "workspace_closed", "workspace_id" => ARGV.fetch(2)
       })
@@ -221,6 +222,18 @@ Dir.mktmpdir("pi-session-registry-adapter") do |tmpdir|
   )
   assert.call(!status.success? && stderr.include?("Herdr agent start failed"), "pre-validation start failure is reported", stderr)
   assert.call(commands.last == ["workspace", "close", "w2Q"], "pre-validation failure closes only owned workspace", commands.inspect)
+
+  _stdout, stderr, status, commands = run_adapter.call(
+    "resume", config, herdr_env: "1",
+    state: {"agents" => [], "fail_start" => true, "fail_close" => true}
+  )
+  assert.call(
+    !status.success? && stderr.include?("Herdr agent start failed") &&
+      stderr.include?("Herdr workspace cleanup failed: close failed"),
+    "cleanup failure warns without replacing original failure", stderr
+  )
+  assert.call(commands.last == ["workspace", "close", "w2Q"],
+    "failed cleanup targets only owned workspace", commands.inspect)
 
   _stdout, stderr, status, commands = run_adapter.call(
     "resume", config, herdr_env: "1",
