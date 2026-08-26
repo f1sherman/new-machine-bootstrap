@@ -185,6 +185,50 @@ def matching_panes(session_file, timeout:)
 end
 
 
+def workspace_inventory(timeout:)
+  stdout, stderr, status = capture_herdr("workspace", "list", timeout: timeout)
+  raise HerdrResumeError, command_error("Herdr workspace list failed", stderr) unless
+    status.success?
+  result = parse_result(stdout, "Herdr workspace list", "workspace_list")
+  workspaces = result["workspaces"]
+  raise HerdrResumeError, "Invalid Herdr workspace list" unless
+    result.keys.sort == %w[type workspaces] && workspaces.is_a?(Array)
+
+  workspaces.each do |workspace|
+    raise HerdrResumeError, "Invalid Herdr workspace list" unless
+      workspace.is_a?(Hash) &&
+        HERDR_WORKSPACE_ID_PATTERN.match?(workspace["workspace_id"].to_s)
+  end
+  workspaces
+end
+
+
+def attributable_workspace_pair(name, cwd, baseline_ids, timeout:)
+  candidates = workspace_inventory(timeout: timeout).select do |workspace|
+    !baseline_ids.include?(workspace["workspace_id"]) &&
+      workspace["label"] == name && workspace["pane_count"] == 1 &&
+      workspace["tab_count"] == 1
+  end
+  return unless candidates.one?
+
+  workspace_id = candidates.first.fetch("workspace_id")
+  stdout, stderr, status = capture_herdr("pane", "list", timeout: timeout)
+  raise HerdrResumeError, command_error("Herdr pane list failed", stderr) unless
+    status.success?
+  result = parse_result(stdout, "Herdr pane list", "pane_list")
+  panes = result["panes"]
+  raise HerdrResumeError, "Invalid Herdr pane list" unless
+    result.keys.sort == %w[panes type] && panes.is_a?(Array)
+  matches = panes.select do |pane|
+    pane.is_a?(Hash) && pane["workspace_id"] == workspace_id &&
+      pane["cwd"] == cwd
+  end
+  return unless matches.one?
+
+  validate_pair(workspace_id, matches.first["pane_id"])
+end
+
+
 def create_workspace(name, timeout:)
   stdout, stderr, status = capture_herdr(
     "workspace", "create", "--cwd", Dir.pwd,
@@ -253,6 +297,10 @@ end
 
 owned_pair = nil
 validated = false
+creation_started = false
+workspace_ids_before_create = nil
+recovery_name = nil
+recovery_cwd = nil
 termination_signal = nil
 previous_term_handler = Signal.trap("TERM") { raise AdapterTermination, "TERM" }
 begin
@@ -276,11 +324,16 @@ begin
     exit 0
   end
 
-  name = "asr-local-#{Digest::SHA256.hexdigest(session_file_path)[0, 20]}"
-  owned_pair = create_workspace(name, timeout: remaining.call) do |safe_pair|
+  recovery_name = "asr-local-#{Digest::SHA256.hexdigest(session_file_path)[0, 20]}"
+  recovery_cwd = Dir.pwd
+  workspace_ids_before_create = workspace_inventory(
+    timeout: remaining.call
+  ).map { |workspace| workspace.fetch("workspace_id") }
+  creation_started = true
+  owned_pair = create_workspace(recovery_name, timeout: remaining.call) do |safe_pair|
     owned_pair = safe_pair
   end
-  start_agent(name, owned_pair, session_file_path, timeout: remaining.call)
+  start_agent(recovery_name, owned_pair, session_file_path, timeout: remaining.call)
 
   loop do
     matches = matching_panes(session_file_path, timeout: remaining.call)
@@ -305,6 +358,15 @@ rescue HerdrResumeError => error
 rescue AdapterTermination => error
   termination_signal = error.signal
 ensure
+  if creation_started && !validated && !owned_pair
+    begin
+      owned_pair = attributable_workspace_pair(
+        recovery_name, recovery_cwd, workspace_ids_before_create, timeout: 1
+      )
+    rescue HerdrResumeError => error
+      warn "Herdr workspace cleanup ownership check failed: #{error.message}"
+    end
+  end
   close_workspace(owned_pair.fetch(:workspace_id), timeout: 1) if
     owned_pair && !validated
   Signal.trap("TERM", previous_term_handler)
