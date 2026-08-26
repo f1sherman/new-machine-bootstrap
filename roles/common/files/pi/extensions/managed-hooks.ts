@@ -11,7 +11,7 @@ let cachedManagedChildAuthSignature;
 let cachedManagedChildModel = OPENAI_MANAGED_CHILD_MODEL;
 const SUBJECT_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase describing the user's task. Output only the phrase on one line, with no quotes, prefix, or explanation.";
 const SUBJECT_MAX_LENGTH = 80;
-const SESSION_GOAL_CHILD_SYSTEM_PROMPT = "Return one concise noun phrase of at most 40 characters describing the new session's broad goal. Output only the phrase on one line, without quotes, a goal: prefix, or explanation.";
+const SESSION_GOAL_CHILD_SYSTEM_PROMPT = "Return one memorable noun phrase of at most 40 characters describing the problem to solve or the intended outcome. Infer that meaning when the prompt emphasizes a ticket, repository, workflow, or phase. Do not use an identifier or an activity such as design, implementation, debugging, or review as the main subject. Output only the phrase on one line, without quotes, a goal: prefix, or explanation.";
 const SESSION_GOAL_MAX_LENGTH = 80;
 const SESSION_NAME_STATUS_KEY = "sm";
 const REPO_START_TRIGGERS = /(^|\s)(?:z-fix|z-spec-first|z-quick-pr|superpowers:systematic-debugging|superpowers:brainstorming)(?=\s|$)/i;
@@ -1426,11 +1426,11 @@ export default function managedHooks(pi) {
   pi.registerTool({
     name: "set_session_name",
     label: "Set Session Name",
-    description: "Set the durable broad name and automatic identity for the current Pi session. Do not call by default. Call only when the user starts a new top-level objective that is clearly unrelated to the current objective. Keep the existing name for follow-ups, scope refinements, implementation phases, debugging, testing, deployment, review, PR work, and issues discovered while completing the current objective. Prefer at most 40 characters.",
+    description: "Set the durable broad name and automatic identity for the current Pi session. Use a memorable description of the problem to solve or the intended outcome. Infer that meaning instead of naming a ticket, repository, workflow, or phase. Do not call by default. Call only when the user starts a new top-level objective that is clearly unrelated to the current objective. Keep the existing name for follow-ups, scope refinements, implementation phases, debugging, testing, deployment, review, PR work, and issues discovered while completing the current objective. Prefer at most 40 characters.",
     parameters: {
       type: "object",
       properties: {
-        name: { type: "string", description: "Concise broad session name that describes the overall objective, not the current step; prefer at most 40 characters (maximum 80)" },
+        name: { type: "string", description: "Memorable problem or outcome, not an identifier, repository, workflow, or current phase; prefer at most 40 characters (maximum 80)" },
       },
       required: ["name"],
       additionalProperties: false,
