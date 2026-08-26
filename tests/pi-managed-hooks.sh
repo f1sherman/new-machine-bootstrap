@@ -80,8 +80,7 @@ async function withStdoutTTY(callback) {
 }
 
 function isGoalChild(args) {
-  const index = args.indexOf("--system-prompt");
-  return index !== -1 && args[index + 1].includes("session's broad goal");
+  return args.at(-1).startsWith("New session prompt: ");
 }
 
 function isSubjectChild(args) {
