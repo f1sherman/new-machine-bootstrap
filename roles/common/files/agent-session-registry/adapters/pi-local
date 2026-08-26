@@ -218,9 +218,12 @@ end
 
 
 def close_workspace(workspace_id, timeout:)
-  capture_herdr("workspace", "close", workspace_id, timeout: timeout)
-rescue HerdrResumeError
-  nil
+  _stdout, stderr, status = capture_herdr(
+    "workspace", "close", workspace_id, timeout: timeout
+  )
+  warn command_error("Herdr workspace cleanup failed", stderr) unless status.success?
+rescue HerdrResumeError => error
+  warn "Herdr workspace cleanup failed: #{error.message}"
 end
 
 owned_pair = nil
