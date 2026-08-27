@@ -1,0 +1,120 @@
+---
+- name: Check installed OmniWM version
+  command: >-
+    /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString'
+    /Applications/OmniWM.app/Contents/Info.plist
+  register: omniwm_installed_version
+  changed_when: false
+  failed_when: false
+
+- name: Install pinned OmniWM release
+  when: >-
+    omniwm_installed_version.stdout !=
+    (tool_versions.github_releases.omniwm | regex_replace('^v', ''))
+  block:
+    - name: Create OmniWM staging directory
+      tempfile:
+        state: directory
+        path: /Applications
+        prefix: .omniwm-
+      register: omniwm_staging_dir
+
+    - name: Download pinned OmniWM release
+      get_url:
+        url: >-
+          https://github.com/BarutSRB/OmniWM/releases/download/{{
+          tool_versions.github_releases.omniwm }}/OmniWM-{{
+          tool_versions.github_releases.omniwm }}.zip
+        dest: '{{ omniwm_staging_dir.path }}/OmniWM.zip'
+        mode: '0644'
+      register: omniwm_download
+      until: omniwm_download is succeeded
+      retries: 3
+      delay: 10
+
+    - name: Extract pinned OmniWM release
+      unarchive:
+        src: '{{ omniwm_staging_dir.path }}/OmniWM.zip'
+        dest: '{{ omniwm_staging_dir.path }}'
+        remote_src: true
+
+    - name: Check staged OmniWM version
+      command: >-
+        /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString'
+        {{ omniwm_staging_dir.path }}/OmniWM.app/Contents/Info.plist
+      register: omniwm_staged_version
+      changed_when: false
+
+    - name: Verify staged OmniWM version
+      assert:
+        that:
+          - >-
+            omniwm_staged_version.stdout ==
+            (tool_versions.github_releases.omniwm | regex_replace('^v', ''))
+        fail_msg: >-
+          Staged OmniWM version {{ omniwm_staged_version.stdout }} does not
+          match {{ tool_versions.github_releases.omniwm }}.
+
+    - name: Remove old OmniWM application
+      file:
+        path: /Applications/OmniWM.app
+        state: absent
+
+    - name: Install staged OmniWM application
+      command:
+        argv:
+          - mv
+          - '{{ omniwm_staging_dir.path }}/OmniWM.app'
+          - /Applications/OmniWM.app
+  always:
+    - name: Remove OmniWM staging directory
+      file:
+        path: '{{ omniwm_staging_dir.path }}'
+        state: absent
+      when:
+        - omniwm_staging_dir is defined
+        - omniwm_staging_dir.path is defined
+
+- name: Link OmniWM command-line client
+  file:
+    src: /Applications/OmniWM.app/Contents/MacOS/omniwmctl
+    dest: "{{ ansible_facts['user_dir'] }}/.local/bin/omniwmctl"
+    state: link
+    force: true
+
+- name: Ensure LaunchAgents directory exists for OmniWM
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/Library/LaunchAgents"
+    state: directory
+    mode: '0755'
+
+- name: Install OmniWM LaunchAgent plist
+  template:
+    src: launchd/com.user.omniwm.plist
+    dest: >-
+      {{ ansible_facts['user_dir'] }}/Library/LaunchAgents/com.user.omniwm.plist
+    mode: '0644'
+  register: omniwm_launch_agent_plist
+
+- name: Check whether OmniWM launchd job is loaded
+  command: >-
+    launchctl print
+    gui/{{ ansible_facts['user_uid'] }}/com.user.omniwm
+  register: omniwm_launch_agent_job
+  changed_when: false
+  failed_when: false
+
+- name: Reload changed OmniWM launchd job
+  command: >-
+    launchctl bootout
+    gui/{{ ansible_facts['user_uid'] }}/com.user.omniwm
+  when:
+    - omniwm_launch_agent_plist.changed
+    - omniwm_launch_agent_job.rc == 0
+
+- name: Load OmniWM launchd job
+  command: >-
+    launchctl bootstrap gui/{{ ansible_facts['user_uid'] }}
+    {{ ansible_facts['user_dir'] }}/Library/LaunchAgents/com.user.omniwm.plist
+  when: >-
+    omniwm_launch_agent_plist.changed or omniwm_launch_agent_job.rc != 0
