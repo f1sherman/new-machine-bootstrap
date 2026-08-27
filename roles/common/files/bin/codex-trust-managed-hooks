@@ -157,7 +157,7 @@ fetch_metadata() {
 
   require_command "$CODEX_BIN"
 
-  CODEX_BIN="$CODEX_BIN" QUERY_CWD="$QUERY_CWD" ruby <<'RUBY'
+  CODEX_BIN="$CODEX_BIN" QUERY_CWD="$QUERY_CWD" ruby -e '
 require "json"
 require "open3"
 require "timeout"
@@ -238,7 +238,7 @@ Open3.popen3(codex_bin, "app-server", "--listen", "stdio://") do |stdin, stdout,
     stop_process(wait_thread)
   end
 end
-RUBY
+'
 }
 
 build_trust_plan() {
@@ -247,9 +247,9 @@ build_trust_plan() {
   while IFS= read -r warning; do
     [[ -z "$warning" ]] && continue
     printf 'codex-trust-managed-hooks: warning: %s\n' "$warning" >&2
-  done < <(jq -r '(.data[0].warnings // []) | .[]' <<<"$metadata")
+  done < <(printf '%s\n' "$metadata" | jq -r '(.data[0].warnings // []) | .[]')
 
-  jq -c --arg hooks_file "$HOOKS_FILE" --arg raw_hooks_file "$HOOKS_FILE_RAW" --argjson manifest "$manifest" '
+  printf '%s\n' "$metadata" | jq -c --arg hooks_file "$HOOKS_FILE" --arg raw_hooks_file "$HOOKS_FILE_RAW" --argjson manifest "$manifest" '
     def norm_timeout: (.timeoutSec // 600 | tonumber);
     def from_hooks_file: (.sourcePath == $hooks_file or .sourcePath == $raw_hooks_file);
     .data[0] as $entry
@@ -276,7 +276,7 @@ build_trust_plan() {
           ]
         }
       end
-  ' <<<"$metadata"
+  '
 }
 
 update_config() {
@@ -290,7 +290,7 @@ update_config() {
   CONFIG_FILE="$CONFIG_FILE" \
   HOOKS_FILE="$HOOKS_FILE" \
   HOOKS_FILE_RAW="$HOOKS_FILE_RAW" \
-  ruby <<'RUBY'
+  ruby -e '
 require "fileutils"
 require "json"
 
@@ -329,10 +329,10 @@ def toml_section_header?(line)
         escaped = false
       elsif char == "\\"
         escaped = true
-      elsif char == '"'
+      elsif char == "\""
         in_string = false
       end
-    elsif char == '"'
+    elsif char == "\""
       in_string = true
     elsif char == "["
       depth += 1
@@ -400,7 +400,7 @@ else
   File.chmod(0o600, config_file) if File.exist?(config_file)
   puts "unchanged"
 end
-RUBY
+'
 }
 
 require_command jq
