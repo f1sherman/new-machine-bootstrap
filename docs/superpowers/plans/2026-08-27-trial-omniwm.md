@@ -89,7 +89,9 @@ Create `roles/macos/tasks/install_omniwm.yml`. It must:
 4. Verify the staged app with `/usr/bin/codesign --verify --deep --strict`.
 5. Only after extraction, version validation, and signature verification pass,
    replace the current app bundle and remove the staging directory.
-6. Create this symlink with `force: true`:
+6. After successful replacement, set `omniwm_app_updated: true` for the current
+   play so launchd reloads the newly installed executable.
+7. Create this symlink with `force: true`:
 
 ```yaml
 src: /Applications/OmniWM.app/Contents/MacOS/omniwmctl
@@ -114,9 +116,14 @@ In `install_omniwm.yml`:
 2. Template the plist with mode `0644` and register whether it changed.
 3. Check `launchctl print gui/{{ ansible_facts['user_uid'] }}/com.user.omniwm`
    without failing or reporting a change.
-4. Boot out a loaded job only when the template changed.
-5. Bootstrap the job when it was absent or the template changed. This starts
-   OmniWM during the first provision and at later logins.
+4. Boot out a loaded job when the template changed or
+   `omniwm_app_updated` is true.
+5. Bootstrap the job when it was absent, the template changed, or
+   `omniwm_app_updated` is true. This recovers a stopped loaded job after app
+   replacement, runs the new process after upgrades, and starts OmniWM during
+   the first provision and at later logins.
+6. Preserve idempotency: when the app and template are unchanged and the job is
+   already loaded, do not boot out or bootstrap the job.
 
 - [ ] **Step 6: Run focused static verification**
 

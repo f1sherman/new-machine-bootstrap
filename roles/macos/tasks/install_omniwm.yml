@@ -79,6 +79,10 @@
           - mv
           - '{{ omniwm_staging_dir.path }}/OmniWM.app'
           - /Applications/OmniWM.app
+
+    - name: Record OmniWM application update
+      set_fact:
+        omniwm_app_updated: true
   always:
     - name: Remove OmniWM staging directory
       file:
@@ -117,17 +121,21 @@
   changed_when: false
   failed_when: false
 
-- name: Reload changed OmniWM launchd job
+- name: Stop loaded OmniWM launchd job before reload
   command: >-
     launchctl bootout
     gui/{{ ansible_facts['user_uid'] }}/com.user.omniwm
   when:
-    - omniwm_launch_agent_plist.changed
     - omniwm_launch_agent_job.rc == 0
+    - >-
+      omniwm_launch_agent_plist.changed or
+      (omniwm_app_updated | default(false))
 
 - name: Load OmniWM launchd job
   command: >-
     launchctl bootstrap gui/{{ ansible_facts['user_uid'] }}
     {{ ansible_facts['user_dir'] }}/Library/LaunchAgents/com.user.omniwm.plist
   when: >-
-    omniwm_launch_agent_plist.changed or omniwm_launch_agent_job.rc != 0
+    omniwm_launch_agent_plist.changed or
+    (omniwm_app_updated | default(false)) or
+    omniwm_launch_agent_job.rc != 0
