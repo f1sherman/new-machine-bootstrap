@@ -19,6 +19,9 @@ launch it at login. Keep the trial isolated from other managed machines.
 - The target host reports `ansible_hostname` as `brian-macbook-pro`.
 - The target is Apple Silicon and runs macOS 26 or later, as OmniWM requires.
 - Brian will grant Accessibility permission when macOS requests it.
+- The existing macOS-wide default `com.apple.spaces spans-displays=false`
+  enables **Displays have separate Spaces** and satisfies OmniWM's Mission
+  Control prerequisite.
 - Launching OmniWM during provisioning is acceptable because it starts the
   trial and permits the required macOS approval flow.
 
@@ -35,6 +38,12 @@ GUI session so OmniWM starts now and at later logins. Use the app executable
 inside the installed bundle. Do not use UI automation to toggle OmniWM's own
 `SMAppService` setting because that interface requires interaction inside the
 application.
+
+Keep the existing **Displays have separate Spaces** management unchanged.
+`roles/macos/vars/defaults.yml` already declares
+`com.apple.spaces spans-displays=false`, and `roles/macos/tasks/defaults.yml`
+applies it to all managed macOS hosts. Do not add a duplicate OmniWM-specific
+setting or narrow its existing macOS-wide scope.
 
 ## Alternatives considered
 
@@ -55,6 +64,9 @@ application.
   linking, and LaunchAgent lifecycle.
 - `roles/macos/templates/launchd/com.user.omniwm.plist`: defines login launch.
 - `roles/macos/tasks/main.yml`: applies the trial task only to the exact host.
+- Existing `roles/macos/vars/defaults.yml` and
+  `roles/macos/tasks/defaults.yml`: continue to manage the macOS-wide Mission
+  Control prerequisite without changes.
 
 ## Error handling
 
@@ -75,6 +87,8 @@ repository's material-value test gate. Verify with:
 5. Confirm `~/.local/bin/omniwmctl` resolves to the app bundle command.
 6. Confirm the LaunchAgent is loaded in the current GUI domain.
 7. Confirm the OmniWM process starts.
+8. Run `defaults read com.apple.spaces spans-displays` and confirm it returns
+   `0`, which means **Displays have separate Spaces** is enabled.
 
 ## Rollout
 
