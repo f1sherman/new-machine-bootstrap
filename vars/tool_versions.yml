@@ -15,6 +15,8 @@ tool_versions:
     yq: v4.53.3
     # renovate: datasource=github-releases depName=ajeetdsouza/zoxide
     zoxide: v0.10.0
+    # renovate: datasource=github-releases depName=BarutSRB/OmniWM
+    omniwm: v0.6.3
 
   git_tags:
     # renovate: datasource=github-tags depName=f1sherman/agent-session-registry
