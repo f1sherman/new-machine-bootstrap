@@ -35,10 +35,19 @@ verifies the staged bundle with `codesign --verify --deep --strict`, installs
 Include that task file only when `ansible_hostname == 'brian-macbook-pro'`.
 
 Install a per-user LaunchAgent with `RunAtLoad` enabled. Load it in the current
-GUI session so OmniWM starts now and at later logins. Use the app executable
-inside the installed bundle. Do not use UI automation to toggle OmniWM's own
+GUI session so OmniWM starts now and at later logins. Before an app upgrade,
+inspect the loaded job and stop it only after the staged replacement passes all
+validation. This prevents an interrupted provision from leaving the old process
+running against a new bundle. A later provision sees the absent job and loads it
+after the app, CLI link, and plist are ready. Use the app executable inside the
+installed bundle. Do not use UI automation to toggle OmniWM's own
 `SMAppService` setting because that interface requires interaction inside the
 application.
+
+The installed-version and launchd-status probes must execute in Ansible check
+mode because they do not mutate state. If the app is absent or outdated, check
+mode reports a pending change but skips staging, download, extraction,
+replacement, and launchd mutations.
 
 Keep the existing **Displays have separate Spaces** management unchanged.
 `roles/macos/vars/defaults.yml` already declares
@@ -78,8 +87,11 @@ setting or narrow its existing macOS-wide scope.
 Provisioning must fail if the pinned asset cannot download, `ditto` cannot
 extract it, the staged app fails strict code-signature verification, the
 application cannot install, or the LaunchAgent cannot load. The existing app
-must remain in place until extraction and signature verification both pass.
-Existing GitHub download retry behavior remains in use. The host condition
+and process must remain in place until extraction and signature verification
+both pass. A loaded process is then stopped before app replacement. If a later
+task fails, the next provision observes the absent job and loads it after all
+prerequisites succeed. Existing GitHub download retry behavior remains in use.
+Check mode must not create staging state or mutate launchd. The host condition
 prevents unsupported machines from reaching these tasks.
 
 ## Verification
@@ -92,12 +104,17 @@ repository's material-value test gate. Verify with:
 3. A focused repo-local extraction test that uses `/usr/bin/ditto -x -k`,
    confirms no `._*` files exist, and passes
    `codesign --verify --deep --strict` on the staged app.
-4. `bin/provision` on `brian-macbook-pro`.
-5. Confirm `/Applications/OmniWM.app` exists and has the pinned version.
-6. Confirm `~/.local/bin/omniwmctl` resolves to the app bundle command.
-7. Confirm the LaunchAgent is loaded in the current GUI domain.
-8. Confirm the OmniWM process starts.
-9. Run `defaults read com.apple.spaces spans-displays` and confirm it returns
+4. A focused check-mode run with an intentionally different pinned version.
+   Confirm it reports a pending change without entering staging, download,
+   extraction, app replacement, or launchd mutation tasks.
+5. A lifecycle truth-table check for first install, app update, plist update,
+   unchanged state, and recovery after interruption.
+6. `bin/provision` on `brian-macbook-pro`.
+7. Confirm `/Applications/OmniWM.app` exists and has the pinned version.
+8. Confirm `~/.local/bin/omniwmctl` resolves to the app bundle command.
+9. Confirm the LaunchAgent is loaded in the current GUI domain.
+10. Confirm the OmniWM process starts.
+11. Run `defaults read com.apple.spaces spans-displays` and confirm it returns
    `0`, which means **Displays have separate Spaces** is enabled.
 
 ## Rollout

@@ -6,11 +6,52 @@
   register: omniwm_installed_version
   changed_when: false
   failed_when: false
+  check_mode: false
+
+- name: Record whether OmniWM requires installation
+  set_fact:
+    omniwm_update_required: >-
+      {{
+        omniwm_installed_version.stdout !=
+        (tool_versions.github_releases.omniwm | regex_replace('^v', ''))
+      }}
+
+- name: Report pending OmniWM application update in check mode
+  debug:
+    msg: >-
+      OmniWM {{ tool_versions.github_releases.omniwm }} would be installed.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - omniwm_update_required
+
+- name: Ensure LaunchAgents directory exists for OmniWM
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/Library/LaunchAgents"
+    state: directory
+    mode: '0755'
+
+- name: Install OmniWM LaunchAgent plist
+  template:
+    src: launchd/com.user.omniwm.plist
+    dest: >-
+      {{ ansible_facts['user_dir'] }}/Library/LaunchAgents/com.user.omniwm.plist
+    mode: '0644'
+  register: omniwm_launch_agent_plist
+
+- name: Check whether OmniWM launchd job is loaded
+  command: >-
+    launchctl print
+    gui/{{ ansible_facts['user_uid'] }}/com.user.omniwm
+  register: omniwm_launch_agent_job
+  changed_when: false
+  failed_when: false
+  check_mode: false
 
 - name: Install pinned OmniWM release
-  when: >-
-    omniwm_installed_version.stdout !=
-    (tool_versions.github_releases.omniwm | regex_replace('^v', ''))
+  when:
+    - omniwm_update_required
+    - not ansible_check_mode
   block:
     - name: Create OmniWM staging directory
       tempfile:
@@ -68,6 +109,12 @@
           - '{{ omniwm_staging_dir.path }}/OmniWM.app'
       changed_when: false
 
+    - name: Stop loaded OmniWM job before application replacement
+      command: >-
+        launchctl bootout
+        gui/{{ ansible_facts['user_uid'] }}/com.user.omniwm
+      when: omniwm_launch_agent_job.rc == 0
+
     - name: Remove old OmniWM application
       file:
         path: /Applications/OmniWM.app
@@ -99,43 +146,23 @@
     state: link
     force: true
 
-- name: Ensure LaunchAgents directory exists for OmniWM
-  file:
-    path: "{{ ansible_facts['user_dir'] }}/Library/LaunchAgents"
-    state: directory
-    mode: '0755'
-
-- name: Install OmniWM LaunchAgent plist
-  template:
-    src: launchd/com.user.omniwm.plist
-    dest: >-
-      {{ ansible_facts['user_dir'] }}/Library/LaunchAgents/com.user.omniwm.plist
-    mode: '0644'
-  register: omniwm_launch_agent_plist
-
-- name: Check whether OmniWM launchd job is loaded
-  command: >-
-    launchctl print
-    gui/{{ ansible_facts['user_uid'] }}/com.user.omniwm
-  register: omniwm_launch_agent_job
-  changed_when: false
-  failed_when: false
-
-- name: Stop loaded OmniWM launchd job before reload
+- name: Stop loaded OmniWM job before plist reload
   command: >-
     launchctl bootout
     gui/{{ ansible_facts['user_uid'] }}/com.user.omniwm
   when:
+    - not ansible_check_mode
     - omniwm_launch_agent_job.rc == 0
-    - >-
-      omniwm_launch_agent_plist.changed or
-      (omniwm_app_updated | default(false))
+    - omniwm_launch_agent_plist.changed
+    - not (omniwm_app_updated | default(false))
 
 - name: Load OmniWM launchd job
   command: >-
     launchctl bootstrap gui/{{ ansible_facts['user_uid'] }}
     {{ ansible_facts['user_dir'] }}/Library/LaunchAgents/com.user.omniwm.plist
-  when: >-
-    omniwm_launch_agent_plist.changed or
-    (omniwm_app_updated | default(false)) or
-    omniwm_launch_agent_job.rc != 0
+  when:
+    - not ansible_check_mode
+    - >-
+      omniwm_launch_agent_plist.changed or
+      (omniwm_app_updated | default(false)) or
+      omniwm_launch_agent_job.rc != 0
