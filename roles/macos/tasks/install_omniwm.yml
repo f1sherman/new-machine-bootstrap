@@ -32,11 +32,14 @@
       retries: 3
       delay: 10
 
-    - name: Extract pinned OmniWM release
-      unarchive:
-        src: '{{ omniwm_staging_dir.path }}/OmniWM.zip'
-        dest: '{{ omniwm_staging_dir.path }}'
-        remote_src: true
+    - name: Extract pinned OmniWM release without AppleDouble files
+      command:
+        argv:
+          - /usr/bin/ditto
+          - -x
+          - -k
+          - '{{ omniwm_staging_dir.path }}/OmniWM.zip'
+          - '{{ omniwm_staging_dir.path }}'
 
     - name: Check staged OmniWM version
       command: >-
@@ -54,6 +57,16 @@
         fail_msg: >-
           Staged OmniWM version {{ omniwm_staged_version.stdout }} does not
           match {{ tool_versions.github_releases.omniwm }}.
+
+    - name: Verify staged OmniWM code signature
+      command:
+        argv:
+          - /usr/bin/codesign
+          - --verify
+          - --deep
+          - --strict
+          - '{{ omniwm_staging_dir.path }}/OmniWM.app'
+      changed_when: false
 
     - name: Remove old OmniWM application
       file:

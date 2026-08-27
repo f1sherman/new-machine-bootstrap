@@ -29,9 +29,10 @@ launch it at login. Keep the trial isolated from other managed machines.
 
 Pin the OmniWM GitHub release in `vars/tool_versions.yml` with a Renovate
 `github-releases` annotation. Add a focused macOS task file that downloads the
-matching signed release ZIP, installs `OmniWM.app` in `/Applications`, and
-links `omniwmctl` into `~/.local/bin`. Include that task file only when
-`ansible_hostname == 'brian-macbook-pro'`.
+matching signed release ZIP, extracts it with macOS `/usr/bin/ditto -x -k`,
+verifies the staged bundle with `codesign --verify --deep --strict`, installs
+`OmniWM.app` in `/Applications`, and links `omniwmctl` into `~/.local/bin`.
+Include that task file only when `ansible_hostname == 'brian-macbook-pro'`.
 
 Install a per-user LaunchAgent with `RunAtLoad` enabled. Load it in the current
 GUI session so OmniWM starts now and at later logins. Use the app executable
@@ -56,6 +57,10 @@ setting or narrow its existing macOS-wide scope.
 3. **System Events login item.** This is shorter than a LaunchAgent, but it uses
    an older login-item interface and is harder to inspect and manage
    declaratively.
+4. **Ansible `unarchive`.** Its macOS ZIP extraction materializes AppleDouble
+   `._*` entries as sealed resources inside the signed app. This invalidates
+   the strict code signature. macOS `ditto -x -k` preserves the release bundle
+   without those files.
 
 ## Components
 
@@ -70,10 +75,12 @@ setting or narrow its existing macOS-wide scope.
 
 ## Error handling
 
-Provisioning must fail if the pinned asset cannot download, the application
-cannot install, or the LaunchAgent cannot load. Existing GitHub download retry
-behavior remains in use. The host condition prevents unsupported machines from
-reaching these tasks.
+Provisioning must fail if the pinned asset cannot download, `ditto` cannot
+extract it, the staged app fails strict code-signature verification, the
+application cannot install, or the LaunchAgent cannot load. The existing app
+must remain in place until extraction and signature verification both pass.
+Existing GitHub download retry behavior remains in use. The host condition
+prevents unsupported machines from reaching these tasks.
 
 ## Verification
 
@@ -82,12 +89,15 @@ repository's material-value test gate. Verify with:
 
 1. Ansible syntax checking.
 2. Renovate configuration validation.
-3. `bin/provision` on `brian-macbook-pro`.
-4. Confirm `/Applications/OmniWM.app` exists and has the pinned version.
-5. Confirm `~/.local/bin/omniwmctl` resolves to the app bundle command.
-6. Confirm the LaunchAgent is loaded in the current GUI domain.
-7. Confirm the OmniWM process starts.
-8. Run `defaults read com.apple.spaces spans-displays` and confirm it returns
+3. A focused repo-local extraction test that uses `/usr/bin/ditto -x -k`,
+   confirms no `._*` files exist, and passes
+   `codesign --verify --deep --strict` on the staged app.
+4. `bin/provision` on `brian-macbook-pro`.
+5. Confirm `/Applications/OmniWM.app` exists and has the pinned version.
+6. Confirm `~/.local/bin/omniwmctl` resolves to the app bundle command.
+7. Confirm the LaunchAgent is loaded in the current GUI domain.
+8. Confirm the OmniWM process starts.
+9. Run `defaults read com.apple.spaces spans-displays` and confirm it returns
    `0`, which means **Displays have separate Spaces** is enabled.
 
 ## Rollout

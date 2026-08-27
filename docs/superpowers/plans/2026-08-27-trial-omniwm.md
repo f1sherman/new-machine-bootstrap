@@ -83,18 +83,23 @@ Create `roles/macos/tasks/install_omniwm.yml`. It must:
    its leading `v`.
 3. When different, create a staging directory in `/Applications`, download
    `OmniWM-{{ tool_versions.github_releases.omniwm }}.zip` from the matching
-   `BarutSRB/OmniWM` release with three retries, extract it, replace the current
-   app bundle, and remove the staging directory.
-4. Create this symlink with `force: true`:
+   `BarutSRB/OmniWM` release with three retries, and extract it with macOS
+   `/usr/bin/ditto -x -k`. Do not use Ansible `unarchive`, which materializes
+   AppleDouble `._*` entries and invalidates the signed bundle.
+4. Verify the staged app with `/usr/bin/codesign --verify --deep --strict`.
+5. Only after extraction, version validation, and signature verification pass,
+   replace the current app bundle and remove the staging directory.
+6. Create this symlink with `force: true`:
 
 ```yaml
 src: /Applications/OmniWM.app/Contents/MacOS/omniwmctl
 dest: "{{ ansible_facts['user_dir'] }}/.local/bin/omniwmctl"
 ```
 
-Use an Ansible `block` with `always` cleanup so failed downloads or extraction
-do not leave the staging directory behind. Do not remove the installed app
-until the new ZIP has downloaded and extracted successfully.
+Use an Ansible `block` with `always` cleanup so failed downloads, extraction,
+or signature verification do not leave the staging directory behind. Do not
+remove the installed app until the new ZIP has downloaded, extracted, matched
+the pinned version, and passed strict code-signature verification.
 
 - [ ] **Step 5: Add and manage the LaunchAgent**
 
@@ -126,6 +131,26 @@ git diff --check
 
 Expected: all commands exit zero, and the Ansible fact reports
 `brian-macbook-pro`.
+
+Run the focused signature-preservation test inside the repository:
+
+```bash
+rm -rf tmp/omniwm-signature-test
+mkdir -p tmp/omniwm-signature-test/extracted
+url=https://github.com/BarutSRB/OmniWM/releases/download
+curl -fsSL "$url/v0.6.3/OmniWM-v0.6.3.zip" \
+  -o tmp/omniwm-signature-test/OmniWM.zip
+/usr/bin/ditto -x -k \
+  tmp/omniwm-signature-test/OmniWM.zip \
+  tmp/omniwm-signature-test/extracted
+test -z "$(find tmp/omniwm-signature-test/extracted \
+  -name '._*' -print -quit)"
+/usr/bin/codesign --verify --deep --strict \
+  tmp/omniwm-signature-test/extracted/OmniWM.app
+```
+
+Expected: the download and extraction succeed, `find` returns no AppleDouble
+files, and `codesign` exits zero.
 
 - [ ] **Step 7: Run end-to-end provisioning**
 
