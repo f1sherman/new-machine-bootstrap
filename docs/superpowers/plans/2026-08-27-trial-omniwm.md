@@ -4,7 +4,7 @@
 
 **Goal:** Install pinned OmniWM on `brian-macbook-pro` and launch it now and at future logins.
 
-**Architecture:** The macOS role gates one focused task file by exact Ansible hostname. That task file installs the Renovate-pinned GitHub release, exposes its CLI, and manages a per-user LaunchAgent.
+**Architecture:** The macOS role gates one focused task file by exact Ansible hostname. That task file installs the Renovate-pinned GitHub release, exposes its CLI, and manages a per-user LaunchAgent. Existing macOS-wide defaults management already enables **Displays have separate Spaces** for OmniWM.
 
 **Tech Stack:** Ansible, YAML, Jinja2, macOS launchd, GitHub Releases, Renovate
 
@@ -18,6 +18,8 @@
 - Link `omniwmctl` into `~/.local/bin`.
 - Launch OmniWM now and at later logins with a per-user LaunchAgent.
 - Do not configure OmniWM or change Rectangle.
+- Keep the existing macOS-wide `com.apple.spaces spans-displays=false`
+  management unchanged; do not add a duplicate host-specific setting.
 - Do not add a static automated test that fails the repository's material-value test gate.
 
 ---
@@ -31,7 +33,7 @@
 - Create: `roles/macos/templates/launchd/com.user.omniwm.plist`
 
 **Interfaces:**
-- Consumes: `tool_versions.github_releases.omniwm` and Ansible facts `hostname`, `user_dir`, and `user_uid`.
+- Consumes: `tool_versions.github_releases.omniwm`, Ansible facts `hostname`, `user_dir`, and `user_uid`, and the existing macOS-wide `com.apple.spaces spans-displays=false` default from `roles/macos/vars/defaults.yml`.
 - Produces: `/Applications/OmniWM.app`, `~/.local/bin/omniwmctl`, and loaded launchd label `com.user.omniwm`.
 
 - [ ] **Step 1: Confirm the unmanaged baseline**
@@ -146,10 +148,13 @@ Run:
 readlink "$HOME/.local/bin/omniwmctl"
 launchctl print "gui/$(id -u)/com.user.omniwm"
 pgrep -fl '/Applications/OmniWM.app/Contents/MacOS/OmniWM'
+defaults read com.apple.spaces spans-displays
 ```
 
 Expected: version `0.6.3`, the CLI link targets the app bundle, launchd reports
-`com.user.omniwm`, and the OmniWM process is present. A macOS Accessibility
+`com.user.omniwm`, the OmniWM process is present, and `spans-displays` returns
+`0`. The existing `0` value means **Displays have separate Spaces** is enabled
+and satisfies OmniWM's Mission Control prerequisite. A macOS Accessibility
 approval prompt is acceptable and must be reported if it prevents runtime
 operation.
 
