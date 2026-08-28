@@ -166,3 +166,31 @@
       omniwm_launch_agent_plist.changed or
       (omniwm_app_updated | default(false)) or
       omniwm_launch_agent_job.rc != 0
+
+- name: Wait for OmniWM settings file
+  wait_for:
+    path: "{{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml"
+    timeout: 15
+  when: not ansible_check_mode
+
+- name: Check whether OmniWM settings file exists
+  stat:
+    path: "{{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml"
+  register: omniwm_settings_file
+  check_mode: false
+
+- name: Enable OmniWM IPC
+  lineinfile:
+    path: "{{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml"
+    regexp: '^ipcEnabled = '
+    line: 'ipcEnabled = true'
+    insertafter: '^\[general\]$'
+  when: omniwm_settings_file.stat.exists
+
+- name: Wait for OmniWM IPC socket
+  wait_for:
+    path: >-
+      {{ ansible_facts['user_dir'] }}/Library/Caches/com.barut.OmniWM/ipc.sock
+    state: present
+    timeout: 15
+  when: not ansible_check_mode
