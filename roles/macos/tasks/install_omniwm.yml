@@ -187,6 +187,13 @@
     insertafter: '^\[general\]$'
   when: omniwm_settings_file.stat.exists
 
+- name: Use numeric OmniWM workspace labels
+  lineinfile:
+    path: "{{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml"
+    regexp: '^displayName = '
+    state: absent
+  when: omniwm_settings_file.stat.exists
+
 - name: Verify OmniWM IPC responds
   command: >-
     {{ ansible_facts['user_dir'] }}/.local/bin/omniwmctl ping
