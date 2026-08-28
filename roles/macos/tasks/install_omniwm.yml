@@ -187,10 +187,12 @@
     insertafter: '^\[general\]$'
   when: omniwm_settings_file.stat.exists
 
-- name: Wait for OmniWM IPC socket
-  wait_for:
-    path: >-
-      {{ ansible_facts['user_dir'] }}/Library/Caches/com.barut.OmniWM/ipc.sock
-    state: present
-    timeout: 15
+- name: Verify OmniWM IPC responds
+  command: >-
+    {{ ansible_facts['user_dir'] }}/.local/bin/omniwmctl ping
+  register: omniwm_ipc_ping
+  changed_when: false
+  until: omniwm_ipc_ping.stdout == 'pong'
+  retries: 15
+  delay: 1
   when: not ansible_check_mode
