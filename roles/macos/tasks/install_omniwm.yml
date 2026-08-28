@@ -194,6 +194,26 @@
     state: absent
   when: omniwm_settings_file.stat.exists
 
+- name: Configure OmniWM hotkeys
+  replace:
+    path: "{{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml"
+    regexp: '(?m)(^\[\[hotkeys\]\]\n)binding = "[^"]*"\n(id = "{{ item.id }}")$'
+    replace: '\1binding = "{{ item.binding }}"\n\2'
+  loop:
+    - id: 'move\.left'
+      binding: Unassigned
+    - id: 'move\.right'
+      binding: Unassigned
+    - id: 'move\.up'
+      binding: Unassigned
+    - id: 'move\.down'
+      binding: Unassigned
+    - id: toggleScratchpadWindow
+      binding: Control+Option+T
+  loop_control:
+    label: "{{ item.id }}"
+  when: omniwm_settings_file.stat.exists
+
 - name: Verify OmniWM IPC responds
   command: >-
     {{ ansible_facts['user_dir'] }}/.local/bin/omniwmctl ping
