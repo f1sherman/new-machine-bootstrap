@@ -71,7 +71,7 @@ function M.run(args, callback)
       return
     end
     callback(stdout, nil)
-  end, nil, copyArray(args))
+  end, copyArray(args))
 
   if not task then
     callback(nil, "Could not create omniwmctl task")
