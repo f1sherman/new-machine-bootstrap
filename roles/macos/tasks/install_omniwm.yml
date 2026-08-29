@@ -184,44 +184,50 @@
   register: omniwm_workspace_layout_marker
   check_mode: false
 
-- name: Check for unsafe OmniWM assignments before launch
+- name: Check OmniWM settings before launch
   script:
     cmd: >-
       configure-omniwm-settings
       {{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml
+      {{
+        omniwm_workspace_layout_marker.stat.exists |
+        ternary('--activate-assignments', '')
+      }}
       --check
-  register: omniwm_deferred_preflight
+  register: omniwm_prelaunch_settings_check
   changed_when: false
   check_mode: false
-  when:
-    - omniwm_settings_before_launch.stat.exists
-    - not omniwm_workspace_layout_marker.stat.exists
+  when: omniwm_settings_before_launch.stat.exists
 
-- name: Stop loaded OmniWM job before deferred reconciliation
+- name: Stop loaded OmniWM job before prelaunch reconciliation
   command: >-
     launchctl bootout
     gui/{{ ansible_facts['user_uid'] }}/com.user.omniwm
-  register: omniwm_deferred_launch_agent_stop
+  register: omniwm_prelaunch_launch_agent_stop
   when:
     - not ansible_check_mode
     - omniwm_launch_agent_job.rc == 0
     - not omniwm_launch_agent_plist.changed
     - not (omniwm_app_updated | default(false))
     - >-
-      (omniwm_deferred_preflight.stdout | default('unchanged') | trim) ==
+      (omniwm_prelaunch_settings_check.stdout | default('unchanged') | trim) ==
       'changed'
 
-- name: Remove unsafe OmniWM assignments before launch
+- name: Reconcile OmniWM settings before launch
   script:
     cmd: >-
       configure-omniwm-settings
       {{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml
+      {{
+        omniwm_workspace_layout_marker.stat.exists |
+        ternary('--activate-assignments', '')
+      }}
   register: omniwm_prelaunch_settings_result
   changed_when: omniwm_prelaunch_settings_result.stdout | trim == 'changed'
   when:
     - not ansible_check_mode
     - >-
-      (omniwm_deferred_preflight.stdout | default('unchanged') | trim) ==
+      (omniwm_prelaunch_settings_check.stdout | default('unchanged') | trim) ==
       'changed'
 
 - name: Load OmniWM launchd job
@@ -234,7 +240,7 @@
       omniwm_launch_agent_plist.changed or
       (omniwm_app_updated | default(false)) or
       omniwm_launch_agent_job.rc != 0 or
-      (omniwm_deferred_launch_agent_stop is changed)
+      (omniwm_prelaunch_launch_agent_stop is changed)
 
 - name: Wait for OmniWM settings file
   wait_for:
@@ -266,8 +272,10 @@
         omniwm_workspace_layout_marker.stat.exists |
         ternary('--activate-assignments', '')
       }}
+      {{ ansible_check_mode | ternary('--check', '') }}
   register: omniwm_settings_result
   changed_when: omniwm_settings_result.stdout | trim == 'changed'
+  check_mode: false
   when: omniwm_settings_file.stat.exists
 
 - name: Stop loaded OmniWM job after configuration update
