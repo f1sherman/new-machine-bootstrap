@@ -293,9 +293,9 @@ end
 
 local function createDownloadsFinder(previousIDs)
   local script = [[
+    set downloadsFolder to (POSIX file ((system attribute "HOME") & "/Downloads") as alias)
     tell application "Finder"
       activate
-      set downloadsFolder to POSIX file ((system attribute "HOME") & "/Downloads")
       set downloadsWindow to make new Finder window
       set target of downloadsWindow to downloadsFolder
     end tell
