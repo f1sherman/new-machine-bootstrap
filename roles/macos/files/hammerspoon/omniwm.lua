@@ -397,11 +397,47 @@ local function summonWindow(window, destination, callback)
   end)
 end
 
+local function summonPhotos(window, destination)
+  M.run({"command", "switch-workspace", tostring(destination)}, function(_, switchError)
+    if switchError then
+      M.notify(switchError)
+      return
+    end
+    M.run({"window", "summon-right", window.id}, function(_, summonError)
+      if summonError then
+        M.notify(summonError)
+        return
+      end
+      pollWindow(window.id, function(candidate)
+        return candidate.isVisible == true
+      end, function(_, visibilityError)
+        if visibilityError then
+          M.notify(visibilityError)
+          return
+        end
+        M.run({"window", "navigate", window.id}, function(_, navigateError)
+          if navigateError then
+            M.notify(navigateError)
+            return
+          end
+          pollWindow(window.id, function(candidate)
+            return candidate.isFocused == true
+          end, function(_, focusError)
+            if focusError then
+              M.notify(focusError)
+            end
+          end)
+        end)
+      end)
+    end)
+  end)
+end
+
 local function placePhotos(window, activeWorkspace)
-  if workspaceNumber(window) == activeWorkspace.number then
+  if window.isVisible == true or workspaceNumber(window) == activeWorkspace.number then
     moveWindowToWorkspace(window, 10)
   else
-    summonWindow(window, activeWorkspace.number, M.reportResult)
+    summonPhotos(window, activeWorkspace.number)
   end
 end
 
