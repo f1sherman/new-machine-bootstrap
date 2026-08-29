@@ -33,6 +33,22 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
     id = "move.left"
 
     [[hotkeys]]
+    binding = "Option+Left Arrow"
+    id = "focus.left"
+
+    [[hotkeys]]
+    binding = "Option+Right Arrow"
+    id = "focus.right"
+
+    [[hotkeys]]
+    binding = "Option+Up Arrow"
+    id = "focus.up"
+
+    [[hotkeys]]
+    binding = "Option+Down Arrow"
+    id = "focus.down"
+
+    [[hotkeys]]
     binding = "Control+Option+T"
     id = "toggleScratchpadWindow"
 
@@ -113,6 +129,9 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       assert_includes result, 'name = "10"'
       assert_includes result, 'layoutType = "niri"'
       assert_includes result, "binding = \"Unassigned\"\nid = \"move.left\""
+      %w[focus.left focus.right focus.up focus.down].each do |identifier|
+        assert_includes result, %(binding = "Unassigned"\nid = "#{identifier}")
+      end
       refute_includes ghostty_rule, "assignToWorkspace = "
       assert_includes ghostty_rule, "minHeight = 400.0"
       assert_includes unrelated_rule, 'assignToWorkspace = "6"'
