@@ -664,12 +664,22 @@ hs.urlevent.httpCallback = function(_, _, _, fullURL, senderPID)
 end
 
 for _, scheme in ipairs({"http", "https"}) do
+  local previousHandlerKey = previousHandlerKeys[scheme]
   local currentHandler = hs.urlevent.getDefaultHandler(scheme)
+  local previousHandler = hs.settings.get(previousHandlerKey)
+
+  if currentHandler ~= hammerspoonBundleID
+      and type(currentHandler) == "string" and currentHandler ~= "" then
+    previousHandler = currentHandler
+    hs.settings.set(previousHandlerKey, currentHandler)
+  end
+
+  if type(previousHandler) == "string" and previousHandler ~= ""
+      and previousHandler ~= hammerspoonBundleID then
+    hs.urlevent.setRestoreHandler(scheme, previousHandler)
+  end
+
   if currentHandler ~= hammerspoonBundleID then
-    if type(currentHandler) == "string" and currentHandler ~= "" then
-      hs.settings.set(previousHandlerKeys[scheme], currentHandler)
-      hs.urlevent.setRestoreHandler(scheme, currentHandler)
-    end
     hs.urlevent.setDefaultHandler(scheme)
   end
 end
