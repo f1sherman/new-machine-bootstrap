@@ -269,6 +269,7 @@ class SettingsDocument
         "[[workspaces]]\n",
         %(id = "#{workspace.id}"\n),
         %(name = "#{workspace.name}"\n),
+        %(layoutType = "niri"\n),
         "\n",
         "[workspaces.monitorAssignment]\n",
         %(type = "#{workspace.monitor}"\n),
