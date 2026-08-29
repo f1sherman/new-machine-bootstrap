@@ -219,4 +219,28 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       assert_equal before, File.binread(path)
     end
   end
+
+  def test_invalid_string_escape_is_left_unchanged
+    assert_invalid_scalar_preserved('bad = "\\q"')
+  end
+
+  def test_invalid_array_is_left_unchanged
+    assert_invalid_scalar_preserved("bad = [,]")
+  end
+
+  private
+
+  def assert_invalid_scalar_preserved(scalar)
+    malformed = FIXTURE + "\n#{scalar}\n"
+
+    with_settings(malformed) do |path|
+      before = File.binread(path)
+      out, err, status = run_helper(path)
+
+      refute status.success?
+      assert_empty out
+      assert_includes err, "invalid scalar value"
+      assert_equal before, File.binread(path)
+    end
+  end
 end
