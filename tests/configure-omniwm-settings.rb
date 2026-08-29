@@ -16,11 +16,13 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
     bundleId = "com.mitchellh.ghostty"
     id = "ghostty-rule"
     minHeight = 400.0
+    assignToWorkspace = "7"
 
     [[appRules]]
     bundleId = "user.unrelated"
     id = "unrelated-rule"
     layout = "float"
+    assignToWorkspace = "6"
 
     [[hotkeys]]
     binding = "Option+1"
@@ -95,53 +97,103 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
     end
   end
 
-  def run_helper(path)
-    Open3.capture3(HELPER, path)
+  def run_helper(path, *arguments)
+    Open3.capture3(HELPER, path, *arguments)
   end
 
-  def test_reconciles_workspaces_hotkeys_and_rules
+  def test_default_mode_defers_managed_assignments
     with_settings do |path|
       out, err, status = run_helper(path)
       result = File.read(path)
+      ghostty_rule = app_rule(result, "com.mitchellh.ghostty")
+      unrelated_rule = app_rule(result, "user.unrelated")
 
       assert status.success?, err
       assert_equal "changed\n", out
       assert_includes result, 'name = "10"'
+      assert_includes result, 'layoutType = "niri"'
       assert_includes result, "binding = \"Unassigned\"\nid = \"move.left\""
-      assert_includes result, 'assignToWorkspace = "3"'
-      assert_includes result, 'bundleId = "user.unrelated"'
-      assert_includes result, 'minHeight = 400.0'
+      refute_includes ghostty_rule, "assignToWorkspace = "
+      assert_includes ghostty_rule, "minHeight = 400.0"
+      assert_includes unrelated_rule, 'assignToWorkspace = "6"'
+      refute_includes result, 'bundleId = "com.google.Chrome"'
       assert_includes result, "binding = \"Unassigned\"\nid = \"toggleScratchpadWindow\""
     end
   end
 
-  def test_second_run_is_byte_for_byte_idempotent
-    with_settings do |path|
-      _out, err, status = run_helper(path)
-      assert status.success?, err
-      first_result = File.binread(path)
-
-      out, err, status = run_helper(path)
-
-      assert status.success?, err
-      assert_equal "unchanged\n", out
-      assert_equal first_result, File.binread(path)
-    end
+  def test_default_mode_is_byte_for_byte_idempotent
+    assert_mode_is_idempotent
   end
 
-  def test_does_not_duplicate_managed_application_rules
+  def test_active_mode_is_byte_for_byte_idempotent
+    assert_mode_is_idempotent("--activate-assignments")
+  end
+
+  def test_active_mode_adds_managed_rules_without_duplicates
     with_settings do |path|
       2.times do
-        _out, err, status = run_helper(path)
+        _out, err, status = run_helper(path, "--activate-assignments")
         assert status.success?, err
       end
       result = File.read(path)
 
       assert_equal 1, result.scan(/^bundleId = "com\.mitchellh\.ghostty"$/).length
       assert_equal 1, result.scan(/^bundleId = "com\.google\.Chrome"$/).length
-      assert_equal 17, result.scan(/^assignToWorkspace = /).length
+      assert_equal 16, result.scan(/^assignToWorkspace = /).length
+      assert_includes app_rule(result, "com.mitchellh.ghostty"), 'assignToWorkspace = "3"'
+      assert_includes app_rule(result, "com.mitchellh.ghostty"), "minHeight = 400.0"
+      assert_includes app_rule(result, "com.google.Chrome", "ChatGPT"), 'assignToWorkspace = "4"'
+      assert_includes app_rule(result, "user.unrelated"), 'assignToWorkspace = "6"'
+      refute_includes result, 'bundleId = "com.apple.finder"'
+      refute_includes result, 'bundleId = "com.apple.Photos"'
       result.scan(/^\[\[appRules\]\]\n(.*?)(?=^\[\[|\z)/m).flatten.each do |rule|
         assert_match(/^id = ".+"$/, rule)
+      end
+    end
+  end
+
+  def test_deferred_mode_removes_assignments_after_active_mode
+    with_settings do |path|
+      _out, err, status = run_helper(path, "--activate-assignments")
+      assert status.success?, err
+
+      out, err, status = run_helper(path)
+      result = File.read(path)
+
+      assert status.success?, err
+      assert_equal "changed\n", out
+      assert_equal 1, result.scan(/^assignToWorkspace = /).length
+      assert_includes app_rule(result, "user.unrelated"), 'assignToWorkspace = "6"'
+      refute_includes app_rule(result, "com.google.Chrome", "ChatGPT"), "assignToWorkspace = "
+    end
+  end
+
+  def test_finder_and_photos_assignments_are_removed_in_both_modes
+    dynamic_rules = FIXTURE + <<~TOML
+
+      [[appRules]]
+      bundleId = "com.apple.finder"
+      id = "finder-rule"
+      layout = "float"
+      assignToWorkspace = "10"
+
+      [[appRules]]
+      bundleId = "com.apple.Photos"
+      id = "photos-rule"
+      assignToWorkspace = "10"
+    TOML
+
+    [[], ["--activate-assignments"]].each do |arguments|
+      with_settings(dynamic_rules) do |path|
+        _out, err, status = run_helper(path, *arguments)
+        result = File.read(path)
+        finder_rule = app_rule(result, "com.apple.finder")
+        photos_rule = app_rule(result, "com.apple.Photos")
+
+        assert status.success?, err
+        refute_includes finder_rule, "assignToWorkspace = "
+        assert_includes finder_rule, 'layout = "float"'
+        refute_includes photos_rule, "assignToWorkspace = "
       end
     end
   end
@@ -210,6 +262,18 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
     end
   end
 
+  def test_unknown_mode_is_rejected_without_changing_source
+    with_settings do |path|
+      before = File.binread(path)
+      out, err, status = run_helper(path, "--unknown")
+
+      refute status.success?
+      assert_empty out
+      assert_includes err, "usage: configure-omniwm-settings"
+      assert_equal before, File.binread(path)
+    end
+  end
+
   def test_invalid_scalar_is_left_unchanged
     malformed = FIXTURE + "\ninvalid scalar\n"
 
@@ -233,6 +297,34 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
   end
 
   private
+
+  def app_rule(document, bundle_id, title_substring = nil)
+    rule = document.scan(/^\[\[appRules\]\]\n(.*?)(?=^\[\[|\z)/m).flatten.find do |candidate|
+      next false unless candidate.include?(%(bundleId = "#{bundle_id}"))
+
+      if title_substring
+        candidate.include?(%(titleSubstring = "#{title_substring}"))
+      else
+        !candidate.match?(/^titleSubstring = /)
+      end
+    end
+    refute_nil rule, "missing app rule for #{bundle_id}"
+    rule
+  end
+
+  def assert_mode_is_idempotent(*arguments)
+    with_settings do |path|
+      _out, err, status = run_helper(path, *arguments)
+      assert status.success?, err
+      first_result = File.binread(path)
+
+      out, err, status = run_helper(path, *arguments)
+
+      assert status.success?, err
+      assert_equal "unchanged\n", out
+      assert_equal first_result, File.binread(path)
+    end
+  end
 
   def assert_invalid_scalar_preserved(scalar)
     malformed = FIXTURE + "\n#{scalar}\n"
