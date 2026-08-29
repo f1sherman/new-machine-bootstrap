@@ -219,6 +219,34 @@ class SettingsDocument
     end.map(&:first)
   end
 
+  def set_table_scalar(block, table, key, value)
+    header = block.lines.index do |line|
+      match = line.match(TABLE_HEADER)
+      match && match[1] == table
+    end
+    unless header
+      block.lines << "\n" unless block.lines.last&.strip&.empty?
+      block.lines << "[#{table}]\n"
+      block.lines << %(#{key} = "#{value}"\n)
+      return
+    end
+
+    table_end = ((header + 1)...block.lines.length).find do |index|
+      block.lines[index].match?(TABLE_HEADER)
+    end || block.lines.length
+    existing = ((header + 1)...table_end).find do |index|
+      block.lines[index].match?(/^\s*#{Regexp.escape(key)}\s*=/)
+    end
+    if existing
+      block.lines[existing] = %(#{key} = "#{value}"\n)
+      return
+    end
+
+    insertion = table_end
+    insertion -= 1 while insertion > header + 1 && block.lines[insertion - 1].strip.empty?
+    block.lines.insert(insertion, %(#{key} = "#{value}"\n))
+  end
+
   def reconcile_hotkeys
     blocks.select { |block| block.type == "hotkeys" }.each do |block|
       identifier = scalar_value(block, "id")
@@ -267,8 +295,15 @@ class SettingsDocument
     blocks.select do |block|
       next false unless block.type == "appRules"
       next false unless scalar_value(block, "bundleId") == target.bundle_id
+      next false unless scalar_value(block, "titleSubstring") == target.title_substring
 
-      scalar_value(block, "titleSubstring") == target.title_substring
+      selectors = scalar_lines(block).filter_map do |line|
+        key = line[/^\s*([A-Za-z][A-Za-z0-9]*)\s*=/, 1]
+        key if RULE_SELECTOR_KEYS.include?(key)
+      end
+      allowed_selectors = %w[bundleId id]
+      allowed_selectors << "titleSubstring" if target.title_substring
+      (selectors - allowed_selectors).empty?
     end
   end
 
@@ -292,7 +327,12 @@ class SettingsDocument
     workspace_blocks.each { |block| remove_scalar(block, "displayName") }
 
     ADDED_WORKSPACES.each do |workspace|
-      next if workspace_blocks.any? { |block| scalar_value(block, "name") == workspace.name }
+      existing = workspace_blocks.find { |block| scalar_value(block, "name") == workspace.name }
+      if existing
+        set_scalar(existing, "layoutType", workspace.layout_type)
+        set_table_scalar(existing, "workspaces.monitorAssignment", "type", workspace.monitor)
+        next
+      end
 
       ensure_block_separator(blocks.length)
       block = Block.new(type: "workspaces", lines: [

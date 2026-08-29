@@ -187,6 +187,44 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
     end
   end
 
+  def test_rules_with_additional_selectors_are_preserved_in_both_modes
+    custom_rules = FIXTURE + <<~TOML
+
+      [[appRules]]
+      bundleId = "com.mitchellh.ghostty"
+      titleRegex = "^Special Terminal$"
+      id = "custom-ghostty-rule"
+      assignToWorkspace = "6"
+
+      [[appRules]]
+      bundleId = "com.apple.Photos"
+      axRole = "AXDialog"
+      id = "custom-photos-rule"
+      assignToWorkspace = "9"
+    TOML
+
+    [[], ["--activate-assignments"]].each do |arguments|
+      with_settings(custom_rules) do |path|
+        _out, err, status = run_helper(path, *arguments)
+        result = File.read(path)
+
+        assert status.success?, err
+        assert_includes result, <<~TOML
+          bundleId = "com.mitchellh.ghostty"
+          titleRegex = "^Special Terminal$"
+          id = "custom-ghostty-rule"
+          assignToWorkspace = "6"
+        TOML
+        assert_includes result, <<~TOML
+          bundleId = "com.apple.Photos"
+          axRole = "AXDialog"
+          id = "custom-photos-rule"
+          assignToWorkspace = "9"
+        TOML
+      end
+    end
+  end
+
   def test_finder_and_photos_assignments_are_removed_in_both_modes
     dynamic_rules = FIXTURE + <<~TOML
 
@@ -243,18 +281,27 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       [[workspaces]]
       id = "existing-workspace-8"
       name = "8"
+      layoutType = "dwindle"
 
       [workspaces.monitorAssignment]
       type = "secondary"
     TOML
 
     with_settings(existing) do |path|
-      _out, err, status = run_helper(path)
+      out, err, status = run_helper(path)
       result = File.read(path)
+      workspace = workspace_block(result, "8")
 
       assert status.success?, err
-      assert_includes result, 'id = "existing-workspace-8"'
+      assert_equal "changed\n", out
+      assert_includes workspace, 'id = "existing-workspace-8"'
+      assert_includes workspace, 'layoutType = "niri"'
+      assert_includes workspace, "[workspaces.monitorAssignment]\ntype = \"main\""
       refute_includes result, 'id = "4371F67B-B469-470D-89C6-D8FBB5E65BD3"'
+
+      out, err, status = run_helper(path)
+      assert status.success?, err
+      assert_equal "unchanged\n", out
     end
   end
 
@@ -340,6 +387,14 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
   end
 
   private
+
+  def workspace_block(document, name)
+    block = document.scan(/^\[\[workspaces\]\]\n(.*?)(?=^\[\[|\z)/m).flatten.find do |candidate|
+      candidate.match?(/^name = "#{Regexp.escape(name)}"$/)
+    end
+    refute_nil block, "missing workspace #{name}"
+    block
+  end
 
   def app_rule(document, bundle_id, title_substring = nil)
     rule = document.scan(/^\[\[appRules\]\]\n(.*?)(?=^\[\[|\z)/m).flatten.find do |candidate|
