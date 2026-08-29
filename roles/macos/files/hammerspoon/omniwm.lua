@@ -379,54 +379,42 @@ local function moveWindowToWorkspace(window, destination)
   end)
 end
 
-local function summonWindow(window, destination, callback)
-  M.run({"command", "switch-workspace", tostring(destination)}, function(_, switchError)
-    if switchError then
-      callback(nil, switchError)
+local function summonWindow(window, callback)
+  M.run({"window", "summon-right", window.id}, function(_, summonError)
+    if summonError then
+      callback(nil, summonError)
       return
     end
-    M.run({"window", "summon-right", window.id}, function(_, summonError)
-      if summonError then
-        callback(nil, summonError)
-        return
-      end
-      pollWindow(window.id, function(candidate)
-        return candidate.isVisible == true
-      end, callback)
-    end)
+    pollWindow(window.id, function(candidate)
+      return candidate.isVisible == true
+    end, callback)
   end)
 end
 
-local function summonPhotos(window, destination)
-  M.run({"command", "switch-workspace", tostring(destination)}, function(_, switchError)
-    if switchError then
-      M.notify(switchError)
+local function summonPhotos(window)
+  M.run({"window", "summon-right", window.id}, function(_, summonError)
+    if summonError then
+      M.notify(summonError)
       return
     end
-    M.run({"window", "summon-right", window.id}, function(_, summonError)
-      if summonError then
-        M.notify(summonError)
+    pollWindow(window.id, function(candidate)
+      return candidate.isVisible == true
+    end, function(_, visibilityError)
+      if visibilityError then
+        M.notify(visibilityError)
         return
       end
-      pollWindow(window.id, function(candidate)
-        return candidate.isVisible == true
-      end, function(_, visibilityError)
-        if visibilityError then
-          M.notify(visibilityError)
+      M.run({"window", "navigate", window.id}, function(_, navigateError)
+        if navigateError then
+          M.notify(navigateError)
           return
         end
-        M.run({"window", "navigate", window.id}, function(_, navigateError)
-          if navigateError then
-            M.notify(navigateError)
-            return
+        pollWindow(window.id, function(candidate)
+          return candidate.isFocused == true
+        end, function(_, focusError)
+          if focusError then
+            M.notify(focusError)
           end
-          pollWindow(window.id, function(candidate)
-            return candidate.isFocused == true
-          end, function(_, focusError)
-            if focusError then
-              M.notify(focusError)
-            end
-          end)
         end)
       end)
     end)
@@ -437,7 +425,7 @@ local function placePhotos(window, activeWorkspace)
   if window.isVisible == true or workspaceNumber(window) == activeWorkspace.number then
     moveWindowToWorkspace(window, 10)
   else
-    summonPhotos(window, activeWorkspace.number)
+    summonPhotos(window)
   end
 end
 
@@ -538,7 +526,7 @@ local function openSafariTab(url)
 end
 
 local function routeGhosttyURL(url)
-  M.activeWorkspace(function(activeWorkspace, workspaceError)
+  M.activeWorkspace(function(_, workspaceError)
     if workspaceError then
       M.notify(workspaceError)
       openNormallyInSafari(url)
@@ -556,7 +544,7 @@ local function routeGhosttyURL(url)
         openNormallyInSafari(url)
         return
       end
-      summonWindow(safariWindow, activeWorkspace.number, function(_, summonError)
+      summonWindow(safariWindow, function(_, summonError)
         if summonError then
           M.notify(summonError)
           openNormallyInSafari(url)
