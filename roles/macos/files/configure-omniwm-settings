@@ -51,7 +51,7 @@ class SettingsDocument
 
         blocks.last.lines << line
       else
-        validate_quotes!(line)
+        validate_scalar_line!(line)
         blocks.last.lines << line
       end
     end
@@ -61,12 +61,24 @@ class SettingsDocument
     document
   end
 
-  def self.validate_quotes!(line)
+  def self.validate_scalar_line!(line)
+    content = without_comment(line).strip
+    return if content.empty?
+
+    match = content.match(/\A[A-Za-z0-9_.-]+\s*=\s*(.+)\z/)
+    raise "invalid scalar assignment: #{content}" unless match
+    raise "invalid scalar value: #{content}" unless valid_value?(match[1].strip)
+  end
+
+  def self.without_comment(line)
     quoted = false
     escaped = false
+    result = +""
+
     line.each_char do |character|
       break if character == "#" && !quoted
 
+      result << character
       if escaped
         escaped = false
       elsif character == "\\" && quoted
@@ -75,7 +87,28 @@ class SettingsDocument
         quoted = !quoted
       end
     end
+
     raise "unterminated quoted value" if quoted
+
+    result
+  end
+
+  def self.valid_value?(value)
+    return true if value.match?(/\A"(?:\\.|[^"\\])*"\z/)
+    return true if %w[true false].include?(value)
+    return true if value.match?(/\A[+-]?(?:0|[1-9](?:_?\d)*)(?:\.\d(?:_?\d)*)?(?:[eE][+-]?\d(?:_?\d)*)?\z/)
+    return valid_array?(value) if value.start_with?("[")
+
+    false
+  end
+
+  def self.valid_array?(value)
+    return false unless value.end_with?("]")
+
+    body = value[1...-1].strip
+    return true if body.empty?
+
+    body.split(",").all? { |element| valid_value?(element.strip) }
   end
 
   def initialize(blocks)
