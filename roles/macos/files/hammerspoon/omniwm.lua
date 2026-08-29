@@ -1,5 +1,6 @@
 local M = {}
 local omniwmctl = os.getenv("HOME") .. "/.local/bin/omniwmctl"
+local logger = hs.logger.new("omniwm", "info")
 local runningTasks = {}
 local dedicatedSafariWindowKey = "omniwmDedicatedSafariWindowId"
 local previousHandlerKeys = {
@@ -69,8 +70,17 @@ function M.run(args, callback)
   task = hs.task.new(omniwmctl, function(exitCode, stdout, stderr)
     runningTasks[task] = nil
     if exitCode ~= 0 then
-      local detail = stderr ~= "" and stderr or stdout
-      callback(nil, "omniwmctl failed: " .. detail:gsub("%s+$", ""))
+      local detail = (stderr ~= "" and stderr or stdout):gsub("%s+$", "")
+      local operation = args[1] or "command"
+      if args[1] == "window" and args[2] then
+        operation = operation .. " " .. args[2]
+      elseif args[1] == "command" and args[2] then
+        operation = operation .. " " .. args[2]
+      elseif args[1] == "query" and args[2] then
+        operation = operation .. " " .. args[2]
+      end
+      logger.ef("omniwmctl %s failed: %s; args=%s", operation, detail, hs.inspect(args))
+      callback(nil, "omniwmctl " .. operation .. " failed: " .. detail)
       return
     end
     callback(stdout, nil)
