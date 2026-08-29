@@ -1,0 +1,260 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "securerandom"
+require "tempfile"
+
+Workspace = Struct.new(:name, :id, :monitor, keyword_init: true)
+RuleTarget = Struct.new(:bundle_id, :title_substring, :workspace, keyword_init: true)
+
+ADDED_WORKSPACES = [
+  Workspace.new(name: "8", id: "4371F67B-B469-470D-89C6-D8FBB5E65BD3", monitor: "main"),
+  Workspace.new(name: "9", id: "E9D12AB0-EB5E-4B50-98BC-600318BA00FC", monitor: "main"),
+  Workspace.new(name: "10", id: "1935F5A8-9DCA-4E80-AEE3-48EBBE2E336A", monitor: "main")
+].freeze
+
+RULE_TARGETS = [
+  RuleTarget.new(bundle_id: "com.todoist.mac.Todoist", workspace: "1"),
+  RuleTarget.new(bundle_id: "com.mitchellh.ghostty", workspace: "3"),
+  RuleTarget.new(bundle_id: "com.openai.codex", workspace: "4"),
+  RuleTarget.new(bundle_id: "com.google.Chrome", title_substring: "ChatGPT", workspace: "4"),
+  RuleTarget.new(bundle_id: "com.getcardpointers.app", workspace: "5"),
+  RuleTarget.new(bundle_id: "com.brave.Browser", title_substring: "Parental Controls", workspace: "5"),
+  RuleTarget.new(bundle_id: "com.apple.MobileSMS", workspace: "6"),
+  RuleTarget.new(bundle_id: "io.robbie.HomeAssistant", workspace: "7"),
+  RuleTarget.new(bundle_id: "com.apple.iCal", workspace: "8"),
+  RuleTarget.new(bundle_id: "com.tinyspeck.slackmacgap", workspace: "9"),
+  RuleTarget.new(bundle_id: "com.apple.Safari", title_substring: "Work —", workspace: "9"),
+  RuleTarget.new(bundle_id: "com.bitwarden.desktop", workspace: "10"),
+  RuleTarget.new(bundle_id: "com.TechSmith.Snagit", workspace: "10"),
+  RuleTarget.new(bundle_id: "com.backblaze.Backblaze", workspace: "10"),
+  RuleTarget.new(bundle_id: "com.apple.mobilephone", workspace: "10"),
+  RuleTarget.new(bundle_id: "com.apple.finder", workspace: "10"),
+  RuleTarget.new(bundle_id: "com.apple.Photos", workspace: "10")
+].freeze
+
+class SettingsDocument
+  Block = Struct.new(:type, :lines, keyword_init: true)
+  REPEATED_HEADER = /^\s*\[\[([A-Za-z0-9_.-]+)\]\]\s*(?:#.*)?$/
+  TABLE_HEADER = /^\s*\[([A-Za-z0-9_.-]+)\]\s*(?:#.*)?$/
+
+  attr_reader :blocks
+
+  def self.parse(text)
+    blocks = [Block.new(type: nil, lines: [])]
+    text.lines.each do |line|
+      stripped = line.lstrip
+      if (match = line.match(REPEATED_HEADER))
+        blocks << Block.new(type: match[1], lines: [line])
+      elsif stripped.start_with?("[")
+        raise "invalid table header: #{line.strip}" unless line.match?(TABLE_HEADER)
+
+        blocks.last.lines << line
+      else
+        validate_quotes!(line)
+        blocks.last.lines << line
+      end
+    end
+
+    document = new(blocks)
+    document.validate!
+    document
+  end
+
+  def self.validate_quotes!(line)
+    quoted = false
+    escaped = false
+    line.each_char do |character|
+      break if character == "#" && !quoted
+
+      if escaped
+        escaped = false
+      elsif character == "\\" && quoted
+        escaped = true
+      elsif character == '"'
+        quoted = !quoted
+      end
+    end
+    raise "unterminated quoted value" if quoted
+  end
+
+  def initialize(blocks)
+    @blocks = blocks
+  end
+
+  def validate!
+    preamble = blocks.first.lines.join
+    raise "missing [general] table" unless preamble.match?(/^\s*\[general\]\s*$/)
+    raise "missing hotkey block" unless blocks.any? { |block| block.type == "hotkeys" }
+    raise "missing workspace block" unless blocks.any? { |block| block.type == "workspaces" }
+  end
+
+  def reconcile!
+    reconcile_hotkeys
+    reconcile_rules
+    reconcile_workspaces
+    self
+  end
+
+  def to_s
+    blocks.flat_map(&:lines).join
+  end
+
+  private
+
+  def scalar_value(block, key)
+    scalar_lines(block).each do |line|
+      match = line.match(/^\s*#{Regexp.escape(key)}\s*=\s*"((?:\\.|[^"])*)"\s*(?:#.*)?$/)
+      return match[1] if match
+    end
+    nil
+  end
+
+  def scalar_lines(block)
+    block.lines.drop(1).take_while { |line| !line.match?(TABLE_HEADER) }
+  end
+
+  def set_scalar(block, key, value)
+    scalar_end = block.lines.index.with_index do |line, index|
+      index.positive? && line.match?(TABLE_HEADER)
+    end || block.lines.length
+    existing = (1...scalar_end).find do |index|
+      block.lines[index].match?(/^\s*#{Regexp.escape(key)}\s*=/)
+    end
+
+    if existing
+      block.lines[existing] = %(#{key} = "#{value}"\n)
+      return
+    end
+
+    insertion = scalar_end
+    insertion -= 1 while insertion > 1 && block.lines[insertion - 1].strip.empty?
+    block.lines.insert(insertion, %(#{key} = "#{value}"\n))
+  end
+
+  def remove_scalar(block, key)
+    scalar_end = block.lines.index.with_index do |line, index|
+      index.positive? && line.match?(TABLE_HEADER)
+    end || block.lines.length
+    block.lines = block.lines.each_with_index.reject do |line, index|
+      index.between?(1, scalar_end - 1) && line.match?(/^\s*#{Regexp.escape(key)}\s*=/)
+    end.map(&:first)
+  end
+
+  def reconcile_hotkeys
+    blocks.select { |block| block.type == "hotkeys" }.each do |block|
+      identifier = scalar_value(block, "id")
+      binding = scalar_value(block, "binding")
+      arrow_binding = binding&.match?(/^Option\+Shift\+(?:Left|Right|Up|Down) Arrow$/)
+      next unless arrow_binding || %w[move.left move.right toggleScratchpadWindow].include?(identifier)
+
+      set_scalar(block, "binding", "Unassigned")
+    end
+  end
+
+  def reconcile_rules
+    RULE_TARGETS.each do |target|
+      matches = blocks.each_index.select do |index|
+        block = blocks[index]
+        next false unless block.type == "appRules"
+        next false unless scalar_value(block, "bundleId") == target.bundle_id
+
+        scalar_value(block, "titleSubstring") == target.title_substring
+      end
+
+      if matches.empty?
+        insert_rule(target)
+      else
+        set_scalar(blocks[matches.first], "assignToWorkspace", target.workspace)
+      end
+    end
+  end
+
+  def insert_rule(target)
+    lines = ["[[appRules]]\n", %(bundleId = "#{target.bundle_id}"\n)]
+    lines << %(titleSubstring = "#{target.title_substring}"\n) if target.title_substring
+    lines << %(id = "#{SecureRandom.uuid.upcase}"\n)
+    lines << %(assignToWorkspace = "#{target.workspace}"\n)
+    lines << "\n"
+    block = Block.new(type: "appRules", lines: lines)
+
+    last_rule = blocks.rindex { |candidate| candidate.type == "appRules" }
+    insertion = last_rule ? last_rule + 1 : blocks.index { |candidate| candidate.type == "hotkeys" }
+    insertion ||= blocks.length
+    ensure_block_separator(insertion)
+    blocks.insert(insertion, block)
+  end
+
+  def reconcile_workspaces
+    workspace_blocks = blocks.select { |block| block.type == "workspaces" }
+    workspace_blocks.each { |block| remove_scalar(block, "displayName") }
+
+    ADDED_WORKSPACES.each do |workspace|
+      next if workspace_blocks.any? { |block| scalar_value(block, "name") == workspace.name }
+
+      ensure_block_separator(blocks.length)
+      block = Block.new(type: "workspaces", lines: [
+        "[[workspaces]]\n",
+        %(id = "#{workspace.id}"\n),
+        %(name = "#{workspace.name}"\n),
+        "\n",
+        "[workspaces.monitorAssignment]\n",
+        %(type = "#{workspace.monitor}"\n),
+        "\n"
+      ])
+      blocks << block
+      workspace_blocks << block
+    end
+  end
+
+  def ensure_block_separator(insertion)
+    return if insertion.zero?
+
+    previous = blocks[insertion - 1]
+    last_line = previous.lines.last
+    previous.lines[-1] = "#{last_line}\n" if last_line && !last_line.end_with?("\n")
+    previous.lines << "\n" unless previous.lines.last&.strip&.empty?
+  end
+end
+
+class SettingsWriter
+  def self.replace(path, contents)
+    directory = File.dirname(path)
+    basename = File.basename(path)
+    temporary = Tempfile.new([".#{basename}", ".tmp"], directory)
+    temporary.binmode
+    temporary.chmod(0o600)
+    temporary.write(contents)
+    temporary.flush
+    temporary.fsync
+    temporary.close
+    File.rename(temporary.path, path)
+  ensure
+    temporary&.close unless temporary&.closed?
+    temporary&.unlink if temporary && File.exist?(temporary.path)
+  end
+end
+
+def main
+  raise "usage: configure-omniwm-settings SETTINGS_PATH" unless ARGV.length == 1
+
+  path = File.expand_path(ARGV.fetch(0))
+  original = File.binread(path).force_encoding(Encoding::UTF_8)
+  raise "settings file is not valid UTF-8" unless original.valid_encoding?
+
+  document = SettingsDocument.parse(original)
+  result = document.reconcile!.to_s
+  SettingsDocument.parse(result)
+
+  if result == original
+    puts "unchanged"
+  else
+    SettingsWriter.replace(path, result)
+    puts "changed"
+  end
+rescue => error
+  warn "configure-omniwm-settings: #{error.message}"
+  exit 1
+end
+
+main if $PROGRAM_NAME == __FILE__
