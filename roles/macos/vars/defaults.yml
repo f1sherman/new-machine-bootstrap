@@ -132,5 +132,7 @@ rectangle_shortcuts:
   - { action: topHalf, key_code: 126, modifier_flags: 1835008 }
   - { action: bottomHalf, key_code: 125, modifier_flags: 1835008 }
   - { action: maximize, key_code: 46, modifier_flags: 1835008 }
-  - { action: previousDisplay, key_code: 123, modifier_flags: 786432 }
-  - { action: nextDisplay, key_code: 124, modifier_flags: 786432 }
+
+rectangle_removed_shortcuts:
+  - previousDisplay
+  - nextDisplay

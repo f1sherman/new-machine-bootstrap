@@ -22,6 +22,25 @@
   loop_control:
     label: "{{ item.action }}"
 
+- name: "Rectangle: Check shortcuts reassigned to OmniWM"
+  command: defaults read com.knollsoft.Rectangle {{ item }}
+  register: rectangle_removed_shortcut_checks
+  changed_when: false
+  failed_when: >-
+    rectangle_removed_shortcut_checks.rc != 0 and
+    'does not exist' not in rectangle_removed_shortcut_checks.stderr
+  check_mode: false
+  loop: "{{ rectangle_removed_shortcuts }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: "Rectangle: Remove shortcuts reassigned to OmniWM"
+  command: defaults delete com.knollsoft.Rectangle {{ item.item }}
+  when: item.rc == 0
+  loop: "{{ rectangle_removed_shortcut_checks.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
 - name: Check for SizeUp preferences
   command: defaults read com.irradiatedsoftware.SizeUp
   register: sizeup_preferences_check
