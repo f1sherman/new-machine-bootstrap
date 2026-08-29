@@ -185,6 +185,7 @@
     regexp: '^ipcEnabled = '
     line: 'ipcEnabled = true'
     insertafter: '^\[general\]$'
+  register: omniwm_ipc_result
   when: omniwm_settings_file.stat.exists
 
 - name: Configure OmniWM workspace layout
@@ -196,25 +197,25 @@
   changed_when: omniwm_settings_result.stdout | trim == 'changed'
   when: omniwm_settings_file.stat.exists
 
-- name: Stop loaded OmniWM job after settings update
+- name: Stop loaded OmniWM job after configuration update
   command: >-
     launchctl bootout
     gui/{{ ansible_facts['user_uid'] }}/com.user.omniwm
   when:
     - not ansible_check_mode
-    - omniwm_settings_result is changed
-    - not omniwm_launch_agent_plist.changed
-    - not (omniwm_app_updated | default(false))
+    - >-
+      (omniwm_ipc_result is changed) or
+      (omniwm_settings_result is changed)
 
-- name: Reload OmniWM job after settings update
+- name: Reload OmniWM job after configuration update
   command: >-
     launchctl bootstrap gui/{{ ansible_facts['user_uid'] }}
     {{ ansible_facts['user_dir'] }}/Library/LaunchAgents/com.user.omniwm.plist
   when:
     - not ansible_check_mode
-    - omniwm_settings_result is changed
-    - not omniwm_launch_agent_plist.changed
-    - not (omniwm_app_updated | default(false))
+    - >-
+      (omniwm_ipc_result is changed) or
+      (omniwm_settings_result is changed)
 
 - name: Ensure Hammerspoon configuration directory exists
   file:
