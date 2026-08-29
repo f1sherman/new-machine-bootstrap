@@ -154,8 +154,12 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       end
       result = File.read(path)
 
+      workspace_blocks = result.scan(/^\[\[workspaces\]\]\n(.*?)(?=^\[\[|\z)/m).flatten
       %w[8 9 10].each do |name|
         assert_equal 1, result.scan(/^name = "#{name}"$/).length
+        block = workspace_blocks.find { |candidate| candidate.match?(/^name = "#{name}"$/) }
+        refute_nil block
+        assert_includes block, 'layoutType = "niri"'
       end
       assert_includes result, 'id = "4371F67B-B469-470D-89C6-D8FBB5E65BD3"'
       assert_includes result, 'id = "E9D12AB0-EB5E-4B50-98BC-600318BA00FC"'
