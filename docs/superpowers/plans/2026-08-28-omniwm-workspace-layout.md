@@ -4,7 +4,7 @@
 
 **Goal:** Provision a ten-workspace OmniWM layout on `brian-macbook-pro`, add Finder and Photos pull-up shortcuts, route Ghostty links to a dedicated Safari window, and migrate the current windows without incorrect moves.
 
-**Architecture:** A Ruby reconciler applies narrow, atomic changes to OmniWM's user-generated TOML configuration. A laptop-specific Hammerspoon module uses OmniWM IPC for dynamic Finder, Photos, workspace 10, and URL-routing behavior. A guarded live migration uses exact window IDs and state polling after provisioning succeeds.
+**Architecture:** A Ruby reconciler applies narrow, atomic changes to OmniWM's user-generated TOML configuration. It defaults to deferred placement and activates application assignments only after an explicit migration marker exists. A laptop-specific Hammerspoon module uses OmniWM IPC for dynamic Finder, Photos, workspace 10, and URL-routing behavior. A guarded live migration uses exact window IDs and state polling between deferred and active provisioning phases.
 
 **Tech Stack:** Ansible, Ruby 3 with Minitest, Lua with Hammerspoon APIs, OmniWM IPC, macOS AppleScript
 
@@ -19,7 +19,23 @@
 - Do not assign Apple TV to a workspace.
 - Do not infer arbitrary shopping Chrome windows.
 - Do not move an ambiguous live window.
+- Keep OmniWM stopped until deferred placement is implemented and statically verified.
+- Default to deferred placement whenever the migration marker is absent.
+- Never add broad Finder or Photos workspace assignments.
 - Do not edit deployed files directly; apply source changes with `bin/provision`.
+
+## Incident and Recovery Gate
+
+The first rollout started OmniWM with ten workspaces and 17 placement
+assignments before Accessibility became available. When OmniWM later discovered
+the existing windows, WindowServer load rose and the graphical session became
+unusable. OmniWM did not crash or report a decode error. Upstream v0.6.3 applies
+workspace rules before service discovery, so this plan now separates workspace
+creation from placement activation.
+
+Keep OmniWM stopped during implementation. Normal provisioning must start it in
+deferred mode. The controller must complete every required exact-ID move before
+it opts in to marker creation and active assignments.
 
 ---
 
@@ -30,9 +46,9 @@
 - Create: `tests/configure-omniwm-settings.rb`
 
 **Interfaces:**
-- Consumes: `configure-omniwm-settings SETTINGS_PATH`
+- Consumes: `configure-omniwm-settings SETTINGS_PATH [--activate-assignments]`
 - Produces: Exit 0 with `changed` or `unchanged` on stdout; exit nonzero without replacing the source file on invalid input.
-- Produces: Workspaces 1-10, required hotkeys, and safe application assignments in the input TOML.
+- Produces: Workspaces 1-10 and required hotkeys in both modes. Deferred mode removes managed assignments. Active mode adds safe application assignments.
 
 - [ ] **Step 1: Write failing fixture-based tests**
 
@@ -75,19 +91,27 @@ name = "1"
 type = "main"
 ```
 
-Tests must assert:
+Default-mode tests must assert:
 
 ```ruby
 assert status.success?, err
 assert_equal "changed\n", out
 assert_includes result, 'name = "10"'
+assert_includes result, 'layoutType = "niri"'
 assert_includes result, 'binding = "Unassigned"\nid = "move.left"'
-assert_includes result, 'assignToWorkspace = "3"'
+refute_includes managed_ghostty_rule, 'assignToWorkspace = '
 assert_includes result, 'bundleId = "user.unrelated"'
 assert_includes result, 'minHeight = 400.0'
 ```
 
-Add separate cases for a byte-for-byte idempotent second run, no duplicate app rules, workspaces 8-10 added once, all optional `displayName` lines removed, and malformed input left unchanged.
+Add focused cases that prove deferred mode removes only managed
+`assignToWorkspace` actions, preserves other actions on matching rules, does not
+add missing assignment-only rules, and never adds Finder or Photos assignments.
+Run the helper with `--activate-assignments` and assert that approved assignments
+appear without duplicates while Finder and Photos remain absent. Add separate
+cases for byte-for-byte idempotent second runs in both modes, workspaces 8-10
+added once with `layoutType = "niri"`, all optional `displayName` lines removed,
+and malformed input left unchanged.
 
 - [ ] **Step 2: Run the focused test and confirm failure**
 
@@ -97,20 +121,21 @@ Run:
 ruby tests/configure-omniwm-settings.rb
 ```
 
-Expected: FAIL because `roles/macos/files/configure-omniwm-settings` does not exist.
+Expected: FAIL because the current helper always activates managed assignments
+and still targets Finder and Photos.
 
-- [ ] **Step 3: Implement the reconciler**
+- [ ] **Step 3: Implement staged reconciliation**
 
-Create an executable Ruby script with these focused units:
+Update the executable Ruby script with these focused units:
 
 ```ruby
-Workspace = Struct.new(:name, :id, :monitor, keyword_init: true)
+Workspace = Struct.new(:name, :id, :monitor, :layout_type, keyword_init: true)
 RuleTarget = Struct.new(:bundle_id, :title_substring, :workspace, keyword_init: true)
 
 ADDED_WORKSPACES = [
-  Workspace.new(name: "8", id: "4371F67B-B469-470D-89C6-D8FBB5E65BD3", monitor: "main"),
-  Workspace.new(name: "9", id: "E9D12AB0-EB5E-4B50-98BC-600318BA00FC", monitor: "main"),
-  Workspace.new(name: "10", id: "1935F5A8-9DCA-4E80-AEE3-48EBBE2E336A", monitor: "main")
+  Workspace.new(name: "8", id: "4371F67B-B469-470D-89C6-D8FBB5E65BD3", monitor: "main", layout_type: "niri"),
+  Workspace.new(name: "9", id: "E9D12AB0-EB5E-4B50-98BC-600318BA00FC", monitor: "main", layout_type: "niri"),
+  Workspace.new(name: "10", id: "1935F5A8-9DCA-4E80-AEE3-48EBBE2E336A", monitor: "main", layout_type: "niri")
 ].freeze
 
 RULE_TARGETS = [
@@ -128,15 +153,18 @@ RULE_TARGETS = [
   RuleTarget.new(bundle_id: "com.bitwarden.desktop", workspace: "10"),
   RuleTarget.new(bundle_id: "com.TechSmith.Snagit", workspace: "10"),
   RuleTarget.new(bundle_id: "com.backblaze.Backblaze", workspace: "10"),
-  RuleTarget.new(bundle_id: "com.apple.mobilephone", workspace: "10"),
-  RuleTarget.new(bundle_id: "com.apple.finder", workspace: "10"),
-  RuleTarget.new(bundle_id: "com.apple.Photos", workspace: "10")
+  RuleTarget.new(bundle_id: "com.apple.mobilephone", workspace: "10")
+].freeze
+
+DYNAMIC_RULE_TARGETS = [
+  RuleTarget.new(bundle_id: "com.apple.finder"),
+  RuleTarget.new(bundle_id: "com.apple.Photos")
 ].freeze
 ```
 
-Use the exact `bundleId`, `titleSubstring`, and `assignToWorkspace` keys emitted by OmniWM v0.6.3. Match a title-specific rule on both bundle ID and title so it cannot affect another application. Reuse existing workspace IDs for names 1-7. Use the fixed UUID-format IDs above for missing workspaces 8-10 and preserve an existing ID when the named workspace is already present.
+Use the exact `bundleId`, `titleSubstring`, and `assignToWorkspace` keys emitted by OmniWM v0.6.3. Match a title-specific rule on both bundle ID and title so it cannot affect another application. Reuse existing workspace IDs for names 1-7. Use the fixed UUID-format IDs above for missing workspaces 8-10, include every required Codable field, and preserve an existing ID when the named workspace is already present.
 
-Parse the TOML as ordered top-level scalar lines and repeated `[[hotkeys]]`, `[[appRules]]`, and `[[workspaces]]` blocks. Update a matching block in place and retain unknown lines. Add a missing rule at the end of the app-rule group. Set the workspace action key without removing size or layout actions.
+Parse the TOML as ordered top-level scalar lines and repeated `[[hotkeys]]`, `[[appRules]]`, and `[[workspaces]]` blocks. Update a matching block in place and retain unknown lines. With no activation flag, remove `assignToWorkspace` from matching managed rules and do not add missing rules. With `--activate-assignments`, add a missing `RULE_TARGETS` rule at the end of the app-rule group or update the matching rule. In both modes, remove any assignment from matching `DYNAMIC_RULE_TARGETS` rules and preserve size, layout, and unrelated actions.
 
 Before replacement:
 
@@ -160,7 +188,7 @@ Expected: all tests pass with zero failures and zero errors.
 
 ```bash
 ~/.pi/agent/skills/z-commit/commit.sh \
-  -m "Manage OmniWM workspace settings" \
+  -m "Stage OmniWM placement rules" \
   roles/macos/files/configure-omniwm-settings \
   tests/configure-omniwm-settings.rb
 ```
@@ -298,29 +326,36 @@ Expected: exit 0 and no output. This is a syntax check only; live behavioral ver
 - Modify: `roles/macos/tasks/install_omniwm.yml`
 
 **Interfaces:**
-- Consumes: Task 1 reconciler and Task 2 Hammerspoon file.
-- Produces: Updated `~/.config/omniwm/settings.toml` and laptop-specific `~/.hammerspoon/init.local.lua` through Ansible.
+- Consumes: Task 1 reconciler, Task 2 Hammerspoon file, marker state, and the opt-in `omniwm_workspace_layout_migration_complete` variable.
+- Produces: Deferred or active `~/.config/omniwm/settings.toml`, the migration marker, and laptop-specific `~/.hammerspoon/init.local.lua` through Ansible.
 
-- [ ] **Step 1: Replace ad hoc TOML edits with the reconciler**
+- [ ] **Step 1: Pass explicit placement state to the reconciler**
 
-In `roles/macos/tasks/install_omniwm.yml`, keep the settings-file wait and stat tasks. Replace the numeric-label and hotkey `lineinfile`/`replace` tasks with:
-
-```yaml
-- name: Configure OmniWM workspace layout
-  script:
-    cmd: >-
-      configure-omniwm-settings
-      {{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml
-  register: omniwm_settings_result
-  changed_when: omniwm_settings_result.stdout | trim == 'changed'
-  when: omniwm_settings_file.stat.exists
-```
+In `roles/macos/tasks/install_omniwm.yml`, keep the settings-file wait and stat
+tasks. Stat
+`{{ ansible_facts['user_dir'] }}/.local/state/omniwm/workspace-layout-migrated-v1`
+and pass `--activate-assignments` only when that marker exists. With no marker,
+invoke the helper without the flag so deferred mode is the default.
 
 Keep IPC enabled before the reconciler or make IPC one of the reconciler's
 required scalar values. Do not run the reconciler when the settings file is
-absent.
+absent. Restart OmniWM after either settings writer changes the file so the
+running process reads the selected state.
 
-- [ ] **Step 2: Install the laptop-specific Hammerspoon file**
+- [ ] **Step 2: Create the marker only through the opt-in variable**
+
+Ensure `~/.local/state/omniwm` exists only as needed. Add a marker task guarded
+by:
+
+```yaml
+when: omniwm_workspace_layout_migration_complete | default(false) | bool
+```
+
+Write a stable version string to `workspace-layout-migrated-v1`. Put this task
+before marker stat and reconciliation so the same opt-in provision activates
+assignments. Normal provisioning must not create, infer, or remove the marker.
+
+- [ ] **Step 3: Install the laptop-specific Hammerspoon file**
 
 Add tasks inside the already host-gated OmniWM include:
 
@@ -343,7 +378,7 @@ The existing generic Hammerspoon task later in the role loads
 `init.local.lua` and reloads Hammerspoon. Do not add a second reload path unless
 live verification proves the existing order is insufficient.
 
-- [ ] **Step 3: Run static verification**
+- [ ] **Step 4: Run static verification**
 
 Run:
 
@@ -356,7 +391,12 @@ git diff --check
 
 Expected: every command exits 0.
 
-- [ ] **Step 4: Commit provisioning integration**
+Add a focused task-level verification that proves absent-marker invocation is
+deferred, an opt-in-created marker activates assignments, settings or IPC
+changes trigger the post-write restart, and unchanged check mode does not mutate
+launchd. Do not add a test that only restates YAML text.
+
+- [ ] **Step 5: Commit provisioning integration**
 
 ```bash
 ~/.pi/agent/skills/z-commit/commit.sh \
@@ -371,36 +411,29 @@ Expected: every command exits 0.
 - Create temporary evidence only under `/tmp`; do not commit it.
 
 **Interfaces:**
-- Consumes: Provisioned settings and Hammerspoon helpers from Tasks 1-3.
-- Produces: Ten live workspaces and the approved current-window placement.
+- Consumes: Deferred settings, Hammerspoon helpers, and marker workflow from Tasks 1-3.
+- Produces: Ten live workspaces, the approved exact-ID window placement, and an activation marker only after full migration success.
 
-- [ ] **Step 1: Save the pre-migration snapshot**
+- [ ] **Step 1: Confirm the recovery starts stopped and unmarked**
 
-Run:
+Confirm the `com.user.omniwm` launchd job is absent and no OmniWM process runs.
+Confirm
+`~/.local/state/omniwm/workspace-layout-migrated-v1` is absent. Do not start
+OmniWM until Tasks 1-3 and their static checks pass.
 
-```bash
-omniwmctl query windows --format json \
-  > /tmp/omniwm-windows-before-layout.json
-omniwmctl query workspaces --format json \
-  > /tmp/omniwm-workspaces-before-layout.json
-```
+- [ ] **Step 2: Provision deferred placement**
 
-Validate both files with `ruby -rjson -e 'JSON.parse(File.read(ARGV[0]))' FILE`.
-Do not move a window before both snapshots parse.
-
-- [ ] **Step 2: Provision the branch**
-
-Run:
+Run normal provisioning without the completion variable:
 
 ```bash
 bin/provision
 ```
 
-Expected: exit 0; the settings reconciler reports `changed`; Hammerspoon reloads;
-OmniWM IPC verification returns `pong`. Brian must approve the macOS prompt that
-sets Hammerspoon as the HTTP and HTTPS handler.
+Expected: exit 0; the settings reconciler uses deferred mode; Hammerspoon
+reloads; OmniWM IPC returns `pong`. Brian must approve the macOS prompt that sets
+Hammerspoon as the HTTP and HTTPS handler.
 
-- [ ] **Step 3: Verify configuration before migration**
+- [ ] **Step 3: Prove deferred state before migration and save snapshots**
 
 Run:
 
@@ -408,11 +441,19 @@ Run:
 omniwmctl ping
 omniwmctl query workspaces --format table
 omniwmctl query rules --format table
+omniwmctl query windows --format json \
+  > /tmp/omniwm-windows-before-layout.json
+omniwmctl query workspaces --format json \
+  > /tmp/omniwm-workspaces-before-layout.json
 ```
 
-Expected: workspaces 1-10 have numeric labels and safe rules match the approved
-mapping. Inspect `~/.config/omniwm/settings.toml` read-only to confirm
-`Option+Shift+Arrow` remains unassigned.
+Expected: workspaces 1-10 have numeric labels, no managed rule contains an
+active `assignToWorkspace`, and the marker remains absent. Inspect
+`~/.config/omniwm/settings.toml` read-only to confirm
+`Option+Shift+Arrow` remains unassigned and Finder and Photos have no broad
+assignment. Validate both snapshots with
+`ruby -rjson -e 'JSON.parse(File.read(ARGV[0]))' FILE`. Do not move a window
+before both files parse.
 
 - [ ] **Step 4: Move windows with an exact-ID migration program**
 
@@ -439,9 +480,9 @@ targets = {
 Add exact-title predicates for the approved current Safari, Chrome, Brave, and
 shopping windows from the snapshot. Do not use a broad Safari or Chrome fallback.
 
-For every move:
+For every required move:
 
-1. Requery the exact ID and skip it if absent.
+1. Requery the exact ID and stop the migration if it is absent.
 2. Switch to its recorded current workspace.
 3. Run `window navigate ID`.
 4. Poll `query focused-window` until the ID matches.
@@ -449,11 +490,29 @@ For every move:
 6. Poll `query windows --window ID` until workspace N matches.
 7. Stop and record a failure rather than continue after focus or move timeout.
 
+Never create the marker after a missing, ambiguous, or failed required move.
 Move Todoist out of the scratchpad before assigning Finder. Create the dedicated
 Downloads Finder through the deployed Hammerspoon action only after all ordinary
 moves succeed. Close Apple TV by bundle identifier after the placement checks.
+Finder and Photos remain outside the placement-rule target list.
 
-- [ ] **Step 5: Verify pull-up and browser behavior end to end**
+- [ ] **Step 5: Activate placement only after migration succeeds**
+
+After every required move and placement check succeeds, run:
+
+```bash
+bin/provision \
+  --extra-vars omniwm_workspace_layout_migration_complete=true
+```
+
+Expected: provisioning creates
+`~/.local/state/omniwm/workspace-layout-migrated-v1`, runs the reconciler with
+`--activate-assignments`, and restarts OmniWM after the settings write. Query the
+rules and confirm the approved assignments are active. Confirm Finder and Photos
+still have no broad assignments. If this command fails, stop and keep OmniWM
+stopped until the active configuration is inspected.
+
+- [ ] **Step 6: Verify pull-up and browser behavior end to end**
 
 Manually verify:
 
@@ -470,7 +529,7 @@ Manually verify:
 
 Restore the disposable test window after step 8.
 
-- [ ] **Step 6: Verify final layout and idempotency**
+- [ ] **Step 7: Verify final layout and idempotency**
 
 Run:
 
@@ -483,10 +542,12 @@ ruby tests/configure-omniwm-settings.rb
 ```
 
 Compare the final JSON with the workspace table in the spec. Confirm ambiguous
-and auxiliary windows were not moved. Expected: no failed checks; the reconciler
-test remains idempotent; check mode reports no OmniWM settings drift.
+and auxiliary windows were not moved. Confirm the marker exists, active rules
+match the approved mapping, and Finder and Photos remain dynamically managed.
+Expected: no failed checks; both reconciler modes remain idempotent; check mode
+reports no OmniWM settings drift.
 
-- [ ] **Step 7: Final branch verification**
+- [ ] **Step 8: Final branch verification**
 
 Run:
 
