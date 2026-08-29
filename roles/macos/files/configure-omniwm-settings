@@ -4,13 +4,13 @@
 require "securerandom"
 require "tempfile"
 
-Workspace = Struct.new(:name, :id, :monitor, keyword_init: true)
+Workspace = Struct.new(:name, :id, :monitor, :layout_type, keyword_init: true)
 RuleTarget = Struct.new(:bundle_id, :title_substring, :workspace, keyword_init: true)
 
 ADDED_WORKSPACES = [
-  Workspace.new(name: "8", id: "4371F67B-B469-470D-89C6-D8FBB5E65BD3", monitor: "main"),
-  Workspace.new(name: "9", id: "E9D12AB0-EB5E-4B50-98BC-600318BA00FC", monitor: "main"),
-  Workspace.new(name: "10", id: "1935F5A8-9DCA-4E80-AEE3-48EBBE2E336A", monitor: "main")
+  Workspace.new(name: "8", id: "4371F67B-B469-470D-89C6-D8FBB5E65BD3", monitor: "main", layout_type: "niri"),
+  Workspace.new(name: "9", id: "E9D12AB0-EB5E-4B50-98BC-600318BA00FC", monitor: "main", layout_type: "niri"),
+  Workspace.new(name: "10", id: "1935F5A8-9DCA-4E80-AEE3-48EBBE2E336A", monitor: "main", layout_type: "niri")
 ].freeze
 
 RULE_TARGETS = [
@@ -28,9 +28,12 @@ RULE_TARGETS = [
   RuleTarget.new(bundle_id: "com.bitwarden.desktop", workspace: "10"),
   RuleTarget.new(bundle_id: "com.TechSmith.Snagit", workspace: "10"),
   RuleTarget.new(bundle_id: "com.backblaze.Backblaze", workspace: "10"),
-  RuleTarget.new(bundle_id: "com.apple.mobilephone", workspace: "10"),
-  RuleTarget.new(bundle_id: "com.apple.finder", workspace: "10"),
-  RuleTarget.new(bundle_id: "com.apple.Photos", workspace: "10")
+  RuleTarget.new(bundle_id: "com.apple.mobilephone", workspace: "10")
+].freeze
+
+DYNAMIC_RULE_TARGETS = [
+  RuleTarget.new(bundle_id: "com.apple.finder"),
+  RuleTarget.new(bundle_id: "com.apple.Photos")
 ].freeze
 
 class SettingsDocument
@@ -161,9 +164,9 @@ class SettingsDocument
     raise "missing workspace block" unless blocks.any? { |block| block.type == "workspaces" }
   end
 
-  def reconcile!
+  def reconcile!(activate_assignments: false)
     reconcile_hotkeys
-    reconcile_rules
+    reconcile_rules(activate_assignments)
     reconcile_workspaces
     self
   end
@@ -224,21 +227,35 @@ class SettingsDocument
     end
   end
 
-  def reconcile_rules
+  def reconcile_rules(activate_assignments)
     RULE_TARGETS.each do |target|
-      matches = blocks.each_index.select do |index|
-        block = blocks[index]
-        next false unless block.type == "appRules"
-        next false unless scalar_value(block, "bundleId") == target.bundle_id
-
-        scalar_value(block, "titleSubstring") == target.title_substring
+      matches = matching_rule_blocks(target)
+      unless activate_assignments
+        matches.each { |block| remove_scalar(block, "assignToWorkspace") }
+        next
       end
 
       if matches.empty?
         insert_rule(target)
       else
-        set_scalar(blocks[matches.first], "assignToWorkspace", target.workspace)
+        set_scalar(matches.first, "assignToWorkspace", target.workspace)
+        matches.drop(1).each { |block| remove_scalar(block, "assignToWorkspace") }
       end
+    end
+
+    DYNAMIC_RULE_TARGETS.each do |target|
+      matching_rule_blocks(target).each do |block|
+        remove_scalar(block, "assignToWorkspace")
+      end
+    end
+  end
+
+  def matching_rule_blocks(target)
+    blocks.select do |block|
+      next false unless block.type == "appRules"
+      next false unless scalar_value(block, "bundleId") == target.bundle_id
+
+      scalar_value(block, "titleSubstring") == target.title_substring
     end
   end
 
@@ -269,7 +286,7 @@ class SettingsDocument
         "[[workspaces]]\n",
         %(id = "#{workspace.id}"\n),
         %(name = "#{workspace.name}"\n),
-        %(layoutType = "niri"\n),
+        %(layoutType = "#{workspace.layout_type}"\n),
         "\n",
         "[workspaces.monitorAssignment]\n",
         %(type = "#{workspace.monitor}"\n),
@@ -309,14 +326,17 @@ class SettingsWriter
 end
 
 def main
-  raise "usage: configure-omniwm-settings SETTINGS_PATH" unless ARGV.length == 1
+  path_argument, mode = ARGV
+  valid_arguments = ARGV.length.between?(1, 2) &&
+    (mode.nil? || mode == "--activate-assignments")
+  raise "usage: configure-omniwm-settings SETTINGS_PATH [--activate-assignments]" unless valid_arguments
 
-  path = File.expand_path(ARGV.fetch(0))
+  path = File.expand_path(path_argument)
   original = File.binread(path).force_encoding(Encoding::UTF_8)
   raise "settings file is not valid UTF-8" unless original.valid_encoding?
 
   document = SettingsDocument.parse(original)
-  result = document.reconcile!.to_s
+  result = document.reconcile!(activate_assignments: mode == "--activate-assignments").to_s
   SettingsDocument.parse(result)
 
   if result == original
