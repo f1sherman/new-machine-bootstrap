@@ -266,12 +266,26 @@ local function assignFinderScratchpad(window)
         M.notify(focusError)
         return
       end
-      M.run({"command", "scratchpad", "assign"}, function(_, assignError)
-        if assignError then
-          M.notify(assignError)
+      queryWindows({"--scratchpad"}, function(scratchpad, scratchpadError)
+        if scratchpadError then
+          M.notify(scratchpadError)
           return
         end
-        toggleScratchpadIfHidden(window.id)
+        if #scratchpad == 1 and scratchpad[1].id == window.id then
+          toggleScratchpadIfHidden(window.id)
+          return
+        end
+        if #scratchpad ~= 0 then
+          M.notify("A different window owns the OmniWM scratchpad")
+          return
+        end
+        M.run({"command", "scratchpad", "assign"}, function(_, assignError)
+          if assignError then
+            M.notify(assignError)
+            return
+          end
+          toggleScratchpadIfHidden(window.id)
+        end)
       end)
     end)
   end)
@@ -442,7 +456,7 @@ end
 
 local function isWorkSafari(window)
   local title = window.title or ""
-  return title:find("Work —", 1, true) == 1
+  return title:find("Work —", 1, true) ~= nil
 end
 
 local function resolveDedicatedSafari(windows)
