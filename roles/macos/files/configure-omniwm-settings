@@ -94,12 +94,48 @@ class SettingsDocument
   end
 
   def self.valid_value?(value)
-    return true if value.match?(/\A"(?:\\.|[^"\\])*"\z/)
+    return valid_basic_string?(value) if value.start_with?('"')
     return true if %w[true false].include?(value)
     return true if value.match?(/\A[+-]?(?:0|[1-9](?:_?\d)*)(?:\.\d(?:_?\d)*)?(?:[eE][+-]?\d(?:_?\d)*)?\z/)
     return valid_array?(value) if value.start_with?("[")
 
     false
+  end
+
+  def self.valid_basic_string?(value)
+    return false unless value.end_with?('"')
+
+    characters = value[1...-1].chars
+    index = 0
+    while index < characters.length
+      character = characters[index]
+      return false if character.ord < 0x20
+
+      unless character == "\\"
+        return false if character == '"'
+
+        index += 1
+        next
+      end
+
+      escape = characters[index + 1]
+      return false unless escape
+
+      if %w[" \\ b t n f r].include?(escape)
+        index += 2
+        next
+      end
+
+      digits = escape == "u" ? 4 : escape == "U" ? 8 : nil
+      return false unless digits
+
+      codepoint = characters[(index + 2), digits]
+      return false unless codepoint&.length == digits && codepoint.join.match?(/\A[0-9A-Fa-f]+\z/)
+
+      index += digits + 2
+    end
+
+    true
   end
 
   def self.valid_array?(value)
@@ -108,7 +144,10 @@ class SettingsDocument
     body = value[1...-1].strip
     return true if body.empty?
 
-    body.split(",").all? { |element| valid_value?(element.strip) }
+    body.split(",", -1).all? do |element|
+      scalar = element.strip
+      !scalar.empty? && valid_value?(scalar)
+    end
   end
 
   def initialize(blocks)
