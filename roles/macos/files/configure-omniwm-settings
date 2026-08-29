@@ -223,7 +223,7 @@ class SettingsDocument
     blocks.select { |block| block.type == "hotkeys" }.each do |block|
       identifier = scalar_value(block, "id")
       binding = scalar_value(block, "binding")
-      arrow_binding = binding&.match?(/^Option\+Shift\+(?:Left|Right|Up|Down) Arrow$/)
+      arrow_binding = binding&.match?(/^Option\+(?:Shift\+)?(?:Left|Right|Up|Down) Arrow$/)
       next unless arrow_binding || %w[move.left move.right toggleScratchpadWindow].include?(identifier)
 
       set_scalar(block, "binding", "Unassigned")
