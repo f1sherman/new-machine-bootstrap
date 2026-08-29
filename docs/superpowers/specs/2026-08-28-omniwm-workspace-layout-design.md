@@ -1,6 +1,6 @@
 # OmniWM Workspace Layout and Pull-Up Windows Design
 
-**Status:** Approved in conversation on 2026-08-28
+**Status:** Revised and internally approved after the 2026-08-29 rollout incident
 
 ## Goal
 
@@ -35,13 +35,15 @@ Safari window in Ghostty's current workspace.
 
 ### Recommended: OmniWM with focused Hammerspoon helpers
 
-OmniWM owns stable workspaces, application rules, numeric workspace shortcuts,
-and window layout. Hammerspoon owns only behavior that OmniWM does not provide:
-Finder scratchpad recovery, Photos pull-up behavior, workspace 10 shortcuts,
-and source-aware URL routing.
+OmniWM owns stable workspaces, numeric workspace shortcuts, and window layout.
+Its application assignments activate only after a guarded exact-ID migration.
+Hammerspoon owns only behavior that OmniWM does not provide: Finder scratchpad
+recovery, Photos pull-up behavior, workspace 10 shortcuts, and source-aware URL
+routing.
 
-This approach keeps workspace state in OmniWM and limits timing-sensitive
-window automation.
+This staged approach prevents existing windows from entering bulk rule
+evaluation during first discovery. It keeps workspace state in OmniWM and
+limits timing-sensitive window automation.
 
 ### Hammerspoon manages all placement
 
@@ -81,22 +83,34 @@ not moved.
 
 ## Application Rules
 
-Provisioning adds or updates only rules that have an unambiguous match:
+Provisioning uses two explicit placement states.
+
+Before the migration marker exists, the reconciler is in deferred mode. It
+removes `assignToWorkspace` from matching managed rules and does not add missing
+assignment-only rules. It preserves unrelated rules and every other action on a
+matching rule. This lets OmniWM discover the existing window population without
+a bulk placement storm.
+
+After the marker exists, the reconciler adds or updates only rules that have an
+unambiguous match:
 
 - Bundle identifier rules place Todoist in 1, Ghostty in 3, ChatGPT in 4,
   CardPointers in 5, Messages in 6, Home Assistant in 7, Calendar in 8, Slack in
-  9, and parking applications in 10.
+  9, and Bitwarden, Snagit, Backblaze, and Phone in 10.
 - Title rules place Chrome windows containing `ChatGPT` in 4, the Brave
   Parental Controls window in 5, and Safari windows beginning with `Work —` in
   9.
+- Finder and Photos never receive broad assignment rules. The reconciler
+  removes any existing managed assignment from their matching rules in both
+  placement states. Their Hammerspoon helpers own movement to and from Parking.
 - The main Personal Safari window and dedicated Ghostty Safari window are moved
   during migration but do not receive a broad Safari rule. Both use the
   Personal Safari profile, so a title-only rule cannot distinguish them safely.
 - Shopping Chrome windows remain manual because retail sites do not provide a
   stable application or title identity.
 
-Rules must update an equivalent existing rule instead of adding duplicates.
-Provisioning must preserve unrelated user rules.
+Active rules must update an equivalent existing rule instead of adding
+duplicates. Provisioning must preserve unrelated user rules in both states.
 
 ## Workspace and Hotkey Configuration
 
@@ -113,7 +127,9 @@ The helper:
 - Leaves `Option+Shift+Arrow` unassigned so macOS text selection works.
 - Leaves OmniWM's native scratchpad shortcut unassigned because Hammerspoon
   owns Finder scratchpad recovery.
-- Adds or updates the approved application rules.
+- Defers managed placement assignments until the migration marker exists.
+- Adds or updates the approved application rules only after activation.
+- Never adds Finder or Photos application assignments.
 
 Hammerspoon binds:
 
@@ -190,34 +206,66 @@ The feature remains inside the existing exact-host OmniWM gate for
 
 Provisioning owns:
 
-- The OmniWM configuration helper and its invocation.
+- The OmniWM configuration helper and its deferred or active invocation.
+- The migration marker at
+  `~/.local/state/omniwm/workspace-layout-migrated-v1`.
 - A laptop-specific `~/.hammerspoon/init.local.lua`.
 - Hammerspoon reload after the local configuration changes.
 - Read-only verification of OmniWM IPC and the resulting configuration.
 
+The marker is absent by default. Provisioning creates it only when the
+controller supplies the opt-in extra variable
+`omniwm_workspace_layout_migration_complete=true` after every required move
+succeeds. Normal provisioning never infers migration completion. A failed
+migration leaves the marker absent and later provisioning remains deferred.
+
 The implementation must not replace the complete user-generated OmniWM settings
 file. It applies narrow, idempotent transformations.
 
+## Rollout Incident and Staged Recovery
+
+During the first rollout, OmniWM started without Accessibility access and
+reported zero managed windows. The generated settings contained ten workspaces
+and 17 placement assignments. When Accessibility became available, OmniWM wrote
+a restore catalog for the existing window population, WindowServer load rose,
+and the graphical session became unusable. Quitting OmniWM restored control.
+OmniWM did not crash and did not report a configuration decode error.
+
+OmniWM v0.6.3 installs workspace rules before its service starts. Existing
+windows therefore enter rule evaluation during first discovery. The recovery
+must keep OmniWM stopped until deferred placement is implemented and verified.
+It must not reactivate all assignments before exact-ID migration completes.
+
 ## Safe Live Migration
 
-The migration runs only after provisioning succeeds.
+The migration has two provisioning phases.
 
-1. Save a snapshot of every managed window's opaque ID, process ID, bundle
+1. Keep OmniWM stopped while source changes and static checks run.
+2. Run normal provisioning with no completion variable. It creates the ten
+   workspaces and hotkeys, removes managed placement actions, and starts OmniWM
+   in deferred mode.
+3. Confirm that active rules contain no managed `assignToWorkspace` actions.
+4. Save a snapshot of every managed window's opaque ID, process ID, bundle
    identifier, title, mode, and workspace.
-2. Confirm that workspaces 1 through 10 exist before moving a window.
-3. Remove Todoist from the scratchpad and move its exact window ID to workspace
+5. Confirm that workspaces 1 through 10 exist before moving a window.
+6. Remove Todoist from the scratchpad and move its exact window ID to workspace
    1.
-4. Create the Downloads Finder window and assign its exact ID to the scratchpad.
-5. Build a move list from the saved snapshot and the approved mapping.
-6. For each entry, switch to the source workspace, navigate to the exact window
+7. Build a move list from the saved snapshot and the approved mapping.
+8. For each entry, switch to the source workspace, navigate to the exact window
    ID, poll until that ID is focused, move it, and poll until the destination is
    confirmed.
-7. Stop the current move and report it if the ID disappears or another window
-   receives focus. Do not issue a blind follow-up move.
-8. Query and report each workspace after every application group.
-9. Leave unmatched and auxiliary windows unchanged.
-10. Close Apple TV by its bundle identifier after all moves succeed.
-11. Compare the final live state with the approved table.
+9. Stop the migration if an ID disappears, another window receives focus, or a
+   move times out. Do not create the marker and do not issue a blind move.
+10. Query and report each workspace after every application group. Leave
+    unmatched and auxiliary windows unchanged.
+11. Create the Downloads Finder scratchpad through Hammerspoon. Keep Finder and
+    Photos outside broad placement rules.
+12. Close Apple TV by bundle identifier after all required moves succeed.
+13. Run provisioning with
+    `omniwm_workspace_layout_migration_complete=true`. This creates the marker,
+    activates managed assignments, and restarts OmniWM only after windows occupy
+    their destinations.
+14. Compare the final live state with the approved table.
 
 The migration does not use fixed sleep intervals as proof of focus or placement.
 Polling has a bounded timeout and records failures without moving a substitute
@@ -226,6 +274,8 @@ window.
 ## Failure Handling
 
 - A missing OmniWM settings file stops configuration before any live move.
+- An absent migration marker always selects deferred placement.
+- A failed or partial migration never creates the marker.
 - Invalid TOML output stops provisioning and leaves the original file intact.
 - Configuration writes use a temporary file and atomic replacement.
 - A missing or malformed IPC response stops the dependent Hammerspoon action and
@@ -241,9 +291,13 @@ Automated tests are justified for the configuration helper because a regression
 could corrupt user settings or duplicate rules. Tests execute the production
 helper against copied fixtures and verify:
 
-- Workspaces 8 through 10 are added once.
-- A second run is byte-for-byte idempotent.
-- Numeric labels, hotkeys, and application rules have the requested values.
+- Workspaces 8 through 10 are added once with all required fields.
+- A second run is byte-for-byte idempotent in deferred and active modes.
+- Deferred mode removes managed assignments, does not add assignment-only
+  rules, and preserves unrelated actions.
+- Active mode adds the requested assignments without duplicates.
+- Finder and Photos never receive broad assignments.
+- Numeric labels and hotkeys have the requested values.
 - Unrelated settings and rules remain present.
 - Invalid input does not replace the source file.
 
@@ -251,10 +305,14 @@ Additional verification:
 
 - Run Ansible syntax checking.
 - Run the focused configuration-helper tests.
-- Run `bin/provision` on the target laptop.
+- Keep OmniWM stopped until the revised implementation and static checks pass.
+- Run normal `bin/provision` and confirm deferred mode before migration.
 - Confirm `omniwmctl ping` returns `pong`.
 - Confirm workspace queries return numeric workspaces 1 through 10.
-- Confirm the managed hotkeys and application rules.
+- Confirm no managed placement assignment is active before migration.
+- Run the exact-ID migration and stop on the first required-move failure.
+- Run opt-in provisioning only after all required moves succeed.
+- Confirm the marker exists and active rules match the approved mapping.
 - Test Finder creation, show, hide, and recovery with `Control+Option+D`.
 - Test Photos summon and return with `Control+Option+P`.
 - Approve the macOS default-handler prompt.
@@ -269,8 +327,9 @@ Additional verification:
 
 This remains a single-laptop trial.
 
-Rollback disables the Hammerspoon local bindings and URL callback, restores
-Safari as the HTTP and HTTPS handler, removes the added application assignments,
+Rollback first stops OmniWM and removes the migration marker so normal
+provisioning returns to deferred placement. It then disables the Hammerspoon
+local bindings and URL callback, restores Safari as the HTTP and HTTPS handler,
 and leaves existing windows in their current workspace. Removing workspaces is
 not automatic because a destructive rollback could strand live windows. The
 user can remove unused empty workspaces after all windows have been moved.
