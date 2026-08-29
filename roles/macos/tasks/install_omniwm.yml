@@ -179,6 +179,28 @@
   register: omniwm_settings_file
   check_mode: false
 
+- name: Ensure OmniWM state directory exists after completed migration
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/.local/state/omniwm"
+    state: directory
+    mode: '0700'
+  when: >-
+    omniwm_workspace_layout_migration_complete | default(false) | bool
+
+- name: Record completed OmniWM workspace migration
+  copy:
+    content: "workspace-layout-migrated-v1\n"
+    dest: "{{ ansible_facts['user_dir'] }}/.local/state/omniwm/workspace-layout-migrated-v1"
+    mode: '0600'
+  when: >-
+    omniwm_workspace_layout_migration_complete | default(false) | bool
+
+- name: Check whether OmniWM workspace migration is complete
+  stat:
+    path: "{{ ansible_facts['user_dir'] }}/.local/state/omniwm/workspace-layout-migrated-v1"
+  register: omniwm_workspace_layout_marker
+  check_mode: false
+
 - name: Enable OmniWM IPC
   lineinfile:
     path: "{{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml"
@@ -193,6 +215,10 @@
     cmd: >-
       configure-omniwm-settings
       {{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml
+      {{
+        omniwm_workspace_layout_marker.stat.exists |
+        ternary('--activate-assignments', '')
+      }}
   register: omniwm_settings_result
   changed_when: omniwm_settings_result.stdout | trim == 'changed'
   when: omniwm_settings_file.stat.exists
