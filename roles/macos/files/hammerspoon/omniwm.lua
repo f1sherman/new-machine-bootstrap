@@ -412,6 +412,11 @@ local function moveWindowToWorkspace(window, destination)
 end
 
 local function summonWindow(window, callback)
+  if window.isVisible == true then
+    callback(window, nil)
+    return
+  end
+
   M.run({"window", "summon-right", window.id}, function(_, summonError)
     if summonError then
       callback(nil, summonError)
