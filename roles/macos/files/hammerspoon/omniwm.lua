@@ -206,6 +206,21 @@ local function pollWindow(id, predicate, callback)
   end, 5, callback)
 end
 
+local function focusSummonedWindow(id, callback)
+  M.poll(function(done)
+    M.run({"window", "focus", id}, function()
+      queryWindows({"--window", id}, function(windows, queryError)
+        if queryError then
+          done(nil, queryError)
+          return
+        end
+        local window = findWindowByID(windows, id)
+        done(window and window.isFocused == true and window or false, nil)
+      end)
+    end)
+  end, 5, callback)
+end
+
 local function pollNewWindow(bundle, previousIDs, callback)
   M.poll(function(done)
     M.windows(function(windows, queryError)
@@ -404,18 +419,10 @@ local function summonPhotos(window)
         M.notify(visibilityError)
         return
       end
-      M.run({"window", "focus", window.id}, function(_, windowFocusError)
-        if windowFocusError then
-          M.notify(windowFocusError)
-          return
+      focusSummonedWindow(window.id, function(_, focusError)
+        if focusError then
+          M.notify(focusError)
         end
-        pollWindow(window.id, function(candidate)
-          return candidate.isFocused == true
-        end, function(_, focusError)
-          if focusError then
-            M.notify(focusError)
-          end
-        end)
       end)
     end)
   end)
@@ -550,26 +557,17 @@ local function routeGhosttyURL(url)
           openNormallyInSafari(url)
           return
         end
-        M.run({"window", "focus", safariWindow.id}, function(_, windowFocusError)
-          if windowFocusError then
-            M.notify(windowFocusError)
+        focusSummonedWindow(safariWindow.id, function(_, focusError)
+          if focusError then
+            M.notify(focusError)
             openNormallyInSafari(url)
             return
           end
-          pollWindow(safariWindow.id, function(candidate)
-            return candidate.isFocused == true
-          end, function(_, focusError)
-            if focusError then
-              M.notify(focusError)
-              openNormallyInSafari(url)
-              return
-            end
-            local _, tabError = openSafariTab(url)
-            if tabError then
-              M.notify(tabError)
-              openNormallyInSafari(url)
-            end
-          end)
+          local _, tabError = openSafariTab(url)
+          if tabError then
+            M.notify(tabError)
+            openNormallyInSafari(url)
+          end
         end)
       end)
     end)
