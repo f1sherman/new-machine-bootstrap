@@ -2,7 +2,10 @@ local M = {}
 local omniwmctl = os.getenv("HOME") .. "/.local/bin/omniwmctl"
 local runningTasks = {}
 local dedicatedSafariWindowKey = "omniwmDedicatedSafariWindowId"
-local previousHTTPHandlerKey = "omniwmPreviousHTTPHandler"
+local previousHandlerKeys = {
+  http = "omniwmPreviousHTTPHandler",
+  https = "omniwmPreviousHTTPSHandler",
+}
 local hammerspoonBundleID = "org.hammerspoon.Hammerspoon"
 
 local function copyArray(values)
@@ -440,6 +443,18 @@ local function placePhotos(window, activeWorkspace)
   end
 end
 
+local function showNewPhotos(window, activeWorkspace)
+  if window.isVisible == true or workspaceNumber(window) == activeWorkspace.number then
+    focusSummonedWindow(window.id, function(_, focusError)
+      if focusError then
+        M.notify(focusError)
+      end
+    end)
+  else
+    summonPhotos(window)
+  end
+end
+
 local function launchPhotos(previousIDs, activeWorkspace)
   if not hs.application.launchOrFocusByBundleID("com.apple.Photos") then
     M.notify("Could not launch Photos")
@@ -450,7 +465,7 @@ local function launchPhotos(previousIDs, activeWorkspace)
       M.notify(pollError)
       return
     end
-    placePhotos(window, activeWorkspace)
+    showNewPhotos(window, activeWorkspace)
   end)
 end
 
@@ -648,13 +663,15 @@ hs.urlevent.httpCallback = function(_, _, _, fullURL, senderPID)
   routeGhosttyURL(fullURL)
 end
 
-local currentHTTPHandler = hs.urlevent.getDefaultHandler("http")
-if currentHTTPHandler ~= hammerspoonBundleID then
-  if type(currentHTTPHandler) == "string" and currentHTTPHandler ~= "" then
-    hs.settings.set(previousHTTPHandlerKey, currentHTTPHandler)
-    hs.urlevent.setRestoreHandler("http", currentHTTPHandler)
+for _, scheme in ipairs({"http", "https"}) do
+  local currentHandler = hs.urlevent.getDefaultHandler(scheme)
+  if currentHandler ~= hammerspoonBundleID then
+    if type(currentHandler) == "string" and currentHandler ~= "" then
+      hs.settings.set(previousHandlerKeys[scheme], currentHandler)
+      hs.urlevent.setRestoreHandler(scheme, currentHandler)
+    end
+    hs.urlevent.setDefaultHandler(scheme)
   end
-  hs.urlevent.setDefaultHandler("http")
 end
 
 return M
