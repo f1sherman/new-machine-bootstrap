@@ -404,9 +404,9 @@ local function summonPhotos(window)
         M.notify(visibilityError)
         return
       end
-      M.run({"window", "navigate", window.id}, function(_, navigateError)
-        if navigateError then
-          M.notify(navigateError)
+      M.run({"window", "focus", window.id}, function(_, windowFocusError)
+        if windowFocusError then
+          M.notify(windowFocusError)
           return
         end
         pollWindow(window.id, function(candidate)
@@ -550,9 +550,9 @@ local function routeGhosttyURL(url)
           openNormallyInSafari(url)
           return
         end
-        M.run({"window", "navigate", safariWindow.id}, function(_, navigateError)
-          if navigateError then
-            M.notify(navigateError)
+        M.run({"window", "focus", safariWindow.id}, function(_, windowFocusError)
+          if windowFocusError then
+            M.notify(windowFocusError)
             openNormallyInSafari(url)
             return
           end
