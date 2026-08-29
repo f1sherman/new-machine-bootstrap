@@ -39,6 +39,18 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
     id = "move.left"
 
     [[hotkeys]]
+    binding = "Option+Shift+Right Arrow"
+    id = "move.right"
+
+    [[hotkeys]]
+    binding = "Option+Shift+Up Arrow"
+    id = "move.up"
+
+    [[hotkeys]]
+    binding = "Option+Shift+Down Arrow"
+    id = "move.down"
+
+    [[hotkeys]]
     binding = "Option+Left Arrow"
     id = "focus.left"
 
@@ -53,6 +65,26 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
     [[hotkeys]]
     binding = "Option+Down Arrow"
     id = "focus.down"
+
+    [[hotkeys]]
+    binding = "Control+Option+Shift+Up Arrow"
+    id = "moveWindowToWorkspaceUp"
+
+    [[hotkeys]]
+    binding = "Control+Option+Shift+Down Arrow"
+    id = "moveWindowToWorkspaceDown"
+
+    [[hotkeys]]
+    binding = "Control+Option+Shift+Left Arrow"
+    id = "moveColumn.left"
+
+    [[hotkeys]]
+    binding = "Control+Option+Shift+R"
+    id = "moveColumn.right"
+
+    [[hotkeys]]
+    binding = "Control+Option+Shift+Right Arrow"
+    id = "custom.conflictingAction"
 
     [[hotkeys]]
     binding = "Control+Option+T"
@@ -135,10 +167,28 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       assert_includes result, 'name = "10"'
       assert_includes result, 'layoutType = "niri"'
       assert_includes result, "[workspaceBar]\nenabled = true\nposition = \"belowMenuBar\"\nreserveLayoutSpace = true\nrevealModifier = \"off\""
-      assert_includes result, "binding = \"Unassigned\"\nid = \"move.left\""
-      %w[focus.left focus.right focus.up focus.down].each do |identifier|
+      directional_bindings = {
+        "focus.left" => "Control+Option+Left Arrow",
+        "focus.right" => "Control+Option+Right Arrow",
+        "focus.up" => "Control+Option+Up Arrow",
+        "focus.down" => "Control+Option+Down Arrow",
+        "move.left" => "Control+Option+Shift+Left Arrow",
+        "move.right" => "Control+Option+Shift+Right Arrow",
+        "move.up" => "Control+Option+Shift+Up Arrow",
+        "move.down" => "Control+Option+Shift+Down Arrow"
+      }
+      directional_bindings.each do |identifier, binding|
+        assert_includes result, %(binding = "#{binding}"\nid = "#{identifier}")
+      end
+      %w[
+        moveWindowToWorkspaceUp
+        moveWindowToWorkspaceDown
+        moveColumn.left
+        custom.conflictingAction
+      ].each do |identifier|
         assert_includes result, %(binding = "Unassigned"\nid = "#{identifier}")
       end
+      assert_includes result, "binding = \"Control+Option+Shift+R\"\nid = \"moveColumn.right\""
       refute_includes ghostty_rule, "assignToWorkspace = "
       assert_includes ghostty_rule, "minHeight = 400.0"
       assert_includes unrelated_rule, 'assignToWorkspace = "6"'
