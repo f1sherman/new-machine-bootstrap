@@ -94,6 +94,7 @@ When useful, inspect `/tmp/provision-*.log`; `ls -t /tmp/provision-*.log` lists 
 - **Always finish with a PR**: When work in a worktree is complete and verified, push the branch and open a GitHub pull request. Never merge to `main` locally (do not use `worktree-merge`). After the PR merges, clean up with `repo-end`.
 - **Avoid compatibility inference for minor features**: For small quality-of-life behavior, prefer one explicit marker or setting over fallbacks, heuristics, or migration logic. Keep cleanup tasks when removing known-unwanted managed state, but do not add permanent backwards-compatibility detection unless data loss, security, or clear breakage is likely.
 - **Require material value from tests**: Add or retain an automated test only when it passes all four gates: **Material harm** from a plausible regression; **Complex behavior** with meaningful logic or state; **Behavioral verification** that executes the production artifact and checks observable behavior; and **Unique protection** not already provided by provisioning, validation, manual end-to-end verification, or broader tests. Reject tests that restate static configuration or workflow bookkeeping. Use manual or end-to-end verification when no valuable automated test exists; no test is better than a low-value test.
+- **Keep the OmniWM cheat sheet current**: Update `docs/omniwm-cheatsheet.md` when OmniWM workspace assignments, shortcuts, or recommended workflows change.
 
 ## Repo Lifecycle Provider Hooks
 
