@@ -261,6 +261,31 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
     end
   end
 
+  def test_check_reports_pending_change_without_changing_source
+    with_settings do |path|
+      before = File.binread(path)
+      out, err, status = run_helper(path, "--check")
+
+      assert status.success?, err
+      assert_equal "changed\n", out
+      assert_equal before, File.binread(path)
+    end
+  end
+
+  def test_check_reports_unchanged_after_reconciliation
+    with_settings do |path|
+      _out, err, status = run_helper(path)
+      assert status.success?, err
+      before = File.binread(path)
+
+      out, err, status = run_helper(path, "--check")
+
+      assert status.success?, err
+      assert_equal "unchanged\n", out
+      assert_equal before, File.binread(path)
+    end
+  end
+
   def test_unknown_mode_is_rejected_without_changing_source
     with_settings do |path|
       before = File.binread(path)

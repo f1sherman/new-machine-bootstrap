@@ -339,23 +339,26 @@ class SettingsWriter
 end
 
 def main
-  path_argument, mode = ARGV
-  valid_arguments = ARGV.length.between?(1, 2) &&
-    (mode.nil? || mode == "--activate-assignments")
-  raise "usage: configure-omniwm-settings SETTINGS_PATH [--activate-assignments]" unless valid_arguments
+  path_argument, *options = ARGV
+  valid_options = %w[--activate-assignments --check]
+  valid_arguments = !path_argument.nil? &&
+    options.uniq.length == options.length &&
+    (options - valid_options).empty?
+  usage = "usage: configure-omniwm-settings SETTINGS_PATH [--activate-assignments] [--check]"
+  raise usage unless valid_arguments
 
   path = File.expand_path(path_argument)
   original = File.binread(path).force_encoding(Encoding::UTF_8)
   raise "settings file is not valid UTF-8" unless original.valid_encoding?
 
   document = SettingsDocument.parse(original)
-  result = document.reconcile!(activate_assignments: mode == "--activate-assignments").to_s
+  result = document.reconcile!(activate_assignments: options.include?("--activate-assignments")).to_s
   SettingsDocument.parse(result)
 
   if result == original
     puts "unchanged"
   else
-    SettingsWriter.replace(path, result)
+    SettingsWriter.replace(path, result) unless options.include?("--check")
     puts "changed"
   end
 rescue => error

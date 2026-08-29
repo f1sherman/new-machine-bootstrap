@@ -156,27 +156,10 @@
     - omniwm_launch_agent_plist.changed
     - not (omniwm_app_updated | default(false))
 
-- name: Load OmniWM launchd job
-  command: >-
-    launchctl bootstrap gui/{{ ansible_facts['user_uid'] }}
-    {{ ansible_facts['user_dir'] }}/Library/LaunchAgents/com.user.omniwm.plist
-  when:
-    - not ansible_check_mode
-    - >-
-      omniwm_launch_agent_plist.changed or
-      (omniwm_app_updated | default(false)) or
-      omniwm_launch_agent_job.rc != 0
-
-- name: Wait for OmniWM settings file
-  wait_for:
-    path: "{{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml"
-    timeout: 15
-  when: not ansible_check_mode
-
-- name: Check whether OmniWM settings file exists
+- name: Check whether OmniWM settings exist before launch
   stat:
     path: "{{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml"
-  register: omniwm_settings_file
+  register: omniwm_settings_before_launch
   check_mode: false
 
 - name: Ensure OmniWM state directory exists after completed migration
@@ -199,6 +182,70 @@
   stat:
     path: "{{ ansible_facts['user_dir'] }}/.local/state/omniwm/workspace-layout-migrated-v1"
   register: omniwm_workspace_layout_marker
+  check_mode: false
+
+- name: Check for unsafe OmniWM assignments before launch
+  script:
+    cmd: >-
+      configure-omniwm-settings
+      {{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml
+      --check
+  register: omniwm_deferred_preflight
+  changed_when: false
+  check_mode: false
+  when:
+    - omniwm_settings_before_launch.stat.exists
+    - not omniwm_workspace_layout_marker.stat.exists
+
+- name: Stop loaded OmniWM job before deferred reconciliation
+  command: >-
+    launchctl bootout
+    gui/{{ ansible_facts['user_uid'] }}/com.user.omniwm
+  register: omniwm_deferred_launch_agent_stop
+  when:
+    - not ansible_check_mode
+    - omniwm_launch_agent_job.rc == 0
+    - not omniwm_launch_agent_plist.changed
+    - not (omniwm_app_updated | default(false))
+    - >-
+      (omniwm_deferred_preflight.stdout | default('unchanged') | trim) ==
+      'changed'
+
+- name: Remove unsafe OmniWM assignments before launch
+  script:
+    cmd: >-
+      configure-omniwm-settings
+      {{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml
+  register: omniwm_prelaunch_settings_result
+  changed_when: omniwm_prelaunch_settings_result.stdout | trim == 'changed'
+  when:
+    - not ansible_check_mode
+    - >-
+      (omniwm_deferred_preflight.stdout | default('unchanged') | trim) ==
+      'changed'
+
+- name: Load OmniWM launchd job
+  command: >-
+    launchctl bootstrap gui/{{ ansible_facts['user_uid'] }}
+    {{ ansible_facts['user_dir'] }}/Library/LaunchAgents/com.user.omniwm.plist
+  when:
+    - not ansible_check_mode
+    - >-
+      omniwm_launch_agent_plist.changed or
+      (omniwm_app_updated | default(false)) or
+      omniwm_launch_agent_job.rc != 0 or
+      (omniwm_deferred_launch_agent_stop is changed)
+
+- name: Wait for OmniWM settings file
+  wait_for:
+    path: "{{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml"
+    timeout: 15
+  when: not ansible_check_mode
+
+- name: Check whether OmniWM settings file exists
+  stat:
+    path: "{{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml"
+  register: omniwm_settings_file
   check_mode: false
 
 - name: Enable OmniWM IPC
