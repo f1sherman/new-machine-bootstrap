@@ -364,33 +364,37 @@ function M.toggleDownloadsScratchpad()
   end)
 end
 
-local function moveWindowToWorkspace(window, destination)
+local function moveWindowToWorkspaceWithCallback(window, destination, callback)
   M.run({"window", "navigate", window.id}, function(_, navigateError)
     if navigateError then
-      M.notify(navigateError)
+      callback(nil, navigateError)
       return
     end
     pollWindow(window.id, function(candidate)
       return candidate.isFocused == true
     end, function(_, focusError)
       if focusError then
-        M.notify(focusError)
+        callback(nil, focusError)
         return
       end
       M.run({"command", "move-to-workspace", tostring(destination)}, function(_, moveError)
         if moveError then
-          M.notify(moveError)
+          callback(nil, moveError)
           return
         end
         pollWindow(window.id, function(candidate)
           return workspaceNumber(candidate) == destination
-        end, function(_, pollError)
-          if pollError then
-            M.notify(pollError)
-          end
-        end)
+        end, callback)
       end)
     end)
+  end)
+end
+
+local function moveWindowToWorkspace(window, destination)
+  moveWindowToWorkspaceWithCallback(window, destination, function(_, moveError)
+    if moveError then
+      M.notify(moveError)
+    end
   end)
 end
 
@@ -509,9 +513,48 @@ local function resolveDedicatedSafari(windows)
     hs.settings.set(dedicatedSafariWindowKey, candidates[1].id)
     return candidates[1], nil
   elseif #candidates == 0 then
-    return nil, "No dedicated Safari window is available in workspace 3"
+    return nil, nil
   end
   return nil, "More than one Safari window can be the dedicated Ghostty window"
+end
+
+local function createDedicatedSafari(windows, callback)
+  local previousIDs = {}
+  for _, window in ipairs(windows) do
+    if bundleID(window) == "com.apple.Safari" then
+      previousIDs[window.id] = true
+    end
+  end
+
+  local success, result = hs.osascript.applescript([[
+    tell application "Safari"
+      activate
+      make new document
+    end tell
+  ]])
+  if not success then
+    callback(nil, "Could not create the dedicated Safari window: " .. tostring(result))
+    return
+  end
+
+  pollNewWindow("com.apple.Safari", previousIDs, function(window, pollError)
+    if pollError then
+      callback(nil, pollError)
+      return
+    end
+    if isWorkSafari(window) then
+      callback(nil, "The new Safari window matched the Work window marker")
+      return
+    end
+    moveWindowToWorkspaceWithCallback(window, 3, function(movedWindow, moveError)
+      if moveError then
+        callback(nil, moveError)
+        return
+      end
+      hs.settings.set(dedicatedSafariWindowKey, movedWindow.id)
+      callback(movedWindow, nil)
+    end)
+  end)
 end
 
 local function openSafariTab(url)
@@ -532,6 +575,28 @@ local function openSafariTab(url)
   return true, nil
 end
 
+local function openURLInDedicatedSafari(safariWindow, url)
+  summonWindow(safariWindow, function(_, summonError)
+    if summonError then
+      M.notify(summonError)
+      openNormallyInSafari(url)
+      return
+    end
+    focusSummonedWindow(safariWindow.id, function(_, focusError)
+      if focusError then
+        M.notify(focusError)
+        openNormallyInSafari(url)
+        return
+      end
+      local _, tabError = openSafariTab(url)
+      if tabError then
+        M.notify(tabError)
+        openNormallyInSafari(url)
+      end
+    end)
+  end)
+end
+
 local function routeGhosttyURL(url)
   M.activeWorkspace(function(_, workspaceError)
     if workspaceError then
@@ -549,27 +614,18 @@ local function routeGhosttyURL(url)
       if resolveError then
         M.notify(resolveError)
         openNormallyInSafari(url)
-        return
-      end
-      summonWindow(safariWindow, function(_, summonError)
-        if summonError then
-          M.notify(summonError)
-          openNormallyInSafari(url)
-          return
-        end
-        focusSummonedWindow(safariWindow.id, function(_, focusError)
-          if focusError then
-            M.notify(focusError)
+      elseif safariWindow then
+        openURLInDedicatedSafari(safariWindow, url)
+      else
+        createDedicatedSafari(windows, function(createdWindow, createError)
+          if createError then
+            M.notify(createError)
             openNormallyInSafari(url)
             return
           end
-          local _, tabError = openSafariTab(url)
-          if tabError then
-            M.notify(tabError)
-            openNormallyInSafari(url)
-          end
+          openURLInDedicatedSafari(createdWindow, url)
         end)
-      end)
+      end
     end)
   end)
 end
