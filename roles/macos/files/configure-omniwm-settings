@@ -175,6 +175,7 @@ class SettingsDocument
   end
 
   def reconcile!(activate_assignments: false)
+    reconcile_workspace_bar
     reconcile_hotkeys
     reconcile_rules(activate_assignments)
     reconcile_workspaces
@@ -226,7 +227,8 @@ class SettingsDocument
     end.map(&:first)
   end
 
-  def set_table_scalar(block, table, key, value)
+  def set_table_scalar(block, table, key, value, quoted: true)
+    rendered_value = quoted ? %("#{value}") : value.to_s
     header = block.lines.index do |line|
       match = line.match(TABLE_HEADER)
       match && match[1] == table
@@ -234,7 +236,7 @@ class SettingsDocument
     unless header
       block.lines << "\n" unless block.lines.last&.strip&.empty?
       block.lines << "[#{table}]\n"
-      block.lines << %(#{key} = "#{value}"\n)
+      block.lines << %(#{key} = #{rendered_value}\n)
       return
     end
 
@@ -245,13 +247,19 @@ class SettingsDocument
       block.lines[index].match?(/^\s*#{Regexp.escape(key)}\s*=/)
     end
     if existing
-      block.lines[existing] = %(#{key} = "#{value}"\n)
+      block.lines[existing] = %(#{key} = #{rendered_value}\n)
       return
     end
 
     insertion = table_end
     insertion -= 1 while insertion > header + 1 && block.lines[insertion - 1].strip.empty?
-    block.lines.insert(insertion, %(#{key} = "#{value}"\n))
+    block.lines.insert(insertion, %(#{key} = #{rendered_value}\n))
+  end
+
+  def reconcile_workspace_bar
+    preamble = blocks.first
+    set_table_scalar(preamble, "workspaceBar", "position", "belowMenuBar")
+    set_table_scalar(preamble, "workspaceBar", "reserveLayoutSpace", true, quoted: false)
   end
 
   def reconcile_hotkeys
