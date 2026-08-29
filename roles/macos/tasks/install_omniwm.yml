@@ -187,32 +187,27 @@
     insertafter: '^\[general\]$'
   when: omniwm_settings_file.stat.exists
 
-- name: Use numeric OmniWM workspace labels
-  lineinfile:
-    path: "{{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml"
-    regexp: '^displayName = '
-    state: absent
+- name: Configure OmniWM workspace layout
+  script:
+    cmd: >-
+      configure-omniwm-settings
+      {{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml
+  register: omniwm_settings_result
+  changed_when: omniwm_settings_result.stdout | trim == 'changed'
   when: omniwm_settings_file.stat.exists
 
-- name: Configure OmniWM hotkeys
-  replace:
-    path: "{{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml"
-    regexp: '(?m)(^\[\[hotkeys\]\]\n)binding = "[^"]*"\n(id = "{{ item.id }}")$'
-    replace: '\1binding = "{{ item.binding }}"\n\2'
-  loop:
-    - id: 'move\.left'
-      binding: Unassigned
-    - id: 'move\.right'
-      binding: Unassigned
-    - id: 'move\.up'
-      binding: Unassigned
-    - id: 'move\.down'
-      binding: Unassigned
-    - id: toggleScratchpadWindow
-      binding: Control+Option+T
-  loop_control:
-    label: "{{ item.id }}"
-  when: omniwm_settings_file.stat.exists
+- name: Ensure Hammerspoon configuration directory exists
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/.hammerspoon"
+    state: directory
+    mode: '0755'
+
+- name: Install OmniWM Hammerspoon helpers
+  copy:
+    src: hammerspoon/omniwm.lua
+    dest: "{{ ansible_facts['user_dir'] }}/.hammerspoon/init.local.lua"
+    mode: '0644'
+  register: omniwm_hammerspoon_config
 
 - name: Verify OmniWM IPC responds
   command: >-
