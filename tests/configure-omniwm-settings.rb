@@ -275,6 +275,36 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
     end
   end
 
+  def test_creates_missing_workspaces_one_through_seven_once
+    missing_workspaces = FIXTURE.gsub(
+      /^\[\[workspaces\]\]\nid = "workspace-[2-7]".*?(?=^\[\[workspaces\]\]|\z)/m,
+      ""
+    )
+
+    with_settings(missing_workspaces) do |path|
+      _out, err, status = run_helper(path)
+      assert status.success?, err
+      first_result = File.binread(path)
+
+      out, err, status = run_helper(path)
+      assert status.success?, err
+      assert_equal "unchanged\n", out
+      assert_equal first_result, File.binread(path)
+
+      workspace_ids = []
+      %w[1 2 3 4 5 6 7 8 9 10].each do |name|
+        assert_equal 1, first_result.scan(/^name = "#{name}"$/).length
+        block = workspace_block(first_result, name)
+        assert_includes block, 'layoutType = "niri"'
+        assert_includes block, "[workspaces.monitorAssignment]\ntype = \"main\""
+        workspace_ids << block[/^id = "([^"]+)"$/, 1]
+      end
+      assert_equal workspace_ids.length, workspace_ids.uniq.length
+      assert_includes first_result, 'id = "648F6110-0272-48E5-8E62-722922C13163"'
+      assert_includes first_result, 'id = "E44F8587-BA63-407F-9962-80F27D57BE23"'
+    end
+  end
+
   def test_preserves_existing_workspace_id
     existing = FIXTURE + <<~TOML
 
