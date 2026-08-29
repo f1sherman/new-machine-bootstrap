@@ -188,12 +188,11 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
         _out, err, status = run_helper(path, *arguments)
         result = File.read(path)
         finder_rule = app_rule(result, "com.apple.finder")
-        photos_rule = app_rule(result, "com.apple.Photos")
 
         assert status.success?, err
         refute_includes finder_rule, "assignToWorkspace = "
         assert_includes finder_rule, 'layout = "float"'
-        refute_includes photos_rule, "assignToWorkspace = "
+        refute_includes result, 'bundleId = "com.apple.Photos"'
       end
     end
   end
