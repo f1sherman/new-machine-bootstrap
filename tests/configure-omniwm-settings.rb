@@ -13,8 +13,10 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
     ipcEnabled = true
 
     [workspaceBar]
+    enabled = false
     position = "overlappingMenuBar"
     reserveLayoutSpace = false
+    revealModifier = "option"
 
     [[appRules]]
     bundleId = "com.mitchellh.ghostty"
@@ -132,7 +134,7 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       assert_equal "changed\n", out
       assert_includes result, 'name = "10"'
       assert_includes result, 'layoutType = "niri"'
-      assert_includes result, "[workspaceBar]\nposition = \"belowMenuBar\"\nreserveLayoutSpace = true"
+      assert_includes result, "[workspaceBar]\nenabled = true\nposition = \"belowMenuBar\"\nreserveLayoutSpace = true\nrevealModifier = \"off\""
       assert_includes result, "binding = \"Unassigned\"\nid = \"move.left\""
       %w[focus.left focus.right focus.up focus.down].each do |identifier|
         assert_includes result, %(binding = "Unassigned"\nid = "#{identifier}")

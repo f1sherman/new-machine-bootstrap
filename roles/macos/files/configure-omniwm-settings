@@ -258,8 +258,10 @@ class SettingsDocument
 
   def reconcile_workspace_bar
     preamble = blocks.first
+    set_table_scalar(preamble, "workspaceBar", "enabled", true, quoted: false)
     set_table_scalar(preamble, "workspaceBar", "position", "belowMenuBar")
     set_table_scalar(preamble, "workspaceBar", "reserveLayoutSpace", true, quoted: false)
+    set_table_scalar(preamble, "workspaceBar", "revealModifier", "off")
   end
 
   def reconcile_hotkeys
