@@ -391,7 +391,7 @@ local function summonWindow(window, destination, callback)
         return
       end
       pollWindow(window.id, function(candidate)
-        return workspaceNumber(candidate) == destination
+        return candidate.isVisible == true
       end, callback)
     end)
   end)
