@@ -205,4 +205,18 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       assert_equal before, File.binread(path)
     end
   end
+
+  def test_invalid_scalar_is_left_unchanged
+    malformed = FIXTURE + "\ninvalid scalar\n"
+
+    with_settings(malformed) do |path|
+      before = File.binread(path)
+      out, err, status = run_helper(path)
+
+      refute status.success?
+      assert_empty out
+      assert_includes err, "invalid scalar assignment"
+      assert_equal before, File.binread(path)
+    end
+  end
 end
