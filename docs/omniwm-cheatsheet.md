@@ -62,8 +62,9 @@ change the active window in that column.
 
 ### Temporarily use the full width
 
-`⌥⇧F` makes the focused column use the full primary span of the display. It has
-no visible effect when that column already uses the full width. It also does not
+`⌥⇧F` makes the focused column use the full primary span of the display. Press
+it again to restore the column's saved width. The first press has no visible
+effect when the column's normal width already fills the display. This does not
 replace `⌥Return`, which toggles OmniWM's full-screen tiling mode.
 
 ### Understand floating windows
