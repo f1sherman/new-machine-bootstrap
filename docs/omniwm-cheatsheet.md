@@ -27,11 +27,14 @@ Use workspaces for sustained activities. Use app switching for short interruptio
 | `⌥Tab` | Focus the previously used window |
 | `⌘Tab` | Switch applications or inspect apps that need attention |
 | `⌘\`` | Switch windows in the current application |
-| `⌃⌥Space` | Search for a window |
-| `⌥⇧O` | Show the OmniWM overview |
+| `⌥⇧O` | Show all workspaces and windows in the OmniWM overview |
+| `⌃⌥Space` | Search windows and application menu actions |
+| `⌃⌥M` | Open the active application's menu near the pointer |
 
-Prefer direct workspace keys when you know the destination. Use directional focus
-inside a workspace. Keep using `⌘Tab` for brief app changes and notifications.
+Prefer direct workspace keys when you know the destination. Use the overview
+when you lose track of a window. Use the command palette when you know a name or
+action but not its location. Keep using `⌘Tab` for brief app changes and
+notifications.
 
 ## Move and arrange windows
 
@@ -43,11 +46,36 @@ inside a workspace. Keep using `⌘Tab` for brief app changes and notifications.
 | `⌥,` / `⌥.` | Cycle the focused column through useful widths |
 | `⌥-` / `⌥=` | Decrease or increase the focused column width |
 | `⌥⇧B` | Balance window sizes |
-| `⌥T` | Toggle tabs for the focused column |
+| `⌥T` | Toggle tabs for a column that contains multiple windows |
+| `⌥⇧F` | Toggle full-width display for the focused column |
 
 Keep one window large most of the time. For a temporary side-by-side layout,
 focus the second window, move it beside the first window, and adjust the width.
 Use `⌥Return` when you want to return one window to a large view.
+
+### Use tabbed columns
+
+`⌥T` changes how one column displays its windows. It does not combine separate
+columns. First use `⌃⌥⇧←` or `⌃⌥⇧→` to move a window into the neighboring
+column. Then use `⌥T` to show one window at a time. Use `⌃⌥↑` and `⌃⌥↓` to
+change the active window in that column.
+
+### Temporarily use the full width
+
+`⌥⇧F` makes the focused column use the full primary span of the display. It has
+no visible effect when that column already uses the full width. It also does not
+replace `⌥Return`, which toggles OmniWM's full-screen tiling mode.
+
+### Understand floating windows
+
+A floating window leaves the tiling columns. It keeps its own size and position
+and can overlap tiled windows. It still belongs to one workspace. A scratchpad
+adds summon-and-hide behavior to floating windows, which makes it available from
+other workspaces.
+
+The Downloads Finder shortcut uses scratchpad behavior. Photos uses a separate
+summon-and-return workflow. Broad floating rules for Finder or Photos would
+affect every matching window, so they are intentionally not configured.
 
 ## Windows available from any workspace
 
