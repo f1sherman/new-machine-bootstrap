@@ -214,7 +214,15 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
 
   def test_adds_exact_cheatsheet_floating_rule_in_both_modes
     [[], ["--activate-assignments"]].each do |arguments|
-      with_settings do |path|
+      legacy_rule = <<~TOML
+
+        [[appRules]]
+        bundleId = "org.hammerspoon.Hammerspoon"
+        titleSubstring = "OmniWM Cheat Sheet"
+        id = "legacy-cheatsheet-rule"
+        layout = "float"
+      TOML
+      with_settings(FIXTURE + legacy_rule) do |path|
         2.times do
           _out, err, status = run_helper(path, *arguments)
           assert status.success?, err
@@ -223,12 +231,14 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
         rule = app_rule(
           result,
           "org.hammerspoon.Hammerspoon",
-          "OmniWM Cheat Sheet"
+          title_regex: "^OmniWM Cheat Sheet$"
         )
 
         assert_equal 1,
           result.scan(/^bundleId = "org\.hammerspoon\.Hammerspoon"$/).length
         assert_includes rule, 'layout = "float"'
+        assert_includes rule, 'titleRegex = "^OmniWM Cheat Sheet$"'
+        refute_includes rule, "titleSubstring = "
         refute_includes rule, "assignToWorkspace = "
       end
     end
@@ -520,14 +530,16 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
     block
   end
 
-  def app_rule(document, bundle_id, title_substring = nil)
+  def app_rule(document, bundle_id, title_substring = nil, title_regex: nil)
     rule = document.scan(/^\[\[appRules\]\]\n(.*?)(?=^\[\[|\z)/m).flatten.find do |candidate|
       next false unless candidate.include?(%(bundleId = "#{bundle_id}"))
 
-      if title_substring
+      if title_regex
+        candidate.include?(%(titleRegex = "#{title_regex}"))
+      elsif title_substring
         candidate.include?(%(titleSubstring = "#{title_substring}"))
       else
-        !candidate.match?(/^titleSubstring = /)
+        !candidate.match?(/^title(?:Regex|Substring) = /)
       end
     end
     refute_nil rule, "missing app rule for #{bundle_id}"

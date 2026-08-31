@@ -5,7 +5,10 @@ require "securerandom"
 require "tempfile"
 
 Workspace = Struct.new(:name, :id, :monitor, :layout_type, keyword_init: true)
-RuleTarget = Struct.new(:bundle_id, :title_substring, :workspace, :layout, keyword_init: true)
+RuleTarget = Struct.new(
+  :bundle_id, :title_substring, :title_regex, :legacy_title_substring, :workspace, :layout,
+  keyword_init: true
+)
 
 MANAGED_WORKSPACES = [
   Workspace.new(name: "1", id: "067B64BF-7C2C-4BEC-8D5F-253BDB74F7C8", monitor: "main", layout_type: "niri"),
@@ -38,7 +41,8 @@ RULE_TARGETS = [
   RuleTarget.new(bundle_id: "com.apple.mobilephone", workspace: "10"),
   RuleTarget.new(
     bundle_id: "org.hammerspoon.Hammerspoon",
-    title_substring: "OmniWM Cheat Sheet",
+    title_regex: "^OmniWM Cheat Sheet$",
+    legacy_title_substring: "OmniWM Cheat Sheet",
     layout: "float"
   )
 ].freeze
@@ -308,6 +312,10 @@ class SettingsDocument
       next if matches.empty?
 
       primary = matches.first
+      if target.title_regex
+        remove_scalar(primary, "titleSubstring")
+        set_scalar(primary, "titleRegex", target.title_regex)
+      end
       set_scalar(primary, "layout", target.layout) if target.layout
       if activate_assignments && target.workspace
         set_scalar(primary, "assignToWorkspace", target.workspace)
@@ -343,7 +351,13 @@ class SettingsDocument
     blocks.select do |block|
       next false unless block.type == "appRules"
       next false unless scalar_value(block, "bundleId") == target.bundle_id
-      next false unless scalar_value(block, "titleSubstring") == target.title_substring
+      if target.title_regex
+        exact_regex = scalar_value(block, "titleRegex") == target.title_regex
+        legacy_substring = scalar_value(block, "titleSubstring") == target.legacy_title_substring
+        next false unless exact_regex || legacy_substring
+      else
+        next false unless scalar_value(block, "titleSubstring") == target.title_substring
+      end
 
       selectors = scalar_lines(block).filter_map do |line|
         key = line[/^\s*([A-Za-z][A-Za-z0-9]*)\s*=/, 1]
@@ -351,6 +365,8 @@ class SettingsDocument
       end
       allowed_selectors = %w[bundleId id]
       allowed_selectors << "titleSubstring" if target.title_substring
+      allowed_selectors << "titleSubstring" if target.legacy_title_substring
+      allowed_selectors << "titleRegex" if target.title_regex
       (selectors - allowed_selectors).empty?
     end
   end
@@ -358,6 +374,7 @@ class SettingsDocument
   def insert_rule(target)
     lines = ["[[appRules]]\n", %(bundleId = "#{target.bundle_id}"\n)]
     lines << %(titleSubstring = "#{target.title_substring}"\n) if target.title_substring
+    lines << %(titleRegex = "#{target.title_regex}"\n) if target.title_regex
     lines << %(id = "#{SecureRandom.uuid.upcase}"\n)
     lines << %(layout = "#{target.layout}"\n) if target.layout
     lines << %(assignToWorkspace = "#{target.workspace}"\n) if target.workspace
