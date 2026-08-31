@@ -17,6 +17,7 @@ cat > "$tmp_root/primary/.gitignore" <<'EOF'
 ignored/
 ignored-link
 ignored-external-link
+ignored-dangling-external-link
 tracked
 EOF
 mkdir -p "$tmp_root/primary/ignored" "$tmp_root/external"
@@ -31,6 +32,7 @@ ln -s "$tmp_root/primary" "$tmp_root/feature/primary-link"
 ln -s "$tmp_root/primary" "$tmp_root/primary space"
 ln -s "$tmp_root/primary/tracked" "$tmp_root/primary/ignored-link"
 ln -s "$tmp_root/external/outside" "$tmp_root/primary/ignored-external-link"
+ln -s "$tmp_root/external/missing" "$tmp_root/primary/ignored-dangling-external-link"
 
 cat > "$tmp_root/check.mjs" <<'NODE'
 import assert from "node:assert/strict";
@@ -100,6 +102,9 @@ for (const toolName of ["edit", "write"]) {
 
   const externalLink = await call(toolName, { path: path.join(primary, "ignored-external-link") }, primary);
   assert.equal(externalLink?.block, true, `${toolName} blocks ignored symlink outside Git worktrees`);
+
+  const danglingExternalLink = await call(toolName, { path: path.join(primary, "ignored-dangling-external-link") }, primary);
+  assert.equal(danglingExternalLink?.block, true, `${toolName} blocks ignored dangling symlink outside Git worktrees`);
 }
 
 const blockedCommands = [
@@ -146,6 +151,7 @@ const blockedCommands = [
   ["env chdir remove", `env -C ${primary} rm tracked`],
   ["primary symlink removal", `rm ${path.join(primary, "linked-dir")}`],
   ["feature symlink into primary removal", `rm ${path.join(feature, "primary-link", "tracked")}`],
+  ["write through dangling external symlink", `printf changed > ${path.join(primary, "ignored-dangling-external-link")}`],
   ["chmod target", `chmod 600 ${path.join(primary, "tracked")}`],
   ["chmod symbolic target", `chmod -w ${path.join(primary, "tracked")}`],
   ["chown target", `chown test ${path.join(primary, "tracked")}`],
