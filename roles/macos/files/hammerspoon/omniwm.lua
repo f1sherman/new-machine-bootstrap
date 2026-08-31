@@ -255,7 +255,23 @@ local function pollNewWindow(bundle, previousIDs, callback)
   end, 5, callback)
 end
 
-local function toggleScratchpadIfHidden(id)
+local function focusVisibleScratchpad(id)
+  pollWindow(id, function(window)
+    return window.isVisible == true
+  end, function(_, visibilityError)
+    if visibilityError then
+      M.notify(visibilityError)
+      return
+    end
+    focusSummonedWindow(id, function(_, focusError)
+      if focusError then
+        M.notify(focusError)
+      end
+    end)
+  end)
+end
+
+local function showScratchpadIfHidden(id)
   M.poll(function(done)
     queryWindows({"--scratchpad"}, function(windows, queryError)
       if queryError then
@@ -274,46 +290,44 @@ local function toggleScratchpadIfHidden(id)
     if pollError then
       M.notify(pollError)
     elseif window.isVisible then
-      return
+      focusVisibleScratchpad(id)
     else
-      M.run({"command", "scratchpad", "toggle"}, M.reportResult)
+      M.run({"command", "scratchpad", "toggle"}, function(_, toggleError)
+        if toggleError then
+          M.notify(toggleError)
+          return
+        end
+        focusVisibleScratchpad(id)
+      end)
     end
   end)
 end
 
 local function assignFinderScratchpad(window)
-  M.run({"window", "navigate", window.id}, function(_, navigateError)
-    if navigateError then
-      M.notify(navigateError)
+  focusSummonedWindow(window.id, function(_, focusError)
+    if focusError then
+      M.notify(focusError)
       return
     end
-    pollWindow(window.id, function(candidate)
-      return candidate.isFocused == true
-    end, function(_, focusError)
-      if focusError then
-        M.notify(focusError)
+    queryWindows({"--scratchpad"}, function(scratchpad, scratchpadError)
+      if scratchpadError then
+        M.notify(scratchpadError)
         return
       end
-      queryWindows({"--scratchpad"}, function(scratchpad, scratchpadError)
-        if scratchpadError then
-          M.notify(scratchpadError)
+      if #scratchpad == 1 and scratchpad[1].id == window.id then
+        showScratchpadIfHidden(window.id)
+        return
+      end
+      if #scratchpad ~= 0 then
+        M.notify("A different window owns the OmniWM scratchpad")
+        return
+      end
+      M.run({"command", "scratchpad", "assign"}, function(_, assignError)
+        if assignError then
+          M.notify(assignError)
           return
         end
-        if #scratchpad == 1 and scratchpad[1].id == window.id then
-          toggleScratchpadIfHidden(window.id)
-          return
-        end
-        if #scratchpad ~= 0 then
-          M.notify("A different window owns the OmniWM scratchpad")
-          return
-        end
-        M.run({"command", "scratchpad", "assign"}, function(_, assignError)
-          if assignError then
-            M.notify(assignError)
-            return
-          end
-          toggleScratchpadIfHidden(window.id)
-        end)
+        showScratchpadIfHidden(window.id)
       end)
     end)
   end)
@@ -357,7 +371,11 @@ function M.toggleDownloadsScratchpad()
         M.notify("Another window owns the OmniWM scratchpad")
         return
       end
-      M.run({"command", "scratchpad", "toggle"}, M.reportResult)
+      if scratchpad[1].isVisible then
+        M.run({"command", "scratchpad", "toggle"}, M.reportResult)
+      else
+        showScratchpadIfHidden(scratchpad[1].id)
+      end
       return
     end
 
