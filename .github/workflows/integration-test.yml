@@ -21,6 +21,15 @@ jobs:
           ANSIBLE_CALLBACKS_ENABLED: profile_tasks
           GITHUB_TOKEN: ${{ github.token }}
 
+      - name: Install Lua test runtime
+        run: sudo apt-get install --yes lua5.4
+
+      - name: Verify OmniWM settings reconciliation
+        run: ruby tests/configure-omniwm-settings.rb
+
+      - name: Verify OmniWM cheat sheet panel
+        run: lua5.4 tests/omniwm-cheatsheet-panel.lua
+
       - name: Verify commit wrapper ignored docs protection
         run: bash tests/commit-force-add-superpowers.sh
 
