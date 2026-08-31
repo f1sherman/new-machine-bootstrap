@@ -129,6 +129,7 @@ const blockedCommands = [
   ["remove", `rm ${path.join(primary, "tracked")}`],
   ["recursive remove with tracked descendant", `rm -rf ${path.join(primary, "ignored")}`],
   ["long recursive remove with tracked descendant", `rm --recursive --force ${path.join(primary, "ignored")}`],
+  ["abbreviated recursive remove with tracked descendant", `rm --recurs --force ${path.join(primary, "ignored")}/`],
   ["copy destination", `cp ${path.join(feature, "tracked")} ${path.join(primary, "copy")}`],
   ["copy target option", `cp -t ${primary} ${path.join(feature, "tracked")}`],
   ["copy long target option", `cp --target-directory=${primary} ${path.join(feature, "tracked")}`],
