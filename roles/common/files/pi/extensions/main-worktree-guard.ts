@@ -343,7 +343,7 @@ function targetDirectoryOperand(tokens, start) {
 
 function hasRecursiveOption(tokens, start) {
   return tokens.slice(start).some((token) =>
-    token === "--recursive" || /^-[^-]*[rR]/.test(token));
+    (token.length > 2 && "--recursive".startsWith(token)) || /^-[^-]*[rR]/.test(token));
 }
 
 function inPlaceTargets(tokens, start) {
