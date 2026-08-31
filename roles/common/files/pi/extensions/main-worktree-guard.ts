@@ -341,6 +341,11 @@ function targetDirectoryOperand(tokens, start) {
   return "";
 }
 
+function hasRecursiveOption(tokens, start) {
+  return tokens.slice(start).some((token) =>
+    token === "--recursive" || /^-[^-]*[rR]/.test(token));
+}
+
 function inPlaceTargets(tokens, start) {
   const operands = [];
   let scriptProvidedByOption = false;
@@ -477,6 +482,10 @@ async function ignoredByGit(pi, root, candidate, fallbackCwd, options = {}) {
   const lexical = resolvedCandidate(candidate, fallbackCwd, false);
   const relative = path.relative(root, lexical);
   if (!relative || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return false;
+  if (options.protectTrackedDescendants) {
+    const tracked = await gitValue(pi, root, ["ls-files", "--", `:(literal)${relative}`]);
+    if (tracked) return false;
+  }
   if (!(await gitCheck(pi, root, ["check-ignore", "-q", "--", relative]))) return false;
   if (options.followFinalSymlink === false) return true;
 
@@ -609,6 +618,7 @@ async function bashMutationBlockReason(pi, command, initialCwd) {
 
     if (FILE_MUTATORS.has(commandName)) {
       let operands = mutationTargets(commandName, tokens, executable + 1, commandCwd);
+      const recursiveRemove = commandName === "rm" && hasRecursiveOption(tokens, executable + 1);
       const targetDirectory = TARGET_DIRECTORY_MUTATORS.has(commandName) ? targetDirectoryOperand(tokens, executable + 1) : "";
       if (targetDirectory) {
         operands = commandName === "mv" ? [...operands, targetDirectory] : [targetDirectory];
@@ -621,7 +631,10 @@ async function bashMutationBlockReason(pi, command, initialCwd) {
         pi,
         operands.length > 0 ? operands : [commandCwd],
         commandCwd,
-        { followFinalSymlink: commandName !== "rm" },
+        {
+          followFinalSymlink: commandName !== "rm",
+          protectTrackedDescendants: recursiveRemove,
+        },
       );
       if (root) return blockReason(`${commandName} mutation`, root);
     }
