@@ -71,8 +71,18 @@ function absoluteCandidate(candidate, fallbackCwd) {
 
 function resolvedCandidate(candidate, fallbackCwd, followFinalSymlink = true) {
   const absolute = absoluteCandidate(candidate, fallbackCwd);
-  if (!followFinalSymlink && fs.existsSync(absolute) && fs.lstatSync(absolute).isSymbolicLink()) {
-    return path.join(fs.realpathSync(path.dirname(absolute)), path.basename(absolute));
+  let finalEntry;
+  try {
+    finalEntry = fs.lstatSync(absolute);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  if (finalEntry?.isSymbolicLink()) {
+    if (!followFinalSymlink) {
+      return path.join(fs.realpathSync(path.dirname(absolute)), path.basename(absolute));
+    }
+    const target = fs.readlinkSync(absolute);
+    return resolvedCandidate(path.resolve(path.dirname(absolute), target), fallbackCwd);
   }
 
   const suffix = [];
