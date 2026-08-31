@@ -298,11 +298,30 @@
       (omniwm_ipc_result is changed) or
       (omniwm_settings_result is changed)
 
+- name: Ensure OmniWM local data directory exists
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/.local/share/omniwm"
+    state: directory
+    mode: '0755'
+
+- name: Install OmniWM cheat sheet
+  copy:
+    src: "{{ playbook_dir }}/docs/omniwm-cheatsheet.md"
+    dest: >-
+      {{ ansible_facts['user_dir'] }}/.local/share/omniwm/omniwm-cheatsheet.md
+    mode: '0644'
+
 - name: Ensure Hammerspoon configuration directory exists
   file:
     path: "{{ ansible_facts['user_dir'] }}/.hammerspoon"
     state: directory
     mode: '0755'
+
+- name: Install OmniWM cheat-sheet panel
+  copy:
+    src: hammerspoon/omniwm_cheatsheet.lua
+    dest: "{{ ansible_facts['user_dir'] }}/.hammerspoon/omniwm_cheatsheet.lua"
+    mode: '0644'
 
 - name: Install OmniWM Hammerspoon helpers
   copy:

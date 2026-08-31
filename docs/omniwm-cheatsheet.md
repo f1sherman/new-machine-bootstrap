@@ -84,6 +84,9 @@ affect every matching window, so they are intentionally not configured.
 | --- | --- |
 | `⌃⌥D` | Show or hide the Downloads Finder window |
 | `⌃⌥P` | Bring Photos to the current workspace or return it to Parking |
+| `⌃⌥H` | Show or hide this cheat sheet in a floating panel |
+
+Press `Escape` or `⌃⌥H` to hide the cheat-sheet panel.
 
 Finder is the OmniWM scratchpad. Only its managed Downloads window uses this
 behavior. Photos uses its own summon-and-return workflow.

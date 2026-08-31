@@ -1,4 +1,5 @@
 local M = {}
+local cheatsheetPanel = require("omniwm_cheatsheet").new()
 local omniwmctl = os.getenv("HOME") .. "/.local/bin/omniwmctl"
 local logger = hs.logger.new("omniwm", "info")
 local runningTasks = {}
@@ -680,6 +681,9 @@ end
 
 hs.hotkey.bind({"ctrl", "alt"}, "D", M.toggleDownloadsScratchpad)
 hs.hotkey.bind({"ctrl", "alt"}, "P", M.togglePhotos)
+local cheatsheetHotkey = hs.hotkey.bind({"ctrl", "alt"}, "H", function()
+  cheatsheetPanel:toggle()
+end)
 hs.hotkey.bind({"alt"}, "0", function()
   M.run({"command", "switch-workspace", "10"}, M.reportResult)
 end)

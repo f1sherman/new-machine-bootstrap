@@ -5,7 +5,7 @@ require "securerandom"
 require "tempfile"
 
 Workspace = Struct.new(:name, :id, :monitor, :layout_type, keyword_init: true)
-RuleTarget = Struct.new(:bundle_id, :title_substring, :workspace, keyword_init: true)
+RuleTarget = Struct.new(:bundle_id, :title_substring, :workspace, :layout, keyword_init: true)
 
 MANAGED_WORKSPACES = [
   Workspace.new(name: "1", id: "067B64BF-7C2C-4BEC-8D5F-253BDB74F7C8", monitor: "main", layout_type: "niri"),
@@ -35,7 +35,12 @@ RULE_TARGETS = [
   RuleTarget.new(bundle_id: "com.bitwarden.desktop", workspace: "10"),
   RuleTarget.new(bundle_id: "com.TechSmith.Snagit", workspace: "10"),
   RuleTarget.new(bundle_id: "com.backblaze.Backblaze", workspace: "10"),
-  RuleTarget.new(bundle_id: "com.apple.mobilephone", workspace: "10")
+  RuleTarget.new(bundle_id: "com.apple.mobilephone", workspace: "10"),
+  RuleTarget.new(
+    bundle_id: "org.hammerspoon.Hammerspoon",
+    title_substring: "OmniWM Cheat Sheet",
+    layout: "float"
+  )
 ].freeze
 
 DYNAMIC_RULE_TARGETS = [
@@ -275,7 +280,7 @@ class SettingsDocument
       "move.up" => "Control+Option+Shift+Up Arrow",
       "move.down" => "Control+Option+Shift+Down Arrow"
     }
-    reserved_bindings = directional_bindings.values
+    reserved_bindings = directional_bindings.values + ["Control+Option+H"]
 
     blocks.select { |block| block.type == "hotkeys" }.each do |block|
       identifier = scalar_value(block, "id")
@@ -297,16 +302,23 @@ class SettingsDocument
   def reconcile_rules(activate_assignments)
     RULE_TARGETS.each do |target|
       matches = matching_rule_blocks(target)
-      unless activate_assignments
-        matches.each { |block| remove_scalar(block, "assignToWorkspace") }
-        next
+      if matches.empty? && (activate_assignments || target.layout)
+        matches = [insert_rule(target)]
+      end
+      next if matches.empty?
+
+      primary = matches.first
+      set_scalar(primary, "layout", target.layout) if target.layout
+      if activate_assignments && target.workspace
+        set_scalar(primary, "assignToWorkspace", target.workspace)
+      elsif target.workspace
+        remove_scalar(primary, "assignToWorkspace")
       end
 
-      if matches.empty?
-        insert_rule(target)
-      else
-        set_scalar(matches.first, "assignToWorkspace", target.workspace)
-        matches.drop(1).each { |block| remove_scalar(block, "assignToWorkspace") }
+      matches.drop(1).each do |block|
+        remove_scalar(block, "layout") if target.layout
+        remove_scalar(block, "assignToWorkspace") if target.workspace
+        blocks.delete(block) if effectless_rule?(block)
       end
     end
 
@@ -347,7 +359,8 @@ class SettingsDocument
     lines = ["[[appRules]]\n", %(bundleId = "#{target.bundle_id}"\n)]
     lines << %(titleSubstring = "#{target.title_substring}"\n) if target.title_substring
     lines << %(id = "#{SecureRandom.uuid.upcase}"\n)
-    lines << %(assignToWorkspace = "#{target.workspace}"\n)
+    lines << %(layout = "#{target.layout}"\n) if target.layout
+    lines << %(assignToWorkspace = "#{target.workspace}"\n) if target.workspace
     lines << "\n"
     block = Block.new(type: "appRules", lines: lines)
 
@@ -356,6 +369,7 @@ class SettingsDocument
     insertion ||= blocks.length
     ensure_block_separator(insertion)
     blocks.insert(insertion, block)
+    block
   end
 
   def reconcile_workspaces
