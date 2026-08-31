@@ -90,6 +90,10 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
     binding = "Control+Option+T"
     id = "toggleScratchpadWindow"
 
+    [[hotkeys]]
+    binding = "Control+Option+H"
+    id = "custom.cheatsheetConflict"
+
     [[workspaces]]
     id = "workspace-1"
     layoutType = "niri"
@@ -194,6 +198,39 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       assert_includes unrelated_rule, 'assignToWorkspace = "6"'
       refute_includes result, 'bundleId = "com.google.Chrome"'
       assert_includes result, "binding = \"Unassigned\"\nid = \"toggleScratchpadWindow\""
+    end
+  end
+
+  def test_reserves_cheatsheet_shortcut
+    with_settings do |path|
+      _out, err, status = run_helper(path)
+      result = File.read(path)
+
+      assert status.success?, err
+      assert_includes result,
+        "binding = \"Unassigned\"\nid = \"custom.cheatsheetConflict\""
+    end
+  end
+
+  def test_adds_exact_cheatsheet_floating_rule_in_both_modes
+    [[], ["--activate-assignments"]].each do |arguments|
+      with_settings do |path|
+        2.times do
+          _out, err, status = run_helper(path, *arguments)
+          assert status.success?, err
+        end
+        result = File.read(path)
+        rule = app_rule(
+          result,
+          "org.hammerspoon.Hammerspoon",
+          "OmniWM Cheat Sheet"
+        )
+
+        assert_equal 1,
+          result.scan(/^bundleId = "org\.hammerspoon\.Hammerspoon"$/).length
+        assert_includes rule, 'layout = "float"'
+        refute_includes rule, "assignToWorkspace = "
+      end
     end
   end
 
