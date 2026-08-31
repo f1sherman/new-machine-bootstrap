@@ -335,7 +335,7 @@ end
 
 local function createDownloadsFinder(previousIDs)
   local script = [[
-    set downloadsFolder to (POSIX file ((system attribute "HOME") & "/Downloads") as alias)
+    set downloadsFolder to POSIX file ((system attribute "HOME") & "/Downloads")
     tell application "Finder"
       activate
       set downloadsWindow to make new Finder window
