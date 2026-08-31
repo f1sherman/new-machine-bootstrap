@@ -59,6 +59,32 @@ function absoluteGitPath(value, cwd) {
   return path.resolve(cwd, value);
 }
 
+async function gitCheck(pi, cwd, args) {
+  const result = await exec(pi, "git", ["-C", cwd, ...args]);
+  return result.code === 0;
+}
+
+function absoluteCandidate(candidate, fallbackCwd) {
+  const expanded = expandHome(candidate || fallbackCwd);
+  return path.isAbsolute(expanded) ? path.normalize(expanded) : path.resolve(fallbackCwd, expanded);
+}
+
+function resolvedCandidate(candidate, fallbackCwd, followFinalSymlink = true) {
+  const absolute = absoluteCandidate(candidate, fallbackCwd);
+  if (!followFinalSymlink && fs.existsSync(absolute) && fs.lstatSync(absolute).isSymbolicLink()) {
+    return path.join(fs.realpathSync(path.dirname(absolute)), path.basename(absolute));
+  }
+
+  const suffix = [];
+  let probe = absolute;
+  while (!fs.existsSync(probe) && probe !== path.dirname(probe)) {
+    suffix.unshift(path.basename(probe));
+    probe = path.dirname(probe);
+  }
+  if (!fs.existsSync(probe)) return absolute;
+  return path.join(fs.realpathSync(probe), ...suffix);
+}
+
 async function protectedMainWorktree(pi, candidate, fallbackCwd, options = {}) {
   for (const cwd of probeDirs(candidate, fallbackCwd, options.followFinalSymlink !== false)) {
     const root = await gitValue(pi, cwd, ["rev-parse", "--show-toplevel"]);
@@ -435,10 +461,40 @@ function blockReason(category, root) {
   return `Blocked ${category} targeting primary main worktree ${root}. Start or use a linked feature worktree.`;
 }
 
+async function ignoredByGit(pi, root, candidate, fallbackCwd, options = {}) {
+  const lexical = resolvedCandidate(candidate, fallbackCwd, false);
+  const relative = path.relative(root, lexical);
+  if (!relative || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return false;
+  if (!(await gitCheck(pi, root, ["check-ignore", "-q", "--", relative]))) return false;
+  if (options.followFinalSymlink === false) return true;
+
+  const resolved = resolvedCandidate(candidate, fallbackCwd);
+  const [resolvedProbe] = probeDirs(resolved, fallbackCwd);
+  const resolvedRoot = await gitValue(pi, resolvedProbe, ["rev-parse", "--show-toplevel"]);
+  if (!resolvedRoot) return false;
+
+  if (path.resolve(resolvedRoot) === path.resolve(root)) {
+    const resolvedRelative = path.relative(resolvedRoot, resolved);
+    if (!resolvedRelative || resolvedRelative.startsWith(`..${path.sep}`) || path.isAbsolute(resolvedRelative)) return false;
+    return gitCheck(pi, resolvedRoot, ["check-ignore", "-q", "--", resolvedRelative]);
+  }
+
+  const lexicalCommon = await gitValue(pi, root, ["rev-parse", "--git-common-dir"]);
+  const resolvedCommon = await gitValue(pi, resolvedRoot, ["rev-parse", "--git-common-dir"]);
+  return Boolean(lexicalCommon && resolvedCommon &&
+    absoluteGitPath(lexicalCommon, root) === absoluteGitPath(resolvedCommon, resolvedRoot));
+}
+
 async function firstProtectedRoot(pi, candidates, cwd, options = {}) {
   for (const candidate of candidates) {
-    const root = await protectedMainWorktree(pi, resolveCandidate(candidate, cwd), cwd, options);
-    if (root) return root;
+    const resolved = resolveCandidate(candidate, cwd);
+    const lexicalRoot = await protectedMainWorktree(pi, resolved, cwd, { followFinalSymlink: false });
+    if (lexicalRoot) {
+      if (await ignoredByGit(pi, lexicalRoot, resolved, cwd, options)) continue;
+      return lexicalRoot;
+    }
+    const resolvedRoot = await protectedMainWorktree(pi, resolved, cwd, options);
+    if (resolvedRoot) return resolvedRoot;
   }
   return "";
 }
@@ -570,7 +626,7 @@ export default function mainWorktreeGuard(pi) {
   pi.on("tool_call", async (event, ctx) => {
     if (event.toolName === "edit" || event.toolName === "write") {
       const targetPath = event.input.path || event.input.file_path || "";
-      const root = await protectedMainWorktree(pi, targetPath, ctx.cwd);
+      const root = await firstProtectedRoot(pi, [targetPath], ctx.cwd);
       if (root) return { block: true, reason: blockReason(`${event.toolName} file change`, root) };
       return;
     }
