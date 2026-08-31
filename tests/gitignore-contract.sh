@@ -26,6 +26,16 @@ fi
 
 printf 'PASS  managed global ignore targets Remote Pi runtime state at any depth\n'
 
+mkdir -p "$tmp/docs/.solution-designs" "$tmp/nested/docs/.solution-designs"
+touch "$tmp/docs/.solution-designs/design.md" "$tmp/nested/docs/.solution-designs/design.md"
+
+root_design="$(git -c core.excludesFile="$template" -C "$tmp" check-ignore -v --no-index docs/.solution-designs/design.md || true)"
+nested_design="$(git -c core.excludesFile="$template" -C "$tmp" check-ignore -v --no-index nested/docs/.solution-designs/design.md || true)"
+[[ -n "$root_design" ]] || fail "solution designs at the repository root must be ignored"
+[[ -z "$nested_design" ]] || fail "nested solution design directories must remain visible"
+
+printf 'PASS  managed global ignore targets root solution design artifacts\n'
+
 mkdir -p "$tmp/.pi-subagents/artifacts" "$tmp/nested/.pi-subagents/artifacts"
 touch "$tmp/.pi-subagents/artifacts/run.md" "$tmp/nested/.pi-subagents/artifacts/run.md"
 

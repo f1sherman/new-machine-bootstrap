@@ -18,6 +18,9 @@ CLAUDE.local.md
 **/.pi-subagents/
 **/.pi/subagents/
 
+# Local agent design artifacts
+/docs/.solution-designs/
+
 .bg-shell/
 .repo.yml
 .worktrees/
