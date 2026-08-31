@@ -69,7 +69,7 @@ function absoluteCandidate(candidate, fallbackCwd) {
   return path.isAbsolute(expanded) ? path.normalize(expanded) : path.resolve(fallbackCwd, expanded);
 }
 
-function resolvedCandidate(candidate, fallbackCwd, followFinalSymlink = true) {
+function resolvedCandidate(candidate, fallbackCwd, followFinalSymlink = true, visited = new Set()) {
   const absolute = absoluteCandidate(candidate, fallbackCwd);
   let finalEntry;
   try {
@@ -81,8 +81,10 @@ function resolvedCandidate(candidate, fallbackCwd, followFinalSymlink = true) {
     if (!followFinalSymlink) {
       return path.join(fs.realpathSync(path.dirname(absolute)), path.basename(absolute));
     }
+    if (visited.has(absolute)) return "";
+    visited.add(absolute);
     const target = fs.readlinkSync(absolute);
-    return resolvedCandidate(path.resolve(path.dirname(absolute), target), fallbackCwd);
+    return resolvedCandidate(path.resolve(path.dirname(absolute), target), fallbackCwd, true, visited);
   }
 
   const suffix = [];
@@ -479,6 +481,7 @@ async function ignoredByGit(pi, root, candidate, fallbackCwd, options = {}) {
   if (options.followFinalSymlink === false) return true;
 
   const resolved = resolvedCandidate(candidate, fallbackCwd);
+  if (!resolved) return false;
   const [resolvedProbe] = probeDirs(resolved, fallbackCwd);
   const resolvedRoot = await gitValue(pi, resolvedProbe, ["rev-parse", "--show-toplevel"]);
   if (!resolvedRoot) return false;

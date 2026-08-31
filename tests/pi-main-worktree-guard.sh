@@ -18,6 +18,9 @@ ignored/
 ignored-link
 ignored-external-link
 ignored-dangling-external-link
+ignored-self-link
+ignored-cycle-a
+ignored-cycle-b
 tracked
 EOF
 mkdir -p "$tmp_root/primary/ignored" "$tmp_root/external"
@@ -33,6 +36,9 @@ ln -s "$tmp_root/primary" "$tmp_root/primary space"
 ln -s "$tmp_root/primary/tracked" "$tmp_root/primary/ignored-link"
 ln -s "$tmp_root/external/outside" "$tmp_root/primary/ignored-external-link"
 ln -s "$tmp_root/external/missing" "$tmp_root/primary/ignored-dangling-external-link"
+ln -s ignored-self-link "$tmp_root/primary/ignored-self-link"
+ln -s ignored-cycle-b "$tmp_root/primary/ignored-cycle-a"
+ln -s ignored-cycle-a "$tmp_root/primary/ignored-cycle-b"
 
 cat > "$tmp_root/check.mjs" <<'NODE'
 import assert from "node:assert/strict";
@@ -105,6 +111,12 @@ for (const toolName of ["edit", "write"]) {
 
   const danglingExternalLink = await call(toolName, { path: path.join(primary, "ignored-dangling-external-link") }, primary);
   assert.equal(danglingExternalLink?.block, true, `${toolName} blocks ignored dangling symlink outside Git worktrees`);
+
+  const selfLink = await call(toolName, { path: path.join(primary, "ignored-self-link") }, primary);
+  assert.equal(selfLink?.block, true, `${toolName} blocks ignored self-referencing symlink`);
+
+  const cycleLink = await call(toolName, { path: path.join(primary, "ignored-cycle-a") }, primary);
+  assert.equal(cycleLink?.block, true, `${toolName} blocks ignored symlink cycle`);
 }
 
 const blockedCommands = [
@@ -153,6 +165,8 @@ const blockedCommands = [
   ["primary symlink removal", `rm ${path.join(primary, "linked-dir")}`],
   ["feature symlink into primary removal", `rm ${path.join(feature, "primary-link", "tracked")}`],
   ["write through dangling external symlink", `printf changed > ${path.join(primary, "ignored-dangling-external-link")}`],
+  ["write through self-referencing symlink", `printf changed > ${path.join(primary, "ignored-self-link")}`],
+  ["write through symlink cycle", `printf changed > ${path.join(primary, "ignored-cycle-a")}`],
   ["chmod target", `chmod 600 ${path.join(primary, "tracked")}`],
   ["chmod symbolic target", `chmod -w ${path.join(primary, "tracked")}`],
   ["chown target", `chown test ${path.join(primary, "tracked")}`],
