@@ -21,9 +21,9 @@ ignored-dangling-external-link
 tracked
 EOF
 mkdir -p "$tmp_root/primary/ignored" "$tmp_root/external"
-touch "$tmp_root/primary/ignored/existing" "$tmp_root/external/outside"
+touch "$tmp_root/primary/ignored/existing" "$tmp_root/primary/ignored/tracked" "$tmp_root/external/outside"
 git -C "$tmp_root/primary" add .gitignore
-git -C "$tmp_root/primary" add -f tracked
+git -C "$tmp_root/primary" add -f tracked ignored/tracked
 git -C "$tmp_root/primary" commit -qm initial
 git -C "$tmp_root/primary" branch -M main
 git -C "$tmp_root/primary" worktree add -qb feature "$tmp_root/feature"
@@ -115,6 +115,7 @@ const blockedCommands = [
   ["escaped-space redirection", `printf changed > ${path.join(spacedPrimaryLink, "tracked").replaceAll(" ", "\\ ")}`],
   ["tee", `printf changed | tee ${path.join(primary, "tracked")}`],
   ["remove", `rm ${path.join(primary, "tracked")}`],
+  ["recursive remove with tracked descendant", `rm -rf ${path.join(primary, "ignored")}`],
   ["copy destination", `cp ${path.join(feature, "tracked")} ${path.join(primary, "copy")}`],
   ["copy target option", `cp -t ${primary} ${path.join(feature, "tracked")}`],
   ["copy long target option", `cp --target-directory=${primary} ${path.join(feature, "tracked")}`],
