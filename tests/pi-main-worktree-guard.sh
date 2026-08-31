@@ -13,13 +13,24 @@ git -C "$tmp_root" init -q primary
 git -C "$tmp_root/primary" config user.email test@example.com
 git -C "$tmp_root/primary" config user.name Test
 touch "$tmp_root/primary/tracked"
-git -C "$tmp_root/primary" add tracked
+cat > "$tmp_root/primary/.gitignore" <<'EOF'
+ignored/
+ignored-link
+ignored-external-link
+tracked
+EOF
+mkdir -p "$tmp_root/primary/ignored" "$tmp_root/external"
+touch "$tmp_root/primary/ignored/existing" "$tmp_root/external/outside"
+git -C "$tmp_root/primary" add .gitignore
+git -C "$tmp_root/primary" add -f tracked
 git -C "$tmp_root/primary" commit -qm initial
 git -C "$tmp_root/primary" branch -M main
 git -C "$tmp_root/primary" worktree add -qb feature "$tmp_root/feature"
 ln -s "$tmp_root/feature" "$tmp_root/primary/linked-dir"
 ln -s "$tmp_root/primary" "$tmp_root/feature/primary-link"
 ln -s "$tmp_root/primary" "$tmp_root/primary space"
+ln -s "$tmp_root/primary/tracked" "$tmp_root/primary/ignored-link"
+ln -s "$tmp_root/external/outside" "$tmp_root/primary/ignored-external-link"
 
 cat > "$tmp_root/check.mjs" <<'NODE'
 import assert from "node:assert/strict";
@@ -80,6 +91,15 @@ for (const toolName of ["edit", "write"]) {
 
   const primaryLinkIntoFeature = await call(toolName, { path: path.join(primary, "linked-dir", "tracked") }, primary);
   assert.equal(primaryLinkIntoFeature, undefined, `${toolName} allows primary symlink resolving into linked feature worktree`);
+
+  const ignored = await call(toolName, { path: path.join(primary, "ignored", "artifact.md") }, primary);
+  assert.equal(ignored, undefined, `${toolName} allows ignored primary-main target`);
+
+  const trackedLink = await call(toolName, { path: path.join(primary, "ignored-link") }, primary);
+  assert.equal(trackedLink?.block, true, `${toolName} blocks ignored symlink into tracked primary file`);
+
+  const externalLink = await call(toolName, { path: path.join(primary, "ignored-external-link") }, primary);
+  assert.equal(externalLink?.block, true, `${toolName} blocks ignored symlink outside Git worktrees`);
 }
 
 const blockedCommands = [
@@ -108,6 +128,7 @@ const blockedCommands = [
   ["git config-option restore", `git -C ${primary} -c color.ui=false restore tracked`],
   ["git explicit work tree", `git --work-tree=${primary} restore tracked`],
   ["git clean", `git -C ${primary} clean -fd`],
+  ["git clean ignored", `git -C ${primary} clean -fdX`],
   ["git rm", `git -C ${primary} rm tracked`],
   ["git mv", `git -C ${primary} mv tracked renamed`],
   ["git reset", `cd ${primary} && git reset --hard`],
@@ -153,6 +174,11 @@ const allowedCommands = [
   `rm ${path.join(feature, "primary-link")}`,
   `printf changed > ${path.join(feature, "tracked")}`,
   `touch ${path.join(feature, "new")}`,
+  `printf artifact > ${path.join(primary, "ignored", "redirected.md")}`,
+  `touch ${path.join(primary, "ignored", "touched.md")}`,
+  `mkdir ${path.join(primary, "ignored", "nested")}`,
+  `cp ${path.join(feature, "tracked")} ${path.join(primary, "ignored", "copied")}`,
+  `rm ${path.join(primary, "ignored", "existing")}`,
   `git -C ${feature} restore tracked`,
   `python3 -c "from pathlib import Path; Path('${path.join(feature, "tracked")}').write_text('changed')"`,
   "unknown-writer --maybe-mutates",
