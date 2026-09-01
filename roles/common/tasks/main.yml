@@ -1366,9 +1366,11 @@
     MISE_NPM_PACKAGE_MANAGER: aube
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   register: common_mise_managed_tool_install_result
+  # npm can publish the Codex meta package before every platform tarball is
+  # available. Keep the retry window long enough for that publish race to end.
   until: common_mise_managed_tool_install_result.rc == 0
-  retries: 3
-  delay: 10
+  retries: 12
+  delay: 15
   changed_when: false
 
 # mise can retain an npm tool install whose Aube virtual-store targets were
@@ -2409,6 +2411,11 @@
     CODEX_HOOK_QUERY_CWD: '{{ playbook_dir }}'
     PATH: '{{ ansible_facts["user_dir"] }}/.local/bin:{{ ansible_facts["user_dir"] }}/.local/share/mise/shims:{{ ansible_facts["env"]["PATH"] }}'
   register: codex_trust_managed_hooks_result
+  # The Codex app-server can exit during startup while a new install settles.
+  # The helper is idempotent, so a bounded retry is safe.
+  until: codex_trust_managed_hooks_result.rc == 0
+  retries: 3
+  delay: 5
   changed_when: codex_trust_managed_hooks_result.stdout == 'changed'
 
 - name: Enforce 0600 on ~/.codex/hooks.json
