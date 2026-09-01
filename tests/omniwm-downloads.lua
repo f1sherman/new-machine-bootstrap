@@ -26,6 +26,46 @@ downloads.finishCreation()
 assertEqual(true, downloads.beginCreation(function() end), "creation can restart after completion")
 downloads.finishCreation()
 
+local recheckEvents = {notify = {}, show = {}, done = 0}
+local recheckActions = {
+  isFinder = function(window)
+    return window.app and window.app.bundleId == "com.apple.finder"
+  end,
+  notify = function(message)
+    table.insert(recheckEvents.notify, message)
+  end,
+  show = function(id)
+    table.insert(recheckEvents.show, id)
+  end,
+  done = function()
+    recheckEvents.done = recheckEvents.done + 1
+  end,
+}
+assertEqual(true, downloads.shouldCreateAfterLock({}, recheckActions), "empty recheck permits creation")
+assertEqual(false, downloads.shouldCreateAfterLock({{
+  id = "finder-existing",
+  app = {bundleId = "com.apple.finder"},
+}}, recheckActions), "existing Finder blocks stale creation")
+assertEqual("finder-existing", recheckEvents.show[1], "existing Finder is shown")
+assertEqual(1, recheckEvents.done, "existing Finder releases creation lock")
+
+local otherOwnerEvents = {notify = {}, done = 0}
+assertEqual(false, downloads.shouldCreateAfterLock({{
+  id = "other-window",
+  app = {bundleId = "com.example.other"},
+}}, {
+  isFinder = recheckActions.isFinder,
+  notify = function(message)
+    table.insert(otherOwnerEvents.notify, message)
+  end,
+  show = function() end,
+  done = function()
+    otherOwnerEvents.done = otherOwnerEvents.done + 1
+  end,
+}), "other scratchpad owner blocks stale creation")
+assertEqual(1, #otherOwnerEvents.notify, "other owner reports one error")
+assertEqual(1, otherOwnerEvents.done, "other owner releases creation lock")
+
 local function harness(window, scratchpad, queryError, target, targetError, assignError)
   local calls = {notify = {}, query = 0, target = 0, assign = 0, show = {}, done = 0}
   local pendingTargetCallback

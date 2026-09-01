@@ -21,6 +21,22 @@ function M.new()
     return type(window) == "table" and window.isFocused == true
   end
 
+  function downloads.shouldCreateAfterLock(scratchpad, actions)
+    if #scratchpad == 0 then
+      return true
+    end
+
+    if #scratchpad == 1 and actions.isFinder(scratchpad[1]) then
+      actions.show(scratchpad[1].id)
+    elseif #scratchpad > 1 then
+      actions.notify("OmniWM returned more than one scratchpad window")
+    else
+      actions.notify("Another window owns the OmniWM scratchpad")
+    end
+    actions.done()
+    return false
+  end
+
   function downloads.assignNewScratchpad(window, actions)
     local function finish(message)
       if message then

@@ -327,33 +327,51 @@ local function createDownloadsFinder(previousIDs)
     return
   end
 
-  local script = [[
-    set downloadsFolder to POSIX file ((system attribute "HOME") & "/Downloads")
-    tell application "Finder"
-      activate
-      set downloadsWindow to make new Finder window
-      set target of downloadsWindow to downloadsFolder
-    end tell
-  ]]
-  local success, result = hs.osascript.applescript(script)
-  if not success then
-    downloads.finishCreation()
-    M.notify("Could not create the Downloads Finder window: " .. tostring(result))
-    return
-  end
-  pollNewWindow("com.apple.finder", previousIDs, function(window, pollError)
-    if pollError then
+  queryWindows({"--scratchpad"}, function(scratchpad, scratchpadError)
+    if scratchpadError then
       downloads.finishCreation()
-      M.notify(pollError)
+      M.notify(scratchpadError)
       return
     end
-    pollWindow(window.id, downloads.isFocused, function(focusedWindow, focusError)
-      if focusError then
+    if not downloads.shouldCreateAfterLock(scratchpad, {
+      isFinder = function(window)
+        return bundleID(window) == "com.apple.finder"
+      end,
+      notify = M.notify,
+      show = showScratchpadIfHidden,
+      done = downloads.finishCreation,
+    }) then
+      return
+    end
+
+    local script = [[
+      set downloadsFolder to POSIX file ((system attribute "HOME") & "/Downloads")
+      tell application "Finder"
+        activate
+        set downloadsWindow to make new Finder window
+        set target of downloadsWindow to downloadsFolder
+      end tell
+    ]]
+    local success, result = hs.osascript.applescript(script)
+    if not success then
+      downloads.finishCreation()
+      M.notify("Could not create the Downloads Finder window: " .. tostring(result))
+      return
+    end
+    pollNewWindow("com.apple.finder", previousIDs, function(window, pollError)
+      if pollError then
         downloads.finishCreation()
-        M.notify(focusError)
+        M.notify(pollError)
         return
       end
-      assignFinderScratchpad(focusedWindow)
+      pollWindow(window.id, downloads.isFocused, function(focusedWindow, focusError)
+        if focusError then
+          downloads.finishCreation()
+          M.notify(focusError)
+          return
+        end
+        assignFinderScratchpad(focusedWindow)
+      end)
     end)
   end)
 end
