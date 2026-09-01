@@ -231,7 +231,7 @@ local function focusSummonedWindow(id, callback)
   end, 5, callback)
 end
 
-local function pollNewWindow(bundle, previousIDs, callback)
+local function pollNewWindow(bundle, previousIDs, callback, predicate)
   M.poll(function(done)
     M.windows(function(windows, queryError)
       if queryError then
@@ -239,7 +239,9 @@ local function pollNewWindow(bundle, previousIDs, callback)
         return
       end
       local candidates = findWindows(windows, function(window)
-        return bundleID(window) == bundle and not previousIDs[window.id]
+        return bundleID(window) == bundle
+          and not previousIDs[window.id]
+          and (not predicate or predicate(window))
       end)
       if #candidates > 1 then
         done(nil, "More than one new window appeared")
@@ -543,14 +545,14 @@ local function resolveDedicatedSafari(windows)
   local hint = hs.settings.get(dedicatedSafariWindowKey)
   if type(hint) == "string" then
     local hinted = findWindowByID(windows, hint)
-    if hinted and bundleID(hinted) == "com.apple.Safari" and not isWorkSafari(hinted) then
+    if hinted and urlSource.isSafariBrowserWindow(hinted) and not isWorkSafari(hinted) then
       return hinted, nil
     end
     hs.settings.clear(dedicatedSafariWindowKey)
   end
 
   local candidates = findWindows(windows, function(window)
-    return bundleID(window) == "com.apple.Safari"
+    return urlSource.isSafariBrowserWindow(window)
       and workspaceNumber(window) == 3
       and not isWorkSafari(window)
   end)
@@ -599,7 +601,7 @@ local function createDedicatedSafari(windows, callback)
       hs.settings.set(dedicatedSafariWindowKey, movedWindow.id)
       callback(movedWindow, nil)
     end)
-  end)
+  end, urlSource.isSafariBrowserWindow)
 end
 
 local function openSafariTab(url)
