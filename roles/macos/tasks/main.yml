@@ -589,22 +589,43 @@
     - ansible_facts['hostname'] == 'Brians-MacBook-Pro'
     - not ansible_check_mode
 
-# Hammerspoon's setDefaultHandler API also claims public.url and
-# public.file-url documents. Set only the URL schemes after reload, then keep
-# link-file documents with Safari.
+# Hammerspoon's setDefaultHandler API also claims file URL documents. Set only
+# the web URL schemes after reload, then keep file URL documents with Safari.
 - name: Route web URL schemes through Hammerspoon
-  command: duti -s org.hammerspoon.Hammerspoon http
+  command: duti -s org.hammerspoon.Hammerspoon {{ item }}
+  loop:
+    - http
+    - https
+  changed_when: false
+  failed_when: false
+  when:
+    - ansible_facts['hostname'] == 'Brians-MacBook-Pro'
+    - not ansible_check_mode
+
+- name: Verify web URL scheme handlers
+  command: duti -d {{ item }}
+  loop:
+    - http
+    - https
+  register: omniwm_url_scheme_handlers
+  changed_when: false
+  failed_when: omniwm_url_scheme_handlers.stdout != 'org.hammerspoon.Hammerspoon'
+  when:
+    - ansible_facts['hostname'] == 'Brians-MacBook-Pro'
+    - not ansible_check_mode
+
+- name: Keep file URL documents with Safari
+  command: duti -s com.apple.Safari public.file-url all
   changed_when: false
   when:
     - ansible_facts['hostname'] == 'Brians-MacBook-Pro'
     - not ansible_check_mode
 
-- name: Keep link-file documents with Safari
-  command: duti -s com.apple.Safari {{ item }} viewer
-  loop:
-    - public.url
-    - public.file-url
+- name: Verify file URL document handler
+  command: duti -d public.file-url
+  register: omniwm_file_url_handler
   changed_when: false
+  failed_when: omniwm_file_url_handler.stdout != 'com.apple.Safari'
   when:
     - ansible_facts['hostname'] == 'Brians-MacBook-Pro'
     - not ansible_check_mode
