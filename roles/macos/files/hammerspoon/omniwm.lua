@@ -4,11 +4,6 @@ local omniwmctl = os.getenv("HOME") .. "/.local/bin/omniwmctl"
 local logger = hs.logger.new("omniwm", "info")
 local runningTasks = {}
 local dedicatedSafariWindowKey = "omniwmDedicatedSafariWindowId"
-local previousHandlerKeys = {
-  http = "omniwmPreviousHTTPHandler",
-  https = "omniwmPreviousHTTPSHandler",
-}
-local hammerspoonBundleID = "org.hammerspoon.Hammerspoon"
 
 local function copyArray(values)
   local result = {}
@@ -698,27 +693,6 @@ hs.urlevent.httpCallback = function(_, _, _, fullURL, senderPID)
     return
   end
   routeGhosttyURL(fullURL)
-end
-
-for _, scheme in ipairs({"http", "https"}) do
-  local previousHandlerKey = previousHandlerKeys[scheme]
-  local currentHandler = hs.urlevent.getDefaultHandler(scheme)
-  local previousHandler = hs.settings.get(previousHandlerKey)
-
-  if currentHandler ~= hammerspoonBundleID
-      and type(currentHandler) == "string" and currentHandler ~= "" then
-    previousHandler = currentHandler
-    hs.settings.set(previousHandlerKey, currentHandler)
-  end
-
-  if type(previousHandler) == "string" and previousHandler ~= ""
-      and previousHandler ~= hammerspoonBundleID then
-    hs.urlevent.setRestoreHandler(scheme, previousHandler)
-  end
-
-  if currentHandler ~= hammerspoonBundleID then
-    hs.urlevent.setDefaultHandler(scheme)
-  end
 end
 
 return M
