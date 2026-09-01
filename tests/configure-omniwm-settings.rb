@@ -94,6 +94,14 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
     binding = "Control+Option+H"
     id = "custom.cheatsheetConflict"
 
+    [[hotkeys]]
+    binding = "Option+Shift+F"
+    id = "toggleContainerFullPrimarySpan"
+
+    [[hotkeys]]
+    binding = "Control+Return"
+    id = "custom.columnToggleConflict"
+
     [[workspaces]]
     id = "workspace-1"
     layoutType = "niri"
@@ -193,6 +201,8 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
         assert_includes result, %(binding = "Unassigned"\nid = "#{identifier}")
       end
       assert_includes result, "binding = \"Control+Option+Shift+R\"\nid = \"moveColumn.right\""
+      assert_includes result, "binding = \"Control+Return\"\nid = \"toggleContainerFullPrimarySpan\""
+      assert_includes result, "binding = \"Unassigned\"\nid = \"custom.columnToggleConflict\""
       refute_includes ghostty_rule, "assignToWorkspace = "
       assert_includes ghostty_rule, "minHeight = 400.0"
       assert_includes unrelated_rule, 'assignToWorkspace = "6"'

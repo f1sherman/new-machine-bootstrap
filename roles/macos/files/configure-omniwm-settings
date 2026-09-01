@@ -274,7 +274,7 @@ class SettingsDocument
   end
 
   def reconcile_hotkeys
-    directional_bindings = {
+    managed_bindings = {
       "focus.left" => "Control+Option+Left Arrow",
       "focus.right" => "Control+Option+Right Arrow",
       "focus.up" => "Control+Option+Up Arrow",
@@ -282,14 +282,15 @@ class SettingsDocument
       "move.left" => "Control+Option+Shift+Left Arrow",
       "move.right" => "Control+Option+Shift+Right Arrow",
       "move.up" => "Control+Option+Shift+Up Arrow",
-      "move.down" => "Control+Option+Shift+Down Arrow"
+      "move.down" => "Control+Option+Shift+Down Arrow",
+      "toggleContainerFullPrimarySpan" => "Control+Return"
     }
-    reserved_bindings = directional_bindings.values + ["Control+Option+H"]
+    reserved_bindings = managed_bindings.values + ["Control+Option+H"]
 
     blocks.select { |block| block.type == "hotkeys" }.each do |block|
       identifier = scalar_value(block, "id")
       binding = scalar_value(block, "binding")
-      desired_binding = directional_bindings[identifier]
+      desired_binding = managed_bindings[identifier]
       if desired_binding
         set_scalar(block, "binding", desired_binding)
         next

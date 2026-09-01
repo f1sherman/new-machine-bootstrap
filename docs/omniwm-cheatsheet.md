@@ -47,7 +47,7 @@ notifications.
 | `⌥-` / `⌥=` | Decrease or increase the focused column width |
 | `⌥⇧B` | Balance window sizes |
 | `⌥T` | Toggle tabs for a column that contains multiple windows |
-| `⌥⇧F` | Toggle full-width display for the focused column |
+| `⌃Return` | Toggle full-width display for the focused column |
 
 Keep one window large most of the time. For a temporary side-by-side layout,
 focus the second window, move it beside the first window, and adjust the width.
@@ -62,10 +62,10 @@ change the active window in that column.
 
 ### Temporarily use the full width
 
-`⌥⇧F` makes the focused column use the full primary span of the display. Press
-it again to restore the column's saved width. The first press has no visible
-effect when the column's normal width already fills the display. This does not
-replace `⌥Return`, which toggles OmniWM's full-screen tiling mode.
+`⌃Return` makes the focused column use the full primary span of the display.
+Press it again to restore the column's saved width. The first press has no
+visible effect when the column's normal width already fills the display. This
+does not replace `⌥Return`, which toggles OmniWM's full-screen tiling mode.
 
 ### Understand floating windows
 
