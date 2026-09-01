@@ -1,5 +1,6 @@
 local M = {}
 local cheatsheetPanel = require("omniwm_cheatsheet").new()
+local urlSource = require("omniwm_url_source")
 local omniwmctl = os.getenv("HOME") .. "/.local/bin/omniwmctl"
 local logger = hs.logger.new("omniwm", "info")
 local runningTasks = {}
@@ -686,13 +687,57 @@ hs.hotkey.bind({"alt", "shift"}, "0", function()
   M.run({"command", "move-to-workspace", "10"}, M.reportResult)
 end)
 
-hs.urlevent.httpCallback = function(_, _, _, fullURL, senderPID)
-  local sender = senderPID and hs.application.applicationForPID(senderPID)
-  if not sender or sender:bundleID() ~= "com.mitchellh.ghostty" then
+local function routeURL(fullURL, senderPID, senderBundle, routeGhostty)
+  local decision = routeGhostty and "ghostty" or "normal"
+  logger.i(string.format(
+    "URL source pid=%s bundle=%s decision=%s",
+    tostring(senderPID),
+    tostring(senderBundle),
+    decision
+  ))
+  if routeGhostty then
+    routeGhosttyURL(fullURL)
+  else
     openNormallyInSafari(fullURL)
+  end
+end
+
+hs.urlevent.httpCallback = function(_, _, _, fullURL, senderPID)
+  local sender
+  if type(senderPID) == "number" and senderPID > 0 then
+    sender = hs.application.applicationForPID(senderPID)
+  end
+  local senderBundle = sender and sender:bundleID() or nil
+  if senderBundle and senderBundle ~= "org.hammerspoon.Hammerspoon" then
+    routeURL(
+      fullURL,
+      senderPID,
+      senderBundle,
+      urlSource.shouldRouteGhostty(senderBundle, nil, nil)
+    )
     return
   end
-  routeGhosttyURL(fullURL)
+
+  M.activeWorkspace(function(activeWorkspace, workspaceError)
+    if workspaceError then
+      M.notify(workspaceError)
+      routeURL(fullURL, senderPID, senderBundle, false)
+      return
+    end
+    M.windows(function(windows, windowsError)
+      if windowsError then
+        M.notify(windowsError)
+        routeURL(fullURL, senderPID, senderBundle, false)
+        return
+      end
+      routeURL(
+        fullURL,
+        senderPID,
+        senderBundle,
+        urlSource.shouldRouteGhostty(senderBundle, activeWorkspace.number, windows)
+      )
+    end)
+  end)
 end
 
 return M
