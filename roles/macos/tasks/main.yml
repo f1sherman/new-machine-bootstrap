@@ -582,6 +582,33 @@
     executable: /bin/zsh
   changed_when: false
 
+- name: Wait for Hammerspoon configuration reload
+  pause:
+    seconds: 2
+  when:
+    - ansible_facts['hostname'] == 'Brians-MacBook-Pro'
+    - not ansible_check_mode
+
+# Hammerspoon's setDefaultHandler API also claims public.url and
+# public.file-url documents. Set only the URL schemes after reload, then keep
+# link-file documents with Safari.
+- name: Route web URL schemes through Hammerspoon
+  command: duti -s org.hammerspoon.Hammerspoon http
+  changed_when: false
+  when:
+    - ansible_facts['hostname'] == 'Brians-MacBook-Pro'
+    - not ansible_check_mode
+
+- name: Keep link-file documents with Safari
+  command: duti -s com.apple.Safari {{ item }} viewer
+  loop:
+    - public.url
+    - public.file-url
+  changed_when: false
+  when:
+    - ansible_facts['hostname'] == 'Brians-MacBook-Pro'
+    - not ansible_check_mode
+
 - name: Check if Meslo Powerline fonts are already installed
   stat:
     path: '{{ ansible_facts["user_dir"] }}/Library/Fonts/Meslo LG M Regular for Powerline.ttf'
