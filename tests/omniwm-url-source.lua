@@ -3,6 +3,7 @@ package.path = sourcePath .. ";" .. package.path
 
 local source = require("omniwm_url_source")
 local route = source.shouldRouteGhostty
+local isSafariBrowserWindow = source.isSafariBrowserWindow
 local failures = 0
 
 local function assertEqual(expected, actual, message)
@@ -53,8 +54,35 @@ for _, case in ipairs(cases) do
   assertEqual(expected, route(senderBundle, activeWorkspace, windows), message)
 end
 
+local safariCases = {
+  {
+    "Safari browser window",
+    true,
+    {app = {bundleId = "com.apple.Safari"}, title = "Personal — Example"},
+  },
+  {
+    "Safari titleless companion panel",
+    false,
+    {app = {bundleId = "com.apple.Safari"}, title = ""},
+  },
+  {
+    "non-Safari window",
+    false,
+    {app = {bundleId = "com.mitchellh.ghostty"}, title = "Ghostty"},
+  },
+}
+
+for _, case in ipairs(safariCases) do
+  local message, expected, window = table.unpack(case)
+  assertEqual(expected, isSafariBrowserWindow(window), message)
+end
+
 if failures > 0 then
   os.exit(1)
 end
 
-print(string.format("PASS: %d OmniWM URL source cases", #cases))
+print(string.format(
+  "PASS: %d OmniWM URL source cases and %d Safari window cases",
+  #cases,
+  #safariCases
+))

@@ -2,6 +2,13 @@ local M = {}
 local ghosttyBundleID = "com.mitchellh.ghostty"
 local hammerspoonBundleID = "org.hammerspoon.Hammerspoon"
 
+function M.isSafariBrowserWindow(window)
+  return window.app
+    and window.app.bundleId == "com.apple.Safari"
+    and type(window.title) == "string"
+    and window.title ~= ""
+end
+
 function M.shouldRouteGhostty(senderBundle, activeWorkspace, windows)
   if senderBundle == ghosttyBundleID then
     return true
