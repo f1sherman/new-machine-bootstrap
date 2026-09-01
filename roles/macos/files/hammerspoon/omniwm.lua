@@ -604,17 +604,32 @@ local function createDedicatedSafari(windows, callback)
   end, urlSource.isSafariBrowserWindow)
 end
 
-local function openSafariTab(url)
+local function safariNativeWindowID(window)
+  if type(window.id) ~= "string" or window.id:sub(1, 3) ~= "ow_" then
+    return nil
+  end
+  local decodeOK, decoded = pcall(hs.base64.decode, window.id:sub(4))
+  if not decodeOK or type(decoded) ~= "string" then
+    return nil
+  end
+  return tonumber(decoded:match(":(%d+)$"))
+end
+
+local function openSafariTab(window, url)
+  local nativeWindowID = safariNativeWindowID(window)
+  if not nativeWindowID then
+    return nil, "Could not resolve the dedicated Safari window ID"
+  end
   local script = string.format([[
     tell application "Safari"
-      if (count of windows) is 0 then error "Safari has no window"
-      tell front window
+      set targetWindow to first window whose id is %d
+      tell targetWindow
         set newTab to make new tab at end of tabs with properties {URL:%s}
         set current tab to newTab
       end tell
       activate
     end tell
-  ]], appleScriptLiteral(url))
+  ]], nativeWindowID, appleScriptLiteral(url))
   local success, result = hs.osascript.applescript(script)
   if not success then
     return nil, "Could not open the Safari tab: " .. tostring(result)
@@ -635,7 +650,7 @@ local function openURLInDedicatedSafari(safariWindow, url)
         openNormallyInSafari(url)
         return
       end
-      local _, tabError = openSafariTab(url)
+      local _, tabError = openSafariTab(safariWindow, url)
       if tabError then
         M.notify(tabError)
         openNormallyInSafari(url)
