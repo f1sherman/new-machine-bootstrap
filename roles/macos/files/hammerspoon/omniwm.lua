@@ -1,5 +1,6 @@
 local M = {}
 local cheatsheetPanel = require("omniwm_cheatsheet").new()
+local downloads = require("omniwm_downloads").new()
 local urlSource = require("omniwm_url_source")
 local omniwmctl = os.getenv("HOME") .. "/.local/bin/omniwmctl"
 local logger = hs.logger.new("omniwm", "info")
@@ -303,36 +304,29 @@ local function showScratchpadIfHidden(id)
 end
 
 local function assignFinderScratchpad(window)
-  focusSummonedWindow(window.id, function(_, focusError)
-    if focusError then
-      M.notify(focusError)
-      return
-    end
-    queryWindows({"--scratchpad"}, function(scratchpad, scratchpadError)
-      if scratchpadError then
-        M.notify(scratchpadError)
-        return
-      end
-      if #scratchpad == 1 and scratchpad[1].id == window.id then
-        showScratchpadIfHidden(window.id)
-        return
-      end
-      if #scratchpad ~= 0 then
-        M.notify("A different window owns the OmniWM scratchpad")
-        return
-      end
-      M.run({"command", "scratchpad", "assign"}, function(_, assignError)
-        if assignError then
-          M.notify(assignError)
-          return
-        end
-        showScratchpadIfHidden(window.id)
+  downloads.assignNewScratchpad(window, {
+    notify = M.notify,
+    queryScratchpad = function(callback)
+      queryWindows({"--scratchpad"}, callback)
+    end,
+    queryTarget = function(id, callback)
+      queryWindows({"--window", id}, function(windows, queryError)
+        callback(windows and findWindowByID(windows, id), queryError)
       end)
-    end)
-  end)
+    end,
+    assign = function(callback)
+      M.run({"command", "scratchpad", "assign"}, callback)
+    end,
+    show = showScratchpadIfHidden,
+    done = downloads.finishCreation,
+  })
 end
 
 local function createDownloadsFinder(previousIDs)
+  if not downloads.beginCreation(M.notify) then
+    return
+  end
+
   local script = [[
     set downloadsFolder to POSIX file ((system attribute "HOME") & "/Downloads")
     tell application "Finder"
@@ -343,15 +337,24 @@ local function createDownloadsFinder(previousIDs)
   ]]
   local success, result = hs.osascript.applescript(script)
   if not success then
+    downloads.finishCreation()
     M.notify("Could not create the Downloads Finder window: " .. tostring(result))
     return
   end
   pollNewWindow("com.apple.finder", previousIDs, function(window, pollError)
     if pollError then
+      downloads.finishCreation()
       M.notify(pollError)
       return
     end
-    assignFinderScratchpad(window)
+    pollWindow(window.id, downloads.isFocused, function(focusedWindow, focusError)
+      if focusError then
+        downloads.finishCreation()
+        M.notify(focusError)
+        return
+      end
+      assignFinderScratchpad(focusedWindow)
+    end)
   end)
 end
 
