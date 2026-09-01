@@ -294,6 +294,12 @@
     dest: "{{ ansible_facts['user_dir'] }}/.hammerspoon/omniwm_url_source.lua"
     mode: '0644'
 
+- name: Install OmniWM Downloads helper
+  copy:
+    src: hammerspoon/omniwm_downloads.lua
+    dest: "{{ ansible_facts['user_dir'] }}/.hammerspoon/omniwm_downloads.lua"
+    mode: '0644'
+
 - name: Install OmniWM Hammerspoon helpers
   copy:
     src: hammerspoon/omniwm.lua
