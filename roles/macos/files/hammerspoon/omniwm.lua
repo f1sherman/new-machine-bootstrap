@@ -428,8 +428,9 @@ local function moveWindowToWorkspace(window, destination)
   end)
 end
 
-local function summonWindow(window, callback)
-  if window.isVisible == true then
+local function summonWindow(window, callback, activeWorkspace)
+  if window.isVisible == true
+    or (activeWorkspace and workspaceNumber(window) == activeWorkspace.number) then
     callback(window, nil)
     return
   end
@@ -637,7 +638,7 @@ local function openSafariTab(window, url)
   return true, nil
 end
 
-local function openURLInDedicatedSafari(safariWindow, url)
+local function openURLInDedicatedSafari(safariWindow, activeWorkspace, url)
   summonWindow(safariWindow, function(_, summonError)
     if summonError then
       M.notify(summonError)
@@ -656,11 +657,11 @@ local function openURLInDedicatedSafari(safariWindow, url)
         openNormallyInSafari(url)
       end
     end)
-  end)
+  end, activeWorkspace)
 end
 
 local function routeGhosttyURL(url)
-  M.activeWorkspace(function(_, workspaceError)
+  M.activeWorkspace(function(activeWorkspace, workspaceError)
     if workspaceError then
       M.notify(workspaceError)
       openNormallyInSafari(url)
@@ -677,7 +678,7 @@ local function routeGhosttyURL(url)
         M.notify(resolveError)
         openNormallyInSafari(url)
       elseif safariWindow then
-        openURLInDedicatedSafari(safariWindow, url)
+        openURLInDedicatedSafari(safariWindow, activeWorkspace, url)
       else
         createDedicatedSafari(windows, function(createdWindow, createError)
           if createError then
@@ -685,7 +686,7 @@ local function routeGhosttyURL(url)
             openNormallyInSafari(url)
             return
           end
-          openURLInDedicatedSafari(createdWindow, url)
+          openURLInDedicatedSafari(createdWindow, activeWorkspace, url)
         end)
       end
     end)
