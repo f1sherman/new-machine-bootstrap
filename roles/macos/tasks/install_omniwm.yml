@@ -323,6 +323,12 @@
     dest: "{{ ansible_facts['user_dir'] }}/.hammerspoon/omniwm_cheatsheet.lua"
     mode: '0644'
 
+- name: Install OmniWM URL source classifier
+  copy:
+    src: hammerspoon/omniwm_url_source.lua
+    dest: "{{ ansible_facts['user_dir'] }}/.hammerspoon/omniwm_url_source.lua"
+    mode: '0644'
+
 - name: Install OmniWM Hammerspoon helpers
   copy:
     src: hammerspoon/omniwm.lua
