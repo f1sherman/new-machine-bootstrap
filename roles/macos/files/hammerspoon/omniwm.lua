@@ -638,7 +638,24 @@ local function openSafariTab(window, url)
   return true, nil
 end
 
+local function openURLInExactSafariWindow(safariWindow, url, focusAfterOpen)
+  local _, tabError = openSafariTab(safariWindow, url)
+  if tabError then
+    M.notify(tabError)
+    openNormallyInSafari(url)
+    return
+  end
+  if focusAfterOpen then
+    M.run({"window", "focus", safariWindow.id}, M.reportResult)
+  end
+end
+
 local function openURLInDedicatedSafari(safariWindow, activeWorkspace, url)
+  if workspaceNumber(safariWindow) == activeWorkspace.number then
+    openURLInExactSafariWindow(safariWindow, url, true)
+    return
+  end
+
   summonWindow(safariWindow, function(_, summonError)
     if summonError then
       M.notify(summonError)
@@ -651,11 +668,7 @@ local function openURLInDedicatedSafari(safariWindow, activeWorkspace, url)
         openNormallyInSafari(url)
         return
       end
-      local _, tabError = openSafariTab(safariWindow, url)
-      if tabError then
-        M.notify(tabError)
-        openNormallyInSafari(url)
-      end
+      openURLInExactSafariWindow(safariWindow, url, false)
     end)
   end, activeWorkspace)
 end
