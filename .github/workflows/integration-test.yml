@@ -30,6 +30,9 @@ jobs:
       - name: Verify OmniWM cheat sheet panel
         run: lua5.4 tests/omniwm-cheatsheet-panel.lua
 
+      - name: Verify OmniWM URL routing
+        run: lua5.4 tests/omniwm-url-source.lua
+
       - name: Verify commit wrapper ignored docs protection
         run: bash tests/commit-force-add-superpowers.sh
 
