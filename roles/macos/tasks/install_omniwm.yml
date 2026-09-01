@@ -199,20 +199,6 @@
   check_mode: false
   when: omniwm_settings_before_launch.stat.exists
 
-- name: Stop loaded OmniWM job before prelaunch reconciliation
-  command: >-
-    launchctl bootout
-    gui/{{ ansible_facts['user_uid'] }}/com.user.omniwm
-  register: omniwm_prelaunch_launch_agent_stop
-  when:
-    - not ansible_check_mode
-    - omniwm_launch_agent_job.rc == 0
-    - not omniwm_launch_agent_plist.changed
-    - not (omniwm_app_updated | default(false))
-    - >-
-      (omniwm_prelaunch_settings_check.stdout | default('unchanged') | trim) ==
-      'changed'
-
 - name: Reconcile OmniWM settings before launch
   script:
     cmd: >-
@@ -239,8 +225,7 @@
     - >-
       omniwm_launch_agent_plist.changed or
       (omniwm_app_updated | default(false)) or
-      omniwm_launch_agent_job.rc != 0 or
-      (omniwm_prelaunch_launch_agent_stop is changed)
+      omniwm_launch_agent_job.rc != 0
 
 - name: Wait for OmniWM settings file
   wait_for:
@@ -277,26 +262,6 @@
   changed_when: omniwm_settings_result.stdout | trim == 'changed'
   check_mode: false
   when: omniwm_settings_file.stat.exists
-
-- name: Stop loaded OmniWM job after configuration update
-  command: >-
-    launchctl bootout
-    gui/{{ ansible_facts['user_uid'] }}/com.user.omniwm
-  when:
-    - not ansible_check_mode
-    - >-
-      (omniwm_ipc_result is changed) or
-      (omniwm_settings_result is changed)
-
-- name: Reload OmniWM job after configuration update
-  command: >-
-    launchctl bootstrap gui/{{ ansible_facts['user_uid'] }}
-    {{ ansible_facts['user_dir'] }}/Library/LaunchAgents/com.user.omniwm.plist
-  when:
-    - not ansible_check_mode
-    - >-
-      (omniwm_ipc_result is changed) or
-      (omniwm_settings_result is changed)
 
 - name: Ensure OmniWM local data directory exists
   file:
