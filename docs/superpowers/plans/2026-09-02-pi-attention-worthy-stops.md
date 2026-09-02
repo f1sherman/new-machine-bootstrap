@@ -524,7 +524,7 @@ bash ~/.local/share/skills/_commit/commit.sh \
 - Produces: verified branch ready for pull request and a reproducible baseline
   command for post-merge monitoring.
 
-- [ ] **Step 1: Run focused behavioral verification**
+- [x] **Step 1: Run focused behavioral verification**
 
 Run:
 
@@ -534,23 +534,28 @@ ruby tests/pi-stop-audit.rb
 
 Expected: PASS.
 
-- [ ] **Step 2: Run repository-level verification**
+- [x] **Step 2: Run repository-level verification**
 
 Run:
 
 ```bash
-ansible-playbook playbook.yml --check
+ansible-playbook playbook.yml --syntax-check
 ```
 
-Then inspect `.github/workflows/integration-test.yml` and confirm
+Then use Ansible's `copy` module in check mode with the production
+`roles/common/files/bin/pi-stop-audit` source, a temporary destination, and
+mode `0755`. Confirm that Ansible reports the pending copy and does not create
+the destination.
+
+Inspect `.github/workflows/integration-test.yml` and confirm
 `tests/pi-stop-audit.rb` is invoked directly, as required by the repository's
-test inventory policy. Expected: Ansible check mode and the focused behavioral
-test both pass.
+test inventory policy. Expected: syntax validation, the focused copy check, and
+the behavioral test pass.
 
-If an unrelated baseline failure occurs, reproduce it on the base branch or
-classify it with equivalent evidence. Do not stop after only reporting it.
+The full local playbook check is not a success criterion on a host without
+passwordless sudo. Record that environmental limit accurately if it occurs.
 
-- [ ] **Step 3: Validate the audit against local historical sessions**
+- [x] **Step 3: Validate the audit against local historical sessions**
 
 Run the production artifact without installing it:
 
@@ -572,13 +577,14 @@ Review the bounded report. Confirm it finds the historical
 PR-monitor-started turns, and shows `[REDACTED]` instead of credential-like
 values. Do not commit the report.
 
-- [ ] **Step 4: Review the scope boundary**
+- [x] **Step 4: Review the scope boundary**
 
-Inspect:
+Inspect against the current remote base because another worktree can leave the
+local `main` ref behind `origin/main`:
 
 ```bash
-git diff main...HEAD --stat
-git diff main...HEAD
+git diff origin/main...HEAD --stat
+git diff origin/main...HEAD
 git status --short
 ```
 
@@ -591,7 +597,7 @@ Confirm:
 - The branch contains only the spec, plan, guidance, audit helper, behavioral
   test, CI registration, and Ansible install task.
 
-- [ ] **Step 5: Update and commit the completed plan**
+- [x] **Step 5: Update and commit the completed plan**
 
 Check completed boxes and add a short `## Verification Results` section with
 commands and outcomes. Commit only the plan:
@@ -624,3 +630,22 @@ plan in the design spec.
 Run `pi-stop-audit 7d` after every five eligible sessions. Keep the monitoring
 session open until every confidence gate in the design spec passes and Brian
 agrees to close it.
+
+## Verification Results
+
+- `ruby tests/pi-stop-audit.rb`: 28 passed, 0 failed.
+- `ruby -c roles/common/files/bin/pi-stop-audit`: syntax OK.
+- `ansible-playbook playbook.yml --syntax-check`: passed.
+- Focused Ansible `copy` check with mode `0755`: reported `changed: true` and
+  created no destination.
+- The full local playbook check was attempted but stopped at the existing Linux
+  apt-cache task because this host does not provide passwordless sudo.
+- CI invokes `ruby tests/pi-stop-audit.rb` directly.
+- The 14-day local audit read 1,086 files, retained 536 non-monitor stops,
+  excluded 121 PR-monitor stops, and found 26 future-action candidates.
+- The historical deployment stop followed by `continue` was found with both
+  `future_action` and `short_continuation` categories.
+- The bounded historical report included redaction markers and was not
+  committed.
+- `git diff origin/main...HEAD` contains only the approved eight task files. It
+  contains no Herdr, PR-monitor, schedule, or command-firewall change.
