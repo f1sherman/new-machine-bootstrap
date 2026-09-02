@@ -480,15 +480,28 @@ Add this task near the other Pi session helpers in
 
 Do not add a schedule, upload destination, state directory, or network access.
 
-- [x] **Step 3: Validate Ansible check mode**
+- [x] **Step 3: Validate Ansible syntax and the focused copy action**
 
-Run the repository-documented validation command:
+Run:
 
 ```bash
-ansible-playbook playbook.yml --check
+ansible-playbook playbook.yml --syntax-check
+check_dest="$PWD/.superpowers/sdd/2026-09-02-pi-attention-worthy-stops/"\
+"pi-stop-audit-check"
+ansible localhost \
+  --inventory localhost, \
+  --connection local \
+  --module-name ansible.builtin.copy \
+  --args "src=roles/common/files/bin/pi-stop-audit \
+dest=$check_dest mode=0755" \
+  --check \
+  --diff
+test ! -e "$check_dest"
 ```
 
-Expected: the playbook check exits 0 without changing the host.
+Expected: syntax validation exits 0. The focused copy action reports `changed`
+and confirms that the production source is readable. Check mode does not create
+the temporary destination.
 
 - [x] **Step 4: Commit the provisioning task**
 
