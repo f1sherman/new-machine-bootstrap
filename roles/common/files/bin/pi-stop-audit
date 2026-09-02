@@ -106,8 +106,12 @@ def load_nodes(paths)
         malformed_lines += 1
         next
       end
-      next unless row["type"] == "message"
-      unless row["id"].is_a?(String) && row["message"].is_a?(Hash)
+      next unless row.key?("id")
+      unless row["id"].is_a?(String)
+        malformed_lines += 1
+        next
+      end
+      if row["type"] == "message" && !row["message"].is_a?(Hash)
         malformed_lines += 1
         next
       end
@@ -145,9 +149,24 @@ def nearest_user_ancestor(row, nodes)
 end
 
 def direct_user_children(row, children)
-  children.fetch(row["id"], []).select do |child|
-    child.dig("message", "role") == "user"
+  queue = children.fetch(row["id"], []).dup
+  visited = Set.new
+  users = []
+
+  500.times do
+    child = queue.shift
+    break unless child
+    next unless child["id"].is_a?(String) && visited.add?(child["id"])
+
+    if child["type"] == "message"
+      users << child if child.dig("message", "role") == "user"
+      next
+    end
+
+    queue.concat(children.fetch(child["id"], []))
   end
+
+  users
 end
 
 def categories_for(stop, direct_users, nearest_user)
@@ -168,7 +187,7 @@ def redact_excerpt(text, max_length = MAX_EXCERPT)
   redacted.gsub!(/\bBearer\s+\S+/i, "Bearer [REDACTED]")
   redacted.gsub!(%r{\b([a-z][a-z0-9+.-]*://)[^/\s@]+@}i, '\\1[REDACTED]@')
   redacted.gsub!(
-    /(["']?[A-Za-z0-9_.-]*(?:token|password|secret|api[_-]?key|authorization|credential)[A-Za-z0-9_.-]*["']?\s*(?:=>|[:=])\s*)(?:"[^"]*"|'[^']*'|[^\r\n]*)/i,
+    /(["']?[A-Za-z0-9_.-]*(?:token|password|secret|api[_-]?key|authorization|credential)[A-Za-z0-9_.-]*["']?\s*(?:=>|[:=])\s*)[^\r\n]*/i,
     '\\1[REDACTED]'
   )
   redacted.gsub!(/\b[A-Za-z0-9_-]{32,}\b/, "[REDACTED]")

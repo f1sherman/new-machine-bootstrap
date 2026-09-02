@@ -39,6 +39,15 @@ message = lambda do |id:, parent:, timestamp:, role:, text:, stop: false|
   row
 end
 
+graph_node = lambda do |type:, id:, parent:, timestamp:|
+  {
+    "type" => type,
+    "id" => id,
+    "parentId" => parent,
+    "timestamp" => timestamp
+  }
+end
+
 Dir.mktmpdir("pi-stop-audit") do |tmpdir|
   root = File.join(tmpdir, "sessions")
   first_dir = File.join(root, "repo-alpha", "session-one")
@@ -63,19 +72,24 @@ Dir.mktmpdir("pi-stop-audit") do |tmpdir|
   stop = message.call(
     id: "a1", parent: "u1", timestamp: recent_time, role: "assistant",
     text: "Proceeding with deployment now. " \
+      "password=\"abc\\\"LEAK-SUFFIX\" after; " \
       "credential: correct horse, battery staple; " \
       "token: super-secret-value; access_token=second-secret-value",
     stop: true
   )
+  following_info = graph_node.call(
+    type: "session_info", id: "info-following", parent: "a1",
+    timestamp: recent_time
+  )
   continuation = message.call(
-    id: "u2", parent: "a1", timestamp: recent_time, role: "user",
+    id: "u2", parent: "info-following", timestamp: recent_time, role: "user",
     text: "continue"
   )
 
   first_file = File.join(first_dir, "branch.jsonl")
   File.write(
     first_file,
-    [human, stop, continuation].map { |row| JSON.generate(row) }.join("\n") + "\n"
+    [human, stop, following_info, continuation].map { |row| JSON.generate(row) }.join("\n") + "\n"
   )
 
   approval_request = message.call(
@@ -89,6 +103,10 @@ Dir.mktmpdir("pi-stop-audit") do |tmpdir|
   monitor = message.call(
     id: "u7", parent: nil, timestamp: recent_time, role: "user",
     text: "Pi extension-generated PR monitor status event"
+  )
+  monitor_info = graph_node.call(
+    type: "session_info", id: "info-monitor", parent: "u7",
+    timestamp: recent_time
   )
 
   second_rows = [
@@ -108,9 +126,10 @@ Dir.mktmpdir("pi-stop-audit") do |tmpdir|
       text: "The repository status is unchanged.", stop: true
     ),
     monitor,
+    monitor_info,
     message.call(
-      id: "a4", parent: "u7", timestamp: recent_time, role: "assistant",
-      text: "Proceeding with routine PR work.", stop: true
+      id: "a4", parent: "info-monitor", timestamp: recent_time,
+      role: "assistant", text: "Proceeding with routine PR work.", stop: true
     ),
     message.call(
       id: "u9", parent: nil, timestamp: old_time, role: "user",
@@ -157,7 +176,7 @@ Dir.mktmpdir("pi-stop-audit") do |tmpdir|
   )
   assert.call(
     report.dig("counts", "short_continuation") == 1,
-    "finds continue response",
+    "finds continue response through non-message row",
     report.inspect
   )
   assert.call(
@@ -170,7 +189,11 @@ Dir.mktmpdir("pi-stop-audit") do |tmpdir|
     "finds compaction-adjacent stop",
     report.inspect
   )
-  assert.call(report["excluded_pr_monitor"] == 1, "counts monitor exclusion", report.inspect)
+  assert.call(
+    report["excluded_pr_monitor"] == 1,
+    "excludes monitor stop through non-message row",
+    report.inspect
+  )
   assert.call(report["files"] == 2, "excludes files older than the window", report.inspect)
   assert.call(
     report["malformed_lines"] == 2,
@@ -179,6 +202,11 @@ Dir.mktmpdir("pi-stop-audit") do |tmpdir|
   )
   assert.call(!stdout.include?("super-secret-value"), "redacts credential-like excerpts", stdout)
   assert.call(!stdout.include?("second-secret-value"), "redacts keys containing token", stdout)
+  assert.call(
+    !stdout.include?("LEAK-SUFFIX"),
+    "redacts quoted assigned secrets containing escaped quotes",
+    stdout
+  )
   assert.call(
     !stdout.include?("correct horse") && !stdout.include?("battery staple"),
     "redacts unquoted multiword assigned secrets containing commas",

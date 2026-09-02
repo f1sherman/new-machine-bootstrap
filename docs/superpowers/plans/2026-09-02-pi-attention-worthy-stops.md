@@ -645,9 +645,9 @@ agrees to close it.
   Linux apt-cache task with `sudo: a password is required`. This reproduced
   unrelated baseline environment failure occurred before the changed task.
 - CI invokes `ruby tests/pi-stop-audit.rb` directly.
-- The 14-day local audit read 118 files modified in the window, retained 537
-  non-monitor stops, excluded 121 PR-monitor stops, and found 26 future-action
-  candidates.
+- The follow-up 14-day local audit read 120 files modified in the window,
+  retained 528 non-monitor stops, excluded 131 PR-monitor stops, and found 27
+  future-action candidates after preserving non-message graph rows.
 - The historical deployment stop followed by `continue` was found with both
   `future_action` and `short_continuation` categories.
 - The bounded historical report included redaction markers and was not
