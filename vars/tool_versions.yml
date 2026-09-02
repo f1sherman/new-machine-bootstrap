@@ -28,7 +28,7 @@ tool_versions:
 
   runtimes:
     # renovate: datasource=github-releases depName=jdx/mise
-    mise: v2026.8.12
+    mise: v2026.8.14
     aube: 1.19.0
     # renovate: datasource=github-releases depName=open-gsd/gsd-browser
     gsd_browser: 0.2.1
