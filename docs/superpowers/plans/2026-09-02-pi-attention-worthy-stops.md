@@ -437,7 +437,7 @@ ruby tests/pi-stop-audit.rb
 
 Expected: PASS from the production helper.
 
-- [ ] **Step 9: Commit the audit helper**
+- [x] **Step 9: Commit the audit helper**
 
 Run:
 
