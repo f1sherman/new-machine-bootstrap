@@ -111,6 +111,9 @@ jobs:
       - name: Verify Pi session staleness publisher
         run: ruby tests/pi-session-staleness-publish.rb
 
+      - name: Verify Pi stop audit behavior
+        run: ruby tests/pi-stop-audit.rb
+
       - name: Verify Pi session staleness provisioning
         run: bash tests/pi-session-staleness-provisioning.sh
 

@@ -1,0 +1,276 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "optparse"
+require "set"
+require "time"
+
+DEFAULT_ROOT = File.expand_path("~/.pi/agent/sessions")
+DEFAULT_LIMIT = 25
+MAX_EXCERPT = 180
+USAGE = <<~TEXT.freeze
+  Usage: pi-stop-audit [WINDOW] [--root DIR] [--session TEXT]
+                       [--repository TEXT] [--limit N] [--json]
+TEXT
+
+FUTURE_ACTION = /\b(?:I(?:'ll| will| am|'m)\s+(?:check|inspect|run|deploy|verify|proceed|continue)|next\s+I(?:'ll| will)|proceeding)\b/i
+SHORT_CONTINUATION = /\A(?:continue|proceed|go ahead|do it|move forward|resume)\W*\z/i
+SHORT_APPROVAL = /\A(?:approved?|yes|y|ok(?:ay)?|[abc])\W*\z/i
+COMPACTION_MARKER = /(?:compaction completed|compaction|summary injection|weighted tokens left)/i
+CATEGORY_NAMES = %w[
+  future_action
+  short_continuation
+  process_approval
+  compaction_adjacent
+].freeze
+
+class UsageError < StandardError; end
+
+def parse_args(argv)
+  options = {
+    window: "24h",
+    root: DEFAULT_ROOT,
+    session_filter: nil,
+    repository_filter: nil,
+    limit: DEFAULT_LIMIT,
+    json: false
+  }
+
+  parser = OptionParser.new do |opts|
+    opts.banner = USAGE.rstrip
+    opts.on("--root DIR") { |value| options[:root] = File.expand_path(value) }
+    opts.on("--session TEXT") { |value| options[:session_filter] = value }
+    opts.on("--repository TEXT") { |value| options[:repository_filter] = value }
+    opts.on("--limit N", Integer) { |value| options[:limit] = value }
+    opts.on("--json") { options[:json] = true }
+  end
+
+  positional = parser.parse(argv)
+  raise UsageError, "Too many positional arguments" if positional.length > 1
+
+  options[:window] = positional.first if positional.first
+  cutoff_for(options[:window])
+  raise UsageError, "Limit must be positive" unless options[:limit].positive?
+  raise UsageError, "Session filter must not be empty" if options[:session_filter] == ""
+  raise UsageError, "Repository filter must not be empty" if options[:repository_filter] == ""
+
+  options
+rescue OptionParser::ParseError => e
+  raise UsageError, e.message
+end
+
+def cutoff_for(window, now = Time.now)
+  match = /\A([1-9]\d*)([hd])\z/.match(window.to_s)
+  raise UsageError, "Window must be a positive number of hours or days" unless match
+
+  multiplier = match[2] == "h" ? 3600 : 86_400
+  now - (Integer(match[1], 10) * multiplier)
+end
+
+def candidate_files(options, _cutoff)
+  root = options[:root]
+  raise UsageError, "Session root is not a directory: #{root}" unless File.directory?(root)
+
+  session_filter = options[:session_filter]&.downcase
+  repository_filter = options[:repository_filter]&.downcase
+
+  Dir.glob(File.join(root, "**", "*.jsonl")).select do |path|
+    normalized = path.tr("\\", "/")
+    lower_path = normalized.downcase
+    File.file?(path) &&
+      !normalized.include?("/subagent-artifacts/") &&
+      !normalized.include?("/run-") &&
+      (!session_filter || lower_path.include?(session_filter)) &&
+      (!repository_filter || lower_path.include?(repository_filter))
+  end.sort
+end
+
+def load_nodes(paths)
+  nodes = {}
+  source_paths = Hash.new { |hash, key| hash[key] = Set.new }
+  malformed_lines = 0
+
+  paths.each do |path|
+    File.foreach(path) do |line|
+      begin
+        row = JSON.parse(line)
+      rescue JSON::ParserError
+        malformed_lines += 1
+        next
+      end
+      next unless row.is_a?(Hash) && row["type"] == "message" && row["id"].is_a?(String)
+
+      nodes[row["id"]] ||= row
+      source_paths[row["id"]] << path
+    end
+  rescue SystemCallError
+    malformed_lines += 1
+  end
+
+  [nodes, source_paths, malformed_lines]
+end
+
+def message_text(row)
+  Array(row.dig("message", "content")).filter_map do |item|
+    item["text"] if item.is_a?(Hash) && item["type"] == "text" && item["text"].is_a?(String)
+  end.join(" ").gsub(/\s+/, " ").strip
+end
+
+def nearest_user_ancestor(row, nodes)
+  cursor = row
+  visited = Set.new
+
+  500.times do
+    parent_id = cursor["parentId"]
+    return nil unless parent_id.is_a?(String) && visited.add?(parent_id)
+
+    cursor = nodes[parent_id]
+    return nil unless cursor
+    return cursor if cursor.dig("message", "role") == "user"
+  end
+
+  nil
+end
+
+def direct_user_children(row, children)
+  children.fetch(row["id"], []).select do |child|
+    child.dig("message", "role") == "user"
+  end
+end
+
+def categories_for(stop, direct_users, nearest_user)
+  categories = []
+  categories << "future_action" if message_text(stop).match?(FUTURE_ACTION)
+  following_text = direct_users.map { |row| message_text(row) }
+  categories << "short_continuation" if following_text.any? { |text| text.match?(SHORT_CONTINUATION) }
+  categories << "process_approval" if following_text.any? { |text| text.match?(SHORT_APPROVAL) }
+  categories << "compaction_adjacent" if nearest_user && message_text(nearest_user).match?(COMPACTION_MARKER)
+  categories.sort
+end
+
+def redact_excerpt(text, max_length = MAX_EXCERPT)
+  redacted = text.to_s.gsub(
+    /-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----/mi,
+    "[REDACTED]"
+  )
+  redacted.gsub!(/\bBearer\s+\S+/i, "Bearer [REDACTED]")
+  redacted.gsub!(%r{\b([a-z][a-z0-9+.-]*://)[^/\s@]+@}i, '\\1[REDACTED]@')
+  redacted.gsub!(
+    /(["']?[A-Za-z0-9_.-]*(?:token|password|secret|api[_-]?key|authorization|credential)[A-Za-z0-9_.-]*["']?\s*(?:=>|[:=])\s*)(?:"[^"]*"|'[^']*'|[^\s,}\]]+)/i,
+    '\\1[REDACTED]'
+  )
+  redacted.gsub!(/\b[A-Za-z0-9_-]{32,}\b/, "[REDACTED]")
+  normalized = redacted.gsub(/\s+/, " ").strip
+  return normalized if normalized.length <= max_length
+
+  "#{normalized[0, max_length - 1]}…"
+end
+
+def parsed_time(row)
+  Time.iso8601(row["timestamp"].to_s)
+rescue ArgumentError
+  nil
+end
+
+def following_excerpt(direct_users)
+  preferred = direct_users.find do |row|
+    text = message_text(row)
+    text.match?(SHORT_CONTINUATION) || text.match?(SHORT_APPROVAL)
+  end
+  redact_excerpt(message_text(preferred || direct_users.first || {}))
+end
+
+def build_report(options)
+  cutoff = cutoff_for(options[:window])
+  paths = candidate_files(options, cutoff)
+  nodes, source_paths, malformed_lines = load_nodes(paths)
+  children = Hash.new { |hash, key| hash[key] = [] }
+  nodes.each_value do |row|
+    children[row["parentId"]] << row if row["parentId"].is_a?(String)
+  end
+
+  retained_stops = []
+  excluded_pr_monitor = 0
+  candidates = []
+
+  nodes.each_value do |row|
+    next unless row.dig("message", "role") == "assistant"
+    next unless row.dig("message", "stopReason") == "stop"
+
+    timestamp = parsed_time(row)
+    next unless timestamp && timestamp >= cutoff
+
+    nearest_user = nearest_user_ancestor(row, nodes)
+    if nearest_user && message_text(nearest_user).match?(/Pi extension-generated PR monitor/i)
+      excluded_pr_monitor += 1
+      next
+    end
+
+    retained_stops << row
+    direct_users = direct_user_children(row, children)
+    categories = categories_for(row, direct_users, nearest_user)
+    next if categories.empty?
+
+    candidates << {
+      "id" => row["id"],
+      "timestamp" => row["timestamp"],
+      "session_path" => source_paths[row["id"]].to_a.sort.first.to_s,
+      "categories" => categories,
+      "stop_excerpt" => redact_excerpt(message_text(row)),
+      "following_excerpt" => following_excerpt(direct_users)
+    }
+  end
+
+  candidates.sort_by! { |candidate| [candidate["timestamp"].to_s, candidate["id"]] }
+  counts = CATEGORY_NAMES.to_h do |category|
+    [category, candidates.count { |candidate| candidate["categories"].include?(category) }]
+  end
+
+  {
+    "window" => options[:window],
+    "files" => paths.length,
+    "unique_stops" => retained_stops.length,
+    "excluded_pr_monitor" => excluded_pr_monitor,
+    "malformed_lines" => malformed_lines,
+    "counts" => counts,
+    "candidates" => candidates.first(options[:limit])
+  }
+end
+
+def print_text_report(report)
+  puts "Pi stop audit (#{report.fetch("window")})"
+  puts "Files: #{report.fetch("files")}"
+  puts "Unique stops: #{report.fetch("unique_stops")}"
+  puts "Excluded PR monitor: #{report.fetch("excluded_pr_monitor")}"
+  puts "Malformed lines: #{report.fetch("malformed_lines")}"
+  puts "Future action: #{report.dig("counts", "future_action")}"
+  puts "Short continuation: #{report.dig("counts", "short_continuation")}"
+  puts "Process approval: #{report.dig("counts", "process_approval")}"
+  puts "Compaction adjacent: #{report.dig("counts", "compaction_adjacent")}"
+  puts
+  puts "Candidates require human review."
+  puts "Candidates:"
+
+  report.fetch("candidates").each_with_index do |candidate, index|
+    puts "#{index + 1}. #{candidate.fetch("timestamp")} #{candidate.fetch("session_path")}"
+    puts "   Categories: #{candidate.fetch("categories").join(", ")}"
+    puts "   Stop: #{candidate.fetch("stop_excerpt")}"
+    following = candidate.fetch("following_excerpt")
+    puts "   Following: #{following}" unless following.empty?
+  end
+end
+
+begin
+  options = parse_args(ARGV)
+  report = build_report(options)
+  if options[:json]
+    puts JSON.pretty_generate(report)
+  else
+    print_text_report(report)
+  end
+rescue UsageError => e
+  warn e.message
+  warn USAGE
+  exit 1
+end

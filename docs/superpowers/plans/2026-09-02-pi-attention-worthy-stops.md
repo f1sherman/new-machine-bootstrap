@@ -192,7 +192,7 @@ bash ~/.local/share/skills/_commit/commit.sh \
 - Produces candidate fields: `id`, `timestamp`, `session_path`, `categories`,
   `stop_excerpt`, and `following_excerpt`.
 
-- [ ] **Step 1: Write a failing production-artifact test**
+- [x] **Step 1: Write a failing production-artifact test**
 
 Create `tests/pi-stop-audit.rb` using the repository's direct Ruby test style:
 `Dir.mktmpdir`, `Open3.capture3`, a local assertion lambda, and final nonzero
@@ -266,7 +266,7 @@ Also assert:
 - Invalid windows and missing roots fail with concise usage errors.
 - No network command is invoked; run with a minimal fixture `HOME` and `PATH`.
 
-- [ ] **Step 2: Run the new test and confirm failure**
+- [x] **Step 2: Run the new test and confirm failure**
 
 Run:
 
@@ -277,7 +277,7 @@ ruby tests/pi-stop-audit.rb
 Expected: FAIL because
 `roles/common/files/bin/pi-stop-audit` does not exist or is not executable.
 
-- [ ] **Step 3: Implement argument parsing and bounded input selection**
+- [x] **Step 3: Implement argument parsing and bounded input selection**
 
 Create executable `roles/common/files/bin/pi-stop-audit` with Ruby standard
 library only. Define these interfaces:
@@ -305,7 +305,7 @@ Use `OptionParser`. Reject zero windows, zero limits, unknown options, and a roo
 that is not a directory. Do not follow non-JSONL files. Do not execute any
 content from a transcript.
 
-- [ ] **Step 4: Implement graph parsing, deduplication, and exclusions**
+- [x] **Step 4: Implement graph parsing, deduplication, and exclusions**
 
 Define:
 
@@ -337,7 +337,7 @@ that exclusion separately.
 Treat malformed lines as skipped local evidence. Include their aggregate count
 in JSON and text output; do not print their content.
 
-- [ ] **Step 5: Implement advisory categories and privacy redaction**
+- [x] **Step 5: Implement advisory categories and privacy redaction**
 
 Use explicit, conservative regex constants:
 
@@ -379,7 +379,7 @@ A stop can have more than one category. Keep only stops with at least one
 candidate category in `candidates`, but report `unique_stops` for all retained
 non-monitor stops.
 
-- [ ] **Step 6: Implement stable text and JSON reports**
+- [x] **Step 6: Implement stable text and JSON reports**
 
 Sort candidates by timestamp and ID. Calculate category counts before applying
 `--limit`.
@@ -407,7 +407,7 @@ Text output must start with `Pi stop audit (<window>)`, print all aggregate
 fields, then print `Candidates:` and bounded numbered records. State
 `Candidates require human review.` before excerpts.
 
-- [ ] **Step 7: Run the behavioral test and fix only implementation defects**
+- [x] **Step 7: Run the behavioral test and fix only implementation defects**
 
 Run:
 
@@ -419,7 +419,7 @@ ruby tests/pi-stop-audit.rb
 Expected: all assertions pass. Do not loosen redaction or exclusion assertions
 to make the test pass.
 
-- [ ] **Step 8: Add the behavioral test to CI**
+- [x] **Step 8: Add the behavioral test to CI**
 
 Add this step after the existing Pi session tests in
 `.github/workflows/integration-test.yml`:
