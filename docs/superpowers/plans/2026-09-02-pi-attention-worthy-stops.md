@@ -70,13 +70,13 @@ Actions, Pi JSONL session files
 - Produces: a continuation contract applied to every personal-development Pi
   turn, plus default `z-quick-pr` routing for eligible first-party changes.
 
-- [ ] **Step 1: Record the no-test decision**
+- [x] **Step 1: Record the no-test decision**
 
 Do not add an automated test for this task. The changed artifacts are managed
 prose. A source assertion would only restate prompt text and would fail NMB's
 test-quality rules. Verify the assembled production artifact in Step 4.
 
-- [ ] **Step 2: Add the continuation contract to the base guidance**
+- [x] **Step 2: Add the continuation contract to the base guidance**
 
 Append a focused `## Run-to-completion turns` section to
 `roles/common/files/pi/AGENTS.md.d/00-base.md`. Use this exact policy structure:
@@ -118,7 +118,7 @@ Append a focused `## Run-to-completion turns` section to
 Keep the repository's existing rules unchanged. Do not add PR-monitor-specific
 instructions.
 
-- [ ] **Step 3: Make the quick-PR skill discoverable as the default route**
+- [x] **Step 3: Make the quick-PR skill discoverable as the default route**
 
 Change the managed skill description to this meaning:
 
@@ -140,7 +140,7 @@ and pull request, and has no unresolved safety decision.
 Do not weaken the existing hard gates for a written spec, plan, verification,
 or a clean branch.
 
-- [ ] **Step 4: Verify the assembled managed guidance**
+- [x] **Step 4: Verify the assembled managed guidance**
 
 Run:
 
@@ -151,14 +151,17 @@ cp roles/common/files/pi/AGENTS.md.d/00-base.md \
   "$tmp_dir/AGENTS.md.d/00-base.md"
 PI_AGENT_DIR="$tmp_dir" \
   roles/common/files/bin/pi-agent-assemble-agents
-cmp roles/common/files/pi/AGENTS.md.d/00-base.md "$tmp_dir/AGENTS.md"
+cp roles/common/files/pi/AGENTS.md.d/00-base.md "$tmp_dir/expected"
+printf '\n' >> "$tmp_dir/expected"
+cmp "$tmp_dir/expected" "$tmp_dir/AGENTS.md"
 rm -rf "$tmp_dir"
 ```
 
-Expected: `cmp` exits 0. Review the assembled file and confirm it contains no
-PR-monitor policy and does not remove any existing authorization boundary.
+Expected: `cmp` exits 0. The assembler adds one separator newline after each
+fragment. Review the assembled file and confirm it contains no PR-monitor policy
+and does not remove any existing authorization boundary.
 
-- [ ] **Step 5: Commit the guidance change**
+- [x] **Step 5: Commit the guidance change**
 
 Run the managed commit helper with these exact files:
 
