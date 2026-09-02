@@ -611,7 +611,7 @@ bash ~/.local/share/skills/_commit/commit.sh \
   docs/superpowers/plans/2026-09-02-pi-attention-worthy-stops.md
 ```
 
-- [ ] **Step 6: Request independent code review**
+- [x] **Step 6: Request independent code review**
 
 Invoke `requesting-code-review` on `main...HEAD`. Address correctness, privacy,
 or scope findings that are worth fixing. Re-run affected verification after any
@@ -654,3 +654,5 @@ agrees to close it.
   committed.
 - `git diff origin/main...HEAD` contains only the approved eight task files. It
   contains no Herdr, PR-monitor, schedule, or command-firewall change.
+- Independent whole-branch review found no Critical, Important, or Minor
+  findings and marked the branch ready for a pull request.
