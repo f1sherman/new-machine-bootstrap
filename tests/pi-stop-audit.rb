@@ -62,8 +62,9 @@ Dir.mktmpdir("pi-stop-audit") do |tmpdir|
   )
   stop = message.call(
     id: "a1", parent: "u1", timestamp: recent_time, role: "assistant",
-    text: "Proceeding with deployment now. token: super-secret-value " \
-      "access_token=second-secret-value",
+    text: "Proceeding with deployment now. token: super-secret-value; " \
+      "access_token=second-secret-value, " \
+      "credential: correct horse battery staple, deployment queued",
     stop: true
   )
   continuation = message.call(
@@ -123,6 +124,7 @@ Dir.mktmpdir("pi-stop-audit") do |tmpdir|
   second_file = File.join(second_dir, "branch.jsonl")
   File.open(second_file, "w") do |file|
     second_rows.each { |row| file.puts(JSON.generate(row)) }
+    file.puts(JSON.generate("type" => "message", "id" => "broken", "message" => "invalid"))
     file.puts("{malformed")
   end
 
@@ -164,9 +166,14 @@ Dir.mktmpdir("pi-stop-audit") do |tmpdir|
     report.inspect
   )
   assert.call(report["excluded_pr_monitor"] == 1, "counts monitor exclusion", report.inspect)
-  assert.call(report["malformed_lines"] == 1, "counts malformed lines", report.inspect)
+  assert.call(report["malformed_lines"] == 2, "counts malformed lines", report.inspect)
   assert.call(!stdout.include?("super-secret-value"), "redacts credential-like excerpts", stdout)
   assert.call(!stdout.include?("second-secret-value"), "redacts keys containing token", stdout)
+  assert.call(
+    !stdout.include?("correct horse battery staple"),
+    "redacts unquoted multiword assigned secrets",
+    stdout
+  )
   assert.call(stdout.include?("[REDACTED]"), "shows redaction marker", stdout)
   assert.call(!File.exist?(network_marker), "does not invoke network commands")
 
@@ -227,6 +234,45 @@ Dir.mktmpdir("pi-stop-audit") do |tmpdir|
     !status.success? && stderr.include?("Session root is not a directory"),
     "missing root fails concisely",
     stderr
+  )
+
+  sort_root = File.join(tmpdir, "sort-sessions")
+  FileUtils.mkdir_p(sort_root)
+  base_time = Time.now.utc - 3600
+  chronologically_early = base_time.getlocal("+02:00").iso8601
+  chronologically_late = (base_time + 60).iso8601
+  sort_rows = [
+    message.call(
+      id: "sort-u1", parent: nil, timestamp: chronologically_early,
+      role: "user", text: "First request"
+    ),
+    message.call(
+      id: "sort-a1", parent: "sort-u1", timestamp: chronologically_early,
+      role: "assistant", text: "Proceeding with the first action.", stop: true
+    ),
+    message.call(
+      id: "sort-u2", parent: nil, timestamp: chronologically_late,
+      role: "user", text: "Second request"
+    ),
+    message.call(
+      id: "sort-a2", parent: "sort-u2", timestamp: chronologically_late,
+      role: "assistant", text: "Proceeding with the second action.", stop: true
+    )
+  ]
+  File.write(
+    File.join(sort_root, "offsets.jsonl"),
+    sort_rows.map { |row| JSON.generate(row) }.join("\n") + "\n"
+  )
+  sorted_json, stderr, status = run_helper.call(
+    "7d", "--json", "--root", sort_root
+  )
+  sorted_report = status.success? ? JSON.parse(sorted_json) : {}
+  assert.call(status.success?, "offset timestamp audit succeeds", stderr)
+  assert.call(
+    sorted_report.fetch("candidates", []).map { |candidate| candidate["id"] } ==
+      %w[sort-a1 sort-a2],
+    "sorts candidates by chronological instant across offsets",
+    sorted_report.inspect
   )
 end
 

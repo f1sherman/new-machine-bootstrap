@@ -99,7 +99,15 @@ def load_nodes(paths)
         malformed_lines += 1
         next
       end
-      next unless row.is_a?(Hash) && row["type"] == "message" && row["id"].is_a?(String)
+      unless row.is_a?(Hash)
+        malformed_lines += 1
+        next
+      end
+      next unless row["type"] == "message"
+      unless row["id"].is_a?(String) && row["message"].is_a?(Hash)
+        malformed_lines += 1
+        next
+      end
 
       nodes[row["id"]] ||= row
       source_paths[row["id"]] << path
@@ -157,7 +165,7 @@ def redact_excerpt(text, max_length = MAX_EXCERPT)
   redacted.gsub!(/\bBearer\s+\S+/i, "Bearer [REDACTED]")
   redacted.gsub!(%r{\b([a-z][a-z0-9+.-]*://)[^/\s@]+@}i, '\\1[REDACTED]@')
   redacted.gsub!(
-    /(["']?[A-Za-z0-9_.-]*(?:token|password|secret|api[_-]?key|authorization|credential)[A-Za-z0-9_.-]*["']?\s*(?:=>|[:=])\s*)(?:"[^"]*"|'[^']*'|[^\s,}\]]+)/i,
+    /(["']?[A-Za-z0-9_.-]*(?:token|password|secret|api[_-]?key|authorization|credential)[A-Za-z0-9_.-]*["']?\s*(?:=>|[:=])\s*)(?:"[^"]*"|'[^']*'|[^,;}\]]+)/i,
     '\\1[REDACTED]'
   )
   redacted.gsub!(/\b[A-Za-z0-9_-]{32,}\b/, "[REDACTED]")
@@ -222,7 +230,9 @@ def build_report(options)
     }
   end
 
-  candidates.sort_by! { |candidate| [candidate["timestamp"].to_s, candidate["id"]] }
+  candidates.sort_by! do |candidate|
+    [Time.iso8601(candidate["timestamp"]).to_r, candidate["id"]]
+  end
   counts = CATEGORY_NAMES.to_h do |category|
     [category, candidates.count { |candidate| candidate["categories"].include?(category) }]
   end
