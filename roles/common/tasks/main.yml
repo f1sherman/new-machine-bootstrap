@@ -169,6 +169,12 @@
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin/pi-session-staleness-reconcile-new-machine-bootstrap'
     mode: '0755'
 
+- name: Install Pi stop audit helper
+  copy:
+    src: bin/pi-stop-audit
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/pi-stop-audit'
+    mode: '0755'
+
 - name: Remove legacy public worktree helpers
   file:
     path: '{{ ansible_facts["user_dir"] }}/.local/bin/{{ item }}'
