@@ -170,7 +170,7 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       assert_equal "changed\n", out
       assert_includes result, 'name = "10"'
       assert_includes result, 'layoutType = "niri"'
-      assert_includes result, "[workspaceBar]\nenabled = true\nposition = \"belowMenuBar\"\nreserveLayoutSpace = true\nrevealModifier = \"off\""
+      assert_includes result, "[workspaceBar]\nenabled = true\nposition = \"belowMenuBar\"\nreserveLayoutSpace = false\nrevealModifier = \"controlOption\"\nrevealHoldMilliseconds = 200.0"
       directional_bindings = {
         "focus.left" => "Control+Option+Left Arrow",
         "focus.right" => "Control+Option+Right Arrow",
