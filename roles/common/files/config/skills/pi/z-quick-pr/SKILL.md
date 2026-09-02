@@ -1,9 +1,9 @@
 ---
 name: z-quick-pr
 description: >
-  Use when a user wants a feature or change taken from rough idea through
-  design, planning, implementation, verification, and pull request, and asks to
-  skip clarifying questions, approvals, or execution-choice prompts.
+  Default autopilot path for clear first-party code, configuration,
+  documentation, or test changes. Also use when the user asks to skip
+  questions, approvals, or execution-choice prompts.
 ---
 
 # Quick PR
@@ -13,6 +13,10 @@ verification, and pull request without interactive approval loops.
 
 This is the autopilot path. It should proceed directly to pull request when no
 blocking question is required.
+
+Use this skill by default when a first-party implementation request has a clear
+or discoverable target and expected behavior, is reversible through a branch
+and pull request, and has no unresolved safety decision.
 
 <HARD-GATE>
 Do NOT begin implementation until the design spec and implementation plan are complete, self-reviewed, and self-approved.
