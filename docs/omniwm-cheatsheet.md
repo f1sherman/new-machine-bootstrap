@@ -30,11 +30,16 @@ Use workspaces for sustained activities. Use app switching for short interruptio
 | `⌥⇧O` | Show all workspaces and windows in the OmniWM overview |
 | `⌃⌥Space` | Search windows and application menu actions |
 | `⌃⌥M` | Open the active application's menu near the pointer |
+| Hold `⌃⌥` for 200 ms | Temporarily show the workspace bar |
 
 Prefer direct workspace keys when you know the destination. Use the overview
 when you lose track of a window. Use the command palette when you know a name or
 action but not its location. Keep using `⌘Tab` for brief app changes and
 notifications.
+
+The workspace bar stays hidden and does not reserve screen space. Hold `⌃⌥` for
+200 ms when you need the bar. Release the keys to hide it. A quick directional
+shortcut does not show the bar.
 
 ## Move and arrange windows
 
