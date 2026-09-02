@@ -68,7 +68,7 @@ def cutoff_for(window, now = Time.now)
   now - (Integer(match[1], 10) * multiplier)
 end
 
-def candidate_files(options, _cutoff)
+def candidate_files(options, cutoff)
   root = options[:root]
   raise UsageError, "Session root is not a directory: #{root}" unless File.directory?(root)
 
@@ -79,10 +79,13 @@ def candidate_files(options, _cutoff)
     normalized = path.tr("\\", "/")
     lower_path = normalized.downcase
     File.file?(path) &&
+      File.mtime(path) >= cutoff &&
       !normalized.include?("/subagent-artifacts/") &&
       !normalized.include?("/run-") &&
       (!session_filter || lower_path.include?(session_filter)) &&
       (!repository_filter || lower_path.include?(repository_filter))
+  rescue Errno::EACCES, Errno::ENOENT
+    false
   end.sort
 end
 

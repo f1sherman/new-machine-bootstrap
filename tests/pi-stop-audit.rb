@@ -128,6 +128,11 @@ Dir.mktmpdir("pi-stop-audit") do |tmpdir|
     file.puts("{malformed")
   end
 
+  old_file = File.join(second_dir, "old-only.jsonl")
+  File.write(old_file, "{old malformed content\n")
+  old_mtime = Time.now - (9 * 86_400)
+  File.utime(old_mtime, old_mtime, old_file)
+
   base_env = {
     "HOME" => tmpdir,
     "PATH" => "#{fake_bin}:/usr/bin:/bin",
@@ -166,7 +171,12 @@ Dir.mktmpdir("pi-stop-audit") do |tmpdir|
     report.inspect
   )
   assert.call(report["excluded_pr_monitor"] == 1, "counts monitor exclusion", report.inspect)
-  assert.call(report["malformed_lines"] == 2, "counts malformed lines", report.inspect)
+  assert.call(report["files"] == 2, "excludes files older than the window", report.inspect)
+  assert.call(
+    report["malformed_lines"] == 2,
+    "does not count malformed lines from old files",
+    report.inspect
+  )
   assert.call(!stdout.include?("super-secret-value"), "redacts credential-like excerpts", stdout)
   assert.call(!stdout.include?("second-secret-value"), "redacts keys containing token", stdout)
   assert.call(

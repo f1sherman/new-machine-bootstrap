@@ -539,10 +539,15 @@ Expected: PASS.
 Run:
 
 ```bash
-ansible-playbook playbook.yml --syntax-check
+ansible-playbook playbook.yml --check
 ```
 
-Then use Ansible's `copy` module in check mode with the production
+If the full check fails before the changed task, reproduce the failure on the
+base branch and classify it as related, unrelated, transient, or uncertain.
+Do not report the check as passed.
+
+Also run `ansible-playbook playbook.yml --syntax-check`. Use Ansible's `copy`
+module in check mode with the production
 `roles/common/files/bin/pi-stop-audit` source, a temporary destination, and
 mode `0755`. Confirm that Ansible reports the pending copy and does not create
 the destination.
@@ -550,10 +555,8 @@ the destination.
 Inspect `.github/workflows/integration-test.yml` and confirm
 `tests/pi-stop-audit.rb` is invoked directly, as required by the repository's
 test inventory policy. Expected: syntax validation, the focused copy check, and
-the behavioral test pass.
-
-The full local playbook check is not a success criterion on a host without
-passwordless sudo. Record that environmental limit accurately if it occurs.
+the behavioral test pass. A full-check failure is acceptable only when the same
+unrelated baseline failure is reproduced before the changed task.
 
 - [x] **Step 3: Validate the audit against local historical sessions**
 
@@ -633,16 +636,18 @@ agrees to close it.
 
 ## Verification Results
 
-- `ruby tests/pi-stop-audit.rb`: 28 passed, 0 failed.
+- `ruby tests/pi-stop-audit.rb`: 29 passed, 0 failed.
 - `ruby -c roles/common/files/bin/pi-stop-audit`: syntax OK.
 - `ansible-playbook playbook.yml --syntax-check`: passed.
 - Focused Ansible `copy` check with mode `0755`: reported `changed: true` and
   created no destination.
-- The full local playbook check was attempted but stopped at the existing Linux
-  apt-cache task because this host does not provide passwordless sudo.
+- Full check mode exited 2 on both the branch and base checkout at the existing
+  Linux apt-cache task with `sudo: a password is required`. This reproduced
+  unrelated baseline environment failure occurred before the changed task.
 - CI invokes `ruby tests/pi-stop-audit.rb` directly.
-- The 14-day local audit read 1,086 files, retained 536 non-monitor stops,
-  excluded 121 PR-monitor stops, and found 26 future-action candidates.
+- The 14-day local audit read 118 files modified in the window, retained 537
+  non-monitor stops, excluded 121 PR-monitor stops, and found 26 future-action
+  candidates.
 - The historical deployment stop followed by `continue` was found with both
   `future_action` and `short_continuation` categories.
 - The bounded historical report included redaction markers and was not
