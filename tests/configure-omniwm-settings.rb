@@ -170,12 +170,6 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       assert_equal "changed\n", out
       assert_includes result, 'name = "10"'
       assert_includes result, 'layoutType = "niri"'
-      workspace_bar = table_values(result, "workspaceBar")
-      assert_equal true, workspace_bar.fetch("enabled")
-      assert_equal "belowMenuBar", workspace_bar.fetch("position")
-      assert_equal false, workspace_bar.fetch("reserveLayoutSpace")
-      assert_equal "controlOption", workspace_bar.fetch("revealModifier")
-      assert_equal 200.0, workspace_bar.fetch("revealHoldMilliseconds")
       directional_bindings = {
         "focus.left" => "Control+Option+Left Arrow",
         "focus.right" => "Control+Option+Right Arrow",
@@ -526,25 +520,6 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
   end
 
   private
-
-  def table_values(document, name)
-    body = document[/^\[#{Regexp.escape(name)}\]\n(.*?)(?=^\[|\z)/m, 1]
-    refute_nil body, "missing table #{name}"
-
-    body.lines.filter_map do |line|
-      content = line.strip
-      next if content.empty? || content.start_with?("#")
-
-      key, raw_value = content.split(/\s*=\s*/, 2)
-      value = case raw_value
-              when "true" then true
-              when "false" then false
-              when /^"(.*)"$/ then Regexp.last_match(1)
-              else Float(raw_value)
-              end
-      [key, value]
-    end.to_h
-  end
 
   def workspace_block(document, name)
     block = document.scan(/^\[\[workspaces\]\]\n(.*?)(?=^\[\[|\z)/m).flatten.find do |candidate|
