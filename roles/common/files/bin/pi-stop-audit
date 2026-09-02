@@ -165,7 +165,7 @@ def redact_excerpt(text, max_length = MAX_EXCERPT)
   redacted.gsub!(/\bBearer\s+\S+/i, "Bearer [REDACTED]")
   redacted.gsub!(%r{\b([a-z][a-z0-9+.-]*://)[^/\s@]+@}i, '\\1[REDACTED]@')
   redacted.gsub!(
-    /(["']?[A-Za-z0-9_.-]*(?:token|password|secret|api[_-]?key|authorization|credential)[A-Za-z0-9_.-]*["']?\s*(?:=>|[:=])\s*)(?:"[^"]*"|'[^']*'|[^,;}\]]+)/i,
+    /(["']?[A-Za-z0-9_.-]*(?:token|password|secret|api[_-]?key|authorization|credential)[A-Za-z0-9_.-]*["']?\s*(?:=>|[:=])\s*)(?:"[^"]*"|'[^']*'|[^\r\n]*)/i,
     '\\1[REDACTED]'
   )
   redacted.gsub!(/\b[A-Za-z0-9_-]{32,}\b/, "[REDACTED]")

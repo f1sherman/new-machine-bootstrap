@@ -62,9 +62,9 @@ Dir.mktmpdir("pi-stop-audit") do |tmpdir|
   )
   stop = message.call(
     id: "a1", parent: "u1", timestamp: recent_time, role: "assistant",
-    text: "Proceeding with deployment now. token: super-secret-value; " \
-      "access_token=second-secret-value, " \
-      "credential: correct horse battery staple, deployment queued",
+    text: "Proceeding with deployment now. " \
+      "credential: correct horse, battery staple; " \
+      "token: super-secret-value; access_token=second-secret-value",
     stop: true
   )
   continuation = message.call(
@@ -170,8 +170,8 @@ Dir.mktmpdir("pi-stop-audit") do |tmpdir|
   assert.call(!stdout.include?("super-secret-value"), "redacts credential-like excerpts", stdout)
   assert.call(!stdout.include?("second-secret-value"), "redacts keys containing token", stdout)
   assert.call(
-    !stdout.include?("correct horse battery staple"),
-    "redacts unquoted multiword assigned secrets",
+    !stdout.include?("correct horse") && !stdout.include?("battery staple"),
+    "redacts unquoted multiword assigned secrets containing commas",
     stdout
   )
   assert.call(stdout.include?("[REDACTED]"), "shows redaction marker", stdout)
