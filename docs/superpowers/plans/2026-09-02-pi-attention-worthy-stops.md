@@ -617,7 +617,7 @@ Invoke `requesting-code-review` on `main...HEAD`. Address correctness, privacy,
 or scope findings that are worth fixing. Re-run affected verification after any
 change.
 
-- [ ] **Step 7: Create the pull request**
+- [x] **Step 7: Create the pull request**
 
 Confirm `git status --short` is empty. Invoke `z-pull-request` from the NMB
 worktree. The PR description must contain `## Verification` and must not claim
