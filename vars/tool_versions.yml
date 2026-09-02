@@ -33,7 +33,7 @@ tool_versions:
     # renovate: datasource=github-releases depName=open-gsd/gsd-browser
     gsd_browser: 0.2.1
     # renovate: datasource=node-version depName=node
-    node: 24.19.0
+    node: 24.20.0
     ruby: 4.0.2
     # renovate: datasource=npm depName=@earendil-works/pi-coding-agent
     pi_coding_agent: 0.84.3
