@@ -459,13 +459,13 @@ bash ~/.local/share/skills/_commit/commit.sh \
 - Produces: executable `~/.local/bin/pi-stop-audit` with mode `0755` on managed
   personal-development machines.
 
-- [ ] **Step 1: Record the no-test decision**
+- [x] **Step 1: Record the no-test decision**
 
 Do not add a test that greps the Ansible task or restates the path and mode.
 This declarative install is caught by Ansible syntax validation and focused
 provisioning.
 
-- [ ] **Step 2: Add the focused install task**
+- [x] **Step 2: Add the focused install task**
 
 Add this task near the other Pi session helpers in
 `roles/common/tasks/main.yml`:
@@ -480,7 +480,7 @@ Add this task near the other Pi session helpers in
 
 Do not add a schedule, upload destination, state directory, or network access.
 
-- [ ] **Step 3: Validate Ansible check mode**
+- [x] **Step 3: Validate Ansible check mode**
 
 Run the repository-documented validation command:
 
@@ -490,7 +490,7 @@ ansible-playbook playbook.yml --check
 
 Expected: the playbook check exits 0 without changing the host.
 
-- [ ] **Step 4: Commit the provisioning task**
+- [x] **Step 4: Commit the provisioning task**
 
 Run:
 
