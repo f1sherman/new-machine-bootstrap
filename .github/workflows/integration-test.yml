@@ -27,6 +27,9 @@ jobs:
       - name: Verify OmniWM settings reconciliation
         run: ruby tests/configure-omniwm-settings.rb
 
+      - name: Verify OmniWM login workspace recovery
+        run: ruby tests/recover-omniwm-workspaces.rb
+
       - name: Verify OmniWM cheat sheet panel
         run: lua5.4 tests/omniwm-cheatsheet-panel.lua
 

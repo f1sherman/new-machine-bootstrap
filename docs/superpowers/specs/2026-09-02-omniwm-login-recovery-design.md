@@ -5,7 +5,7 @@
 ## Goal
 
 Repair known OmniWM workspace assignments once after graphical login on
-`brian-macbook-pro`. The recovery must not guess, focus windows, continuously
+`Brians-MacBook-Pro`. The recovery must not guess, focus windows, continuously
 enforce placement, or run on another host.
 
 ## Non-goals
@@ -132,7 +132,7 @@ helper and write standard output and errors under the existing OmniWM state/log
 location.
 
 The Ansible role will install the helper and plist only inside the existing
-exact hostname gate for `brian-macbook-pro`. Provisioning will not bootstrap,
+exact hostname gate for `Brians-MacBook-Pro`. Provisioning will not bootstrap,
 load, unload, or run this LaunchAgent. The next graphical login loads it.
 
 ### Settings reconciler
@@ -149,7 +149,7 @@ unknown windows unchanged, and provides a manual read-only check and retry.
 
 ## Safety and failure handling
 
-- Host scope is exactly `brian-macbook-pro`.
+- Host scope is exactly `Brians-MacBook-Pro`.
 - Provisioning never invokes recovery.
 - Recovery never focuses a window.
 - Recovery uses only opaque IDs returned by the same live query.

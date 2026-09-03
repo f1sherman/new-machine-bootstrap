@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Reapply deterministic OmniWM workspace rules once after graphical login on `brian-macbook-pro` without focusing or guessing windows.
+**Goal:** Reapply deterministic OmniWM workspace rules once after graphical login on `Brians-MacBook-Pro` without focusing or guessing windows.
 
 **Architecture:** A JSON manifest is the single source for managed workspace assignments. The existing settings reconciler converts the manifest to OmniWM rules, while a bounded Ruby login helper classifies live windows from the same manifest and asks OmniWM to reapply its rules to exact live IDs. A RunAtLoad LaunchAgent starts the helper at login, but provisioning never loads or runs it.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Install and run this feature only through the existing exact `brian-macbook-pro` OmniWM host gate.
+- Install and run this feature only through the existing exact `Brians-MacBook-Pro` OmniWM host gate.
 - Do not run recovery, move windows, focus windows, restart OmniWM, or load the recovery LaunchAgent during provisioning.
 - Apply a rule only when one manifest assignment matches one exact live window.
 - Leave unknown, titleless, and ambiguous windows unchanged.
