@@ -36,10 +36,10 @@ class SmartUploadTest < Minitest::Test
     stdout, stderr, status = Open3.capture3(
       env,
       SCRIPT,
-      "--ssh-target", "dev-alias",
-      "--quiet-status",
       source_path,
-      ""
+      "",
+      "--ssh-target", "dev-alias",
+      "--quiet-status"
     )
 
     assert status.success?, stderr
@@ -59,12 +59,21 @@ class SmartUploadTest < Minitest::Test
     _stdout, _stderr, status = Open3.capture3(
       env,
       SCRIPT,
-      "--ssh-target", "",
       source_path,
-      ""
+      "",
+      "--ssh-target", ""
     )
 
     refute status.success?
+    refute File.exist?(@ssh_log)
+    refute File.exist?(@scp_log)
+  end
+
+  def test_passes_through_legacy_clipboard_text_that_starts_with_a_dash
+    stdout, stderr, status = Open3.capture3(env, SCRIPT, "--foo", "")
+
+    assert status.success?, stderr
+    assert_equal "--foo", stdout
     refute File.exist?(@ssh_log)
     refute File.exist?(@scp_log)
   end

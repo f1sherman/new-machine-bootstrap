@@ -2,7 +2,7 @@
 #
 # smart-upload: Upload files/images to remote servers via tmux
 #
-# Usage: smart-upload [options] <local-path-or-empty> <pane-tty>
+# Usage: smart-upload <local-path-or-empty> <pane-tty> [options]
 #
 # If local-path is empty or not a file, checks clipboard for image data.
 #
@@ -180,27 +180,33 @@ end
 def main
   options = {}
   parser = OptionParser.new do |opts|
-    opts.banner = "Usage: smart-upload [options] <local-path-or-empty> <pane-tty>"
+    opts.banner = "Usage: smart-upload <local-path-or-empty> <pane-tty> [options]"
     opts.on("--ssh-target TARGET") { |target| options[:ssh_target] = target }
     opts.on("--quiet-status") { options[:quiet_status] = true }
   end
 
+  if ARGV.length < 2
+    warn parser
+    exit 1
+  end
+
+  local_path_argument, pane_tty = ARGV.shift(2)
+
   begin
-    parser.parse!
+    parser.parse!(ARGV)
   rescue OptionParser::ParseError => e
     warn e.message
     warn parser
     exit 1
   end
 
-  if ARGV.length < 2 || (options.key?(:ssh_target) && options[:ssh_target].empty?)
+  if options.key?(:ssh_target) && options[:ssh_target].empty?
     warn parser
     exit 1
   end
 
   Status.quiet = options[:quiet_status]
-  local_path = ARGV[0].strip.gsub(/\A['"]|['"]\z/, '') # Remove quotes if present
-  pane_tty = ARGV[1]
+  local_path = local_path_argument.strip.gsub(/\A['"]|['"]\z/, '') # Remove quotes if present
 
   # If no valid file path, check for clipboard image
   if local_path.empty? || !File.exist?(local_path)
