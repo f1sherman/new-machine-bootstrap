@@ -368,6 +368,12 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       id = "legacy-shopping-rule"
       layout = "float"
       assignToWorkspace = "5"
+
+      [[appRules]]
+      bundleId = "com.apple.Safari"
+      titleSubstring = "Work —"
+      id = "legacy-work-rule"
+      assignToWorkspace = "9"
     TOML
 
     with_settings(legacy_rules) do |path|
@@ -381,6 +387,9 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       refute_includes brave_legacy, "assignToWorkspace = "
       assert_includes app_rule(result, "com.google.Chrome"), 'assignToWorkspace = "4"'
       assert_includes app_rule(result, "com.brave.Browser"), 'assignToWorkspace = "5"'
+      refute_includes result, 'titleSubstring = "Work —"'
+      assert_includes app_rule(result, "com.apple.Safari", title_regex: "^Work —"),
+        'assignToWorkspace = "9"'
     end
   end
 
@@ -392,6 +401,12 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       "missing selector" => JSON.generate([{"workspace" => "1"}]),
       "empty selector" => JSON.generate([{"bundleId" => "", "workspace" => "1"}]),
       "invalid workspace" => JSON.generate([{"bundleId" => "example", "workspace" => "11"}]),
+      "invalid regex" => JSON.generate([
+        {"bundleId" => "com.apple.Safari", "titleRegex" => "[", "workspace" => "2"}
+      ]),
+      "unsafe regex string" => JSON.generate([
+        {"bundleId" => "com.apple.Safari", "titleRegex" => '^Personal\\s+"', "workspace" => "2"}
+      ]),
       "duplicate selector" => JSON.generate([
         {"bundleId" => "example", "workspace" => "1"},
         {"bundleId" => "example", "workspace" => "2"}

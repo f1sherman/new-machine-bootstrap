@@ -128,6 +128,7 @@ class RecoverOmniwmWorkspacesTest < Minitest::Test
     windows = [
       window("ow_unknown", "user.unknown", "Unknown", 1),
       window("ow_titleless", "com.apple.Safari", nil, 1),
+      window("ow_titleless_chrome", "com.google.Chrome", nil, 1),
       window("ow_ambiguous", "com.apple.Safari", "Personal — Bank", 1)
     ]
     write_state("windows" => windows)
@@ -136,7 +137,7 @@ class RecoverOmniwmWorkspacesTest < Minitest::Test
 
     assert status.success?, err
     refute read_calls.any? { |call| call[0, 2] == ["rule", "apply"] }
-    assert_match(/skipped=3/, out)
+    assert_match(/skipped=4/, out)
   end
 
   def test_check_reports_drift_without_applying_rules
@@ -262,6 +263,9 @@ class RecoverOmniwmWorkspacesTest < Minitest::Test
       "invalid workspace" => [{"bundleId" => "com.google.Chrome", "workspace" => "11"}],
       "invalid regex type" => [{"bundleId" => "com.apple.Safari", "titleRegex" => false, "workspace" => "2"}],
       "invalid regex" => [{"bundleId" => "com.apple.Safari", "titleRegex" => "[", "workspace" => "2"}],
+      "unsafe regex string" => [
+        {"bundleId" => "com.apple.Safari", "titleRegex" => '^Personal\\s+"', "workspace" => "2"}
+      ],
       "duplicate selector" => [
         {"bundleId" => "com.google.Chrome", "workspace" => "4"},
         {"bundleId" => "com.google.Chrome", "workspace" => "5"}
