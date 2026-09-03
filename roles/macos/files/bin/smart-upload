@@ -157,6 +157,7 @@ end
 
 def upload_to_ssh(local_path, target)
   filename = File.basename(local_path)
+  absolute_local_path = File.expand_path(local_path)
   remote_path = "#{REMOTE_DIR}/#{filename}"
 
   Status.message("Uploading #{filename}...", duration: 0)
@@ -165,7 +166,7 @@ def upload_to_ssh(local_path, target)
   system("ssh", target, "mkdir", "--parents", REMOTE_DIR,
          out: File::NULL, err: File::NULL)
 
-  success = system("scp", "-q", local_path, "#{target}:#{remote_path}",
+  success = system("scp", "-q", absolute_local_path, "#{target}:#{remote_path}",
                    out: File::NULL, err: File::NULL)
 
   if success

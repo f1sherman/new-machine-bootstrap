@@ -52,6 +52,27 @@ class SmartUploadTest < Minitest::Test
     refute File.exist?(@clipboard_log)
   end
 
+  def test_uploads_relative_option_like_filename_with_an_absolute_scp_source
+    source_name = "-example.txt"
+    source_path = File.join(@tmpdir, source_name)
+    File.write(source_path, "example")
+
+    stdout, stderr, status = Open3.capture3(
+      env,
+      SCRIPT,
+      source_name,
+      "",
+      "--ssh-target", "dev-alias",
+      "--quiet-status",
+      chdir: @tmpdir
+    )
+
+    assert status.success?, stderr
+    assert_equal "/tmp/uploads/-example.txt", stdout
+    assert_equal ["-q", source_path, "dev-alias:/tmp/uploads/-example.txt"],
+                 File.readlines(@scp_log, chomp: true)
+  end
+
   def test_rejects_empty_explicit_target_without_uploading
     source_path = File.join(@tmpdir, "example.txt")
     File.write(source_path, "example")
