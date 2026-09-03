@@ -1,0 +1,19 @@
+[
+  {"bundleId": "com.todoist.mac.Todoist", "workspace": "1"},
+  {"bundleId": "com.apple.Safari", "titleRegex": "^Personal —", "workspace": "2"},
+  {"bundleId": "com.mitchellh.ghostty", "workspace": "3"},
+  {"bundleId": "com.apple.Safari", "titleRegex": "^Development —", "workspace": "3"},
+  {"bundleId": "com.openai.codex", "workspace": "4"},
+  {"bundleId": "com.google.Chrome", "workspace": "4"},
+  {"bundleId": "com.brave.Browser", "workspace": "5"},
+  {"bundleId": "com.getcardpointers.app", "workspace": "5"},
+  {"bundleId": "com.apple.MobileSMS", "workspace": "6"},
+  {"bundleId": "io.robbie.HomeAssistant", "workspace": "7"},
+  {"bundleId": "com.apple.iCal", "workspace": "8"},
+  {"bundleId": "com.apple.Safari", "titleRegex": "^Work —", "workspace": "9"},
+  {"bundleId": "com.tinyspeck.slackmacgap", "workspace": "9"},
+  {"bundleId": "com.bitwarden.desktop", "workspace": "10"},
+  {"bundleId": "com.TechSmith.Snagit", "workspace": "10"},
+  {"bundleId": "com.backblaze.Backblaze", "workspace": "10"},
+  {"bundleId": "com.apple.mobilephone", "workspace": "10"}
+]

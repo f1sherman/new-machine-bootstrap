@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require "json"
 require "securerandom"
 require "tempfile"
 
@@ -23,22 +24,7 @@ MANAGED_WORKSPACES = [
   Workspace.new(name: "10", id: "1935F5A8-9DCA-4E80-AEE3-48EBBE2E336A", monitor: "main", layout_type: "niri")
 ].freeze
 
-RULE_TARGETS = [
-  RuleTarget.new(bundle_id: "com.todoist.mac.Todoist", workspace: "1"),
-  RuleTarget.new(bundle_id: "com.mitchellh.ghostty", workspace: "3"),
-  RuleTarget.new(bundle_id: "com.openai.codex", workspace: "4"),
-  RuleTarget.new(bundle_id: "com.google.Chrome", title_substring: "ChatGPT", workspace: "4"),
-  RuleTarget.new(bundle_id: "com.getcardpointers.app", workspace: "5"),
-  RuleTarget.new(bundle_id: "com.brave.Browser", title_substring: "Parental Controls", workspace: "5"),
-  RuleTarget.new(bundle_id: "com.apple.MobileSMS", workspace: "6"),
-  RuleTarget.new(bundle_id: "io.robbie.HomeAssistant", workspace: "7"),
-  RuleTarget.new(bundle_id: "com.apple.iCal", workspace: "8"),
-  RuleTarget.new(bundle_id: "com.tinyspeck.slackmacgap", workspace: "9"),
-  RuleTarget.new(bundle_id: "com.apple.Safari", title_substring: "Work —", workspace: "9"),
-  RuleTarget.new(bundle_id: "com.bitwarden.desktop", workspace: "10"),
-  RuleTarget.new(bundle_id: "com.TechSmith.Snagit", workspace: "10"),
-  RuleTarget.new(bundle_id: "com.backblaze.Backblaze", workspace: "10"),
-  RuleTarget.new(bundle_id: "com.apple.mobilephone", workspace: "10"),
+FIXED_RULE_TARGETS = [
   RuleTarget.new(
     bundle_id: "org.hammerspoon.Hammerspoon",
     title_regex: "^OmniWM Cheat Sheet$",
@@ -47,10 +33,62 @@ RULE_TARGETS = [
   )
 ].freeze
 
+LEGACY_ASSIGNMENT_TARGETS = [
+  RuleTarget.new(bundle_id: "com.google.Chrome", title_substring: "ChatGPT", workspace: "4"),
+  RuleTarget.new(bundle_id: "com.brave.Browser", title_substring: "Parental Controls", workspace: "5")
+].freeze
+
 DYNAMIC_RULE_TARGETS = [
   RuleTarget.new(bundle_id: "com.apple.finder"),
   RuleTarget.new(bundle_id: "com.apple.Photos")
 ].freeze
+
+class WorkspaceRules
+  ALLOWED_KEYS = %w[bundleId titleRegex workspace].freeze
+  WORKSPACES = (1..10).map(&:to_s).freeze
+
+  def self.load(path)
+    document = JSON.parse(File.binread(path))
+    raise "workspace rules must be a JSON array" unless document.is_a?(Array)
+
+    selectors = {}
+    document.map.with_index do |entry, index|
+      raise "workspace rule #{index + 1} must be an object" unless entry.is_a?(Hash)
+
+      unknown = entry.keys - ALLOWED_KEYS
+      raise "workspace rule #{index + 1} has unknown keys: #{unknown.join(', ')}" unless unknown.empty?
+
+      bundle_id = required_string(entry, "bundleId", index)
+      title_regex = optional_string(entry, "titleRegex", index)
+      workspace = required_string(entry, "workspace", index)
+      raise "workspace rule #{index + 1} has invalid workspace" unless WORKSPACES.include?(workspace)
+
+      selector = [bundle_id, title_regex]
+      raise "duplicate workspace rule selector" if selectors.key?(selector)
+
+      selectors[selector] = true
+      RuleTarget.new(bundle_id: bundle_id, title_regex: title_regex, workspace: workspace)
+    end
+  rescue JSON::ParserError => error
+    raise "invalid workspace rules JSON: #{error.message}"
+  end
+
+  def self.required_string(entry, key, index)
+    value = entry[key]
+    unless value.is_a?(String) && !value.empty?
+      raise "workspace rule #{index + 1} requires nonempty #{key}"
+    end
+    value
+  end
+
+  def self.optional_string(entry, key, index)
+    return nil unless entry.key?(key)
+
+    required_string(entry, key, index)
+  end
+
+  private_class_method :required_string, :optional_string
+end
 
 class SettingsDocument
   Block = Struct.new(:type, :lines, keyword_init: true)
@@ -183,10 +221,10 @@ class SettingsDocument
     raise "missing workspace block" unless blocks.any? { |block| block.type == "workspaces" }
   end
 
-  def reconcile!(activate_assignments: false)
+  def reconcile!(rule_targets:, activate_assignments: false)
     reconcile_workspace_bar
     reconcile_hotkeys
-    reconcile_rules(activate_assignments)
+    reconcile_rules(rule_targets, activate_assignments)
     reconcile_workspaces
     self
   end
@@ -304,8 +342,8 @@ class SettingsDocument
     end
   end
 
-  def reconcile_rules(activate_assignments)
-    RULE_TARGETS.each do |target|
+  def reconcile_rules(rule_targets, activate_assignments)
+    (rule_targets + FIXED_RULE_TARGETS).each do |target|
       matches = matching_rule_blocks(target)
       if matches.empty? && (activate_assignments || target.layout)
         matches = [insert_rule(target)]
@@ -327,6 +365,13 @@ class SettingsDocument
       matches.drop(1).each do |block|
         remove_scalar(block, "layout") if target.layout
         remove_scalar(block, "assignToWorkspace") if target.workspace
+        blocks.delete(block) if effectless_rule?(block)
+      end
+    end
+
+    LEGACY_ASSIGNMENT_TARGETS.each do |target|
+      matching_rule_blocks(target).each do |block|
+        remove_scalar(block, "assignToWorkspace")
         blocks.delete(block) if effectless_rule?(block)
       end
     end
@@ -354,7 +399,8 @@ class SettingsDocument
       next false unless scalar_value(block, "bundleId") == target.bundle_id
       if target.title_regex
         exact_regex = scalar_value(block, "titleRegex") == target.title_regex
-        legacy_substring = scalar_value(block, "titleSubstring") == target.legacy_title_substring
+        legacy_substring = target.legacy_title_substring &&
+          scalar_value(block, "titleSubstring") == target.legacy_title_substring
         next false unless exact_regex || legacy_substring
       else
         next false unless scalar_value(block, "titleSubstring") == target.title_substring
@@ -446,21 +492,50 @@ class SettingsWriter
   end
 end
 
-def main
-  path_argument, *options = ARGV
-  valid_options = %w[--activate-assignments --check]
-  valid_arguments = !path_argument.nil? &&
-    options.uniq.length == options.length &&
-    (options - valid_options).empty?
-  usage = "usage: configure-omniwm-settings SETTINGS_PATH [--activate-assignments] [--check]"
-  raise usage unless valid_arguments
+def parse_arguments(arguments)
+  usage = "usage: configure-omniwm-settings SETTINGS_PATH [--rules PATH] " \
+    "[--activate-assignments] [--check]"
+  values = arguments.dup
+  path = values.shift
+  raise usage unless path && !path.start_with?("--")
 
+  rules_path = File.join(__dir__, "omniwm-workspace-rules.json")
+  flags = []
+  rules_seen = false
+  until values.empty?
+    option = values.shift
+    case option
+    when "--rules"
+      raise usage if rules_seen
+
+      rules_path = values.shift
+      raise usage unless rules_path && !rules_path.start_with?("--")
+
+      rules_seen = true
+    when "--activate-assignments", "--check"
+      raise usage if flags.include?(option)
+
+      flags << option
+    else
+      raise usage
+    end
+  end
+
+  [path, rules_path, flags]
+end
+
+def main
+  path_argument, rules_argument, options = parse_arguments(ARGV)
+  rule_targets = WorkspaceRules.load(File.expand_path(rules_argument))
   path = File.expand_path(path_argument)
   original = File.binread(path).force_encoding(Encoding::UTF_8)
   raise "settings file is not valid UTF-8" unless original.valid_encoding?
 
   document = SettingsDocument.parse(original)
-  result = document.reconcile!(activate_assignments: options.include?("--activate-assignments")).to_s
+  result = document.reconcile!(
+    rule_targets: rule_targets,
+    activate_assignments: options.include?("--activate-assignments")
+  ).to_s
   SettingsDocument.parse(result)
 
   if result == original

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "json"
 require "minitest/autorun"
 require "open3"
 require "tempfile"
@@ -7,6 +8,27 @@ require "tmpdir"
 
 class ConfigureOmniwmSettingsTest < Minitest::Test
   HELPER = File.expand_path("../roles/macos/files/configure-omniwm-settings", __dir__)
+  RULES = File.expand_path("../roles/macos/files/omniwm-workspace-rules.json", __dir__)
+
+  EXPECTED_ASSIGNMENTS = {
+    ["com.todoist.mac.Todoist", nil] => "1",
+    ["com.apple.Safari", "^Personal —"] => "2",
+    ["com.mitchellh.ghostty", nil] => "3",
+    ["com.apple.Safari", "^Development —"] => "3",
+    ["com.openai.codex", nil] => "4",
+    ["com.google.Chrome", nil] => "4",
+    ["com.brave.Browser", nil] => "5",
+    ["com.getcardpointers.app", nil] => "5",
+    ["com.apple.MobileSMS", nil] => "6",
+    ["io.robbie.HomeAssistant", nil] => "7",
+    ["com.apple.iCal", nil] => "8",
+    ["com.apple.Safari", "^Work —"] => "9",
+    ["com.tinyspeck.slackmacgap", nil] => "9",
+    ["com.bitwarden.desktop", nil] => "10",
+    ["com.TechSmith.Snagit", nil] => "10",
+    ["com.backblaze.Backblaze", nil] => "10",
+    ["com.apple.mobilephone", nil] => "10"
+  }.freeze
 
   FIXTURE = <<~TOML
     [general]
@@ -155,8 +177,8 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
     end
   end
 
-  def run_helper(path, *arguments)
-    Open3.capture3(HELPER, path, *arguments)
+  def run_helper(path, *arguments, rules: RULES)
+    Open3.capture3(HELPER, path, "--rules", rules, *arguments)
   end
 
   def test_default_mode_defers_managed_assignments
@@ -261,10 +283,13 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
 
       assert_equal 1, result.scan(/^bundleId = "com\.mitchellh\.ghostty"$/).length
       assert_equal 1, result.scan(/^bundleId = "com\.google\.Chrome"$/).length
-      assert_equal 16, result.scan(/^assignToWorkspace = /).length
+      assert_equal 18, result.scan(/^assignToWorkspace = /).length
       assert_includes app_rule(result, "com.mitchellh.ghostty"), 'assignToWorkspace = "3"'
       assert_includes app_rule(result, "com.mitchellh.ghostty"), "minHeight = 400.0"
-      assert_includes app_rule(result, "com.google.Chrome", "ChatGPT"), 'assignToWorkspace = "4"'
+      EXPECTED_ASSIGNMENTS.each do |(bundle_id, title_regex), workspace|
+        rule = app_rule(result, bundle_id, title_regex: title_regex)
+        assert_includes rule, %(assignToWorkspace = "#{workspace}")
+      end
       assert_includes app_rule(result, "user.unrelated"), 'assignToWorkspace = "6"'
       refute_includes result, 'bundleId = "com.apple.finder"'
       refute_includes result, 'bundleId = "com.apple.Photos"'
@@ -286,7 +311,7 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       assert_equal "changed\n", out
       assert_equal 1, result.scan(/^assignToWorkspace = /).length
       assert_includes app_rule(result, "user.unrelated"), 'assignToWorkspace = "6"'
-      refute_includes app_rule(result, "com.google.Chrome", "ChatGPT"), "assignToWorkspace = "
+      refute_includes app_rule(result, "com.google.Chrome"), "assignToWorkspace = "
     end
   end
 
@@ -325,6 +350,95 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
           assignToWorkspace = "9"
         TOML
       end
+    end
+  end
+
+  def test_active_mode_removes_superseded_narrow_browser_assignments
+    legacy_rules = FIXTURE + <<~TOML
+
+      [[appRules]]
+      bundleId = "com.google.Chrome"
+      titleSubstring = "ChatGPT"
+      id = "legacy-chatgpt-rule"
+      assignToWorkspace = "4"
+
+      [[appRules]]
+      bundleId = "com.brave.Browser"
+      titleSubstring = "Parental Controls"
+      id = "legacy-shopping-rule"
+      layout = "float"
+      assignToWorkspace = "5"
+    TOML
+
+    with_settings(legacy_rules) do |path|
+      _out, err, status = run_helper(path, "--activate-assignments")
+      result = File.read(path)
+
+      assert status.success?, err
+      refute_includes result, 'titleSubstring = "ChatGPT"'
+      brave_legacy = app_rule(result, "com.brave.Browser", "Parental Controls")
+      assert_includes brave_legacy, 'layout = "float"'
+      refute_includes brave_legacy, "assignToWorkspace = "
+      assert_includes app_rule(result, "com.google.Chrome"), 'assignToWorkspace = "4"'
+      assert_includes app_rule(result, "com.brave.Browser"), 'assignToWorkspace = "5"'
+    end
+  end
+
+  def test_invalid_manifests_are_rejected_without_changing_settings
+    cases = {
+      "malformed JSON" => "{",
+      "top-level object" => JSON.generate({"bundleId" => "example"}),
+      "unknown key" => JSON.generate([{"bundleId" => "example", "workspace" => "1", "extra" => true}]),
+      "missing selector" => JSON.generate([{"workspace" => "1"}]),
+      "empty selector" => JSON.generate([{"bundleId" => "", "workspace" => "1"}]),
+      "invalid workspace" => JSON.generate([{"bundleId" => "example", "workspace" => "11"}]),
+      "duplicate selector" => JSON.generate([
+        {"bundleId" => "example", "workspace" => "1"},
+        {"bundleId" => "example", "workspace" => "2"}
+      ])
+    }
+
+    cases.each do |name, manifest|
+      Dir.mktmpdir do |directory|
+        rules = File.join(directory, "rules.json")
+        File.write(rules, manifest)
+        with_settings do |path|
+          before = File.binread(path)
+          out, err, status = run_helper(path, rules: rules)
+
+          refute status.success?, name
+          assert_empty out, name
+          assert_includes err, "configure-omniwm-settings:", name
+          assert_equal before, File.binread(path), name
+        end
+      end
+    end
+  end
+
+  def test_default_manifest_path_is_used
+    with_settings do |path|
+      out, err, status = Open3.capture3(HELPER, path, "--activate-assignments")
+
+      assert status.success?, err
+      assert_equal "changed\n", out
+      assert_includes app_rule(File.read(path), "com.apple.Safari", title_regex: "^Development —"),
+        'assignToWorkspace = "3"'
+    end
+  end
+
+  def test_rules_option_order_does_not_change_results
+    with_settings do |path|
+      first_out, first_err, first_status = Open3.capture3(
+        HELPER, path, "--activate-assignments", "--rules", RULES, "--check"
+      )
+      second_out, second_err, second_status = Open3.capture3(
+        HELPER, path, "--check", "--rules", RULES, "--activate-assignments"
+      )
+
+      assert first_status.success?, first_err
+      assert second_status.success?, second_err
+      assert_equal first_out, second_out
+      assert_equal FIXTURE, File.read(path)
     end
   end
 
