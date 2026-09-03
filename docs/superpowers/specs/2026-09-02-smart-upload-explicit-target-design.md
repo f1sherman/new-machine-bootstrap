@@ -27,9 +27,11 @@ interface.
 
 ### Recommended: additive command options
 
-Add `--ssh-target TARGET` to bypass pane process detection and use the existing
-SSH upload path. Add `--quiet-status` to suppress tmux messages. Keep the two
-existing positional arguments valid, including an empty pane TTY.
+Add `--ssh-target TARGET` after the two existing positional arguments to bypass
+pane process detection and use the existing SSH upload path. Add
+`--quiet-status` after the positional arguments to suppress tmux messages. Keep
+the two existing positional arguments valid, including an empty pane TTY and
+clipboard text that starts with `-`.
 
 This keeps transfer logic in its current source of truth and gives callers a
 small, explicit interface.
@@ -46,11 +48,14 @@ and SCP transfer. This would drift from the tmux behavior and is rejected.
 
 ## Design
 
-`smart-upload` will parse the two optional flags before its existing positional
-arguments. When `--ssh-target` is present, it will not inspect `pane-tty`; it
-will call the existing SSH upload function with that exact target. When
-`--quiet-status` is present, status reporting becomes a no-op while command
-results and exit statuses remain unchanged.
+`smart-upload` will preserve its first two arguments as the existing positional
+arguments, then parse optional flags only from the remaining arguments. The
+supported interface is
+`smart-upload <local-path-or-empty> <pane-tty> --ssh-target TARGET --quiet-status`.
+When `--ssh-target` is present, it will not inspect `pane-tty`; it will call the
+existing SSH upload function with that exact target. When `--quiet-status` is
+present, status reporting becomes a no-op while command results and exit
+statuses remain unchanged.
 
 The explicit target is passed to `ssh` and `scp` as one argument. It is never
 interpolated into a shell command.
@@ -68,7 +73,8 @@ Add a behavioral Ruby test that executes the production script with fake `ssh`,
 
 - uploads to the exact supplied target without pane process detection;
 - prints the remote path;
-- suppresses tmux status calls with `--quiet-status`; and
-- rejects an empty target.
+- suppresses tmux status calls with `--quiet-status`;
+- rejects an empty target; and
+- passes through legacy clipboard text that starts with `-` unchanged.
 
 Run the focused test, Ruby syntax validation, and NMB provisioning checks.

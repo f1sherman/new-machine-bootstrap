@@ -4,7 +4,7 @@
 
 **Goal:** Add an explicit, quiet SSH-target mode to `smart-upload` without changing tmux behavior.
 
-**Architecture:** Parse additive options in the existing Ruby executable. Reuse its SSH transfer path and isolate status output behind a small reporter so Herdr callers can suppress tmux calls.
+**Architecture:** Preserve the two existing positional arguments, then parse additive options from the remaining arguments in the existing Ruby executable. Reuse its SSH transfer path and isolate status output behind a small reporter so callers can suppress tmux calls.
 
 **Tech Stack:** Ruby, OptionParser, Minitest, Open3
 
@@ -12,7 +12,8 @@
 
 ## Global Constraints
 
-- Existing two-positional-argument tmux calls must behave unchanged.
+- Existing two-positional-argument tmux calls must behave unchanged, including clipboard text that starts with `-`.
+- Options must follow the two positional arguments.
 - `--ssh-target TARGET` must bypass pane process detection and pass TARGET as one argv value.
 - `--quiet-status` must suppress all tmux status commands.
 - Do not add Herdr or inventory-specific behavior.
@@ -26,7 +27,7 @@
 - Create: `tests/smart-upload.rb`
 
 **Interfaces:**
-- Consumes: `smart-upload [options] <local-path-or-empty> <pane-tty>`
+- Consumes: `smart-upload <local-path-or-empty> <pane-tty> [options]`
 - Produces: `--ssh-target TARGET` and `--quiet-status`
 
 - [ ] **Step 1: Write the failing behavioral tests**
@@ -39,10 +40,10 @@ Use a real temporary source file. Assert that:
 stdout, stderr, status = Open3.capture3(
   env,
   SCRIPT,
-  "--ssh-target", "dev-alias",
-  "--quiet-status",
   source_path,
-  ""
+  "",
+  "--ssh-target", "dev-alias",
+  "--quiet-status"
 )
 assert status.success?, stderr
 assert_equal "/tmp/uploads/example.txt", stdout
@@ -53,8 +54,10 @@ assert_equal ["-q", source_path, "dev-alias:/tmp/uploads/example.txt"],
 refute File.exist?(tmux_log)
 ```
 
-Add a second invocation with `--ssh-target ""` and assert nonzero status and no
-SSH or SCP call.
+Add a second invocation with the source path and pane TTY before
+`--ssh-target ""`, then assert nonzero status and no SSH or SCP call. Add a
+regression invocation whose first positional argument is `--foo`; assert that it
+succeeds and prints `--foo` unchanged without an SSH or SCP call.
 
 - [ ] **Step 2: Run the focused test and confirm RED**
 
@@ -65,8 +68,9 @@ does not use the explicit target.
 
 - [ ] **Step 3: Implement the minimal option behavior**
 
-Use `OptionParser` to parse both options. Reject an empty explicit target. Move
-tmux messaging behind a reporter with a `quiet` flag:
+Capture the first two positional arguments before using `OptionParser` to parse
+both options from only the remaining arguments. Reject an empty explicit target.
+Move tmux messaging behind a reporter with a `quiet` flag:
 
 ```ruby
 module Status
