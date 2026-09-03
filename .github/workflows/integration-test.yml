@@ -132,6 +132,9 @@ jobs:
       - name: Verify mise download failure handling
         run: ruby tests/mise-install-download.rb
 
+      - name: Verify development cache cleanup
+        run: bash tests/development-cache-cleanup.sh
+
       - name: Verify gsd-browser install behavior
         run: ruby tests/gsd-browser-install.rb
 
