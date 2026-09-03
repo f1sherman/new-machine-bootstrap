@@ -78,6 +78,9 @@ jobs:
       - name: Verify murder helper behavior
         run: ruby tests/murder.rb
 
+      - name: Verify smart upload behavior
+        run: ruby tests/smart-upload.rb
+
       - name: Verify repo lifecycle helpers
         run: bash tests/repo-lifecycle.sh
 
