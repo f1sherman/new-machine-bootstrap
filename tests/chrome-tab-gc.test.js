@@ -1,11 +1,15 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const path = require("node:path");
 
-const controllerPath = path.resolve(
+const extensionDir = path.resolve(
   __dirname,
-  "../roles/macos/files/chrome-tab-gc-extension/tab_gc.js",
+  "../roles/macos/files/chrome-tab-gc-extension",
 );
+const controllerPath = path.join(extensionDir, "tab_gc.js");
+const manifestPath = path.join(extensionDir, "manifest.json");
+const serviceWorkerPath = path.join(extensionDir, "service_worker.js");
 
 const ChromeTabGC = require(controllerPath);
 
@@ -493,4 +497,16 @@ test("candidate disappearance and removal failure do not affect other candidates
   assert.deepEqual(harness.sessionState().unpinnedAtByTab, {
     2: 2_000_000_000_000 - hour * 3,
   });
+});
+
+test("extension packaging wires manifest and service worker", () => {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+
+  assert.equal(manifest.manifest_version, 3);
+  assert.equal(manifest.background.service_worker, "service_worker.js");
+  assert.deepEqual([...manifest.permissions].sort(), ["alarms", "storage", "tabs"]);
+
+  const serviceWorker = fs.readFileSync(serviceWorkerPath, "utf8");
+  assert.match(serviceWorker, /importScripts\(["']tab_gc\.js["']\);?/);
+  assert.match(serviceWorker, /ChromeTabGC\.create\(\{chrome\}\)\.start\(\);?/);
 });
