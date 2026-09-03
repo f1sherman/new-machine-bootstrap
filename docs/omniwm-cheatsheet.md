@@ -17,6 +17,31 @@ Use workspaces for sustained activities. Use app switching for short interruptio
 | `⌥9` | Work | Work Safari and Slack |
 | `⌥0` | Parking | Bitwarden, Snagit, Backblaze, Phone, and rarely used windows |
 
+Safari uses its `Personal`, `Development`, and `Work` profiles in workspaces 2,
+3, and 9. Chrome normally belongs to ChatGPT in workspace 4. Brave belongs to
+Shopping in workspace 5. Move a rare Capital One Shopping Chrome window to
+workspace 5 manually after login.
+
+## After login
+
+A one-shot recovery waits for restored windows to settle. It then reapplies a
+workspace rule only when one managed rule clearly matches the window. Unknown,
+titleless, and ambiguous windows remain where they are. Recovery does not keep
+running during normal work.
+
+Use this read-only command to inspect proposed repairs:
+
+```text
+recover-omniwm-workspaces --check
+```
+
+Use this command to run the same recovery again. It can move uniquely matched
+windows:
+
+```text
+recover-omniwm-workspaces
+```
+
 ## Daily navigation
 
 | Shortcut | Action |

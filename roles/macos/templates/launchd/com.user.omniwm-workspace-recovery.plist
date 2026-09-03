@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.user.omniwm-workspace-recovery</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{{ ansible_facts["user_dir"] }}/.local/bin/recover-omniwm-workspaces</string>
+    <string>--rules</string>
+    <string>{{ ansible_facts["user_dir"] }}/.local/share/omniwm/omniwm-workspace-rules.json</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>{{ ansible_facts["user_dir"] }}/.local/state/omniwm/workspace-recovery.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{ ansible_facts["user_dir"] }}/.local/state/omniwm/workspace-recovery.log</string>
+</dict>
+</plist>

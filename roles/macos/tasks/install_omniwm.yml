@@ -31,6 +31,38 @@
     state: directory
     mode: '0755'
 
+- name: Ensure OmniWM state directory exists
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/.local/state/omniwm"
+    state: directory
+    mode: '0700'
+
+- name: Ensure OmniWM local data directory exists
+  file:
+    path: "{{ ansible_facts['user_dir'] }}/.local/share/omniwm"
+    state: directory
+    mode: '0755'
+
+- name: Install OmniWM workspace rules
+  copy:
+    src: omniwm-workspace-rules.json
+    dest: >-
+      {{ ansible_facts['user_dir'] }}/.local/share/omniwm/omniwm-workspace-rules.json
+    mode: '0644'
+
+- name: Install OmniWM workspace recovery helper
+  copy:
+    src: recover-omniwm-workspaces
+    dest: "{{ ansible_facts['user_dir'] }}/.local/bin/recover-omniwm-workspaces"
+    mode: '0755'
+
+- name: Install OmniWM workspace recovery LaunchAgent plist
+  template:
+    src: launchd/com.user.omniwm-workspace-recovery.plist
+    dest: >-
+      {{ ansible_facts['user_dir'] }}/Library/LaunchAgents/com.user.omniwm-workspace-recovery.plist
+    mode: '0644'
+
 - name: Install OmniWM LaunchAgent plist
   template:
     src: launchd/com.user.omniwm.plist
@@ -162,14 +194,6 @@
   register: omniwm_settings_before_launch
   check_mode: false
 
-- name: Ensure OmniWM state directory exists after completed migration
-  file:
-    path: "{{ ansible_facts['user_dir'] }}/.local/state/omniwm"
-    state: directory
-    mode: '0700'
-  when: >-
-    omniwm_workspace_layout_migration_complete | default(false) | bool
-
 - name: Record completed OmniWM workspace migration
   copy:
     content: "workspace-layout-migrated-v1\n"
@@ -189,6 +213,8 @@
     cmd: >-
       configure-omniwm-settings
       {{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml
+      --rules
+      {{ ansible_facts['user_dir'] }}/.local/share/omniwm/omniwm-workspace-rules.json
       {{
         omniwm_workspace_layout_marker.stat.exists |
         ternary('--activate-assignments', '')
@@ -204,6 +230,8 @@
     cmd: >-
       configure-omniwm-settings
       {{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml
+      --rules
+      {{ ansible_facts['user_dir'] }}/.local/share/omniwm/omniwm-workspace-rules.json
       {{
         omniwm_workspace_layout_marker.stat.exists |
         ternary('--activate-assignments', '')
@@ -253,6 +281,8 @@
     cmd: >-
       configure-omniwm-settings
       {{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml
+      --rules
+      {{ ansible_facts['user_dir'] }}/.local/share/omniwm/omniwm-workspace-rules.json
       {{
         omniwm_workspace_layout_marker.stat.exists |
         ternary('--activate-assignments', '')
@@ -262,12 +292,6 @@
   changed_when: omniwm_settings_result.stdout | trim == 'changed'
   check_mode: false
   when: omniwm_settings_file.stat.exists
-
-- name: Ensure OmniWM local data directory exists
-  file:
-    path: "{{ ansible_facts['user_dir'] }}/.local/share/omniwm"
-    state: directory
-    mode: '0755'
 
 - name: Install OmniWM cheat sheet
   copy:
