@@ -264,12 +264,13 @@ class OmniwmWorkspaceRecovery
     workspace = raw.dig("workspace", "number")
     bundle_id = "" if bundle_id.nil?
     title = "" if title.nil?
+    workspace_number = workspace.to_s
     unless id.is_a?(String) && !id.empty? && bundle_id.is_a?(String) &&
-        title.is_a?(String) && (workspace.is_a?(Integer) || workspace.is_a?(String))
+        title.is_a?(String) && workspace_number.match?(/\A(?:[1-9]|10)\z/)
       raise RecoveryError
     end
 
-    Window.new(id, bundle_id, title, workspace.to_s)
+    Window.new(id, bundle_id, title, workspace_number)
   end
 
   def matching_rules(window, rules)
