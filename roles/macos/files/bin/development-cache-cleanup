@@ -26,7 +26,20 @@ run_cleanup mise cache prune
 unset MISE_CACHE_PRUNE_AGE
 run_cleanup mise prune --tools --yes
 
-run_cleanup docker image prune --all --force --filter until=336h
-run_cleanup docker builder prune --all --force --filter until=336h
+if command -v docker >/dev/null 2>&1; then
+  docker_host="$(docker context inspect default \
+    --format '{{ (index .Endpoints "docker").Host }}' 2>/dev/null)" || docker_host=""
+  case "$docker_host" in
+    unix:///*)
+      run_cleanup docker --context default image prune --all --force --filter until=336h
+      run_cleanup docker --context default builder prune --all --force --filter until=336h
+      ;;
+    *)
+      printf '[%s] Cleanup failed: Docker default context is not a local Unix socket\n' \
+        "$(date '+%Y-%m-%d %H:%M:%S')" >&2
+      status=1
+      ;;
+  esac
+fi
 
 exit "$status"
