@@ -1,0 +1,225 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+umask 077
+
+config_dir="$HOME/.config/local-code-signing"
+password_file="$config_dir/keychain-password"
+certificate="$config_dir/certificate.pem"
+identity_ready="$config_dir/identity-ready"
+keychain="$HOME/Library/Keychains/local-code-signing.keychain-db"
+identity_name="Local Managed Binary Signing"
+openssl_command="/usr/bin/openssl"
+private_key="$config_dir/private-key.pem"
+identity_archive="$config_dir/identity.p12"
+changed=false
+search_list_changed=false
+original_keychains=()
+
+fail() {
+  printf 'Local code signing: %s\n' "$*" >&2
+  exit 1
+}
+
+if [[ $# -ne 3 ]]; then
+  fail "Usage: $0 CURL_PATH RUBY_PATH GIT_AI_PATH"
+fi
+
+curl_path=$1
+ruby_path=$2
+git_ai_path=$3
+
+for required_command in security codesign realpath; do
+  command -v "$required_command" >/dev/null 2>&1 || \
+    fail "required command not found: $required_command"
+done
+[[ -x "$openssl_command" ]] || fail "required command not found: $openssl_command"
+
+while IFS= read -r keychain_path; do
+  keychain_path=${keychain_path#*\"}
+  keychain_path=${keychain_path%\"*}
+  [[ -n "$keychain_path" ]] && original_keychains+=("$keychain_path")
+done < <(security list-keychains -d user)
+
+if [[ ${#original_keychains[@]} -eq 0 ]]; then
+  fail 'could not read the user keychain search list'
+fi
+
+restore_search_list() {
+  if [[ "$search_list_changed" == true ]]; then
+    if security list-keychains -d user -s "${original_keychains[@]}"; then
+      search_list_changed=false
+    else
+      printf 'Local code signing: could not restore the keychain search list.\n' >&2
+      printf 'Remove %s from the list in Keychain Access settings.\n' \
+        "$keychain" >&2
+      return 1
+    fi
+  fi
+}
+
+cleanup() {
+  exit_status=$?
+  trap - EXIT
+  rm -f "$private_key" "$identity_archive"
+  if ! restore_search_list; then
+    exit_status=1
+  fi
+  exit "$exit_status"
+}
+
+trap cleanup EXIT
+trap 'exit 130' HUP INT TERM
+
+mkdir -p "$config_dir"
+chmod 0700 "$config_dir"
+
+if [[ ! -e "$identity_ready" && \
+      ( -e "$password_file" || -e "$certificate" || -e "$keychain" ) ]]; then
+  security delete-keychain "$keychain" >/dev/null 2>&1 || rm -f "$keychain"
+  rm -f "$password_file" "$certificate"
+fi
+
+state_count=0
+for state_path in \
+  "$password_file" "$certificate" "$identity_ready" "$keychain"; do
+  [[ -e "$state_path" ]] && state_count=$((state_count + 1))
+done
+
+if [[ $state_count -ne 0 && $state_count -ne 4 ]]; then
+  fail "identity state is incomplete; inspect $config_dir and $keychain"
+fi
+
+if [[ $state_count -eq 0 ]]; then
+  password_temp="$password_file.tmp.$$"
+  "$openssl_command" rand -hex 24 > "$password_temp"
+  chmod 0600 "$password_temp"
+  mv "$password_temp" "$password_file"
+  keychain_password=$(<"$password_file")
+
+  "$openssl_command" req -new -newkey rsa:2048 -nodes -x509 -days 3650 \
+    -subj "/CN=$identity_name" \
+    -addext 'basicConstraints=critical,CA:false' \
+    -addext 'keyUsage=critical,digitalSignature' \
+    -addext 'extendedKeyUsage=codeSigning' \
+    -keyout "$private_key" \
+    -out "$certificate"
+  "$openssl_command" pkcs12 -export \
+    -name "$identity_name" \
+    -inkey "$private_key" \
+    -in "$certificate" \
+    -out "$identity_archive" \
+    -passout "pass:$keychain_password"
+
+  security create-keychain -p "$keychain_password" "$keychain"
+  security unlock-keychain -p "$keychain_password" "$keychain"
+  security set-keychain-settings -lut 21600 "$keychain"
+  security import "$identity_archive" \
+    -k "$keychain" \
+    -P "$keychain_password" \
+    -T /usr/bin/codesign
+  security set-key-partition-list \
+    -S apple-tool:,apple: \
+    -s \
+    -k "$keychain_password" \
+    "$keychain" >/dev/null
+  touch "$identity_ready"
+  changed=true
+fi
+
+keychain_password=$(<"$password_file")
+security unlock-keychain -p "$keychain_password" "$keychain"
+security list-keychains \
+  -d user \
+  -s "$keychain" "${original_keychains[@]}"
+search_list_changed=true
+
+if ! security verify-cert -c "$certificate" -p codeSign >/dev/null 2>&1; then
+  security add-trusted-cert \
+    -r trustRoot \
+    -p codeSign \
+    -k "$keychain" \
+    "$certificate"
+  changed=true
+fi
+
+if ! "$openssl_command" x509 -checkend 0 -noout -in "$certificate"; then
+  fail "signing certificate has expired: $certificate"
+fi
+
+certificate_sha1=$(
+  "$openssl_command" x509 -in "$certificate" -noout -fingerprint -sha1 |
+    awk -F= '{print $2}' |
+    tr -d ':'
+)
+
+if ! security find-identity -v -p codesigning "$keychain" |
+  grep -Fq "$certificate_sha1"; then
+  fail "signing identity not found in $keychain"
+fi
+
+sign_target() {
+  local label=$1
+  local requested_path=$2
+  local identifier=$3
+  local required=$4
+  local target
+  local requirement
+
+  if [[ ! -e "$requested_path" ]]; then
+    if [[ "$required" == true ]]; then
+      fail "$label executable not found: $requested_path"
+    fi
+    printf 'Local code signing: skipping absent %s at %s\n' \
+      "$label" "$requested_path"
+    return
+  fi
+
+  target=$(realpath "$requested_path") || \
+    fail "could not resolve $label path: $requested_path"
+  if [[ ! -f "$target" || ! -x "$target" ]]; then
+    fail "$label is not an executable regular file: $target"
+  fi
+
+  requirement="anchor = H\"$certificate_sha1\" and identifier \"$identifier\""
+  if codesign --verify --strict -R="$requirement" "$target" \
+    >/dev/null 2>&1; then
+    printf 'Local code signing: %s already has the managed identity\n' "$label"
+    return
+  fi
+
+  codesign --force \
+    --keychain "$keychain" \
+    --sign "$certificate_sha1" \
+    --identifier "$identifier" \
+    "$target"
+  codesign --verify --strict --verbose=2 \
+    -R="$requirement" \
+    "$target"
+  printf 'Local code signing: signed %s at %s\n' "$label" "$target"
+  changed=true
+}
+
+sign_target \
+  curl \
+  "$curl_path" \
+  com.f1sherman.local-managed.curl \
+  true
+sign_target \
+  ruby \
+  "$ruby_path" \
+  com.f1sherman.local-managed.ruby \
+  true
+sign_target \
+  git-ai \
+  "$git_ai_path" \
+  com.f1sherman.local-managed.git-ai \
+  false
+
+restore_search_list
+
+if [[ "$changed" == true ]]; then
+  printf 'changed\n'
+else
+  printf 'ok\n'
+fi
