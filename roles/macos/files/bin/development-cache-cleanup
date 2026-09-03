@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -u
+
+status=0
+
+run_cleanup() {
+  local tool="$1"
+  shift
+
+  command -v "$tool" >/dev/null 2>&1 || return 0
+
+  printf '[%s] Running %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$tool" "$*"
+  if ! "$tool" "$@"; then
+    printf '[%s] Cleanup failed: %s %s\n' \
+      "$(date '+%Y-%m-%d %H:%M:%S')" "$tool" "$*" >&2
+    status=1
+  fi
+}
+
+run_cleanup npm cache clean --force
+run_cleanup brew cleanup --prune=all
+
+MISE_CACHE_PRUNE_AGE=0
+export MISE_CACHE_PRUNE_AGE
+run_cleanup mise cache prune
+unset MISE_CACHE_PRUNE_AGE
+run_cleanup mise prune --tools --yes
+
+run_cleanup docker image prune --all --force --filter until=336h
+run_cleanup docker builder prune --all --force --filter until=336h
+
+exit "$status"

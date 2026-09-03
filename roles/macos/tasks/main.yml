@@ -476,6 +476,40 @@
   changed_when: false
   failed_when: false
 
+- name: Install development cache cleanup LaunchAgent plist
+  template:
+    src: launchd/com.user.development-cache-cleanup.plist
+    dest: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.development-cache-cleanup.plist'
+    mode: '0644'
+  register: development_cache_cleanup_plist
+
+- name: Check whether development cache cleanup launchd job is loaded
+  command: launchctl print gui/{{ ansible_facts["user_uid"] }}/com.user.development-cache-cleanup
+  register: development_cache_cleanup_job
+  check_mode: false
+  changed_when: false
+  failed_when: false
+
+- name: Unload changed development cache cleanup launchd job
+  command: launchctl bootout gui/{{ ansible_facts["user_uid"] }}/com.user.development-cache-cleanup
+  when:
+    - development_cache_cleanup_plist.changed
+    - development_cache_cleanup_job.rc == 0
+    - not ansible_check_mode
+  changed_when: true
+
+- name: Load development cache cleanup launchd job
+  command: launchctl bootstrap gui/{{ ansible_facts["user_uid"] }} {{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.development-cache-cleanup.plist
+  when:
+    - development_cache_cleanup_plist.changed or development_cache_cleanup_job.rc != 0
+    - not ansible_check_mode
+  changed_when: true
+
+- name: Verify development cache cleanup launchd job is loaded
+  command: launchctl print gui/{{ ansible_facts["user_uid"] }}/com.user.development-cache-cleanup
+  when: not ansible_check_mode
+  changed_when: false
+
 - name: Ensure Hammerspoon is installed
   homebrew:
     name: hammerspoon
