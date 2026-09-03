@@ -653,3 +653,18 @@
     path: '/tmp/powerline-fonts'
     state: absent
   when: not meslo_font_check.stat.exists
+
+- name: Apply persistent local signatures to networked development binaries
+  shell: |
+    set -euo pipefail
+    curl_bin="$(brew --prefix curl)/bin/curl"
+    ruby_root="$("{{ mise_bin }}" where \
+      "ruby@{{ tool_versions.runtimes.ruby }}")"
+    "{{ ansible_facts['user_dir'] }}/.local/bin/local-sign-managed-binaries" \
+      "$curl_bin" \
+      "$ruby_root/bin/ruby" \
+      "{{ ansible_facts['user_dir'] }}/.git-ai/bin/git-ai"
+  args:
+    executable: /bin/bash
+  register: local_signing_result
+  changed_when: "'changed' in (local_signing_result.stdout_lines | default([]))"
