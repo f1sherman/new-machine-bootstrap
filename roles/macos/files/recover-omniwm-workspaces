@@ -1,0 +1,335 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "fileutils"
+require "json"
+require "open3"
+require "timeout"
+
+if defined?(Data)
+  RecoveryRule = Data.define(:bundle_id, :title_regex, :workspace)
+  Window = Data.define(:id, :bundle_id, :title, :workspace)
+else
+  RecoveryRule = Struct.new(:bundle_id, :title_regex, :workspace) do
+    def initialize(*arguments)
+      super
+      freeze
+    end
+  end
+  Window = Struct.new(:id, :bundle_id, :title, :workspace) do
+    def initialize(*arguments)
+      super
+      freeze
+    end
+  end
+end
+
+class RecoveryError < StandardError; end
+
+class OmniwmWorkspaceRecovery
+  ALLOWED_RULE_KEYS = %w[bundleId titleRegex workspace].freeze
+  DEFAULT_MIN_WAIT_SECONDS = 30.0
+  DEFAULT_STABLE_SECONDS = 10.0
+  DEFAULT_POLL_SECONDS = 2.0
+  DEFAULT_TIMEOUT_SECONDS = 180.0
+  COMMAND_TIMEOUT_SECONDS = 10.0
+
+  def initialize(arguments, environment: ENV, output: $stdout, errors: $stderr)
+    @environment = environment
+    @output = output
+    @errors = errors
+    @check = false
+    @rules_path = File.expand_path("omniwm-workspace-rules.json", __dir__)
+    parse_arguments(arguments.dup)
+    @omniwmctl = environment.fetch("OMNIWMCTL", File.join(Dir.home, ".local/bin/omniwmctl"))
+    @lock_path = environment.fetch(
+      "OMNIWM_RECOVERY_LOCK",
+      File.join(Dir.home, ".local/state/omniwm/workspace-recovery.lock")
+    )
+    @minimum_wait = duration("OMNIWM_RECOVERY_MIN_WAIT_SECONDS", DEFAULT_MIN_WAIT_SECONDS)
+    @stable_seconds = duration("OMNIWM_RECOVERY_STABLE_SECONDS", DEFAULT_STABLE_SECONDS)
+    @poll_seconds = duration("OMNIWM_RECOVERY_POLL_SECONDS", DEFAULT_POLL_SECONDS)
+    @timeout_seconds = duration("OMNIWM_RECOVERY_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
+    @notify = environment.fetch("OMNIWM_RECOVERY_NOTIFY", "1") != "0"
+  end
+
+  def run
+    rules = load_rules
+    FileUtils.mkdir_p(File.dirname(@lock_path), mode: 0o700)
+    File.open(@lock_path, File::RDWR | File::CREAT, 0o600) do |lock|
+      unless lock.flock(File::LOCK_EX | File::LOCK_NB)
+        @output.puts "OmniWM workspace recovery is already running"
+        return true
+      end
+
+      recover(rules)
+    end
+    true
+  rescue RecoveryError => error
+    @errors.puts error.message
+    false
+  end
+
+  private
+
+  def parse_arguments(arguments)
+    until arguments.empty?
+      case (argument = arguments.shift)
+      when "--check"
+        @check = true
+      when "--rules"
+        @rules_path = arguments.shift || raise(RecoveryError, "--rules requires a path")
+      else
+        raise RecoveryError, "unknown argument: #{argument}"
+      end
+    end
+  end
+
+  def duration(name, default)
+    value = Float(@environment.fetch(name, default.to_s))
+    raise RecoveryError, "#{name} must not be negative" if value.negative?
+
+    value
+  rescue ArgumentError
+    raise RecoveryError, "#{name} must be a number"
+  end
+
+  def load_rules
+    parsed = JSON.parse(File.read(@rules_path))
+    raise RecoveryError, "workspace rules must be a JSON array" unless parsed.is_a?(Array)
+
+    seen = {}
+    parsed.map.with_index do |entry, index|
+      validate_rule(entry, index, seen)
+    end.freeze
+  rescue SystemCallError => error
+    raise RecoveryError, "could not read workspace rules: #{error.message}"
+  rescue JSON::ParserError => error
+    raise RecoveryError, "invalid workspace rules JSON: #{error.message}"
+  end
+
+  def validate_rule(entry, index, seen)
+    raise RecoveryError, "workspace rule #{index + 1} must be an object" unless entry.is_a?(Hash)
+
+    unknown = entry.keys - ALLOWED_RULE_KEYS
+    raise RecoveryError, "workspace rule #{index + 1} has unknown keys: #{unknown.join(', ')}" unless unknown.empty?
+
+    bundle_id = required_string(entry, "bundleId", index)
+    title_regex = entry["titleRegex"]
+    if title_regex && (!title_regex.is_a?(String) || title_regex.empty?)
+      raise RecoveryError, "workspace rule #{index + 1} has invalid titleRegex"
+    end
+    workspace = required_string(entry, "workspace", index)
+    unless (1..10).cover?(workspace.to_i) && workspace == workspace.to_i.to_s
+      raise RecoveryError, "workspace rule #{index + 1} has invalid workspace"
+    end
+
+    selector = [bundle_id, title_regex]
+    raise RecoveryError, "workspace rule #{index + 1} duplicates a selector" if seen[selector]
+
+    seen[selector] = true
+    compiled_regex = title_regex && Regexp.new(title_regex)
+    RecoveryRule.new(bundle_id, compiled_regex, workspace)
+  rescue RegexpError => error
+    raise RecoveryError, "workspace rule #{index + 1} has invalid titleRegex: #{error.message}"
+  end
+
+  def required_string(entry, key, index)
+    value = entry[key]
+    return value if value.is_a?(String) && !value.empty?
+
+    raise RecoveryError, "workspace rule #{index + 1} has invalid #{key}"
+  end
+
+  def recover(rules)
+    deadline = monotonic_time + @timeout_seconds
+    wait_for_ipc(deadline)
+    windows = wait_for_stable_windows(deadline)
+
+    if @check
+      report_check(windows, rules)
+      return
+    end
+
+    before = windows.to_h { |window| [window.id, window] }
+    requested = {}
+    operation_failures = {}
+    unchanged = 0
+    skipped = 0
+
+    windows.sort_by(&:id).each do |window|
+      matches = matching_rules(window, rules)
+      if matches.length != 1
+        skipped += 1
+        next
+      end
+
+      rule = matches.first
+      target = rule.workspace
+      if window.workspace == target
+        unchanged += 1
+        next
+      end
+
+      requested[window.id] = [target, rule]
+      _, detail, success = run_command(@omniwmctl, "rule", "apply", "--window", window.id)
+      next if success
+
+      operation_failures[window.id] = true
+      @errors.puts "failed id=#{window.id} bundle=#{window.bundle_id} selector=#{rule_label(rule)} workspace=#{window.workspace}->#{target}: #{detail}"
+    end
+
+    final_windows = query_windows
+    final_by_id = final_windows.to_h { |window| [window.id, window] }
+    moved = 0
+    requested.each do |id, (target, rule)|
+      original = before.fetch(id)
+      final = final_by_id[id]
+      if !operation_failures[id] && final&.workspace == target
+        moved += 1
+      elsif !operation_failures[id]
+        operation_failures[id] = true
+        observed = final&.workspace || "missing"
+        @errors.puts "failed id=#{id} bundle=#{original.bundle_id} selector=#{rule_label(rule)} workspace=#{original.workspace}->#{target}: observed #{observed}"
+      end
+    end
+
+    summary = "OmniWM workspace recovery moved=#{moved} unchanged=#{unchanged} skipped=#{skipped} failed=#{operation_failures.length}"
+    @output.puts summary
+    notify(summary)
+  end
+
+  def wait_for_ipc(deadline)
+    loop do
+      output, _, success = run_command(@omniwmctl, "ping")
+      return if success && output.strip == "pong"
+      raise RecoveryError, "Timed out waiting for OmniWM IPC" if monotonic_time >= deadline
+
+      pause
+    end
+  end
+
+  def wait_for_stable_windows(deadline)
+    started_at = monotonic_time
+    previous_signature = nil
+    stable_since = nil
+
+    loop do
+      raise RecoveryError, "Timed out waiting for OmniWM windows to stabilize" if monotonic_time >= deadline
+
+      windows = query_windows
+      now = monotonic_time
+      signature = windows.map do |window|
+        [window.id, window.bundle_id, window.title, window.workspace]
+      end.sort
+
+      if signature == previous_signature
+        stable_since ||= now
+        if now - started_at >= @minimum_wait && now - stable_since >= @stable_seconds
+          return windows
+        end
+      else
+        previous_signature = signature
+        stable_since = nil
+      end
+      pause
+    end
+  end
+
+  def query_windows
+    output, detail, success = run_command(@omniwmctl, "query", "windows", "--format", "json")
+    raise RecoveryError, "could not query OmniWM windows: #{detail}" unless success
+
+    document = JSON.parse(output)
+    raw_windows = document.dig("result", "payload", "windows")
+    raise RecoveryError unless document["ok"] != false && raw_windows.is_a?(Array)
+
+    raw_windows.map { |raw| parse_window(raw) }
+  rescue JSON::ParserError, TypeError, RecoveryError
+    raise RecoveryError, "invalid OmniWM window response"
+  end
+
+  def parse_window(raw)
+    id = raw["id"]
+    bundle_id = raw.dig("app", "bundleId")
+    title = raw["title"]
+    workspace = raw.dig("workspace", "number")
+    bundle_id = "" if bundle_id.nil?
+    title = "" if title.nil?
+    unless id.is_a?(String) && !id.empty? && bundle_id.is_a?(String) &&
+        title.is_a?(String) && (workspace.is_a?(Integer) || workspace.is_a?(String))
+      raise RecoveryError
+    end
+
+    Window.new(id, bundle_id, title, workspace.to_s)
+  end
+
+  def matching_rules(window, rules)
+    rules.select do |rule|
+      rule.bundle_id == window.bundle_id &&
+        (!rule.title_regex || rule.title_regex.match?(window.title))
+    end
+  end
+
+  def report_check(windows, rules)
+    pending = 0
+    unchanged = 0
+    skipped = 0
+    windows.sort_by(&:id).each do |window|
+      matches = matching_rules(window, rules)
+      if matches.length != 1
+        skipped += 1
+        next
+      end
+
+      rule = matches.first
+      target = rule.workspace
+      if window.workspace == target
+        unchanged += 1
+      else
+        pending += 1
+        @output.puts "check id=#{window.id} bundle=#{window.bundle_id} selector=#{rule_label(rule)} workspace=#{window.workspace}->#{target}"
+      end
+    end
+    @output.puts "OmniWM workspace recovery check pending=#{pending} unchanged=#{unchanged} skipped=#{skipped}"
+  end
+
+  def rule_label(rule)
+    rule.title_regex ? rule.title_regex.source : "bundle"
+  end
+
+  def run_command(*arguments)
+    stdout, stderr, status = Timeout.timeout(COMMAND_TIMEOUT_SECONDS) do
+      Open3.capture3(*arguments)
+    end
+    detail = stderr.empty? ? stdout.strip : stderr.strip
+    [stdout, detail, status.success?]
+  rescue Timeout::Error
+    ["", "command timed out", false]
+  rescue SystemCallError => error
+    ["", error.message, false]
+  end
+
+  def notify(summary)
+    return unless @notify
+
+    escaped = summary.gsub("\\", "\\\\").gsub('"', '\\"')
+    run_command("/usr/bin/osascript", "-e", %(display notification "#{escaped}" with title "OmniWM"))
+  end
+
+  def pause
+    sleep(@poll_seconds) if @poll_seconds.positive?
+  end
+
+  def monotonic_time
+    Process.clock_gettime(Process::CLOCK_MONOTONIC)
+  end
+end
+
+success = begin
+  OmniwmWorkspaceRecovery.new(ARGV).run
+rescue RecoveryError => error
+  warn error.message
+  false
+end
+exit(success ? 0 : 1)
