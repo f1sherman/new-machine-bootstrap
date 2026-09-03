@@ -39,6 +39,9 @@ jobs:
       - name: Verify OmniWM URL routing
         run: lua5.4 tests/omniwm-url-source.lua
 
+      - name: Verify Chrome tab garbage collection
+        run: node --test tests/chrome-tab-gc.test.js
+
       - name: Verify commit wrapper ignored docs protection
         run: bash tests/commit-force-add-superpowers.sh
 

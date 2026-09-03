@@ -43,6 +43,12 @@
     state: directory
     mode: '0755'
 
+- name: Install Chrome tab garbage collection extension
+  copy:
+    src: chrome-tab-gc-extension/
+    dest: "{{ ansible_facts['user_dir'] }}/.local/share/chrome-tab-gc-extension/"
+    mode: preserve
+
 - name: Install OmniWM workspace rules
   copy:
     src: omniwm-workspace-rules.json

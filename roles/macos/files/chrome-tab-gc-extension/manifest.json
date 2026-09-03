@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "ChatGPT Chrome Tab Cleanup",
+  "version": "1.0.0",
+  "description": "Closes unpinned Chrome tabs after 60 minutes without activity.",
+  "permissions": ["alarms", "storage", "tabs"],
+  "background": {
+    "service_worker": "service_worker.js"
+  }
+}
