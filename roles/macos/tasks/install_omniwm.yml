@@ -50,6 +50,17 @@
       {{ ansible_facts['user_dir'] }}/.local/share/omniwm/omniwm-workspace-rules.json
     mode: '0644'
 
+- name: Select available OmniWM workspace rules path
+  set_fact:
+    omniwm_workspace_rules_runtime_path: >-
+      {{
+        ansible_check_mode |
+        ternary(
+          playbook_dir ~ '/roles/macos/files/omniwm-workspace-rules.json',
+          ansible_facts['user_dir'] ~ '/.local/share/omniwm/omniwm-workspace-rules.json'
+        )
+      }}
+
 - name: Install OmniWM workspace recovery helper
   copy:
     src: recover-omniwm-workspaces
@@ -214,7 +225,7 @@
       configure-omniwm-settings
       {{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml
       --rules
-      {{ ansible_facts['user_dir'] }}/.local/share/omniwm/omniwm-workspace-rules.json
+      {{ omniwm_workspace_rules_runtime_path }}
       {{
         omniwm_workspace_layout_marker.stat.exists |
         ternary('--activate-assignments', '')
@@ -231,7 +242,7 @@
       configure-omniwm-settings
       {{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml
       --rules
-      {{ ansible_facts['user_dir'] }}/.local/share/omniwm/omniwm-workspace-rules.json
+      {{ omniwm_workspace_rules_runtime_path }}
       {{
         omniwm_workspace_layout_marker.stat.exists |
         ternary('--activate-assignments', '')
@@ -282,7 +293,7 @@
       configure-omniwm-settings
       {{ ansible_facts['user_dir'] }}/.config/omniwm/settings.toml
       --rules
-      {{ ansible_facts['user_dir'] }}/.local/share/omniwm/omniwm-workspace-rules.json
+      {{ omniwm_workspace_rules_runtime_path }}
       {{
         omniwm_workspace_layout_marker.stat.exists |
         ternary('--activate-assignments', '')
