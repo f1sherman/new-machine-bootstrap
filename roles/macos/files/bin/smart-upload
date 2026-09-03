@@ -192,7 +192,7 @@ def main
   end
 
   local_path_argument, pane_tty = ARGV.shift(2)
-  if SUPPORTED_OPTIONS.include?(pane_tty)
+  if pane_tty.start_with?("-")
     warn parser
     exit 1
   end
