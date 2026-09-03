@@ -69,6 +69,56 @@ class SmartUploadTest < Minitest::Test
     refute File.exist?(@scp_log)
   end
 
+  def test_rejects_ssh_target_option_in_the_required_pane_tty_slot
+    source_path = File.join(@tmpdir, "example.txt")
+    File.write(source_path, "example")
+
+    _stdout, _stderr, status = Open3.capture3(
+      env,
+      SCRIPT,
+      source_path,
+      "--ssh-target", "dev-alias"
+    )
+
+    refute status.success?
+    refute File.exist?(@ssh_log)
+    refute File.exist?(@scp_log)
+  end
+
+  def test_rejects_supported_option_as_the_explicit_target
+    source_path = File.join(@tmpdir, "example.txt")
+    File.write(source_path, "example")
+
+    _stdout, _stderr, status = Open3.capture3(
+      env,
+      SCRIPT,
+      source_path,
+      "",
+      "--ssh-target", "--quiet-status"
+    )
+
+    refute status.success?
+    refute File.exist?(@ssh_log)
+    refute File.exist?(@scp_log)
+  end
+
+  def test_rejects_unexpected_remaining_operand
+    source_path = File.join(@tmpdir, "example.txt")
+    File.write(source_path, "example")
+
+    _stdout, _stderr, status = Open3.capture3(
+      env,
+      SCRIPT,
+      source_path,
+      "",
+      "unexpected"
+    )
+
+    refute status.success?
+    refute File.exist?(@ssh_log)
+    refute File.exist?(@scp_log)
+  end
+
   def test_passes_through_legacy_clipboard_text_that_starts_with_a_dash
     stdout, stderr, status = Open3.capture3(env, SCRIPT, "--foo", "")
 

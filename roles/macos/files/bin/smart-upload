@@ -19,6 +19,7 @@ require 'tempfile'
 
 REMOTE_DIR = "/tmp/uploads"
 LOCAL_UPLOAD_DIR = "/tmp/uploads"
+SUPPORTED_OPTIONS = %w[--ssh-target --quiet-status].freeze
 
 module Status
   class << self
@@ -191,6 +192,10 @@ def main
   end
 
   local_path_argument, pane_tty = ARGV.shift(2)
+  if SUPPORTED_OPTIONS.include?(pane_tty)
+    warn parser
+    exit 1
+  end
 
   begin
     parser.parse!(ARGV)
@@ -200,7 +205,9 @@ def main
     exit 1
   end
 
-  if options.key?(:ssh_target) && options[:ssh_target].empty?
+  invalid_target = options.key?(:ssh_target) &&
+                   (options[:ssh_target].empty? || SUPPORTED_OPTIONS.include?(options[:ssh_target]))
+  if invalid_target || !ARGV.empty?
     warn parser
     exit 1
   end
