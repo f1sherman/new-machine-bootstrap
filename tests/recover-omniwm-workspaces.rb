@@ -25,6 +25,41 @@ class RecoverOmniwmWorkspacesTest < Minitest::Test
     FileUtils.remove_entry(@directory)
   end
 
+  def test_default_rules_path_uses_deployed_share_directory
+    deployed_rules = File.join(@directory, ".local/share/omniwm/omniwm-workspace-rules.json")
+    FileUtils.mkdir_p(File.dirname(deployed_rules))
+    FileUtils.cp(RULES, deployed_rules)
+    write_state(
+      "windows" => [window("ow_chrome", "com.google.Chrome", "ChatGPT", 1)],
+      "targets" => {"ow_chrome" => 4}
+    )
+
+    out, err, status = run_helper_without_rules
+
+    assert status.success?, err
+    assert_match(/moved=1/, out)
+  end
+
+  def test_minimum_wait_is_measured_from_helper_launch
+    write_state(
+      "pingDelay" => 1.0,
+      "windows" => [window("ow_chrome", "com.google.Chrome", "ChatGPT", 4)]
+    )
+
+    started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    _out, err, status = run_helper(
+      environment: {
+        "OMNIWM_RECOVERY_MIN_WAIT_SECONDS" => "1.0",
+        "OMNIWM_RECOVERY_POLL_SECONDS" => "0",
+        "OMNIWM_RECOVERY_TIMEOUT_SECONDS" => "3"
+      }
+    )
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+
+    assert status.success?, err
+    assert_operator elapsed, :<, 1.7
+  end
+
   def test_retries_ping_and_waits_for_two_equal_window_snapshots
     changing = [
       window("ow_first", "com.google.Chrome", "First", 1),
@@ -163,6 +198,16 @@ class RecoverOmniwmWorkspacesTest < Minitest::Test
     refute read_calls.any? { |call| call[0, 2] == ["rule", "apply"] }
   end
 
+  def test_non_object_window_fails_without_a_stack_trace_or_rule_application
+    write_state("windows" => [nil])
+
+    _out, err, status = run_helper
+
+    refute status.success?
+    assert_equal "invalid OmniWM window response\n", err
+    refute read_calls.any? { |call| call[0, 2] == ["rule", "apply"] }
+  end
+
   def test_ipc_timeout_fails_without_query_or_apply
     write_state("pingAlwaysFails" => true)
 
@@ -215,6 +260,7 @@ class RecoverOmniwmWorkspacesTest < Minitest::Test
       "unknown key" => [{"bundleId" => "com.google.Chrome", "workspace" => "4", "extra" => true}],
       "missing selector" => [{"workspace" => "4"}],
       "invalid workspace" => [{"bundleId" => "com.google.Chrome", "workspace" => "11"}],
+      "invalid regex type" => [{"bundleId" => "com.apple.Safari", "titleRegex" => false, "workspace" => "2"}],
       "invalid regex" => [{"bundleId" => "com.apple.Safari", "titleRegex" => "[", "workspace" => "2"}],
       "duplicate selector" => [
         {"bundleId" => "com.google.Chrome", "workspace" => "4"},
@@ -276,6 +322,22 @@ class RecoverOmniwmWorkspacesTest < Minitest::Test
     Open3.capture3(env, HELPER, "--rules", RULES, *arguments)
   end
 
+  def run_helper_without_rules
+    env = {
+      "HOME" => @directory,
+      "OMNIWMCTL" => @fake_ctl,
+      "FAKE_OMNIWM_STATE" => @state_path,
+      "FAKE_OMNIWM_CALLS" => @calls_path,
+      "OMNIWM_RECOVERY_LOCK" => @lock_path,
+      "OMNIWM_RECOVERY_MIN_WAIT_SECONDS" => "0",
+      "OMNIWM_RECOVERY_STABLE_SECONDS" => "0",
+      "OMNIWM_RECOVERY_POLL_SECONDS" => "0",
+      "OMNIWM_RECOVERY_TIMEOUT_SECONDS" => "1",
+      "OMNIWM_RECOVERY_NOTIFY" => "0"
+    }
+    Open3.capture3(env, HELPER)
+  end
+
   def write_state(state)
     File.write(@state_path, JSON.generate(state))
   end
@@ -315,6 +377,7 @@ class RecoverOmniwmWorkspacesTest < Minitest::Test
 
         case arguments
         when ["ping"]
+          sleep(state["pingDelay"]) if state["pingDelay"]
           state["pingCount"] += 1
           if state["pingAlwaysFails"] || state["pingCount"] <= state.fetch("pingFailures", 0)
             warn "not ready"
