@@ -209,6 +209,21 @@ class RecoverOmniwmWorkspacesTest < Minitest::Test
     refute read_calls.any? { |call| call[0, 2] == ["rule", "apply"] }
   end
 
+  def test_invalid_query_workspace_fails_without_applying_rules
+    ["bogus", 0, 11].each do |workspace|
+      write_state(
+        "windows" => [window("ow_chrome", "com.google.Chrome", "ChatGPT", workspace)]
+      )
+
+      _out, err, status = run_helper
+
+      refute status.success?, workspace.inspect
+      assert_equal "invalid OmniWM window response\n", err, workspace.inspect
+      refute read_calls.any? { |call| call[0, 2] == ["rule", "apply"] }, workspace.inspect
+      FileUtils.rm_f(@calls_path)
+    end
+  end
+
   def test_ipc_timeout_fails_without_query_or_apply
     write_state("pingAlwaysFails" => true)
 
