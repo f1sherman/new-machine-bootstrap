@@ -33,11 +33,13 @@ enforce placement, or run on another host.
 
 ### Recommended: delayed exact-window rule reapplication
 
-Keep managed app rules in OmniWM settings as the placement source of truth.
-After login, wait for the OmniWM window list to settle. Invoke
-`omniwmctl rule apply --window <opaque-id>` for each exact window ID. This asks
-OmniWM to reevaluate its own rules after browser profile titles are available.
-It does not require focus changes or duplicate placement logic.
+Keep one repository-managed JSON manifest as the placement source of truth.
+The settings reconciler uses it to create OmniWM rules. After login, the
+recovery helper uses the same manifest to classify exact windows after browser
+profile titles are available. It invokes
+`omniwmctl rule apply --window <opaque-id>` only for a window with exactly one
+managed assignment match. This asks OmniWM to reevaluate its own rule without
+focus changes or duplicate placement logic.
 
 Benefits:
 
@@ -88,6 +90,15 @@ dynamic. The exact Hammerspoon cheat-sheet floating rule remains unchanged.
 
 ## Components
 
+### Workspace rule manifest
+
+A repository-managed JSON file will contain the assignment selectors and target
+workspaces. Each entry supports an exact bundle ID and an optional anchored title
+regular expression. The settings reconciler and recovery helper will both read
+this file. Invalid, missing, duplicate, or ambiguous entries fail closed.
+Floating-only rules and the dynamic Finder and Photos behavior remain in the
+settings reconciler because they are not login assignments.
+
 ### Recovery helper
 
 A repository-managed executable will:
@@ -97,17 +108,19 @@ A repository-managed executable will:
 3. Query OmniWM windows as JSON every two seconds.
 4. Require at least 30 seconds since launch and ten continuous seconds with an
    unchanged signature of window ID, bundle ID, title, and workspace.
-5. Apply current OmniWM rules once to every exact live window ID.
-6. Query the final state and record before and after workspace numbers.
-7. Log applied, moved, unchanged, timed-out, and failed operations without URLs.
-8. Show one summary notification when Hammerspoon notification support is
-   available; logging remains sufficient when notification is unavailable.
-9. Exit. It does not stay resident.
+5. Classify each window against the shared manifest.
+6. Apply current OmniWM rules only when one manifest entry matches the window.
+7. Query the final state and record before and after workspace numbers.
+8. Log applied, moved, unchanged, skipped, timed-out, and failed operations
+   without URLs.
+9. Show one summary notification through macOS when possible; logging remains
+   sufficient when notification is unavailable.
+10. Exit. It does not stay resident.
 
 The helper will support `--check`. Check mode performs readiness and
-classification queries but does not apply rules. It reports the windows whose
-managed assignment can be determined from the documented mapping and exits
-nonzero only for operational errors, not for drift.
+classification queries but does not apply rules. It reports uniquely classified
+windows whose current workspace differs from the manifest. It exits nonzero only
+for operational errors, not for drift.
 
 The helper will support an injected command path and timing values for tests.
 Production defaults remain the values above.
@@ -124,9 +137,10 @@ load, unload, or run this LaunchAgent. The next graphical login loads it.
 
 ### Settings reconciler
 
-The existing Ruby reconciler will manage the explicit Safari profile rules and
-the broad Chrome and Brave rules. It will remove superseded managed rules
-without changing unrelated user rules.
+The existing Ruby reconciler will load assignment selectors from the shared
+manifest. It will manage explicit Safari profile rules and broad Chrome and Brave
+rules. It will remove superseded managed rules without changing unrelated user
+rules.
 
 ### Documentation
 
@@ -139,6 +153,7 @@ unknown windows unchanged, and provides a manual read-only check and retry.
 - Provisioning never invokes recovery.
 - Recovery never focuses a window.
 - Recovery uses only opaque IDs returned by the same live query.
+- Recovery invokes rule application only for one unique manifest match.
 - An unknown or ambiguous window remains unchanged.
 - A malformed response, unavailable IPC, or failed exact-window operation is
   logged and bounded by a timeout.
@@ -156,7 +171,8 @@ verify:
 - exact live IDs are passed to `rule apply --window`;
 - check mode performs no rule application;
 - unknown and titleless windows produce no proposed assignment;
-- Safari profile, broad Chrome, and broad Brave classification;
+- Safari profile, broad Chrome, and broad Brave classification from the same
+  manifest used by settings reconciliation;
 - timeouts and malformed JSON fail without applying rules;
 - locking prevents concurrent recovery;
 - rerunning an already-correct state causes no placement drift;
