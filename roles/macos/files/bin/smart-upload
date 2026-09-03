@@ -2,7 +2,7 @@
 #
 # smart-upload: Upload files/images to remote servers via tmux
 #
-# Usage: smart-upload <local-path-or-empty> <pane-tty>
+# Usage: smart-upload [options] <local-path-or-empty> <pane-tty>
 #
 # If local-path is empty or not a file, checks clipboard for image data.
 #
@@ -13,17 +13,25 @@
 # - If SSH'd to regular server: uploads via scp, outputs remote path
 
 require 'fileutils'
+require 'optparse'
 require 'shellwords'
 require 'tempfile'
 
 REMOTE_DIR = "/tmp/uploads"
 LOCAL_UPLOAD_DIR = "/tmp/uploads"
 
-def tmux_message(msg, duration: nil)
-  args = ["tmux", "display-message"]
-  args += ["-d", duration.to_s] if duration
-  args << msg
-  system(*args)
+module Status
+  class << self
+    attr_accessor :quiet
+
+    def message(text, duration: nil)
+      return if quiet
+
+      args = ["tmux", "display-message"]
+      args += ["-d", duration.to_s] if duration
+      system(*args, text)
+    end
+  end
 end
 
 def clipboard_has_image?
@@ -127,7 +135,7 @@ def upload_to_codespace(local_path, codespace_name)
   filename = File.basename(local_path)
   remote_path = "#{REMOTE_DIR}/#{filename}"
 
-  tmux_message("Uploading #{filename}...", duration: 0)
+  Status.message("Uploading #{filename}...", duration: 0)
 
   # Create remote directory
   system("gh", "codespace", "ssh", "--codespace", codespace_name, "--", "mkdir", "--parents", REMOTE_DIR,
@@ -139,10 +147,10 @@ def upload_to_codespace(local_path, codespace_name)
                    out: File::NULL, err: File::NULL)
 
   if success
-    tmux_message("Uploaded to #{remote_path}")
+    Status.message("Uploaded to #{remote_path}")
     remote_path
   else
-    tmux_message("Upload failed!")
+    Status.message("Upload failed!")
     nil
   end
 end
@@ -151,7 +159,7 @@ def upload_to_ssh(local_path, target)
   filename = File.basename(local_path)
   remote_path = "#{REMOTE_DIR}/#{filename}"
 
-  tmux_message("Uploading #{filename}...", duration: 0)
+  Status.message("Uploading #{filename}...", duration: 0)
 
   # Create remote directory and upload
   system("ssh", target, "mkdir", "--parents", REMOTE_DIR,
@@ -161,30 +169,46 @@ def upload_to_ssh(local_path, target)
                    out: File::NULL, err: File::NULL)
 
   if success
-    tmux_message("Uploaded to #{remote_path}")
+    Status.message("Uploaded to #{remote_path}")
     remote_path
   else
-    tmux_message("Upload failed!")
+    Status.message("Upload failed!")
     nil
   end
 end
 
 def main
-  if ARGV.length < 2
-    warn "Usage: smart-upload <local-path-or-empty> <pane-tty>"
+  options = {}
+  parser = OptionParser.new do |opts|
+    opts.banner = "Usage: smart-upload [options] <local-path-or-empty> <pane-tty>"
+    opts.on("--ssh-target TARGET") { |target| options[:ssh_target] = target }
+    opts.on("--quiet-status") { options[:quiet_status] = true }
+  end
+
+  begin
+    parser.parse!
+  rescue OptionParser::ParseError => e
+    warn e.message
+    warn parser
     exit 1
   end
 
+  if ARGV.length < 2 || (options.key?(:ssh_target) && options[:ssh_target].empty?)
+    warn parser
+    exit 1
+  end
+
+  Status.quiet = options[:quiet_status]
   local_path = ARGV[0].strip.gsub(/\A['"]|['"]\z/, '') # Remove quotes if present
   pane_tty = ARGV[1]
 
   # If no valid file path, check for clipboard image
   if local_path.empty? || !File.exist?(local_path)
     if clipboard_has_image?
-      tmux_message("Saving clipboard image...", duration: 0)
+      Status.message("Saving clipboard image...", duration: 0)
       local_path = save_clipboard_image
       if local_path.nil?
-        tmux_message("Failed to save clipboard image")
+        Status.message("Failed to save clipboard image")
         exit 1
       end
     elsif !local_path.empty?
@@ -192,9 +216,21 @@ def main
       print local_path
       exit 0
     else
-      tmux_message("No file path or image in clipboard")
+      Status.message("No file path or image in clipboard")
       exit 1
     end
+  end
+
+  if options[:ssh_target]
+    remote_path = upload_to_ssh(local_path, options[:ssh_target])
+    if remote_path
+      print remote_path
+      exit 0
+    end
+
+    warn "Upload via scp failed"
+    print local_path
+    exit 1
   end
 
   ssh_info = find_ssh_process(pane_tty)
