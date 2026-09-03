@@ -35,7 +35,8 @@ FIXED_RULE_TARGETS = [
 
 LEGACY_ASSIGNMENT_TARGETS = [
   RuleTarget.new(bundle_id: "com.google.Chrome", title_substring: "ChatGPT", workspace: "4"),
-  RuleTarget.new(bundle_id: "com.brave.Browser", title_substring: "Parental Controls", workspace: "5")
+  RuleTarget.new(bundle_id: "com.brave.Browser", title_substring: "Parental Controls", workspace: "5"),
+  RuleTarget.new(bundle_id: "com.apple.Safari", title_substring: "Work —", workspace: "9")
 ].freeze
 
 DYNAMIC_RULE_TARGETS = [
@@ -59,7 +60,16 @@ class WorkspaceRules
       raise "workspace rule #{index + 1} has unknown keys: #{unknown.join(', ')}" unless unknown.empty?
 
       bundle_id = required_string(entry, "bundleId", index)
+      unless bundle_id.match?(/\A[A-Za-z0-9.-]+\z/)
+        raise "workspace rule #{index + 1} has invalid bundleId"
+      end
       title_regex = optional_string(entry, "titleRegex", index)
+      if title_regex
+        unless title_regex.start_with?("^") && !title_regex.match?(/["\\\x00-\x1f]/)
+          raise "workspace rule #{index + 1} has unsafe titleRegex"
+        end
+        Regexp.new(title_regex)
+      end
       workspace = required_string(entry, "workspace", index)
       raise "workspace rule #{index + 1} has invalid workspace" unless WORKSPACES.include?(workspace)
 
@@ -71,6 +81,8 @@ class WorkspaceRules
     end
   rescue JSON::ParserError => error
     raise "invalid workspace rules JSON: #{error.message}"
+  rescue RegexpError => error
+    raise "invalid workspace rule titleRegex: #{error.message}"
   end
 
   def self.required_string(entry, key, index)

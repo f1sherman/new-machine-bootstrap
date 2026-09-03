@@ -116,9 +116,15 @@ class OmniwmWorkspaceRecovery
     raise RecoveryError, "workspace rule #{index + 1} has unknown keys: #{unknown.join(', ')}" unless unknown.empty?
 
     bundle_id = required_string(entry, "bundleId", index)
+    unless bundle_id.match?(/\A[A-Za-z0-9.-]+\z/)
+      raise RecoveryError, "workspace rule #{index + 1} has invalid bundleId"
+    end
     title_regex = entry["titleRegex"]
     if entry.key?("titleRegex") && (!title_regex.is_a?(String) || title_regex.empty?)
       raise RecoveryError, "workspace rule #{index + 1} has invalid titleRegex"
+    end
+    if title_regex && (!title_regex.start_with?("^") || title_regex.match?(/["\\\x00-\x1f]/))
+      raise RecoveryError, "workspace rule #{index + 1} has unsafe titleRegex"
     end
     workspace = required_string(entry, "workspace", index)
     unless (1..10).cover?(workspace.to_i) && workspace == workspace.to_i.to_s
@@ -267,6 +273,8 @@ class OmniwmWorkspaceRecovery
   end
 
   def matching_rules(window, rules)
+    return [] if window.title.empty?
+
     rules.select do |rule|
       rule.bundle_id == window.bundle_id &&
         (!rule.title_regex || rule.title_regex.match?(window.title))
