@@ -133,10 +133,6 @@ function create({
     if (started) return;
     started = true;
 
-    const existingAlarm = await chrome.alarms.get(ALARM_NAME);
-    if (!existingAlarm) {
-      chrome.alarms.create(ALARM_NAME, { periodInMinutes: alarmPeriodMinutes });
-    }
     chrome.tabs.onActivated.addListener(({ tabId }) => recordActivity(tabId));
     chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
       if (changeInfo && changeInfo.pinned === false) {
@@ -151,6 +147,10 @@ function create({
       return undefined;
     });
 
+    const existingAlarm = await chrome.alarms.get(ALARM_NAME);
+    if (!existingAlarm) {
+      chrome.alarms.create(ALARM_NAME, { periodInMinutes: alarmPeriodMinutes });
+    }
     await initializeState();
   }
 
