@@ -61,7 +61,7 @@ The extension source will live under
 `roles/macos/files/chrome-tab-gc-extension/`. The existing laptop-only OmniWM
 installation task will copy it to
 `~/.local/share/chrome-tab-gc-extension/`. That task is included only when
-Ansible reports the host name `Brians-MacBook-Pro`, so other hosts do not install
+Ansible reports the host name `brian-macbook-pro`, so other hosts do not install
 or enable the extension.
 
 The extension contains:
