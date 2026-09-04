@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Run only on the Ansible host `Brians-MacBook-Pro`.
+- Run only on the Ansible host `brian-macbook-pro`.
 - Close only unpinned, inactive Chrome tabs with at least 60 minutes of inactivity.
 - Give tabs a fresh 60-minute grace period after browser startup, delayed alarm wake, activation, or unpinning.
 - Re-read each candidate by stable tab ID before removal.
@@ -131,7 +131,7 @@ Run the repository commit helper with message `Add safe Chrome tab cleanup polic
 
 **Interfaces:**
 - Consumes: `ChromeTabGC.create({chrome})` from Task 1.
-- Produces: unpacked extension directory at `~/.local/share/chrome-tab-gc-extension` on `Brians-MacBook-Pro`.
+- Produces: unpacked extension directory at `~/.local/share/chrome-tab-gc-extension` on `brian-macbook-pro`.
 
 - [ ] **Step 1: Write failing packaging assertions**
 
@@ -180,7 +180,7 @@ In `roles/macos/tasks/install_omniwm.yml`, copy the extension directory recursiv
     mode: preserve
 ```
 
-No additional hostname condition belongs in this task because `roles/macos/tasks/main.yml` already includes the complete `install_omniwm.yml` file only for `Brians-MacBook-Pro`.
+No additional hostname condition belongs in this task because `roles/macos/tasks/main.yml` already includes the complete `install_omniwm.yml` file only for `brian-macbook-pro`.
 
 - [ ] **Step 5: Add the test to CI**
 
