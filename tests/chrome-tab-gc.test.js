@@ -480,6 +480,25 @@ test("clock rollback cannot close early", async () => {
   assert.ok(harness.hasTab(1));
 });
 
+test("storage recovery after start failure grants fresh grace and skips enumeration", async () => {
+  const clock = { now: 2_000_000_000_000 };
+  const harness = createHarness({
+    tabs: [{ id: 1, active: false, pinned: false, lastAccessed: clock.now - hour * 2 }],
+    storageGetError: new Error("storage failed"),
+  });
+  const controller = createController(harness, clock);
+
+  await controller.start();
+  harness.setStorageGetError(null);
+  clock.now += hour + 3 * 60 * 1000;
+
+  await assert.doesNotReject(() => controller.collect());
+  assert.equal(harness.sessionState().browserGraceAt, clock.now);
+  assert.equal(harness.sessionState().lastSweepAt, clock.now);
+  assert.deepEqual(harness.queryCalls, []);
+  assert.deepEqual(harness.removeCalls, []);
+});
+
 test("storage failure closes nothing", async () => {
   const clock = { now: 2_000_000_000_000 };
   const harness = createHarness({
