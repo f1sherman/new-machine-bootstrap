@@ -392,6 +392,29 @@ test("activation refreshes one tab", async () => {
   assert.ok(harness.hasTab(1));
 });
 
+test("active tabs receive sweep activity before focus changes", async () => {
+  const clock = { now: 2_000_000_000_000 };
+  const harness = createHarness({
+    tabs: [
+      { id: 1, active: true, pinned: false, lastAccessed: clock.now - hour * 2 },
+    ],
+  });
+  const controller = createController(harness, clock);
+
+  await controller.start();
+  await runRegularSweeps(controller, clock, 60);
+  harness.updateTab(1, { active: false });
+  clock.now += 60 * 1000;
+  await controller.collect();
+
+  assert.equal(
+    harness.sessionState().activityByTab[1],
+    2_000_000_000_000 + hour,
+  );
+  assert.deepEqual(harness.removeCalls, []);
+  assert.ok(harness.hasTab(1));
+});
+
 test("pinned-to-unpinned transition grants fresh grace", async () => {
   const clock = { now: 2_000_000_000_000 };
   const harness = createHarness({

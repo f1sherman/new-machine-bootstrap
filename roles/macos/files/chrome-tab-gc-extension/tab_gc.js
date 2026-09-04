@@ -185,6 +185,7 @@ function create({
     }
 
     const liveIds = new Set(tabs.map((tab) => Number(tab.id)));
+    const activeIds = tabs.filter((tab) => tab.active).map((tab) => tab.id);
     const removedIds = new Set();
 
     for (const tab of tabs) {
@@ -226,6 +227,9 @@ function create({
         state.browserGraceAt,
       );
       latestState.lastSweepAt = currentNow;
+      for (const tabId of activeIds) {
+        latestState.activityByTab[tabId] = currentNow;
+      }
       latestState.activityByTab = pruneMap(
         latestState.activityByTab,
         liveIds,
