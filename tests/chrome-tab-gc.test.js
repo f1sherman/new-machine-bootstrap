@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const extensionDir = path.resolve(
   __dirname,
@@ -35,6 +36,7 @@ function createHarness({
   initialState = {},
   storageGetError = null,
   queryError = null,
+  existingAlarm = null,
   getBehaviors = new Map(),
   removeBehaviors = new Map(),
 }) {
@@ -46,6 +48,7 @@ function createHarness({
   let tabOrder = tabs.map((tab) => tab.id);
   const tabsById = new Map(tabs.map((tab) => [tab.id, clone(tab)]));
   const alarmCreations = [];
+  const alarmGets = [];
   const queryCalls = [];
   const getCalls = [];
   const removeCalls = [];
@@ -57,6 +60,10 @@ function createHarness({
 
   const chrome = {
     alarms: {
+      async get(name) {
+        alarmGets.push(name);
+        return existingAlarm ? clone(existingAlarm) : undefined;
+      },
       create(name, info) {
         alarmCreations.push({ name, info: clone(info) });
       },
@@ -158,6 +165,7 @@ function createHarness({
   return {
     chrome,
     alarmCreations,
+    alarmGets,
     listeners,
     queryCalls,
     getCalls,
@@ -223,6 +231,7 @@ test("start registers listeners and startup grace closes nothing", async () => {
   await controller.start();
   await controller.collect();
 
+  assert.deepEqual(harness.alarmGets, ["chrome-tab-gc"]);
   assert.deepEqual(harness.alarmCreations, [
     { name: "chrome-tab-gc", info: { periodInMinutes: 1 } },
   ]);
@@ -232,6 +241,24 @@ test("start registers listeners and startup grace closes nothing", async () => {
   assert.deepEqual(harness.queryCalls, [{}]);
   assert.deepEqual(harness.getCalls, []);
   assert.deepEqual(harness.removeCalls, []);
+});
+
+test("start preserves an existing cleanup alarm", async () => {
+  const clock = { now: 2_000_000_000_000 };
+  const harness = createHarness({
+    tabs: defaultTabs(clock.now),
+    existingAlarm: {
+      name: "chrome-tab-gc",
+      periodInMinutes: 1,
+      scheduledTime: clock.now + 30_000,
+    },
+  });
+  const controller = createController(harness, clock);
+
+  await controller.start();
+
+  assert.deepEqual(harness.alarmGets, ["chrome-tab-gc"]);
+  assert.deepEqual(harness.alarmCreations, []);
 });
 
 test("first collection after startup delay grants fresh grace and closes nothing", async () => {
@@ -578,6 +605,31 @@ test("extension packaging wires manifest and service worker", () => {
   assert.deepEqual([...manifest.permissions].sort(), ["alarms", "storage", "tabs"]);
 
   const serviceWorker = fs.readFileSync(serviceWorkerPath, "utf8");
-  assert.match(serviceWorker, /importScripts\(["']tab_gc\.js["']\);?/);
-  assert.match(serviceWorker, /ChromeTabGC\.create\(\{chrome\}\)\.start\(\);?/);
+  const chrome = {};
+  const importedScripts = [];
+  const createCalls = [];
+  let startCalls = 0;
+  const context = {
+    chrome,
+    importScripts(...scripts) {
+      importedScripts.push(...scripts);
+      context.ChromeTabGC = {
+        create(options) {
+          createCalls.push(options);
+          return {
+            start() {
+              startCalls += 1;
+            },
+          };
+        },
+      };
+    },
+  };
+
+  vm.runInNewContext(serviceWorker, context);
+
+  assert.deepEqual(importedScripts, ["tab_gc.js"]);
+  assert.equal(createCalls.length, 1);
+  assert.equal(createCalls[0].chrome, chrome);
+  assert.equal(startCalls, 1);
 });
