@@ -157,6 +157,15 @@ function create({
     const state = await readSettledState("failed to read state");
     if (!state) return;
 
+    if (!state.browserGraceAt || !state.lastSweepAt) {
+      await mutateState((latestState) => {
+        latestState.browserGraceAt = currentNow;
+        latestState.lastSweepAt = currentNow;
+        return latestState;
+      }, "failed to initialize recovered state");
+      return;
+    }
+
     if (
       state.lastSweepAt &&
       (currentNow < state.lastSweepAt || currentNow - state.lastSweepAt > wakeGapMs)
