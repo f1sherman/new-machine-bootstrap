@@ -415,6 +415,33 @@ test("active tabs receive sweep activity before focus changes", async () => {
   assert.ok(harness.hasTab(1));
 });
 
+test("sweep activity keeps a newer activation timestamp", async () => {
+  const clock = { now: 2_000_000_000_000 };
+  const harness = createHarness({
+    tabs: [
+      { id: 1, active: true, pinned: false, lastAccessed: clock.now - hour * 2 },
+    ],
+  });
+  const controller = createController(harness, clock);
+
+  await controller.start();
+  const query = harness.chrome.tabs.query;
+  harness.chrome.tabs.query = async (queryInfo) => {
+    const tabs = await query(queryInfo);
+    clock.now += 1;
+    await harness.emitActivated(1);
+    return tabs;
+  };
+
+  clock.now += 60 * 1000;
+  await controller.collect();
+
+  assert.equal(
+    harness.sessionState().activityByTab[1],
+    2_000_000_000_000 + 60 * 1000 + 1,
+  );
+});
+
 test("pinned-to-unpinned transition grants fresh grace", async () => {
   const clock = { now: 2_000_000_000_000 };
   const harness = createHarness({

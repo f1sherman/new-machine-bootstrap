@@ -228,7 +228,10 @@ function create({
       );
       latestState.lastSweepAt = currentNow;
       for (const tabId of activeIds) {
-        latestState.activityByTab[tabId] = currentNow;
+        latestState.activityByTab[tabId] = Math.max(
+          tabTimestamp(latestState.activityByTab, tabId),
+          currentNow,
+        );
       }
       latestState.activityByTab = pruneMap(
         latestState.activityByTab,
