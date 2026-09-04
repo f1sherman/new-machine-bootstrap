@@ -37,6 +37,7 @@ function createHarness({
   storageGetError = null,
   queryError = null,
   existingAlarm = null,
+  alarmGetBehavior = null,
   getBehaviors = new Map(),
   removeBehaviors = new Map(),
 }) {
@@ -62,6 +63,7 @@ function createHarness({
     alarms: {
       async get(name) {
         alarmGets.push(name);
+        if (alarmGetBehavior) return alarmGetBehavior(name);
         return existingAlarm ? clone(existingAlarm) : undefined;
       },
       create(name, info) {
@@ -259,6 +261,30 @@ test("start preserves an existing cleanup alarm", async () => {
 
   assert.deepEqual(harness.alarmGets, ["chrome-tab-gc"]);
   assert.deepEqual(harness.alarmCreations, []);
+});
+
+test("start registers event listeners before the alarm lookup resolves", async () => {
+  const clock = { now: 2_000_000_000_000 };
+  let resolveAlarmGet;
+  const pendingAlarmGet = new Promise((resolve) => {
+    resolveAlarmGet = resolve;
+  });
+  const harness = createHarness({
+    tabs: [{ id: 1, active: false, pinned: true, lastAccessed: clock.now - hour }],
+    alarmGetBehavior: () => pendingAlarmGet,
+  });
+  const controller = createController(harness, clock);
+
+  const startPromise = controller.start();
+
+  assert.equal(harness.listeners.activated.length, 1);
+  assert.equal(harness.listeners.updated.length, 1);
+  assert.equal(harness.listeners.alarm.length, 1);
+  await harness.emitUpdated(1, { pinned: false });
+  resolveAlarmGet(undefined);
+  await startPromise;
+
+  assert.equal(harness.sessionState().unpinnedAtByTab[1], clock.now);
 });
 
 test("first collection after startup delay grants fresh grace and closes nothing", async () => {
