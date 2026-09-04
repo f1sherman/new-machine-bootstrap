@@ -23,7 +23,7 @@ function missingTabError(tabId) {
   return new Error(`No tab with id: ${tabId}`);
 }
 
-function resolveBehavior(behavior, context) {
+async function resolveBehavior(behavior, context) {
   if (typeof behavior === "function") {
     return behavior(context);
   }
@@ -102,8 +102,10 @@ function createHarness({
         getCalls.push(tabId);
         operations.push(`get:${tabId}`);
         if (getBehaviors.has(tabId)) {
-          const result = resolveBehavior(getBehaviors.get(tabId), {
+          const result = await resolveBehavior(getBehaviors.get(tabId), {
             deleteTab,
+            emitActivated,
+            emitUpdated,
             getTab: (id) => clone(tabsById.get(id)),
             tabId,
           });
@@ -118,8 +120,10 @@ function createHarness({
         removeCalls.push(tabId);
         operations.push(`remove:${tabId}`);
         if (removeBehaviors.has(tabId)) {
-          const result = resolveBehavior(removeBehaviors.get(tabId), {
+          const result = await resolveBehavior(removeBehaviors.get(tabId), {
             deleteTab,
+            emitActivated,
+            emitUpdated,
             getTab: (id) => clone(tabsById.get(id)),
             tabId,
           });
@@ -204,6 +208,13 @@ function defaultTabs(now) {
   ];
 }
 
+async function runRegularSweeps(controller, clock, count) {
+  for (let step = 0; step < count; step += 1) {
+    clock.now += 60 * 1000;
+    await controller.collect();
+  }
+}
+
 test("start registers listeners and startup grace closes nothing", async () => {
   const clock = { now: 2_000_000_000_000 };
   const harness = createHarness({ tabs: defaultTabs(clock.now) });
@@ -223,14 +234,34 @@ test("start registers listeners and startup grace closes nothing", async () => {
   assert.deepEqual(harness.removeCalls, []);
 });
 
+test("first collection after startup delay grants fresh grace and closes nothing", async () => {
+  const clock = { now: 2_000_000_000_000 };
+  const harness = createHarness({
+    tabs: [{ id: 1, active: false, pinned: false, lastAccessed: clock.now - hour * 2 }],
+  });
+  const controller = createController(harness, clock);
+
+  await controller.start();
+
+  assert.equal(harness.sessionState().browserGraceAt, clock.now);
+  assert.equal(harness.sessionState().lastSweepAt, clock.now);
+
+  clock.now += hour + 3 * 60 * 1000;
+  await controller.collect();
+
+  assert.equal(harness.sessionState().browserGraceAt, clock.now);
+  assert.equal(harness.sessionState().lastSweepAt, clock.now);
+  assert.deepEqual(harness.removeCalls, []);
+  assert.ok(harness.hasTab(1));
+});
+
 test("later pass closes the exact-threshold inactive unpinned tab and preserves active and pinned tabs", async () => {
   const clock = { now: 2_000_000_000_000 };
   const harness = createHarness({ tabs: defaultTabs(clock.now) });
   const controller = createController(harness, clock);
 
   await controller.start();
-  clock.now += hour;
-  await controller.collect();
+  await runRegularSweeps(controller, clock, 60);
 
   assert.deepEqual(harness.getCalls, [1]);
   assert.deepEqual(harness.removeCalls, [1]);
@@ -256,11 +287,32 @@ test("final revalidation sees active or pinned and skips removal", async () => {
   const controller = createController(harness, clock);
 
   await controller.start();
-  clock.now += hour;
-  await controller.collect();
+  await runRegularSweeps(controller, clock, 60);
 
   assert.deepEqual(harness.getCalls, [1, 2]);
   assert.deepEqual(harness.removeCalls, []);
+});
+
+test("final revalidation observes grace written during candidate re-read", async () => {
+  const clock = { now: 2_000_000_000_000 };
+  let harness;
+  harness = createHarness({
+    tabs: [{ id: 1, active: false, pinned: false, lastAccessed: clock.now - hour * 2 }],
+    getBehaviors: new Map([
+      [1, async ({ emitActivated, getTab, tabId }) => {
+        await emitActivated(tabId);
+        return getTab(tabId);
+      }],
+    ]),
+  });
+  const controller = createController(harness, clock);
+
+  await controller.start();
+  await runRegularSweeps(controller, clock, 60);
+
+  assert.equal(harness.sessionState().activityByTab[1], clock.now);
+  assert.deepEqual(harness.removeCalls, []);
+  assert.ok(harness.hasTab(1));
 });
 
 test("activation refreshes one tab", async () => {
@@ -274,12 +326,15 @@ test("activation refreshes one tab", async () => {
   const controller = createController(harness, clock);
 
   await controller.start();
-  clock.now += hour;
+  await runRegularSweeps(controller, clock, 30);
   await harness.emitActivated(1);
-  await controller.collect();
+  await runRegularSweeps(controller, clock, 30);
 
   assert.equal(harness.sessionState().browserGraceAt, 2_000_000_000_000);
-  assert.equal(harness.sessionState().activityByTab[1], clock.now);
+  assert.equal(
+    harness.sessionState().activityByTab[1],
+    2_000_000_000_000 + 30 * 60 * 1000,
+  );
   assert.deepEqual(harness.removeCalls, [2]);
   assert.ok(harness.hasTab(1));
 });
@@ -345,11 +400,10 @@ test("reordered and moved tabs retain identity by ID", async () => {
   const controller = createController(harness, clock);
 
   await controller.start();
-  clock.now += hour / 2;
+  await runRegularSweeps(controller, clock, 30);
   await harness.emitActivated(1);
   harness.setTabOrder([2, 1]);
-  clock.now += hour / 2;
-  await controller.collect();
+  await runRegularSweeps(controller, clock, 30);
 
   assert.deepEqual(harness.removeCalls, [2]);
   assert.ok(harness.hasTab(1));
@@ -387,8 +441,7 @@ test("multiple active tabs in separate windows remain", async () => {
   const controller = createController(harness, clock);
 
   await controller.start();
-  clock.now += hour;
-  await controller.collect();
+  await runRegularSweeps(controller, clock, 60);
 
   assert.deepEqual(harness.removeCalls, [3]);
   assert.ok(harness.hasTab(1));
@@ -469,7 +522,7 @@ test("candidate disappearance and removal failure do not affect other candidates
     ],
     initialState: {
       browserGraceAt: clock.now - hour * 3,
-      lastSweepAt: 0,
+      lastSweepAt: clock.now - 60 * 1000,
       activityByTab: { 1: clock.now - hour * 3, 2: clock.now - hour * 3, 3: clock.now - hour * 3 },
       unpinnedAtByTab: { 1: clock.now - hour * 3, 2: clock.now - hour * 3, 3: clock.now - hour * 3 },
     },
@@ -484,7 +537,6 @@ test("candidate disappearance and removal failure do not affect other candidates
   const controller = createController(harness, clock);
 
   await controller.start();
-  clock.now += hour;
 
   await assert.doesNotReject(() => controller.collect());
   assert.deepEqual(harness.getCalls, [1, 2, 3]);

@@ -59,17 +59,43 @@ function create({
   alarmPeriodMinutes = DEFAULT_ALARM_PERIOD_MINUTES,
 }) {
   let started = false;
+  let stateMutationQueue = Promise.resolve();
 
   async function readState() {
     return normalizeState(await chrome.storage.session.get(DEFAULT_STATE));
   }
 
-  async function mergeState(mutator, context) {
+  function enqueueStateMutation(work) {
+    const queuedWork = stateMutationQueue.then(work, work);
+    stateMutationQueue = queuedWork.then(
+      () => undefined,
+      () => undefined,
+    );
+    return queuedWork;
+  }
+
+  async function waitForStateMutations() {
+    await stateMutationQueue;
+  }
+
+  async function mutateState(mutator, context) {
     try {
-      const state = await readState();
-      const nextState = normalizeState(mutator(state) || state);
-      await chrome.storage.session.set(nextState);
-      return nextState;
+      return await enqueueStateMutation(async () => {
+        const state = await readState();
+        const nextState = normalizeState((await mutator(state)) || state);
+        await chrome.storage.session.set(nextState);
+        return nextState;
+      });
+    } catch (error) {
+      console.error(`ChromeTabGC: ${context}`, error);
+      return null;
+    }
+  }
+
+  async function readSettledState(context) {
+    try {
+      await waitForStateMutations();
+      return await readState();
     } catch (error) {
       console.error(`ChromeTabGC: ${context}`, error);
       return null;
@@ -77,23 +103,27 @@ function create({
   }
 
   async function initializeState() {
-    return mergeState((state) => {
+    return mutateState((state) => {
+      const startedAt = now();
       if (!state.browserGraceAt) {
-        state.browserGraceAt = now();
+        state.browserGraceAt = startedAt;
+      }
+      if (!state.lastSweepAt) {
+        state.lastSweepAt = startedAt;
       }
       return state;
     }, "failed to initialize state");
   }
 
   async function recordActivity(tabId) {
-    return mergeState((state) => {
+    return mutateState((state) => {
       state.activityByTab[tabId] = now();
       return state;
     }, `failed to record activity for tab ${tabId}`);
   }
 
   async function recordUnpinned(tabId) {
-    return mergeState((state) => {
+    return mutateState((state) => {
       state.unpinnedAtByTab[tabId] = now();
       return state;
     }, `failed to record unpinned grace for tab ${tabId}`);
@@ -124,14 +154,8 @@ function create({
   async function collect() {
     const currentNow = now();
     const wakeGapMs = alarmPeriodMinutes * 60 * 1000 * WAKE_GAP_MULTIPLIER;
-    let state;
-
-    try {
-      state = await readState();
-    } catch (error) {
-      console.error("ChromeTabGC: failed to read state", error);
-      return;
-    }
+    const state = await readSettledState("failed to read state");
+    if (!state) return;
 
     if (
       state.lastSweepAt &&
@@ -165,7 +189,16 @@ function create({
         continue;
       }
 
-      if (!isEligible(currentTab, state, idleMs, currentNow)) continue;
+      const latestState = await readSettledState(
+        `failed to re-read state for tab ${tab.id}`,
+      );
+      if (!latestState) return;
+
+      const revalidationState = {
+        ...latestState,
+        browserGraceAt: Math.max(latestState.browserGraceAt, state.browserGraceAt),
+      };
+      if (!isEligible(currentTab, revalidationState, idleMs, currentNow)) continue;
 
       try {
         await chrome.tabs.remove(tab.id);
@@ -175,8 +208,11 @@ function create({
       }
     }
 
-    await mergeState((latestState) => {
-      latestState.browserGraceAt = state.browserGraceAt;
+    await mutateState((latestState) => {
+      latestState.browserGraceAt = Math.max(
+        latestState.browserGraceAt,
+        state.browserGraceAt,
+      );
       latestState.lastSweepAt = currentNow;
       latestState.activityByTab = pruneMap(
         latestState.activityByTab,
