@@ -17,7 +17,8 @@ if [ "$(basename "$0")" = mise ] && [ "${1:-}" = cache ]; then
   printf 'mise-cache-age=%s\n' "${MISE_CACHE_PRUNE_AGE:-unset}" >> "$TEST_LOG"
 fi
 if [ "$(basename "$0")" = docker ] && [ "${1:-}" = context ]; then
-  printf '%s\n' "${DOCKER_CONTEXT_HOST:-unix:///var/run/docker.sock}"
+  printf '%s\n' \
+    "${DOCKER_CONTEXT_HOST:-unix:///Users/test/.docker/run/docker.sock}"
 fi
 if [ "$(basename "$0")" = "${FAIL_TOOL:-}" ]; then
   exit 9
@@ -42,9 +43,9 @@ brew cleanup --prune=all
 mise cache prune
 mise-cache-age=0
 mise prune --tools --yes
-docker context inspect default --format {{ (index .Endpoints "docker").Host }}
-docker --context default image prune --all --force --filter until=336h
-docker --context default builder prune --all --force --filter until=336h
+docker context inspect desktop-linux --format {{ (index .Endpoints "docker").Host }}
+docker --context desktop-linux image prune --all --force --filter until=336h
+docker --context desktop-linux builder prune --all --force --filter until=336h
 EXPECTED
 
 export PATH="$stub_dir:/usr/bin:/bin"
@@ -61,7 +62,7 @@ diff -u "$expected" "$TEST_LOG"
 
 : > "$TEST_LOG"
 if DOCKER_CONTEXT_HOST=tcp://remote.example:2376 bash "$script"; then
-  echo "FAIL: cleanup succeeded with a remote Docker default context" >&2
+  echo "FAIL: cleanup succeeded with a remote Docker Desktop context" >&2
   exit 1
 fi
 if grep -q '^docker .* prune' "$TEST_LOG"; then
