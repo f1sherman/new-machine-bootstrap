@@ -118,8 +118,8 @@ affect every matching window, so they are intentionally not configured.
 
 Press `Escape` or `⌃⌥H` to hide the cheat-sheet panel.
 
-Finder is the OmniWM scratchpad. Only its managed Downloads window uses this
-behavior. Photos uses its own summon-and-return workflow.
+Finder uses OmniWM scratchpad slot 1. Only its managed Downloads window uses
+this behavior. Photos uses its own summon-and-return workflow.
 
 ## Common workflows
 

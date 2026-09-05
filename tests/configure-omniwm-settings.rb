@@ -110,7 +110,7 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
 
     [[hotkeys]]
     binding = "Control+Option+T"
-    id = "toggleScratchpadWindow"
+    id = "toggleScratchpad.1"
 
     [[hotkeys]]
     binding = "Control+Option+H"
@@ -218,7 +218,7 @@ class ConfigureOmniwmSettingsTest < Minitest::Test
       assert_includes ghostty_rule, "minHeight = 400.0"
       assert_includes unrelated_rule, 'assignToWorkspace = "6"'
       refute_includes result, 'bundleId = "com.google.Chrome"'
-      assert_includes result, "binding = \"Unassigned\"\nid = \"toggleScratchpadWindow\""
+      assert_includes result, "binding = \"Unassigned\"\nid = \"toggleScratchpad.1\""
     end
   end
 
