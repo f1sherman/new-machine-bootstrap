@@ -4,7 +4,7 @@
 
 **Goal:** Open ChatGPT links in the single Chrome window in the active OmniWM workspace and focus that exact window.
 
-**Architecture:** Extend the pure URL-source helper with exact ChatGPT sender and Chrome target selection. Add a ChatGPT route to the Hammerspoon integration that focuses the selected OmniWM window before Chrome tab creation, then confirms focus again without moving or summoning windows.
+**Architecture:** Extend the pure URL-source helper with exact ChatGPT sender and Chrome target selection. Use a tested routing state machine that focuses the selected OmniWM window, captures Chrome's own window ID, revalidates focus, and targets tab creation through that ID without moving or summoning windows.
 
 **Tech Stack:** Lua, Hammerspoon, OmniWM IPC, Chrome AppleScript, Markdown
 
@@ -70,54 +70,74 @@ Commit the helper and test as `Classify ChatGPT Chrome link targets`.
 ### Task 2: Route and focus ChatGPT links
 
 **Files:**
+- Create: `roles/macos/files/hammerspoon/omniwm_chatgpt_router.lua`
+- Create: `tests/omniwm-chatgpt-router.lua`
 - Modify: `roles/macos/files/hammerspoon/omniwm.lua`
+- Modify: `roles/macos/tasks/install_omniwm.yml`
+- Modify: `.github/workflows/integration-test.yml`
 - Modify: `docs/omniwm-cheatsheet.md`
 
 **Interfaces:**
 - Consumes: `urlSource.isChatGPTSender`
 - Consumes: `urlSource.resolveActiveChromeWindow`
-- Produces: ChatGPT URL dispatch with exact OmniWM focus and Chrome tab creation
+- Produces: `chatGPTRouter.route(window, url, deps)`
+- Produces: ChatGPT URL dispatch with exact OmniWM and Chrome window identity
 
 - [ ] **Step 1: Add normal Chrome fallback**
 
 Add `openNormallyInChrome(url)`. Use
 `hs.urlevent.openURLWithBundle(url, "com.google.Chrome")`. Notify if it fails.
 
-- [ ] **Step 2: Add Chrome tab creation**
+- [ ] **Step 2: Write the routing state-machine test**
 
-Add an AppleScript helper that creates a tab at the end of Google Chrome's
-`front window` and sets it as the active tab. Escape the URL with the existing
-`appleScriptLiteral`. Do not call `activate` in this helper.
+Create an injected orchestration test. Verify the order `focus`, Chrome ID
+capture, exact focus confirmation, exact-ID tab creation, and final focus.
+Verify one fallback for each pre-creation failure. Verify no fallback after tab
+creation when tab selection or final focus fails.
 
-- [ ] **Step 3: Add the exact-window route**
+- [ ] **Step 3: Add exact Chrome tab creation**
+
+After exact OmniWM focus, capture Chrome's AppleScript ID for its front window.
+Reconfirm the same opaque OmniWM ID without changing focus. Create the tab in
+`first window whose id is N`. Select the new tab in a separate AppleScript
+operation so the caller can distinguish a creation failure from a later
+selection failure. Escape the URL with `appleScriptLiteral`.
+
+- [ ] **Step 4: Add the exact-window route**
 
 Query the active workspace and windows. Resolve one target with the pure helper.
 Use `focusSummonedWindow(target.id, ...)` only as an existing bounded exact-ID
-focus helper; do not summon the window. After confirmed focus, create the tab.
-Then call the same exact-ID focus helper again. Use normal Chrome fallback once
-for query, selection, initial focus, or tab creation failures. Notify only after
-a final focus failure because the tab already exists.
+focus helper; do not summon the window. Delegate the focus, ID capture,
+revalidation, tab creation, fallback, and final focus sequence to
+`omniwm_chatgpt_router.lua`.
 
-- [ ] **Step 4: Dispatch ChatGPT before Ghostty routing**
+- [ ] **Step 5: Dispatch ChatGPT before Ghostty routing**
 
 In `hs.urlevent.httpCallback`, route exact sender bundle `com.openai.codex` to
 the ChatGPT route before the current explicit-sender branch. Keep current
 Ghostty and unknown-sender behavior unchanged. Log the route decision without
 the URL.
 
-- [ ] **Step 5: Update the cheat sheet**
+- [ ] **Step 6: Deploy and test the router module**
+
+Add the router module to `install_omniwm.yml`. Add its behavioral test to the
+integration workflow.
+
+- [ ] **Step 7: Update the cheat sheet**
 
 In `docs/omniwm-cheatsheet.md`, document that ChatGPT links open in and focus the
 single Chrome window in the active workspace. Document normal Chrome fallback
 when the target is absent or ambiguous.
 
-- [ ] **Step 6: Run static and behavioral verification**
+- [ ] **Step 8: Run static and behavioral verification**
 
 Run:
 
 ```bash
 lua tests/omniwm-url-source.lua
+lua tests/omniwm-chatgpt-router.lua
 luac -p roles/macos/files/hammerspoon/omniwm.lua
+luac -p roles/macos/files/hammerspoon/omniwm_chatgpt_router.lua
 ruby tests/configure-omniwm-settings.rb
 rg -n 'summon|move-to-workspace' roles/macos/files/hammerspoon/omniwm.lua
 ```
@@ -125,7 +145,7 @@ rg -n 'summon|move-to-workspace' roles/macos/files/hammerspoon/omniwm.lua
 Expected: All tests and syntax checks pass. Inspection confirms the new ChatGPT
 route contains no move or summon call.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 9: Commit**
 
 Commit the router and documentation as `Focus Chrome for ChatGPT links`.
 

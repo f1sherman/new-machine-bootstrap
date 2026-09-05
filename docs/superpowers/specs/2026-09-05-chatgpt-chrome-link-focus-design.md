@@ -29,16 +29,20 @@ window.
 Add pure source and target classification functions to
 `omniwm_url_source.lua`. Dispatch ChatGPT before the existing Ghostty route.
 Query the active workspace and OmniWM windows. Select one eligible Chrome window
-in that workspace. Focus and confirm its opaque OmniWM window ID. Create an
-active tab in Chrome's front window without an application-level activation.
-Confirm focus again after tab creation.
+in that workspace. Focus and confirm its opaque OmniWM window ID. Capture
+Chrome's AppleScript ID for the focused front window. Reconfirm the exact
+OmniWM window before tab creation. Create the tab through the captured Chrome
+window ID. Confirm focus again after tab creation.
 
-Use normal Chrome routing exactly once if selection, initial focus, or tab
-creation fails. If tab creation succeeds but final focus fails, report the error
+Create and select the Chrome tab as separate operations. This makes successful
+tab creation explicit. Use normal Chrome routing exactly once if selection,
+initial focus, ID capture, focus revalidation, or tab creation fails. If tab
+creation succeeds but tab selection or final focus fails, report the error
 without opening a duplicate tab.
 
-This approach uses OmniWM for exact window identity. It uses Chrome AppleScript
-only after OmniWM confirms which Chrome window is focused.
+This approach uses OmniWM for exact focus identity. It captures Chrome's own
+window ID only while that exact OmniWM window remains focused. AppleScript then
+targets the captured Chrome ID instead of the mutable front window.
 
 ## Alternatives considered
 
@@ -61,12 +65,15 @@ windows. Keep it only as the safe fallback.
   - Resolves exactly one eligible Chrome window in the active workspace.
 - `omniwm.lua`
   - Dispatches ChatGPT links.
-  - Queries OmniWM state.
-  - Focuses and confirms the selected window.
-  - Creates an active Chrome tab.
-  - Applies fallback and notification behavior.
+  - Queries OmniWM state and adapts Hammerspoon operations.
+  - Captures a directly addressable Chrome window ID.
+  - Creates and selects a Chrome tab in that exact window.
+- `omniwm_chatgpt_router.lua`
+  - Coordinates exact focus, ID capture, tab creation, and fallback behavior.
 - `tests/omniwm-url-source.lua`
   - Executes production classification and selection logic.
+- `tests/omniwm-chatgpt-router.lua`
+  - Executes the production routing state machine with injected operations.
 - `docs/omniwm-cheatsheet.md`
   - Documents the ChatGPT link workflow.
 
@@ -85,7 +92,9 @@ windows. Keep it only as the safe fallback.
 
 - Add behavioral Lua cases for the ChatGPT sender and Chrome target selection.
 - Cover one target, no target, wrong workspace, empty title, and ambiguity.
-- Run the Lua production test and Lua syntax check.
+- Add state-machine cases for pre-creation failures, partial creation, final
+  focus failure, fallback counts, and operation order.
+- Run both Lua production tests and Lua syntax checks.
 - Run the existing OmniWM settings Ruby suite to detect integration regressions.
 - Inspect the diff for window move or summon commands in the new route.
 - Do not provision or restart OmniWM without explicit user approval.
