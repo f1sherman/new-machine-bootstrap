@@ -4,6 +4,9 @@ package.path = sourcePath .. ";" .. package.path
 local source = require("omniwm_url_source")
 local route = source.shouldRouteGhostty
 local isSafariBrowserWindow = source.isSafariBrowserWindow
+local isChatGPTSender = source.isChatGPTSender
+local isChromeBrowserWindow = source.isChromeBrowserWindow
+local resolveActiveChromeWindow = source.resolveActiveChromeWindow
 local failures = 0
 
 local function assertEqual(expected, actual, message)
@@ -77,12 +80,69 @@ for _, case in ipairs(safariCases) do
   assertEqual(expected, isSafariBrowserWindow(window), message)
 end
 
+assertEqual(true, isChatGPTSender("com.openai.codex"), "ChatGPT sender")
+assertEqual(false, isChatGPTSender("com.apple.Safari"), "non-ChatGPT sender")
+
+local chromeInWorkspace4 = {
+  id = "ow_chrome",
+  app = {bundleId = "com.google.Chrome"},
+  title = "ChatGPT",
+  workspace = {number = 4},
+}
+local chromeInWorkspace2 = {
+  id = "ow_personal_chrome",
+  app = {bundleId = "com.google.Chrome"},
+  title = "Personal",
+  workspace = {number = 2},
+}
+local titlelessChrome = {
+  id = "ow_chrome_panel",
+  app = {bundleId = "com.google.Chrome"},
+  title = "",
+  workspace = {number = 4},
+}
+
+assertEqual(true, isChromeBrowserWindow(chromeInWorkspace4), "Chrome browser window")
+assertEqual(false, isChromeBrowserWindow(titlelessChrome), "titleless Chrome panel")
+
+local target, targetError = resolveActiveChromeWindow(4, {chromeInWorkspace4})
+assertEqual("ow_chrome", target and target.id, "one Chrome target")
+assertEqual(nil, targetError, "one Chrome target error")
+
+target, targetError = resolveActiveChromeWindow(4, {})
+assertEqual(nil, target, "absent Chrome target")
+assertEqual(nil, targetError, "absent Chrome target error")
+
+target, targetError = resolveActiveChromeWindow(4, {chromeInWorkspace2})
+assertEqual(nil, target, "Chrome target in another workspace")
+assertEqual(nil, targetError, "wrong-workspace target error")
+
+target, targetError = resolveActiveChromeWindow(4, {titlelessChrome})
+assertEqual(nil, target, "titleless Chrome target")
+assertEqual(nil, targetError, "titleless Chrome target error")
+
+target, targetError = resolveActiveChromeWindow(4, {
+  chromeInWorkspace4,
+  {
+    id = "ow_chrome_2",
+    app = {bundleId = "com.google.Chrome"},
+    title = "Second",
+    workspace = {number = 4},
+  },
+})
+assertEqual(nil, target, "ambiguous Chrome target")
+assertEqual(
+  "More than one Chrome browser window is in the active workspace",
+  targetError,
+  "ambiguous Chrome target error"
+)
+
 if failures > 0 then
   os.exit(1)
 end
 
 print(string.format(
-  "PASS: %d OmniWM URL source cases and %d Safari window cases",
+  "PASS: %d URL source cases, %d Safari cases, and ChatGPT Chrome cases",
   #cases,
   #safariCases
 ))
