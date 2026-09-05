@@ -1,6 +1,7 @@
 local M = {}
 local cheatsheetPanel = require("omniwm_cheatsheet").new()
 local downloads = require("omniwm_downloads").new()
+local chatGPTRouter = require("omniwm_chatgpt_router")
 local urlSource = require("omniwm_url_source")
 local omniwmctl = os.getenv("HOME") .. "/.local/bin/omniwmctl"
 local logger = hs.logger.new("omniwm", "info")
@@ -581,18 +582,55 @@ local function openNormallyInChrome(url)
   end
 end
 
-local function openChromeTab(url)
-  local script = string.format([[
+local function chromeFrontWindowID()
+  local success, result = hs.osascript.applescript([[
+    tell application "Google Chrome" to return id of front window
+  ]])
+  if not success or type(result) ~= "number" then
+    return nil, "Could not resolve the focused Chrome window ID: " .. tostring(result)
+  end
+  return result, nil
+end
+
+local function confirmWindowFocused(id, callback)
+  queryWindows({"--window", id}, function(windows, queryError)
+    if queryError then
+      callback(nil, queryError)
+      return
+    end
+    local window = findWindowByID(windows, id)
+    if not window or window.isFocused ~= true then
+      callback(nil, "The selected Chrome window lost focus")
+      return
+    end
+    callback(window, nil)
+  end)
+end
+
+local function openChromeTab(chromeWindowID, url)
+  local createScript = string.format([[
     tell application "Google Chrome"
-      tell front window
-        set newTab to make new tab at end of tabs with properties {URL:%s}
-        set active tab index to (count tabs)
+      set targetWindow to first window whose id is %d
+      tell targetWindow
+        make new tab at end of tabs with properties {URL:%s}
+        return count of tabs
       end tell
     end tell
-  ]], appleScriptLiteral(url))
-  local success, result = hs.osascript.applescript(script)
-  if not success then
-    return nil, "Could not open the Chrome tab: " .. tostring(result)
+  ]], chromeWindowID, appleScriptLiteral(url))
+  local created, tabIndex = hs.osascript.applescript(createScript)
+  if not created or type(tabIndex) ~= "number" then
+    return false, "Could not open the Chrome tab: " .. tostring(tabIndex)
+  end
+
+  local activateScript = string.format([[
+    tell application "Google Chrome"
+      set targetWindow to first window whose id is %d
+      set active tab index of targetWindow to %d
+    end tell
+  ]], chromeWindowID, tabIndex)
+  local activated, activateError = hs.osascript.applescript(activateScript)
+  if not activated then
+    return true, "Chrome opened the tab but could not select it: " .. tostring(activateError)
   end
   return true, nil
 end
@@ -623,20 +661,14 @@ local function routeChatGPTURL(url)
         return
       end
 
-      focusSummonedWindow(chromeWindow.id, function(_, focusError)
-        if focusError then
-          M.notify(focusError)
-          openNormallyInChrome(url)
-          return
-        end
-        local _, tabError = openChromeTab(url)
-        if tabError then
-          M.notify(tabError)
-          openNormallyInChrome(url)
-          return
-        end
-        focusSummonedWindow(chromeWindow.id, M.reportResult)
-      end)
+      chatGPTRouter.route(chromeWindow, url, {
+        focus = focusSummonedWindow,
+        frontWindowID = chromeFrontWindowID,
+        confirmFocused = confirmWindowFocused,
+        createTab = openChromeTab,
+        fallback = openNormallyInChrome,
+        notify = M.notify,
+      })
     end)
   end)
 end

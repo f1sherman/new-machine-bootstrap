@@ -335,6 +335,12 @@
     dest: "{{ ansible_facts['user_dir'] }}/.hammerspoon/omniwm_url_source.lua"
     mode: '0644'
 
+- name: Install OmniWM ChatGPT URL router
+  copy:
+    src: hammerspoon/omniwm_chatgpt_router.lua
+    dest: "{{ ansible_facts['user_dir'] }}/.hammerspoon/omniwm_chatgpt_router.lua"
+    mode: '0644'
+
 - name: Install OmniWM Downloads helper
   copy:
     src: hammerspoon/omniwm_downloads.lua
