@@ -128,6 +128,12 @@ this behavior. Photos uses its own summon-and-return workflow.
 Click the link normally. The managed URL handler opens it in the dedicated
 Safari window used with workspace 3.
 
+### Open a link from ChatGPT
+
+Click the link normally. The managed URL handler opens it in the single Chrome
+browser window in the current workspace and focuses that window. If there is no
+single clear Chrome target, the handler opens the link normally in Chrome.
+
 ### Enter a two-factor authentication code
 
 1. Leave the website open.
