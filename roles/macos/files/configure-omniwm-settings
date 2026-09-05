@@ -348,7 +348,7 @@ class SettingsDocument
 
       option_arrow = binding&.match?(/^Option\+(?:Shift\+)?(?:Left|Right|Up|Down) Arrow$/)
       reserved_binding = reserved_bindings.include?(binding)
-      next unless option_arrow || reserved_binding || identifier == "toggleScratchpadWindow"
+      next unless option_arrow || reserved_binding || identifier == "toggleScratchpad.1"
 
       set_scalar(block, "binding", "Unassigned")
     end

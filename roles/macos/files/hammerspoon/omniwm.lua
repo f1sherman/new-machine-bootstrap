@@ -204,6 +204,18 @@ local function queryWindows(arguments, callback)
   end)
 end
 
+local function queryScratchpadSlotOne(callback)
+  queryWindows({"--scratchpad"}, function(windows, queryError)
+    if queryError then
+      callback(nil, queryError)
+      return
+    end
+    callback(findWindows(windows, function(window)
+      return window.scratchpadIndex == 1
+    end), nil)
+  end)
+end
+
 local function pollWindow(id, predicate, callback)
   M.poll(function(done)
     queryWindows({"--window", id}, function(windows, queryError)
@@ -273,7 +285,7 @@ end
 
 local function showScratchpadIfHidden(id)
   M.poll(function(done)
-    queryWindows({"--scratchpad"}, function(windows, queryError)
+    queryScratchpadSlotOne(function(windows, queryError)
       if queryError then
         done(nil, queryError)
         return
@@ -292,7 +304,7 @@ local function showScratchpadIfHidden(id)
     elseif window.isVisible then
       focusVisibleScratchpad(id)
     else
-      M.run({"command", "scratchpad", "toggle"}, function(_, toggleError)
+      M.run({"command", "scratchpad", "toggle", "1"}, function(_, toggleError)
         if toggleError then
           M.notify(toggleError)
           return
@@ -307,7 +319,7 @@ local function assignFinderScratchpad(window)
   downloads.assignNewScratchpad(window, {
     notify = M.notify,
     queryScratchpad = function(callback)
-      queryWindows({"--scratchpad"}, callback)
+      queryScratchpadSlotOne(callback)
     end,
     queryTarget = function(id, callback)
       queryWindows({"--window", id}, function(windows, queryError)
@@ -315,7 +327,7 @@ local function assignFinderScratchpad(window)
       end)
     end,
     assign = function(callback)
-      M.run({"command", "scratchpad", "assign"}, callback)
+      M.run({"command", "scratchpad", "assign", "1"}, callback)
     end,
     show = showScratchpadIfHidden,
     done = downloads.finishCreation,
@@ -327,7 +339,7 @@ local function createDownloadsFinder(previousIDs)
     return
   end
 
-  queryWindows({"--scratchpad"}, function(scratchpad, scratchpadError)
+  queryScratchpadSlotOne(function(scratchpad, scratchpadError)
     if scratchpadError then
       downloads.finishCreation()
       M.notify(scratchpadError)
@@ -377,7 +389,7 @@ local function createDownloadsFinder(previousIDs)
 end
 
 function M.toggleDownloadsScratchpad()
-  queryWindows({"--scratchpad"}, function(scratchpad, scratchpadError)
+  queryScratchpadSlotOne(function(scratchpad, scratchpadError)
     if scratchpadError then
       M.notify(scratchpadError)
       return
@@ -392,7 +404,7 @@ function M.toggleDownloadsScratchpad()
         return
       end
       if scratchpad[1].isVisible then
-        M.run({"command", "scratchpad", "toggle"}, M.reportResult)
+        M.run({"command", "scratchpad", "toggle", "1"}, M.reportResult)
       else
         showScratchpadIfHidden(scratchpad[1].id)
       end
