@@ -571,6 +571,76 @@ local function openNormallyInSafari(url)
   end
 end
 
+local function openNormallyInChrome(url)
+  if not hs.urlevent.openURLWithBundle(url, "com.google.Chrome") then
+    M.notify("Could not open the URL in Chrome")
+    return
+  end
+  if not hs.application.launchOrFocusByBundleID("com.google.Chrome") then
+    M.notify("Could not focus Chrome")
+  end
+end
+
+local function openChromeTab(url)
+  local script = string.format([[
+    tell application "Google Chrome"
+      tell front window
+        set newTab to make new tab at end of tabs with properties {URL:%s}
+        set active tab index to (count tabs)
+      end tell
+    end tell
+  ]], appleScriptLiteral(url))
+  local success, result = hs.osascript.applescript(script)
+  if not success then
+    return nil, "Could not open the Chrome tab: " .. tostring(result)
+  end
+  return true, nil
+end
+
+local function routeChatGPTURL(url)
+  M.activeWorkspace(function(activeWorkspace, workspaceError)
+    if workspaceError then
+      M.notify(workspaceError)
+      openNormallyInChrome(url)
+      return
+    end
+    M.windows(function(windows, windowsError)
+      if windowsError then
+        M.notify(windowsError)
+        openNormallyInChrome(url)
+        return
+      end
+      local chromeWindow, resolveError = urlSource.resolveActiveChromeWindow(
+        activeWorkspace.number,
+        windows
+      )
+      if resolveError then
+        M.notify(resolveError)
+        openNormallyInChrome(url)
+        return
+      elseif not chromeWindow then
+        openNormallyInChrome(url)
+        return
+      end
+
+      focusSummonedWindow(chromeWindow.id, function(_, focusError)
+        if focusError then
+          M.notify(focusError)
+          openNormallyInChrome(url)
+          return
+        end
+        local _, tabError = openChromeTab(url)
+        if tabError then
+          M.notify(tabError)
+          openNormallyInChrome(url)
+          return
+        end
+        focusSummonedWindow(chromeWindow.id, M.reportResult)
+      end)
+    end)
+  end)
+end
+
 local function isWorkSafari(window)
   local title = window.title or ""
   return title:find("Work —", 1, true) ~= nil
@@ -773,6 +843,15 @@ hs.urlevent.httpCallback = function(_, _, _, fullURL, senderPID)
     sender = hs.application.applicationForPID(senderPID)
   end
   local senderBundle = sender and sender:bundleID() or nil
+  if urlSource.isChatGPTSender(senderBundle) then
+    logger.i(string.format(
+      "URL source pid=%s bundle=%s decision=chatgpt-chrome",
+      tostring(senderPID),
+      tostring(senderBundle)
+    ))
+    routeChatGPTURL(fullURL)
+    return
+  end
   if senderBundle and senderBundle ~= "org.hammerspoon.Hammerspoon" then
     routeURL(
       fullURL,
