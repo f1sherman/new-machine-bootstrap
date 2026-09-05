@@ -6,6 +6,7 @@ local omniwmctl = os.getenv("HOME") .. "/.local/bin/omniwmctl"
 local logger = hs.logger.new("omniwm", "info")
 local runningTasks = {}
 local dedicatedSafariWindowKey = "omniwmDedicatedSafariWindowId"
+local downloadsScratchpadSlot = 1
 
 local function copyArray(values)
   local result = {}
@@ -204,14 +205,14 @@ local function queryWindows(arguments, callback)
   end)
 end
 
-local function queryScratchpadSlotOne(callback)
+local function queryDownloadsScratchpad(callback)
   queryWindows({"--scratchpad"}, function(windows, queryError)
     if queryError then
       callback(nil, queryError)
       return
     end
     callback(findWindows(windows, function(window)
-      return window.scratchpadIndex == 1
+      return window.scratchpadIndex == downloadsScratchpadSlot
     end), nil)
   end)
 end
@@ -285,7 +286,7 @@ end
 
 local function showScratchpadIfHidden(id)
   M.poll(function(done)
-    queryScratchpadSlotOne(function(windows, queryError)
+    queryDownloadsScratchpad(function(windows, queryError)
       if queryError then
         done(nil, queryError)
         return
@@ -293,7 +294,7 @@ local function showScratchpadIfHidden(id)
       if #windows == 1 and windows[1].id == id then
         done(windows[1], nil)
       elseif #windows > 0 then
-        done(nil, "A different window owns the OmniWM scratchpad")
+        done(nil, "A different window owns OmniWM scratchpad slot 1")
       else
         done(false, nil)
       end
@@ -304,7 +305,7 @@ local function showScratchpadIfHidden(id)
     elseif window.isVisible then
       focusVisibleScratchpad(id)
     else
-      M.run({"command", "scratchpad", "toggle", "1"}, function(_, toggleError)
+      M.run({"command", "scratchpad", "toggle", tostring(downloadsScratchpadSlot)}, function(_, toggleError)
         if toggleError then
           M.notify(toggleError)
           return
@@ -319,7 +320,7 @@ local function assignFinderScratchpad(window)
   downloads.assignNewScratchpad(window, {
     notify = M.notify,
     queryScratchpad = function(callback)
-      queryScratchpadSlotOne(callback)
+      queryDownloadsScratchpad(callback)
     end,
     queryTarget = function(id, callback)
       queryWindows({"--window", id}, function(windows, queryError)
@@ -327,7 +328,7 @@ local function assignFinderScratchpad(window)
       end)
     end,
     assign = function(callback)
-      M.run({"command", "scratchpad", "assign", "1"}, callback)
+      M.run({"command", "scratchpad", "assign", tostring(downloadsScratchpadSlot)}, callback)
     end,
     show = showScratchpadIfHidden,
     done = downloads.finishCreation,
@@ -339,7 +340,7 @@ local function createDownloadsFinder(previousIDs)
     return
   end
 
-  queryScratchpadSlotOne(function(scratchpad, scratchpadError)
+  queryDownloadsScratchpad(function(scratchpad, scratchpadError)
     if scratchpadError then
       downloads.finishCreation()
       M.notify(scratchpadError)
@@ -389,22 +390,22 @@ local function createDownloadsFinder(previousIDs)
 end
 
 function M.toggleDownloadsScratchpad()
-  queryScratchpadSlotOne(function(scratchpad, scratchpadError)
+  queryDownloadsScratchpad(function(scratchpad, scratchpadError)
     if scratchpadError then
       M.notify(scratchpadError)
       return
     end
     if #scratchpad > 1 then
-      M.notify("OmniWM returned more than one scratchpad window")
+      M.notify("OmniWM returned more than one window in scratchpad slot 1")
       return
     end
     if #scratchpad == 1 then
       if bundleID(scratchpad[1]) ~= "com.apple.finder" then
-        M.notify("Another window owns the OmniWM scratchpad")
+        M.notify("Another window owns OmniWM scratchpad slot 1")
         return
       end
       if scratchpad[1].isVisible then
-        M.run({"command", "scratchpad", "toggle", "1"}, M.reportResult)
+        M.run({"command", "scratchpad", "toggle", tostring(downloadsScratchpadSlot)}, M.reportResult)
       else
         showScratchpadIfHidden(scratchpad[1].id)
       end
