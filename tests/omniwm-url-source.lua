@@ -7,6 +7,7 @@ local isSafariBrowserWindow = source.isSafariBrowserWindow
 local isChatGPTSender = source.isChatGPTSender
 local isChromeBrowserWindow = source.isChromeBrowserWindow
 local resolveActiveChromeWindow = source.resolveActiveChromeWindow
+local normalizeChromeWindowID = source.normalizeChromeWindowID
 local isDevelopmentSafariWindow = source.isDevelopmentSafariWindow
 local resolveDevelopmentSafariWindow = source.resolveDevelopmentSafariWindow
 local failures = 0
@@ -121,6 +122,14 @@ assertEqual(
   developmentError,
   "ambiguous Development target error"
 )
+
+assertEqual(868906217, normalizeChromeWindowID("868906217"), "string Chrome window ID")
+assertEqual(868906217, normalizeChromeWindowID(868906217), "numeric Chrome window ID")
+assertEqual(nil, normalizeChromeWindowID(""), "empty Chrome window ID")
+assertEqual(nil, normalizeChromeWindowID("window"), "text Chrome window ID")
+assertEqual(nil, normalizeChromeWindowID(0), "zero Chrome window ID")
+assertEqual(nil, normalizeChromeWindowID(-1), "negative Chrome window ID")
+assertEqual(nil, normalizeChromeWindowID(1.5), "fractional Chrome window ID")
 
 assertEqual(true, isChatGPTSender("com.openai.codex"), "ChatGPT sender")
 assertEqual(false, isChatGPTSender("com.apple.Safari"), "non-ChatGPT sender")

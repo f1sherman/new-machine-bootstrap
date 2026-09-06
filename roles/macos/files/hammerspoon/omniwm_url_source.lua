@@ -32,6 +32,20 @@ function M.resolveDevelopmentSafariWindow(windows)
   return nil, nil
 end
 
+function M.normalizeChromeWindowID(value)
+  if type(value) == "string" and not value:match("^%d+$") then
+    return nil
+  elseif type(value) ~= "string" and type(value) ~= "number" then
+    return nil
+  end
+
+  local numeric = tonumber(value)
+  if not numeric or numeric <= 0 or numeric ~= math.floor(numeric) then
+    return nil
+  end
+  return numeric
+end
+
 function M.isChatGPTSender(senderBundle)
   return senderBundle == chatGPTBundleID
 end
