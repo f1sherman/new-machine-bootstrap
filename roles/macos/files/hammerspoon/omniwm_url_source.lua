@@ -40,7 +40,10 @@ function M.normalizeChromeWindowID(value)
   end
 
   local numeric = tonumber(value)
-  if not numeric or numeric <= 0 or numeric ~= math.floor(numeric) then
+  if not numeric
+    or numeric <= 0
+    or numeric > 2147483647
+    or numeric ~= math.floor(numeric) then
     return nil
   end
   return numeric
