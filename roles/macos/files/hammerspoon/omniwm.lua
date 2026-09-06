@@ -594,10 +594,11 @@ local function chromeFrontWindowID()
   local success, result = hs.osascript.applescript([[
     tell application "Google Chrome" to return id of front window
   ]])
-  if not success or type(result) ~= "number" then
+  local windowID = success and urlSource.normalizeChromeWindowID(result) or nil
+  if not windowID then
     return nil, "Could not resolve the focused Chrome window ID: " .. tostring(result)
   end
-  return result, nil
+  return windowID, nil
 end
 
 local function confirmWindowFocused(id, callback)
