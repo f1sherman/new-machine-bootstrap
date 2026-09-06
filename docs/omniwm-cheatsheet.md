@@ -125,8 +125,16 @@ this behavior. Photos uses its own summon-and-return workflow.
 
 ### Open a link from Ghostty
 
-Click the link normally. The managed URL handler opens it in the dedicated
-Safari window used with workspace 3.
+Click the link normally. The managed URL handler opens it in the Safari
+Development profile window and focuses that window. It can show that window in
+the current workspace without changing its home workspace. If there is no
+single Development window, the handler opens and focuses Safari normally. It
+does not create or move a Safari window.
+
+### Open a link from another application
+
+Click the link normally. The managed URL handler opens it in Safari and focuses
+Safari. The application can switch to Safari's current macOS or OmniWM space.
 
 ### Open a link from ChatGPT
 

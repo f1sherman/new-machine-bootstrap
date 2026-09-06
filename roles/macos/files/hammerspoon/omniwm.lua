@@ -1,12 +1,12 @@
 local M = {}
 local cheatsheetPanel = require("omniwm_cheatsheet").new()
 local downloads = require("omniwm_downloads").new()
+local browserOpener = require("omniwm_browser_opener")
 local chatGPTRouter = require("omniwm_chatgpt_router")
 local urlSource = require("omniwm_url_source")
 local omniwmctl = os.getenv("HOME") .. "/.local/bin/omniwmctl"
 local logger = hs.logger.new("omniwm", "info")
 local runningTasks = {}
-local dedicatedSafariWindowKey = "omniwmDedicatedSafariWindowId"
 local downloadsScratchpadSlot = 1
 
 local function copyArray(values)
@@ -566,20 +566,28 @@ function M.togglePhotos()
   end)
 end
 
+local browserOpenerDependencies = {
+  openURL = hs.urlevent.openURLWithBundle,
+  focus = hs.application.launchOrFocusByBundleID,
+  notify = M.notify,
+}
+
 local function openNormallyInSafari(url)
-  if not hs.urlevent.openURLWithBundle(url, "com.apple.Safari") then
-    M.notify("Could not open the URL in Safari")
-  end
+  browserOpener.open(
+    url,
+    "com.apple.Safari",
+    "Safari",
+    browserOpenerDependencies
+  )
 end
 
 local function openNormallyInChrome(url)
-  if not hs.urlevent.openURLWithBundle(url, "com.google.Chrome") then
-    M.notify("Could not open the URL in Chrome")
-    return
-  end
-  if not hs.application.launchOrFocusByBundleID("com.google.Chrome") then
-    M.notify("Could not focus Chrome")
-  end
+  browserOpener.open(
+    url,
+    "com.google.Chrome",
+    "Chrome",
+    browserOpenerDependencies
+  )
 end
 
 local function chromeFrontWindowID()
@@ -673,72 +681,8 @@ local function routeChatGPTURL(url)
   end)
 end
 
-local function isWorkSafari(window)
-  local title = window.title or ""
-  return title:find("Work —", 1, true) ~= nil
-end
-
 local function resolveDedicatedSafari(windows)
-  local hint = hs.settings.get(dedicatedSafariWindowKey)
-  if type(hint) == "string" then
-    local hinted = findWindowByID(windows, hint)
-    if hinted and urlSource.isSafariBrowserWindow(hinted) and not isWorkSafari(hinted) then
-      return hinted, nil
-    end
-    hs.settings.clear(dedicatedSafariWindowKey)
-  end
-
-  local candidates = findWindows(windows, function(window)
-    return urlSource.isSafariBrowserWindow(window)
-      and workspaceNumber(window) == 3
-      and not isWorkSafari(window)
-  end)
-  if #candidates == 1 then
-    hs.settings.set(dedicatedSafariWindowKey, candidates[1].id)
-    return candidates[1], nil
-  elseif #candidates == 0 then
-    return nil, nil
-  end
-  return nil, "More than one Safari window can be the dedicated Ghostty window"
-end
-
-local function createDedicatedSafari(windows, callback)
-  local previousIDs = {}
-  for _, window in ipairs(windows) do
-    if bundleID(window) == "com.apple.Safari" then
-      previousIDs[window.id] = true
-    end
-  end
-
-  local success, result = hs.osascript.applescript([[
-    tell application "Safari"
-      activate
-      make new document
-    end tell
-  ]])
-  if not success then
-    callback(nil, "Could not create the dedicated Safari window: " .. tostring(result))
-    return
-  end
-
-  pollNewWindow("com.apple.Safari", previousIDs, function(window, pollError)
-    if pollError then
-      callback(nil, pollError)
-      return
-    end
-    if isWorkSafari(window) then
-      callback(nil, "The new Safari window matched the Work window marker")
-      return
-    end
-    moveWindowToWorkspaceWithCallback(window, 3, function(movedWindow, moveError)
-      if moveError then
-        callback(nil, moveError)
-        return
-      end
-      hs.settings.set(dedicatedSafariWindowKey, movedWindow.id)
-      callback(movedWindow, nil)
-    end)
-  end, urlSource.isSafariBrowserWindow)
+  return urlSource.resolveDevelopmentSafariWindow(windows)
 end
 
 local function safariNativeWindowID(window)
@@ -829,14 +773,7 @@ local function routeGhosttyURL(url)
       elseif safariWindow then
         openURLInDedicatedSafari(safariWindow, activeWorkspace, url)
       else
-        createDedicatedSafari(windows, function(createdWindow, createError)
-          if createError then
-            M.notify(createError)
-            openNormallyInSafari(url)
-            return
-          end
-          openURLInDedicatedSafari(createdWindow, activeWorkspace, url)
-        end)
+        openNormallyInSafari(url)
       end
     end)
   end)
