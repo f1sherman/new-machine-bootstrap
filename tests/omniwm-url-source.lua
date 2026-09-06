@@ -7,6 +7,8 @@ local isSafariBrowserWindow = source.isSafariBrowserWindow
 local isChatGPTSender = source.isChatGPTSender
 local isChromeBrowserWindow = source.isChromeBrowserWindow
 local resolveActiveChromeWindow = source.resolveActiveChromeWindow
+local isDevelopmentSafariWindow = source.isDevelopmentSafariWindow
+local resolveDevelopmentSafariWindow = source.resolveDevelopmentSafariWindow
 local failures = 0
 
 local function assertEqual(expected, actual, message)
@@ -79,6 +81,46 @@ for _, case in ipairs(safariCases) do
   local message, expected, window = table.unpack(case)
   assertEqual(expected, isSafariBrowserWindow(window), message)
 end
+
+local developmentSafari = {
+  id = "ow_development",
+  app = {bundleId = "com.apple.Safari"},
+  title = "Development — Example",
+  workspace = {number = 1},
+}
+assertEqual(true, isDevelopmentSafariWindow(developmentSafari), "Development Safari window")
+assertEqual(false, isDevelopmentSafariWindow({
+  app = {bundleId = "com.apple.Safari"},
+  title = "Personal — Example",
+}), "Personal Safari window")
+assertEqual(false, isDevelopmentSafariWindow({
+  app = {bundleId = "com.apple.Safari"},
+  title = "",
+}), "titleless Safari panel")
+
+local developmentTarget, developmentError = resolveDevelopmentSafariWindow({developmentSafari})
+assertEqual("ow_development", developmentTarget and developmentTarget.id, "Development target across workspaces")
+assertEqual(nil, developmentError, "Development target error")
+
+developmentTarget, developmentError = resolveDevelopmentSafariWindow({})
+assertEqual(nil, developmentTarget, "absent Development target")
+assertEqual(nil, developmentError, "absent Development target error")
+
+developmentTarget, developmentError = resolveDevelopmentSafariWindow({
+  developmentSafari,
+  {
+    id = "ow_development_2",
+    app = {bundleId = "com.apple.Safari"},
+    title = "Development — Second",
+    workspace = {number = 3},
+  },
+})
+assertEqual(nil, developmentTarget, "ambiguous Development target")
+assertEqual(
+  "More than one Safari Development window is managed by OmniWM",
+  developmentError,
+  "ambiguous Development target error"
+)
 
 assertEqual(true, isChatGPTSender("com.openai.codex"), "ChatGPT sender")
 assertEqual(false, isChatGPTSender("com.apple.Safari"), "non-ChatGPT sender")

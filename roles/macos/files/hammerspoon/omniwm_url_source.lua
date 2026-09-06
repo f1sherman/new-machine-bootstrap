@@ -11,6 +11,27 @@ function M.isSafariBrowserWindow(window)
     and window.title ~= ""
 end
 
+function M.isDevelopmentSafariWindow(window)
+  return M.isSafariBrowserWindow(window)
+    and window.title:sub(1, #"Development —") == "Development —"
+end
+
+function M.resolveDevelopmentSafariWindow(windows)
+  local candidates = {}
+  for _, window in ipairs(windows or {}) do
+    if M.isDevelopmentSafariWindow(window) then
+      table.insert(candidates, window)
+    end
+  end
+
+  if #candidates == 1 then
+    return candidates[1], nil
+  elseif #candidates > 1 then
+    return nil, "More than one Safari Development window is managed by OmniWM"
+  end
+  return nil, nil
+end
+
 function M.isChatGPTSender(senderBundle)
   return senderBundle == chatGPTBundleID
 end
