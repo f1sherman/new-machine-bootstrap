@@ -32,6 +32,22 @@ function M.resolveDevelopmentSafariWindow(windows)
   return nil, nil
 end
 
+function M.resolveSafariWindowByNativeID(windows, nativeID, decoder)
+  local candidates = {}
+  for _, window in ipairs(windows or {}) do
+    if M.isSafariBrowserWindow(window) and decoder(window) == nativeID then
+      table.insert(candidates, window)
+    end
+  end
+
+  if #candidates == 1 then
+    return candidates[1], nil
+  elseif #candidates > 1 then
+    return nil, "More than one Safari window matched the received URL"
+  end
+  return nil, "Could not find the Safari window that received the URL"
+end
+
 function M.normalizeChromeWindowID(value)
   if type(value) == "string" and not value:match("^%d+$") then
     return nil

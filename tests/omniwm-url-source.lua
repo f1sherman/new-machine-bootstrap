@@ -10,6 +10,7 @@ local resolveActiveChromeWindow = source.resolveActiveChromeWindow
 local normalizeChromeWindowID = source.normalizeChromeWindowID
 local isDevelopmentSafariWindow = source.isDevelopmentSafariWindow
 local resolveDevelopmentSafariWindow = source.resolveDevelopmentSafariWindow
+local resolveSafariWindowByNativeID = source.resolveSafariWindowByNativeID
 local failures = 0
 
 local function assertEqual(expected, actual, message)
@@ -133,6 +134,33 @@ assertEqual(nil, normalizeChromeWindowID(1.5), "fractional Chrome window ID")
 assertEqual(nil, normalizeChromeWindowID("999999999999999999999"), "oversized Chrome window ID")
 assertEqual(nil, normalizeChromeWindowID(math.huge), "infinite Chrome window ID")
 assertEqual(nil, normalizeChromeWindowID(0 / 0), "NaN Chrome window ID")
+
+local function decodeTestWindowID(window)
+  return tonumber(window.id and window.id:match("_(%d+)$"))
+end
+
+local nativeTarget, nativeError = resolveSafariWindowByNativeID({
+  {id = "ow_105", app = {bundleId = "com.apple.Safari"}, title = "Personal — Example"},
+}, 105, decodeTestWindowID)
+assertEqual("ow_105", nativeTarget and nativeTarget.id, "Safari native ID target")
+assertEqual(nil, nativeError, "Safari native ID target error")
+
+nativeTarget, nativeError = resolveSafariWindowByNativeID({}, 105, decodeTestWindowID)
+assertEqual(nil, nativeTarget, "absent Safari native ID target")
+assertEqual("Could not find the Safari window that received the URL", nativeError, "absent Safari native ID error")
+
+nativeTarget, nativeError = resolveSafariWindowByNativeID({
+  {id = "ow_105", app = {bundleId = "com.apple.Safari"}, title = ""},
+}, 105, decodeTestWindowID)
+assertEqual(nil, nativeTarget, "titleless Safari native ID target")
+assertEqual("Could not find the Safari window that received the URL", nativeError, "titleless Safari native ID error")
+
+nativeTarget, nativeError = resolveSafariWindowByNativeID({
+  {id = "ow_105", app = {bundleId = "com.apple.Safari"}, title = "Personal — One"},
+  {id = "copy_105", app = {bundleId = "com.apple.Safari"}, title = "Personal — Two"},
+}, 105, decodeTestWindowID)
+assertEqual(nil, nativeTarget, "ambiguous Safari native ID target")
+assertEqual("More than one Safari window matched the received URL", nativeError, "ambiguous Safari native ID error")
 
 assertEqual(true, isChatGPTSender("com.openai.codex"), "ChatGPT sender")
 assertEqual(false, isChatGPTSender("com.apple.Safari"), "non-ChatGPT sender")
