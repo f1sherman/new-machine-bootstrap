@@ -705,6 +705,9 @@ local function openNormallyInSafari(url)
     openURL = function(value)
       return hs.urlevent.openURLWithBundle(value, "com.apple.Safari")
     end,
+    delay = function(callback)
+      hs.timer.doAfter(0.2, callback)
+    end,
     poll = function(predicate, callback)
       M.poll(predicate, 5, callback)
     end,
