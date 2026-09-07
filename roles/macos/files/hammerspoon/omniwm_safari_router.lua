@@ -30,21 +30,23 @@ function M.route(url, deps)
     return
   end
 
-  resolveTarget(deps, function(target, resolveError)
-    if resolveError or not target then
-      recover(deps, resolveError or "Could not resolve Safari's target window")
-      return
-    end
-
-    deps.navigate(target.id, function(_, navigateError)
-      if navigateError then
-        recover(deps, navigateError)
+  deps.delay(function()
+    resolveTarget(deps, function(target, resolveError)
+      if resolveError or not target then
+        recover(deps, resolveError or "Could not resolve Safari's target window")
         return
       end
-      deps.pollFocused(target.id, function(_, focusError)
-        if focusError then
-          recover(deps, focusError)
+
+      deps.navigate(target.id, function(_, navigateError)
+        if navigateError then
+          recover(deps, navigateError)
+          return
         end
+        deps.pollFocused(target.id, function(_, focusError)
+          if focusError then
+            recover(deps, focusError)
+          end
+        end)
       end)
     end)
   end)

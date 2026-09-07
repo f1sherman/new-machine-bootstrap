@@ -26,6 +26,10 @@ local function runCase(options)
       table.insert(events, "open:" .. url)
       return options.opened ~= false
     end,
+    delay = function(callback)
+      table.insert(events, "delay")
+      callback()
+    end,
     poll = function(predicate, callback)
       for _ = 1, 3 do
         local value
@@ -79,7 +83,7 @@ local events, notifications, focusCount = runCase({
   readinessFailures = 1,
 })
 assertEqual(
-  "open:https://example.com,front-id,windows,resolve:105,front-id,windows,resolve:105,navigate:ow_105,poll-focused:ow_105",
+  "open:https://example.com,delay,front-id,windows,resolve:105,front-id,windows,resolve:105,navigate:ow_105,poll-focused:ow_105",
   table.concat(events, ","),
   "delayed successful route order"
 )
