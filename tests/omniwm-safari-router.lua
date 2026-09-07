@@ -45,7 +45,10 @@ local function runCase(options)
     end,
     frontWindowID = function()
       table.insert(events, "front-id")
-      return options.nativeID == false and nil or 105
+      if options.nativeID == false then
+        return nil
+      end
+      return 105
     end,
     windows = function(callback)
       table.insert(events, "windows")
@@ -105,12 +108,18 @@ local postOpenCases = {
 for _, case in ipairs(postOpenCases) do
   local caseEvents, caseNotifications, caseFocus = runCase(case[2])
   local openCount = 0
+  local windowQueryCount = 0
   for _, event in ipairs(caseEvents) do
     if event:sub(1, 5) == "open:" then
       openCount = openCount + 1
+    elseif event == "windows" then
+      windowQueryCount = windowQueryCount + 1
     end
   end
   assertEqual(1, openCount, case[1] .. " URL open count")
+  if case[1] == "ID timeout" then
+    assertEqual(0, windowQueryCount, "ID timeout skips window queries")
+  end
   assertEqual(1, caseFocus, case[1] .. " fallback focus count")
   assertEqual(case[3], caseNotifications[1], case[1] .. " notification")
 end
