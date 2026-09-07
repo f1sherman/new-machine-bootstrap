@@ -123,6 +123,9 @@ jobs:
       - name: Verify Pi session completion
         run: ruby tests/pi-session-done.rb
 
+      - name: Verify Pi friction state helper
+        run: ruby tests/pi-friction.rb
+
       - name: Verify Pi session staleness publisher
         run: ruby tests/pi-session-staleness-publish.rb
 

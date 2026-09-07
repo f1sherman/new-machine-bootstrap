@@ -1,0 +1,230 @@
+#!/usr/bin/env ruby
+
+require "fileutils"
+require "json"
+require "optparse"
+require "securerandom"
+require "socket"
+require "time"
+
+SCHEMA_VERSION = 1
+CATEGORIES = %w[
+  correction
+  unnecessary-approval
+  stopped-early
+  repeated-manual-step
+  other
+].freeze
+
+class FrictionError < StandardError
+end
+
+def state_directory
+  override = ENV["PI_FRICTION_STATE_DIR"]
+  return override unless override.nil? || override.empty?
+
+  xdg_state_home = ENV["XDG_STATE_HOME"]
+  return File.join(xdg_state_home, "pi", "friction") unless xdg_state_home.nil? || xdg_state_home.empty?
+
+  File.join(ENV.fetch("HOME"), ".local", "state", "pi", "friction")
+end
+
+def prepare_state(directory)
+  FileUtils.mkdir_p(directory, mode: 0o700)
+  File.chmod(0o700, directory)
+end
+
+def with_event_log(directory, lock)
+  path = File.join(directory, "events.jsonl")
+  File.open(path, File::RDWR | File::CREAT, 0o600) do |file|
+    File.chmod(0o600, path)
+    file.flock(lock)
+    yield file
+  ensure
+    file&.flock(File::LOCK_UN)
+  end
+end
+
+def valid_text?(value)
+  value.is_a?(String) && !value.strip.empty? && !value.match?(/[\r\n]/)
+end
+
+def validate_event(event, line_number)
+  unless event.is_a?(Hash) &&
+      event["version"] == SCHEMA_VERSION &&
+      valid_text?(event["id"]) &&
+      valid_text?(event["timestamp"]) &&
+      valid_text?(event["host"]) &&
+      CATEGORIES.include?(event["category"]) &&
+      valid_text?(event["summary"]) &&
+      [nil, String].include?(event["repository"]&.class) &&
+      [nil, String].include?(event["session_id"]&.class)
+    raise FrictionError, "Invalid friction event on line #{line_number}."
+  end
+
+  event
+end
+
+def read_events(file)
+  file.rewind
+  events = file.each_line.with_index(1).map do |line, line_number|
+    begin
+      validate_event(JSON.parse(line), line_number)
+    rescue JSON::ParserError
+      raise FrictionError, "Malformed friction event JSON on line #{line_number}."
+    end
+  end
+
+  duplicate_id = events.group_by { |event| event.fetch("id") }.find { |_id, matches| matches.length > 1 }
+  raise FrictionError, "Duplicate friction event ID #{duplicate_id.first}." if duplicate_id
+
+  events
+end
+
+def read_cursor(directory, events)
+  path = File.join(directory, "reviewed-through")
+  return nil unless File.exist?(path)
+
+  File.chmod(0o600, path)
+  cursor = File.read(path).strip
+  return nil if cursor.empty?
+
+  raise FrictionError, "Review cursor does not match an event." unless events.any? { |event| event.fetch("id") == cursor }
+
+  cursor
+end
+
+def write_cursor(directory, token)
+  path = File.join(directory, "reviewed-through")
+  temporary_path = File.join(directory, ".reviewed-through.#{Process.pid}.#{SecureRandom.hex(4)}")
+
+  begin
+    File.open(temporary_path, File::WRONLY | File::CREAT | File::EXCL, 0o600) do |file|
+      File.chmod(0o600, temporary_path)
+      file.write("#{token}\n")
+      file.flush
+      file.fsync
+    end
+    File.rename(temporary_path, path)
+  ensure
+    FileUtils.rm_f(temporary_path)
+  end
+end
+
+def parse_options!(usage)
+  options = {}
+  parser = OptionParser.new do |config|
+    config.banner = usage
+    yield config, options
+  end
+  parser.parse!(ARGV)
+  raise OptionParser::InvalidArgument, "unexpected arguments: #{ARGV.join(" ")}" unless ARGV.empty?
+
+  options
+end
+
+def log_event(directory)
+  options = parse_options!(
+    "Usage: pi-friction log --category CATEGORY --summary SUMMARY [--repository PATH] [--session-id ID]"
+  ) do |parser, values|
+    parser.on("--category CATEGORY") { |value| values[:category] = value }
+    parser.on("--summary SUMMARY") { |value| values[:summary] = value }
+    parser.on("--repository PATH") { |value| values[:repository] = value }
+    parser.on("--session-id ID") { |value| values[:session_id] = value }
+  end
+
+  category = options[:category]
+  summary = options[:summary]
+  raise FrictionError, "Category must be one of: #{CATEGORIES.join(", ")}." unless CATEGORIES.include?(category)
+  raise FrictionError, "Summary must be a nonblank single line." unless valid_text?(summary)
+
+  now = Time.now.utc
+  host = Socket.gethostname
+  event = {
+    "version" => SCHEMA_VERSION,
+    "id" => "#{host}-#{now.strftime("%Y%m%dT%H%M%S.%9NZ")}-#{Process.pid}-#{SecureRandom.hex(4)}",
+    "timestamp" => now.iso8601(9),
+    "host" => host,
+    "category" => category,
+    "summary" => summary,
+    "repository" => options[:repository],
+    "session_id" => options[:session_id]
+  }
+
+  with_event_log(directory, File::LOCK_EX) do |file|
+    read_events(file)
+    file.seek(0, IO::SEEK_END)
+    file.write("#{JSON.generate(event)}\n")
+    file.flush
+    file.fsync
+  end
+
+  puts JSON.generate(event)
+end
+
+def pending_events(directory)
+  parse_options!("Usage: pi-friction pending") { |_parser, _values| }
+
+  snapshot = nil
+  with_event_log(directory, File::LOCK_SH) do |file|
+    events = read_events(file)
+    cursor = read_cursor(directory, events)
+    cursor_index = cursor && events.index { |event| event.fetch("id") == cursor }
+    pending = cursor_index ? events.drop(cursor_index + 1) : events
+    snapshot = {
+      "version" => SCHEMA_VERSION,
+      "host" => Socket.gethostname,
+      "events" => pending,
+      "token" => pending.last&.fetch("id")
+    }
+  end
+
+  puts JSON.generate(snapshot)
+end
+
+def mark_reviewed(directory)
+  options = parse_options!("Usage: pi-friction mark-reviewed --token EVENT_ID") do |parser, values|
+    parser.on("--token EVENT_ID") { |value| values[:token] = value }
+  end
+  token = options[:token]
+  raise FrictionError, "Review token is required." unless valid_text?(token)
+
+  with_event_log(directory, File::LOCK_EX) do |file|
+    events = read_events(file)
+    token_index = events.index { |event| event.fetch("id") == token }
+    raise FrictionError, "Review token does not match an event." unless token_index
+
+    cursor = read_cursor(directory, events)
+    cursor_index = cursor && events.index { |event| event.fetch("id") == cursor }
+    if cursor_index && token_index < cursor_index
+      raise FrictionError, "Review token cannot move the cursor backward."
+    end
+
+    write_cursor(directory, token)
+  end
+
+  puts JSON.generate(
+    "version" => SCHEMA_VERSION,
+    "host" => Socket.gethostname,
+    "reviewed_through" => token
+  )
+end
+
+begin
+  directory = state_directory
+  prepare_state(directory)
+
+  case ARGV.shift
+  when "log"
+    log_event(directory)
+  when "pending"
+    pending_events(directory)
+  when "mark-reviewed"
+    mark_reviewed(directory)
+  else
+    raise FrictionError, "Usage: pi-friction <log|pending|mark-reviewed>"
+  end
+rescue FrictionError, OptionParser::ParseError, KeyError, SystemCallError => error
+  warn "pi-friction: #{error.message}"
+  exit 1
+end
