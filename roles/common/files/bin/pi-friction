@@ -49,11 +49,19 @@ def valid_text?(value)
   value.is_a?(String) && !value.strip.empty? && !value.match?(/[\r\n]/)
 end
 
+def valid_utc_timestamp?(value)
+  return false unless valid_text?(value) && value.match?(/(?:Z|\+00:00)\z/)
+
+  Time.iso8601(value).utc_offset.zero?
+rescue ArgumentError
+  false
+end
+
 def validate_event(event, line_number)
   unless event.is_a?(Hash) &&
       event["version"] == SCHEMA_VERSION &&
       valid_text?(event["id"]) &&
-      valid_text?(event["timestamp"]) &&
+      valid_utc_timestamp?(event["timestamp"]) &&
       valid_text?(event["host"]) &&
       CATEGORIES.include?(event["category"]) &&
       valid_text?(event["summary"]) &&

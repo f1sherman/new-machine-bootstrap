@@ -164,15 +164,51 @@ Dir.mktmpdir("pi-friction") do |tmpdir|
   invalid_cursor_dir = File.join(tmpdir, "invalid-cursor")
   FileUtils.mkdir_p(invalid_cursor_dir)
   FileUtils.cp(events_path, File.join(invalid_cursor_dir, "events.jsonl"))
-  File.write(File.join(invalid_cursor_dir, "reviewed-through"), "missing-id\n")
+  invalid_cursor_path = File.join(invalid_cursor_dir, "reviewed-through")
+  File.write(invalid_cursor_path, "missing-id\n")
+  invalid_cursor_before = File.read(invalid_cursor_path)
   _stdout, stderr, status = run_helper.call("pending", env: {"PI_FRICTION_STATE_DIR" => invalid_cursor_dir})
   assert.call(!status.success?, "unknown stored cursor is rejected", stderr)
+  assert.call(
+    File.read(invalid_cursor_path) == invalid_cursor_before,
+    "unknown stored cursor failure preserves the cursor"
+  )
 
   malformed_dir = File.join(tmpdir, "malformed")
   FileUtils.mkdir_p(malformed_dir)
-  File.write(File.join(malformed_dir, "events.jsonl"), "{not-json}\n")
+  malformed_cursor = events.first.fetch("id")
+  File.write(
+    File.join(malformed_dir, "events.jsonl"),
+    "#{JSON.generate(events.first)}\n{not-json}\n"
+  )
+  malformed_cursor_path = File.join(malformed_dir, "reviewed-through")
+  File.write(malformed_cursor_path, "#{malformed_cursor}\n")
+  malformed_cursor_before = File.read(malformed_cursor_path)
   _stdout, stderr, status = run_helper.call("pending", env: {"PI_FRICTION_STATE_DIR" => malformed_dir})
   assert.call(!status.success?, "malformed event data is rejected", stderr)
+  assert.call(
+    File.read(malformed_cursor_path) == malformed_cursor_before,
+    "malformed event failure preserves the cursor"
+  )
+
+  [
+    "not-an-iso8601-timestamp",
+    "2026-09-07T18:00:00+01:00",
+    "2026-09-07T18:00:00-00:00"
+  ].each do |timestamp|
+    invalid_timestamp_dir = File.join(tmpdir, "invalid-timestamp-#{timestamp.hash}")
+    FileUtils.mkdir_p(invalid_timestamp_dir)
+    invalid_timestamp_event = events.first.merge("timestamp" => timestamp)
+    File.write(
+      File.join(invalid_timestamp_dir, "events.jsonl"),
+      "#{JSON.generate(invalid_timestamp_event)}\n"
+    )
+    _stdout, stderr, status = run_helper.call(
+      "pending",
+      env: {"PI_FRICTION_STATE_DIR" => invalid_timestamp_dir}
+    )
+    assert.call(!status.success?, "non-UTC ISO-8601 timestamp #{timestamp.inspect} is rejected", stderr)
+  end
 
   empty_dir = File.join(tmpdir, "empty")
   stdout, stderr, status = run_helper.call("pending", env: {"PI_FRICTION_STATE_DIR" => empty_dir})
