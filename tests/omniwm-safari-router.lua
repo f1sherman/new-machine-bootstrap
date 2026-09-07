@@ -20,34 +20,48 @@ local function runCase(options)
   local events = {}
   local notifications = {}
   local focusCount = 0
+  local resolveAttempts = 0
   router.route("https://example.com", {
     openURL = function(url)
       table.insert(events, "open:" .. url)
       return options.opened ~= false
     end,
-    after = function(callback)
-      table.insert(events, "after")
-      callback()
+    poll = function(predicate, callback)
+      for _ = 1, 3 do
+        local value
+        predicate(function(result)
+          value = result
+        end)
+        if value then
+          callback(value, nil)
+          return
+        end
+      end
+      callback(nil, "target timeout")
     end,
     frontWindowID = function()
       table.insert(events, "front-id")
-      return options.nativeID or 105, options.idError
+      return options.nativeID == false and nil or 105
     end,
     windows = function(callback)
       table.insert(events, "windows")
       callback(options.windowsResult or {}, options.windowsError)
     end,
     resolve = function(_, nativeID)
+      resolveAttempts = resolveAttempts + 1
       table.insert(events, "resolve:" .. tostring(nativeID))
+      if resolveAttempts <= (options.readinessFailures or 0) then
+        return nil, "not ready"
+      end
       return options.target, options.resolveError
     end,
     navigate = function(id, callback)
       table.insert(events, "navigate:" .. id)
       callback(nil, options.navigateError)
     end,
-    confirmFocused = function(id, callback)
-      table.insert(events, "confirm:" .. id)
-      callback(nil, options.confirmError)
+    pollFocused = function(id, callback)
+      table.insert(events, "poll-focused:" .. id)
+      callback(nil, options.focusError)
     end,
     focusSafari = function()
       focusCount = focusCount + 1
@@ -60,11 +74,14 @@ local function runCase(options)
   return events, notifications, focusCount
 end
 
-local events, notifications, focusCount = runCase({target = {id = "ow_105"}})
+local events, notifications, focusCount = runCase({
+  target = {id = "ow_105"},
+  readinessFailures = 1,
+})
 assertEqual(
-  "open:https://example.com,after,front-id,windows,resolve:105,navigate:ow_105,confirm:ow_105",
+  "open:https://example.com,front-id,windows,resolve:105,front-id,windows,resolve:105,navigate:ow_105,poll-focused:ow_105",
   table.concat(events, ","),
-  "successful route order"
+  "delayed successful route order"
 )
 assertEqual(0, #notifications, "successful notifications")
 assertEqual(0, focusCount, "successful fallback focus")
@@ -75,11 +92,11 @@ assertEqual("Could not open the URL in Safari", openNotifications[1], "open fail
 assertEqual(0, openFocus, "open failure does not focus")
 
 local postOpenCases = {
-  {"ID failure", {idError = "ID failed"}, "ID failed"},
-  {"window query failure", {windowsError = "query failed"}, "query failed"},
-  {"resolution failure", {resolveError = "match failed"}, "match failed"},
+  {"ID timeout", {nativeID = false}, "target timeout"},
+  {"window query timeout", {windowsError = "query failed"}, "target timeout"},
+  {"resolution timeout", {resolveError = "match failed"}, "target timeout"},
   {"navigation failure", {target = {id = "ow_105"}, navigateError = "navigate failed"}, "navigate failed"},
-  {"focus failure", {target = {id = "ow_105"}, confirmError = "focus failed"}, "focus failed"},
+  {"focus failure", {target = {id = "ow_105"}, focusError = "focus failed"}, "focus failed"},
 }
 for _, case in ipairs(postOpenCases) do
   local caseEvents, caseNotifications, caseFocus = runCase(case[2])
