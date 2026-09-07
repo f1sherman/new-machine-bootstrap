@@ -7,7 +7,7 @@ local isSafariBrowserWindow = source.isSafariBrowserWindow
 local isChatGPTSender = source.isChatGPTSender
 local isChromeBrowserWindow = source.isChromeBrowserWindow
 local resolveActiveChromeWindow = source.resolveActiveChromeWindow
-local normalizeChromeWindowID = source.normalizeChromeWindowID
+local normalizeNativeWindowID = source.normalizeNativeWindowID
 local isDevelopmentSafariWindow = source.isDevelopmentSafariWindow
 local resolveDevelopmentSafariWindow = source.resolveDevelopmentSafariWindow
 local resolveSafariWindowByNativeID = source.resolveSafariWindowByNativeID
@@ -124,16 +124,16 @@ assertEqual(
   "ambiguous Development target error"
 )
 
-assertEqual(868906217, normalizeChromeWindowID("868906217"), "string Chrome window ID")
-assertEqual(868906217, normalizeChromeWindowID(868906217), "numeric Chrome window ID")
-assertEqual(nil, normalizeChromeWindowID(""), "empty Chrome window ID")
-assertEqual(nil, normalizeChromeWindowID("window"), "text Chrome window ID")
-assertEqual(nil, normalizeChromeWindowID(0), "zero Chrome window ID")
-assertEqual(nil, normalizeChromeWindowID(-1), "negative Chrome window ID")
-assertEqual(nil, normalizeChromeWindowID(1.5), "fractional Chrome window ID")
-assertEqual(nil, normalizeChromeWindowID("999999999999999999999"), "oversized Chrome window ID")
-assertEqual(nil, normalizeChromeWindowID(math.huge), "infinite Chrome window ID")
-assertEqual(nil, normalizeChromeWindowID(0 / 0), "NaN Chrome window ID")
+assertEqual(868906217, normalizeNativeWindowID("868906217"), "string native window ID")
+assertEqual(868906217, normalizeNativeWindowID(868906217), "numeric native window ID")
+assertEqual(nil, normalizeNativeWindowID(""), "empty native window ID")
+assertEqual(nil, normalizeNativeWindowID("window"), "text native window ID")
+assertEqual(nil, normalizeNativeWindowID(0), "zero native window ID")
+assertEqual(nil, normalizeNativeWindowID(-1), "negative native window ID")
+assertEqual(nil, normalizeNativeWindowID(1.5), "fractional native window ID")
+assertEqual(nil, normalizeNativeWindowID("999999999999999999999"), "oversized native window ID")
+assertEqual(nil, normalizeNativeWindowID(math.huge), "infinite native window ID")
+assertEqual(nil, normalizeNativeWindowID(0 / 0), "NaN native window ID")
 
 local function decodeTestWindowID(window)
   return tonumber(window.id and window.id:match("_(%d+)$"))

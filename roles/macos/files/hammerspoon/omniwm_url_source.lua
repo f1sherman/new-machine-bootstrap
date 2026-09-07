@@ -48,7 +48,7 @@ function M.resolveSafariWindowByNativeID(windows, nativeID, decoder)
   return nil, "Could not find the Safari window that received the URL"
 end
 
-function M.normalizeChromeWindowID(value)
+function M.normalizeNativeWindowID(value)
   if type(value) == "string" and not value:match("^%d+$") then
     return nil
   elseif type(value) ~= "string" and type(value) ~= "number" then

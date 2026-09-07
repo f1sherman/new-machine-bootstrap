@@ -3,6 +3,7 @@ local cheatsheetPanel = require("omniwm_cheatsheet").new()
 local downloads = require("omniwm_downloads").new()
 local browserOpener = require("omniwm_browser_opener")
 local chatGPTRouter = require("omniwm_chatgpt_router")
+local safariRouter = require("omniwm_safari_router")
 local urlSource = require("omniwm_url_source")
 local omniwmctl = os.getenv("HOME") .. "/.local/bin/omniwmctl"
 local logger = hs.logger.new("omniwm", "info")
@@ -572,15 +573,6 @@ local browserOpenerDependencies = {
   notify = M.notify,
 }
 
-local function openNormallyInSafari(url)
-  browserOpener.open(
-    url,
-    "com.apple.Safari",
-    "Safari",
-    browserOpenerDependencies
-  )
-end
-
 local function openNormallyInChrome(url)
   browserOpener.open(
     url,
@@ -594,7 +586,7 @@ local function chromeFrontWindowID()
   local success, result = hs.osascript.applescript([[
     tell application "Google Chrome" to return id of front window
   ]])
-  local windowID = success and urlSource.normalizeChromeWindowID(result) or nil
+  local windowID = success and urlSource.normalizeNativeWindowID(result) or nil
   if not windowID then
     return nil, "Could not resolve the focused Chrome window ID: " .. tostring(result)
   end
@@ -694,7 +686,48 @@ local function safariNativeWindowID(window)
   if not decodeOK or type(decoded) ~= "string" then
     return nil
   end
-  return tonumber(decoded:match(":(%d+)$"))
+  return urlSource.normalizeNativeWindowID(decoded:match(":(%d+)$"))
+end
+
+local function safariFrontWindowID()
+  local success, result = hs.osascript.applescript([[
+    tell application "Safari" to return id of front window
+  ]])
+  local windowID = success and urlSource.normalizeNativeWindowID(result) or nil
+  if not windowID then
+    return nil, "Could not resolve Safari's front window ID: " .. tostring(result)
+  end
+  return windowID, nil
+end
+
+local function openNormallyInSafari(url)
+  safariRouter.route(url, {
+    openURL = function(value)
+      return hs.urlevent.openURLWithBundle(value, "com.apple.Safari")
+    end,
+    after = function(callback)
+      hs.timer.doAfter(0.2, callback)
+    end,
+    frontWindowID = safariFrontWindowID,
+    windows = M.windows,
+    resolve = function(windows, nativeID)
+      return urlSource.resolveSafariWindowByNativeID(
+        windows,
+        nativeID,
+        safariNativeWindowID
+      )
+    end,
+    navigate = function(id, callback)
+      M.run({"window", "navigate", id}, callback)
+    end,
+    confirmFocused = confirmWindowFocused,
+    focusSafari = function()
+      if not hs.application.launchOrFocusByBundleID("com.apple.Safari") then
+        M.notify("Could not focus Safari")
+      end
+    end,
+    notify = M.notify,
+  })
 end
 
 local function openSafariTab(window, url)
