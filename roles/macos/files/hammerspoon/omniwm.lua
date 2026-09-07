@@ -705,8 +705,8 @@ local function openNormallyInSafari(url)
     openURL = function(value)
       return hs.urlevent.openURLWithBundle(value, "com.apple.Safari")
     end,
-    after = function(callback)
-      hs.timer.doAfter(0.2, callback)
+    poll = function(predicate, callback)
+      M.poll(predicate, 5, callback)
     end,
     frontWindowID = safariFrontWindowID,
     windows = M.windows,
@@ -720,7 +720,11 @@ local function openNormallyInSafari(url)
     navigate = function(id, callback)
       M.run({"window", "navigate", id}, callback)
     end,
-    confirmFocused = confirmWindowFocused,
+    pollFocused = function(id, callback)
+      pollWindow(id, function(window)
+        return window.isFocused == true
+      end, callback)
+    end,
     focusSafari = function()
       if not hs.application.launchOrFocusByBundleID("com.apple.Safari") then
         M.notify("Could not focus Safari")
