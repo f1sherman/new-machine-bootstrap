@@ -133,8 +133,9 @@ does not create or move a Safari window.
 
 ### Open a link from another application
 
-Click the link normally. The managed URL handler opens it in Safari and focuses
-Safari. The application can switch to Safari's current macOS or OmniWM space.
+Click the link normally. The managed URL handler opens it in Safari. It then
+switches to the OmniWM workspace of the Safari window that received the tab and
+focuses that exact window. It does not move or summon the Safari window.
 
 ### Open a link from ChatGPT
 

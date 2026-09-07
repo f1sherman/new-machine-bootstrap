@@ -42,6 +42,9 @@ jobs:
       - name: Verify OmniWM browser focus
         run: lua5.4 tests/omniwm-browser-opener.lua
 
+      - name: Verify OmniWM Safari navigation
+        run: lua5.4 tests/omniwm-safari-router.lua
+
       - name: Verify ChatGPT Chrome routing
         run: lua5.4 tests/omniwm-chatgpt-router.lua
 
