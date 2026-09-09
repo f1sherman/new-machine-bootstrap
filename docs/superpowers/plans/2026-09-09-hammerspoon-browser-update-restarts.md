@@ -32,7 +32,7 @@
 
 **Interfaces:**
 - Consumes: injected dependency functions `scheduleAt(time, interval, callback)`, `doEvery(seconds, callback)`, `find(bundleID)`, `quit(app)`, `launch(bundleID)`, `now()`, and `logError(message)`.
-- Produces: `require("browser_update_restart").new(dependencies)` returning a controller with `start()` and `runNow()` methods. `start()` returns the retained daily timer.
+- Produces: `require("browser_update_restart").new(dependencies)` returning a controller with `start()` and `runNow()` methods, plus module-level `start(dependencies)` that owns and retains the production controller. Controller `start()` returns the retained daily timer.
 
 - [x] **Step 1: Write the failing behavioral test**
 
@@ -76,7 +76,10 @@ assertEqual(1, #events.launch, "timeout does not relaunch Chrome")
 Also add cases that prove a failed normal quit creates no poll or launch, a
 failed relaunch logs an error, and Brave can complete while Chrome times out.
 The fake application API must expose no force-quit function, so the production
-module cannot satisfy tests through one.
+module cannot satisfy tests through one. Add a weak-reference test that calls
+the module-level `start(dependencies)`, drops the returned controller, performs
+two full Lua garbage collections, and proves the scheduled daily timer remains
+reachable.
 
 - [x] **Step 2: Run the test and verify RED**
 
@@ -132,8 +135,10 @@ must create only one daily timer with:
 dependencies.scheduleAt("04:00", "1d", controller.runNow)
 ```
 
-Repeated `start()` calls must return the existing daily timer instead of adding
-another schedule. Return `M` at the end of the file.
+Repeated controller `start()` calls must return the existing daily timer instead
+of adding another schedule. Module-level `M.start(dependencies)` must construct,
+start, and privately retain one production controller, then return that same
+controller on later calls. Return `M` at the end of the file.
 
 - [x] **Step 4: Run the focused test and verify GREEN**
 
@@ -160,12 +165,11 @@ and before the managed `init.lua`, add a copy task:
     mode: '0644'
 ```
 
-At the top of the managed `init.lua` content after `hs.ipc.cliInstall()`, retain
-the controller for the configuration lifetime:
+At the top of the managed `init.lua` content after `hs.ipc.cliInstall()`, start
+the module-owned controller:
 
 ```lua
-local browserUpdateRestart = require("browser_update_restart").new()
-browserUpdateRestart.start()
+require("browser_update_restart").start()
 ```
 
 Do not alter the optional `init.local.lua` hook or add launchd tasks.
