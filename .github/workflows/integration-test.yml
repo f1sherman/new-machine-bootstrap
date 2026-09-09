@@ -24,6 +24,9 @@ jobs:
       - name: Install Lua test runtime
         run: sudo apt-get install --yes lua5.4
 
+      - name: Verify browser update restart scheduler
+        run: lua5.4 tests/browser-update-restart.lua
+
       - name: Verify OmniWM settings reconciliation
         run: ruby tests/configure-omniwm-settings.rb
 
