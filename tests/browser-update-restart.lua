@@ -159,6 +159,41 @@ assertEqual(true, independentHarness.polls[2].stopped, "timed-out Chrome poll st
 assertEqual(1, #independentHarness.events.launch, "timeout does not relaunch Chrome")
 assertEqual(1, #independentHarness.events.error, "timeout logs one error")
 
+local weakTimer = setmetatable({}, {__mode = "v"})
+local retainedController = browserRestart.start({
+  scheduleAt = function()
+    local timer = {kind = "module-retained-daily"}
+    weakTimer.daily = timer
+    return timer
+  end,
+  doEvery = function()
+    error("polling must not start during scheduler setup")
+  end,
+  find = function()
+    return nil
+  end,
+  quit = function()
+    error("quit must not run during scheduler setup")
+  end,
+  launch = function()
+    error("launch must not run during scheduler setup")
+  end,
+  now = function()
+    return 0
+  end,
+  logError = function()
+    error("logging must not run during scheduler setup")
+  end,
+})
+retainedController = nil
+collectgarbage("collect")
+collectgarbage("collect")
+assertEqual(
+  true,
+  weakTimer.daily ~= nil,
+  "module retains the started controller and its daily timer"
+)
+
 if failures > 0 then
   os.exit(1)
 end

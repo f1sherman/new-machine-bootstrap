@@ -535,8 +535,7 @@
     content: |
         -- init.lua
         hs.ipc.cliInstall()
-        local browserUpdateRestart = require("browser_update_restart").new()
-        browserUpdateRestart.start()
+        require("browser_update_restart").start()
         local appleMusic = "Music"
 
         -- Function to create a hotkey for Apple Music only

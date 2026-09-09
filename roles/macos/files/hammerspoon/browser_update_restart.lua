@@ -5,6 +5,7 @@ local browsers = {
 }
 local timeoutSeconds = 60
 local pollSeconds = 1
+local startedController
 
 local function defaultDependencies()
   local logger = hs.logger.new("browser-update-restart", "info")
@@ -78,6 +79,14 @@ function M.new(dependencies)
   end
 
   return controller
+end
+
+function M.start(dependencies)
+  if not startedController then
+    startedController = M.new(dependencies)
+    startedController.start()
+  end
+  return startedController
 end
 
 return M
