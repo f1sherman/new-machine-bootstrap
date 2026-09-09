@@ -47,6 +47,7 @@ assert_normal_commit_runs_hook() {
   local marker="$test_repo/$hook_name-invoked"
   local original_head
   original_head=$(git -C "$test_repo" rev-parse HEAD)
+  git -C "$test_repo" branch MERGE_HEAD
   install_blocking_hook "$test_repo" "$hook_name" "$marker"
   printf 'normal\n' > "$test_repo/normal.txt"
 
