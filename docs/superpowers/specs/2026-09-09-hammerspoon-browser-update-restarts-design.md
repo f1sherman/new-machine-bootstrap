@@ -69,13 +69,15 @@ the scheduler and restart state one clear boundary.
 
 The module exports a constructor that accepts its Hammerspoon dependencies for
 behavioral tests. Its returned controller exposes `start()` to create and retain
-the daily timer. The scheduled callback checks both configured bundle IDs and
-starts an independent graceful restart for each running browser.
+the daily timer. A module-level `start()` owns and retains the production
+controller so the timer stays reachable after `init.lua` returns. The scheduled
+callback checks both configured bundle IDs and starts an independent graceful
+restart for each running browser.
 
 ### Managed Hammerspoon configuration
 
-`~/.hammerspoon/init.lua` requires the module and retains the started controller
-in a local variable. The existing optional `init.local.lua` hook remains
+`~/.hammerspoon/init.lua` requires the module and calls its module-level
+`start()` function. The existing optional `init.local.lua` hook remains
 unchanged.
 
 ### Ansible installation
@@ -103,7 +105,9 @@ application, launch, and logger dependencies. It will verify:
 - running browsers receive a normal quit and relaunch after termination;
 - browsers are not relaunched while still running;
 - timeout stops polling and does not force-quit or relaunch; and
-- Brave and Chrome are handled independently.
+- Brave and Chrome are handled independently; and
+- the module retains the started controller and daily timer after the caller
+  drops its reference and Lua performs garbage collection.
 
 Run the new test, all existing Hammerspoon Lua tests, and `luac -p` on the
 module. Run `bin/provision --check`, then `bin/provision` to deploy the module
