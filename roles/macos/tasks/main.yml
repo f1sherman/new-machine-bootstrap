@@ -524,11 +524,19 @@
     state: directory
     mode: '0755'
 
+- name: Install browser update restart Hammerspoon module
+  copy:
+    src: hammerspoon/browser_update_restart.lua
+    dest: ~/.hammerspoon/browser_update_restart.lua
+    mode: '0644'
+
 - name: Configure Hammerspoon for Apple Music shortcuts
   copy:
     content: |
         -- init.lua
         hs.ipc.cliInstall()
+        local browserUpdateRestart = require("browser_update_restart").new()
+        browserUpdateRestart.start()
         local appleMusic = "Music"
 
         -- Function to create a hotkey for Apple Music only
