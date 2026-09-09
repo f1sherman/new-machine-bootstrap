@@ -30,31 +30,33 @@ new_repo() {
 
 install_blocking_hook() {
   local repo=$1
-  local marker=$2
+  local hook_name=$2
+  local marker=$3
 
   printf '#!/bin/sh\nprintf "invoked\\n" > "%s"\nexit 1\n' "$marker" \
-    > "$repo/.git/hooks/pre-commit"
-  chmod +x "$repo/.git/hooks/pre-commit"
+    > "$repo/.git/hooks/$hook_name"
+  chmod +x "$repo/.git/hooks/$hook_name"
 }
 
 assert_normal_commit_runs_hook() {
   local script=$1
   local name=$2
+  local hook_name=$3
 
-  new_repo "$name-normal"
-  local marker="$test_repo/hook-invoked"
+  new_repo "$name-normal-$hook_name"
+  local marker="$test_repo/$hook_name-invoked"
   local original_head
   original_head=$(git -C "$test_repo" rev-parse HEAD)
-  install_blocking_hook "$test_repo" "$marker"
+  install_blocking_hook "$test_repo" "$hook_name" "$marker"
   printf 'normal\n' > "$test_repo/normal.txt"
 
   if (cd "$test_repo" && bash "$script" -m "Add normal file" normal.txt) \
     >"$test_repo/output" 2>&1; then
     cat "$test_repo/output" >&2
-    fail "normal commit bypassed hook: $name"
+    fail "normal commit bypassed $hook_name hook: $name"
   fi
 
-  [[ -f "$marker" ]] || fail "normal commit did not run hook: $name"
+  [[ -f "$marker" ]] || fail "normal commit did not run $hook_name hook: $name"
   [[ "$(git -C "$test_repo" rev-parse HEAD)" == "$original_head" ]] || \
     fail "normal commit advanced HEAD: $name"
 }
@@ -74,16 +76,20 @@ assert_merge_commit_bypasses_hook() {
   git -C "$test_repo" commit -q -m "Add main"
   git -C "$test_repo" merge -q --no-commit topic
 
-  local marker="$test_repo/hook-invoked"
-  install_blocking_hook "$test_repo" "$marker"
+  local pre_commit_marker="$test_repo/pre-commit-invoked"
+  local prepare_message_marker="$test_repo/prepare-commit-msg-invoked"
+  install_blocking_hook "$test_repo" pre-commit "$pre_commit_marker"
+  install_blocking_hook "$test_repo" prepare-commit-msg "$prepare_message_marker"
 
   if ! (cd "$test_repo" && bash "$script" -m "Merge topic" topic.txt) \
     >"$test_repo/output" 2>&1; then
     cat "$test_repo/output" >&2
-    fail "active merge did not bypass hook: $name"
+    fail "active merge did not bypass hooks: $name"
   fi
 
-  [[ ! -f "$marker" ]] || fail "active merge ran hook: $name"
+  [[ ! -f "$pre_commit_marker" ]] || fail "active merge ran pre-commit hook: $name"
+  [[ ! -f "$prepare_message_marker" ]] || \
+    fail "active merge ran prepare-commit-msg hook: $name"
   if git -C "$test_repo" rev-parse --verify MERGE_HEAD >/dev/null 2>&1; then
     fail "active merge did not complete: $name"
   fi
@@ -93,7 +99,8 @@ assert_merge_commit_bypasses_hook() {
 
 for script in "${scripts[@]}"; do
   wrapper_name=$(basename "$(dirname "$script")")
-  assert_normal_commit_runs_hook "$script" "$wrapper_name"
+  assert_normal_commit_runs_hook "$script" "$wrapper_name" pre-commit
+  assert_normal_commit_runs_hook "$script" "$wrapper_name" prepare-commit-msg
   assert_merge_commit_bypasses_hook "$script" "$wrapper_name"
 done
 
