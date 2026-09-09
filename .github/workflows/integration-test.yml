@@ -54,6 +54,9 @@ jobs:
       - name: Verify commit wrapper ignored docs protection
         run: bash tests/commit-force-add-superpowers.sh
 
+      - name: Verify merge commit hook bypass
+        run: bash tests/commit-merge-hook-bypass.sh
+
       - name: Verify provision concurrency lock
         run: bash tests/provision-concurrency-lock.sh
 
