@@ -1,6 +1,6 @@
 # Hammerspoon Browser Update Restarts Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Gracefully restart running Brave and Google Chrome instances at 4:00 AM through Hammerspoon so pending updates can take effect.
 
@@ -34,7 +34,7 @@
 - Consumes: injected dependency functions `scheduleAt(time, interval, callback)`, `doEvery(seconds, callback)`, `find(bundleID)`, `quit(app)`, `launch(bundleID)`, `now()`, and `logError(message)`.
 - Produces: `require("browser_update_restart").new(dependencies)` returning a controller with `start()` and `runNow()` methods. `start()` returns the retained daily timer.
 
-- [ ] **Step 1: Write the failing behavioral test**
+- [x] **Step 1: Write the failing behavioral test**
 
 Create `tests/browser-update-restart.lua`. Require the production module through
 `roles/macos/files/hammerspoon/?.lua`. Build a deterministic harness with an
@@ -78,7 +78,7 @@ failed relaunch logs an error, and Brave can complete while Chrome times out.
 The fake application API must expose no force-quit function, so the production
 module cannot satisfy tests through one.
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -88,7 +88,7 @@ lua tests/browser-update-restart.lua
 
 Expected: failure because `browser_update_restart` cannot be found.
 
-- [ ] **Step 3: Implement the minimal restart module**
+- [x] **Step 3: Implement the minimal restart module**
 
 Create `roles/macos/files/hammerspoon/browser_update_restart.lua` with:
 
@@ -135,7 +135,7 @@ dependencies.scheduleAt("04:00", "1d", controller.runNow)
 Repeated `start()` calls must return the existing daily timer instead of adding
 another schedule. Return `M` at the end of the file.
 
-- [ ] **Step 4: Run the focused test and verify GREEN**
+- [x] **Step 4: Run the focused test and verify GREEN**
 
 Run:
 
@@ -147,7 +147,7 @@ luac -p roles/macos/files/hammerspoon/browser_update_restart.lua
 Expected: the behavioral test prints one PASS line and Lua syntax validation
 returns status 0.
 
-- [ ] **Step 5: Add the Ansible and init.lua integration**
+- [x] **Step 5: Add the Ansible and init.lua integration**
 
 In `roles/macos/tasks/main.yml`, after the Hammerspoon configuration directory
 and before the managed `init.lua`, add a copy task:
@@ -170,7 +170,7 @@ browserUpdateRestart.start()
 
 Do not alter the optional `init.local.lua` hook or add launchd tasks.
 
-- [ ] **Step 6: Run focused and regression verification**
+- [x] **Step 6: Run focused and regression verification**
 
 Run:
 
@@ -184,7 +184,7 @@ ansible-playbook playbook.yml --syntax-check
 Expected: all Lua tests pass, `luac` returns status 0, and Ansible reports that
 `playbook.yml` passes syntax validation.
 
-- [ ] **Step 7: Commit the implementation**
+- [x] **Step 7: Commit the implementation**
 
 Run:
 
@@ -207,7 +207,7 @@ Expected: one implementation commit and a clean worktree.
 - Consumes: the committed Ansible task, Lua module, and managed `init.lua` integration from Task 1.
 - Produces: deployed `~/.hammerspoon/browser_update_restart.lua` and a reloaded Hammerspoon configuration with one daily timer.
 
-- [ ] **Step 1: Run check mode**
+- [x] **Step 1: Run check mode**
 
 Run:
 
@@ -218,7 +218,7 @@ bin/provision --check
 Expected: provisioning completes without failure and reports the new module and
 managed `init.lua` as pending changes.
 
-- [ ] **Step 2: Provision the current macOS host**
+- [x] **Step 2: Provision the current macOS host**
 
 Run:
 
@@ -229,7 +229,7 @@ bin/provision
 Expected: provisioning installs the module, updates `init.lua`, reloads
 Hammerspoon, and completes without failure.
 
-- [ ] **Step 3: Confirm the deployed module and loaded package**
+- [x] **Step 3: Confirm the deployed module and loaded package**
 
 Run:
 
@@ -243,7 +243,7 @@ Expected: `cmp` returns status 0 and Hammerspoon prints `true`. Do not invoke
 `runNow()` because that would restart active browsers outside the scheduled
 window.
 
-- [ ] **Step 4: Confirm repository state**
+- [x] **Step 4: Confirm repository state**
 
 Run:
 
