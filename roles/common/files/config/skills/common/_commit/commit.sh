@@ -162,7 +162,7 @@ done
 
 # Create the commit (no co-author attribution)
 if git rev-parse --verify MERGE_HEAD > /dev/null 2>&1; then
-    git commit --no-verify -m "$message"
+    git -c core.hooksPath=/dev/null commit -m "$message"
 else
     git commit -m "$message"
 fi

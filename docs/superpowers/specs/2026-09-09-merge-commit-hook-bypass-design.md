@@ -40,7 +40,7 @@ The two managed helper copies keep their current command-line interface:
 - `roles/common/files/config/skills/common/_commit/commit.sh` serves Claude and Codex.
 - `roles/common/files/config/skills/pi/z-commit/commit.sh` serves Pi.
 
-Immediately before commit creation, each helper checks whether `git rev-parse --verify MERGE_HEAD` succeeds. A successful check causes the helper to create the commit with hook verification disabled. A failed check uses the existing command unchanged.
+Immediately before commit creation, each helper checks whether `git rev-parse --verify MERGE_HEAD` succeeds. A successful check sets `core.hooksPath` to `/dev/null` for that commit command so no Git hook type can run. A failed check uses the existing command unchanged.
 
 The direct-command guards remain unchanged. Agents must still use the managed commit skill. Skill and committer instructions will explain the automatic merge behavior so agents do not search for an unsupported escape option.
 
@@ -66,8 +66,8 @@ Add a behavioral shell test that runs both deployed-source helpers in disposable
 
 The test will prove:
 
-1. A blocking pre-commit hook runs and rejects a normal commit.
-2. The same blocking hook does not run while `MERGE_HEAD` exists.
+1. Blocking `pre-commit` and `prepare-commit-msg` hooks reject normal commits.
+2. Neither blocking hook runs while `MERGE_HEAD` exists.
 3. The helper creates a real two-parent merge commit.
 4. Both helper copies remain byte-for-byte equal after the change.
 
