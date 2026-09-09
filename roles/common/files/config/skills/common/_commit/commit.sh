@@ -161,7 +161,7 @@ for file in "${files[@]}"; do
 done
 
 # Create the commit (no co-author attribution)
-if git rev-parse --verify MERGE_HEAD > /dev/null 2>&1; then
+if [[ -f "$(git rev-parse --git-path MERGE_HEAD)" ]]; then
     git -c core.hooksPath=/dev/null commit -m "$message"
 else
     git commit -m "$message"

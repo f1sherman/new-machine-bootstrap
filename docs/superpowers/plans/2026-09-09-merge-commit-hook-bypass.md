@@ -4,14 +4,14 @@
 
 **Goal:** Make managed commit helpers skip local commit hooks automatically during an active Git merge while retaining hooks for normal commits.
 
-**Architecture:** Each helper checks Git's `MERGE_HEAD` immediately before commit creation. An active merge disables the complete Git hook path for that command; all other commits use the existing command. A behavioral shell test executes both real helpers in disposable repositories.
+**Architecture:** Each helper checks Git's actual `MERGE_HEAD` pseudo-ref file immediately before commit creation. An active merge disables the complete Git hook path for that command; all other commits use the existing command. A behavioral shell test executes both real helpers in disposable repositories.
 
 **Tech Stack:** Bash, Git, Markdown, Ansible provisioning
 
 ## Global Constraints
 
 - Direct commit commands remain blocked.
-- Hook bypass is available only when Git resolves `MERGE_HEAD`.
+- Hook bypass is available only when Git's actual `MERGE_HEAD` pseudo-ref file exists.
 - The helper command-line interface does not change.
 - Existing staging and ignored-file protections do not change.
 - The common and Pi helper scripts remain byte-for-byte equal.
@@ -38,7 +38,7 @@
 
 - [ ] **Step 1: Write the failing behavioral test**
 
-Create a shell test that loops over both helper paths. For each helper, create disposable repositories where executable `pre-commit` and `prepare-commit-msg` hooks record their invocation and exit nonzero. Verify normal helper commits fail, create no commit, and record each hook invocation. Create a merge repository with divergent branches, start a clean merge with `--no-commit`, run the helper, and verify both hook markers are absent, `MERGE_HEAD` is removed, and `HEAD^2` exists. End by comparing both helper files and printing the expected `PASS` line.
+Create a shell test that loops over both helper paths. For each helper, create disposable repositories with a branch named `MERGE_HEAD` where executable `pre-commit` and `prepare-commit-msg` hooks record their invocation and exit nonzero. Verify normal helper commits fail, create no commit, and record each hook invocation. Create a merge repository with divergent branches, start a clean merge with `--no-commit`, run the helper, and verify both hook markers are absent, `MERGE_HEAD` is removed, and `HEAD^2` exists. End by comparing both helper files and printing the expected `PASS` line.
 
 - [ ] **Step 2: Run the test and verify the merge case fails**
 
@@ -51,7 +51,7 @@ Expected: failure because the blocking pre-commit hook runs during the active me
 Replace the single commit invocation in each helper with:
 
 ```bash
-if git rev-parse --verify MERGE_HEAD >/dev/null 2>&1; then
+if [[ -f "$(git rev-parse --git-path MERGE_HEAD)" ]]; then
     git -c core.hooksPath=/dev/null commit -m "$message"
 else
     git commit -m "$message"
