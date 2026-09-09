@@ -23,8 +23,9 @@ Use this process:
 4. Never add AI attribution, "Generated with Codex", or "Co-Authored-By" lines.
 5. For each commit, run `~/.codex/skills/_commit/commit.sh -m "<message>" file1 file2 ...`.
 6. If `commit.sh` fails only because a file is gitignored, rerun the same command with `--force`, except never force-add an ignored file under `docs/superpowers/`; leave those local and omit them from the commit.
-7. If there are no changes to commit, return `No changes to commit.` and stop.
-8. On success, return a short success message (e.g., "Committed." or "Created 2 commits."). On failure, return the actual error output.
+7. During an active merge, `commit.sh` automatically bypasses local commit hooks. Do not run separate validation only to satisfy those hooks; rely on completed validation and CI.
+8. If there are no changes to commit, return `No changes to commit.` and stop.
+9. On success, return a short success message (e.g., "Committed." or "Created 2 commits."). On failure, return the actual error output.
 ```
 
 3. Call `wait_agent` on the spawned agent immediately so the handoff behaves like a foreground step.

@@ -161,7 +161,11 @@ for file in "${files[@]}"; do
 done
 
 # Create the commit (no co-author attribution)
-git commit -m "$message"
+if git rev-parse --verify MERGE_HEAD > /dev/null 2>&1; then
+    git commit --no-verify -m "$message"
+else
+    git commit -m "$message"
+fi
 
 # Show the result
 echo ""

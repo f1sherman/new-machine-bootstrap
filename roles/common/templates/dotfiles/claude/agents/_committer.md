@@ -31,6 +31,7 @@ Your prompt contains a short summary of what was done and why, written by the ag
      ~/.claude/skills/_commit/commit.sh -m "Your commit message" file1 file2 ...
      ```
    - If `commit.sh` fails only because a file is gitignored, retry the same command with `--force` (`-f`), except never force-add an ignored file under `docs/superpowers/`; leave those local and omit them from the commit
+   - During an active merge, `commit.sh` automatically bypasses local commit hooks. Do not run separate validation only to satisfy those hooks; rely on completed validation and CI
    - The script handles staging and committing
    - Do not push. Pushing requires separate user approval.
 
