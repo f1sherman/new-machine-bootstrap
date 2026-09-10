@@ -132,6 +132,114 @@ local assignFailure = harness(focusedWindow, {}, nil, focusedWindow, nil, "assig
 assertEqual(0, #assignFailure.show, "assignment failure does not show target")
 assertEqual("assign failed", assignFailure.notify[1], "assignment failure is reported")
 
+local function recoveryHarness(options)
+  local calls = {events = {}, notify = {}, done = 0}
+  local target = {id = "downloads", isVisible = options.visible ~= false}
+  downloads.recoverScratchpad({
+    scratchpad = options.scratchpad or {},
+    downloadsWindows = options.downloadsWindows or {target},
+    focusedWindow = options.focusedWindow,
+    activeWorkspace = {number = 4},
+  }, {
+    navigate = function(id, callback)
+      table.insert(calls.events, "navigate:" .. id)
+      callback(nil, options.navigateError)
+    end,
+    confirmFocused = function(id, callback)
+      table.insert(calls.events, "confirm-focused:" .. id)
+      callback(target, options.focusError)
+    end,
+    assign = function(callback)
+      table.insert(calls.events, "assign")
+      callback(nil, options.assignError)
+    end,
+    confirmAssigned = function(id, callback)
+      table.insert(calls.events, "confirm-assigned:" .. id)
+      if options.missingAssignment then
+        callback(nil, nil)
+      else
+        callback(target, options.confirmError)
+      end
+    end,
+    hide = function(id, callback)
+      table.insert(calls.events, "hide:" .. id)
+      callback(nil, options.hideError)
+    end,
+    restoreWindow = function(id, callback)
+      table.insert(calls.events, "restore-window:" .. id)
+      callback(nil, options.restoreError)
+    end,
+    restoreWorkspace = function(number, callback)
+      table.insert(calls.events, "restore-workspace:" .. number)
+      callback(nil, options.restoreError)
+    end,
+    notify = function(message)
+      table.insert(calls.notify, message)
+    end,
+    done = function()
+      calls.done = calls.done + 1
+    end,
+  })
+  return calls
+end
+
+local occupiedRecovery = recoveryHarness({
+  scratchpad = {{id = "owner"}},
+  focusedWindow = {id = "previous"},
+})
+assertEqual("", table.concat(occupiedRecovery.events, ","), "occupied scratchpad is unchanged")
+assertEqual(1, #occupiedRecovery.notify, "occupied scratchpad reports one error")
+assertEqual(1, occupiedRecovery.done, "occupied scratchpad completes")
+
+local absentRecovery = recoveryHarness({
+  downloadsWindows = {},
+  focusedWindow = {id = "previous"},
+})
+assertEqual("", table.concat(absentRecovery.events, ","), "absent Downloads window is unchanged")
+assertEqual(0, #absentRecovery.notify, "absent Downloads window is a quiet no-op")
+assertEqual(1, absentRecovery.done, "absent Downloads window completes")
+
+local ambiguousRecovery = recoveryHarness({
+  downloadsWindows = {{id = "downloads-1"}, {id = "downloads-2"}},
+  focusedWindow = {id = "previous"},
+})
+assertEqual("", table.concat(ambiguousRecovery.events, ","), "ambiguous Downloads windows are unchanged")
+assertEqual(1, #ambiguousRecovery.notify, "ambiguous Downloads windows report one error")
+assertEqual(1, ambiguousRecovery.done, "ambiguous Downloads windows complete")
+
+local recovered = recoveryHarness({focusedWindow = {id = "previous"}})
+assertEqual(
+  "navigate:downloads,confirm-focused:downloads,assign,confirm-assigned:downloads,hide:downloads,restore-window:previous",
+  table.concat(recovered.events, ","),
+  "visible Downloads window recovery order"
+)
+assertEqual(0, #recovered.notify, "successful recovery has no error")
+assertEqual(1, recovered.done, "successful recovery completes once")
+
+local workspaceRestore = recoveryHarness({visible = false})
+assertEqual(
+  "navigate:downloads,confirm-focused:downloads,assign,confirm-assigned:downloads,restore-workspace:4",
+  table.concat(workspaceRestore.events, ","),
+  "hidden recovery restores the prior workspace"
+)
+assertEqual(1, workspaceRestore.done, "workspace restoration completes once")
+
+local recoveryFailures = {
+  {"navigate", {navigateError = "navigate failed"}, "navigate:downloads,restore-window:previous"},
+  {"focus", {focusError = "focus failed"}, "navigate:downloads,confirm-focused:downloads,restore-window:previous"},
+  {"assign", {assignError = "assign failed"}, "navigate:downloads,confirm-focused:downloads,assign,restore-window:previous"},
+  {"confirm", {confirmError = "confirm failed"}, "navigate:downloads,confirm-focused:downloads,assign,confirm-assigned:downloads,restore-window:previous"},
+  {"missing assignment", {missingAssignment = true}, "navigate:downloads,confirm-focused:downloads,assign,confirm-assigned:downloads,restore-window:previous"},
+  {"hide", {hideError = "hide failed"}, "navigate:downloads,confirm-focused:downloads,assign,confirm-assigned:downloads,hide:downloads,restore-window:previous"},
+}
+for _, failureCase in ipairs(recoveryFailures) do
+  failureCase[2].focusedWindow = {id = "previous"}
+  local failedRecovery = recoveryHarness(failureCase[2])
+  assertEqual(failureCase[3], table.concat(failedRecovery.events, ","), failureCase[1] .. " failure order")
+  assertEqual(1, #failedRecovery.notify, failureCase[1] .. " failure reports one error")
+  assertEqual(1, failedRecovery.done, failureCase[1] .. " failure completes once")
+end
+
 if failures > 0 then
   os.exit(1)
 end
