@@ -9,6 +9,7 @@ local omniwmctl = os.getenv("HOME") .. "/.local/bin/omniwmctl"
 local logger = hs.logger.new("omniwm", "info")
 local runningTasks = {}
 local downloadsScratchpadSlot = 1
+local downloadsFinderTitle = os.getenv("HOME") .. "/Downloads"
 
 local function copyArray(values)
   local result = {}
@@ -391,6 +392,11 @@ local function createDownloadsFinder(previousIDs)
   end)
 end
 
+local function isDownloadsFinder(window)
+  return bundleID(window) == "com.apple.finder"
+    and window.title == downloadsFinderTitle
+end
+
 function M.toggleDownloadsScratchpad()
   queryDownloadsScratchpad(function(scratchpad, scratchpadError)
     if scratchpadError then
@@ -426,6 +432,131 @@ function M.toggleDownloadsScratchpad()
         end
       end
       createDownloadsFinder(previousIDs)
+    end)
+  end)
+end
+
+local function navigateAndConfirmWindow(id, callback)
+  M.run({"window", "navigate", id}, function(_, navigateError)
+    if navigateError then
+      callback(nil, navigateError)
+      return
+    end
+    pollWindow(id, function(window)
+      return window.isFocused == true
+    end, callback)
+  end)
+end
+
+local function restoreWorkspace(number, callback)
+  M.run({"command", "switch-workspace", tostring(number)}, function(_, switchError)
+    if switchError then
+      callback(nil, switchError)
+      return
+    end
+    M.poll(function(done)
+      M.activeWorkspace(function(workspace, workspaceError)
+        if workspaceError then
+          done(nil, workspaceError)
+          return
+        end
+        done(workspace.number == number and workspace or false, nil)
+      end)
+    end, 5, callback)
+  end)
+end
+
+local function recoverDownloadsScratchpad()
+  M.activeWorkspace(function(activeWorkspace, workspaceError)
+    if workspaceError then
+      M.notify(workspaceError)
+      return
+    end
+    queryWindows({"--focused"}, function(focusedWindows, focusedError)
+      if focusedError then
+        M.notify(focusedError)
+        return
+      elseif #focusedWindows > 1 then
+        M.notify("OmniWM returned more than one focused window")
+        return
+      end
+      local focusedWindow = focusedWindows[1]
+
+      queryDownloadsScratchpad(function(scratchpad, scratchpadError)
+        if scratchpadError then
+          M.notify(scratchpadError)
+          return
+        end
+        M.windows(function(windows, windowsError)
+          if windowsError then
+            M.notify(windowsError)
+            return
+          end
+          local downloadsWindows = findWindows(windows, function(window)
+            return isDownloadsFinder(window) and window.isScratchpad ~= true
+          end)
+          if #scratchpad == 1
+            and isDownloadsFinder(scratchpad[1])
+            and #downloadsWindows == 0 then
+            return
+          end
+          if #downloadsWindows == 1
+            and focusedWindow
+            and focusedWindow.id == downloadsWindows[1].id then
+            M.notify("Close or leave the Downloads window before scratchpad recovery")
+            return
+          end
+
+          downloads.recoverScratchpad({
+            scratchpad = scratchpad,
+            downloadsWindows = downloadsWindows,
+            focusedWindow = focusedWindow,
+            activeWorkspace = activeWorkspace,
+          }, {
+            navigate = function(id, callback)
+              M.run({"window", "navigate", id}, callback)
+            end,
+            confirmFocused = function(id, callback)
+              pollWindow(id, function(window)
+                return window.isFocused == true
+              end, callback)
+            end,
+            assign = function(callback)
+              M.run({
+                "command",
+                "scratchpad",
+                "assign",
+                tostring(downloadsScratchpadSlot),
+              }, callback)
+            end,
+            confirmAssigned = function(id, callback)
+              pollWindow(id, function(window)
+                return window.scratchpadIndex == downloadsScratchpadSlot
+              end, callback)
+            end,
+            hide = function(id, callback)
+              M.run({
+                "command",
+                "scratchpad",
+                "toggle",
+                tostring(downloadsScratchpadSlot),
+              }, function(_, toggleError)
+                if toggleError then
+                  callback(nil, toggleError)
+                  return
+                end
+                pollWindow(id, function(window)
+                  return window.isVisible == false
+                end, callback)
+              end)
+            end,
+            restoreWindow = navigateAndConfirmWindow,
+            restoreWorkspace = restoreWorkspace,
+            notify = M.notify,
+            done = function() end,
+          })
+        end)
+      end)
     end)
   end)
 end
@@ -819,6 +950,8 @@ local function routeGhosttyURL(url)
     end)
   end)
 end
+
+hs.timer.doAfter(1, recoverDownloadsScratchpad)
 
 hs.hotkey.bind({"ctrl", "alt"}, "D", M.toggleDownloadsScratchpad)
 hs.hotkey.bind({"ctrl", "alt"}, "P", M.togglePhotos)
