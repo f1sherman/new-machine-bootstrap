@@ -110,10 +110,11 @@ If none exists, switch to the saved workspace number.
 
 - [ ] **Step 3: Wait for IPC and schedule one recovery attempt**
 
-After all helper functions are defined, wait one second and probe OmniWM IPC.
-Retry the probe once per second for up to 30 attempts. Run
-`recoverDownloadsScratchpad()` once after a successful probe. Do not repeat the
-recovery on an interval.
+After all helper functions are defined, wait one second and attempt recovery.
+Retry once per second for up to 30 attempts while OmniWM IPC is unavailable, the
+Downloads operation lock is held, or the restored Finder window is not listed.
+Complete one recovery after a usable snapshot. Do not repeat completed recovery
+on an interval.
 
 - [ ] **Step 4: Update the cheat sheet**
 

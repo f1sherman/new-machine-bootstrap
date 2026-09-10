@@ -480,41 +480,46 @@ local function restoreWorkspace(number, callback)
   end)
 end
 
-local function recoverDownloadsScratchpad()
-  if not downloads.beginOperation(M.notify) then
+local function recoverDownloadsScratchpad(callback)
+  callback = callback or function() end
+  if not downloads.beginOperation() then
+    callback(false, nil)
     return
   end
 
-  local function finish(message)
-    if message then
-      M.notify(message)
-    end
+  local function retry(message)
     downloads.finishOperation()
+    callback(false, message)
+  end
+
+  local function complete()
+    downloads.finishOperation()
+    callback(true, nil)
   end
 
   M.activeWorkspace(function(activeWorkspace, workspaceError)
     if workspaceError then
-      finish(workspaceError)
+      retry(workspaceError)
       return
     end
     queryWindows({"--focused"}, function(focusedWindows, focusedError)
       if focusedError then
-        finish(focusedError)
+        retry(focusedError)
         return
       elseif #focusedWindows > 1 then
-        finish("OmniWM returned more than one focused window")
+        retry("OmniWM returned more than one focused window")
         return
       end
       local focusedWindow = focusedWindows[1]
 
       queryDownloadsScratchpad(function(scratchpad, scratchpadError)
         if scratchpadError then
-          finish(scratchpadError)
+          retry(scratchpadError)
           return
         end
         M.windows(function(windows, windowsError)
           if windowsError then
-            finish(windowsError)
+            retry(windowsError)
             return
           end
           local downloadsWindows = findWindows(windows, function(window)
@@ -523,7 +528,10 @@ local function recoverDownloadsScratchpad()
           if #scratchpad == 1
             and isDownloadsFinder(scratchpad[1])
             and #downloadsWindows == 0 then
-            finish()
+            complete()
+            return
+          elseif #scratchpad == 0 and #downloadsWindows == 0 then
+            retry()
             return
           end
           downloads.recoverScratchpad({
@@ -607,7 +615,7 @@ local function recoverDownloadsScratchpad()
             restoreWindow = navigateAndConfirmWindow,
             restoreWorkspace = restoreWorkspace,
             notify = M.notify,
-            done = downloads.finishOperation,
+            done = complete,
           })
         end)
       end)
@@ -1008,8 +1016,7 @@ end
 hs.timer.doAfter(1, function()
   downloads.recoverWhenReady({
     attempts = 30,
-    check = M.activeWorkspace,
-    recover = recoverDownloadsScratchpad,
+    attempt = recoverDownloadsScratchpad,
     retry = function(callback)
       hs.timer.doAfter(1, callback)
     end,
