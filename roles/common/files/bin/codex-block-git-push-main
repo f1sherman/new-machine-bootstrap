@@ -81,6 +81,8 @@ def is_plain_chatgpt_sites_push(command_text):
         return False
     if not git_output([], {}, 'rev-parse', '--git-dir'):
         return False
+    if remote in git_output([], {}, 'remote').splitlines():
+        return False
 
     return remote_host(effective_push_url(remote)) == CHATGPT_SITES_HOST
 

@@ -54,6 +54,11 @@ git -C "$repo" remote add upstream "$NORMAL_URL"
 assert_allowed "$repo" "plain explicit Sites push" \
   "git push $SITES_URL HEAD:main"
 
+git -C "$repo" config "remote.$SITES_URL.url" "$NORMAL_URL"
+assert_denied "$repo" "URL-shaped remote name pointing to a normal host" \
+  "git push $SITES_URL HEAD:main"
+git -C "$repo" config --remove-section "remote.$SITES_URL"
+
 assert_denied "$repo" "normal explicit URL push" \
   "git push $NORMAL_URL HEAD:main"
 assert_denied "$repo" "named Sites remote push" \

@@ -55,7 +55,10 @@ let staleContextReads = 0;
 const chatgptSitesUrl = "https://git.chatgpt-team.site/team/site.git";
 const normalGitUrl = "https://example.com/team/site.git";
 let effectiveChatgptSitesUrl = chatgptSitesUrl;
+let configuredRemoteNames = [];
 let killGitRootQuery = false;
+let killRemoteNameQuery = false;
+let failRemoteNameQuery = false;
 let killRemoteUrlQuery = false;
 const failedGitRootCwds = new Set();
 const failedBranchCwds = new Set();
@@ -192,6 +195,13 @@ const pi = {
     if (command === "git" && args.includes("branch")) {
       if (args.some((arg) => failedBranchCwds.has(String(arg)))) return fail();
       return ok(args.includes(worktreeRoot) ? "feature\n" : `${branch}\n`);
+    }
+    if (command === "git" && args.at(-1) === "remote") {
+      if (killRemoteNameQuery) return { ...ok(), killed: true };
+      if (failRemoteNameQuery) return fail();
+      return ok(configuredRemoteNames.length > 0
+        ? `${configuredRemoteNames.join("\n")}\n`
+        : "");
     }
     if (command === "git" && args.at(-2) === "remote" && args.at(-1) === "-v") {
       const remoteConfig = args.find((arg) => String(arg).startsWith("remote.chatgpt-sites-check-"));
@@ -922,6 +932,19 @@ assert.equal(sitesPush?.block, true,
   "blocks a Sites push when Git root verification is killed");
 killGitRootQuery = false;
 
+for (const remoteNameFailure of ["killed", "failed"]) {
+  killRemoteNameQuery = remoteNameFailure === "killed";
+  failRemoteNameQuery = remoteNameFailure === "failed";
+  sitesPush = await handlers.get("tool_call")({
+    toolName: "bash",
+    input: { command: `git push ${chatgptSitesUrl} HEAD:main` },
+  }, ctx);
+  assert.equal(sitesPush?.block, true,
+    `blocks a Sites push when remote-name verification is ${remoteNameFailure}`);
+}
+killRemoteNameQuery = false;
+failRemoteNameQuery = false;
+
 killRemoteUrlQuery = true;
 sitesPush = await handlers.get("tool_call")({
   toolName: "bash",
@@ -930,6 +953,15 @@ sitesPush = await handlers.get("tool_call")({
 assert.equal(sitesPush?.block, true,
   "blocks a Sites push when effective URL verification is killed");
 killRemoteUrlQuery = false;
+
+configuredRemoteNames = [chatgptSitesUrl];
+sitesPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `git push ${chatgptSitesUrl} HEAD:main` },
+}, ctx);
+assert.equal(sitesPush?.block, true,
+  "blocks a Sites URL that is also a configured remote name");
+configuredRemoteNames = [];
 
 sitesPush = await handlers.get("tool_call")({
   toolName: "bash",
