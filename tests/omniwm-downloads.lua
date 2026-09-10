@@ -224,6 +224,22 @@ assertEqual(
 )
 assertEqual(1, workspaceRestore.done, "workspace restoration completes once")
 
+local windowRestoreFailure = recoveryHarness({
+  focusedWindow = {id = "previous"},
+  restoreError = "window restore failed",
+})
+assertEqual("window restore failed", windowRestoreFailure.notify[1], "window restore failure is reported")
+assertEqual(1, #windowRestoreFailure.notify, "window restore failure reports one error")
+assertEqual(1, windowRestoreFailure.done, "window restore failure completes once")
+
+local workspaceRestoreFailure = recoveryHarness({
+  visible = false,
+  restoreError = "workspace restore failed",
+})
+assertEqual("workspace restore failed", workspaceRestoreFailure.notify[1], "workspace restore failure is reported")
+assertEqual(1, #workspaceRestoreFailure.notify, "workspace restore failure reports one error")
+assertEqual(1, workspaceRestoreFailure.done, "workspace restore failure completes once")
+
 local recoveryFailures = {
   {"navigate", {navigateError = "navigate failed"}, "navigate:downloads,restore-window:previous"},
   {"focus", {focusError = "focus failed"}, "navigate:downloads,confirm-focused:downloads,restore-window:previous"},
