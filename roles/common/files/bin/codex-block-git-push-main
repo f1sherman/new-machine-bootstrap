@@ -78,10 +78,19 @@ def selected_push_remote(repo_args, repo_env, push_tokens, branch):
     return 'origin'
 
 
-def remote_url(repo_args, repo_env, remote):
+def remote_urls(repo_args, repo_env, remote):
     if '://' in remote or re.fullmatch(r'(?:[^@/:]+@)?[^:/]+:.+', remote):
-        return remote
-    return git_output(repo_args, repo_env, 'remote', 'get-url', '--push', remote)
+        return [remote]
+    output = git_output(
+        repo_args,
+        repo_env,
+        'remote',
+        'get-url',
+        '--push',
+        '--all',
+        remote,
+    )
+    return output.splitlines()
 
 
 def remote_host(url):
@@ -92,8 +101,15 @@ def remote_host(url):
 
 
 def pushes_to_chatgpt_sites(repo_args, repo_env, push_tokens, branch):
+    git_dir = git_output(repo_args, repo_env, 'rev-parse', '--git-dir')
+    if not git_dir:
+        return False
     remote = selected_push_remote(repo_args, repo_env, push_tokens, branch)
-    return remote_host(remote_url(repo_args, repo_env, remote)) == CHATGPT_SITES_HOST
+    urls = remote_urls(repo_args, repo_env, remote)
+    return bool(urls) and all(
+        remote_host(url) == CHATGPT_SITES_HOST
+        for url in urls
+    )
 
 
 def token_segments(command_text):
@@ -311,6 +327,14 @@ def segment_is_blocking(segment):
         return True
 
     push_args = push_positionals(push_tokens)
+    force_option = any(
+        token == '-f' or token.startswith('--force')
+        for token in push_tokens
+    )
+    forced_refspec = any(token.startswith('+') for token in push_args[1:])
+    if force_option or forced_refspec:
+        return True
+
     branch = current_branch(repo_args, repo_env)
     sites_remote = pushes_to_chatgpt_sites(
         repo_args,
