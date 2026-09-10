@@ -67,7 +67,9 @@ function M.new()
 
       if not navigated then
         completeRecovery()
-      elseif snapshot.focusedWindow and snapshot.focusedWindow.id then
+      elseif snapshot.focusedWindow
+        and snapshot.focusedWindow.id
+        and snapshot.focusedWindow.id ~= target.id then
         actions.restoreWindow(snapshot.focusedWindow.id, function(_, restoreError)
           completeRecovery(restoreError)
         end)

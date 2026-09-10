@@ -500,13 +500,6 @@ local function recoverDownloadsScratchpad()
             and #downloadsWindows == 0 then
             return
           end
-          if #downloadsWindows == 1
-            and focusedWindow
-            and focusedWindow.id == downloadsWindows[1].id then
-            M.notify("Close or leave the Downloads window before scratchpad recovery")
-            return
-          end
-
           downloads.recoverScratchpad({
             scratchpad = scratchpad,
             downloadsWindows = downloadsWindows,

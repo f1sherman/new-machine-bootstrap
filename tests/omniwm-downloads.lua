@@ -224,6 +224,17 @@ assertEqual(
 )
 assertEqual(1, workspaceRestore.done, "workspace restoration completes once")
 
+local focusedTargetRestore = recoveryHarness({
+  focusedWindow = {id = "downloads"},
+})
+assertEqual(
+  "navigate:downloads,confirm-focused:downloads,assign,confirm-assigned:downloads,hide:downloads,restore-workspace:4",
+  table.concat(focusedTargetRestore.events, ","),
+  "focused Downloads recovery restores its prior workspace"
+)
+assertEqual(0, #focusedTargetRestore.notify, "focused Downloads recovery has no error")
+assertEqual(1, focusedTargetRestore.done, "focused Downloads recovery completes once")
+
 local windowRestoreFailure = recoveryHarness({
   focusedWindow = {id = "previous"},
   restoreError = "window restore failed",
