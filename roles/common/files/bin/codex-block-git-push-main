@@ -38,6 +38,17 @@ def current_branch(repo_args, repo_env):
     return git_output(repo_args, repo_env, 'branch', '--show-current')
 
 
+def short_push_options_force(token):
+    if not token.startswith('-') or token.startswith('--'):
+        return False
+    for option in token[1:]:
+        if option == 'f':
+            return True
+        if option == 'o':
+            return False
+    return False
+
+
 def push_positionals(push_tokens):
     options_with_values = {
         '-o', '--push-option', '--receive-pack', '--exec', '--repo',
@@ -60,7 +71,22 @@ def push_positionals(push_tokens):
     return positionals
 
 
+def push_repository_option(push_tokens):
+    for index, token in enumerate(push_tokens):
+        if token == '--':
+            break
+        if token == '--repo':
+            return push_tokens[index + 1] if index + 1 < len(push_tokens) else ''
+        if token.startswith('--repo='):
+            return token.split('=', 1)[1]
+    return None
+
+
 def selected_push_remote(repo_args, repo_env, push_tokens, branch):
+    repository_option = push_repository_option(push_tokens)
+    if repository_option is not None:
+        return repository_option
+
     positionals = push_positionals(push_tokens)
     if positionals:
         return positionals[0]
@@ -327,12 +353,13 @@ def segment_is_blocking(segment):
         return True
 
     push_args = push_positionals(push_tokens)
+    repository_option = push_repository_option(push_tokens)
+    refspecs = push_args if repository_option is not None else push_args[1:]
     force_option = any(
-        token.startswith('--force')
-        or re.fullmatch(r'-(?=[uvqdnf46]*f)[uvqdnf46]+', token)
+        token.startswith('--force') or short_push_options_force(token)
         for token in push_tokens
     )
-    forced_refspec = any(token.startswith('+') for token in push_args[1:])
+    forced_refspec = any(token.startswith('+') for token in refspecs)
     if force_option or forced_refspec:
         return True
 
@@ -343,10 +370,10 @@ def segment_is_blocking(segment):
         push_tokens,
         branch,
     )
-    if len(push_args) >= 2 and any(refspec_targets_main(token) for token in push_args[1:]):
+    if any(refspec_targets_main(token) for token in refspecs):
         return not sites_remote
 
-    if branch == 'main' and len(push_args) <= 1:
+    if branch == 'main' and not refspecs:
         return not sites_remote
 
     return False

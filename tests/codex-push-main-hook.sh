@@ -38,6 +38,8 @@ force_commands=(
   'git push --force origin HEAD:main'
   'git push -f origin HEAD:main'
   'git push -uf origin HEAD:main'
+  'git push -foci.skip origin HEAD:main'
+  'git push -fo ci.skip origin HEAD:main'
   'git push --force-with-lease origin HEAD:main'
   'git push --force-if-includes origin HEAD:main'
   'git push origin +HEAD:main'
@@ -71,5 +73,18 @@ git -C "$repo" remote add upstream https://example.com/owner/repo.git
 mixed_output="$(run_hook "$repo" 'git push upstream HEAD:main')"
 mixed_decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$mixed_output")"
 [[ "$mixed_decision" == deny ]] || fail "explicit normal remote in mixed repository was not denied"
+
+git -C "$repo" symbolic-ref HEAD refs/heads/feature
+repo_option_commands=(
+  'git push --repo upstream HEAD:main'
+  'git push --repo=upstream HEAD:main'
+)
+for command in "${repo_option_commands[@]}"; do
+  repo_option_output="$(run_hook "$repo" "$command")"
+  repo_option_decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' \
+    <<<"$repo_option_output")"
+  [[ "$repo_option_decision" == deny ]] || \
+    fail "normal --repo target to main was not denied: $command"
+done
 
 printf 'Codex push-to-main hook checks complete\n'
