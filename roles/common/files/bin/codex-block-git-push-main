@@ -72,7 +72,7 @@ def is_plain_chatgpt_sites_push(command_text):
     if len(tokens) != 4 or tokens[:2] != ['git', 'push']:
         return False
     remote, refspec = tokens[2:]
-    if re.search(r'[$`*?\[\]{}\\<>()]', remote):
+    if re.search(r'[$`*?\[\]{}\\<>();&|]', remote):
         return False
     if refspec != 'HEAD:main' or remote_host(remote) != CHATGPT_SITES_HOST:
         return False

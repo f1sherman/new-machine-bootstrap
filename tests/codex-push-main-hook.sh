@@ -75,6 +75,9 @@ strict_shape_cases=(
   "git -c remote.origin.pushurl=$SITES_URL push origin HEAD:main"
   "git -c url.$NORMAL_URL.insteadOf=https://git.chatgpt-team.site/ push $SITES_URL HEAD:main"
   "sh -c 'git push $SITES_URL HEAD:main'"
+  "git push $SITES_URL;echo HEAD:main"
+  "git push $SITES_URL&echo HEAD:main"
+  "git push $SITES_URL|echo HEAD:main"
   "git push $SITES_URL/\$(id) HEAD:main"
   "force=--force; git push \$force $SITES_URL HEAD:main"
 )
