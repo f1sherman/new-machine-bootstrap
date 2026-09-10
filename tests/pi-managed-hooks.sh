@@ -29,6 +29,7 @@ const handlers = new Map();
 const calls = [];
 const sessionNames = [];
 const registeredToolNames = [];
+const statusCalls = [];
 const warnings = [];
 console.warn = (...args) => warnings.push(args);
 let sessionNameTool;
@@ -43,6 +44,7 @@ let asrResultQueue = [];
 let herdrWorkspaceResultQueue = [];
 let branch = "main";
 let taskStatus = "";
+let subjectChildDeferred;
 let goalChildDeferred;
 let goalChildIgnoresAbort = false;
 let goalChildResultQueue = [];
@@ -168,7 +170,9 @@ const pi = {
         ? goalChildDeferred.promise
         : abortable(goalChildDeferred.promise, options.signal);
     }
-    if (command === "pi" && isSubjectChild(args)) return ok("nested process subject\n");
+    if (command === "pi" && isSubjectChild(args)) {
+      return subjectChildDeferred?.promise || ok("nested process subject\n");
+    }
     if (command === "git" && args.includes("rev-parse")) {
       const dynamic = ["$", "`", "*", "?", "[", "]", "{", "}", "\\"];
       if (args.some((arg) => failedGitRootCwds.has(String(arg))
@@ -195,7 +199,7 @@ const ctx = {
   },
   ui: {
     theme: { fg(_color, value) { return value; } },
-    setStatus() {},
+    setStatus(key, value) { statusCalls.push({ key, value }); },
   },
   sessionManager: new Proxy({
     getSessionName() { return currentSessionName; },
@@ -597,6 +601,24 @@ await handlers.get("before_agent_start")({
 assert.equal(calls.slice(nestedBeforeAgentStart).some((call) =>
   call.command === "tmux-agent-subject" && call.args[0] === "set"), false,
   "non-TTY before_agent_start does not mutate the tmux subject");
+
+subjectChildDeferred = deferred();
+const pendingSubmit = withStdoutTTY(() => handlers.get("before_agent_start")({
+  prompt: "wait for subject generation",
+  systemPromptOptions: { cwd: "/repo" },
+}, ctx));
+await flushAsyncWork();
+assert.deepEqual(statusCalls.at(-1), {
+  key: "managed-hooks-submit",
+  value: "Submitting...",
+}, "prompt preflight shows immediate submit feedback");
+subjectChildDeferred.resolve(ok("deferred subject\n"));
+await pendingSubmit;
+subjectChildDeferred = undefined;
+assert.deepEqual(statusCalls.at(-1), {
+  key: "managed-hooks-submit",
+  value: undefined,
+}, "prompt preflight clears submit feedback after completion");
 
 const nestedSpecWrites = calls.filter((call) => call.command === "tmux"
   && call.args[0] === "set-option"

@@ -1535,28 +1535,33 @@ export default function managedHooks(pi) {
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
-    const notes = [];
-    const cwd = await boundWorktreePath(pi, event.systemPromptOptions.cwd || ctx.cwd);
-    if (!ctx?.sessionManager?.getSessionName?.()) {
-      startInitialSessionGoalEvaluation(pi, event.prompt, cwd, ctx);
-    }
+    ctx.ui.setStatus("managed-hooks-submit", "Submitting...");
+    try {
+      const notes = [];
+      const cwd = await boundWorktreePath(pi, event.systemPromptOptions.cwd || ctx.cwd);
+      if (!ctx?.sessionManager?.getSessionName?.()) {
+        startInitialSessionGoalEvaluation(pi, event.prompt, cwd, ctx);
+      }
 
-    if (REPO_START_TRIGGERS.test(event.prompt) && await onMainBranch(pi, cwd)) {
-      notes.push("You are on main. Before changing files, run `repo-start <branch>` and continue from the created worktree.");
-    }
+      if (REPO_START_TRIGGERS.test(event.prompt) && await onMainBranch(pi, cwd)) {
+        notes.push("You are on main. Before changing files, run `repo-start <branch>` and continue from the created worktree.");
+      }
 
-    if (await needsSubjectReminder(pi) && !await setSubjectFromSubagent(pi, event.prompt, cwd, ctx.signal)) {
-      notes.push("Choose a concise task subject, then run `tmux-agent-subject set \"<short subject>\"` before continuing. The provisional label will be replaced by the feature branch.");
-    }
+      if (await needsSubjectReminder(pi) && !await setSubjectFromSubagent(pi, event.prompt, cwd, ctx.signal)) {
+        notes.push("Choose a concise task subject, then run `tmux-agent-subject set \"<short subject>\"` before continuing. The provisional label will be replaced by the feature branch.");
+      }
 
-    if (notes.length === 0) return;
-    return {
-      message: {
-        customType: "managed-hooks-reminder",
-        content: notes.join("\n\n"),
-        display: true,
-      },
-    };
+      if (notes.length === 0) return;
+      return {
+        message: {
+          customType: "managed-hooks-reminder",
+          content: notes.join("\n\n"),
+          display: true,
+        },
+      };
+    } finally {
+      ctx.ui.setStatus("managed-hooks-submit", undefined);
+    }
   });
 
   pi.on("tool_call", async (event, ctx) => {
