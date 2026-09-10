@@ -17,14 +17,14 @@ local function assertEqual(expected, actual, message)
 end
 
 local lockNotifications = {}
-assertEqual(true, downloads.beginCreation(function() end), "first creation starts")
-assertEqual(false, downloads.beginCreation(function(message)
+assertEqual(true, downloads.beginOperation(function() end), "first operation starts")
+assertEqual(false, downloads.beginOperation(function(message)
   table.insert(lockNotifications, message)
-end), "second creation is blocked")
-assertEqual(1, #lockNotifications, "blocked creation reports one error")
-downloads.finishCreation()
-assertEqual(true, downloads.beginCreation(function() end), "creation can restart after completion")
-downloads.finishCreation()
+end), "shortcut and recovery operations exclude each other")
+assertEqual(1, #lockNotifications, "blocked operation reports one error")
+downloads.finishOperation()
+assertEqual(true, downloads.beginOperation(function() end), "operation can restart after completion")
+downloads.finishOperation()
 
 local recheckEvents = {notify = {}, show = {}, done = 0}
 local recheckActions = {
@@ -34,8 +34,9 @@ local recheckActions = {
   notify = function(message)
     table.insert(recheckEvents.notify, message)
   end,
-  show = function(id)
+  show = function(id, callback)
     table.insert(recheckEvents.show, id)
+    callback(nil, nil)
   end,
   done = function()
     recheckEvents.done = recheckEvents.done + 1
@@ -49,6 +50,24 @@ assertEqual(false, downloads.shouldCreateAfterLock({{
 assertEqual("finder-existing", recheckEvents.show[1], "existing Finder is shown")
 assertEqual(1, recheckEvents.done, "existing Finder releases creation lock")
 
+local pendingShow
+assertEqual(true, downloads.beginOperation(function() end), "shortcut operation takes shared lock")
+downloads.shouldCreateAfterLock({{
+  id = "finder-existing",
+  app = {bundleId = "com.apple.finder"},
+}}, {
+  isFinder = recheckActions.isFinder,
+  notify = function() end,
+  show = function(_, callback)
+    pendingShow = callback
+  end,
+  done = downloads.finishOperation,
+})
+assertEqual(false, downloads.beginOperation(function() end), "recovery is blocked during shortcut show")
+pendingShow(nil, nil)
+assertEqual(true, downloads.beginOperation(function() end), "shared lock releases after shortcut show")
+downloads.finishOperation()
+
 local otherOwnerEvents = {notify = {}, done = 0}
 assertEqual(false, downloads.shouldCreateAfterLock({{
   id = "other-window",
@@ -58,7 +77,9 @@ assertEqual(false, downloads.shouldCreateAfterLock({{
   notify = function(message)
     table.insert(otherOwnerEvents.notify, message)
   end,
-  show = function() end,
+  show = function(_, callback)
+    callback(nil, nil)
+  end,
   done = function()
     otherOwnerEvents.done = otherOwnerEvents.done + 1
   end,
@@ -85,8 +106,9 @@ local function harness(window, scratchpad, queryError, target, targetError, assi
       calls.assign = calls.assign + 1
       callback(nil, assignError)
     end,
-    show = function(id)
+    show = function(id, callback)
       table.insert(calls.show, id)
+      callback(nil, nil)
     end,
     done = function()
       calls.done = calls.done + 1
@@ -149,6 +171,16 @@ local function recoveryHarness(options)
       table.insert(calls.events, "confirm-focused:" .. id)
       callback(target, options.focusError)
     end,
+    revalidateAssignment = function(id, callback)
+      table.insert(calls.events, "revalidate-assignment:" .. id)
+      if options.assignmentOwnerChanged then
+        callback(nil, "Scratchpad slot 1 gained another owner")
+      elseif options.assignmentFocusLost then
+        callback(nil, "The Downloads window lost focus before assignment")
+      else
+        callback(target, nil)
+      end
+    end,
     assign = function(callback)
       table.insert(calls.events, "assign")
       callback(nil, options.assignError)
@@ -159,6 +191,18 @@ local function recoveryHarness(options)
         callback(nil, nil)
       else
         callback(target, options.confirmError)
+      end
+    end,
+    revalidateHide = function(id, callback)
+      table.insert(calls.events, "revalidate-hide:" .. id)
+      if options.hideOwnerChanged then
+        callback(nil, "Scratchpad slot 1 changed owners")
+      else
+        local isVisible = target.isVisible
+        if options.hiddenBeforeToggle then
+          isVisible = false
+        end
+        callback({id = id, isVisible = isVisible}, nil)
       end
     end,
     hide = function(id, callback)
@@ -209,7 +253,7 @@ assertEqual(1, ambiguousRecovery.done, "ambiguous Downloads windows complete")
 
 local recovered = recoveryHarness({focusedWindow = {id = "previous"}})
 assertEqual(
-  "navigate:downloads,confirm-focused:downloads,assign,confirm-assigned:downloads,hide:downloads,restore-window:previous",
+  "navigate:downloads,confirm-focused:downloads,revalidate-assignment:downloads,assign,confirm-assigned:downloads,revalidate-hide:downloads,hide:downloads,restore-window:previous",
   table.concat(recovered.events, ","),
   "visible Downloads window recovery order"
 )
@@ -218,7 +262,7 @@ assertEqual(1, recovered.done, "successful recovery completes once")
 
 local workspaceRestore = recoveryHarness({visible = false})
 assertEqual(
-  "navigate:downloads,confirm-focused:downloads,assign,confirm-assigned:downloads,restore-workspace:4",
+  "navigate:downloads,confirm-focused:downloads,revalidate-assignment:downloads,assign,confirm-assigned:downloads,revalidate-hide:downloads,restore-workspace:4",
   table.concat(workspaceRestore.events, ","),
   "hidden recovery restores the prior workspace"
 )
@@ -228,7 +272,7 @@ local focusedTargetRestore = recoveryHarness({
   focusedWindow = {id = "downloads"},
 })
 assertEqual(
-  "navigate:downloads,confirm-focused:downloads,assign,confirm-assigned:downloads,hide:downloads,restore-workspace:4",
+  "navigate:downloads,confirm-focused:downloads,revalidate-assignment:downloads,assign,confirm-assigned:downloads,revalidate-hide:downloads,hide:downloads,restore-workspace:4",
   table.concat(focusedTargetRestore.events, ","),
   "focused Downloads recovery restores its prior workspace"
 )
@@ -251,13 +295,27 @@ assertEqual("workspace restore failed", workspaceRestoreFailure.notify[1], "work
 assertEqual(1, #workspaceRestoreFailure.notify, "workspace restore failure reports one error")
 assertEqual(1, workspaceRestoreFailure.done, "workspace restore failure completes once")
 
+local hiddenBeforeToggle = recoveryHarness({
+  focusedWindow = {id = "previous"},
+  hiddenBeforeToggle = true,
+})
+assertEqual(
+  "navigate:downloads,confirm-focused:downloads,revalidate-assignment:downloads,assign,confirm-assigned:downloads,revalidate-hide:downloads,restore-window:previous",
+  table.concat(hiddenBeforeToggle.events, ","),
+  "already hidden scratchpad is not toggled"
+)
+assertEqual(1, hiddenBeforeToggle.done, "already hidden recovery releases the lock once")
+
 local recoveryFailures = {
   {"navigate", {navigateError = "navigate failed"}, "navigate:downloads,restore-window:previous"},
   {"focus", {focusError = "focus failed"}, "navigate:downloads,confirm-focused:downloads,restore-window:previous"},
-  {"assign", {assignError = "assign failed"}, "navigate:downloads,confirm-focused:downloads,assign,restore-window:previous"},
-  {"confirm", {confirmError = "confirm failed"}, "navigate:downloads,confirm-focused:downloads,assign,confirm-assigned:downloads,restore-window:previous"},
-  {"missing assignment", {missingAssignment = true}, "navigate:downloads,confirm-focused:downloads,assign,confirm-assigned:downloads,restore-window:previous"},
-  {"hide", {hideError = "hide failed"}, "navigate:downloads,confirm-focused:downloads,assign,confirm-assigned:downloads,hide:downloads,restore-window:previous"},
+  {"assignment focus", {assignmentFocusLost = true}, "navigate:downloads,confirm-focused:downloads,revalidate-assignment:downloads,restore-window:previous"},
+  {"assignment owner", {assignmentOwnerChanged = true}, "navigate:downloads,confirm-focused:downloads,revalidate-assignment:downloads,restore-window:previous"},
+  {"assign", {assignError = "assign failed"}, "navigate:downloads,confirm-focused:downloads,revalidate-assignment:downloads,assign,restore-window:previous"},
+  {"confirm", {confirmError = "confirm failed"}, "navigate:downloads,confirm-focused:downloads,revalidate-assignment:downloads,assign,confirm-assigned:downloads,restore-window:previous"},
+  {"missing assignment", {missingAssignment = true}, "navigate:downloads,confirm-focused:downloads,revalidate-assignment:downloads,assign,confirm-assigned:downloads,restore-window:previous"},
+  {"hide owner", {hideOwnerChanged = true}, "navigate:downloads,confirm-focused:downloads,revalidate-assignment:downloads,assign,confirm-assigned:downloads,revalidate-hide:downloads,restore-window:previous"},
+  {"hide", {hideError = "hide failed"}, "navigate:downloads,confirm-focused:downloads,revalidate-assignment:downloads,assign,confirm-assigned:downloads,revalidate-hide:downloads,hide:downloads,restore-window:previous"},
 }
 for _, failureCase in ipairs(recoveryFailures) do
   failureCase[2].focusedWindow = {id = "previous"}

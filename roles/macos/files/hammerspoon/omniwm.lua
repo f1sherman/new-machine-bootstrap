@@ -271,23 +271,27 @@ local function pollNewWindow(bundle, previousIDs, callback, predicate)
   end, 5, callback)
 end
 
-local function focusVisibleScratchpad(id)
+local function focusVisibleScratchpad(id, callback)
+  callback = callback or function() end
   pollWindow(id, function(window)
     return window.isVisible == true
   end, function(_, visibilityError)
     if visibilityError then
       M.notify(visibilityError)
+      callback(nil, visibilityError)
       return
     end
-    focusSummonedWindow(id, function(_, focusError)
+    focusSummonedWindow(id, function(window, focusError)
       if focusError then
         M.notify(focusError)
       end
+      callback(window, focusError)
     end)
   end)
 end
 
-local function showScratchpadIfHidden(id)
+local function showScratchpadIfHidden(id, callback)
+  callback = callback or function() end
   M.poll(function(done)
     queryDownloadsScratchpad(function(windows, queryError)
       if queryError then
@@ -305,15 +309,17 @@ local function showScratchpadIfHidden(id)
   end, 5, function(window, pollError)
     if pollError then
       M.notify(pollError)
+      callback(nil, pollError)
     elseif window.isVisible then
-      focusVisibleScratchpad(id)
+      focusVisibleScratchpad(id, callback)
     else
       M.run({"command", "scratchpad", "toggle", tostring(downloadsScratchpadSlot)}, function(_, toggleError)
         if toggleError then
           M.notify(toggleError)
+          callback(nil, toggleError)
           return
         end
-        focusVisibleScratchpad(id)
+        focusVisibleScratchpad(id, callback)
       end)
     end
   end)
@@ -334,18 +340,14 @@ local function assignFinderScratchpad(window)
       M.run({"command", "scratchpad", "assign", tostring(downloadsScratchpadSlot)}, callback)
     end,
     show = showScratchpadIfHidden,
-    done = downloads.finishCreation,
+    done = downloads.finishOperation,
   })
 end
 
 local function createDownloadsFinder(previousIDs)
-  if not downloads.beginCreation(M.notify) then
-    return
-  end
-
   queryDownloadsScratchpad(function(scratchpad, scratchpadError)
     if scratchpadError then
-      downloads.finishCreation()
+      downloads.finishOperation()
       M.notify(scratchpadError)
       return
     end
@@ -355,7 +357,7 @@ local function createDownloadsFinder(previousIDs)
       end,
       notify = M.notify,
       show = showScratchpadIfHidden,
-      done = downloads.finishCreation,
+      done = downloads.finishOperation,
     }) then
       return
     end
@@ -370,19 +372,19 @@ local function createDownloadsFinder(previousIDs)
     ]]
     local success, result = hs.osascript.applescript(script)
     if not success then
-      downloads.finishCreation()
+      downloads.finishOperation()
       M.notify("Could not create the Downloads Finder window: " .. tostring(result))
       return
     end
     pollNewWindow("com.apple.finder", previousIDs, function(window, pollError)
       if pollError then
-        downloads.finishCreation()
+        downloads.finishOperation()
         M.notify(pollError)
         return
       end
       pollWindow(window.id, downloads.isFocused, function(focusedWindow, focusError)
         if focusError then
-          downloads.finishCreation()
+          downloads.finishOperation()
           M.notify(focusError)
           return
         end
@@ -398,31 +400,51 @@ local function isDownloadsFinder(window)
 end
 
 function M.toggleDownloadsScratchpad()
+  if not downloads.beginOperation(M.notify) then
+    return
+  end
+
+  local function finish(message)
+    if message then
+      M.notify(message)
+    end
+    downloads.finishOperation()
+  end
+
   queryDownloadsScratchpad(function(scratchpad, scratchpadError)
     if scratchpadError then
-      M.notify(scratchpadError)
+      finish(scratchpadError)
       return
     end
     if #scratchpad > 1 then
-      M.notify("OmniWM returned more than one window in scratchpad slot 1")
+      finish("OmniWM returned more than one window in scratchpad slot 1")
       return
     end
     if #scratchpad == 1 then
       if bundleID(scratchpad[1]) ~= "com.apple.finder" then
-        M.notify("Another window owns OmniWM scratchpad slot 1")
+        finish("Another window owns OmniWM scratchpad slot 1")
         return
       end
       if scratchpad[1].isVisible then
-        M.run({"command", "scratchpad", "toggle", tostring(downloadsScratchpadSlot)}, M.reportResult)
+        M.run({
+          "command",
+          "scratchpad",
+          "toggle",
+          tostring(downloadsScratchpadSlot),
+        }, function(_, toggleError)
+          finish(toggleError)
+        end)
       else
-        showScratchpadIfHidden(scratchpad[1].id)
+        showScratchpadIfHidden(scratchpad[1].id, function()
+          downloads.finishOperation()
+        end)
       end
       return
     end
 
     M.windows(function(windows, windowsError)
       if windowsError then
-        M.notify(windowsError)
+        finish(windowsError)
         return
       end
       local previousIDs = {}
@@ -467,29 +489,40 @@ local function restoreWorkspace(number, callback)
 end
 
 local function recoverDownloadsScratchpad()
+  if not downloads.beginOperation(M.notify) then
+    return
+  end
+
+  local function finish(message)
+    if message then
+      M.notify(message)
+    end
+    downloads.finishOperation()
+  end
+
   M.activeWorkspace(function(activeWorkspace, workspaceError)
     if workspaceError then
-      M.notify(workspaceError)
+      finish(workspaceError)
       return
     end
     queryWindows({"--focused"}, function(focusedWindows, focusedError)
       if focusedError then
-        M.notify(focusedError)
+        finish(focusedError)
         return
       elseif #focusedWindows > 1 then
-        M.notify("OmniWM returned more than one focused window")
+        finish("OmniWM returned more than one focused window")
         return
       end
       local focusedWindow = focusedWindows[1]
 
       queryDownloadsScratchpad(function(scratchpad, scratchpadError)
         if scratchpadError then
-          M.notify(scratchpadError)
+          finish(scratchpadError)
           return
         end
         M.windows(function(windows, windowsError)
           if windowsError then
-            M.notify(windowsError)
+            finish(windowsError)
             return
           end
           local downloadsWindows = findWindows(windows, function(window)
@@ -498,6 +531,7 @@ local function recoverDownloadsScratchpad()
           if #scratchpad == 1
             and isDownloadsFinder(scratchpad[1])
             and #downloadsWindows == 0 then
+            finish()
             return
           end
           downloads.recoverScratchpad({
@@ -514,6 +548,29 @@ local function recoverDownloadsScratchpad()
                 return window.isFocused == true
               end, callback)
             end,
+            revalidateAssignment = function(id, callback)
+              queryDownloadsScratchpad(function(currentScratchpad, scratchpadQueryError)
+                if scratchpadQueryError then
+                  callback(nil, scratchpadQueryError)
+                  return
+                elseif #currentScratchpad ~= 0 then
+                  callback(nil, "Scratchpad slot 1 gained another owner")
+                  return
+                end
+                queryWindows({"--window", id}, function(targetWindows, targetError)
+                  if targetError then
+                    callback(nil, targetError)
+                    return
+                  end
+                  local target = findWindowByID(targetWindows, id)
+                  if not target or target.isFocused ~= true then
+                    callback(nil, "The Downloads window lost focus before assignment")
+                    return
+                  end
+                  callback(target, nil)
+                end)
+              end)
+            end,
             assign = function(callback)
               M.run({
                 "command",
@@ -526,6 +583,18 @@ local function recoverDownloadsScratchpad()
               pollWindow(id, function(window)
                 return window.scratchpadIndex == downloadsScratchpadSlot
               end, callback)
+            end,
+            revalidateHide = function(id, callback)
+              queryDownloadsScratchpad(function(currentScratchpad, scratchpadQueryError)
+                if scratchpadQueryError then
+                  callback(nil, scratchpadQueryError)
+                elseif #currentScratchpad ~= 1
+                  or currentScratchpad[1].id ~= id then
+                  callback(nil, "Scratchpad slot 1 changed owners")
+                else
+                  callback(currentScratchpad[1], nil)
+                end
+              end)
             end,
             hide = function(id, callback)
               M.run({
@@ -546,7 +615,7 @@ local function recoverDownloadsScratchpad()
             restoreWindow = navigateAndConfirmWindow,
             restoreWorkspace = restoreWorkspace,
             notify = M.notify,
-            done = function() end,
+            done = downloads.finishOperation,
           })
         end)
       end)

@@ -1,20 +1,20 @@
 local M = {}
 
 function M.new()
-  local creationInProgress = false
+  local operationInProgress = false
   local downloads = {}
 
-  function downloads.beginCreation(notify)
-    if creationInProgress then
-      notify("The Downloads window is still being created")
+  function downloads.beginOperation(notify)
+    if operationInProgress then
+      notify("A Downloads window operation is still in progress")
       return false
     end
-    creationInProgress = true
+    operationInProgress = true
     return true
   end
 
-  function downloads.finishCreation()
-    creationInProgress = false
+  function downloads.finishOperation()
+    operationInProgress = false
   end
 
   function downloads.isFocused(window)
@@ -27,7 +27,13 @@ function M.new()
     end
 
     if #scratchpad == 1 and actions.isFinder(scratchpad[1]) then
-      actions.show(scratchpad[1].id)
+      actions.show(scratchpad[1].id, function(_, showError)
+        if showError then
+          actions.notify(showError)
+        end
+        actions.done()
+      end)
+      return false
     elseif #scratchpad > 1 then
       actions.notify("OmniWM returned more than one scratchpad window")
     else
@@ -108,26 +114,36 @@ function M.new()
           finish(focusError)
           return
         end
-        actions.assign(function(_, assignError)
-          if assignError then
-            finish(assignError)
+        actions.revalidateAssignment(target.id, function(_, validationError)
+          if validationError then
+            finish(validationError)
             return
           end
-          actions.confirmAssigned(target.id, function(assignedWindow, confirmError)
-            if confirmError then
-              finish(confirmError)
-              return
-            elseif type(assignedWindow) ~= "table" or assignedWindow.id ~= target.id then
-              finish("Could not confirm the Downloads scratchpad assignment")
+          actions.assign(function(_, assignError)
+            if assignError then
+              finish(assignError)
               return
             end
-            if assignedWindow.isVisible then
-              actions.hide(target.id, function(_, hideError)
-                finish(hideError)
+            actions.confirmAssigned(target.id, function(assignedWindow, confirmError)
+              if confirmError then
+                finish(confirmError)
+                return
+              elseif type(assignedWindow) ~= "table" or assignedWindow.id ~= target.id then
+                finish("Could not confirm the Downloads scratchpad assignment")
+                return
+              end
+              actions.revalidateHide(target.id, function(currentWindow, hideValidationError)
+                if hideValidationError then
+                  finish(hideValidationError)
+                elseif currentWindow.isVisible then
+                  actions.hide(target.id, function(_, hideError)
+                    finish(hideError)
+                  end)
+                else
+                  finish()
+                end
               end)
-            else
-              finish()
-            end
+            end)
           end)
         end)
       end)
@@ -148,8 +164,9 @@ function M.new()
         return
       end
       if #scratchpad == 1 and scratchpad[1].id == window.id then
-        actions.show(window.id)
-        finish()
+        actions.show(window.id, function(_, showError)
+          finish(showError)
+        end)
         return
       end
       if #scratchpad ~= 0 then
@@ -172,8 +189,9 @@ function M.new()
             finish(assignError)
             return
           end
-          actions.show(window.id)
-          finish()
+          actions.show(window.id, function(_, showError)
+            finish(showError)
+          end)
         end)
       end)
     end)
