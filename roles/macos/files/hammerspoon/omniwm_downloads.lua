@@ -68,9 +68,13 @@ function M.new()
       if not navigated then
         completeRecovery()
       elseif snapshot.focusedWindow and snapshot.focusedWindow.id then
-        actions.restoreWindow(snapshot.focusedWindow.id, completeRecovery)
+        actions.restoreWindow(snapshot.focusedWindow.id, function(_, restoreError)
+          completeRecovery(restoreError)
+        end)
       elseif snapshot.activeWorkspace and snapshot.activeWorkspace.number then
-        actions.restoreWorkspace(snapshot.activeWorkspace.number, completeRecovery)
+        actions.restoreWorkspace(snapshot.activeWorkspace.number, function(_, restoreError)
+          completeRecovery(restoreError)
+        end)
       else
         completeRecovery()
       end
