@@ -124,7 +124,7 @@ cmp roles/common/files/pi/extensions/managed-hooks.ts \
 
 Expected: exit status 0.
 
-- [ ] **Step 7: Commit the implementation**
+- [x] **Step 7: Commit the implementation**
 
 Commit these files with no AI attribution:
 
@@ -132,5 +132,6 @@ Commit these files with no AI attribution:
 ~/.pi/agent/skills/z-commit/commit.sh \
   -m "fix(pi): show prompt submission feedback" \
   tests/pi-managed-hooks.sh \
-  roles/common/files/pi/extensions/managed-hooks.ts
+  roles/common/files/pi/extensions/managed-hooks.ts \
+  docs/superpowers/plans/2026-10-09-pi-submit-feedback.md
 ```
