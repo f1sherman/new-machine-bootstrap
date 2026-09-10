@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Allow direct `main` pushes only when the selected push remote is hosted at `git.chatgpt-team.site`.
+**Goal:** Allow one plain direct `main` push form to the explicit `git.chatgpt-team.site` HTTPS destination.
 
-**Architecture:** Both managed push guards resolve the remote selected by the Git push command before they return the existing direct-to-main denial. A shared policy is duplicated in the Bash/Python and TypeScript runtimes because the hooks execute independently; unresolved or non-matching remotes retain fail-closed behavior.
+**Architecture:** Both managed push guards recognize only `git push <explicit-sites-https-url> HEAD:main` with no options, wrappers, expansion, or extra refspecs. They resolve local Git URL rewrites without network access and allow the command only when both the explicit and effective hosts match; every other direct-main push retains fail-closed behavior.
 
 **Tech Stack:** Bash, Python 3 standard library, TypeScript, Node.js assertions, Git
 
@@ -31,13 +31,11 @@
 
 - [ ] **Step 1: Write the failing behavior test**
 
-Create temporary repositories with `origin` set first to
-`https://example.com/owner/repo.git` and then to
-`https://git.chatgpt-team.site/team/site.git`. Send
-`{"tool_input":{"command":"git push origin HEAD:main"}}` to the real hook.
-Assert that the normal remote returns `permissionDecision: deny` and the Sites
-remote returns no decision. Add a mixed-remote case that still blocks an
-explicit normal remote.
+Create a temporary repository and send the real hook a plain explicit Sites
+URL push. Assert that `git push https://git.chatgpt-team.site/team/site.git
+HEAD:main` returns no decision. Assert that normal URLs, named or implicit
+remotes, options, force modes, wrappers, expansion, URL rewrites, and extra
+refspecs return `permissionDecision: deny`.
 
 - [ ] **Step 2: Run the test to verify RED**
 
@@ -47,17 +45,12 @@ Expected: FAIL because the current hook denies the Sites remote.
 
 - [ ] **Step 3: Implement minimal remote resolution**
 
-Add Python helpers that:
-
-1. Read an explicit push remote from the first push positional.
-2. Otherwise select `branch.<name>.pushRemote`, `remote.pushDefault`,
-   `branch.<name>.remote`, or `origin` in that order.
-3. Resolve named remotes with `git remote get-url --push`.
-4. Parse URL-form and SCP-form remote URLs.
-5. Return true only for the exact host `git.chatgpt-team.site`.
-
-Call this policy before each direct-to-main denial path. Do not exempt `--all`
-or `--mirror` because these operations can publish unrelated refs.
+Add a Python helper that accepts only four shell tokens: `git`, `push`, an
+explicit HTTPS URL on the exact Sites host, and `HEAD:main`. Require
+`git rev-parse --git-dir` to succeed. Resolve push-specific URL rewrites by
+adding a random temporary remote through command-scoped Git configuration and
+reading `git remote -v`; require the effective push URL host to remain the exact
+Sites host. Run this strict allow check before the existing direct-main denial.
 
 - [ ] **Step 4: Run the test to verify GREEN**
 
@@ -83,10 +76,9 @@ Commit the new test and hook as one atomic change.
 
 - [ ] **Step 1: Write the failing behavior test**
 
-Extend the Git execution fake with remote URL results. Assert that
-`git push sites HEAD:main` is allowed when `sites` resolves to
-`https://git.chatgpt-team.site/team/site.git`, while `git push origin HEAD:main`
-remains blocked when `origin` resolves to a normal host.
+Extend the Git execution fake with URL-rewrite results. Assert that the plain
+explicit Sites HTTPS URL command is allowed, while named and implicit remotes,
+options, wrappers, force modes, and rewritten URLs remain blocked.
 
 - [ ] **Step 2: Run the test to verify RED**
 
@@ -96,10 +88,11 @@ Expected: FAIL because the current Pi hook blocks the Sites push.
 
 - [ ] **Step 3: Implement equivalent selected-remote checks**
 
-Add focused helpers to select the explicit remote, query named remote URLs, and
-match the exact Sites host. Consult this result before explicit-main, `HEAD`, or
-implicit-main denial. Preserve fail-closed behavior for unknown Git results and
-preserve unconditional `--all` and `--mirror` denial.
+Add a focused helper that recognizes the same four-token explicit Sites push,
+requires a valid repository, resolves the effective push URL with a random
+command-scoped remote and `git remote -v`, and matches the exact host. Consult
+it before the normal push-to-main denial. Preserve fail-closed behavior for
+every other form.
 
 - [ ] **Step 4: Run the test to verify GREEN**
 
@@ -139,10 +132,10 @@ Expected: provisioning exits 0 and deploys the changed managed hooks.
 
 - [ ] **Step 3: Verify deployed Codex behavior**
 
-In a temporary Git repository, configure a Sites remote and send an explicit
+In a temporary Git repository, send a plain explicit Sites HTTPS URL and
 `HEAD:main` push command to `~/.local/bin/codex-block-git-push-main`. Confirm no
-deny JSON is returned. Replace the remote with a normal host and confirm deny
-JSON is returned.
+deny JSON is returned. Replace the URL with a normal host and confirm deny JSON
+is returned.
 
 - [ ] **Step 4: Verify idempotence**
 

@@ -11,6 +11,7 @@ fi
 should_deny="$(COMMAND="$command" python3 - <<'PY'
 import os
 import re
+import secrets
 import shlex
 import subprocess
 from pathlib import PurePath
@@ -38,15 +39,47 @@ def current_branch(repo_args, repo_env):
     return git_output(repo_args, repo_env, 'branch', '--show-current')
 
 
-def short_push_options_force(token):
-    if not token.startswith('-') or token.startswith('--'):
+def remote_host(url):
+    if not url.startswith('https://'):
+        return ''
+    return (urlsplit(url).hostname or '').lower()
+
+
+def effective_push_url(remote):
+    check_remote = f'chatgpt-sites-check-{secrets.token_hex(8)}'
+    output = git_output(
+        [],
+        {},
+        '-c',
+        f'remote.{check_remote}.url={remote}',
+        'remote',
+        '-v',
+    )
+    prefix = f'{check_remote}\t'
+    suffix = ' (push)'
+    for line in output.splitlines():
+        if line.startswith(prefix) and line.endswith(suffix):
+            return line[len(prefix):-len(suffix)]
+    return ''
+
+
+def is_plain_chatgpt_sites_push(command_text):
+    try:
+        tokens = shlex.split(command_text, posix=True)
+    except ValueError:
         return False
-    for option in token[1:]:
-        if option == 'f':
-            return True
-        if option == 'o':
-            return False
-    return False
+
+    if len(tokens) != 4 or tokens[:2] != ['git', 'push']:
+        return False
+    remote, refspec = tokens[2:]
+    if re.search(r'[$`*?\[\]{}\\<>()]', remote):
+        return False
+    if refspec != 'HEAD:main' or remote_host(remote) != CHATGPT_SITES_HOST:
+        return False
+    if not git_output([], {}, 'rev-parse', '--git-dir'):
+        return False
+
+    return remote_host(effective_push_url(remote)) == CHATGPT_SITES_HOST
 
 
 def push_positionals(push_tokens):
@@ -80,62 +113,6 @@ def push_repository_option(push_tokens):
         if token.startswith('--repo='):
             return token.split('=', 1)[1]
     return None
-
-
-def selected_push_remote(repo_args, repo_env, push_tokens, branch):
-    repository_option = push_repository_option(push_tokens)
-    if repository_option is not None:
-        return repository_option
-
-    positionals = push_positionals(push_tokens)
-    if positionals:
-        return positionals[0]
-
-    config_keys = []
-    if branch:
-        config_keys.append(f'branch.{branch}.pushRemote')
-    config_keys.append('remote.pushDefault')
-    if branch:
-        config_keys.append(f'branch.{branch}.remote')
-    for key in config_keys:
-        remote = git_output(repo_args, repo_env, 'config', '--get', key)
-        if remote:
-            return remote
-    return 'origin'
-
-
-def remote_urls(repo_args, repo_env, remote):
-    if '://' in remote or re.fullmatch(r'(?:[^@/:]+@)?[^:/]+:.+', remote):
-        return [remote]
-    output = git_output(
-        repo_args,
-        repo_env,
-        'remote',
-        'get-url',
-        '--push',
-        '--all',
-        remote,
-    )
-    return output.splitlines()
-
-
-def remote_host(url):
-    if '://' in url:
-        return (urlsplit(url).hostname or '').lower()
-    match = re.fullmatch(r'(?:[^@/:]+@)?([^:/]+):.+', url)
-    return match.group(1).lower() if match else ''
-
-
-def pushes_to_chatgpt_sites(repo_args, repo_env, push_tokens, branch):
-    git_dir = git_output(repo_args, repo_env, 'rev-parse', '--git-dir')
-    if not git_dir:
-        return False
-    remote = selected_push_remote(repo_args, repo_env, push_tokens, branch)
-    urls = remote_urls(repo_args, repo_env, remote)
-    return bool(urls) and all(
-        remote_host(url) == CHATGPT_SITES_HOST
-        for url in urls
-    )
 
 
 def token_segments(command_text):
@@ -355,28 +332,17 @@ def segment_is_blocking(segment):
     push_args = push_positionals(push_tokens)
     repository_option = push_repository_option(push_tokens)
     refspecs = push_args if repository_option is not None else push_args[1:]
-    force_option = any(
-        token.startswith('--force') or short_push_options_force(token)
-        for token in push_tokens
-    )
-    forced_refspec = any(token.startswith('+') for token in refspecs)
-    if force_option or forced_refspec:
+    if any(refspec_targets_main(token) for token in refspecs):
         return True
 
-    branch = current_branch(repo_args, repo_env)
-    sites_remote = pushes_to_chatgpt_sites(
-        repo_args,
-        repo_env,
-        push_tokens,
-        branch,
-    )
-    if any(refspec_targets_main(token) for token in refspecs):
-        return not sites_remote
-
-    if branch == 'main' and not refspecs:
-        return not sites_remote
+    if current_branch(repo_args, repo_env) == 'main' and not refspecs:
+        return True
 
     return False
+
+if is_plain_chatgpt_sites_push(command):
+    print('allow')
+    raise SystemExit(0)
 
 if command_mentions_git_push(command) and (
     command_has_function_definition(command)
