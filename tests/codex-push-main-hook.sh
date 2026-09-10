@@ -91,6 +91,7 @@ strict_shape_cases=(
   "eval 'git push $SITES_URL HEAD:main'"
   "ref=HEAD:main; git push $SITES_URL \"\$ref\""
   "git push HTTPS://git.chatgpt-team.site/team/site.git HEAD:main"
+  "git push https://git.chatgpt-team.site／team/site.git HEAD:main"
   "git push $SITES_URL;echo HEAD:main"
   "git push $SITES_URL&echo HEAD:main"
   "git push $SITES_URL|echo HEAD:main"

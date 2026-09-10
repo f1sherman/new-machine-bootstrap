@@ -42,7 +42,10 @@ def current_branch(repo_args, repo_env):
 def remote_host(url):
     if not url.startswith('https://'):
         return ''
-    return (urlsplit(url).hostname or '').lower()
+    try:
+        return (urlsplit(url).hostname or '').lower()
+    except ValueError:
+        return ''
 
 
 def is_legacy_remote_name(remote):
