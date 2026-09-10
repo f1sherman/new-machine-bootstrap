@@ -25,10 +25,10 @@ this remaining Finder window. OmniWM then visits its home workspace.
 
 ## Recommended approach
 
-Wait up to 30 seconds for OmniWM IPC after the Hammerspoon helper loads. Then
-run one bounded recovery attempt. Continue only when scratchpad slot 1 is empty
-and exactly one ordinary Finder window has the exact configured Downloads path
-as its title.
+Wait up to 30 seconds for OmniWM IPC, restored-window discovery, and any active
+Downloads shortcut after the Hammerspoon helper loads. Then run one bounded
+recovery attempt. Continue only when scratchpad slot 1 is empty and exactly one
+ordinary Finder window has the exact configured Downloads path as its title.
 
 Capture the active workspace and focused window first. Navigate to the exact
 Downloads window because OmniWM can assign only the focused window. Confirm its

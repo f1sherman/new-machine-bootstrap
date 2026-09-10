@@ -6,7 +6,9 @@ function M.new()
 
   function downloads.beginOperation(notify)
     if operationInProgress then
-      notify("A Downloads window operation is still in progress")
+      if notify then
+        notify("A Downloads window operation is still in progress")
+      end
       return false
     end
     operationInProgress = true
@@ -24,23 +26,24 @@ function M.new()
   function downloads.recoverWhenReady(actions)
     local attemptsRemaining = actions.attempts
 
-    local function check()
-      actions.check(function(_, readinessError)
-        if not readinessError then
-          actions.recover()
+    local function attempt()
+      actions.attempt(function(completed, attemptError)
+        if completed then
           return
         end
 
         attemptsRemaining = attemptsRemaining - 1
         if attemptsRemaining == 0 then
-          actions.notify(readinessError)
+          if attemptError then
+            actions.notify(attemptError)
+          end
           return
         end
-        actions.retry(check)
+        actions.retry(attempt)
       end)
     end
 
-    check()
+    attempt()
   end
 
   function downloads.shouldCreateAfterLock(scratchpad, actions)

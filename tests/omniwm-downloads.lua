@@ -29,16 +29,17 @@ downloads.finishOperation()
 local readiness = {checks = 0, retries = 0, recoveries = 0, notify = {}}
 downloads.recoverWhenReady({
   attempts = 3,
-  check = function(callback)
+  attempt = function(callback)
     readiness.checks = readiness.checks + 1
-    callback(nil, readiness.checks < 3 and "IPC unavailable" or nil)
+    local ready = readiness.checks == 3
+    if ready then
+      readiness.recoveries = readiness.recoveries + 1
+    end
+    callback(ready, ready and nil or "IPC unavailable")
   end,
   retry = function(callback)
     readiness.retries = readiness.retries + 1
     callback()
-  end,
-  recover = function()
-    readiness.recoveries = readiness.recoveries + 1
   end,
   notify = function(message)
     table.insert(readiness.notify, message)
@@ -52,16 +53,13 @@ assertEqual(0, #readiness.notify, "eventual readiness is quiet")
 local unavailable = {checks = 0, retries = 0, recoveries = 0, notify = {}}
 downloads.recoverWhenReady({
   attempts = 2,
-  check = function(callback)
+  attempt = function(callback)
     unavailable.checks = unavailable.checks + 1
-    callback(nil, "IPC unavailable")
+    callback(false, "IPC unavailable")
   end,
   retry = function(callback)
     unavailable.retries = unavailable.retries + 1
     callback()
-  end,
-  recover = function()
-    unavailable.recoveries = unavailable.recoveries + 1
   end,
   notify = function(message)
     table.insert(unavailable.notify, message)
@@ -71,6 +69,25 @@ assertEqual(2, unavailable.checks, "startup readiness retries are bounded")
 assertEqual(1, unavailable.retries, "final readiness failure does not retry")
 assertEqual(0, unavailable.recoveries, "unready OmniWM does not run recovery")
 assertEqual(1, #unavailable.notify, "final readiness failure reports once")
+
+local undiscovered = {attempts = 0, retries = 0, notify = {}}
+downloads.recoverWhenReady({
+  attempts = 2,
+  attempt = function(callback)
+    undiscovered.attempts = undiscovered.attempts + 1
+    callback(false, nil)
+  end,
+  retry = function(callback)
+    undiscovered.retries = undiscovered.retries + 1
+    callback()
+  end,
+  notify = function(message)
+    table.insert(undiscovered.notify, message)
+  end,
+})
+assertEqual(2, undiscovered.attempts, "window discovery retries are bounded")
+assertEqual(1, undiscovered.retries, "missing window retries until the final attempt")
+assertEqual(0, #undiscovered.notify, "missing window remains a quiet no-op")
 
 local recheckEvents = {notify = {}, show = {}, done = 0}
 local recheckActions = {
