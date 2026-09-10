@@ -1,6 +1,7 @@
 {
   "artifactDir": "session",
   "scheduledRuns": {
-    "enabled": true
+    "enabled": true,
+    "storeRoot": "~/.local/share/pi-subagents/schedules"
   }
 }
