@@ -55,6 +55,8 @@ let staleContextReads = 0;
 const chatgptSitesUrl = "https://git.chatgpt-team.site/team/site.git";
 const normalGitUrl = "https://example.com/team/site.git";
 let effectiveChatgptSitesUrl = chatgptSitesUrl;
+let killGitRootQuery = false;
+let killRemoteUrlQuery = false;
 const failedGitRootCwds = new Set();
 const failedBranchCwds = new Set();
 
@@ -177,6 +179,7 @@ const pi = {
       return subjectChildDeferred?.promise || ok("nested process subject\n");
     }
     if (command === "git" && args.includes("rev-parse")) {
+      if (killGitRootQuery) return { ...ok("/repo\n"), killed: true };
       const dynamic = ["$", "`", "*", "?", "[", "]", "{", "}", "\\"];
       if (args.some((arg) => failedGitRootCwds.has(String(arg))
         || String(arg).startsWith("/missing")
@@ -195,7 +198,9 @@ const pi = {
       if (!remoteConfig) return fail();
       const match = String(remoteConfig).match(/^remote\.([^.]+)\.url=/);
       if (!match) return fail();
-      return ok(`${match[1]}\t${effectiveChatgptSitesUrl} (fetch)\n${match[1]}\t${effectiveChatgptSitesUrl} (push)\n`);
+      const output = `${match[1]}\t${effectiveChatgptSitesUrl} (fetch)\n${match[1]}\t${effectiveChatgptSitesUrl} (push)\n`;
+      if (killRemoteUrlQuery) return { ...ok(output), killed: true };
+      return ok(output);
     }
     return fail();
   },
@@ -890,6 +895,8 @@ const strictSitesDeniedCases = [
   `sh -c 'git push ${chatgptSitesUrl} HEAD:main'`,
   `git push ${chatgptSitesUrl}/\$(id) HEAD:main`,
   `git push ${chatgptSitesUrl} HEAD:main other`,
+  `git push ${chatgptSitesUrl} HEAD:main>out`,
+  `git push ${chatgptSitesUrl} HEAD:main<input`,
 ];
 for (const command of strictSitesDeniedCases) {
   const denied = await handlers.get("tool_call")({
@@ -900,7 +907,25 @@ for (const command of strictSitesDeniedCases) {
     `blocks non-plain ChatGPT Sites push: ${command}`);
 }
 
+killGitRootQuery = true;
 let sitesPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `git push ${chatgptSitesUrl} HEAD:main` },
+}, ctx);
+assert.equal(sitesPush?.block, true,
+  "blocks a Sites push when Git root verification is killed");
+killGitRootQuery = false;
+
+killRemoteUrlQuery = true;
+sitesPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `git push ${chatgptSitesUrl} HEAD:main` },
+}, ctx);
+assert.equal(sitesPush?.block, true,
+  "blocks a Sites push when effective URL verification is killed");
+killRemoteUrlQuery = false;
+
+sitesPush = await handlers.get("tool_call")({
   toolName: "bash",
   input: { command: `git push ${chatgptSitesUrl} HEAD:main` },
 }, ctx);

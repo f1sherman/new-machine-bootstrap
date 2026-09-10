@@ -244,7 +244,7 @@ function probeDir(filePath, fallbackCwd) {
 
 async function gitRoot(pi, cwd) {
   const result = await exec(pi, "git", ["-C", cwd, "rev-parse", "--show-toplevel"]);
-  if (result.code !== 0) return "";
+  if (result.code !== 0 || result.killed) return "";
   return result.stdout.trim();
 }
 
@@ -861,7 +861,7 @@ async function isPlainChatgptSitesPush(pi, command, cwd) {
     "-c", `remote.${checkRemote}.url=${remote}`,
     "remote", "-v",
   ]);
-  if (result.code !== 0) return false;
+  if (result.code !== 0 || result.killed) return false;
 
   const prefix = `${checkRemote}\t`;
   const suffix = " (push)";
@@ -875,7 +875,7 @@ async function isPlainChatgptSitesPush(pi, command, cwd) {
 async function pushMainBlockReason(pi, command, cwd, allowSitesPush = true) {
   if (allowSitesPush && await isPlainChatgptSitesPush(pi, command, cwd)) return "";
 
-  const mainRef = "\\+?(([^\\s;&|()]+:)?(main|refs/heads/main)|:(main|refs/heads/main)?|:)";
+  const mainRef = "\\+?(([^\\s;&|()<>]+:)?(main|refs/heads/main)|:(main|refs/heads/main)?|:)";
   let segmentCwds = [cwd];
   let hasDirectoryTransitionCandidates = false;
   let nextImmediateCdAnd = false;
@@ -924,7 +924,7 @@ async function pushMainBlockReason(pi, command, cwd, allowSitesPush = true) {
 
     simpleAndPrefix = simpleAndPrefix && step.depth === 0 && step.separator === "&&";
 
-    if (new RegExp(`${GIT_PREAMBLE}push(?:\\s+${SHELL_TOKEN})*\\s+${mainRef}([\\s;&|()]|$)`).test(normalized)) {
+    if (new RegExp(`${GIT_PREAMBLE}push(?:\\s+${SHELL_TOKEN})*\\s+${mainRef}([\\s;&|()<>]|$)`).test(normalized)) {
       return "Do not push to main directly. Open a PR.";
     }
     if (new RegExp(`${GIT_PREAMBLE}push(?:\\s+${SHELL_TOKEN})*\\s+(--all|--mirror)([\\s;&|()]|$)`).test(normalized)) {

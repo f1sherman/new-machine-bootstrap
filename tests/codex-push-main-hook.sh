@@ -78,6 +78,8 @@ strict_shape_cases=(
   "git push $SITES_URL;echo HEAD:main"
   "git push $SITES_URL&echo HEAD:main"
   "git push $SITES_URL|echo HEAD:main"
+  "git push $SITES_URL HEAD:main>out"
+  "git push $SITES_URL HEAD:main<input"
   "git push $SITES_URL/\$(id) HEAD:main"
   "force=--force; git push \$force $SITES_URL HEAD:main"
 )
