@@ -150,7 +150,7 @@ def is_shell_wrapper(token):
 
 
 def refspec_targets_main(token):
-    token = token.lstrip('+')
+    token = re.split(r'[<>]', token, maxsplit=1)[0].lstrip('+')
     if token in {'main', 'refs/heads/main'}:
         return True
     if ':' not in token:
