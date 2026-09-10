@@ -52,6 +52,9 @@ let publishedIdentity = { source: "", subject: "" };
 let fallbackRestores = 0;
 let sessionContextIsStale = false;
 let staleContextReads = 0;
+const chatgptSitesUrl = "https://git.chatgpt-team.site/team/site.git";
+const normalGitUrl = "https://example.com/team/site.git";
+let effectiveChatgptSitesUrl = chatgptSitesUrl;
 const failedGitRootCwds = new Set();
 const failedBranchCwds = new Set();
 
@@ -186,6 +189,13 @@ const pi = {
     if (command === "git" && args.includes("branch")) {
       if (args.some((arg) => failedBranchCwds.has(String(arg)))) return fail();
       return ok(args.includes(worktreeRoot) ? "feature\n" : `${branch}\n`);
+    }
+    if (command === "git" && args.at(-2) === "remote" && args.at(-1) === "-v") {
+      const remoteConfig = args.find((arg) => String(arg).startsWith("remote.chatgpt-sites-check-"));
+      if (!remoteConfig) return fail();
+      const match = String(remoteConfig).match(/^remote\.([^.]+)\.url=/);
+      if (!match) return fail();
+      return ok(`${match[1]}\t${effectiveChatgptSitesUrl} (fetch)\n${match[1]}\t${effectiveChatgptSitesUrl} (push)\n`);
     }
     return fail();
   },
@@ -872,6 +882,39 @@ for (const command of destructiveCases) {
   }, ctx);
   assert.equal(result?.block, true, `blocks destructive Git command: ${command}`);
 }
+
+const strictSitesDeniedCases = [
+  `git push --force ${chatgptSitesUrl} HEAD:main`,
+  `git push origin HEAD:main`,
+  "git push",
+  `sh -c 'git push ${chatgptSitesUrl} HEAD:main'`,
+  `git push ${chatgptSitesUrl}/\$(id) HEAD:main`,
+  `git push ${chatgptSitesUrl} HEAD:main other`,
+];
+for (const command of strictSitesDeniedCases) {
+  const denied = await handlers.get("tool_call")({
+    toolName: "bash",
+    input: { command },
+  }, ctx);
+  assert.equal(denied?.block, true,
+    `blocks non-plain ChatGPT Sites push: ${command}`);
+}
+
+let sitesPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `git push ${chatgptSitesUrl} HEAD:main` },
+}, ctx);
+assert.equal(sitesPush, undefined,
+  "allows a plain explicit ChatGPT Sites push of HEAD to main");
+
+effectiveChatgptSitesUrl = normalGitUrl;
+sitesPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `git push ${chatgptSitesUrl} HEAD:main` },
+}, ctx);
+assert.equal(sitesPush?.block, true,
+  "blocks a ChatGPT Sites URL rewritten to another host");
+effectiveChatgptSitesUrl = chatgptSitesUrl;
 
 failedGitRootCwds.add("/repo");
 let result = await handlers.get("tool_call")({

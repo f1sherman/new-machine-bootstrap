@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -834,7 +835,46 @@ function gitPushPositionals(segment) {
   return positionals;
 }
 
-async function pushMainBlockReason(pi, command, cwd) {
+function chatgptSitesHost(remote) {
+  try {
+    const url = new URL(remote);
+    return url.protocol === "https:" && url.hostname.toLowerCase() === "git.chatgpt-team.site";
+  } catch {
+    return false;
+  }
+}
+
+async function isPlainChatgptSitesPush(pi, command, cwd) {
+  const tokens = command.replace(/\s+/g, " ").trim().split(" ").map(unquoteShellToken);
+  if (tokens.length !== 4 || tokens[0] !== "git" || tokens[1] !== "push") return false;
+
+  const [remote, refspec] = tokens.slice(2);
+  if (/[$`*?\[\]{}\\<>();&|]/.test(remote)) return false;
+  if (refspec !== "HEAD:main" || !chatgptSitesHost(remote)) return false;
+
+  const root = await gitRoot(pi, cwd);
+  if (!root) return false;
+
+  const checkRemote = `chatgpt-sites-check-${randomBytes(8).toString("hex")}`;
+  const result = await exec(pi, "git", [
+    "-C", root,
+    "-c", `remote.${checkRemote}.url=${remote}`,
+    "remote", "-v",
+  ]);
+  if (result.code !== 0) return false;
+
+  const prefix = `${checkRemote}\t`;
+  const suffix = " (push)";
+  for (const line of result.stdout.split("\n")) {
+    if (!line.startsWith(prefix) || !line.endsWith(suffix)) continue;
+    return chatgptSitesHost(line.slice(prefix.length, -suffix.length));
+  }
+  return false;
+}
+
+async function pushMainBlockReason(pi, command, cwd, allowSitesPush = true) {
+  if (allowSitesPush && await isPlainChatgptSitesPush(pi, command, cwd)) return "";
+
   const mainRef = "\\+?(([^\\s;&|()]+:)?(main|refs/heads/main)|:(main|refs/heads/main)?|:)";
   let segmentCwds = [cwd];
   let hasDirectoryTransitionCandidates = false;
@@ -850,7 +890,7 @@ async function pushMainBlockReason(pi, command, cwd) {
     const segment = step.command;
     for (const substitution of shellCommandSubstitutions(segment)) {
       for (const segmentCwd of segmentCwds) {
-        const nestedReason = await pushMainBlockReason(pi, substitution.payload, segmentCwd);
+        const nestedReason = await pushMainBlockReason(pi, substitution.payload, segmentCwd, false);
         if (nestedReason) return nestedReason;
       }
     }
@@ -858,7 +898,7 @@ async function pushMainBlockReason(pi, command, cwd) {
     const payload = shellWrappedPayload(segment);
     if (payload) {
       for (const segmentCwd of segmentCwds) {
-        const nestedReason = await pushMainBlockReason(pi, payload, segmentCwd);
+        const nestedReason = await pushMainBlockReason(pi, payload, segmentCwd, false);
         if (nestedReason) return nestedReason;
       }
       simpleAndPrefix = false;
