@@ -21,6 +21,28 @@ function M.new()
     return type(window) == "table" and window.isFocused == true
   end
 
+  function downloads.recoverWhenReady(actions)
+    local attemptsRemaining = actions.attempts
+
+    local function check()
+      actions.check(function(_, readinessError)
+        if not readinessError then
+          actions.recover()
+          return
+        end
+
+        attemptsRemaining = attemptsRemaining - 1
+        if attemptsRemaining == 0 then
+          actions.notify(readinessError)
+          return
+        end
+        actions.retry(check)
+      end)
+    end
+
+    check()
+  end
+
   function downloads.shouldCreateAfterLock(scratchpad, actions)
     if #scratchpad == 0 then
       return true

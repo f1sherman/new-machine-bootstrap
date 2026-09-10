@@ -121,10 +121,10 @@ Press `Escape` or `⌃⌥H` to hide the cheat-sheet panel.
 Finder uses OmniWM scratchpad slot 1. Only its managed Downloads window uses
 this behavior. Photos uses its own summon-and-return workflow.
 
-After OmniWM restarts, Hammerspoon repairs one exact `~/Downloads` Finder
-window when its scratchpad assignment is missing. The repair hides that window
-and restores the prior focus. Hammerspoon changes nothing when the Finder state
-is ambiguous.
+After OmniWM restarts, Hammerspoon waits up to 30 seconds for OmniWM IPC. It
+then repairs one exact `~/Downloads` Finder window when its scratchpad assignment
+is missing. The repair hides that window and restores the prior focus.
+Hammerspoon changes nothing when the Finder state is ambiguous.
 
 ## Common workflows
 
