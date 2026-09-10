@@ -845,6 +845,22 @@ function chatgptSitesHost(remote) {
   }
 }
 
+async function isLegacyRemoteName(pi, root, remote) {
+  for (const namespace of ["remotes", "branches"]) {
+    const result = await exec(pi, "git", [
+      "-C", root,
+      "rev-parse", "--git-path", `${namespace}/${remote}`,
+    ]);
+    if (result.code !== 0 || result.killed) return true;
+
+    const gitPath = result.stdout.trim();
+    if (!gitPath) return true;
+    const resolvedPath = path.isAbsolute(gitPath) ? gitPath : path.resolve(root, gitPath);
+    if (fs.existsSync(resolvedPath)) return true;
+  }
+  return false;
+}
+
 function dynamicGitPushBlockReason(command) {
   const hasEvalWrapper = /\beval(?:\s|$)[^\n]*\bgit\s+push\b/.test(command);
   const hasArgumentExpansion = /\bgit\s+push\b[^\n;&|()]*(?:\$(?:[A-Za-z_{(])|`)/.test(command);
@@ -869,6 +885,7 @@ async function isPlainChatgptSitesPush(pi, command, cwd) {
   const remoteNames = await exec(pi, "git", ["-C", root, "remote"]);
   if (remoteNames.code !== 0 || remoteNames.killed) return false;
   if (remoteNames.stdout.split("\n").includes(remote)) return false;
+  if (await isLegacyRemoteName(pi, root, remote)) return false;
 
   const checkRemote = `chatgpt-sites-check-${randomBytes(8).toString("hex")}`;
   const result = await exec(pi, "git", [

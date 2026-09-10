@@ -59,6 +59,14 @@ assert_denied "$repo" "URL-shaped remote name pointing to a normal host" \
   "git push $SITES_URL HEAD:main"
 git -C "$repo" config --remove-section "remote.$SITES_URL"
 
+legacy_remote_path="$repo/.git/remotes/$SITES_URL"
+mkdir -p "$(dirname "$legacy_remote_path")"
+printf 'URL: %s\nPush: HEAD:refs/heads/main\n' "$NORMAL_URL" \
+  >"$legacy_remote_path"
+assert_denied "$repo" "URL-shaped legacy remote name" \
+  "git push $SITES_URL HEAD:main"
+rm -f "$legacy_remote_path"
+
 assert_denied "$repo" "normal explicit URL push" \
   "git push $NORMAL_URL HEAD:main"
 assert_denied "$repo" "named Sites remote push" \
