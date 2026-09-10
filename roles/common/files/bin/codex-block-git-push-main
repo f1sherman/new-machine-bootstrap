@@ -259,6 +259,16 @@ def command_has_command_substitution_with_git_push(command_text):
     )
 
 
+def command_has_dynamic_git_push(command_text):
+    return (
+        re.search(r'\beval(?:\s|$)[^\n]*\bgit\s+push\b', command_text) is not None
+        or re.search(
+            r'\bgit\s+push\b[^\n;&|]*(?:\$(?:[A-Za-z_{(])|`)',
+            command_text,
+        ) is not None
+    )
+
+
 def segment_mutates_repo_context(segment):
     index = 0
     while index < len(segment):
@@ -348,6 +358,7 @@ if command_mentions_git_push(command) and (
     command_has_function_definition(command)
     or command_has_variable_command_indirection(command)
     or command_has_command_substitution_with_git_push(command)
+    or command_has_dynamic_git_push(command)
 ):
     print('deny')
     raise SystemExit(0)
