@@ -26,19 +26,21 @@ repositories.
 
 ## Recommended Approach
 
-Detect the selected Git remote for each push. Allow direct-to-main pushes only
-when that remote URL uses the exact `git.chatgpt-team.site` host. Continue to
-fail closed if the repository, remote name, or remote URL cannot be resolved.
+Allow one strict command shape: a plain `git push` whose destination is an
+explicit HTTPS URL on the exact `git.chatgpt-team.site` host and whose sole
+refspec is the unforced `HEAD:main`. Require a valid Git repository. Resolve the
+URL through Git's local URL-rewrite rules without network access and require the
+effective URL to remain on the same exact host.
 
-The Codex shell hook will resolve the push's explicit remote, or the branch's
-configured push remote for an implicit push. The Pi hook will apply equivalent
-logic through its existing Git command execution interface. Tests will execute
-the real hooks against temporary repositories with normal and ChatGPT Sites
-remotes.
+Named remotes, implicit remotes, Git command options, push options, shell
+wrappers, shell expansion, environment assignments, extra refspecs, forced
+refspecs, and unresolved repository state do not qualify. They keep the normal
+fail-closed result. The Pi hook will apply the same strict rule through its
+existing Git command interface.
 
-This approach is narrow. It follows the service boundary instead of generated
-paths. It also preserves protection when a normal remote and a Sites remote
-exist in the same repository.
+This approach follows the service boundary without trusting Git's broad remote
+configuration surface. It deliberately requires ChatGPT Sites to use the
+explicit URL form shown by its publishing workflow.
 
 ## Alternatives Considered
 
@@ -70,16 +72,18 @@ normal repositories used in ChatGPT. The scope is too broad.
 
 ## Error Handling
 
-Unknown repositories, malformed commands, unresolved remotes, and non-matching
-URLs keep the current fail-closed behavior. Only a successfully resolved remote
-URL with the exact service host gets the exception.
+Unknown repositories, malformed commands, URL rewrites to another host, and
+non-matching URLs keep the current fail-closed behavior. Only the strict plain
+command with both an explicit and effective exact service host gets the
+exception.
 
 ## Testing and Verification
 
-1. Prove that a direct push to `main` with a normal remote is blocked.
-2. Prove that the same push to a `git.chatgpt-team.site` remote is allowed.
-3. Prove that a repository with both remote types exempts only the selected
-   Sites remote.
+1. Prove that a direct push to `main` with a normal URL is blocked.
+2. Prove that a plain explicit `git.chatgpt-team.site` URL push of `HEAD:main`
+   is allowed.
+3. Prove that named or implicit remotes, force modes, options, shell expansion,
+   URL rewrites, and extra refspecs remain blocked.
 4. Run the Codex hook test and the Pi managed-hooks test.
 5. Run provisioning and confirm the managed hook is deployed from this branch.
 6. Run `bin/provision --check` to confirm idempotence.

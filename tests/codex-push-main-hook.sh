@@ -6,6 +6,9 @@ HOOK="$REPO_ROOT/roles/common/files/bin/codex-block-git-push-main"
 TMPDIR_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_ROOT"' EXIT
 
+SITES_URL='https://git.chatgpt-team.site/team/site.git'
+NORMAL_URL='https://example.com/owner/repo.git'
+
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
   exit 1
@@ -21,70 +24,82 @@ run_hook() {
   )
 }
 
+assert_denied() {
+  local repo="$1"
+  local label="$2"
+  local command="$3"
+  local output decision
+
+  output="$(run_hook "$repo" "$command")"
+  decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' \
+    <<<"$output")"
+  [[ "$decision" == deny ]] || fail "$label was not denied: $command"
+}
+
+assert_allowed() {
+  local repo="$1"
+  local label="$2"
+  local command="$3"
+  local output
+
+  output="$(run_hook "$repo" "$command")"
+  [[ -z "$output" ]] || fail "$label was denied: $command"
+}
+
 repo="$TMPDIR_ROOT/repo"
 git init -q -b main "$repo"
-git -C "$repo" remote add origin https://example.com/owner/repo.git
+git -C "$repo" remote add origin "$SITES_URL"
+git -C "$repo" remote add upstream "$NORMAL_URL"
 
-normal_output="$(run_hook "$repo" 'git push origin HEAD:main')"
-normal_decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$normal_output")"
-[[ "$normal_decision" == deny ]] || fail "normal remote push to main was not denied"
+assert_allowed "$repo" "plain explicit Sites push" \
+  "git push $SITES_URL HEAD:main"
 
-git -C "$repo" remote set-url origin \
-  https://git.chatgpt-team.site/team/site.git
-sites_output="$(run_hook "$repo" 'git push origin HEAD:main')"
-[[ -z "$sites_output" ]] || fail "ChatGPT Sites remote push to main was denied"
+assert_denied "$repo" "normal explicit URL push" \
+  "git push $NORMAL_URL HEAD:main"
+assert_denied "$repo" "named Sites remote push" \
+  'git push origin HEAD:main'
+assert_denied "$repo" "implicit Sites remote push" 'git push'
+assert_denied "$repo" "explicit normal remote in mixed repository" \
+  'git push upstream HEAD:main'
 
-force_commands=(
-  'git push --force origin HEAD:main'
-  'git push -f origin HEAD:main'
-  'git push -uf origin HEAD:main'
-  'git push -foci.skip origin HEAD:main'
-  'git push -fo ci.skip origin HEAD:main'
-  'git push --force-with-lease origin HEAD:main'
-  'git push --force-if-includes origin HEAD:main'
-  'git push origin +HEAD:main'
+strict_shape_cases=(
+  "git push --force $SITES_URL HEAD:main"
+  "git push -f $SITES_URL HEAD:main"
+  "git push $SITES_URL +HEAD:main"
+  "git push $SITES_URL main"
+  "git push $SITES_URL HEAD:main other"
+  "git push $SITES_URL HEAD:refs/heads/main"
+  "git push --repo=$SITES_URL HEAD:main"
+  "git push -o ci.skip $SITES_URL HEAD:main"
+  "git push -o --repo=$SITES_URL --repo $NORMAL_URL HEAD:main"
+  "git -c remote.origin.pushurl=$SITES_URL push origin HEAD:main"
+  "git -c url.$NORMAL_URL.insteadOf=https://git.chatgpt-team.site/ push $SITES_URL HEAD:main"
+  "sh -c 'git push $SITES_URL HEAD:main'"
+  "git push $SITES_URL/\$(id) HEAD:main"
+  "force=--force; git push \$force $SITES_URL HEAD:main"
 )
-for command in "${force_commands[@]}"; do
-  force_output="$(run_hook "$repo" "$command")"
-  force_decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' \
-    <<<"$force_output")"
-  [[ "$force_decision" == deny ]] || fail "force push was not denied: $command"
+for command in "${strict_shape_cases[@]}"; do
+  assert_denied "$repo" "non-plain Sites push" "$command"
 done
 
-invalid_context_command="git -C $TMPDIR_ROOT/missing push \
-https://git.chatgpt-team.site/team/site.git HEAD:main"
-invalid_context_output="$(run_hook "$repo" "$invalid_context_command")"
-invalid_context_decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' \
-  <<<"$invalid_context_output")"
-[[ "$invalid_context_decision" == deny ]] || \
-  fail "Sites URL bypassed an unresolved repository context"
+invalid_context_command="git -C $TMPDIR_ROOT/missing push $SITES_URL HEAD:main"
+assert_denied "$repo" "Sites push with unresolved repository" \
+  "$invalid_context_command"
 
-git -C "$repo" remote set-url --add --push origin \
-  https://git.chatgpt-team.site/team/site.git
-git -C "$repo" remote set-url --add --push origin \
-  https://example.com/owner/mirror.git
-mixed_pushurl_output="$(run_hook "$repo" 'git push origin HEAD:main')"
-mixed_pushurl_decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' \
-  <<<"$mixed_pushurl_output")"
-[[ "$mixed_pushurl_decision" == deny ]] || \
-  fail "named remote with a normal push URL was not denied"
+git -C "$repo" config remote.origin.mirror true
+assert_denied "$repo" "configured mirror on named Sites remote" \
+  'git push origin HEAD:main'
+git -C "$repo" config remote.origin.mirror false
+git -C "$repo" config remote.origin.pushurl "$SITES_URL"
+assert_denied "$repo" "configured Sites push URL" \
+  'git push origin HEAD:main'
 
-git -C "$repo" remote add upstream https://example.com/owner/repo.git
-mixed_output="$(run_hook "$repo" 'git push upstream HEAD:main')"
-mixed_decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$mixed_output")"
-[[ "$mixed_decision" == deny ]] || fail "explicit normal remote in mixed repository was not denied"
-
-git -C "$repo" symbolic-ref HEAD refs/heads/feature
-repo_option_commands=(
-  'git push --repo upstream HEAD:main'
-  'git push --repo=upstream HEAD:main'
-)
-for command in "${repo_option_commands[@]}"; do
-  repo_option_output="$(run_hook "$repo" "$command")"
-  repo_option_decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' \
-    <<<"$repo_option_output")"
-  [[ "$repo_option_decision" == deny ]] || \
-    fail "normal --repo target to main was not denied: $command"
+for rewrite_kind in insteadOf pushInsteadOf; do
+  git -C "$repo" config url."$NORMAL_URL"."$rewrite_kind" \
+    'https://git.chatgpt-team.site/'
+  assert_denied "$repo" "$rewrite_kind rewritten explicit Sites URL" \
+    "git push $SITES_URL HEAD:main"
+  git -C "$repo" config --unset-all url."$NORMAL_URL"."$rewrite_kind"
 done
 
 printf 'Codex push-to-main hook checks complete\n'
