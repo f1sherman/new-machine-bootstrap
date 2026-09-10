@@ -836,12 +836,21 @@ function gitPushPositionals(segment) {
 }
 
 function chatgptSitesHost(remote) {
+  if (!remote.startsWith("https://")) return false;
   try {
     const url = new URL(remote);
-    return url.protocol === "https:" && url.hostname.toLowerCase() === "git.chatgpt-team.site";
+    return url.hostname.toLowerCase() === "git.chatgpt-team.site";
   } catch {
     return false;
   }
+}
+
+function dynamicGitPushBlockReason(command) {
+  const hasEvalWrapper = /\beval(?:\s|$)[^\n]*\bgit\s+push\b/.test(command);
+  const hasArgumentExpansion = /\bgit\s+push\b[^\n;&|()]*(?:\$(?:[A-Za-z_{(])|`)/.test(command);
+  return hasEvalWrapper || hasArgumentExpansion
+    ? "Do not push to main directly. Open a PR."
+    : "";
 }
 
 async function isPlainChatgptSitesPush(pi, command, cwd) {
@@ -873,6 +882,8 @@ async function isPlainChatgptSitesPush(pi, command, cwd) {
 }
 
 async function pushMainBlockReason(pi, command, cwd, allowSitesPush = true) {
+  const dynamicReason = dynamicGitPushBlockReason(command);
+  if (dynamicReason) return dynamicReason;
   if (allowSitesPush && await isPlainChatgptSitesPush(pi, command, cwd)) return "";
 
   const mainRef = "\\+?(([^\\s;&|()<>]+:)?(main|refs/heads/main)|:(main|refs/heads/main)?|:)";
