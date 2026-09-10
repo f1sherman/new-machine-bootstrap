@@ -37,6 +37,97 @@ function M.new()
     return false
   end
 
+  function downloads.recoverScratchpad(snapshot, actions)
+    local navigated = false
+    local complete = false
+    local target
+
+    local function finish(message)
+      if complete then
+        return
+      end
+
+      local function completeRecovery(restoreError)
+        if complete then
+          return
+        end
+        complete = true
+        if restoreError then
+          if message then
+            message = tostring(message) .. "; " .. tostring(restoreError)
+          else
+            message = restoreError
+          end
+        end
+        if message then
+          actions.notify(message)
+        end
+        actions.done()
+      end
+
+      if not navigated then
+        completeRecovery()
+      elseif snapshot.focusedWindow and snapshot.focusedWindow.id then
+        actions.restoreWindow(snapshot.focusedWindow.id, completeRecovery)
+      elseif snapshot.activeWorkspace and snapshot.activeWorkspace.number then
+        actions.restoreWorkspace(snapshot.activeWorkspace.number, completeRecovery)
+      else
+        completeRecovery()
+      end
+    end
+
+    if #(snapshot.scratchpad or {}) ~= 0 then
+      finish("Another window owns OmniWM scratchpad slot 1")
+      return
+    end
+
+    local candidates = snapshot.downloadsWindows or {}
+    if #candidates == 0 then
+      finish()
+      return
+    elseif #candidates > 1 then
+      finish("More than one Downloads Finder window is managed by OmniWM")
+      return
+    end
+    target = candidates[1]
+
+    navigated = true
+    actions.navigate(target.id, function(_, navigateError)
+      if navigateError then
+        finish(navigateError)
+        return
+      end
+      actions.confirmFocused(target.id, function(_, focusError)
+        if focusError then
+          finish(focusError)
+          return
+        end
+        actions.assign(function(_, assignError)
+          if assignError then
+            finish(assignError)
+            return
+          end
+          actions.confirmAssigned(target.id, function(assignedWindow, confirmError)
+            if confirmError then
+              finish(confirmError)
+              return
+            elseif type(assignedWindow) ~= "table" or assignedWindow.id ~= target.id then
+              finish("Could not confirm the Downloads scratchpad assignment")
+              return
+            end
+            if assignedWindow.isVisible then
+              actions.hide(target.id, function(_, hideError)
+                finish(hideError)
+              end)
+            else
+              finish()
+            end
+          end)
+        end)
+      end)
+    end)
+  end
+
   function downloads.assignNewScratchpad(window, actions)
     local function finish(message)
       if message then
