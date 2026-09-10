@@ -56,6 +56,7 @@ const chatgptSitesUrl = "https://git.chatgpt-team.site/team/site.git";
 const normalGitUrl = "https://example.com/team/site.git";
 let effectiveChatgptSitesUrl = chatgptSitesUrl;
 let configuredRemoteNames = [];
+let legacyRemoteNames = [];
 let killGitRootQuery = false;
 let killRemoteNameQuery = false;
 let failRemoteNameQuery = false;
@@ -182,6 +183,10 @@ const pi = {
       return subjectChildDeferred?.promise || ok("nested process subject\n");
     }
     if (command === "git" && args.includes("rev-parse")) {
+      if (args.includes("--git-path")) {
+        const remoteName = String(args.at(-1)).replace(/^(?:remotes|branches)\//, "");
+        return ok(legacyRemoteNames.includes(remoteName) ? "/dev/null\n" : "/missing\n");
+      }
       if (killGitRootQuery) return { ...ok("/repo\n"), killed: true };
       const dynamic = ["$", "`", "*", "?", "[", "]", "{", "}", "\\"];
       if (args.some((arg) => failedGitRootCwds.has(String(arg))
@@ -962,6 +967,15 @@ sitesPush = await handlers.get("tool_call")({
 assert.equal(sitesPush?.block, true,
   "blocks a Sites URL that is also a configured remote name");
 configuredRemoteNames = [];
+
+legacyRemoteNames = [chatgptSitesUrl];
+sitesPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: { command: `git push ${chatgptSitesUrl} HEAD:main` },
+}, ctx);
+assert.equal(sitesPush?.block, true,
+  "blocks a Sites URL that is also a legacy remote name");
+legacyRemoteNames = [];
 
 sitesPush = await handlers.get("tool_call")({
   toolName: "bash",

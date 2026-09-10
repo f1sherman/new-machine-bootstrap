@@ -45,6 +45,14 @@ def remote_host(url):
     return (urlsplit(url).hostname or '').lower()
 
 
+def is_legacy_remote_name(remote):
+    for namespace in ('remotes', 'branches'):
+        git_path = git_output([], {}, 'rev-parse', '--git-path', f'{namespace}/{remote}')
+        if git_path and os.path.exists(git_path):
+            return True
+    return False
+
+
 def effective_push_url(remote):
     check_remote = f'chatgpt-sites-check-{secrets.token_hex(8)}'
     output = git_output(
@@ -82,6 +90,8 @@ def is_plain_chatgpt_sites_push(command_text):
     if not git_output([], {}, 'rev-parse', '--git-dir'):
         return False
     if remote in git_output([], {}, 'remote').splitlines():
+        return False
+    if is_legacy_remote_name(remote):
         return False
 
     return remote_host(effective_push_url(remote)) == CHATGPT_SITES_HOST
