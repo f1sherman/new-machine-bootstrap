@@ -866,6 +866,10 @@ async function isPlainChatgptSitesPush(pi, command, cwd) {
   const root = await gitRoot(pi, cwd);
   if (!root) return false;
 
+  const remoteNames = await exec(pi, "git", ["-C", root, "remote"]);
+  if (remoteNames.code !== 0 || remoteNames.killed) return false;
+  if (remoteNames.stdout.split("\n").includes(remote)) return false;
+
   const checkRemote = `chatgpt-sites-check-${randomBytes(8).toString("hex")}`;
   const result = await exec(pi, "git", [
     "-C", root,
