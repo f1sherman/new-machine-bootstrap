@@ -854,6 +854,8 @@ function dynamicGitPushBlockReason(command) {
 }
 
 async function isPlainChatgptSitesPush(pi, command, cwd) {
+  if (/[\r\n]/.test(command)) return false;
+
   const tokens = command.replace(/\s+/g, " ").trim().split(" ").map(unquoteShellToken);
   if (tokens.length !== 4 || tokens[0] !== "git" || tokens[1] !== "push") return false;
 
