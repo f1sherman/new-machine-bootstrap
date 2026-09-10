@@ -328,7 +328,8 @@ def segment_is_blocking(segment):
 
     push_args = push_positionals(push_tokens)
     force_option = any(
-        token == '-f' or token.startswith('--force')
+        token.startswith('--force')
+        or re.fullmatch(r'-(?=[uvqdnf46]*f)[uvqdnf46]+', token)
         for token in push_tokens
     )
     forced_refspec = any(token.startswith('+') for token in push_args[1:])
