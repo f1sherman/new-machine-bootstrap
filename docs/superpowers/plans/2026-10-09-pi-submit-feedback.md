@@ -29,7 +29,7 @@
 - Produces: temporary `managed-hooks-submit` footer status with text
   `Submitting...`; clears it by passing `undefined`.
 
-- [ ] **Step 1: Write the failing behavioral test**
+- [x] **Step 1: Write the failing behavioral test**
 
 Record `setStatus` calls in the existing Pi context stub. Add a deferred subject-child
 result. Start `before_agent_start` without resolving the child and assert that the
@@ -45,17 +45,17 @@ Resolve the child, await the handler, and assert that the latest status call is:
 { key: "managed-hooks-submit", value: undefined }
 ```
 
-- [ ] **Step 2: Run the focused test and verify failure**
+- [x] **Step 2: Run the focused test and verify failure**
 
 Run:
 
 ```bash
-tests/pi-managed-hooks.sh
+bash tests/pi-managed-hooks.sh
 ```
 
 Expected: failure because the production handler does not set the submit status.
 
-- [ ] **Step 3: Add the temporary status boundary**
+- [x] **Step 3: Add the temporary status boundary**
 
 Wrap the existing handler body without changing its internal decisions:
 
@@ -91,18 +91,18 @@ pi.on("before_agent_start", async (event, ctx) => {
 });
 ```
 
-- [ ] **Step 4: Run focused and syntax verification**
+- [x] **Step 4: Run focused and syntax verification**
 
 Run:
 
 ```bash
-tests/pi-managed-hooks.sh
+bash tests/pi-managed-hooks.sh
 node --check roles/common/files/pi/extensions/managed-hooks.ts
 ```
 
 Expected: both commands exit with status 0.
 
-- [ ] **Step 5: Provision the managed extension**
+- [x] **Step 5: Provision the managed extension**
 
 Run:
 
@@ -113,7 +113,7 @@ bin/provision
 Expected: provisioning exits with status 0 and deploys the extension from this
 worktree.
 
-- [ ] **Step 6: Confirm deployed source matches the worktree**
+- [x] **Step 6: Confirm deployed source matches the worktree**
 
 Run:
 
