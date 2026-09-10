@@ -14,22 +14,86 @@ import re
 import shlex
 import subprocess
 from pathlib import PurePath
+from urllib.parse import urlsplit
 
 command = os.environ['COMMAND']
+CHATGPT_SITES_HOST = 'git.chatgpt-team.site'
 
 
-def current_branch(repo_args, repo_env):
+def git_output(repo_args, repo_env, *args):
     try:
         env = os.environ.copy()
         env.update(repo_env)
         return subprocess.check_output(
-            ['git', *repo_args, 'branch', '--show-current'],
+            ['git', *repo_args, *args],
             env=env,
             stderr=subprocess.DEVNULL,
             text=True,
         ).strip()
     except subprocess.CalledProcessError:
         return ''
+
+
+def current_branch(repo_args, repo_env):
+    return git_output(repo_args, repo_env, 'branch', '--show-current')
+
+
+def push_positionals(push_tokens):
+    options_with_values = {
+        '-o', '--push-option', '--receive-pack', '--exec', '--repo',
+    }
+    positionals = []
+    index = 0
+    while index < len(push_tokens):
+        token = push_tokens[index]
+        if token == '--':
+            positionals.extend(push_tokens[index + 1:])
+            break
+        if token in options_with_values:
+            index += 2
+            continue
+        if token.startswith('-'):
+            index += 1
+            continue
+        positionals.append(token)
+        index += 1
+    return positionals
+
+
+def selected_push_remote(repo_args, repo_env, push_tokens, branch):
+    positionals = push_positionals(push_tokens)
+    if positionals:
+        return positionals[0]
+
+    config_keys = []
+    if branch:
+        config_keys.append(f'branch.{branch}.pushRemote')
+    config_keys.append('remote.pushDefault')
+    if branch:
+        config_keys.append(f'branch.{branch}.remote')
+    for key in config_keys:
+        remote = git_output(repo_args, repo_env, 'config', '--get', key)
+        if remote:
+            return remote
+    return 'origin'
+
+
+def remote_url(repo_args, repo_env, remote):
+    if '://' in remote or re.fullmatch(r'(?:[^@/:]+@)?[^:/]+:.+', remote):
+        return remote
+    return git_output(repo_args, repo_env, 'remote', 'get-url', '--push', remote)
+
+
+def remote_host(url):
+    if '://' in url:
+        return (urlsplit(url).hostname or '').lower()
+    match = re.fullmatch(r'(?:[^@/:]+@)?([^:/]+):.+', url)
+    return match.group(1).lower() if match else ''
+
+
+def pushes_to_chatgpt_sites(repo_args, repo_env, push_tokens, branch):
+    remote = selected_push_remote(repo_args, repo_env, push_tokens, branch)
+    return remote_host(remote_url(repo_args, repo_env, remote)) == CHATGPT_SITES_HOST
 
 
 def token_segments(command_text):
@@ -246,12 +310,19 @@ def segment_is_blocking(segment):
     if any(token in {'--all', '--mirror'} for token in push_tokens):
         return True
 
-    push_args = [token for token in push_tokens if not token.startswith('-')]
+    push_args = push_positionals(push_tokens)
+    branch = current_branch(repo_args, repo_env)
+    sites_remote = pushes_to_chatgpt_sites(
+        repo_args,
+        repo_env,
+        push_tokens,
+        branch,
+    )
     if len(push_args) >= 2 and any(refspec_targets_main(token) for token in push_args[1:]):
-        return True
+        return not sites_remote
 
-    if current_branch(repo_args, repo_env) == 'main' and len(push_args) <= 1:
-        return True
+    if branch == 'main' and len(push_args) <= 1:
+        return not sites_remote
 
     return False
 
