@@ -64,6 +64,9 @@ def effective_push_url(remote):
 
 
 def is_plain_chatgpt_sites_push(command_text):
+    if '\n' in command_text or '\r' in command_text:
+        return False
+
     try:
         tokens = shlex.split(command_text, posix=True)
     except ValueError:

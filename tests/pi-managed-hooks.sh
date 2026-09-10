@@ -900,6 +900,9 @@ const strictSitesDeniedCases = [
   `git push ${chatgptSitesUrl} HEAD:main other`,
   `git push ${chatgptSitesUrl} HEAD:main>out`,
   `git push ${chatgptSitesUrl} HEAD:main<input`,
+  `git push\n${chatgptSitesUrl} HEAD:main`,
+  `git push\r\n${chatgptSitesUrl} HEAD:main`,
+  `git push\r${chatgptSitesUrl} HEAD:main`,
 ];
 for (const command of strictSitesDeniedCases) {
   const denied = await handlers.get("tool_call")({
