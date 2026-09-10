@@ -34,6 +34,38 @@ git -C "$repo" remote set-url origin \
 sites_output="$(run_hook "$repo" 'git push origin HEAD:main')"
 [[ -z "$sites_output" ]] || fail "ChatGPT Sites remote push to main was denied"
 
+force_commands=(
+  'git push --force origin HEAD:main'
+  'git push -f origin HEAD:main'
+  'git push --force-with-lease origin HEAD:main'
+  'git push --force-if-includes origin HEAD:main'
+  'git push origin +HEAD:main'
+)
+for command in "${force_commands[@]}"; do
+  force_output="$(run_hook "$repo" "$command")"
+  force_decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' \
+    <<<"$force_output")"
+  [[ "$force_decision" == deny ]] || fail "force push was not denied: $command"
+done
+
+invalid_context_command="git -C $TMPDIR_ROOT/missing push \
+https://git.chatgpt-team.site/team/site.git HEAD:main"
+invalid_context_output="$(run_hook "$repo" "$invalid_context_command")"
+invalid_context_decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' \
+  <<<"$invalid_context_output")"
+[[ "$invalid_context_decision" == deny ]] || \
+  fail "Sites URL bypassed an unresolved repository context"
+
+git -C "$repo" remote set-url --add --push origin \
+  https://git.chatgpt-team.site/team/site.git
+git -C "$repo" remote set-url --add --push origin \
+  https://example.com/owner/mirror.git
+mixed_pushurl_output="$(run_hook "$repo" 'git push origin HEAD:main')"
+mixed_pushurl_decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' \
+  <<<"$mixed_pushurl_output")"
+[[ "$mixed_pushurl_decision" == deny ]] || \
+  fail "named remote with a normal push URL was not denied"
+
 git -C "$repo" remote add upstream https://example.com/owner/repo.git
 mixed_output="$(run_hook "$repo" 'git push upstream HEAD:main')"
 mixed_decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$mixed_output")"
