@@ -277,16 +277,10 @@ local function focusVisibleScratchpad(id, callback)
     return window.isVisible == true
   end, function(_, visibilityError)
     if visibilityError then
-      M.notify(visibilityError)
       callback(nil, visibilityError)
       return
     end
-    focusSummonedWindow(id, function(window, focusError)
-      if focusError then
-        M.notify(focusError)
-      end
-      callback(window, focusError)
-    end)
+    focusSummonedWindow(id, callback)
   end)
 end
 
@@ -308,14 +302,12 @@ local function showScratchpadIfHidden(id, callback)
     end)
   end, 5, function(window, pollError)
     if pollError then
-      M.notify(pollError)
       callback(nil, pollError)
     elseif window.isVisible then
       focusVisibleScratchpad(id, callback)
     else
       M.run({"command", "scratchpad", "toggle", tostring(downloadsScratchpadSlot)}, function(_, toggleError)
         if toggleError then
-          M.notify(toggleError)
           callback(nil, toggleError)
           return
         end
@@ -435,8 +427,8 @@ function M.toggleDownloadsScratchpad()
           finish(toggleError)
         end)
       else
-        showScratchpadIfHidden(scratchpad[1].id, function()
-          downloads.finishOperation()
+        showScratchpadIfHidden(scratchpad[1].id, function(_, showError)
+          finish(showError)
         end)
       end
       return
@@ -1013,7 +1005,17 @@ local function routeGhosttyURL(url)
   end)
 end
 
-hs.timer.doAfter(1, recoverDownloadsScratchpad)
+hs.timer.doAfter(1, function()
+  downloads.recoverWhenReady({
+    attempts = 30,
+    check = M.activeWorkspace,
+    recover = recoverDownloadsScratchpad,
+    retry = function(callback)
+      hs.timer.doAfter(1, callback)
+    end,
+    notify = M.notify,
+  })
+end)
 
 hs.hotkey.bind({"ctrl", "alt"}, "D", M.toggleDownloadsScratchpad)
 hs.hotkey.bind({"ctrl", "alt"}, "P", M.togglePhotos)

@@ -26,6 +26,52 @@ downloads.finishOperation()
 assertEqual(true, downloads.beginOperation(function() end), "operation can restart after completion")
 downloads.finishOperation()
 
+local readiness = {checks = 0, retries = 0, recoveries = 0, notify = {}}
+downloads.recoverWhenReady({
+  attempts = 3,
+  check = function(callback)
+    readiness.checks = readiness.checks + 1
+    callback(nil, readiness.checks < 3 and "IPC unavailable" or nil)
+  end,
+  retry = function(callback)
+    readiness.retries = readiness.retries + 1
+    callback()
+  end,
+  recover = function()
+    readiness.recoveries = readiness.recoveries + 1
+  end,
+  notify = function(message)
+    table.insert(readiness.notify, message)
+  end,
+})
+assertEqual(3, readiness.checks, "startup recovery retries readiness errors")
+assertEqual(2, readiness.retries, "startup recovery schedules bounded retries")
+assertEqual(1, readiness.recoveries, "startup recovery runs once after readiness")
+assertEqual(0, #readiness.notify, "eventual readiness is quiet")
+
+local unavailable = {checks = 0, retries = 0, recoveries = 0, notify = {}}
+downloads.recoverWhenReady({
+  attempts = 2,
+  check = function(callback)
+    unavailable.checks = unavailable.checks + 1
+    callback(nil, "IPC unavailable")
+  end,
+  retry = function(callback)
+    unavailable.retries = unavailable.retries + 1
+    callback()
+  end,
+  recover = function()
+    unavailable.recoveries = unavailable.recoveries + 1
+  end,
+  notify = function(message)
+    table.insert(unavailable.notify, message)
+  end,
+})
+assertEqual(2, unavailable.checks, "startup readiness retries are bounded")
+assertEqual(1, unavailable.retries, "final readiness failure does not retry")
+assertEqual(0, unavailable.recoveries, "unready OmniWM does not run recovery")
+assertEqual(1, #unavailable.notify, "final readiness failure reports once")
+
 local recheckEvents = {notify = {}, show = {}, done = 0}
 local recheckActions = {
   isFinder = function(window)
@@ -87,7 +133,7 @@ assertEqual(false, downloads.shouldCreateAfterLock({{
 assertEqual(1, #otherOwnerEvents.notify, "other owner reports one error")
 assertEqual(1, otherOwnerEvents.done, "other owner releases creation lock")
 
-local function harness(window, scratchpad, queryError, target, targetError, assignError)
+local function harness(window, scratchpad, queryError, target, targetError, assignError, showError)
   local calls = {notify = {}, query = 0, target = 0, assign = 0, show = {}, done = 0}
   local pendingTargetCallback
   downloads.assignNewScratchpad(window, {
@@ -108,7 +154,7 @@ local function harness(window, scratchpad, queryError, target, targetError, assi
     end,
     show = function(id, callback)
       table.insert(calls.show, id)
-      callback(nil, nil)
+      callback(nil, showError)
     end,
     done = function()
       calls.done = calls.done + 1
@@ -153,6 +199,10 @@ assertEqual("target failed", targetFailure.notify[1], "target query failure is r
 local assignFailure = harness(focusedWindow, {}, nil, focusedWindow, nil, "assign failed")
 assertEqual(0, #assignFailure.show, "assignment failure does not show target")
 assertEqual("assign failed", assignFailure.notify[1], "assignment failure is reported")
+
+local showFailure = harness(focusedWindow, {}, nil, focusedWindow, nil, nil, "show failed")
+assertEqual(1, #showFailure.notify, "show failure is reported once")
+assertEqual("show failed", showFailure.notify[1], "show failure preserves its detail")
 
 local function recoveryHarness(options)
   local calls = {events = {}, notify = {}, done = 0}

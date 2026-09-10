@@ -83,7 +83,8 @@ Commit the two files with message `Recover lost Finder scratchpad state`.
 
 **Interfaces:**
 - Consumes: `downloads.recoverScratchpad(snapshot, actions)` from Task 1.
-- Produces: one delayed `recoverDownloadsScratchpad()` call after helper load.
+- Produces: one delayed readiness loop and one `recoverDownloadsScratchpad()`
+  call after OmniWM IPC becomes ready.
 
 - [ ] **Step 1: Add exact live-state queries**
 
@@ -107,10 +108,12 @@ window reports `scratchpadIndex == 1`. If it remains visible, toggle scratchpad
 slot 1 and poll until hidden. Navigate back to the saved exact focused window.
 If none exists, switch to the saved workspace number.
 
-- [ ] **Step 3: Schedule one recovery attempt**
+- [ ] **Step 3: Wait for IPC and schedule one recovery attempt**
 
-Use `hs.timer.doAfter(1, recoverDownloadsScratchpad)` after all helper functions
-are defined. Do not repeat the attempt on an interval.
+After all helper functions are defined, wait one second and probe OmniWM IPC.
+Retry the probe once per second for up to 30 attempts. Run
+`recoverDownloadsScratchpad()` once after a successful probe. Do not repeat the
+recovery on an interval.
 
 - [ ] **Step 4: Update the cheat sheet**
 
