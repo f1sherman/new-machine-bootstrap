@@ -37,6 +37,7 @@ sites_output="$(run_hook "$repo" 'git push origin HEAD:main')"
 force_commands=(
   'git push --force origin HEAD:main'
   'git push -f origin HEAD:main'
+  'git push -uf origin HEAD:main'
   'git push --force-with-lease origin HEAD:main'
   'git push --force-if-includes origin HEAD:main'
   'git push origin +HEAD:main'
