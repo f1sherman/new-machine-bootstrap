@@ -4,15 +4,15 @@
 
 ## Goal
 
-Make the Codex ChatGPT Sites push exception validate Git state in the working
-directory requested by the shell tool call.
+Make the Codex ChatGPT Sites push exception validate Git state in an explicit
+repository directory that survives the live hook boundary.
 
 ## Non-goals
 
 - Do not broaden the allowed command shapes, hosts, refspecs, or authentication
   settings.
-- Do not parse `cd`, `git -C`, or other repository-selection syntax from the
-  command.
+- Do not parse `cd`, wrappers, or repository-selection syntax other than one
+  strict `git -C <absolute path>` prefix.
 - Do not change the Pi guard, which already receives its selected working
   directory as an explicit argument.
 
@@ -24,18 +24,23 @@ directory requested by the shell tool call.
   subprocess in the hook process directory.
 - The same redacted publish command passes when the hook process starts in the
   Site repository and fails when it starts in the parent directory.
-- Codex passes the shell tool's requested directory as `.tool_input.workdir` in
-  the `PreToolUse` payload.
+- The live Codex `PreToolUse` payload omits the shell tool's requested
+  `workdir`. It contains the session directory as top-level `.cwd` and only the
+  command as `.tool_input.command`.
+- The per-command directory must therefore be present in the command that the
+  hook evaluates.
 
 ## Recommended Approach
 
-Read `.tool_input.workdir` with the command. Pass that directory to every Git
-subprocess used by the strict Sites exception. Keep the normal push-blocking
-analysis unchanged so this fix only affects the existing exception.
+Allow one additional strict Sites command shape with `git -C <absolute path>`
+before the existing plain or authenticated push form. Use that path for every
+Git subprocess in the strict Sites exception. Keep the normal push-blocking
+analysis unchanged.
 
-Require a nonempty working directory for the exception. If it is missing,
-invalid, or not a Git repository, keep the fail-closed denial. This uses one
-explicit protocol field and avoids path inference.
+Continue to support the existing form when the hook process already runs in the
+Site repository. Do not use `.tool_input.workdir` because live Codex does not
+send it. Require exactly one `-C`, an absolute path, and a valid Git repository.
+Missing, relative, repeated, or invalid paths keep the fail-closed denial.
 
 ## Alternatives Considered
 
@@ -44,44 +49,43 @@ explicit protocol field and avoids path inference.
 This preserves current code but does not represent the shell tool request. It
 causes the reported false denial.
 
-### Parse repository changes from the command
+### Recover `workdir` from the hook payload or transcript
 
-Parsing `cd`, `git -C`, wrappers, and shell state would broaden a deliberately
-strict security boundary. It is unnecessary because the tool call already has
-an explicit working directory.
+The live payload does not contain the field. Reading the session transcript by
+tool ID would couple approval to an unstable file format and timing.
 
-### Fall back from `workdir` to the hook process directory
+### Infer the Site repository below the session directory
 
-A fallback can hide missing protocol data and produce different decisions for
-the same tool request. The strict exception should fail closed instead.
+Directory discovery can select the wrong repository and makes the policy depend
+on generated folder layouts. An explicit `git -C` path is unambiguous.
 
 ## Components and Data Flow
 
-1. The shell tool requests a command and `workdir`.
-2. Codex sends both values in the `PreToolUse` payload.
-3. `codex-block-git-push-main` extracts both values.
-4. The embedded Python validator supplies `workdir` as `cwd` to all Git checks
+1. The shell command includes `git -C <absolute Site repository>`.
+2. Codex sends the complete command in `.tool_input.command`.
+3. `codex-block-git-push-main` extracts the single explicit repository path.
+4. The embedded Python validator supplies that path as `cwd` to all Git checks
    used by the Sites exception.
-5. The command is allowed only when the existing strict command and repository
-   checks pass in that directory.
+5. The command is allowed only when the existing strict destination, refspec,
+   authentication, and repository checks pass in that directory.
 
 ## Error Handling
 
-A missing directory, an invalid directory, a failed Git process, or a non-Git
-directory does not qualify for the exception. The hook returns the existing
+A relative, missing, repeated, invalid, or non-Git `-C` directory does not
+qualify for the exception. A failed Git process also keeps the existing
 main-push denial.
 
 ## Testing and Verification
 
-- Add a production-hook regression that starts the hook in a parent directory,
-  puts the Site repository in `.tool_input.workdir`, and allows the existing
-  authenticated publish command.
-- Confirm the same payload is denied when `workdir` is missing, invalid, or not
-  a Git repository.
+- Add a production-hook regression that starts the hook in a parent directory
+  and allows an authenticated push with `git -C <Site repository>`.
+- Confirm a separate tool `workdir` field does not qualify the command because
+  it is absent from the live hook contract.
+- Confirm relative, missing, repeated, and non-repository `-C` paths are denied.
 - Run both managed-hook suites and shell syntax checks.
 - Provision the repository-managed hook.
-- Exercise the deployed hook from a parent directory with a Site repository in
-  `.tool_input.workdir`.
+- Exercise the deployed hook from a parent directory with an explicit
+  `git -C <Site repository>` command.
 
 ## Rollout
 
