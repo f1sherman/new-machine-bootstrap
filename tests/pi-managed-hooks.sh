@@ -54,6 +54,7 @@ let sessionContextIsStale = false;
 let staleContextReads = 0;
 const chatgptSitesUrl = "https://git.chatgpt-team.site/team/site.git";
 const normalGitUrl = "https://example.com/team/site.git";
+const chatgptSitesAuthConfig = "http.extraHeader=Authorization: Bearer redacted";
 let effectiveChatgptSitesUrl = chatgptSitesUrl;
 let configuredRemoteNames = [];
 let legacyRemoteNames = [];
@@ -904,6 +905,13 @@ for (const command of destructiveCases) {
 }
 
 const strictSitesDeniedCases = [
+  `git -c http.extraHeader= push ${chatgptSitesUrl} HEAD:main`,
+  `git -c user.name=redacted push ${chatgptSitesUrl} HEAD:main`,
+  `git -c '${chatgptSitesAuthConfig}' -c '${chatgptSitesAuthConfig}' push ${chatgptSitesUrl} HEAD:main`,
+  `git -chttp.extraHeader=redacted push ${chatgptSitesUrl} HEAD:main`,
+  `git -c '${chatgptSitesAuthConfig}' push --force ${chatgptSitesUrl} HEAD:main`,
+  `git -c 'http.extraHeader=Authorization: Bearer $TOKEN' push ${chatgptSitesUrl} HEAD:main`,
+  `git -c 'http.extraHeader=Authorization: Bearer $(token)' push ${chatgptSitesUrl} HEAD:main`,
   `git push --force ${chatgptSitesUrl} HEAD:main`,
   `git push origin HEAD:main`,
   "git push",
@@ -983,6 +991,24 @@ sitesPush = await handlers.get("tool_call")({
 }, ctx);
 assert.equal(sitesPush, undefined,
   "allows a plain explicit ChatGPT Sites push of HEAD to main");
+
+sitesPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: {
+    command: `git -c '${chatgptSitesAuthConfig}' push ${chatgptSitesUrl} HEAD:main`,
+  },
+}, ctx);
+assert.equal(sitesPush, undefined,
+  "allows an authenticated explicit ChatGPT Sites push of HEAD to main");
+
+sitesPush = await handlers.get("tool_call")({
+  toolName: "bash",
+  input: {
+    command: `git -c http.extraHeader='Authorization: Bearer redacted' push ${chatgptSitesUrl} HEAD:main`,
+  },
+}, ctx);
+assert.equal(sitesPush, undefined,
+  "allows an inline-quoted authenticated ChatGPT Sites push");
 
 effectiveChatgptSitesUrl = normalGitUrl;
 sitesPush = await handlers.get("tool_call")({

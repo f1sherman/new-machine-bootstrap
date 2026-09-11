@@ -74,8 +74,8 @@ def effective_push_url(remote):
     return ''
 
 
-def is_plain_chatgpt_sites_push(command_text):
-    if '\n' in command_text or '\r' in command_text:
+def is_chatgpt_sites_push(command_text):
+    if re.search(r'[$`*?\[\]{}\\<>();&|\r\n]', command_text):
         return False
 
     try:
@@ -83,11 +83,16 @@ def is_plain_chatgpt_sites_push(command_text):
     except ValueError:
         return False
 
-    if len(tokens) != 4 or tokens[:2] != ['git', 'push']:
+    if len(tokens) == 4 and tokens[:2] == ['git', 'push']:
+        remote, refspec = tokens[2:]
+    elif len(tokens) == 6 and tokens[0:2] == ['git', '-c'] and tokens[3] == 'push':
+        config_key, _, config_value = tokens[2].partition('=')
+        if config_key != 'http.extraHeader' or not config_value.strip():
+            return False
+        remote, refspec = tokens[4:]
+    else:
         return False
-    remote, refspec = tokens[2:]
-    if re.search(r'[$`*?\[\]{}\\<>();&|]', remote):
-        return False
+
     if refspec != 'HEAD:main' or remote_host(remote) != CHATGPT_SITES_HOST:
         return False
     if not git_output([], {}, 'rev-parse', '--git-dir'):
@@ -368,7 +373,7 @@ def segment_is_blocking(segment):
 
     return False
 
-if is_plain_chatgpt_sites_push(command):
+if is_chatgpt_sites_push(command):
     print('allow')
     raise SystemExit(0)
 
