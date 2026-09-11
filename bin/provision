@@ -251,7 +251,7 @@ install_ansible() {
     log_info "Installing Ansible via apt-get..."
     # DPkg::Lock::Timeout covers the dpkg frontend lock. The retry wrapper also
     # covers apt cache locks, which apt-get does not wait for by itself.
-    execute_command "apt_get_with_lock_retry sudo apt-get -o DPkg::Lock::Timeout=300 update && apt_get_with_lock_retry sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300 install -y ansible"
+    execute_command "apt_get_with_lock_retry sudo env LC_ALL=C apt-get -o DPkg::Lock::Timeout=300 update && apt_get_with_lock_retry sudo env LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300 install -y ansible"
   else
     log_error "Unsupported platform for automatic Ansible installation"
     exit 1

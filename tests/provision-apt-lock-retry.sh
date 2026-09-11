@@ -24,6 +24,15 @@ cat > "$FAKE_BIN/apt-get" <<'SCRIPT'
 set -e
 printf '%s\n' "$*" >> "$APT_CALLS"
 
+apt_lists_lock_error() {
+  if [[ "${LC_ALL:-}" == C ]]; then
+    echo "E: Could not get lock /var/lib/apt/lists/lock. It is held by process 1709 (apt-get)" >&2
+    echo "E: Unable to lock directory /var/lib/apt/lists/" >&2
+  else
+    echo "E: Sperre /var/lib/apt/lists/lock konnte nicht gesetzt werden. Prozess 1709 hält sie." >&2
+  fi
+}
+
 if [[ " $* " == *" update "* ]]; then
   attempts=0
   [[ ! -f "$APT_UPDATE_ATTEMPTS" ]] || attempts=$(cat "$APT_UPDATE_ATTEMPTS")
@@ -35,8 +44,7 @@ if [[ " $* " == *" update "* ]]; then
     exit 100
   fi
   if [[ "$APT_SCENARIO" == "persistent-lock" || $attempts -eq 1 ]]; then
-    echo "E: Could not get lock /var/lib/apt/lists/lock. It is held by process 1709 (apt-get)" >&2
-    echo "E: Unable to lock directory /var/lib/apt/lists/" >&2
+    apt_lists_lock_error
     exit 100
   fi
   exit 0
