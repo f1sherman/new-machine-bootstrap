@@ -869,14 +869,62 @@ function dynamicGitPushBlockReason(command) {
     : "";
 }
 
-async function isPlainChatgptSitesPush(pi, command, cwd) {
-  if (/[\r\n]/.test(command)) return false;
+function strictShellWords(command) {
+  if (/[$`*?\[\]{}\\<>();&|\r\n]/.test(command)) return null;
 
-  const tokens = command.replace(/\s+/g, " ").trim().split(" ").map(unquoteShellToken);
-  if (tokens.length !== 4 || tokens[0] !== "git" || tokens[1] !== "push") return false;
+  const words = [];
+  let current = "";
+  let quote = "";
+  let started = false;
 
-  const [remote, refspec] = tokens.slice(2);
-  if (/[$`*?\[\]{}\\<>();&|]/.test(remote)) return false;
+  for (const character of command) {
+    if (quote) {
+      if (character === quote) quote = "";
+      else current += character;
+      started = true;
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      started = true;
+      continue;
+    }
+    if (/\s/.test(character)) {
+      if (started) words.push(current);
+      current = "";
+      started = false;
+      continue;
+    }
+    current += character;
+    started = true;
+  }
+
+  if (quote) return null;
+  if (started) words.push(current);
+  return words;
+}
+
+async function isChatgptSitesPush(pi, command, cwd) {
+  const tokens = strictShellWords(command);
+  if (!tokens) return false;
+
+  let remote;
+  let refspec;
+  if (tokens.length === 4 && tokens[0] === "git" && tokens[1] === "push") {
+    [remote, refspec] = tokens.slice(2);
+  } else if (tokens.length === 6
+    && tokens[0] === "git"
+    && tokens[1] === "-c"
+    && tokens[3] === "push") {
+    const separator = tokens[2].indexOf("=");
+    const configKey = separator === -1 ? tokens[2] : tokens[2].slice(0, separator);
+    const configValue = separator === -1 ? "" : tokens[2].slice(separator + 1);
+    if (configKey !== "http.extraHeader" || !configValue.trim()) return false;
+    [remote, refspec] = tokens.slice(4);
+  } else {
+    return false;
+  }
+
   if (refspec !== "HEAD:main" || !chatgptSitesHost(remote)) return false;
 
   const root = await gitRoot(pi, cwd);
@@ -907,7 +955,7 @@ async function isPlainChatgptSitesPush(pi, command, cwd) {
 async function pushMainBlockReason(pi, command, cwd, allowSitesPush = true) {
   const dynamicReason = dynamicGitPushBlockReason(command);
   if (dynamicReason) return dynamicReason;
-  if (allowSitesPush && await isPlainChatgptSitesPush(pi, command, cwd)) return "";
+  if (allowSitesPush && await isChatgptSitesPush(pi, command, cwd)) return "";
 
   const mainRef = "\\+?(([^\\s;&|()<>]+:)?(main|refs/heads/main)|:(main|refs/heads/main)?|:)";
   let segmentCwds = [cwd];

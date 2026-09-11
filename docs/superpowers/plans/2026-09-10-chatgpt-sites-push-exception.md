@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Allow one plain direct `main` push form to the explicit `git.chatgpt-team.site` HTTPS destination.
+**Goal:** Allow plain and authenticated direct `main` push forms to the explicit `git.chatgpt-team.site` HTTPS destination.
 
-**Architecture:** Both managed push guards recognize only `git push <explicit-sites-https-url> HEAD:main` with no options, wrappers, expansion, or extra refspecs. They resolve local Git URL rewrites without network access and allow the command only when both the explicit and effective hosts match; every other direct-main push retains fail-closed behavior.
+**Architecture:** Both managed push guards recognize `git push <explicit-sites-https-url> HEAD:main` and the same command with exactly one preceding `-c http.extraHeader=<nonempty value>` authentication setting. They resolve local Git URL rewrites without network access and allow the commands only when both the explicit and effective hosts match; every other direct-main push retains fail-closed behavior.
 
 **Tech Stack:** Bash, Python 3 standard library, TypeScript, Node.js assertions, Git
 
@@ -33,9 +33,11 @@
 
 Create a temporary repository and send the real hook a plain explicit Sites
 URL push. Assert that `git push https://git.chatgpt-team.site/team/site.git
-HEAD:main` returns no decision. Assert that normal URLs, named or implicit
-remotes, options, force modes, wrappers, expansion, URL rewrites, and extra
-refspecs return `permissionDecision: deny`.
+HEAD:main` and the same command with one nonempty `-c http.extraHeader=…`
+setting return no decision. Assert that empty headers, other or repeated Git
+configuration, normal URLs, named or implicit remotes, options, force modes,
+wrappers, expansion, URL rewrites, and extra refspecs return
+`permissionDecision: deny`.
 
 - [ ] **Step 2: Run the test to verify RED**
 
@@ -45,7 +47,8 @@ Expected: FAIL because the current hook denies the Sites remote.
 
 - [ ] **Step 3: Implement minimal remote resolution**
 
-Add a Python helper that accepts only four shell tokens: `git`, `push`, an
+Add a Python helper that accepts the four-token plain form or a six-token form
+with `git`, `-c`, one nonempty `http.extraHeader=<value>` assignment, `push`, an
 explicit HTTPS URL on the exact Sites host, and `HEAD:main`. Require
 `git rev-parse --git-dir` to succeed. Resolve push-specific URL rewrites by
 adding a random temporary remote through command-scoped Git configuration and
@@ -77,7 +80,8 @@ Commit the new test and hook as one atomic change.
 - [ ] **Step 1: Write the failing behavior test**
 
 Extend the Git execution fake with URL-rewrite results. Assert that the plain
-explicit Sites HTTPS URL command is allowed, while named and implicit remotes,
+and authenticated explicit Sites HTTPS URL commands are allowed, while empty
+headers, other or repeated Git configuration, named and implicit remotes,
 options, wrappers, force modes, and rewritten URLs remain blocked.
 
 - [ ] **Step 2: Run the test to verify RED**
@@ -88,11 +92,11 @@ Expected: FAIL because the current Pi hook blocks the Sites push.
 
 - [ ] **Step 3: Implement equivalent selected-remote checks**
 
-Add a focused helper that recognizes the same four-token explicit Sites push,
-requires a valid repository, resolves the effective push URL with a random
-command-scoped remote and `git remote -v`, and matches the exact host. Consult
-it before the normal push-to-main denial. Preserve fail-closed behavior for
-every other form.
+Add a focused quote-aware helper that recognizes the same four-token plain form
+or six-token authenticated form, requires a valid repository, resolves the
+effective push URL with a random command-scoped remote and `git remote -v`, and
+matches the exact host. Consult it before the normal push-to-main denial.
+Preserve fail-closed behavior for every other form.
 
 - [ ] **Step 4: Run the test to verify GREEN**
 

@@ -8,6 +8,7 @@ trap 'rm -rf "$TMPDIR_ROOT"' EXIT
 
 SITES_URL='https://git.chatgpt-team.site/team/site.git'
 NORMAL_URL='https://example.com/owner/repo.git'
+AUTH_CONFIG='http.extraHeader=Authorization: Bearer redacted'
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -53,6 +54,10 @@ git -C "$repo" remote add upstream "$NORMAL_URL"
 
 assert_allowed "$repo" "plain explicit Sites push" \
   "git push $SITES_URL HEAD:main"
+assert_allowed "$repo" "authenticated explicit Sites push" \
+  "git -c '$AUTH_CONFIG' push $SITES_URL HEAD:main"
+assert_allowed "$repo" "inline-quoted authenticated Sites push" \
+  "git -c http.extraHeader='Authorization: Bearer redacted' push $SITES_URL HEAD:main"
 
 git -C "$repo" config "remote.$SITES_URL.url" "$NORMAL_URL"
 assert_denied "$repo" "URL-shaped remote name pointing to a normal host" \
@@ -76,6 +81,13 @@ assert_denied "$repo" "explicit normal remote in mixed repository" \
   'git push upstream HEAD:main'
 
 strict_shape_cases=(
+  "git -c http.extraHeader= push $SITES_URL HEAD:main"
+  "git -c user.name=redacted push $SITES_URL HEAD:main"
+  "git -c '$AUTH_CONFIG' -c '$AUTH_CONFIG' push $SITES_URL HEAD:main"
+  "git -chttp.extraHeader=redacted push $SITES_URL HEAD:main"
+  "git -c '$AUTH_CONFIG' push --force $SITES_URL HEAD:main"
+  "git -c 'http.extraHeader=Authorization: Bearer \$TOKEN' push $SITES_URL HEAD:main"
+  "git -c 'http.extraHeader=Authorization: Bearer \$(token)' push $SITES_URL HEAD:main"
   "git push --force $SITES_URL HEAD:main"
   "git push -f $SITES_URL HEAD:main"
   "git push $SITES_URL +HEAD:main"

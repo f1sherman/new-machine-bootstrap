@@ -26,17 +26,20 @@ repositories.
 
 ## Recommended Approach
 
-Allow one strict command shape: a plain `git push` whose destination is an
-explicit HTTPS URL on the exact `git.chatgpt-team.site` host and whose sole
-refspec is the unforced `HEAD:main`. Require a valid Git repository. Resolve the
-URL through Git's local URL-rewrite rules without network access and require the
-effective URL to remain on the same exact host.
+Allow two strict command shapes. The first is a plain `git push`. The second
+adds exactly one command-scoped `-c http.extraHeader=<nonempty value>` setting
+before `push` so ChatGPT Sites can authenticate. In both forms, the destination
+must be an explicit HTTPS URL on the exact `git.chatgpt-team.site` host and the
+sole refspec must be the unforced `HEAD:main`. Header values can contain spaces
+when shell-quoted, but cannot contain shell expansion or control syntax.
 
-Named remotes, implicit remotes, Git command options, push options, shell
-wrappers, shell expansion, environment assignments, extra refspecs, forced
-refspecs, and unresolved repository state do not qualify. They keep the normal
-fail-closed result. The Pi hook will apply the same strict rule through its
-existing Git command interface.
+Require a valid Git repository. Resolve the URL through Git's local URL-rewrite
+rules without network access and require the effective URL to remain on the same
+exact host. Named remotes, implicit remotes, other or multiple Git configuration
+options, push options, shell wrappers, shell expansion, environment assignments,
+extra refspecs, forced refspecs, and unresolved repository state do not qualify.
+They keep the normal fail-closed result. The Pi hook will apply the same strict
+rule through its existing Git command interface.
 
 This approach follows the service boundary without trusting Git's broad remote
 configuration surface. It deliberately requires ChatGPT Sites to use the
@@ -72,18 +75,19 @@ normal repositories used in ChatGPT. The scope is too broad.
 
 ## Error Handling
 
-Unknown repositories, malformed commands, URL rewrites to another host, and
-non-matching URLs keep the current fail-closed behavior. Only the strict plain
-command with both an explicit and effective exact service host gets the
-exception.
+Unknown repositories, malformed commands, empty authentication headers, URL
+rewrites to another host, and non-matching URLs keep the current fail-closed
+behavior. Only the strict plain or authenticated command with both an explicit
+and effective exact service host gets the exception.
 
 ## Testing and Verification
 
 1. Prove that a direct push to `main` with a normal URL is blocked.
-2. Prove that a plain explicit `git.chatgpt-team.site` URL push of `HEAD:main`
-   is allowed.
-3. Prove that named or implicit remotes, force modes, options, shell expansion,
-   URL rewrites, and extra refspecs remain blocked.
+2. Prove that plain and authenticated explicit `git.chatgpt-team.site` URL
+   pushes of `HEAD:main` are allowed.
+3. Prove that empty headers, other or repeated Git configuration, named or
+   implicit remotes, force modes, options, shell expansion, URL rewrites, and
+   extra refspecs remain blocked.
 4. Run the Codex hook test and the Pi managed-hooks test.
 5. Run provisioning and confirm the managed hook is deployed from this branch.
 6. Run `bin/provision --check` to confirm idempotence.
