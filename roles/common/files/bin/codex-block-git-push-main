@@ -3,22 +3,17 @@ set -euo pipefail
 
 reason='Do not push to main directly. Open a PR.'
 command=''
-requested_workdir=''
-{
-  IFS= read -r -d '' command || true
-  IFS= read -r -d '' requested_workdir || true
-} < <(jq -j '
+IFS= read -r -d '' command < <(jq -j '
   def nul_free_string:
     if type == "string" and index("\u0000") == null then . else "" end;
-  (.tool_input.command // "" | nul_free_string), "\u0000",
-  (.tool_input.workdir // "" | nul_free_string), "\u0000"
-' 2>/dev/null || true)
+  (.tool_input.command // "" | nul_free_string), "\u0000"
+' 2>/dev/null || true) || true
 
 if [[ -z "$command" ]]; then
   exit 0
 fi
 
-should_deny="$(COMMAND="$command" REQUESTED_WORKDIR="$requested_workdir" python3 - <<'PY'
+should_deny="$(COMMAND="$command" python3 - <<'PY'
 import os
 import re
 import secrets
@@ -28,7 +23,6 @@ from pathlib import PurePath
 from urllib.parse import urlsplit
 
 command = os.environ['COMMAND']
-requested_workdir = os.environ['REQUESTED_WORKDIR']
 CHATGPT_SITES_HOST = 'git.chatgpt-team.site'
 
 
@@ -87,7 +81,7 @@ def effective_push_url(remote, repo_cwd):
     return ''
 
 
-def is_chatgpt_sites_push(command_text, repo_cwd):
+def is_chatgpt_sites_push(command_text):
     if re.search(r'[$`*?\[\]{}\\<>();&|\r\n]', command_text):
         return False
 
@@ -96,6 +90,7 @@ def is_chatgpt_sites_push(command_text, repo_cwd):
     except ValueError:
         return False
 
+    repo_cwd = os.getcwd()
     if len(tokens) == 4 and tokens[:2] == ['git', 'push']:
         remote, refspec = tokens[2:]
     elif len(tokens) == 6 and tokens[0:2] == ['git', '-c'] and tokens[3] == 'push':
@@ -103,6 +98,24 @@ def is_chatgpt_sites_push(command_text, repo_cwd):
         if config_key != 'http.extraHeader' or not config_value.strip():
             return False
         remote, refspec = tokens[4:]
+    elif len(tokens) == 6 and tokens[0:2] == ['git', '-C'] and tokens[3] == 'push':
+        repo_cwd = tokens[2]
+        if not os.path.isabs(repo_cwd):
+            return False
+        remote, refspec = tokens[4:]
+    elif (
+        len(tokens) == 8
+        and tokens[0:2] == ['git', '-C']
+        and tokens[3] == '-c'
+        and tokens[5] == 'push'
+    ):
+        repo_cwd = tokens[2]
+        if not os.path.isabs(repo_cwd):
+            return False
+        config_key, _, config_value = tokens[4].partition('=')
+        if config_key != 'http.extraHeader' or not config_value.strip():
+            return False
+        remote, refspec = tokens[6:]
     else:
         return False
 
@@ -386,7 +399,7 @@ def segment_is_blocking(segment):
 
     return False
 
-if is_chatgpt_sites_push(command, requested_workdir):
+if is_chatgpt_sites_push(command):
     print('allow')
     raise SystemExit(0)
 
