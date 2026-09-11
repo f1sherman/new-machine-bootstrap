@@ -215,15 +215,43 @@ execute_command() {
   log_info "Command completed successfully"
 }
 
+apt_get_with_lock_retry() {
+  local timeout=${APT_LOCK_RETRY_TIMEOUT_SECONDS:-300}
+  local interval=${APT_LOCK_RETRY_INTERVAL_SECONDS:-2}
+  local deadline=$(($(date +%s) + timeout))
+  local output status lock_message
+
+  while true; do
+    set +e
+    output=$("$@" 2>&1)
+    status=$?
+    set -e
+    [[ -z "$output" ]] || printf '%s\n' "$output"
+    [[ $status -ne 0 ]] || return 0
+
+    if ! grep -Eq 'Could not get lock /(var/lib/(apt/lists|dpkg)|var/cache/apt/archives)/|Unable to (lock directory /var/lib/apt/lists|acquire the dpkg frontend lock)' <<< "$output"; then
+      return "$status"
+    fi
+    if [[ $(date +%s) -ge $deadline ]]; then
+      log_error "Timed out after ${timeout}s waiting for the package manager lock"
+      return "$status"
+    fi
+
+    lock_message=$(grep -Em1 'Could not get lock|Unable to (lock directory|acquire the dpkg frontend lock)' <<< "$output")
+    log_info "Package manager lock held. Retrying apt-get in ${interval}s: $lock_message"
+    sleep "$interval"
+  done
+}
+
 install_ansible() {
   if mac_os; then
     log_info "Installing Ansible via Homebrew..."
     execute_command "brew install ansible"
   elif command_exists apt-get; then
     log_info "Installing Ansible via apt-get..."
-    # DPkg::Lock::Timeout makes apt wait for the dpkg lock instead of failing
-    # when another apt process (e.g. devcontainer lifecycle hooks) holds it.
-    execute_command "sudo apt-get -o DPkg::Lock::Timeout=300 update && sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300 install -y ansible"
+    # DPkg::Lock::Timeout covers the dpkg frontend lock. The retry wrapper also
+    # covers apt cache locks, which apt-get does not wait for by itself.
+    execute_command "apt_get_with_lock_retry sudo apt-get -o DPkg::Lock::Timeout=300 update && apt_get_with_lock_retry sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300 install -y ansible"
   else
     log_error "Unsupported platform for automatic Ansible installation"
     exit 1
