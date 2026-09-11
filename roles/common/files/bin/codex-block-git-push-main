@@ -7,7 +7,12 @@ requested_workdir=''
 {
   IFS= read -r -d '' command || true
   IFS= read -r -d '' requested_workdir || true
-} < <(jq -j '(.tool_input.command // ""), "\u0000", (.tool_input.workdir // ""), "\u0000"' 2>/dev/null || true)
+} < <(jq -j '
+  def nul_free_string:
+    if type == "string" and index("\u0000") == null then . else "" end;
+  (.tool_input.command // "" | nul_free_string), "\u0000",
+  (.tool_input.workdir // "" | nul_free_string), "\u0000"
+' 2>/dev/null || true)
 
 if [[ -z "$command" ]]; then
   exit 0

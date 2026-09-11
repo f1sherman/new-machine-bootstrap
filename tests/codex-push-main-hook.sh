@@ -56,6 +56,21 @@ assert_denied_without_workdir() {
   [[ "$decision" == deny ]] || fail "$label was not denied: $command"
 }
 
+assert_denied_with_nul_workdir() {
+  local process_dir="$1"
+  local label="$2"
+  local command="$3"
+  local workdir="$4"
+  local payload output decision
+
+  payload="$(jq -cn --arg command "$command" --arg workdir "$workdir" \
+    '{tool_input:{command:$command,workdir:($workdir + "\u0000/missing")}}')"
+  output="$(cd "$process_dir" && printf '%s\n' "$payload" | "$HOOK")"
+  decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' \
+    <<<"$output")"
+  [[ "$decision" == deny ]] || fail "$label was not denied: $command"
+}
+
 assert_allowed() {
   local process_dir="$1"
   local label="$2"
@@ -83,6 +98,8 @@ non_repo="$TMPDIR_ROOT/non-repo"
 mkdir -p "$non_repo"
 assert_denied "$TMPDIR_ROOT" "Sites push with non-repository requested workdir" \
   "$sites_command" "$non_repo"
+assert_denied_with_nul_workdir "$TMPDIR_ROOT" \
+  "Sites push with NUL-containing requested workdir" "$sites_command" "$repo"
 
 assert_allowed "$repo" "plain explicit Sites push" \
   "git push $SITES_URL HEAD:main"
