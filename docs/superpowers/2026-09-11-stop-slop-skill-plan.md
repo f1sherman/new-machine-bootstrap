@@ -14,7 +14,7 @@
 - Install `_stop-slop` for Claude Code and Codex.
 - Install `z-stop-slop` for Pi.
 - Preserve the upstream author metadata and complete MIT license.
-- Keep upstream instructions and references unchanged except for each `SKILL.md` `name` field.
+- Keep upstream instructions and references unchanged except for each `SKILL.md` `name` field and the corrected output in Example 4.
 - Do not fetch upstream content during provisioning.
 - Do not add a static configuration test that duplicates provisioning checks.
 
@@ -43,7 +43,7 @@
 - Produces: `_stop-slop` skill directories for Claude Code and Codex, and a `z-stop-slop` skill directory for Pi.
 
 **Reviewer Verification:**
-- Run `bin/provision`, then compare all three deployed trees with their source trees while excluding only the expected `SKILL.md` name difference between the shared and Pi copies. Expected result: all comparisons pass and all three metadata names match their directory names.
+- Run `bin/provision`, then compare all three deployed trees with their source trees. Expected result: all comparisons pass, all three metadata names match their directory names, and no em dash remains in either installed skill tree.
 
 - [ ] **Step 1: Confirm the skill is not present**
 
@@ -58,7 +58,7 @@ Expected: both commands exit 0, which confirms the requested installation is abs
 
 - [ ] **Step 2: Add the shared Claude Code and Codex skill**
 
-Copy the upstream `SKILL.md`, `README.md`, `LICENSE`, and `references/` files from commit `8da1f030185bdfe8471220585162991eaeb970e9` into `roles/common/files/config/skills/common/_stop-slop/`. Change only the frontmatter line `name: stop-slop` to `name: _stop-slop` in `SKILL.md`.
+Copy the upstream `SKILL.md`, `README.md`, `LICENSE`, and `references/` files from commit `8da1f030185bdfe8471220585162991eaeb970e9` into `roles/common/files/config/skills/common/_stop-slop/`. Change the frontmatter line `name: stop-slop` to `name: _stop-slop` in `SKILL.md`. In the corrected output for Example 4, replace `Speed, quality, cost—pick two.` with `Pick two: speed, quality, or cost.` so the example follows the skill's ban on em dashes.
 
 Create `UPSTREAM.md` with this exact content:
 
@@ -70,8 +70,9 @@ Create `UPSTREAM.md` with this exact content:
 - Author: Hardik Pandya
 - License: MIT; see `LICENSE`
 
-This vendored copy changes only the `name` field in `SKILL.md` so it matches
-the agent-specific installation name.
+This vendored copy changes the `name` field in `SKILL.md` so it matches the
+agent-specific installation name. It also removes the em dash from the corrected
+output in Example 4 so the example follows the skill's core rules.
 ```
 
 - [ ] **Step 3: Add the Pi skill**
@@ -83,13 +84,16 @@ the Pi `SKILL.md`.
 - [ ] **Step 4: Verify vendored content and attribution**
 
 Fetch upstream files through read-only GitHub API calls into a temporary
-comparison directory. Compare `README.md`, `LICENSE`, and each `references/`
-file byte-for-byte against both vendored trees. Compare `SKILL.md` after
-normalizing the agent-specific `name` to `stop-slop`. Check both `UPSTREAM.md`
-files for the full commit and MIT license reference.
+comparison directory. Compare `README.md`, `LICENSE`, and the reference files
+other than `examples.md` byte-for-byte against both vendored trees. Compare
+`SKILL.md` after normalizing the agent-specific `name` to `stop-slop`. Compare
+`examples.md` after restoring the upstream Example 4 output. Check both
+`UPSTREAM.md` files for the full commit, MIT license reference, and documented
+Example 4 correction.
 
 Expected: every comparison exits 0. The shared skill reports
-`name: _stop-slop`; the Pi skill reports `name: z-stop-slop`.
+`name: _stop-slop`; the Pi skill reports `name: z-stop-slop`; and neither tree
+contains an em dash.
 
 - [ ] **Step 5: Provision and verify all agent destinations**
 

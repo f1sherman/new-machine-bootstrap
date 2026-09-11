@@ -59,10 +59,11 @@ Each tree contains:
 - `references/phrases.md`
 - `references/structures.md`
 
-The vendored instructions and references match upstream commit `8da1f030`.
-Only the `name` field in each `SKILL.md` changes to match the installed agent
-name. `UPSTREAM.md` records the repository URL, full commit, author, license,
-and local metadata change.
+The vendored instructions and references come from upstream commit `8da1f030`.
+The `name` field in each `SKILL.md` changes to match the installed agent name.
+The corrected output in Example 4 replaces an em dash with a colon so the
+example follows the skill's core rules. `UPSTREAM.md` records the repository
+URL, full commit, author, license, and both local changes.
 
 ## Attribution and License
 
