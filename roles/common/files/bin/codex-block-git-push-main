@@ -2,13 +2,18 @@
 set -euo pipefail
 
 reason='Do not push to main directly. Open a PR.'
-command="$(jq -r '.tool_input.command // empty' 2>/dev/null || true)"
+command=''
+requested_workdir=''
+{
+  IFS= read -r -d '' command || true
+  IFS= read -r -d '' requested_workdir || true
+} < <(jq -j '(.tool_input.command // ""), "\u0000", (.tool_input.workdir // ""), "\u0000"' 2>/dev/null || true)
 
 if [[ -z "$command" ]]; then
   exit 0
 fi
 
-should_deny="$(COMMAND="$command" python3 - <<'PY'
+should_deny="$(COMMAND="$command" REQUESTED_WORKDIR="$requested_workdir" python3 - <<'PY'
 import os
 import re
 import secrets
@@ -18,25 +23,27 @@ from pathlib import PurePath
 from urllib.parse import urlsplit
 
 command = os.environ['COMMAND']
+requested_workdir = os.environ['REQUESTED_WORKDIR']
 CHATGPT_SITES_HOST = 'git.chatgpt-team.site'
 
 
-def git_output(repo_args, repo_env, *args):
+def git_output(repo_cwd, repo_args, repo_env, *args):
     try:
         env = os.environ.copy()
         env.update(repo_env)
         return subprocess.check_output(
             ['git', *repo_args, *args],
+            cwd=repo_cwd,
             env=env,
             stderr=subprocess.DEVNULL,
             text=True,
         ).strip()
-    except subprocess.CalledProcessError:
+    except (OSError, subprocess.CalledProcessError):
         return ''
 
 
 def current_branch(repo_args, repo_env):
-    return git_output(repo_args, repo_env, 'branch', '--show-current')
+    return git_output(None, repo_args, repo_env, 'branch', '--show-current')
 
 
 def remote_host(url):
@@ -48,17 +55,18 @@ def remote_host(url):
         return ''
 
 
-def is_legacy_remote_name(remote):
+def is_legacy_remote_name(remote, repo_cwd):
     for namespace in ('remotes', 'branches'):
-        git_path = git_output([], {}, 'rev-parse', '--git-path', f'{namespace}/{remote}')
-        if git_path and os.path.exists(git_path):
+        git_path = git_output(repo_cwd, [], {}, 'rev-parse', '--git-path', f'{namespace}/{remote}')
+        if git_path and os.path.exists(os.path.join(repo_cwd, git_path)):
             return True
     return False
 
 
-def effective_push_url(remote):
+def effective_push_url(remote, repo_cwd):
     check_remote = f'chatgpt-sites-check-{secrets.token_hex(8)}'
     output = git_output(
+        repo_cwd,
         [],
         {},
         '-c',
@@ -74,7 +82,7 @@ def effective_push_url(remote):
     return ''
 
 
-def is_chatgpt_sites_push(command_text):
+def is_chatgpt_sites_push(command_text, repo_cwd):
     if re.search(r'[$`*?\[\]{}\\<>();&|\r\n]', command_text):
         return False
 
@@ -95,14 +103,14 @@ def is_chatgpt_sites_push(command_text):
 
     if refspec != 'HEAD:main' or remote_host(remote) != CHATGPT_SITES_HOST:
         return False
-    if not git_output([], {}, 'rev-parse', '--git-dir'):
+    if not git_output(repo_cwd, [], {}, 'rev-parse', '--git-dir'):
         return False
-    if remote in git_output([], {}, 'remote').splitlines():
+    if remote in git_output(repo_cwd, [], {}, 'remote').splitlines():
         return False
-    if is_legacy_remote_name(remote):
+    if is_legacy_remote_name(remote, repo_cwd):
         return False
 
-    return remote_host(effective_push_url(remote)) == CHATGPT_SITES_HOST
+    return remote_host(effective_push_url(remote, repo_cwd)) == CHATGPT_SITES_HOST
 
 
 def push_positionals(push_tokens):
@@ -373,7 +381,7 @@ def segment_is_blocking(segment):
 
     return False
 
-if is_chatgpt_sites_push(command):
+if is_chatgpt_sites_push(command, requested_workdir):
     print('allow')
     raise SystemExit(0)
 

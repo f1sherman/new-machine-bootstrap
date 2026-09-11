@@ -16,34 +16,54 @@ fail() {
 }
 
 run_hook() {
-  local repo="$1"
+  local process_dir="$1"
   local command="$2"
 
   (
-    cd "$repo"
-    jq -n --arg command "$command" '{tool_input:{command:$command}}' | "$HOOK"
+    cd "$process_dir"
+    if (( $# == 3 )); then
+      local workdir="$3"
+      jq -n --arg command "$command" --arg workdir "$workdir" \
+        '{tool_input:{command:$command,workdir:$workdir}}' | "$HOOK"
+    else
+      jq -n --arg command "$command" '{tool_input:{command:$command}}' | "$HOOK"
+    fi
   )
 }
 
 assert_denied() {
-  local repo="$1"
+  local process_dir="$1"
+  local label="$2"
+  local command="$3"
+  local workdir="${4-$process_dir}"
+  local output decision
+
+  output="$(run_hook "$process_dir" "$command" "$workdir")"
+  decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' \
+    <<<"$output")"
+  [[ "$decision" == deny ]] || fail "$label was not denied: $command"
+}
+
+assert_denied_without_workdir() {
+  local process_dir="$1"
   local label="$2"
   local command="$3"
   local output decision
 
-  output="$(run_hook "$repo" "$command")"
+  output="$(run_hook "$process_dir" "$command")"
   decision="$(jq -r '.hookSpecificOutput.permissionDecision // empty' \
     <<<"$output")"
   [[ "$decision" == deny ]] || fail "$label was not denied: $command"
 }
 
 assert_allowed() {
-  local repo="$1"
+  local process_dir="$1"
   local label="$2"
   local command="$3"
+  local workdir="${4-$process_dir}"
   local output
 
-  output="$(run_hook "$repo" "$command")"
+  output="$(run_hook "$process_dir" "$command" "$workdir")"
   [[ -z "$output" ]] || fail "$label was denied: $command"
 }
 
@@ -51,6 +71,18 @@ repo="$TMPDIR_ROOT/repo"
 git init -q -b main "$repo"
 git -C "$repo" remote add origin "$SITES_URL"
 git -C "$repo" remote add upstream "$NORMAL_URL"
+
+sites_command="git -c '$AUTH_CONFIG' push $SITES_URL HEAD:main"
+assert_allowed "$TMPDIR_ROOT" "Sites push with requested repository workdir" \
+  "$sites_command" "$repo"
+assert_denied_without_workdir "$TMPDIR_ROOT" \
+  "Sites push without requested workdir" "$sites_command"
+assert_denied "$TMPDIR_ROOT" "Sites push with missing requested workdir" \
+  "$sites_command" "$TMPDIR_ROOT/missing"
+non_repo="$TMPDIR_ROOT/non-repo"
+mkdir -p "$non_repo"
+assert_denied "$TMPDIR_ROOT" "Sites push with non-repository requested workdir" \
+  "$sites_command" "$non_repo"
 
 assert_allowed "$repo" "plain explicit Sites push" \
   "git push $SITES_URL HEAD:main"
