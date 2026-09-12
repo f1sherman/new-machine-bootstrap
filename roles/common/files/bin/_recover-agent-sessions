@@ -309,49 +309,56 @@ def read_pi_session(file)
   end
 
   return {} unless header.is_a?(Hash) && header["type"] == "session"
-  return {} if header["id"].to_s.empty?
 
-  cwd = header["cwd"].to_s
+  session_id = header["id"]
+  return {} unless session_id.is_a?(String) && !session_id.empty?
+
+  cwd = header["cwd"]
+  return {} unless cwd.is_a?(String)
   return {} unless cwd.start_with?(File::SEPARATOR) && File.expand_path(cwd) == cwd
 
   {
-    "session_id" => header.fetch("id"),
+    "session_id" => session_id,
     "cwd" => cwd,
     "name" => name,
     "user_messages" => user_messages,
     "assistant_messages" => assistant_messages,
     "shell_commands" => shell_commands
   }
-rescue Errno::ENOENT, Errno::EACCES, JSON::ParserError
+rescue Errno::ENOENT, Errno::EACCES, JSON::ParserError, ArgumentError
   {}
 end
 
 def list_pi_sessions(root, start_epoch, end_epoch)
-  expanded_root = File.realpath(File.expand_path(root))
-  return [] unless File.directory?(expanded_root)
-
   sessions = []
+  expanded_root = File.realpath(File.expand_path(root))
+  return sessions unless File.directory?(expanded_root)
+
   Find.find(expanded_root) do |path|
-    next unless path.end_with?(".jsonl") && File.file?(path)
-    next unless File.realpath(path) == path
+    begin
+      next unless path.end_with?(".jsonl") && File.file?(path)
+      next unless File.realpath(path) == path
 
-    updated_epoch = File.mtime(path).to_i
-    next if updated_epoch < start_epoch || updated_epoch > end_epoch
+      updated_epoch = File.mtime(path).to_i
+      next if updated_epoch < start_epoch || updated_epoch > end_epoch
 
-    read_json = read_pi_session(path)
-    next if read_json.empty?
+      read_json = read_pi_session(path)
+      next if read_json.empty?
 
-    sessions << {
-      "file" => path,
-      "cwd" => read_json.fetch("cwd"),
-      "sessionId" => read_json.fetch("session_id"),
-      "preview" => read_json.fetch("name"),
-      "_read_json" => read_json
-    }
+      sessions << {
+        "file" => path,
+        "cwd" => read_json.fetch("cwd"),
+        "sessionId" => read_json.fetch("session_id"),
+        "preview" => read_json.fetch("name"),
+        "_read_json" => read_json
+      }
+    rescue Errno::ENOENT, Errno::EACCES
+      next
+    end
   end
   sessions
 rescue Errno::ENOENT, Errno::EACCES
-  []
+  sessions
 end
 
 def entry_branch(entry)
