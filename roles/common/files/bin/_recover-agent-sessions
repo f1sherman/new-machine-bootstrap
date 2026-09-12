@@ -3,6 +3,7 @@
 
 require "digest"
 require "fileutils"
+require "find"
 require "json"
 require "open3"
 require "shellwords"
@@ -234,7 +235,123 @@ def claude_recent_lines(file)
 end
 
 def recent_lines_for_tool(tool, file)
-  tool == "Codex" ? codex_recent_lines(file) : claude_recent_lines(file)
+  case tool
+  when "Codex"
+    codex_recent_lines(file)
+  when "Claude"
+    claude_recent_lines(file)
+  else
+    []
+  end
+end
+
+def pi_text_from_message(message)
+  content = message["content"]
+
+  case content
+  when String
+    content
+  when Array
+    content.filter_map do |item|
+      next unless item.is_a?(Hash) && item["type"] == "text"
+
+      item["text"]
+    end.join("\n")
+  else
+    ""
+  end
+end
+
+def read_pi_session(file)
+  header = nil
+  name = ""
+  user_messages = []
+  assistant_messages = []
+  shell_commands = []
+
+  row_index = 0
+  File.foreach(file) do |line|
+    next if line.strip.empty?
+
+    row = JSON.parse(line)
+    return {} unless row.is_a?(Hash)
+
+    if row_index.zero?
+      header = row
+      row_index += 1
+      next
+    end
+    row_index += 1
+
+    case row["type"]
+    when "session_info"
+      name = row["name"].to_s unless row["name"].to_s.empty?
+    when "message"
+      message = row["message"]
+      next unless message.is_a?(Hash)
+
+      text = pi_text_from_message(message)
+      case message["role"]
+      when "user"
+        push_recent(user_messages, text, 80)
+      when "assistant"
+        push_recent(assistant_messages, text, 80)
+        Array(message["content"]).each do |item|
+          next unless item.is_a?(Hash) && item["type"] == "toolCall"
+          next unless item["name"].to_s.end_with?("bash")
+
+          arguments = item["arguments"]
+          command = arguments["command"] if arguments.is_a?(Hash)
+          push_recent(shell_commands, command.to_s, 40)
+        end
+      end
+    end
+  end
+
+  return {} unless header.is_a?(Hash) && header["type"] == "session"
+  return {} if header["id"].to_s.empty?
+
+  cwd = header["cwd"].to_s
+  return {} unless cwd.start_with?(File::SEPARATOR) && File.expand_path(cwd) == cwd
+
+  {
+    "session_id" => header.fetch("id"),
+    "cwd" => cwd,
+    "name" => name,
+    "user_messages" => user_messages,
+    "assistant_messages" => assistant_messages,
+    "shell_commands" => shell_commands
+  }
+rescue Errno::ENOENT, Errno::EACCES, JSON::ParserError
+  {}
+end
+
+def list_pi_sessions(root, start_epoch, end_epoch)
+  expanded_root = File.realpath(File.expand_path(root))
+  return [] unless File.directory?(expanded_root)
+
+  sessions = []
+  Find.find(expanded_root) do |path|
+    next unless path.end_with?(".jsonl") && File.file?(path)
+    next unless File.realpath(path) == path
+
+    updated_epoch = File.mtime(path).to_i
+    next if updated_epoch < start_epoch || updated_epoch > end_epoch
+
+    read_json = read_pi_session(path)
+    next if read_json.empty?
+
+    sessions << {
+      "file" => path,
+      "cwd" => read_json.fetch("cwd"),
+      "sessionId" => read_json.fetch("session_id"),
+      "preview" => read_json.fetch("name"),
+      "_read_json" => read_json
+    }
+  end
+  sessions
+rescue Errno::ENOENT, Errno::EACCES
+  []
 end
 
 def entry_branch(entry)
@@ -620,13 +737,17 @@ def infer_next_step(status, read_json, tool, file, last_completed)
   end
 end
 
-def build_resume_command(tool, cwd, session_id)
+def build_resume_command(tool, cwd, session_id, file)
   quoted_cwd = shell_double_quote(cwd)
 
-  if tool == "Codex"
+  case tool
+  when "Codex"
     %(cd "#{quoted_cwd}" && codex-yolo resume #{session_id})
-  else
+  when "Claude"
     %(cd "#{quoted_cwd}" && claude-yolo -r #{session_id})
+  else
+    quoted_file = shell_double_quote(file)
+    %(cd "#{quoted_cwd}" && pi --session "#{quoted_file}")
   end
 end
 
@@ -882,7 +1003,7 @@ def build_session_hash(tool, read_command, entry, start_epoch, end_epoch)
   updated_epoch = File.mtime(file).to_i
   return nil if updated_epoch < start_epoch || updated_epoch > end_epoch
 
-  read_json = read_session(read_command, file)
+  read_json = entry["_read_json"] || read_session(read_command, file)
 
   cwd = entry["cwd"].to_s
   cwd = read_json["cwd"].to_s if cwd.empty?
@@ -906,7 +1027,7 @@ def build_session_hash(tool, read_command, entry, start_epoch, end_epoch)
     "repo" => repo,
     "worktree" => worktree,
     "branch" => git_branch,
-    "resume" => build_resume_command(tool, cwd, session_id),
+    "resume" => build_resume_command(tool, cwd, session_id, file),
     "file" => file,
     "_preview" => entry["preview"].to_s,
     "_read_json" => read_json
@@ -947,6 +1068,14 @@ list_sessions("list-claude-sessions", days).each do |entry|
   next unless entry.is_a?(Hash)
 
   session = build_session_hash("Claude", "read-claude-session", entry, start_epoch, end_epoch)
+  entries << session if session
+end
+
+pi_session_root = ENV["RECOVER_AGENT_SESSIONS_PI_SESSION_DIR"].to_s
+pi_session_root = ENV["PI_CODING_AGENT_SESSION_DIR"].to_s if pi_session_root.empty?
+pi_session_root = File.join(Dir.home, ".pi", "agent", "sessions") if pi_session_root.empty?
+list_pi_sessions(pi_session_root, start_epoch, end_epoch).each do |entry|
+  session = build_session_hash("Pi", nil, entry, start_epoch, end_epoch)
   entries << session if session
 end
 
