@@ -1,7 +1,7 @@
 ---
 name: _recover-agent-sessions
 description: >
-  Find recent Claude and Codex sessions updated in a relative duration window.
+  Find recent Claude, Codex, and Pi sessions updated in a relative duration window.
   Use when the user is recovering after a restart, browsing recent agent work,
   or deciding which session to resume.
 ---
@@ -48,6 +48,7 @@ specific session. Resume commands must use:
 
 - `codex-yolo` for Codex sessions
 - `claude-yolo` for Claude sessions
+- `pi --session <exact-jsonl-path>` for Pi sessions
 
 Keep the status semantics strict:
 
