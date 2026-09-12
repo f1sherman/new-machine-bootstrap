@@ -157,6 +157,12 @@
     - { name: tmux-restore-handler-claude_session_id, mode: '0755' }
     - { name: tmux-restore-handler-pi_session_file, mode: '0755' }
 
+- name: Install Pi friction helper
+  copy:
+    src: bin/pi-friction
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/pi-friction'
+    mode: '0755'
+
 - name: Install Pi session staleness publisher
   copy:
     src: bin/pi-session-staleness-publish
