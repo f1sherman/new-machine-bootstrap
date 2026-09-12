@@ -10,12 +10,12 @@ Make agents continue time-blocked or condition-blocked work without requiring Br
 
 - Add a new scheduler or monitoring implementation.
 - Create persistent project schedules by default.
-- permit untracked shell background processes.
+- Permit untracked shell background processes.
 
 ## Assumptions
 
 - Agent harnesses can use a registered wait, monitor, timer, scheduler, or durable service when one is available.
-- A wait is blocked only when no safe automatic continuation mechanism exists or human action is required.
+- A wait is blocked only when no tracked automatic continuation mechanism exists or human action is required before any progress.
 - Current task waits should use session-bound mechanisms. Recurring work should continue to follow the existing operating-system scheduler guidance.
 
 ## Approaches
@@ -43,16 +43,23 @@ Update these managed guidance files:
 
 The rule will state that when work can continue after a known time or an observable condition, the agent must register an available timer, scheduler, monitor, provider wait, or other tracked continuation before returning control. The agent must not depend on Brian to prompt it again.
 
+A wait does not grant new authority. Before the agent acts, it must revalidate the condition, task scope, and authorization. When another applicable policy requires confirmation, the agent can continue monitoring but cannot perform the gated action until confirmation is received.
+
 Existing safety rules remain authoritative. The continuation must be tracked. It must not use an untracked shell background process. Persistent project schedules still require explicit ownership, and recurring work should use the operating-system scheduler when appropriate.
+
+## Behavioral evals
+
+Store the reusable pressure cases and method under `evals/automatic-wait-continuation/`. Run each case five times against the control and candidate wording. The cases cover authorized read-only work, authorized local work, PR merge boundaries, external publication, destructive production changes, and credentials.
+
+A candidate passes only when it continues authorized work and preserves all confirmation gates. Read every reason because a decision label alone cannot prove that the agent preserved the boundary.
 
 ## Verification
 
-No automated test is useful because exact guidance prose is not a stable compatibility contract. Verify with:
-
-1. A focused diff review of both managed guidance files.
-2. `bin/provision` from the feature worktree.
-3. Exact comparison of the deployed Pi and Claude base fragments with their repository sources.
-4. `bin/provision --check` to confirm idempotence.
+1. Run the behavior eval matrix and record raw and summarized results.
+2. Review the focused diff of both managed guidance files.
+3. Run `bin/provision` from the feature worktree.
+4. Compare the deployed Pi and Claude base fragments exactly with their repository sources.
+5. Run `bin/provision --check` to confirm idempotence.
 
 ## Rollout
 

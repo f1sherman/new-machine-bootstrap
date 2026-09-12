@@ -4,7 +4,7 @@
 
 **Goal:** Require supported agents to register automatic continuation when work is blocked only by time or an observable condition.
 
-**Architecture:** Add one harness-neutral policy bullet to each managed base guidance file. Use existing Ansible deployment and assembly tasks without adding scheduler infrastructure.
+**Architecture:** Define reusable pressure evals, compare control and candidate wording, then add the passing harness-neutral policy bullet to each managed base guidance file. Use existing Ansible deployment and assembly tasks without adding scheduler infrastructure.
 
 **Tech Stack:** Markdown guidance, Ansible provisioning
 
@@ -15,13 +15,18 @@
 - Do not add a scheduler implementation.
 - Do not permit untracked shell background processes.
 - Preserve existing ownership restrictions for persistent project schedules.
-- Do not add a tautological automated test for exact prose.
+- A wait must not grant authority or bypass another policy's confirmation gate.
+- Use behavioral prompt evals instead of a tautological test for exact prose.
 
 ---
 
 ### Task 1: Add and deploy the continuation rule
 
 **Files:**
+- Create: `evals/automatic-wait-continuation/README.md`
+- Create: `evals/automatic-wait-continuation/cases.json`
+- Create: `evals/automatic-wait-continuation/results-2026-09-11.jsonl`
+- Create: `evals/automatic-wait-continuation/results-2026-09-11.md`
 - Modify: `roles/common/files/pi/AGENTS.md.d/00-base.md`
 - Modify: `roles/common/files/claude/CLAUDE.md.d/00-base.md`
 
@@ -41,11 +46,15 @@ rg -n "automatic continuation|prompt again" \
 
 Expected: exit 1 with no matches.
 
-- [ ] **Step 2: Add the minimal guidance**
+- [ ] **Step 2: Write and run the behavioral evals**
 
-Add the same bullet after `Bias toward action` in each file. Require a suitable registered timer, scheduler, monitor, provider wait, or other tracked continuation when work can continue after a known time or observable condition. State that the agent must not rely on Brian to prompt it again.
+Define pressure cases for authorized automatic work and confirmation-gated actions. Run five fresh-context samples per case against both the control and candidate. Read every reason and record raw and summarized results.
 
-- [ ] **Step 3: Review the focused diff**
+- [ ] **Step 3: Add the passing guidance**
+
+Add the same bullet after `Bias toward action` in each file. Require a suitable registered timer, scheduler, monitor, provider wait, or other tracked continuation when work can continue after a known time or observable condition. State that a wait grants no new authority, require revalidation, preserve every applicable confirmation gate, and state that the agent must not rely on Brian to prompt it again.
+
+- [ ] **Step 4: Review the focused diff**
 
 Run:
 
@@ -58,7 +67,7 @@ git diff -- \
 
 Expected: no whitespace errors and only the two intended policy additions.
 
-- [ ] **Step 4: Deploy from the feature worktree**
+- [ ] **Step 5: Deploy from the feature worktree**
 
 Run:
 
@@ -68,7 +77,7 @@ bin/provision
 
 Expected: provisioning succeeds and updates the two managed base fragments.
 
-- [ ] **Step 5: Verify deployed content and idempotence**
+- [ ] **Step 6: Verify deployed content and idempotence**
 
 Run:
 
@@ -82,6 +91,6 @@ bin/provision --check
 
 Expected: both comparisons succeed and check-mode provisioning exits 0.
 
-- [ ] **Step 6: Commit the implementation**
+- [ ] **Step 7: Commit the implementation**
 
 Commit the plan and both guidance files with an imperative message. Do not include AI attribution.

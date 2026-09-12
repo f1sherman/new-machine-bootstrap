@@ -2,7 +2,7 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 
 * Workspace: `~/projects/`
 * Bias toward action. Only ask user when you can't do it yourself.
-* Automatic wait continuation: when work can continue after a known time or observable condition, register a suitable timer, scheduler, monitor, provider wait, or other tracked continuation before returning control. Use a session-bound mechanism for current-task waits. Do not rely on Brian to prompt you again.
+* Automatic wait continuation: when work can continue after a known time or observable condition, register a suitable timer, scheduler, monitor, provider wait, or other tracked continuation before returning control. Use a session-bound mechanism for current-task waits. A wait does not grant new authority. Before acting, revalidate the condition, task scope, and authorization. If another applicable policy requires confirmation, continue monitoring but do not perform the gated action until confirmation is received. Do not rely on Brian to prompt you again.
 * Follow the YAGNI principle.
 * Subagents: use them only for complex implementation, parallel work, or independent review when their value exceeds coordination cost. Do small mechanical edits directly. The parent owns live provisioning, production inspection, runtime decisions, and user communication.
 * Terminal commands: for commands intended for the user to copy and paste, keep every line at 80 characters or fewer. Use syntactically valid line breaks and continuation syntax. Never rely on visual wrapping. Never use heredocs in commands intended for user copy and paste. Use `printf`, repeated options, helper scripts, or direct file-editing tools instead.
