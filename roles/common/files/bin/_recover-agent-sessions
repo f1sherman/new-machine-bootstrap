@@ -1073,7 +1073,11 @@ end
 
 pi_session_root = ENV["RECOVER_AGENT_SESSIONS_PI_SESSION_DIR"].to_s
 pi_session_root = ENV["PI_CODING_AGENT_SESSION_DIR"].to_s if pi_session_root.empty?
-pi_session_root = File.join(Dir.home, ".pi", "agent", "sessions") if pi_session_root.empty?
+if pi_session_root.empty?
+  pi_agent_dir = ENV["PI_CODING_AGENT_DIR"].to_s
+  pi_agent_dir = File.join(Dir.home, ".pi", "agent") if pi_agent_dir.empty?
+  pi_session_root = File.join(pi_agent_dir, "sessions")
+end
 list_pi_sessions(pi_session_root, start_epoch, end_epoch).each do |entry|
   session = build_session_hash("Pi", nil, entry, start_epoch, end_epoch)
   entries << session if session
