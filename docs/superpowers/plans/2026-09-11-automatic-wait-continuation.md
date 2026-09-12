@@ -48,7 +48,7 @@ Expected: exit 1 with no matches.
 
 - [ ] **Step 2: Write and run the behavioral evals**
 
-Define pressure cases for authorized automatic work and confirmation-gated actions. Run five fresh-context samples per case against both the control and candidate. Read every reason and record raw and summarized results.
+Define paired pressure cases for direct requests and vague consequential language. Do not add special confirmation phrases. Run five fresh-context samples per case against both the control and candidate. Read every reason and record raw and summarized results.
 
 - [ ] **Step 3: Add the passing guidance**
 
