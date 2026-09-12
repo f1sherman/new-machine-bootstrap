@@ -75,9 +75,9 @@ for Pi. Pass `file` from `build_session_hash`.
 - [ ] **Step 5: Add Pi entries to the main pipeline**
 
 Use `RECOVER_AGENT_SESSIONS_PI_SESSION_DIR` for explicit recovery-root
-overrides, then `PI_CODING_AGENT_SESSION_DIR`, then
-`~/.pi/agent/sessions`. Append valid Pi entries before sorting and summary
-hydration.
+overrides, then `PI_CODING_AGENT_SESSION_DIR`, then the `sessions` directory
+under `PI_CODING_AGENT_DIR`, then `~/.pi/agent/sessions`. Append valid Pi
+entries before sorting and summary hydration.
 
 - [ ] **Step 6: Verify the fixtures**
 
