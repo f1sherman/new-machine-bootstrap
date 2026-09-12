@@ -18,6 +18,10 @@ pathprepend "/usr/local/bin"
 pathprepend "/opt/homebrew/bin"
 export PATH
 
+if [[ "${GHOSTTY_QUICK_TERMINAL:-}" == 1 ]]; then
+  exec "${SHELL:-/bin/zsh}" -l
+fi
+
 state_dir="${GHOSTTY_TAB_LAUNCH_STATE_DIR:-$HOME/.local/state/ghostty-tab-launch}"
 lock_file="$state_dir/lock"
 lock_held=0
