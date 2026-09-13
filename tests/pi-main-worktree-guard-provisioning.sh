@@ -25,7 +25,12 @@ cat >"$tmp_root/pi-agent/settings.json" <<'JSON'
       "worker": {"model":"existing-worker-model","subagentOnlyExtensions":false},
       "reviewer": {"subagentOnlyExtensions":["/existing/reviewer-extension.ts"]},
       "custom-agent": {"thinking":"high"},
-      "scout": {"description":"existing scout description"}
+      "scout": {
+        "description":"existing scout description",
+        "model":"openai-codex/gpt-5.6-luna",
+        "fallbackModels":["openai-codex/gpt-5.6-sol","openai/gpt-5.6-luna"],
+        "thinking":"low"
+      }
     }
   }
 }
@@ -52,6 +57,9 @@ jq -e '.defaultTools ==
 jq -e '.showCacheMissNotices == true' "$settings" >/dev/null
 jq -e '.subagents.agentOverrides.scout.description ==
   "existing scout description"' "$settings" >/dev/null
+jq -e '.subagents.agentOverrides.scout |
+  has("model") or has("fallbackModels") or has("thinking") | not' \
+  "$settings" >/dev/null
 test "$(jq -r '.packages[0]' "$settings")" = npm:existing-package
 jq -e '[.packages[] | select((if type == "object" then .source else . end) |
   startswith("git:github.com/algal/pi-openai-server-compaction"))] | length == 0' \

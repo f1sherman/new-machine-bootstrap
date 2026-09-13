@@ -14,6 +14,26 @@
   set_fact:
     pi_settings: "{{ (pi_settings_content.content | b64decode | from_json) if pi_settings_stat.stat.exists else {} }}"
 
+- name: Remove retired Pi scout route fields
+  vars:
+    existing_subagents: "{{ pi_settings.get('subagents', {}) }}"
+    existing_overrides: "{{ existing_subagents.get('agentOverrides', {}) }}"
+    existing_scout_override: "{{ existing_overrides.get('scout', {}) }}"
+    preserved_scout_override: >-
+      {{ existing_scout_override | dict2items |
+      rejectattr('key', 'in', ['model', 'fallbackModels', 'thinking']) |
+      items2dict }}
+    preserved_overrides: >-
+      {{ existing_overrides | combine({'scout': preserved_scout_override},
+      recursive=False) }}
+    preserved_subagents: >-
+      {{ existing_subagents | combine({'agentOverrides': preserved_overrides},
+      recursive=False) }}
+  set_fact:
+    pi_settings: >-
+      {{ pi_settings | combine({'subagents': preserved_subagents},
+      recursive=False) }}
+
 - name: Build Pi subagent main worktree guard overrides
   vars:
     guard_extension: "{{ pi_agent_dir }}/extensions/main-worktree-guard.ts"
