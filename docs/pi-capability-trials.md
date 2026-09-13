@@ -18,9 +18,10 @@ repeated retries, poorer results, or loss of an original tool.
 
 ## Scout model route
 
-The managed route uses `openai-codex/gpt-5.6-luna` with low thinking and
-`openai-codex/gpt-5.6-sol` as fallback. Review after 30 completed scout uses or
-30 days, whichever comes first. For each use, record:
+The managed route uses `openai-codex/gpt-5.6-luna` with low thinking. It first
+falls back to `openai-codex/gpt-5.6-sol`. It then falls back to
+`openai/gpt-5.6-luna` when Codex authentication is not available. Review after
+30 completed scout uses or 30 days, whichever comes first. For each use, record:
 
 - resolved provider and model;
 - whether fallback was used;
