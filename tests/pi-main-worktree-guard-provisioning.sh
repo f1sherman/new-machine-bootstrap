@@ -25,7 +25,12 @@ cat >"$tmp_root/pi-agent/settings.json" <<'JSON'
       "worker": {"model":"existing-worker-model","subagentOnlyExtensions":false},
       "reviewer": {"subagentOnlyExtensions":["/existing/reviewer-extension.ts"]},
       "custom-agent": {"thinking":"high"},
-      "scout": {"description":"existing scout description"}
+      "scout": {
+        "description":"existing scout description",
+        "model":"openai-codex/gpt-5.6-luna",
+        "fallbackModels":["openai-codex/gpt-5.6-sol","openai/gpt-5.6-luna"],
+        "thinking":"low"
+      }
     }
   }
 }
@@ -50,15 +55,11 @@ jq -e '.defaultTools ==
   ["read", "bash", "edit", "write", "grep", "find", "ls"]' \
   "$settings" >/dev/null
 jq -e '.showCacheMissNotices == true' "$settings" >/dev/null
-jq -e '.subagents.agentOverrides.scout.model ==
-  "openai-codex/gpt-5.6-luna"' "$settings" >/dev/null
-jq -e '.subagents.agentOverrides.scout.fallbackModels ==
-  ["openai-codex/gpt-5.6-sol", "openai/gpt-5.6-luna"]' \
-  "$settings" >/dev/null
-jq -e '.subagents.agentOverrides.scout.thinking == "low"' \
-  "$settings" >/dev/null
 jq -e '.subagents.agentOverrides.scout.description ==
   "existing scout description"' "$settings" >/dev/null
+jq -e '.subagents.agentOverrides.scout |
+  has("model") or has("fallbackModels") or has("thinking") | not' \
+  "$settings" >/dev/null
 test "$(jq -r '.packages[0]' "$settings")" = npm:existing-package
 jq -e '[.packages[] | select((if type == "object" then .source else . end) |
   startswith("git:github.com/algal/pi-openai-server-compaction"))] | length == 0' \
@@ -83,5 +84,16 @@ before_second="$(cat "$settings")"
 ansible-playbook "$tmp_root/playbook.yml" >"$tmp_root/second.log"
 test "$(cat "$settings")" = "$before_second"
 rg -F 'changed=0' "$tmp_root/second.log" >/dev/null
+
+jq '.subagents.agentOverrides.scout += {
+  "model":"custom/scout-model",
+  "fallbackModels":["custom/fallback-model"],
+  "thinking":"high"
+}' "$settings" >"$tmp_root/custom-settings.json"
+mv "$tmp_root/custom-settings.json" "$settings"
+ansible-playbook "$tmp_root/playbook.yml" >"$tmp_root/custom.log"
+jq -e '.subagents.agentOverrides.scout.model == "custom/scout-model" and
+  .subagents.agentOverrides.scout.fallbackModels == ["custom/fallback-model"] and
+  .subagents.agentOverrides.scout.thinking == "high"' "$settings" >/dev/null
 
 printf 'Pi main worktree guard merge behavior passed\n'
