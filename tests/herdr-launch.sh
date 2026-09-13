@@ -14,7 +14,12 @@ set -euo pipefail
 if [ "${TMUX+x}" = x ]; then printf 'TMUX=present\n' >> "$TEST_LOG"; else printf 'TMUX=absent\n' >> "$TEST_LOG"; fi
 if [ "${TMUX_PANE+x}" = x ]; then printf 'TMUX_PANE=present\n' >> "$TEST_LOG"; else printf 'TMUX_PANE=absent\n' >> "$TEST_LOG"; fi
 printf 'PRESERVED_VALUE=%s\n' "${PRESERVED_VALUE:-absent}" >> "$TEST_LOG"
-printf 'args=%s\n' "$*" >> "$TEST_LOG"
+printf 'arg_count=%s\n' "$#" >> "$TEST_LOG"
+arg_index=0
+for argument in "$@"; do
+  printf 'arg[%s]=<%s>\n' "$arg_index" "$argument" >> "$TEST_LOG"
+  arg_index=$((arg_index + 1))
+done
 STUB
 chmod +x "$stub_dir/herdr"
 
@@ -23,14 +28,16 @@ cat > "$expected" <<'EXPECTED'
 TMUX=absent
 TMUX_PANE=absent
 PRESERVED_VALUE=present
-args=alpha beta
+arg_count=2
+arg[0]=<alpha beta>
+arg[1]=<gamma>
 EXPECTED
 
 export PATH="/usr/bin:/bin"
 export HOME="$tmpdir/home"
 export TEST_LOG="$tmpdir/commands"
 TMUX=stale TMUX_PANE=%2 PRESERVED_VALUE=present \
-  bash "$launcher" alpha beta
+  bash "$launcher" "alpha beta" gamma
 
 diff -u "$expected" "$TEST_LOG"
 printf 'herdr launcher tests passed\n'
