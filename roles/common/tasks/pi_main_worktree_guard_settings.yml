@@ -33,6 +33,10 @@
     pi_settings: >-
       {{ pi_settings | combine({'subagents': preserved_subagents},
       recursive=False) }}
+  when:
+    - existing_scout_override.get('model') == 'openai-codex/gpt-5.6-luna'
+    - existing_scout_override.get('fallbackModels') == ['openai-codex/gpt-5.6-sol', 'openai/gpt-5.6-luna']
+    - existing_scout_override.get('thinking') == 'low'
 
 - name: Build Pi subagent main worktree guard overrides
   vars:

@@ -85,4 +85,15 @@ ansible-playbook "$tmp_root/playbook.yml" >"$tmp_root/second.log"
 test "$(cat "$settings")" = "$before_second"
 rg -F 'changed=0' "$tmp_root/second.log" >/dev/null
 
+jq '.subagents.agentOverrides.scout += {
+  "model":"custom/scout-model",
+  "fallbackModels":["custom/fallback-model"],
+  "thinking":"high"
+}' "$settings" >"$tmp_root/custom-settings.json"
+mv "$tmp_root/custom-settings.json" "$settings"
+ansible-playbook "$tmp_root/playbook.yml" >"$tmp_root/custom.log"
+jq -e '.subagents.agentOverrides.scout.model == "custom/scout-model" and
+  .subagents.agentOverrides.scout.fallbackModels == ["custom/fallback-model"] and
+  .subagents.agentOverrides.scout.thinking == "high"' "$settings" >/dev/null
+
 printf 'Pi main worktree guard merge behavior passed\n'
