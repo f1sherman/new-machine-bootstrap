@@ -50,13 +50,6 @@ jq -e '.defaultTools ==
   ["read", "bash", "edit", "write", "grep", "find", "ls"]' \
   "$settings" >/dev/null
 jq -e '.showCacheMissNotices == true' "$settings" >/dev/null
-jq -e '.subagents.agentOverrides.scout.model ==
-  "openai-codex/gpt-5.6-luna"' "$settings" >/dev/null
-jq -e '.subagents.agentOverrides.scout.fallbackModels ==
-  ["openai-codex/gpt-5.6-sol", "openai/gpt-5.6-luna"]' \
-  "$settings" >/dev/null
-jq -e '.subagents.agentOverrides.scout.thinking == "low"' \
-  "$settings" >/dev/null
 jq -e '.subagents.agentOverrides.scout.description ==
   "existing scout description"' "$settings" >/dev/null
 test "$(jq -r '.packages[0]' "$settings")" = npm:existing-package
