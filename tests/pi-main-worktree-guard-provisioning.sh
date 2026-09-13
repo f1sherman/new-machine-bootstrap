@@ -18,11 +18,14 @@ cat >"$tmp_root/pi-agent/settings.json" <<'JSON'
   ],
   "defaultModel": "existing-model",
   "theme": "existing-theme",
+  "defaultTools": ["read", "bash", "edit", "write"],
+  "showCacheMissNotices": false,
   "subagents": {
     "agentOverrides": {
       "worker": {"model":"existing-worker-model","subagentOnlyExtensions":false},
       "reviewer": {"subagentOnlyExtensions":["/existing/reviewer-extension.ts"]},
-      "custom-agent": {"thinking":"high"}
+      "custom-agent": {"thinking":"high"},
+      "scout": {"description":"existing scout description"}
     }
   }
 }
@@ -43,6 +46,18 @@ settings="$tmp_root/pi-agent/settings.json"
 
 test "$(jq -r '.defaultModel' "$settings")" = existing-model
 test "$(jq -r '.theme' "$settings")" = existing-theme
+jq -e '.defaultTools ==
+  ["read", "bash", "edit", "write", "grep", "find", "ls"]' \
+  "$settings" >/dev/null
+jq -e '.showCacheMissNotices == true' "$settings" >/dev/null
+jq -e '.subagents.agentOverrides.scout.model ==
+  "openai-codex/gpt-5.6-luna"' "$settings" >/dev/null
+jq -e '.subagents.agentOverrides.scout.fallbackModels ==
+  ["openai-codex/gpt-5.6-sol"]' "$settings" >/dev/null
+jq -e '.subagents.agentOverrides.scout.thinking == "low"' \
+  "$settings" >/dev/null
+jq -e '.subagents.agentOverrides.scout.description ==
+  "existing scout description"' "$settings" >/dev/null
 test "$(jq -r '.packages[0]' "$settings")" = npm:existing-package
 jq -e '[.packages[] | select((if type == "object" then .source else . end) |
   startswith("git:github.com/algal/pi-openai-server-compaction"))] | length == 0' \
