@@ -31,6 +31,10 @@
       oracle:
         subagentOnlyExtensions: "{{ ((existing_overrides.get('oracle', {}).get('subagentOnlyExtensions', []) | default([], true)) + [guard_extension]) | unique }}"
       scout:
+        model: openai-codex/gpt-5.6-luna
+        fallbackModels:
+          - openai-codex/gpt-5.6-sol
+        thinking: low
         subagentOnlyExtensions: "{{ ((existing_overrides.get('scout', {}).get('subagentOnlyExtensions', []) | default([], true)) + [guard_extension]) | unique }}"
       context-builder:
         subagentOnlyExtensions: "{{ ((existing_overrides.get('context-builder', {}).get('subagentOnlyExtensions', []) | default([], true)) + [guard_extension]) | unique }}"
@@ -56,6 +60,8 @@
         'hideThinkingBlock': true,
         'quietStartup': true,
         'collapseChangelog': true,
+        'defaultTools': ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'],
+        'showCacheMissNotices': true,
         'packages': pi_preserved_packages,
         'subagents': {'agentOverrides': pi_subagent_main_worktree_guard_overrides}
       }, recursive=True) }}
