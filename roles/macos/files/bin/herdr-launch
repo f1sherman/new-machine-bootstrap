@@ -4,6 +4,7 @@ set -euo pipefail
 # GUI-launched terminals can have a minimal PATH. Include standard user and
 # package-manager locations for commands started by the long-running server.
 export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
+unset TMUX TMUX_PANE
 
 if ! herdr_bin="$(command -v herdr)"; then
   echo "Herdr is not installed or is not available on PATH." >&2
