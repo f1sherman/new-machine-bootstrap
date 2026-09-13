@@ -53,7 +53,8 @@ jq -e '.showCacheMissNotices == true' "$settings" >/dev/null
 jq -e '.subagents.agentOverrides.scout.model ==
   "openai-codex/gpt-5.6-luna"' "$settings" >/dev/null
 jq -e '.subagents.agentOverrides.scout.fallbackModels ==
-  ["openai-codex/gpt-5.6-sol"]' "$settings" >/dev/null
+  ["openai-codex/gpt-5.6-sol", "openai/gpt-5.6-luna"]' \
+  "$settings" >/dev/null
 jq -e '.subagents.agentOverrides.scout.thinking == "low"' \
   "$settings" >/dev/null
 jq -e '.subagents.agentOverrides.scout.description ==
