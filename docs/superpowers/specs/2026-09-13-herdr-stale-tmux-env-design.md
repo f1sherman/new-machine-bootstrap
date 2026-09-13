@@ -26,10 +26,10 @@ it resolves and executes Herdr. This creates a clean process boundary for the
 long-running server while preserving its PATH setup and all unrelated
 environment values.
 
-Add a behavioral shell test. The test executes the production launcher with a
-stub Herdr executable and stale tmux values. It verifies that the child does not
-receive either tmux variable, still receives an unrelated environment value,
-and receives its arguments.
+Use manual verification because the launcher change has no complex logic. Run
+the production launcher with a temporary stub Herdr executable and stale tmux
+values. Confirm that the child does not receive either tmux variable, still
+receives an unrelated environment value, and receives its arguments.
 
 ## Alternatives considered
 
@@ -52,9 +52,9 @@ keeps its current environment until the user restarts it.
 
 ## Verification
 
-- Observe the new behavioral test fail before the launcher change.
-- Run the behavioral test after the change.
-- Run `bash -n` on the launcher and test.
+- Run the production launcher with a temporary stub and stale tmux values.
+- Confirm the stub receives neither tmux variable and keeps unrelated state.
+- Run `bash -n` on the launcher.
 - Run `ansible-playbook playbook.yml --syntax-check`.
 - Run `bin/provision` to deploy the managed launcher.
 - Verify the deployed launcher contains the change. A Herdr restart is a
