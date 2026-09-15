@@ -102,6 +102,11 @@
   delay: 1
   when: rectangle_onboarding_check.rc != 0
 
+- name: Install current Anki cask
+  homebrew_cask:
+    name: anki
+    state: latest
+
 - name: 'Install Brew casks'
   homebrew_cask:
     name: [
