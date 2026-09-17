@@ -17,6 +17,11 @@ case "$skill" in
   *) exit 0 ;;
 esac
 
+classifier="${AGENT_STATE_PATH_CMD:-agent-state-path}"
+if "$classifier" "$PWD" >/dev/null 2>&1; then
+  exit 0
+fi
+
 branch="$(git -C "$PWD" branch --show-current 2>/dev/null || true)"
 if [[ "$branch" != "main" ]]; then
   exit 0

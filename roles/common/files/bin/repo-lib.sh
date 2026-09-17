@@ -55,6 +55,13 @@ _worktree_default_path() {
   printf '%s/%s\n' "$(_worktree_default_root "$repo_root")" "$(_worktree_safe_branch_name "$branch")"
 }
 
+_worktree_tree_tracks_default_root() {
+  local repo_root="$1" treeish="$2"
+  "$(_worktree_cmd git)" -C "$repo_root" \
+    ls-tree -d --name-only "$treeish" -- .worktrees 2>/dev/null | \
+    grep -Fxq '.worktrees'
+}
+
 _worktree_normalize_path() {
   local path="$1"
   local existing_path

@@ -410,4 +410,46 @@ fi
 assert_git_has_file "$recovery_repo" main recovery.txt \
   "repo-end recovery retry preserves merged content"
 
+for destination_kind in default external; do
+  tracked_repo="$(create_repo "tracked-worktrees-$destination_kind")"
+  mkdir -p "$tracked_repo/.worktrees"
+  commit_file "$tracked_repo" .worktrees/seed.txt seed "track worktree root"
+  tracked_destination="$tracked_repo/.worktrees/blocked-branch"
+  start_args=(--use-worktrees --ephemeral blocked-branch)
+  if [[ "$destination_kind" == "external" ]]; then
+    tracked_destination="$TMPROOT/tracked-worktrees-external-destination"
+    start_args+=("$tracked_destination")
+  fi
+
+  tracked_output="$({
+    cd "$tracked_repo"
+    "$REPO_START_SCRIPT" "${start_args[@]}"
+  } 2>&1)" && fail_case "rejects tracked .worktrees for $destination_kind destination" \
+    "repo-start unexpectedly succeeded"
+  printf '%s' "$tracked_output" | grep -q 'tracks.*\.worktrees' || \
+    fail_case "explains tracked .worktrees rejection for $destination_kind destination" \
+      "$tracked_output"
+  assert_no_file "$tracked_destination" \
+    "tracked .worktrees rejection leaves $destination_kind destination absent"
+  if git -C "$tracked_repo" show-ref --verify --quiet refs/heads/blocked-branch; then
+    fail_case "tracked .worktrees rejection leaves branch absent" \
+      "$destination_kind destination created blocked-branch"
+  fi
+  pass_case "tracked .worktrees rejection leaves $destination_kind branch absent"
+done
+
+ignored_root_repo="$(create_repo ignored-worktree-root)"
+printf '.worktrees/\n' >"$ignored_root_repo/.gitignore"
+git -C "$ignored_root_repo" add .gitignore
+git -C "$ignored_root_repo" commit -qm "ignore worktree root"
+ignored_destination="$TMPROOT/ignored-root-destination"
+(
+  cd "$ignored_root_repo"
+  "$REPO_START_SCRIPT" --use-worktrees --ephemeral ignored-branch \
+    "$ignored_destination" >/dev/null
+)
+assert_equals "$(git -C "$ignored_destination" branch --show-current)" \
+  ignored-branch \
+  ".gitignore-only worktree root remains allowed"
+
 printf 'repo lifecycle behavior checks complete\n'

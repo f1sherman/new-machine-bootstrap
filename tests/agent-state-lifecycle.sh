@@ -87,6 +87,8 @@ codex_guard="$repo_root/roles/common/files/bin/codex-block-main-branch-edits"
 claude_reminder="$repo_root/roles/common/files/claude/hooks/remind-repo-start-on-dev-prompt.sh"
 codex_reminder="$repo_root/roles/common/files/bin/codex-remind-repo-start-on-dev-prompt"
 worktree_guard="$repo_root/roles/common/files/claude/hooks/block-worktree-commands.sh"
+codex_worktree_guard="$repo_root/roles/common/files/bin/codex-block-worktree-commands"
+initiation_reminder="$repo_root/roles/common/files/claude/hooks/block-initiation-skill-on-main.sh"
 
 claude_state_output="$({
   cd "$state_repo"
@@ -133,14 +135,72 @@ for reminder in "$claude_reminder" "$codex_reminder"; do
 
 done
 
-branch_output="$({
+initiation_output="$({
   cd "$state_repo"
-  printf '{"tool_input":{"command":"git branch feature"}}' | \
-    HOME="$home" AGENT_STATE_PATH_CMD="$classifier" "$worktree_guard"
+  printf '{"tool_name":"Skill","tool_input":{"skill":"_fix"}}' | \
+    HOME="$home" AGENT_STATE_PATH_CMD="$classifier" "$initiation_reminder"
 })"
-printf '%s' "$branch_output" | grep -qi 'edit.*state.*in place' || \
-  fail "branch blocker explains in-place state maintenance"
-pass "branch blocker explains in-place state maintenance"
+[[ -z "$initiation_output" ]] || fail "initiation reminder skips state repository"
+pass "initiation reminder skips state repository"
+
+for branch_guard in "$worktree_guard" "$codex_worktree_guard"; do
+  branch_output="$({
+    cd "$state_repo"
+    printf '{"tool_input":{"command":"git branch feature"}}' | \
+      HOME="$home" AGENT_STATE_PATH_CMD="$classifier" "$branch_guard"
+  })"
+  printf '%s' "$branch_output" | grep -qi 'edit.*state.*in place' || \
+    fail "$(basename "$branch_guard") explains in-place state maintenance"
+  pass "$(basename "$branch_guard") explains in-place state maintenance"
+done
+
+repo_start="$repo_root/roles/common/files/bin/repo-start"
+real_git="$(command -v git)"
+shim_dir="$tmp_root/shims"
+status_marker="$tmp_root/status-ran"
+mkdir -p "$shim_dir"
+cat > "$shim_dir/git" <<'SHIM'
+#!/usr/bin/env bash
+if [[ " $* " == *" status "* ]]; then
+  : >"$REPO_START_STATUS_MARKER"
+  exit 93
+fi
+exec "$REAL_GIT" "$@"
+SHIM
+chmod +x "$shim_dir/git"
+
+state_modes=(
+  "--use-worktrees --ephemeral"
+  "--no-worktrees --ephemeral"
+)
+for mode in "${state_modes[@]}"; do
+  fixture_name="${mode%% *}"
+  fixture_name="${fixture_name#--}"
+  fixture="$state_repo/$fixture_name"
+  destination="$tmp_root/$fixture_name-destination"
+  mkdir -p "$fixture"
+  git -C "$fixture" init -qb main
+  git -C "$fixture" config user.email test@example.com
+  git -C "$fixture" config user.name Test
+  git -C "$fixture" commit -qm initial --allow-empty
+  rm -f "$status_marker"
+  actual=0
+  output="$({
+    cd "$fixture"
+    # shellcheck disable=SC2086
+    HOME="$home" PATH="$shim_dir:$PATH" REAL_GIT="$real_git" \
+      REPO_START_STATUS_MARKER="$status_marker" \
+      "$repo_start" $mode state-branch "$destination"
+  } 2>&1)" || actual=$?
+  [[ "$actual" -ne 0 ]] || fail "repo-start rejects state repository with $mode"
+  printf '%s' "$output" | grep -q 'generated agent state' || \
+    fail "repo-start explains state rejection with $mode"
+  [[ ! -e "$status_marker" ]] || fail "repo-start rejects state before status with $mode"
+  [[ ! -e "$destination" ]] || fail "repo-start does not create state destination with $mode"
+  git -C "$fixture" show-ref --verify --quiet refs/heads/state-branch && \
+    fail "repo-start does not create state branch with $mode"
+  pass "repo-start rejects state repository with $mode before mutation"
+done
 
 assert_status 2 "rejects a missing argument" env HOME="$home" "$classifier"
 assert_status 2 "rejects extra arguments" \
