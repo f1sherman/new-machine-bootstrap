@@ -508,9 +508,14 @@ async function ignoredByGit(pi, root, candidate, fallbackCwd, options = {}) {
 }
 
 async function isAgentStatePath(pi, candidate, cwd) {
-  const classifier = process.env.AGENT_STATE_PATH_CMD || "agent-state-path";
-  const result = await pi.exec(classifier, [candidate], { cwd, timeout: 2000 });
-  return !result.killed && result.code === 0;
+  const classifier = process.env.AGENT_STATE_PATH_CMD
+    || path.join(process.env.HOME || "", ".local", "bin", "agent-state-path");
+  try {
+    const result = await pi.exec(classifier, [candidate], { cwd, timeout: 2000 });
+    return !result.killed && result.code === 0;
+  } catch {
+    return false;
+  }
 }
 
 async function firstProtectedRoot(pi, candidates, cwd, options = {}) {

@@ -68,6 +68,7 @@ const pi = {
     handlers.set(event, handler);
   },
   async exec(command, args, options = {}) {
+    if (command === "throw-agent-state") throw new Error("classifier unavailable");
     try {
       const result = await execFileAsync(command, args, {
         cwd: options.cwd,
@@ -94,6 +95,11 @@ assert.equal(typeof toolCall, "function", "registers tool_call guard");
 async function call(toolName, input, cwd = feature) {
   return toolCall({ toolName, input }, { cwd });
 }
+
+process.env.AGENT_STATE_PATH_CMD = "throw-agent-state";
+const classifierFailure = await call("edit", { path: "tracked" }, primary);
+assert.equal(classifierFailure?.block, true, "classifier failure preserves main protection");
+process.env.AGENT_STATE_PATH_CMD = process.env.TEST_AGENT_STATE_PATH_CMD;
 
 for (const toolName of ["edit", "write"]) {
   const stateTarget = await call(toolName, { path: "tracked" }, stateRepo);
@@ -233,7 +239,7 @@ console.log("pi main worktree guard checks complete");
 NODE
 
 HOME="$state_home" AGENT_STATE_PATH_CMD="$classifier" \
-  node "$tmp_root/check.mjs" \
+  TEST_AGENT_STATE_PATH_CMD="$classifier" node "$tmp_root/check.mjs" \
     "$tmp_root/main-worktree-guard.mjs" \
     "$tmp_root/primary" \
     "$tmp_root/feature" \

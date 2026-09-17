@@ -261,7 +261,8 @@ async function onMainBranch(pi, cwd) {
 }
 
 async function isAgentStatePath(pi, candidate, cwd = candidate) {
-  const classifier = process.env.AGENT_STATE_PATH_CMD || "agent-state-path";
+  const classifier = process.env.AGENT_STATE_PATH_CMD
+    || path.join(process.env.HOME || "", ".local", "bin", "agent-state-path");
   const result = await exec(pi, classifier, [candidate], { cwd });
   return !result.killed && result.code === 0;
 }

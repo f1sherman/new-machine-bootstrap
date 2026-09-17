@@ -46,7 +46,7 @@ if [[ -z "$file_path" ]]; then
   exit 0
 fi
 
-classifier="${AGENT_STATE_PATH_CMD:-agent-state-path}"
+classifier="${AGENT_STATE_PATH_CMD:-$HOME/.local/bin/agent-state-path}"
 if "$classifier" "$file_path" >/dev/null 2>&1; then
   exit 0
 fi

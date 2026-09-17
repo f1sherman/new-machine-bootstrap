@@ -202,7 +202,7 @@ emit_deny() {
 
 state_guidance=""
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-classifier="${AGENT_STATE_PATH_CMD:-agent-state-path}"
+classifier="${AGENT_STATE_PATH_CMD:-$HOME/.local/bin/agent-state-path}"
 if [[ -n "$repo_root" ]] && "$classifier" "$repo_root" >/dev/null 2>&1; then
   state_guidance=" Edit generated agent state in place without branches or worktrees."
 fi

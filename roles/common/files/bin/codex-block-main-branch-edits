@@ -44,7 +44,7 @@ fi
 
 found_path=0
 
-classifier="${AGENT_STATE_PATH_CMD:-agent-state-path}"
+classifier="${AGENT_STATE_PATH_CMD:-$HOME/.local/bin/agent-state-path}"
 
 while IFS= read -r path; do
   found_path=1

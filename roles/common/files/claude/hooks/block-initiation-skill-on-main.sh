@@ -17,7 +17,7 @@ case "$skill" in
   *) exit 0 ;;
 esac
 
-classifier="${AGENT_STATE_PATH_CMD:-agent-state-path}"
+classifier="${AGENT_STATE_PATH_CMD:-$HOME/.local/bin/agent-state-path}"
 if "$classifier" "$PWD" >/dev/null 2>&1; then
   exit 0
 fi
