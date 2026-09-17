@@ -260,6 +260,12 @@ async function onMainBranch(pi, cwd) {
   return (await branchName(pi, cwd)) === "main";
 }
 
+async function isAgentStatePath(pi, candidate, cwd = candidate) {
+  const classifier = process.env.AGENT_STATE_PATH_CMD || "agent-state-path";
+  const result = await exec(pi, classifier, [candidate], { cwd });
+  return !result.killed && result.code === 0;
+}
+
 function shellWrappedPayload(segment) {
   const match = segment.match(/^(?:command\s+|env\s+(?:\S+\s+)*|sudo(?:\s+-\S+)*\s+|time(?:\s+-\S+)*\s+)*(?:\S+\/)?(?:bash|sh|zsh)(?:\s+-\S+)*\s+-[A-Za-z]*c[A-Za-z]*(?:\s+\S+)*\s+(['"])([\s\S]*)\1(?:\s+.*)?$/);
   return match ? match[2] : "";
@@ -1103,8 +1109,16 @@ async function bashCommandBlockReason(pi, command, cwd) {
     if (nestedReason) return nestedReason;
   }
 
-  return worktreeCommandBlockReason(command)
-    || rawCommitBlockReason(command)
+  const worktreeReason = worktreeCommandBlockReason(command);
+  if (worktreeReason) {
+    const root = await gitRoot(pi, cwd);
+    if (root && await isAgentStatePath(pi, root, cwd)) {
+      return `${worktreeReason} Edit generated agent state in place without branches or worktrees.`;
+    }
+    return worktreeReason;
+  }
+
+  return rawCommitBlockReason(command)
     || await pushMainBlockReason(pi, command, cwd)
     || forceAddSuperpowersDocsBlockReason(command, cwd);
 }
@@ -1665,7 +1679,9 @@ export default function managedHooks(pi) {
         startInitialSessionGoalEvaluation(pi, event.prompt, cwd, ctx);
       }
 
-      if (REPO_START_TRIGGERS.test(event.prompt) && await onMainBranch(pi, cwd)) {
+      if (REPO_START_TRIGGERS.test(event.prompt)
+          && await onMainBranch(pi, cwd)
+          && !await isAgentStatePath(pi, cwd)) {
         notes.push("You are on main. Before changing files, run `repo-start <branch>` and continue from the created worktree.");
       }
 

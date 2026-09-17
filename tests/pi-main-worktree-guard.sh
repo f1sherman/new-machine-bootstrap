@@ -4,6 +4,7 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 extension="$repo_root/roles/common/files/pi/extensions/main-worktree-guard.ts"
+classifier="$repo_root/roles/common/files/bin/agent-state-path"
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "$tmp_root"' EXIT
 
@@ -40,6 +41,17 @@ ln -s ignored-self-link "$tmp_root/primary/ignored-self-link"
 ln -s ignored-cycle-b "$tmp_root/primary/ignored-cycle-a"
 ln -s ignored-cycle-a "$tmp_root/primary/ignored-cycle-b"
 
+state_home="$tmp_root/state-home"
+state_repo="$state_home/.codex/memories"
+mkdir -p "$state_repo"
+git -C "$state_repo" init -q
+git -C "$state_repo" config user.email test@example.com
+git -C "$state_repo" config user.name Test
+touch "$state_repo/tracked"
+git -C "$state_repo" add tracked
+git -C "$state_repo" commit -qm initial
+git -C "$state_repo" branch -M main
+
 cat > "$tmp_root/check.mjs" <<'NODE'
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
@@ -49,7 +61,7 @@ import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 
 const execFileAsync = promisify(execFile);
-const [extensionPath, primary, feature, spacedPrimaryLink] = process.argv.slice(2);
+const [extensionPath, primary, feature, spacedPrimaryLink, stateRepo] = process.argv.slice(2);
 const handlers = new Map();
 const pi = {
   on(event, handler) {
@@ -84,6 +96,9 @@ async function call(toolName, input, cwd = feature) {
 }
 
 for (const toolName of ["edit", "write"]) {
+  const stateTarget = await call(toolName, { path: "tracked" }, stateRepo);
+  assert.equal(stateTarget, undefined, `${toolName} allows generated state on main`);
+
   const relative = await call(toolName, { path: "tracked" }, primary);
   assert.equal(relative?.block, true, `${toolName} blocks relative primary-main target`);
   assert.match(relative.reason, /primary main worktree/, `${toolName} explains primary-main protection`);
@@ -217,4 +232,10 @@ assert.equal(fs.readFileSync(path.join(primary, "tracked"), "utf8"), "", "guard 
 console.log("pi main worktree guard checks complete");
 NODE
 
-node "$tmp_root/check.mjs" "$tmp_root/main-worktree-guard.mjs" "$tmp_root/primary" "$tmp_root/feature" "$tmp_root/primary space"
+HOME="$state_home" AGENT_STATE_PATH_CMD="$classifier" \
+  node "$tmp_root/check.mjs" \
+    "$tmp_root/main-worktree-guard.mjs" \
+    "$tmp_root/primary" \
+    "$tmp_root/feature" \
+    "$tmp_root/primary space" \
+    "$state_repo"
