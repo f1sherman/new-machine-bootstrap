@@ -202,6 +202,28 @@ for mode in "${state_modes[@]}"; do
   pass "repo-start rejects state repository with $mode before mutation"
 done
 
+fifo_fixture="$state_repo/fifo-gitdir"
+mkdir -p "$fifo_fixture"
+mkfifo "$fifo_fixture/.git"
+fifo_output="$tmp_root/fifo-repo-start.out"
+(
+  cd "$fifo_fixture"
+  HOME="$home" "$repo_start" --use-worktrees --ephemeral blocked-branch
+) >"$fifo_output" 2>&1 &
+fifo_pid=$!
+sleep 1
+if kill -0 "$fifo_pid" 2>/dev/null; then
+  kill "$fifo_pid" 2>/dev/null || true
+  wait "$fifo_pid" 2>/dev/null || true
+  fail "repo-start rejects state before Git root discovery"
+fi
+fifo_status=0
+wait "$fifo_pid" || fifo_status=$?
+[[ "$fifo_status" -ne 0 ]] || fail "repo-start rejects FIFO state fixture"
+grep -q 'generated agent state' "$fifo_output" || \
+  fail "repo-start explains pre-Git state rejection"
+pass "repo-start rejects state before Git root discovery"
+
 assert_status 2 "rejects a missing argument" env HOME="$home" "$classifier"
 assert_status 2 "rejects extra arguments" \
   env HOME="$home" "$classifier" one two

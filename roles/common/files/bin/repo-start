@@ -188,17 +188,8 @@ main() {
     return 1
   fi
 
-  repo_root="$(_worktree_repo_root)"
-  _worktree_debug "pwd=$PWD"
-  _worktree_debug "git=$(_worktree_cmd git)"
-  _worktree_debug "repo_root=${repo_root:-<empty>}"
-  if [[ -z "$repo_root" ]]; then
-    printf 'Error: not inside a git repository\n' >&2
-    return 1
-  fi
-
   set +e
-  "$SCRIPT_DIR/agent-state-path" "$repo_root" >/dev/null 2>&1
+  "$SCRIPT_DIR/agent-state-path" "$PWD" >/dev/null 2>&1
   classifier_status=$?
   set -e
   case "$classifier_status" in
@@ -214,6 +205,15 @@ main() {
       return 2
       ;;
   esac
+
+  repo_root="$(_worktree_repo_root)"
+  _worktree_debug "pwd=$PWD"
+  _worktree_debug "git=$(_worktree_cmd git)"
+  _worktree_debug "repo_root=${repo_root:-<empty>}"
+  if [[ -z "$repo_root" ]]; then
+    printf 'Error: not inside a git repository\n' >&2
+    return 1
+  fi
 
   mode="$(resolve_mode "$explicit_mode" "$repo_root" "$ephemeral")" || return $?
 
