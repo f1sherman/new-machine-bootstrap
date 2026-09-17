@@ -108,6 +108,9 @@ jobs:
       - name: Verify smart upload behavior
         run: ruby tests/smart-upload.rb
 
+      - name: Verify agent state lifecycle policy
+        run: bash tests/agent-state-lifecycle.sh
+
       - name: Verify repo lifecycle helpers
         run: bash tests/repo-lifecycle.sh
 

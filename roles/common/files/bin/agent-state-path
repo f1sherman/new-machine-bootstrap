@@ -1,0 +1,54 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "pathname"
+
+begin
+  exit 2 unless ARGV.length == 1 && !ARGV[0].empty?
+
+  home = ENV["HOME"]
+  exit 2 if home.nil? || home.empty?
+
+  roots = [
+  ".claude/projects",
+  ".codex/sessions",
+  ".codex/archived_sessions",
+  ".codex/memories",
+  ".pi/agent/sessions"
+  ].map { |relative| File.join(home, relative) }
+
+def lexical_path(path)
+  Pathname.new(File.expand_path(path)).cleanpath.to_s
+end
+
+def canonical_path(path)
+  probe = lexical_path(path)
+  suffix = []
+
+  until File.exist?(probe)
+    raise Errno::ENOENT, probe if File.symlink?(probe)
+
+    parent = File.dirname(probe)
+    raise Errno::ENOENT, probe if parent == probe
+
+    suffix.unshift(File.basename(probe))
+    probe = parent
+  end
+
+  File.join(File.realpath(probe), *suffix)
+end
+
+def within?(candidate, root)
+  candidate == root || candidate.start_with?("#{root}#{File::SEPARATOR}")
+end
+
+  candidate_paths = [lexical_path(ARGV.fetch(0)), canonical_path(ARGV.fetch(0))].uniq
+  root_paths = roots.flat_map { |root| [lexical_path(root), canonical_path(root)] }.uniq
+
+  match = candidate_paths.any? do |candidate|
+    root_paths.any? { |root| within?(candidate, root) }
+  end
+  exit(match ? 0 : 1)
+rescue SystemCallError, ArgumentError
+  exit 2
+end
