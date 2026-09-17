@@ -25,6 +25,45 @@ local function assertEqual(expected, actual, message)
   end
 end
 
+assertEqual(true, source.isSlackSender("com.tinyspeck.slackmacgap"), "Slack sender")
+assertEqual(false, source.isSlackSender("com.apple.MobileSMS"), "non-Slack sender")
+
+local workSafari = {
+  id = "ow_work",
+  app = {bundleId = "com.apple.Safari"},
+  title = "Work — Inbox",
+  workspace = {number = 9},
+}
+assertEqual(true, source.isWorkSafariWindow(workSafari), "Work Safari window")
+local workTarget, workError = source.resolveWorkSafariWindow({workSafari})
+assertEqual("ow_work", workTarget and workTarget.id, "one Work Safari target")
+assertEqual(nil, workError, "one Work Safari target error")
+assertEqual(false, source.isWorkSafariWindow({
+  app = {bundleId = "com.apple.Safari"},
+  title = "Personal — Inbox",
+}), "Personal Safari window")
+assertEqual(false, source.isWorkSafariWindow({
+  app = {bundleId = "com.apple.Safari"},
+  title = "",
+}), "titleless Work Safari panel")
+workTarget, workError = source.resolveWorkSafariWindow({})
+assertEqual(nil, workTarget, "absent Work Safari target")
+assertEqual(nil, workError, "absent Work Safari target error")
+workTarget, workError = source.resolveWorkSafariWindow({
+  workSafari,
+  {
+    id = "ow_work_2",
+    app = {bundleId = "com.apple.Safari"},
+    title = "Work — Second",
+  },
+})
+assertEqual(nil, workTarget, "ambiguous Work Safari target")
+assertEqual(
+  "More than one Safari Work window is managed by OmniWM",
+  workError,
+  "ambiguous Work Safari target error"
+)
+
 local visibleGhostty = {
   {
     app = {bundleId = "com.mitchellh.ghostty"},

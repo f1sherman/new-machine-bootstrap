@@ -353,6 +353,12 @@
     dest: "{{ ansible_facts['user_dir'] }}/.hammerspoon/omniwm_safari_router.lua"
     mode: '0644'
 
+- name: Install OmniWM Slack URL router
+  copy:
+    src: hammerspoon/omniwm_slack_router.lua
+    dest: "{{ ansible_facts['user_dir'] }}/.hammerspoon/omniwm_slack_router.lua"
+    mode: '0644'
+
 - name: Install OmniWM Downloads helper
   copy:
     src: hammerspoon/omniwm_downloads.lua
