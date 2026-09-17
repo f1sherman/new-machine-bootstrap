@@ -4,6 +4,7 @@ local downloads = require("omniwm_downloads").new()
 local browserOpener = require("omniwm_browser_opener")
 local chatGPTRouter = require("omniwm_chatgpt_router")
 local safariRouter = require("omniwm_safari_router")
+local slackRouter = require("omniwm_slack_router")
 local urlSource = require("omniwm_url_source")
 local omniwmctl = os.getenv("HOME") .. "/.local/bin/omniwmctl"
 local logger = hs.logger.new("omniwm", "info")
@@ -952,6 +953,27 @@ local function openSafariTab(window, url)
   return true, nil
 end
 
+local function routeSlackURL(url)
+  M.windows(function(windows, windowsError)
+    if windowsError then
+      M.notify(windowsError)
+      openNormallyInSafari(url)
+      return
+    end
+
+    local safariWindow, resolveError = urlSource.resolveWorkSafariWindow(windows)
+    if resolveError then
+      M.notify(resolveError)
+    end
+    slackRouter.route(url, safariWindow, {
+      openTab = openSafariTab,
+      navigate = navigateAndConfirmWindow,
+      fallback = openNormallyInSafari,
+      notify = M.notify,
+    })
+  end)
+end
+
 local function openURLInExactSafariWindow(safariWindow, url, focusAfterOpen)
   local _, tabError = openSafariTab(safariWindow, url)
   if tabError then
@@ -1064,6 +1086,15 @@ hs.urlevent.httpCallback = function(_, _, _, fullURL, senderPID)
       tostring(senderBundle)
     ))
     routeChatGPTURL(fullURL)
+    return
+  end
+  if urlSource.isSlackSender(senderBundle) then
+    logger.i(string.format(
+      "URL source pid=%s bundle=%s decision=slack-work-safari",
+      tostring(senderPID),
+      tostring(senderBundle)
+    ))
+    routeSlackURL(fullURL)
     return
   end
   if senderBundle and senderBundle ~= "org.hammerspoon.Hammerspoon" then

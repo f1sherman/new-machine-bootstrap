@@ -137,6 +137,13 @@ the current workspace without changing its home workspace. If there is no
 single Development window, the handler opens and focuses Safari normally. It
 does not create or move a Safari window.
 
+### Open a link from Slack
+
+Click the link normally. The managed URL handler opens it in the Safari Work
+profile and focuses that exact window in workspace 9. If there is no single Work
+Safari window, it opens the link normally in Safari. It does not move or summon
+the Safari window.
+
 ### Open a link from another application
 
 Click the link normally. The managed URL handler opens it in Safari. It then

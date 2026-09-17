@@ -3,6 +3,7 @@ local chatGPTBundleID = "com.openai.codex"
 local chromeBundleID = "com.google.Chrome"
 local ghosttyBundleID = "com.mitchellh.ghostty"
 local hammerspoonBundleID = "org.hammerspoon.Hammerspoon"
+local slackBundleID = "com.tinyspeck.slackmacgap"
 
 function M.isSafariBrowserWindow(window)
   return window.app
@@ -28,6 +29,27 @@ function M.resolveDevelopmentSafariWindow(windows)
     return candidates[1], nil
   elseif #candidates > 1 then
     return nil, "More than one Safari Development window is managed by OmniWM"
+  end
+  return nil, nil
+end
+
+function M.isWorkSafariWindow(window)
+  return M.isSafariBrowserWindow(window)
+    and window.title:sub(1, #"Work —") == "Work —"
+end
+
+function M.resolveWorkSafariWindow(windows)
+  local candidates = {}
+  for _, window in ipairs(windows or {}) do
+    if M.isWorkSafariWindow(window) then
+      table.insert(candidates, window)
+    end
+  end
+
+  if #candidates == 1 then
+    return candidates[1], nil
+  elseif #candidates > 1 then
+    return nil, "More than one Safari Work window is managed by OmniWM"
   end
   return nil, nil
 end
@@ -67,6 +89,10 @@ end
 
 function M.isChatGPTSender(senderBundle)
   return senderBundle == chatGPTBundleID
+end
+
+function M.isSlackSender(senderBundle)
+  return senderBundle == slackBundleID
 end
 
 function M.isChromeBrowserWindow(window)
