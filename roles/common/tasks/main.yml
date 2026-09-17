@@ -1406,6 +1406,30 @@
   delay: 10
   changed_when: common_mise_pi_repair_result.stdout_lines | last == 'changed'
 
+- name: Install Pi async runtime dependencies
+  shell: |
+    set -euo pipefail
+    pi_root="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')"
+    "{{ mise_bin }}" exec aube@{{ tool_versions.runtimes.aube }} -- \
+      aube --dir "$pi_root" add --save-exact --allow-low-downloads \
+      --ignore-workspace-root-check \
+      --deny-build=@google/genai --deny-build=esbuild \
+      --deny-build=protobufjs \
+      '@earendil-works/pi-server@{{ tool_versions.runtimes.pi_coding_agent }}' \
+      '@earendil-works/pi-client@{{ tool_versions.runtimes.pi_coding_agent }}'
+    cd "$pi_root"
+    "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} -- \
+      node --input-type=module --eval \
+      'await import("@earendil-works/pi-server");
+       await import("@earendil-works/pi-server/unix");
+       await import("@earendil-works/pi-client/unix");'
+  args:
+    executable: /bin/bash
+  environment:
+    AUBE_PARANOID: "true"
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
+  changed_when: false
+
 - name: Install pi-session-manager plugin for pi-coding-agent (macOS)
   command: >-
     {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} --

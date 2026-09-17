@@ -54,7 +54,9 @@ Insert this task after `Repair broken managed Pi installation` and before Pi plu
     pi_root="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')"
     "{{ mise_bin }}" exec aube@{{ tool_versions.runtimes.aube }} -- \
       aube --dir "$pi_root" add --save-exact --allow-low-downloads \
-      --deny-build=@google/genai --deny-build=protobufjs \
+      --ignore-workspace-root-check \
+      --deny-build=@google/genai --deny-build=esbuild \
+      --deny-build=protobufjs \
       '@earendil-works/pi-server@{{ tool_versions.runtimes.pi_coding_agent }}' \
       '@earendil-works/pi-client@{{ tool_versions.runtimes.pi_coding_agent }}'
     cd "$pi_root"
