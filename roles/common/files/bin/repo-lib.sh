@@ -58,7 +58,7 @@ _worktree_default_path() {
 _worktree_tree_tracks_default_root() {
   local repo_root="$1" treeish="$2"
   "$(_worktree_cmd git)" -C "$repo_root" \
-    ls-tree -d --name-only "$treeish" -- .worktrees 2>/dev/null | \
+    ls-tree --name-only "$treeish" -- .worktrees 2>/dev/null | \
     grep -Fxq '.worktrees'
 }
 

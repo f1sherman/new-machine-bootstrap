@@ -42,12 +42,10 @@ def within?(candidate, root)
   candidate == root || candidate.start_with?("#{root}#{File::SEPARATOR}")
 end
 
-  candidate_paths = [lexical_path(ARGV.fetch(0)), canonical_path(ARGV.fetch(0))].uniq
-  root_paths = roots.flat_map { |root| [lexical_path(root), canonical_path(root)] }.uniq
+  candidate_path = canonical_path(ARGV.fetch(0))
+  root_paths = roots.map { |root| canonical_path(root) }.uniq
 
-  match = candidate_paths.any? do |candidate|
-    root_paths.any? { |root| within?(candidate, root) }
-  end
+  match = root_paths.any? { |root| within?(candidate_path, root) }
   exit(match ? 0 : 1)
 rescue SystemCallError, ArgumentError
   exit 2

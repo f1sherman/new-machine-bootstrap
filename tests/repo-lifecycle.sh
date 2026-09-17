@@ -438,6 +438,35 @@ for destination_kind in default external; do
   pass_case "tracked .worktrees rejection leaves $destination_kind branch absent"
 done
 
+for entry_kind in file symlink; do
+  tracked_repo="$(create_repo "tracked-worktrees-$entry_kind")"
+  if [[ "$entry_kind" == "file" ]]; then
+    printf 'not a worktree directory\n' >"$tracked_repo/.worktrees"
+  else
+    ln -s "$TMPROOT/worktree-symlink-target" "$tracked_repo/.worktrees"
+  fi
+  git -C "$tracked_repo" add .worktrees
+  git -C "$tracked_repo" commit -qm "track .worktrees $entry_kind"
+  tracked_destination="$TMPROOT/tracked-worktrees-$entry_kind-destination"
+
+  tracked_output="$({
+    cd "$tracked_repo"
+    "$REPO_START_SCRIPT" --use-worktrees --ephemeral blocked-branch \
+      "$tracked_destination"
+  } 2>&1)" && fail_case "rejects tracked .worktrees $entry_kind" \
+    "repo-start unexpectedly succeeded"
+  printf '%s' "$tracked_output" | grep -q 'tracks.*\.worktrees' || \
+    fail_case "explains tracked .worktrees $entry_kind rejection" \
+      "$tracked_output"
+  assert_no_file "$tracked_destination" \
+    "tracked .worktrees $entry_kind rejection leaves destination absent"
+  if git -C "$tracked_repo" show-ref --verify --quiet refs/heads/blocked-branch; then
+    fail_case "tracked .worktrees $entry_kind rejection leaves branch absent" \
+      "created blocked-branch"
+  fi
+  pass_case "tracked .worktrees $entry_kind rejection leaves branch absent"
+done
+
 ignored_root_repo="$(create_repo ignored-worktree-root)"
 printf '.worktrees/\n' >"$ignored_root_repo/.gitignore"
 git -C "$ignored_root_repo" add .gitignore

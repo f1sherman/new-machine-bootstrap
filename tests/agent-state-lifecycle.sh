@@ -81,6 +81,10 @@ touch "$source_repo/tracked"
 git -C "$source_repo" add tracked
 git -C "$source_repo" commit -qm initial
 git -C "$source_repo" branch -M main
+state_escape="$state_repo/source-link"
+ln -s "$source_repo" "$state_escape"
+assert_status 1 "does not classify a state-root symlink escape" \
+  env HOME="$home" "$classifier" "$state_escape/tracked"
 
 claude_guard="$repo_root/roles/common/files/claude/hooks/block-main-branch-edits.sh"
 codex_guard="$repo_root/roles/common/files/bin/codex-block-main-branch-edits"
@@ -107,6 +111,12 @@ printf '%s' "$claude_source_output" | grep -q '"permissionDecision": "deny"' || 
   fail "Claude keeps source edits blocked on main"
 pass "Claude keeps source edits blocked on main"
 
+claude_escape_output="$(printf '{"tool_input":{"file_path":"%s"}}' "$state_escape/tracked" | \
+  HOME="$home" AGENT_STATE_PATH_CMD="$classifier" "$claude_guard")"
+printf '%s' "$claude_escape_output" | grep -q '"permissionDecision": "deny"' || \
+  fail "Claude blocks source edits through a state-root symlink"
+pass "Claude blocks source edits through a state-root symlink"
+
 codex_state_output="$({
   cd "$state_repo"
   printf '{"tool_input":{"command":"*** Update File: tracked"}}' | \
@@ -123,6 +133,15 @@ codex_source_output="$({
 printf '%s' "$codex_source_output" | grep -q '"permissionDecision": "deny"' || \
   fail "Codex keeps source edits blocked on main"
 pass "Codex keeps source edits blocked on main"
+
+codex_escape_output="$({
+  cd "$source_repo"
+  printf '{"tool_input":{"command":"*** Update File: %s"}}' "$state_escape/tracked" | \
+    HOME="$home" AGENT_STATE_PATH_CMD="$classifier" "$codex_guard"
+})"
+printf '%s' "$codex_escape_output" | grep -q '"permissionDecision": "deny"' || \
+  fail "Codex blocks source edits through a state-root symlink"
+pass "Codex blocks source edits through a state-root symlink"
 
 for reminder in "$claude_reminder" "$codex_reminder"; do
   state_output="$({
