@@ -46,6 +46,11 @@ if [[ -z "$file_path" ]]; then
   exit 0
 fi
 
+classifier="${AGENT_STATE_PATH_CMD:-$HOME/.local/bin/agent-state-path}"
+if "$classifier" "$file_path" >/dev/null 2>&1; then
+  exit 0
+fi
+
 probe_dir="$(find_probe_dir "$file_path" 2>/dev/null || true)"
 if [[ -z "$probe_dir" ]]; then
   exit 0

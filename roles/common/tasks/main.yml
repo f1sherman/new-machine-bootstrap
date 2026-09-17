@@ -137,6 +137,7 @@
     mode: '{{ item.mode }}'
   loop:
     - { name: repo-lib.sh, mode: '0644' }
+    - { name: agent-state-path, mode: '0755' }
     - { name: repo-start, mode: '0755' }
     - { name: repo-end, mode: '0755' }
     - { name: pi-agent-assemble-agents, mode: '0755' }

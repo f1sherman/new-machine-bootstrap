@@ -97,7 +97,7 @@ main() {
   local branch path start_point print_path json_output path_explicit repo_root settings_source
   local default_root existing_branch_path existing_path_branch branch_ref_exists
   local needs_prune repaired repair_allowed status mode explicit_mode ephemeral
-  local from_explicit remote_ref main_start new_branch_start
+  local from_explicit remote_ref main_start new_branch_start classifier_status selected_treeish
   branch=""
   path=""
   start_point="HEAD"
@@ -188,6 +188,24 @@ main() {
     return 1
   fi
 
+  set +e
+  "$SCRIPT_DIR/agent-state-path" "$PWD" >/dev/null 2>&1
+  classifier_status=$?
+  set -e
+  case "$classifier_status" in
+    0)
+      printf 'Error: repo-start does not operate on generated agent state.\n' >&2
+      printf 'Update generated state in place without branches or worktrees.\n' >&2
+      return 1
+      ;;
+    1)
+      ;;
+    *)
+      printf 'Error: generated agent state policy check failed.\n' >&2
+      return 2
+      ;;
+  esac
+
   repo_root="$(_worktree_repo_root)"
   _worktree_debug "pwd=$PWD"
   _worktree_debug "git=$(_worktree_cmd git)"
@@ -204,6 +222,31 @@ main() {
     return 1
   fi
 
+  remote_ref=""
+  new_branch_start="$start_point"
+  if "$(_worktree_cmd git)" -C "$repo_root" show-ref --verify --quiet "refs/heads/$branch"; then
+    selected_treeish="refs/heads/$branch"
+  else
+    if [[ "$from_explicit" != "true" ]]; then
+      remote_ref="$(_repo_remote_branch_ref "$repo_root" "$branch" || true)"
+    fi
+    if [[ -n "$remote_ref" ]]; then
+      selected_treeish="$remote_ref"
+    else
+      if [[ "$from_explicit" != "true" ]]; then
+        main_start="$(_repo_main_start_point "$repo_root" || true)"
+        [[ -n "$main_start" ]] && new_branch_start="$main_start"
+      fi
+      selected_treeish="$new_branch_start"
+    fi
+  fi
+
+  if _worktree_tree_tracks_default_root "$repo_root" "$selected_treeish"; then
+    printf 'Error: selected commit tracks top-level .worktrees.\n' >&2
+    printf 'Remove it from Git history; .gitignore does not untrack files.\n' >&2
+    return 1
+  fi
+
   if [[ "$mode" == "branch" ]]; then
     if [[ "$path_explicit" == "true" || -n "$path" ]]; then
       printf 'Error: branch mode does not accept a path\n' >&2
@@ -217,19 +260,10 @@ main() {
       "$(_worktree_cmd git)" -C "$repo_root" checkout -q "$branch"
       status="existing"
     else
-      remote_ref=""
-      if [[ "$from_explicit" != "true" ]]; then
-        remote_ref="$(_repo_remote_branch_ref "$repo_root" "$branch" || true)"
-      fi
       if [[ -n "$remote_ref" ]]; then
         printf 'repo-start: tracking %s\n' "$remote_ref" >&2
         "$(_worktree_cmd git)" -C "$repo_root" checkout -q -b "$branch" --track "$remote_ref"
       else
-        new_branch_start="$start_point"
-        if [[ "$from_explicit" != "true" ]]; then
-          main_start="$(_repo_main_start_point "$repo_root" || true)"
-          [[ -n "$main_start" ]] && new_branch_start="$main_start"
-        fi
         "$(_worktree_cmd git)" -C "$repo_root" checkout -q -b "$branch" "$new_branch_start"
       fi
       status="created"
@@ -307,10 +341,6 @@ main() {
         repaired="true"
         status="repaired"
       else
-        remote_ref=""
-        if [[ "$from_explicit" != "true" ]]; then
-          remote_ref="$(_repo_remote_branch_ref "$repo_root" "$branch" || true)"
-        fi
         if [[ -n "$remote_ref" ]]; then
           printf 'repo-start: tracking %s\n' "$remote_ref" >&2
           if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q --track -b "$branch" "$path" "$remote_ref"; then
@@ -318,11 +348,6 @@ main() {
             return 1
           fi
         else
-          new_branch_start="$start_point"
-          if [[ "$from_explicit" != "true" ]]; then
-            main_start="$(_repo_main_start_point "$repo_root" || true)"
-            [[ -n "$main_start" ]] && new_branch_start="$main_start"
-          fi
           if ! "$(_worktree_cmd git)" -C "$repo_root" worktree add -q -b "$branch" "$path" "$new_branch_start"; then
             printf 'Error: failed to create worktree\n' >&2
             return 1

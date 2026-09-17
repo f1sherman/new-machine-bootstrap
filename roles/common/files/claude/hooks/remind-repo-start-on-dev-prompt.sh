@@ -40,6 +40,11 @@ if [[ -z "$repo_root" ]]; then
   exit 0
 fi
 
+classifier="${AGENT_STATE_PATH_CMD:-$HOME/.local/bin/agent-state-path}"
+if "$classifier" "$repo_root" >/dev/null 2>&1; then
+  exit 0
+fi
+
 branch="$(git -C "$repo_root" branch --show-current 2>/dev/null || true)"
 if [[ "$branch" != "main" ]]; then
   exit 0

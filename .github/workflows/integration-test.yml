@@ -108,6 +108,9 @@ jobs:
       - name: Verify smart upload behavior
         run: ruby tests/smart-upload.rb
 
+      - name: Verify agent state lifecycle policy
+        run: bash tests/agent-state-lifecycle.sh
+
       - name: Verify repo lifecycle helpers
         run: bash tests/repo-lifecycle.sh
 
@@ -125,6 +128,9 @@ jobs:
 
       - name: Verify Pi main worktree mutation guard
         run: bash tests/pi-main-worktree-guard.sh
+
+      - name: Verify Pi generated-state managed hooks
+        run: bash tests/pi-agent-state-managed-hooks.sh
 
       - name: Verify Pi main worktree guard provisioning
         run: bash tests/pi-main-worktree-guard-provisioning.sh

@@ -44,8 +44,13 @@ fi
 
 found_path=0
 
+classifier="${AGENT_STATE_PATH_CMD:-$HOME/.local/bin/agent-state-path}"
+
 while IFS= read -r path; do
   found_path=1
+  if "$classifier" "$path" >/dev/null 2>&1; then
+    continue
+  fi
   repo_path="$(to_repo_path "$path")"
 
   if git -C "$repo_root" ls-files --error-unmatch -- "$repo_path" >/dev/null 2>&1; then

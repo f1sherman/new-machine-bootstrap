@@ -200,23 +200,30 @@ emit_deny() {
   }'
 }
 
+state_guidance=""
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+classifier="${AGENT_STATE_PATH_CMD:-$HOME/.local/bin/agent-state-path}"
+if [[ -n "$repo_root" ]] && "$classifier" "$repo_root" >/dev/null 2>&1; then
+  state_guidance=" Edit generated agent state in place without branches or worktrees."
+fi
+
 if matches_worktree_command add; then
-  emit_deny "Do not run git worktree add directly. Use repo-start instead."
+  emit_deny "Do not run git worktree add directly. Use repo-start instead.$state_guidance"
   exit 0
 fi
 
 if matches_worktree_command remove; then
-  emit_deny "Do not run git worktree remove directly. Use repo-end to finish work."
+  emit_deny "Do not run git worktree remove directly. Use repo-end to finish work.$state_guidance"
   exit 0
 fi
 
 if matches_branch_create_command; then
-  emit_deny "Do not create branches directly. Use repo-start <branch> instead."
+  emit_deny "Do not create branches directly. Use repo-start <branch> instead.$state_guidance"
   exit 0
 fi
 
 if matches_implicit_remote_branch_command; then
-  emit_deny "Do not create branches directly. Use repo-start <branch> instead."
+  emit_deny "Do not create branches directly. Use repo-start <branch> instead.$state_guidance"
   exit 0
 fi
 
