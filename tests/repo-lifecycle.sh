@@ -413,7 +413,9 @@ assert_git_has_file "$recovery_repo" main recovery.txt \
 for destination_kind in default external; do
   tracked_repo="$(create_repo "tracked-worktrees-$destination_kind")"
   mkdir -p "$tracked_repo/.worktrees"
-  commit_file "$tracked_repo" .worktrees/seed.txt seed "track worktree root"
+  printf 'seed\n' >"$tracked_repo/.worktrees/seed.txt"
+  git -C "$tracked_repo" add -f .worktrees/seed.txt
+  git -C "$tracked_repo" commit -qm "track worktree root"
   tracked_destination="$tracked_repo/.worktrees/blocked-branch"
   start_args=(--use-worktrees --ephemeral blocked-branch)
   if [[ "$destination_kind" == "external" ]]; then
@@ -445,7 +447,7 @@ for entry_kind in file symlink; do
   else
     ln -s "$TMPROOT/worktree-symlink-target" "$tracked_repo/.worktrees"
   fi
-  git -C "$tracked_repo" add .worktrees
+  git -C "$tracked_repo" add -f .worktrees
   git -C "$tracked_repo" commit -qm "track .worktrees $entry_kind"
   tracked_destination="$TMPROOT/tracked-worktrees-$entry_kind-destination"
 
