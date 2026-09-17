@@ -7,6 +7,7 @@ local isSafariBrowserWindow = source.isSafariBrowserWindow
 local isChatGPTSender = source.isChatGPTSender
 local isChromeBrowserWindow = source.isChromeBrowserWindow
 local resolveActiveChromeWindow = source.resolveActiveChromeWindow
+local preferredChromeNativeWindowID = source.preferredChromeNativeWindowID
 local normalizeNativeWindowID = source.normalizeNativeWindowID
 local isDevelopmentSafariWindow = source.isDevelopmentSafariWindow
 local resolveDevelopmentSafariWindow = source.resolveDevelopmentSafariWindow
@@ -206,6 +207,7 @@ assertEqual(false, isChatGPTSender("com.apple.Safari"), "non-ChatGPT sender")
 
 local chromeInWorkspace4 = {
   id = "ow_chrome",
+  windowId = 42,
   app = {bundleId = "com.google.Chrome"},
   title = "ChatGPT",
   workspace = {number = 4},
@@ -242,20 +244,66 @@ target, targetError = resolveActiveChromeWindow(4, {titlelessChrome})
 assertEqual(nil, target, "titleless Chrome target")
 assertEqual(nil, targetError, "titleless Chrome target error")
 
+local secondChrome = {
+  id = "ow_chrome_2",
+  windowId = 43,
+  app = {bundleId = "com.google.Chrome"},
+  title = "Second",
+  workspace = {number = 4},
+}
 target, targetError = resolveActiveChromeWindow(4, {
   chromeInWorkspace4,
-  {
-    id = "ow_chrome_2",
-    app = {bundleId = "com.google.Chrome"},
-    title = "Second",
-    workspace = {number = 4},
-  },
+  secondChrome,
 })
 assertEqual(nil, target, "ambiguous Chrome target")
 assertEqual(
   "More than one Chrome browser window is in the active workspace",
   targetError,
   "ambiguous Chrome target error"
+)
+
+target, targetError = resolveActiveChromeWindow(4, {
+  chromeInWorkspace4,
+  secondChrome,
+}, 42)
+assertEqual("ow_chrome", target and target.id, "preferred native Chrome target")
+assertEqual(nil, targetError, "preferred native Chrome target error")
+
+target, targetError = resolveActiveChromeWindow(4, {
+  chromeInWorkspace4,
+  secondChrome,
+}, 999)
+assertEqual(nil, target, "stale preferred Chrome target")
+assertEqual(
+  "More than one Chrome browser window is in the active workspace",
+  targetError,
+  "stale preferred Chrome target error"
+)
+
+local preferredApplication = {
+  focusedWindow = function()
+    return {id = function() return 42 end}
+  end,
+}
+assertEqual(
+  42,
+  preferredChromeNativeWindowID(preferredApplication),
+  "preferred Chrome native window ID"
+)
+assertEqual(nil, preferredChromeNativeWindowID(nil), "missing Chrome application")
+assertEqual(
+  nil,
+  preferredChromeNativeWindowID({focusedWindow = function() return nil end}),
+  "missing focused Chrome window"
+)
+assertEqual(
+  nil,
+  preferredChromeNativeWindowID({
+    focusedWindow = function()
+      return {id = function() return math.huge end}
+    end,
+  }),
+  "invalid preferred Chrome native window ID"
 )
 
 if failures > 0 then

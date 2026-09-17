@@ -102,13 +102,41 @@ function M.isChromeBrowserWindow(window)
     and window.title ~= ""
 end
 
-function M.resolveActiveChromeWindow(activeWorkspace, windows)
+function M.preferredChromeNativeWindowID(application)
+  if not application or type(application.focusedWindow) ~= "function" then
+    return nil
+  end
+  local windowOK, window = pcall(function()
+    return application:focusedWindow()
+  end)
+  if not windowOK or not window or type(window.id) ~= "function" then
+    return nil
+  end
+  local idOK, nativeWindowID = pcall(function()
+    return window:id()
+  end)
+  if not idOK then
+    return nil
+  end
+  return M.normalizeNativeWindowID(nativeWindowID)
+end
+
+function M.resolveActiveChromeWindow(activeWorkspace, windows, preferredNativeWindowID)
   local candidates = {}
   for _, window in ipairs(windows or {}) do
     if M.isChromeBrowserWindow(window)
       and window.workspace
       and window.workspace.number == activeWorkspace then
       table.insert(candidates, window)
+    end
+  end
+
+  local preferredID = M.normalizeNativeWindowID(preferredNativeWindowID)
+  if preferredID then
+    for _, window in ipairs(candidates) do
+      if M.normalizeNativeWindowID(window.windowId) == preferredID then
+        return window, nil
+      end
     end
   end
 
