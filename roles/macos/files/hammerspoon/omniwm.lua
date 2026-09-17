@@ -843,9 +843,13 @@ local function routeChatGPTURL(url)
         openNormallyInChrome(url)
         return
       end
+      local chromeApplication = hs.application.get("com.google.Chrome")
+      local preferredNativeWindowID =
+        urlSource.preferredChromeNativeWindowID(chromeApplication)
       local chromeWindow, resolveError = urlSource.resolveActiveChromeWindow(
         activeWorkspace.number,
-        windows
+        windows,
+        preferredNativeWindowID
       )
       if resolveError then
         M.notify(resolveError)

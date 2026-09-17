@@ -152,9 +152,11 @@ focuses that exact window. It does not move or summon the Safari window.
 
 ### Open a link from ChatGPT
 
-Click the link normally. The managed URL handler opens it in the single Chrome
-browser window in the current workspace and focuses that window. If there is no
-single clear Chrome target, the handler opens the link normally in Chrome.
+Click the link normally. The managed URL handler prefers Chrome's last-focused
+browser window when it is in the current workspace. It opens the tab there and
+focuses that exact window. This keeps routing stable when an extra Chrome window
+exists. If there is no preferred or single clear target, the handler opens the
+link normally in Chrome.
 
 ### Enter a two-factor authentication code
 
