@@ -85,11 +85,10 @@ match. A user can still invoke either one explicitly.
 ### Managed source and commands
 
 The upstream tag is pinned at
-`tool_versions.git_tags.mattpocock_skills` in `vars/tool_versions.yml`. The
-current pin is `v1.2.3`. Its annotated tag object is
-`835450ef244ab7335f75d95b83e7d979eae22a6d`, which peels to source commit
-`6acc160e4e0cd062dbbbd7a1b26ae92855edf07e`. Do not describe the annotated tag
-object as the source commit.
+`tool_versions.git_tags.mattpocock_skills` in `vars/tool_versions.yml`. Read the
+current tag, annotated tag object, and peeled source commit from that pin and
+the generated `UPSTREAM.md` files. Do not describe the annotated tag object as
+the source commit.
 
 `roles/common/files/vendor/mattpocock-skills/` is a complete generated tree for
 the six selected skills. Do not hand-edit it. After deliberately changing the
