@@ -217,11 +217,20 @@ case " $* " in
   *' --method GET '*) ;;
   *) printf 'expected GitHub lookup to use GET\n' >&2; exit 1 ;;
 esac
-cat <<'JSON'
+if [[ "${CLOSED_GH_MODE:-closed}" == "active" ]]; then
+  cat <<'JSON'
+[
+  {"number":16,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-github"}},
+  {"number":17,"state":"open","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-github"}}
+]
+JSON
+else
+  cat <<'JSON'
 [
   {"number":17,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-github"}}
 ]
 JSON
+fi
 EOF
 cat >"$closed_github_bin/ssh" <<EOF
 #!/usr/bin/env bash
@@ -244,6 +253,17 @@ fi
 [ -d "$closed_github_feature" ] || \
   fail_case "plain repo-end preserves closed PR worktree" "worktree was removed"
 pass_case "plain repo-end preserves a closed unmerged PR"
+if (cd "$closed_github_feature" && \
+  HOME="$closed_github_home" CLOSED_GH_LOG="$TMPROOT/end-closed-github-gh.log" \
+  CLOSED_GH_MODE=active PATH="$closed_github_bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$closed_github_bin/ssh" \
+  "$REPO_END_SCRIPT" --closed >/dev/null 2>&1); then
+  fail_case "closed cleanup rejects an active PR" \
+    "closed cleanup accepted historical closure proof for an active branch"
+fi
+[ -d "$closed_github_feature" ] || \
+  fail_case "active PR preserves worktree" "worktree was removed"
+pass_case "closed cleanup rejects an active PR despite historical closure proof"
 (cd "$closed_github_feature" && \
   HOME="$closed_github_home" CLOSED_GH_LOG="$TMPROOT/end-closed-github-gh.log" \
   PATH="$closed_github_bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null \
@@ -260,6 +280,8 @@ if git --git-dir="$closed_github_origin" show-ref --verify --quiet \
   refs/heads/feature/closed-github; then
   fail_case "closed PR cleanup removes remote branch" "remote branch remains"
 fi
+grep -q "state=all" "$TMPROOT/end-closed-github-gh.log" || \
+  fail_case "closed PR lookup includes active PRs" "GitHub lookup did not query all states"
 grep -q "Using closed GitHub PR #17 as closure proof" \
   "$TMPROOT/end-closed-github.err" || \
   fail_case "closed PR cleanup reports proof" "closure proof message is missing"

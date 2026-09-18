@@ -557,41 +557,63 @@ github_merged_pr_proof() {
 
 github_closed_pr_proof() {
   command -v gh >/dev/null 2>&1 || return 1
-  local slug json count number
+  local slug json result number
   slug="$(github_repo_slug "$(origin_url)")" || return 1
   [[ -n "$slug" ]] || return 1
-  json="$(gh api --method GET "repos/${slug}/pulls" -f state=closed \
-    -f head="${slug%%/*}:${current_branch}" -f base="$main_branch" 2>/dev/null)" || return 1
-  count="$(printf '%s\n' "$json" | ruby -rjson -e '
+  json="$(gh api --method GET --paginate --slurp "repos/${slug}/pulls" \
+    -f state=all -f head="${slug%%/*}:${current_branch}" \
+    -f base="$main_branch" -f per_page=100 2>/dev/null)" || return 1
+  result="$(printf '%s\n' "$json" | ruby -rjson -e '
     prs = JSON.parse(STDIN.read)
+    prs = prs.flatten(1) if prs.is_a?(Array) && prs.first.is_a?(Array)
+    exit 1 unless prs.is_a?(Array)
     matches = prs.select do |pr|
-      pr.is_a?(Hash) && pr["number"].is_a?(Integer) &&
-        pr["state"] == "closed" && pr.key?("merged_at") && pr["merged_at"].nil? &&
-        pr["base"].is_a?(Hash) && pr["head"].is_a?(Hash) &&
+      pr.is_a?(Hash) && pr["base"].is_a?(Hash) && pr["head"].is_a?(Hash) &&
         pr.dig("base", "ref") == ARGV[0] && pr.dig("head", "ref") == ARGV[1]
     end
-    puts matches.length
-  ' "$main_branch" "$current_branch")" || return 1
-  if [[ "$count" == "1" ]]; then
-    number="$(printf '%s\n' "$json" | ruby -rjson -e '
-      prs = JSON.parse(STDIN.read)
-      matches = prs.select do |pr|
-        pr.is_a?(Hash) && pr["number"].is_a?(Integer) &&
-          pr["state"] == "closed" && pr.key?("merged_at") && pr["merged_at"].nil? &&
-          pr["base"].is_a?(Hash) && pr["head"].is_a?(Hash) &&
-          pr.dig("base", "ref") == ARGV[0] && pr.dig("head", "ref") == ARGV[1]
+    if matches.empty?
+      puts "none"
+    elsif matches.length > 1
+      puts "ambiguous"
+    else
+      pr = matches.fetch(0)
+      if !pr["number"].is_a?(Integer) || !pr.key?("merged_at")
+        puts "invalid"
+      elsif pr["state"] == "open"
+        puts "open"
+      elsif pr["state"] == "closed" && pr["merged_at"].nil?
+        puts "closed\t#{pr.fetch("number")}"
+      elsif pr["state"] == "closed"
+        puts "merged"
+      else
+        puts "invalid"
       end
-      puts matches.fetch(0).fetch("number")
-    ' "$main_branch" "$current_branch")" || return 1
-    printf 'Using closed GitHub PR #%s as closure proof\n' "$number" >&2
-    return 0
-  fi
-  if [[ "$count" -gt 1 ]]; then
-    printf 'Error: multiple closed PRs found for branch %s targeting %s; refusing cleanup\n' \
-      "$current_branch" "$main_branch" >&2
-    exit 1
-  fi
-  return 1
+    end
+  ' "$main_branch" "$current_branch")" || return 1
+
+  case "$result" in
+    closed$'\t'*)
+      number="${result#*$'\t'}"
+      printf 'Using closed GitHub PR #%s as closure proof\n' "$number" >&2
+      return 0
+      ;;
+    open)
+      printf 'Error: an open PR exists for branch %s targeting %s; refusing closed cleanup\n' \
+        "$current_branch" "$main_branch" >&2
+      exit 1
+      ;;
+    ambiguous)
+      printf 'Error: multiple PRs found for branch %s targeting %s; refusing cleanup\n' \
+        "$current_branch" "$main_branch" >&2
+      exit 1
+      ;;
+    merged)
+      printf 'Error: matching PR for branch %s is merged; use repo-end without --closed\n' \
+        "$current_branch" >&2
+      exit 1
+      ;;
+    *) return 1 ;;
+  esac
 }
 
 platform_merged_pr_proof() {
