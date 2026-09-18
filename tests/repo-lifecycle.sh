@@ -206,6 +206,7 @@ git -C "$closed_github_repo" worktree add -q -b feature/closed-github \
   "$closed_github_feature" main
 commit_file "$closed_github_feature" closed.txt closed "closed feature commit"
 git -C "$closed_github_feature" push -q -u origin feature/closed-github
+closed_github_tip="$(git -C "$closed_github_feature" rev-parse HEAD)"
 git -C "$closed_github_repo" remote set-url origin \
   git@github.com:example/end-closed-github.git
 closed_github_bin="$TMPROOT/end-closed-github-bin"
@@ -218,16 +219,22 @@ case " $* " in
   *) printf 'expected GitHub lookup to use GET\n' >&2; exit 1 ;;
 esac
 if [[ "${CLOSED_GH_MODE:-closed}" == "active" ]]; then
+  cat <<JSON
+[
+  {"number":16,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-github","sha":"$CLOSED_GH_HEAD_SHA"}},
+  {"number":17,"state":"open","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-github","sha":"$CLOSED_GH_HEAD_SHA"}}
+]
+JSON
+elif [[ "${CLOSED_GH_MODE:-closed}" == "stale" ]]; then
   cat <<'JSON'
 [
-  {"number":16,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-github"}},
-  {"number":17,"state":"open","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-github"}}
+  {"number":15,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-github","sha":"0000000000000000000000000000000000000000"}}
 ]
 JSON
 else
-  cat <<'JSON'
+  cat <<JSON
 [
-  {"number":17,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-github"}}
+  {"number":17,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-github","sha":"$CLOSED_GH_HEAD_SHA"}}
 ]
 JSON
 fi
@@ -255,7 +262,20 @@ fi
 pass_case "plain repo-end preserves a closed unmerged PR"
 if (cd "$closed_github_feature" && \
   HOME="$closed_github_home" CLOSED_GH_LOG="$TMPROOT/end-closed-github-gh.log" \
-  CLOSED_GH_MODE=active PATH="$closed_github_bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+  CLOSED_GH_HEAD_SHA="$closed_github_tip" CLOSED_GH_MODE=stale \
+  PATH="$closed_github_bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$closed_github_bin/ssh" \
+  "$REPO_END_SCRIPT" --closed >/dev/null 2>&1); then
+  fail_case "closed cleanup rejects a PR for an old branch tip" \
+    "closed cleanup accepted closure proof for a reused branch name"
+fi
+[ -d "$closed_github_feature" ] || \
+  fail_case "stale PR proof preserves worktree" "worktree was removed"
+pass_case "closed cleanup binds GitHub PR proof to the remote tip"
+if (cd "$closed_github_feature" && \
+  HOME="$closed_github_home" CLOSED_GH_LOG="$TMPROOT/end-closed-github-gh.log" \
+  CLOSED_GH_HEAD_SHA="$closed_github_tip" CLOSED_GH_MODE=active \
+  PATH="$closed_github_bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null \
   GIT_SSH="$closed_github_bin/ssh" \
   "$REPO_END_SCRIPT" --closed >/dev/null 2>&1); then
   fail_case "closed cleanup rejects an active PR" \
@@ -266,6 +286,7 @@ fi
 pass_case "closed cleanup rejects an active PR despite historical closure proof"
 (cd "$closed_github_feature" && \
   HOME="$closed_github_home" CLOSED_GH_LOG="$TMPROOT/end-closed-github-gh.log" \
+  CLOSED_GH_HEAD_SHA="$closed_github_tip" \
   PATH="$closed_github_bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null \
   GIT_SSH="$closed_github_bin/ssh" "$REPO_END_SCRIPT" --closed \
     >"$TMPROOT/end-closed-github.out" \
@@ -298,6 +319,7 @@ git -C "$closed_race_repo" worktree add -q -b feature/closed-race \
   "$closed_race_feature" main
 commit_file "$closed_race_feature" closed-race.txt closed "closed race feature commit"
 git -C "$closed_race_feature" push -q -u origin feature/closed-race
+closed_race_verified_tip="$(git -C "$closed_race_feature" rev-parse HEAD)"
 closed_race_peer="$TMPROOT/end-closed-race-peer"
 git clone -q "$closed_race_origin" "$closed_race_peer"
 git -C "$closed_race_peer" checkout -q feature/closed-race
@@ -315,7 +337,7 @@ git --git-dir='$closed_race_origin' update-ref \
   refs/heads/feature/closed-race '$closed_race_advanced_tip'
 cat <<'JSON'
 [
-  {"number":18,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-race"}}
+  {"number":18,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-race","sha":"$closed_race_verified_tip"}}
 ]
 JSON
 EOF
@@ -420,16 +442,17 @@ git -C "$closed_ambiguous_repo" worktree add -q -b feature/closed-ambiguous \
 commit_file "$closed_ambiguous_feature" ambiguous-closed.txt closed \
   "ambiguous closed feature commit"
 git -C "$closed_ambiguous_feature" push -q -u origin feature/closed-ambiguous
+closed_ambiguous_tip="$(git -C "$closed_ambiguous_feature" rev-parse HEAD)"
 git -C "$closed_ambiguous_repo" remote set-url origin \
   git@github.com:example/end-closed-ambiguous.git
 closed_ambiguous_bin="$TMPROOT/end-closed-ambiguous-bin"
 mkdir -p "$closed_ambiguous_bin"
-cat >"$closed_ambiguous_bin/gh" <<'EOF'
+cat >"$closed_ambiguous_bin/gh" <<EOF
 #!/usr/bin/env bash
 cat <<'JSON'
 [
-  {"number":20,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-ambiguous"}},
-  {"number":21,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-ambiguous"}}
+  {"number":20,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-ambiguous","sha":"$closed_ambiguous_tip"}},
+  {"number":21,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-ambiguous","sha":"$closed_ambiguous_tip"}}
 ]
 JSON
 EOF
@@ -459,15 +482,16 @@ git -C "$closed_malformed_repo" worktree add -q -b feature/closed-malformed \
 commit_file "$closed_malformed_feature" malformed-closed.txt closed \
   "malformed closed feature commit"
 git -C "$closed_malformed_feature" push -q -u origin feature/closed-malformed
+closed_malformed_tip="$(git -C "$closed_malformed_feature" rev-parse HEAD)"
 git -C "$closed_malformed_repo" remote set-url origin \
   git@github.com:example/end-closed-malformed.git
 closed_malformed_bin="$TMPROOT/end-closed-malformed-bin"
 mkdir -p "$closed_malformed_bin"
-cat >"$closed_malformed_bin/gh" <<'EOF'
+cat >"$closed_malformed_bin/gh" <<EOF
 #!/usr/bin/env bash
 cat <<'JSON'
 [
-  {"number":22,"state":"closed","base":{"ref":"main"},"head":{"ref":"feature/closed-malformed"}}
+  {"number":22,"state":"closed","base":{"ref":"main"},"head":{"ref":"feature/closed-malformed","sha":"$closed_malformed_tip"}}
 ]
 JSON
 EOF

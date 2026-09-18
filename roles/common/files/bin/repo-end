@@ -573,7 +573,8 @@ github_closed_pr_proof() {
     exit 1 unless prs.is_a?(Array)
     matches = prs.select do |pr|
       pr.is_a?(Hash) && pr["base"].is_a?(Hash) && pr["head"].is_a?(Hash) &&
-        pr.dig("base", "ref") == ARGV[0] && pr.dig("head", "ref") == ARGV[1]
+        pr.dig("base", "ref") == ARGV[0] && pr.dig("head", "ref") == ARGV[1] &&
+        pr.dig("head", "sha") == ARGV[2]
     end
     if matches.empty?
       puts "none"
@@ -593,7 +594,7 @@ github_closed_pr_proof() {
         puts "invalid"
       end
     end
-  ' "$main_branch" "$current_branch")" || return 1
+  ' "$main_branch" "$current_branch" "$closed_remote_sha")" || return 1
 
   case "$result" in
     closed$'\t'*)
