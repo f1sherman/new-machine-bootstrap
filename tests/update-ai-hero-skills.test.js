@@ -126,32 +126,36 @@ test("generates only complete selected skills with adaptations and metadata", ()
   assert.equal(mergeSkill.split(MERGE_REPLACEMENT).length - 1, 1);
 }));
 
-test("rejects wait-what when an upstream user-only flag is missing", () => {
+test("rejects wait-what when an upstream user-only flag is missing or false", () => {
   const cases = [
     {
       path: "SKILL.md",
-      remove: "disable-model-invocation: true\n",
+      preimage: "disable-model-invocation: true\n",
+      replacements: ["", "disable-model-invocation: false\n"],
       error: /disable-model-invocation must be true/,
     },
     {
       path: "agents/openai.yaml",
-      remove: "policy:\n  allow_implicit_invocation: false\n",
+      preimage: "policy:\n  allow_implicit_invocation: false\n",
+      replacements: ["", "policy:\n  allow_implicit_invocation: true\n"],
       error: /policy\.allow_implicit_invocation must be false/,
     },
   ];
 
   for (const testCase of cases) {
-    withFixture((fixture) => {
-      const upstreamPath = path.join(fixture.upstream, SKILLS["wait-what"], testCase.path);
-      const contents = readFileSync(upstreamPath, "utf8");
-      writeFileSync(upstreamPath, contents.replace(testCase.remove, ""));
-      commitFixture(fixture.upstream, `drop wait-what flag from ${testCase.path}`);
-      moveTag(fixture.upstream);
+    for (const replacement of testCase.replacements) {
+      withFixture((fixture) => {
+        const upstreamPath = path.join(fixture.upstream, SKILLS["wait-what"], testCase.path);
+        const contents = readFileSync(upstreamPath, "utf8");
+        writeFileSync(upstreamPath, contents.replace(testCase.preimage, replacement));
+        commitFixture(fixture.upstream, `change wait-what flag in ${testCase.path}`);
+        moveTag(fixture.upstream);
 
-      const result = runUpdater(fixture);
-      assert.notEqual(result.status, 0);
-      assert.match(result.stderr, testCase.error);
-    });
+        const result = runUpdater(fixture);
+        assert.notEqual(result.status, 0);
+        assert.match(result.stderr, testCase.error);
+      });
+    }
   }
 });
 
