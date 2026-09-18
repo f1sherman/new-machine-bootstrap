@@ -2526,6 +2526,56 @@
     - z-mark-done
     - z-spec-to-pr
 
+- name: Reconcile vendored AI Hero skills across harnesses
+  vars:
+    ai_hero_skill_names:
+      - grill-with-docs
+      - grilling
+      - domain-modeling
+      - resolving-merge-conflicts
+      - wait-what
+      - writing-for-agents
+    ai_hero_skill_roots:
+      - '{{ ansible_facts["user_dir"] }}/.claude/skills'
+      - '{{ ansible_facts["user_dir"] }}/.codex/skills'
+      - '{{ ansible_facts["user_dir"] }}/.pi/agent/skills'
+  block:
+    - name: Read deployed AI Hero skill checksums
+      slurp:
+        src: '{{ item.0 }}/{{ item.1 }}/.managed-checksum'
+      loop: '{{ ai_hero_skill_roots | product(ai_hero_skill_names) | list }}'
+      loop_control:
+        label: '{{ item.0 }}/{{ item.1 }}'
+      register: ai_hero_deployed_checksums
+      changed_when: false
+      failed_when: false
+
+    - name: Remove outdated AI Hero skill directories
+      file:
+        path: '{{ item.0 }}/{{ item.1 }}'
+        state: absent
+      loop: '{{ ai_hero_skill_roots | product(ai_hero_skill_names) | list }}'
+      loop_control:
+        label: '{{ item.0 }}/{{ item.1 }}'
+        index_var: ai_hero_target_index
+      when: >-
+        (ai_hero_deployed_checksums.results[ai_hero_target_index].content
+        | default('') | b64decode | trim)
+        !=
+        (lookup('ansible.builtin.file',
+        playbook_dir ~ '/roles/common/files/vendor/mattpocock-skills/'
+        ~ item.1 ~ '/.managed-checksum') | trim)
+
+    - name: Install AI Hero skills
+      copy:
+        src: '{{ playbook_dir }}/roles/common/files/vendor/mattpocock-skills/{{ item.1 }}/'
+        dest: '{{ item.0 }}/{{ item.1 }}/'
+        mode: preserve
+        directory_mode: '0755'
+      loop: '{{ ai_hero_skill_roots | product(ai_hero_skill_names) | list }}'
+      loop_control:
+        label: '{{ item.0 }}/{{ item.1 }}'
+
 - name: Install common skills to ~/.claude/skills
   copy:
     src: '{{ playbook_dir }}/roles/common/files/config/skills/common/'

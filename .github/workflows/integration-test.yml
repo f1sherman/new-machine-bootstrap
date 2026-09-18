@@ -57,6 +57,9 @@ jobs:
       - name: Verify Chrome tab garbage collection
         run: node --test tests/chrome-tab-gc.test.js
 
+      - name: Verify AI Hero skills updater
+        run: node --test tests/update-ai-hero-skills.test.js
+
       - name: Verify commit wrapper ignored docs protection
         run: bash tests/commit-force-add-superpowers.sh
 

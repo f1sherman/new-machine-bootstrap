@@ -21,6 +21,8 @@ tool_versions:
   git_tags:
     # renovate: datasource=github-tags depName=f1sherman/agent-session-registry
     agent_session_registry: v0.3.0
+    # renovate: datasource=github-tags depName=mattpocock/skills
+    mattpocock_skills: v1.2.3
     # renovate: datasource=github-tags depName=junegunn/fzf
     fzf: v0.74.3
     # renovate: datasource=github-tags depName=tmux-plugins/tpm
