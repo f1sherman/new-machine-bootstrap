@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -125,6 +125,26 @@ test("regeneration removes stale generated files and check mode detects drift", 
   assert.equal(readdirSync(generatedSkill(fixture, "wait-what")).includes("stale.txt"), false);
 }));
 
+test("mode-only updates change the managed checksum", () => withFixture((fixture) => {
+  assert.equal(runUpdater(fixture).status, 0);
+  const generatedSupport = path.join(generatedSkill(fixture, "wait-what"), "support/nested.txt");
+  const checksumPath = path.join(generatedSkill(fixture, "wait-what"), ".managed-checksum");
+  const contentsBefore = readFileSync(generatedSupport);
+  const checksumBefore = readFileSync(checksumPath, "utf8");
+
+  const upstreamSupport = path.join(fixture.upstream, SKILLS["wait-what"], "support/nested.txt");
+  chmodSync(upstreamSupport, 0o755);
+  commitFixture(fixture.upstream, "make support executable");
+  assert.match(git(fixture.upstream, "diff", "--summary", "HEAD^", "HEAD"), /mode change 100644 => 100755/);
+  moveTag(fixture.upstream);
+
+  const result = runUpdater(fixture, "--allow-moved-tag");
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(readFileSync(generatedSupport), contentsBefore);
+  assert.notEqual(readFileSync(checksumPath, "utf8"), checksumBefore);
+  assert.notEqual(statSync(generatedSupport).mode & 0o111, 0);
+}));
+
 test("rejects a moved existing tag unless explicitly allowed", () => withFixture((fixture) => {
   assert.equal(runUpdater(fixture).status, 0);
   write(fixture.upstream, `${SKILLS["wait-what"]}/new.txt`, "new release contents\n");
@@ -142,6 +162,18 @@ test("rejects a moved existing tag unless explicitly allowed", () => withFixture
 test("rejects symlinks in selected source trees", () => withFixture((fixture) => {
   symlinkSync("nested.txt", path.join(fixture.upstream, SKILLS["wait-what"], "support/link.txt"));
   commitFixture(fixture.upstream, "add forbidden symlink");
+  moveTag(fixture.upstream);
+
+  const result = runUpdater(fixture);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /symlink/i);
+}));
+
+test("rejects a selected skill root symlink", () => withFixture((fixture) => {
+  const selectedRoot = path.join(fixture.upstream, SKILLS["wait-what"]);
+  rmSync(selectedRoot, { recursive: true });
+  symlinkSync("writing-for-agents", selectedRoot);
+  commitFixture(fixture.upstream, "replace selected skill root with symlink");
   moveTag(fixture.upstream);
 
   const result = runUpdater(fixture);

@@ -245,6 +245,8 @@ function checksumSkill(skillPath) {
     if (entry.type !== "file" || entry.relative === ".managed-checksum") continue;
     hash.update(entry.relative.split(path.sep).join("/"));
     hash.update("\0");
+    hash.update(entry.mode & 0o111 ? "executable" : "non-executable");
+    hash.update("\0");
     hash.update(fs.readFileSync(path.join(skillPath, entry.relative)));
     hash.update("\0");
   }
@@ -259,7 +261,10 @@ function generateTree(sourceRoot, destinationRoot, tag, commit) {
 
   for (const [name, sourceRelativePath] of Object.entries(SELECTED_SKILLS)) {
     const sourcePath = path.join(sourceRoot, sourceRelativePath);
-    if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isDirectory()) fail(`Selected upstream skill is missing: ${sourceRelativePath}`);
+    if (!fs.existsSync(sourcePath)) fail(`Selected upstream skill is missing: ${sourceRelativePath}`);
+    const sourceStats = fs.lstatSync(sourcePath);
+    if (sourceStats.isSymbolicLink()) fail(`Selected upstream skill is a symlink: ${sourceRelativePath}`);
+    if (!sourceStats.isDirectory()) fail(`Selected upstream skill is missing: ${sourceRelativePath}`);
     walkTree(sourcePath);
     const destination = path.join(destinationRoot, name);
     fs.cpSync(sourcePath, destination, { recursive: true, preserveTimestamps: false });
