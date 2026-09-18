@@ -44,12 +44,126 @@ Evaluated source:
 | `handoff` | Skip | Existing create/resume handoff skills are more durable and verify stale state. Add explicit redaction and reference-without-duplication guidance to the current handoff workflow. |
 | `to-questionnaire` | Skip | There is no current recurring case where work is blocked on knowledge held by another person. A questionnaire can be drafted ad hoc if that changes. |
 | `teach` | Skip | There is no current multi-session learning project to justify a dedicated course workspace and its maintenance overhead. |
-| `wait-what` | Install | Use on demand when an agent response does not land. It restores missing context, uses ASD-STE100 Simplified Technical English, and returns to established project terminology. |
+| `wait-what` | Install, user-only | Use on demand when an agent response does not land. Upstream metadata makes it user-only. It restores missing context, uses ASD-STE100 Simplified Technical English, and returns to established project terminology. |
 | `writing-for-agents` | Install | Use when creating or editing skills, agent instructions, prompts, plans, tickets, or other agent-facing documents. It complements skill testing with context-load, pointer, completion-criterion, and pruning guidance. |
 | `codebase-design` | Skip | Useful depth and locality principles are retained, but mandatory vocabulary and automatic activation can trigger unbounded redesign that duplicates current design guidance. |
 | `domain-modeling` | Install, user-only | Install unchanged except for `disable-model-invocation: true`, as a dependency of `grill-with-docs`. |
 | `grilling` | Install, user-only | Install unchanged except for `disable-model-invocation: true`, as the interview engine for explicit `grill-with-docs` sessions. |
 | `tdd` | Skip | It duplicates the existing TDD skill, requires human seam confirmation, depends on skipped `codebase-design`, and lacks the repository's material-value test gates. |
+
+## Installed-skills quick reference
+
+All six skills keep their upstream names in every harness. To invoke a skill
+explicitly, use its exact name with the harness-specific form shown below:
+
+- Claude Code: `/grill-with-docs`
+- Codex: `$grill-with-docs`
+- Pi: `/skill:grill-with-docs`
+
+Substitute any other installed name for `grill-with-docs`; for example,
+`/wait-what`, `$wait-what`, and `/skill:wait-what` invoke `wait-what`.
+
+The deep-design bundle (`grill-with-docs`, `grilling`, and `domain-modeling`) is
+user-only. Each skill has `disable-model-invocation: true`, and its Codex
+metadata has `policy.allow_implicit_invocation: false`. `wait-what` is also
+user-only, as specified by its upstream `disable-model-invocation: true`
+metadata. `resolving-merge-conflicts` and `writing-for-agents` do not disable
+model invocation, so an agent can select them when their described conditions
+match. A user can still invoke either one explicitly.
+
+| Skill | Exact explicit trigger | Invocation policy and when to use it | Do not use it when |
+| --- | --- | --- | --- |
+| **grill-with-docs** | Claude `/grill-with-docs`; Codex `$grill-with-docs`; Pi `/skill:grill-with-docs` | User-only. Start a deep design interview for large, ambiguous repository work that should produce or refine domain context and architecture decisions. It loads both `grilling` and `domain-modeling`. | The task is small or already well specified, ordinary planning is sufficient, or the user has not explicitly requested the deep interview. |
+| **grilling** | Claude `/grilling`; Codex `$grilling`; Pi `/skill:grilling` | User-only. Stress-test a plan, decision, or idea through a relentless decision-tree interview without requiring the documentation bundle. | The need is fact-finding the agent can perform, a routine clarification, or implementation rather than an explicit interview. |
+| **domain-modeling** | Claude `/domain-modeling`; Codex `$domain-modeling`; Pi `/skill:domain-modeling` | User-only. Build or change domain terminology, a ubiquitous language, context documents, or architectural decision records. It is also loaded by `grill-with-docs`. | Merely reading established terminology, or work that does not change the domain model or record a decision. |
+| **wait-what** | Claude `/wait-what`; Codex `$wait-what`; Pi `/skill:wait-what` | User-only. Invoke after an agent response does not land and needs to be re-pitched with enough context, ASD-STE100 Simplified Technical English, and established project terminology. | The prior response is already clear, or the request is for new analysis rather than a clearer restatement. |
+| **resolving-merge-conflicts** | Claude `/resolving-merge-conflicts`; Codex `$resolving-merge-conflicts`; Pi `/skill:resolving-merge-conflicts` | Model-invokable when Git is already stopped on an in-progress merge or rebase conflict. Establish both sides' intent, resolve without inventing behavior, run repository checks, and finish the clearly intended operation. | There is no active merge or rebase conflict, or available context cannot establish that the operation should continue; in the latter case, stop for a human decision. |
+| **writing-for-agents** | Claude `/writing-for-agents`; Codex `$writing-for-agents`; Pi `/skill:writing-for-agents` | Model-invokable when creating or editing skills, agent instructions, prompts, plans, tickets, or other agent-facing documents. Use its context-load, pointer, completion-criterion, and pruning guidance. | The audience is only human, the task is implementation rather than agent-facing writing, or a document-specific rule is more authoritative. |
+
+## Maintenance and upstream updates
+
+### Managed source and commands
+
+The upstream tag is pinned at
+`tool_versions.git_tags.mattpocock_skills` in `vars/tool_versions.yml`. The
+current pin is `v1.2.3`. Its annotated tag object is
+`835450ef244ab7335f75d95b83e7d979eae22a6d`, which peels to source commit
+`6acc160e4e0cd062dbbbd7a1b26ae92855edf07e`. Do not describe the annotated tag
+object as the source commit.
+
+`roles/common/files/vendor/mattpocock-skills/` is a complete generated tree for
+the six selected skills. Do not hand-edit it. After deliberately changing the
+pin, regenerate it from the repository root:
+
+```sh
+bin/update-ai-hero-skills
+```
+
+Verify that the checked-in tree is reproducible from the pin with:
+
+```sh
+bin/update-ai-hero-skills --check
+```
+
+The updater fetches the pinned tag, peels it to a commit, validates selected
+source and metadata, rejects symlinks, copies only the selected complete skill
+directories, applies the local policy patches, writes provenance and checksums,
+and replaces the generated tree so removed upstream files cannot linger. It
+also rejects a previously recorded tag that has moved to another commit unless
+a maintainer explicitly supplies `--allow-moved-tag`.
+
+### Renovate behavior
+
+Renovate watches the `mattpocock/skills` GitHub tags through the pin annotation.
+The repository-wide seven-day minimum release age applies. For this dependency,
+Renovate adds the `ai-hero-skills` label, uses `AI Hero skills` as the commit
+topic, and runs exactly `bin/update-ai-hero-skills` after updating the pin. The
+allowed generated changes are bounded to `vars/tool_versions.yml` and
+`roles/common/files/vendor/mattpocock-skills/**`; the workflow allowlist permits
+only that exact updater command. The scheduled workflow checks daily and can
+also be dispatched manually. A Renovate pull request therefore contains both
+the pin change and the generated behavior diff for review.
+
+### Local patch policy and review cost
+
+Local adaptations belong in `bin/update-ai-hero-skills`, not in hand edits to
+the generated files. There are three policy adaptations:
+
+1. The entire deep-design bundle is made user-only in both skill frontmatter
+   and Codex metadata.
+2. The `grill-with-docs` portability patch replaces an upstream Claude-specific
+   nested invocation. The generated wrapper first uses a harness skill
+   mechanism when one exists and otherwise reads the sibling `grilling` and
+   `domain-modeling` `SKILL.md` files. This makes the wrapper functional on Pi,
+   which does not provide the assumed nested skill tool.
+3. The `resolving-merge-conflicts` safety patch replaces the absolute
+   `never --abort` rule. It continues a clearly intended operation despite
+   difficulty, but stops for a human decision when context cannot establish
+   whether the merge or rebase itself should continue.
+
+The two content patches are fail-closed: each exact pinned upstream preimage
+must occur exactly once, or generation stops rather than silently omitting or
+misapplying the adaptation. Metadata parsing and post-patch validation likewise
+stop on malformed or contradictory invocation policy. This protects
+portability and merge safety, but it imposes a deliberate cost on every
+upstream update: a maintainer must inspect upstream changes, confirm that each
+local policy is still needed and semantically correct, and update an exact
+preimage only when the new upstream text has been understood.
+
+Review every manual or Renovate update as behavior, not merely as generated
+files:
+
+1. Confirm the new tag and peeled commit are the intended immutable source and
+   inspect every changed selected skill and support file.
+2. Re-evaluate all six install decisions and their invocation policies,
+   especially upstream trigger-description or metadata changes.
+3. Review each local adaptation against the new upstream behavior. Treat a
+   failed preimage as a required review, not a reason to weaken the guard.
+4. Confirm `UPSTREAM.md`, licenses, checksums, selected file sets, and the
+   portability fallback are correct; check that no unexpected executable or
+   symlink behavior was introduced.
+5. Run the updater tests and synchronization check, then the repository's
+   relevant Ansible and whitespace checks before merging.
 
 ## Ideas retained from skipped skills
 
