@@ -7,13 +7,18 @@ source "$SCRIPT_DIR/repo-lib.sh"
 
 usage() {
   cat <<'EOF'
-Usage: repo-end [--print-path]
+Usage: repo-end [--closed] [--print-path]
 EOF
 }
 
+closed_mode="false"
 print_path="false"
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --closed)
+      closed_mode="true"
+      shift
+      ;;
     --print-path)
       print_path="true"
       shift
@@ -172,7 +177,7 @@ run_repo_end_callback() {
     repo_end_active_watchdog_pid=""
     rm -f "$timeout_marker"
     printf 'repo-end callback timed out after %ss: %s\n' "$timeout_seconds" "$callback" >&2
-    if [[ "$phase" == "merge-proof" ]]; then
+    if [[ "$phase" == *-proof ]]; then
       return 2
     fi
     return 0
@@ -187,7 +192,8 @@ run_repo_end_callback() {
   return "$status"
 }
 
-run_repo_end_merge_proof_callbacks() {
+run_repo_end_proof_callbacks() {
+  local phase="$1"
   local callback_dir="$HOME/.local/bin/repo-end.d"
   local callback callback_timeout_seconds status errexit_was_on
 
@@ -202,7 +208,7 @@ run_repo_end_merge_proof_callbacks() {
   for callback in "$callback_dir"/*; do
     [[ -f "$callback" && -x "$callback" ]] || continue
     set +e
-    run_repo_end_callback "$callback" "$callback_timeout_seconds" "merge-proof"
+    run_repo_end_callback "$callback" "$callback_timeout_seconds" "$phase"
     status=$?
     if [[ "$errexit_was_on" == "true" ]]; then
       set -e
@@ -213,13 +219,21 @@ run_repo_end_merge_proof_callbacks() {
       0) return 0 ;;
       1) ;;
       *)
-        printf 'repo-end merge-proof callback failed: %s\n' "$callback" >&2
+        printf 'repo-end %s callback failed: %s\n' "$phase" "$callback" >&2
         return "$status"
         ;;
     esac
   done
 
   return 1
+}
+
+run_repo_end_merge_proof_callbacks() {
+  run_repo_end_proof_callbacks merge-proof
+}
+
+run_repo_end_closed_proof_callbacks() {
+  run_repo_end_proof_callbacks closed-proof
 }
 
 trap 'repo_end_cleanup_active_callback' EXIT
@@ -257,6 +271,10 @@ main_branch="$(_worktree_main_branch)"
 already_on_main="false"
 if [[ "$current_branch" == "$main_branch" ]]; then
   already_on_main="true"
+fi
+if [[ "$closed_mode" == "true" && "$already_on_main" == "true" ]]; then
+  printf 'Error: --closed requires a feature branch\n' >&2
+  exit 1
 fi
 
 if [[ "$already_on_main" != "true" && ! -d "$repo_root/.git" ]] && \
@@ -444,6 +462,28 @@ remote_branch_is_ancestor_of_local() {
   "$(_worktree_cmd git)" -C "$repo_root" merge-base --is-ancestor "$(remote_branch_ref)" HEAD
 }
 
+validate_closed_branch_state() {
+  if ! remote_branch_exists; then
+    printf 'Error: origin/%s does not exist; closed cleanup requires a published remote branch\n' \
+      "$current_branch" >&2
+    return 1
+  fi
+
+  if local_branch_is_ancestor_of_remote; then
+    return 0
+  fi
+
+  if remote_branch_is_ancestor_of_local; then
+    printf 'Error: local branch %s has commits not present on origin/%s; push or discard local-only commits before re-running repo-end\n' \
+      "$current_branch" "$current_branch" >&2
+    return 1
+  fi
+
+  printf 'Error: local branch %s diverged from origin/%s; resolve manually before re-running repo-end\n' \
+    "$current_branch" "$current_branch" >&2
+  return 1
+}
+
 select_git_merge_proof_ref() {
   if already_merged "$repo_root" HEAD; then
     printf 'HEAD\n'
@@ -492,7 +532,8 @@ github_merged_pr_proof() {
   local slug json count number
   slug="$(github_repo_slug "$(origin_url)")" || return 1
   [[ -n "$slug" ]] || return 1
-  json="$(gh api "repos/${slug}/pulls" -f state=closed -f head="${slug%%/*}:${current_branch}" -f base="$main_branch" 2>/dev/null)" || return 1
+  json="$(gh api --method GET "repos/${slug}/pulls" -f state=closed \
+    -f head="${slug%%/*}:${current_branch}" -f base="$main_branch" 2>/dev/null)" || return 1
   count="$(printf '%s\n' "$json" | ruby -rjson -e '
     prs = JSON.parse(STDIN.read)
     matches = prs.select { |pr| pr["merged_at"].to_s != "" && pr.dig("base", "ref") == ARGV[0] && pr.dig("head", "ref") == ARGV[1] }
@@ -514,8 +555,51 @@ github_merged_pr_proof() {
   return 1
 }
 
+github_closed_pr_proof() {
+  command -v gh >/dev/null 2>&1 || return 1
+  local slug json count number
+  slug="$(github_repo_slug "$(origin_url)")" || return 1
+  [[ -n "$slug" ]] || return 1
+  json="$(gh api --method GET "repos/${slug}/pulls" -f state=closed \
+    -f head="${slug%%/*}:${current_branch}" -f base="$main_branch" 2>/dev/null)" || return 1
+  count="$(printf '%s\n' "$json" | ruby -rjson -e '
+    prs = JSON.parse(STDIN.read)
+    matches = prs.select do |pr|
+      pr.is_a?(Hash) && pr["number"].is_a?(Integer) &&
+        pr["state"] == "closed" && pr.key?("merged_at") && pr["merged_at"].nil? &&
+        pr["base"].is_a?(Hash) && pr["head"].is_a?(Hash) &&
+        pr.dig("base", "ref") == ARGV[0] && pr.dig("head", "ref") == ARGV[1]
+    end
+    puts matches.length
+  ' "$main_branch" "$current_branch")" || return 1
+  if [[ "$count" == "1" ]]; then
+    number="$(printf '%s\n' "$json" | ruby -rjson -e '
+      prs = JSON.parse(STDIN.read)
+      matches = prs.select do |pr|
+        pr.is_a?(Hash) && pr["number"].is_a?(Integer) &&
+          pr["state"] == "closed" && pr.key?("merged_at") && pr["merged_at"].nil? &&
+          pr["base"].is_a?(Hash) && pr["head"].is_a?(Hash) &&
+          pr.dig("base", "ref") == ARGV[0] && pr.dig("head", "ref") == ARGV[1]
+      end
+      puts matches.fetch(0).fetch("number")
+    ' "$main_branch" "$current_branch")" || return 1
+    printf 'Using closed GitHub PR #%s as closure proof\n' "$number" >&2
+    return 0
+  fi
+  if [[ "$count" -gt 1 ]]; then
+    printf 'Error: multiple closed PRs found for branch %s targeting %s; refusing cleanup\n' \
+      "$current_branch" "$main_branch" >&2
+    exit 1
+  fi
+  return 1
+}
+
 platform_merged_pr_proof() {
   github_merged_pr_proof
+}
+
+platform_closed_pr_proof() {
+  github_closed_pr_proof
 }
 
 main_path="$(_worktree_main_path "$main_branch" || true)"
@@ -549,22 +633,45 @@ if [[ "$already_on_main" == "true" ]]; then
   exit 0
 fi
 
-merge_proof_ref="$(select_git_merge_proof_ref || true)"
-if [[ -z "$merge_proof_ref" ]]; then
-  if platform_merged_pr_proof; then
-    merge_proof_ref="origin/$main_branch"
-  else
+cleanup_policy="merged"
+if [[ "$closed_mode" == "true" ]]; then
+  validate_closed_branch_state || exit 1
+  if ! platform_closed_pr_proof; then
     set +e
-    run_repo_end_merge_proof_callbacks
-    merge_proof_status=$?
-    set -e
-    if [[ "$merge_proof_status" -eq 0 ]]; then
-      merge_proof_ref="origin/$main_branch"
-    elif [[ "$merge_proof_status" -eq 1 ]]; then
-      printf 'Error: branch %s is not merged into origin/%s; merge the PR first, then run repo-end again\n' "$current_branch" "$main_branch" >&2
-      exit 1
+    if [[ "$print_path" == "true" ]]; then
+      run_repo_end_closed_proof_callbacks >&2
     else
-      exit "$merge_proof_status"
+      run_repo_end_closed_proof_callbacks
+    fi
+    closed_proof_status=$?
+    set -e
+    if [[ "$closed_proof_status" -eq 1 ]]; then
+      printf 'Error: could not prove that PR for branch %s is closed and unmerged; refusing cleanup\n' \
+        "$current_branch" >&2
+      exit 1
+    elif [[ "$closed_proof_status" -ne 0 ]]; then
+      exit "$closed_proof_status"
+    fi
+  fi
+  cleanup_policy="closed"
+else
+  merge_proof_ref="$(select_git_merge_proof_ref || true)"
+  if [[ -z "$merge_proof_ref" ]]; then
+    if platform_merged_pr_proof; then
+      merge_proof_ref="origin/$main_branch"
+    else
+      set +e
+      run_repo_end_merge_proof_callbacks
+      merge_proof_status=$?
+      set -e
+      if [[ "$merge_proof_status" -eq 0 ]]; then
+        merge_proof_ref="origin/$main_branch"
+      elif [[ "$merge_proof_status" -eq 1 ]]; then
+        printf 'Error: branch %s is not merged into origin/%s; merge the PR first, then run repo-end again\n' "$current_branch" "$main_branch" >&2
+        exit 1
+      else
+        exit "$merge_proof_status"
+      fi
     fi
   fi
 fi
@@ -626,4 +733,7 @@ else
 fi || exit 1
 
 complete_repo_tmux_state
+if [[ "$cleanup_policy" == "closed" ]]; then
+  printf 'Cleaned up closed PR branch: %s\n' "$current_branch" >&2
+fi
 printf '%s\n' "$main_path"
