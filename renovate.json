@@ -21,6 +21,21 @@
       "matchPackageNames": ["obra/superpowers"],
       "commitMessageTopic": "superpowers",
       "addLabels": ["superpowers"]
+    },
+    {
+      "description": "Regenerate vendored AI Hero skills after tagged updates",
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["mattpocock/skills"],
+      "commitMessageTopic": "AI Hero skills",
+      "addLabels": ["ai-hero-skills"],
+      "postUpgradeTasks": {
+        "commands": ["bin/update-ai-hero-skills"],
+        "fileFilters": [
+          "vars/tool_versions.yml",
+          "roles/common/files/vendor/mattpocock-skills/**"
+        ],
+        "executionMode": "update"
+      }
     }
   ]
 }

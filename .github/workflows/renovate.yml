@@ -34,3 +34,4 @@ jobs:
           token: ${{ steps.app_token.outputs.token }}
         env:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_ALLOWED_COMMANDS: '^bin/update-ai-hero-skills$'
