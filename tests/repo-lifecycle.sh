@@ -290,6 +290,59 @@ grep -q "Cleaned up closed PR branch: feature/closed-github" \
   fail_case "closed PR cleanup reports policy" "cleanup policy message is missing"
 pass_case "repo-end --closed cleans one closed unmerged GitHub PR"
 
+create_remote_repo end-closed-race
+closed_race_origin="$CREATED_ORIGIN"
+closed_race_repo="$CREATED_REPO"
+closed_race_feature="$TMPROOT/end-closed-race-feature"
+git -C "$closed_race_repo" worktree add -q -b feature/closed-race \
+  "$closed_race_feature" main
+commit_file "$closed_race_feature" closed-race.txt closed "closed race feature commit"
+git -C "$closed_race_feature" push -q -u origin feature/closed-race
+closed_race_peer="$TMPROOT/end-closed-race-peer"
+git clone -q "$closed_race_origin" "$closed_race_peer"
+git -C "$closed_race_peer" checkout -q feature/closed-race
+commit_file "$closed_race_peer" closed-race.txt advanced "advanced remote commit"
+closed_race_advanced_tip="$(git -C "$closed_race_peer" rev-parse HEAD)"
+git -C "$closed_race_peer" push -q origin \
+  HEAD:refs/heads/staged-closed-race
+git -C "$closed_race_repo" remote set-url origin \
+  git@github.com:example/end-closed-race.git
+closed_race_bin="$TMPROOT/end-closed-race-bin"
+mkdir -p "$closed_race_bin"
+cat >"$closed_race_bin/gh" <<EOF
+#!/usr/bin/env bash
+git --git-dir='$closed_race_origin' update-ref \
+  refs/heads/feature/closed-race '$closed_race_advanced_tip'
+cat <<'JSON'
+[
+  {"number":18,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-race"}}
+]
+JSON
+EOF
+cat >"$closed_race_bin/ssh" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  *git-upload-pack*) exec git-upload-pack '$closed_race_origin' ;;
+  *git-receive-pack*) exec git-receive-pack '$closed_race_origin' ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$closed_race_bin/gh" "$closed_race_bin/ssh"
+(cd "$closed_race_feature" && \
+  HOME="$TMPROOT/end-closed-race-home" PATH="$closed_race_bin:$PATH" \
+  GIT_CONFIG_GLOBAL=/dev/null GIT_SSH="$closed_race_bin/ssh" \
+  "$REPO_END_SCRIPT" --closed >/dev/null \
+    2>"$TMPROOT/end-closed-race.err")
+assert_equals \
+  "$(git --git-dir="$closed_race_origin" rev-parse refs/heads/feature/closed-race)" \
+  "$closed_race_advanced_tip" \
+  "closed cleanup preserves a remote tip that advances after proof starts"
+grep -q "Warning: failed to delete remote branch feature/closed-race" \
+  "$TMPROOT/end-closed-race.err" || \
+  fail_case "closed cleanup reports a remote branch race" \
+    "remote deletion warning is missing"
+pass_case "closed cleanup leases the verified remote tip"
+
 create_remote_repo end-remote-proof
 remote_proof_origin="$CREATED_ORIGIN"
 remote_proof_main="$CREATED_REPO"
