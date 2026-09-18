@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { chmodSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -10,7 +11,7 @@ const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const UPDATER = path.join(PROJECT_ROOT, "bin/update-ai-hero-skills");
 const TAG = "v-test";
 const GRILL_WITH_DOCS_PREIMAGE = "Run a `/grilling` session, using the `/domain-modeling` skill.";
-const GRILL_WITH_DOCS_REPLACEMENT = "Use the harness's skill mechanism, when available, to load and follow both the `grilling` and `domain-modeling` skills. Otherwise, read and follow the sibling files `../grilling/SKILL.md` and `../domain-modeling/SKILL.md`.";
+const GRILL_WITH_DOCS_REPLACEMENT = "Use the harness's skill mechanism, when available, to load and follow both the `grilling` and `domain-modeling` skills. If the mechanism is unavailable or cannot load either dependency (including invocation-policy rejection), read and follow both sibling files `../grilling/SKILL.md` and `../domain-modeling/SKILL.md`.";
 const MERGE_PREIMAGE = "Always resolve; never `--abort`.";
 const MERGE_REPLACEMENT = "Continue a clearly intended operation and do not `--abort` merely because resolution is difficult. If the available context cannot establish whether the operation itself should continue, stop and ask a human to decide.";
 const SKILLS = {
@@ -123,6 +124,25 @@ test("generates only complete selected skills with adaptations and metadata", ()
   assert.equal(mergeSkill.split(MERGE_REPLACEMENT).length - 1, 1);
 }));
 
+test("wrapper fallback contract points to readable dependencies even after invocation-policy rejection", () => withFixture((fixture) => {
+  const result = runUpdater(fixture);
+  assert.equal(result.status, 0, result.stderr);
+  const wrapperRoot = generatedSkill(fixture, "grill-with-docs");
+  const wrapper = readFileSync(path.join(wrapperRoot, "SKILL.md"), "utf8");
+  assert.ok(wrapper.includes(GRILL_WITH_DOCS_REPLACEMENT));
+  assert.match(wrapper, /cannot load either dependency \(including invocation-policy rejection\)/);
+  const siblings = [...wrapper.matchAll(/`(\.\.\/[^`]+\/SKILL\.md)`/g)].map((match) => match[1]);
+  assert.deepEqual(siblings, ["../grilling/SKILL.md", "../domain-modeling/SKILL.md"]);
+  // Contract smoke check: actually read the generated fallback targets. This is
+  // not an interactive harness test or proof that a model follows instructions.
+  for (const sibling of siblings) {
+    const dependency = readFileSync(path.resolve(wrapperRoot, sibling), "utf8");
+    assert.match(dependency, new RegExp(`^name: ${path.basename(path.dirname(sibling))}$`, "m"));
+    assert.match(dependency, /^disable-model-invocation: true$/m);
+    assert.match(dependency, /Fixture body\./);
+  }
+}));
+
 test("regeneration removes stale generated files and check mode detects drift", () => withFixture((fixture) => {
   assert.equal(runUpdater(fixture).status, 0);
   write(generatedSkill(fixture, "wait-what"), "stale.txt", "stale\n");
@@ -135,24 +155,32 @@ test("regeneration removes stale generated files and check mode detects drift", 
   assert.equal(readdirSync(generatedSkill(fixture, "wait-what")).includes("stale.txt"), false);
 }));
 
-test("mode-only updates change the managed checksum", () => withFixture((fixture) => {
-  assert.equal(runUpdater(fixture).status, 0);
-  const generatedSupport = path.join(generatedSkill(fixture, "wait-what"), "support/nested.txt");
-  const checksumPath = path.join(generatedSkill(fixture, "wait-what"), ".managed-checksum");
-  const contentsBefore = readFileSync(generatedSupport);
-  const checksumBefore = readFileSync(checksumPath, "utf8");
-
+test("managed checksum includes executable mode with constant provenance", () => withFixture((fixture) => {
   const upstreamSupport = path.join(fixture.upstream, SKILLS["wait-what"], "support/nested.txt");
   chmodSync(upstreamSupport, 0o755);
   commitFixture(fixture.upstream, "make support executable");
-  assert.match(git(fixture.upstream, "diff", "--summary", "HEAD^", "HEAD"), /mode change 100644 => 100755/);
   moveTag(fixture.upstream);
 
-  const result = runUpdater(fixture, "--allow-moved-tag");
+  const result = runUpdater(fixture);
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(readFileSync(generatedSupport), contentsBefore);
-  assert.notEqual(readFileSync(checksumPath, "utf8"), checksumBefore);
-  assert.notEqual(statSync(generatedSupport).mode & 0o111, 0);
+  const skillRoot = generatedSkill(fixture, "wait-what");
+  assert.notEqual(statSync(path.join(skillRoot, "support/nested.txt")).mode & 0o111, 0);
+  const checksum = readFileSync(path.join(skillRoot, ".managed-checksum"), "utf8").trim();
+
+  // Both candidate digests use the same generated bytes, including UPSTREAM.md.
+  // Only the support file's executable state differs; no tag move can mask it.
+  function expectedChecksum(supportMode) {
+    const hash = createHash("sha256");
+    for (const relative of ["LICENSE", "SKILL.md", "UPSTREAM.md", "agents/openai.yaml", "support/nested.txt"]) {
+      const mode = relative === "support/nested.txt" ? supportMode : "non-executable";
+      hash.update(`${relative}\0${mode}\0`);
+      hash.update(readFileSync(path.join(skillRoot, relative)));
+      hash.update("\0");
+    }
+    return hash.digest("hex");
+  }
+  assert.equal(checksum, expectedChecksum("executable"));
+  assert.notEqual(checksum, expectedChecksum("non-executable"));
 }));
 
 test("rejects a moved existing tag unless explicitly allowed", () => withFixture((fixture) => {
@@ -167,6 +195,31 @@ test("rejects a moved existing tag unless explicitly allowed", () => withFixture
   const allowed = runUpdater(fixture, "--allow-moved-tag");
   assert.equal(allowed.status, 0, allowed.stderr);
   assert.equal(readFileSync(path.join(generatedSkill(fixture, "wait-what"), "new.txt"), "utf8"), "new release contents\n");
+}));
+
+test("rejects an external LICENSE symlink without replacing the existing vendor tree", () => withFixture((fixture) => {
+  assert.equal(runUpdater(fixture).status, 0);
+  const vendorRoot = path.dirname(generatedSkill(fixture, "grilling"));
+  function snapshot() {
+    return readdirSync(vendorRoot, { recursive: true }).sort().map((relative) => {
+      const absolute = path.join(vendorRoot, relative);
+      const stats = statSync(absolute);
+      return [relative, stats.mode, stats.isFile() ? readFileSync(absolute).toString("hex") : null];
+    });
+  }
+  const before = snapshot();
+  const sentinel = path.join(fixture.root, "external-license-sentinel.txt");
+  writeFileSync(sentinel, "harmless external sentinel: must never be vendored\n");
+  const license = path.join(fixture.upstream, "LICENSE");
+  rmSync(license);
+  symlinkSync(sentinel, license);
+  commitFixture(fixture.upstream, "replace license with external symlink");
+  moveTag(fixture.upstream);
+
+  const result = runUpdater(fixture, "--allow-moved-tag");
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /LICENSE.*regular non-symlink file/i);
+  assert.deepEqual(snapshot(), before);
 }));
 
 test("rejects symlinks in selected source trees", () => withFixture((fixture) => {

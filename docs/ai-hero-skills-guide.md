@@ -27,7 +27,7 @@ Evaluated source:
 | --- | --- | --- |
 | `setup-matt-pocock-skills` | Skip | No selected skill needs its issue-tracker configuration. Avoid adding per-repository setup and tracker maintenance. |
 | `ask-matt` | Skip | It adds a manual routing step, knows only Matt's skills, and duplicates automatic skill selection. |
-| `grill-with-docs` | Install, adapted, user-only | Use only when Brian explicitly requests a deep design interview for large, ambiguous repository work. The local portability patch loads `grilling` and `domain-modeling` through the harness skill mechanism, or reads their sibling `SKILL.md` files when no such mechanism exists. Prevent model invocation. |
+| `grill-with-docs` | Install, adapted, user-only | Use only when Brian explicitly requests a deep design interview for large, ambiguous repository work. The local portability patch loads `grilling` and `domain-modeling` through the harness skill mechanism, or reads their sibling `SKILL.md` files when the mechanism is unavailable or cannot load either dependency, including invocation-policy rejection. Prevent model invocation. |
 | `to-spec` | Skip | Existing workflows already create versioned specifications and plans without a separate issue-tracker artifact or manual invocation. |
 | `to-tickets` | Skip | Existing planning and subagent orchestration avoid manual tracker, dispatch, and completion work. |
 | `implement` | Skip | Existing `z-fix` and `z-quick-pr` workflows add worktree isolation, verification, review fixes, and pull-request creation. |
@@ -106,7 +106,8 @@ bin/update-ai-hero-skills --check
 ```
 
 The updater fetches the pinned tag, peels it to a commit, validates selected
-source and metadata, rejects symlinks, copies only the selected complete skill
+source and metadata, requires a regular non-symlink upstream `LICENSE`,
+rejects source symlinks, copies only the selected complete skill
 directories, applies the local policy patches, writes provenance and checksums,
 and replaces the generated tree so removed upstream files cannot linger. It
 also rejects a previously recorded tag that has moved to another commit unless
@@ -133,9 +134,14 @@ the generated files. There are three policy adaptations:
    and Codex metadata.
 2. The `grill-with-docs` portability patch replaces an upstream Claude-specific
    nested invocation. The generated wrapper first uses a harness skill
-   mechanism when one exists and otherwise reads the sibling `grilling` and
-   `domain-modeling` `SKILL.md` files. This makes the wrapper functional on Pi,
-   which does not provide the assumed nested skill tool.
+   mechanism when available. If it is unavailable or cannot load either
+   dependency (including invocation-policy rejection for these user-only
+   skills), the wrapper reads and follows both sibling `grilling` and
+   `domain-modeling` `SKILL.md` files. This covers Pi without a nested skill tool
+   and harnesses that reject nested invocation. All three remain user-only.
+   The generator smoke check verifies the written fallback contract and reads
+   its generated targets; it does not prove a real interactive harness follows
+   that contract.
 3. The `resolving-merge-conflicts` safety patch replaces the absolute
    `never --abort` rule. It continues a clearly intended operation despite
    difficulty, but stops for a human decision when context cannot establish

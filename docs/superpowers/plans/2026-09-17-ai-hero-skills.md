@@ -44,11 +44,16 @@ with all six skill paths. Assert that a normal generation:
 - Enforces `disable-model-invocation: true` for all three deep-design skills.
 - Enforces Codex `policy.allow_implicit_invocation: false` for all three.
 - Replaces exactly the approved `grill-with-docs` portability preimage.
+- Smoke-checks the wrapper fallback for an absent mechanism or inability to load
+  either dependency, including invocation-policy rejection; reads both generated
+  sibling targets without claiming to test real interactive harness invocation.
 - Replaces exactly the approved merge-conflict sentence.
 - Removes stale generated files on regeneration.
 - Makes `--check` pass when synchronized and fail after drift.
 - Rejects a moved existing tag without `--allow-moved-tag`.
-- Rejects a symlink in a selected source tree.
+- Rejects a symlink in a selected source tree or upstream LICENSE; preserves an
+  existing vendor tree on rejection.
+- Verifies executable-mode hashing with identical provenance bytes.
 - Fails when either content patch preimage is absent or duplicated.
 
 - [ ] **Step 2: Run the updater tests and verify failure**
@@ -74,7 +79,8 @@ mattpocock_skills: v1.2.3
 
 Implement an executable Node.js script using only standard-library modules and
 Git subprocesses. Keep the selected source path map in one constant. Parse CLI
-arguments explicitly. Resolve tags to commits, reject source symlinks, validate
+arguments explicitly. Resolve tags to commits, require a regular non-symlink
+upstream LICENSE, reject source symlinks, validate
 frontmatter and Codex metadata, apply the exact `grill-with-docs` portability
 and merge-conflict preimages, write provenance and license files, calculate
 per-skill checksums, and replace the vendor tree through a temporary sibling

@@ -20,7 +20,7 @@ const SELECTED_SKILLS = Object.freeze({
 });
 const DEEP_DESIGN_SKILLS = new Set(["grill-with-docs", "domain-modeling", "grilling"]);
 const GRILL_WITH_DOCS_PREIMAGE = "Run a `/grilling` session, using the `/domain-modeling` skill.";
-const GRILL_WITH_DOCS_REPLACEMENT = "Use the harness's skill mechanism, when available, to load and follow both the `grilling` and `domain-modeling` skills. Otherwise, read and follow the sibling files `../grilling/SKILL.md` and `../domain-modeling/SKILL.md`.";
+const GRILL_WITH_DOCS_REPLACEMENT = "Use the harness's skill mechanism, when available, to load and follow both the `grilling` and `domain-modeling` skills. If the mechanism is unavailable or cannot load either dependency (including invocation-policy rejection), read and follow both sibling files `../grilling/SKILL.md` and `../domain-modeling/SKILL.md`.";
 const MERGE_CONFLICT_PREIMAGE = "Always resolve; never `--abort`.";
 const MERGE_CONFLICT_REPLACEMENT = "Continue a clearly intended operation and do not `--abort` merely because resolution is difficult. If the available context cannot establish whether the operation itself should continue, stop and ask a human to decide.";
 
@@ -235,7 +235,7 @@ function provenance(name, tag, commit) {
     patches.push("Require explicit invocation in SKILL.md and agents/openai.yaml.");
   }
   if (name === "grill-with-docs") {
-    patches.push("Load grilling and domain-modeling through the harness skill mechanism, with sibling SKILL.md files as the fallback.");
+    patches.push("Load grilling and domain-modeling through the harness skill mechanism, with sibling SKILL.md files as the fallback when the mechanism is unavailable or cannot load either dependency (including invocation-policy rejection).");
   }
   if (name === "resolving-merge-conflicts") {
     patches.push("Replace the absolute never-abort instruction with the local human-decision rule.");
@@ -260,7 +260,7 @@ function checksumSkill(skillPath) {
 
 function generateTree(sourceRoot, destinationRoot, tag, commit) {
   const licensePath = path.join(sourceRoot, "LICENSE");
-  if (!fs.statSync(licensePath).isFile()) fail("Upstream LICENSE is missing");
+  if (!fs.lstatSync(licensePath).isFile()) fail("Upstream LICENSE must be a regular non-symlink file");
   const license = fs.readFileSync(licensePath);
   fs.mkdirSync(destinationRoot, { recursive: true });
 

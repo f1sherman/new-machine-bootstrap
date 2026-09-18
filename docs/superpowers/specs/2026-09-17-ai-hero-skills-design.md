@@ -53,9 +53,11 @@ Keep the upstream content unchanged except for these explicit patches:
    user-invoked deep-design bundle in Claude, Codex, and Pi.
 2. In `grill-with-docs`, replace the exact upstream instruction to run
    `/grilling` with `/domain-modeling`. The local instruction must load and
-   follow both skills through the harness skill mechanism when one exists, and
-   otherwise read the sibling `../grilling/SKILL.md` and
-   `../domain-modeling/SKILL.md` files. Keep the skill user-only.
+   follow both skills through the harness skill mechanism when available. If
+   it is unavailable or cannot load either dependency (including
+   invocation-policy rejection), read and follow both sibling
+   `../grilling/SKILL.md` and `../domain-modeling/SKILL.md` files. Keep all three
+   skills user-only.
 3. In `resolving-merge-conflicts`, replace the absolute instruction to always
    resolve and never abort. The local instruction must continue a clearly
    intended operation, never abort merely because resolution is difficult, and
@@ -101,7 +103,7 @@ source tree. It must:
 2. Fetch that exact tag from `mattpocock/skills`, unless a local source checkout
    is supplied for testing.
 3. Resolve annotated tags to their commit and reject symlinks in selected source
-   trees.
+   trees; require upstream `LICENSE` itself to be a regular non-symlink file.
 4. Refuse a moved tag when the existing generated metadata records the same tag
    with a different commit, unless the operator supplies an explicit override.
 5. Copy only the approved skills and their complete supporting content.
@@ -165,8 +167,12 @@ This is simple initially but has no reliable update path. Rejected.
 - Unit-test the updater against a local fixture repository. Verify selection,
   complete recursive copying, frontmatter and Codex invocation patches,
   fail-closed portability and merge-conflict patching, metadata, moved-tag
-  protection, rejection of symlinks, removal of stale files, and check-mode
-  drift detection.
+  protection, rejection of source and LICENSE symlinks without replacing the
+  existing tree, executable-mode hashing with constant provenance, removal of
+  stale files, and check-mode drift detection.
+- Smoke-check the generated wrapper contract and read both sibling fallback
+  targets. This verifies packaging and instructions, not real interactive
+  harness invocation or model compliance.
 - Run the updater against upstream `v1.2.3` and run it again in check mode.
 - Validate every generated `SKILL.md` with Pi's skill discovery or equivalent
   frontmatter checks.
