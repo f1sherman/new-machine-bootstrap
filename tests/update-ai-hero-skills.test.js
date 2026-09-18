@@ -47,8 +47,10 @@ function createFixture() {
     let body = "Fixture body.";
     if (name === "grill-with-docs") body = GRILL_WITH_DOCS_PREIMAGE;
     if (name === "resolving-merge-conflicts") body = `Fixture body. ${MERGE_PREIMAGE}`;
-    write(upstream, `${sourcePath}/SKILL.md`, `---\nname: ${name}\ndescription: Fixture ${name}\n---\n\n# ${name}\n\n${body}\n`);
-    write(upstream, `${sourcePath}/agents/openai.yaml`, `interface:\n  display_name: "${name}"\n  short_description: "Fixture ${name}"\n`);
+    const explicitFrontmatter = name === "wait-what" ? "disable-model-invocation: true\n" : "";
+    const explicitCodexPolicy = name === "wait-what" ? "policy:\n  allow_implicit_invocation: false\n" : "";
+    write(upstream, `${sourcePath}/SKILL.md`, `---\nname: ${name}\ndescription: Fixture ${name}\n${explicitFrontmatter}---\n\n# ${name}\n\n${body}\n`);
+    write(upstream, `${sourcePath}/agents/openai.yaml`, `interface:\n  display_name: "${name}"\n  short_description: "Fixture ${name}"\n${explicitCodexPolicy}`);
     write(upstream, `${sourcePath}/support/nested.txt`, `support for ${name}\n`);
   }
   write(upstream, "skills/engineering/not-selected/SKILL.md", "must not be copied\n");
@@ -123,6 +125,35 @@ test("generates only complete selected skills with adaptations and metadata", ()
   assert.equal(mergeSkill.includes(MERGE_PREIMAGE), false);
   assert.equal(mergeSkill.split(MERGE_REPLACEMENT).length - 1, 1);
 }));
+
+test("rejects wait-what when an upstream user-only flag is missing", () => {
+  const cases = [
+    {
+      path: "SKILL.md",
+      remove: "disable-model-invocation: true\n",
+      error: /disable-model-invocation must be true/,
+    },
+    {
+      path: "agents/openai.yaml",
+      remove: "policy:\n  allow_implicit_invocation: false\n",
+      error: /policy\.allow_implicit_invocation must be false/,
+    },
+  ];
+
+  for (const testCase of cases) {
+    withFixture((fixture) => {
+      const upstreamPath = path.join(fixture.upstream, SKILLS["wait-what"], testCase.path);
+      const contents = readFileSync(upstreamPath, "utf8");
+      writeFileSync(upstreamPath, contents.replace(testCase.remove, ""));
+      commitFixture(fixture.upstream, `drop wait-what flag from ${testCase.path}`);
+      moveTag(fixture.upstream);
+
+      const result = runUpdater(fixture);
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, testCase.error);
+    });
+  }
+});
 
 test("wrapper fallback contract points to readable dependencies even after invocation-policy rejection", () => withFixture((fixture) => {
   const result = runUpdater(fixture);

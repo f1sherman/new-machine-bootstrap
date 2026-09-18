@@ -170,6 +170,13 @@ function frontmatter(contents, expectedName, label) {
   return { end, metadata, yaml };
 }
 
+function requireExplicitFrontmatter(contents, name) {
+  const metadata = frontmatter(contents, name, `${name}/SKILL.md`).metadata;
+  if (metadata["disable-model-invocation"] !== true) {
+    fail(`${name}/SKILL.md: disable-model-invocation must be true`);
+  }
+}
+
 function enforceExplicitFrontmatter(contents, name) {
   const parsed = frontmatter(contents, name, `${name}/SKILL.md`);
   let lines = parsed.yaml.trimEnd().split("\n");
@@ -192,6 +199,13 @@ function validateCodexMetadata(contents, name) {
   if (typeof metadata.interface.display_name !== "string" || !metadata.interface.display_name) fail(`${name}/agents/openai.yaml: missing interface.display_name`);
   if (typeof metadata.interface.short_description !== "string" || !metadata.interface.short_description) fail(`${name}/agents/openai.yaml: missing interface.short_description`);
   return metadata;
+}
+
+function requireExplicitCodexMetadata(contents, name) {
+  const metadata = validateCodexMetadata(contents, name);
+  if (typeof metadata.policy !== "object" || metadata.policy.allow_implicit_invocation !== false) {
+    fail(`${name}/agents/openai.yaml: policy.allow_implicit_invocation must be false`);
+  }
 }
 
 function enforceExplicitCodexMetadata(contents, name) {
@@ -284,6 +298,10 @@ function generateTree(sourceRoot, destinationRoot, tag, commit) {
     if (DEEP_DESIGN_SKILLS.has(name)) {
       skill = enforceExplicitFrontmatter(skill, name);
       codex = enforceExplicitCodexMetadata(codex, name);
+    }
+    if (name === "wait-what") {
+      requireExplicitFrontmatter(skill, name);
+      requireExplicitCodexMetadata(codex, name);
     }
     if (name === "grill-with-docs") {
       skill = replaceExactlyOnce(skill, GRILL_WITH_DOCS_PREIMAGE, GRILL_WITH_DOCS_REPLACEMENT, `${name}/SKILL.md`);
