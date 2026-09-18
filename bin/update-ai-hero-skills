@@ -1,0 +1,374 @@
+#!/usr/bin/env node
+
+"use strict";
+
+const { execFileSync } = require("node:child_process");
+const { createHash } = require("node:crypto");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+
+const UPSTREAM_REPOSITORY = "https://github.com/mattpocock/skills.git";
+const VENDOR_RELATIVE_PATH = "roles/common/files/vendor/mattpocock-skills";
+const SELECTED_SKILLS = Object.freeze({
+  "grill-with-docs": "skills/engineering/grill-with-docs",
+  "domain-modeling": "skills/engineering/domain-modeling",
+  "resolving-merge-conflicts": "skills/engineering/resolving-merge-conflicts",
+  grilling: "skills/productivity/grilling",
+  "wait-what": "skills/productivity/wait-what",
+  "writing-for-agents": "skills/productivity/writing-for-agents",
+});
+const DEEP_DESIGN_SKILLS = new Set(["grill-with-docs", "domain-modeling", "grilling"]);
+const MERGE_CONFLICT_PREIMAGE = "Always resolve; never `--abort`.";
+const MERGE_CONFLICT_REPLACEMENT = "Continue a clearly intended operation and do not `--abort` merely because resolution is difficult. If the available context cannot establish whether the operation itself should continue, stop and ask a human to decide.";
+
+function fail(message) {
+  throw new Error(message);
+}
+
+function parseArguments(argv) {
+  const options = {
+    allowMovedTag: false,
+    check: false,
+    repoRoot: path.resolve(__dirname, ".."),
+    source: UPSTREAM_REPOSITORY,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+    if (argument === "--check") {
+      options.check = true;
+    } else if (argument === "--allow-moved-tag") {
+      options.allowMovedTag = true;
+    } else if (argument === "--source" || argument === "--repo-root") {
+      const value = argv[index + 1];
+      if (!value || value.startsWith("--")) fail(`${argument} requires a value`);
+      options[argument === "--source" ? "source" : "repoRoot"] = path.resolve(value);
+      index += 1;
+    } else {
+      fail(`Unknown argument: ${argument}`);
+    }
+  }
+
+  return options;
+}
+
+function readPinnedTag(repoRoot) {
+  const versionsPath = path.join(repoRoot, "vars/tool_versions.yml");
+  const lines = fs.readFileSync(versionsPath, "utf8").split(/\r?\n/);
+  let inGitTags = false;
+  const matches = [];
+
+  for (const line of lines) {
+    if (/^  git_tags:\s*(?:#.*)?$/.test(line)) {
+      inGitTags = true;
+      continue;
+    }
+    if (inGitTags && /^  \S/.test(line)) break;
+    if (inGitTags) {
+      const match = line.match(/^    mattpocock_skills:\s*([^\s#]+)\s*(?:#.*)?$/);
+      if (match) matches.push(match[1]);
+    }
+  }
+
+  if (matches.length !== 1) fail(`Expected exactly one tool_versions.git_tags.mattpocock_skills entry in ${versionsPath}`);
+  const tag = matches[0];
+  if (!/^[A-Za-z0-9][A-Za-z0-9._+\/-]*$/.test(tag) || tag.includes("..") || tag.endsWith(".")) {
+    fail(`Invalid mattpocock_skills tag: ${tag}`);
+  }
+  return tag;
+}
+
+function git(cwd, args) {
+  try {
+    return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  } catch (error) {
+    const detail = error.stderr ? String(error.stderr).trim() : error.message;
+    fail(`Git command failed (git ${args.join(" ")}): ${detail}`);
+  }
+}
+
+function prepareSource(source, tag, checkoutPath) {
+  fs.mkdirSync(checkoutPath, { recursive: true });
+  git(checkoutPath, ["init", "--quiet"]);
+  git(checkoutPath, ["remote", "add", "origin", source]);
+  git(checkoutPath, ["fetch", "--quiet", "--depth=1", "origin", `refs/tags/${tag}:refs/tags/${tag}`]);
+  const commit = git(checkoutPath, ["rev-parse", `refs/tags/${tag}^{commit}`]);
+  if (!/^[0-9a-f]{40}$/.test(commit)) fail(`Tag ${tag} did not resolve to a commit`);
+  git(checkoutPath, ["checkout", "--quiet", "--detach", commit]);
+  return commit;
+}
+
+function walkTree(root, relative = "") {
+  const absolute = path.join(root, relative);
+  const entries = fs.readdirSync(absolute, { withFileTypes: true }).sort((left, right) => {
+    if (left.name < right.name) return -1;
+    if (left.name > right.name) return 1;
+    return 0;
+  });
+  const results = [];
+  for (const entry of entries) {
+    const childRelative = relative ? path.join(relative, entry.name) : entry.name;
+    const childAbsolute = path.join(root, childRelative);
+    const stats = fs.lstatSync(childAbsolute);
+    if (stats.isSymbolicLink()) fail(`Selected source tree contains a symlink: ${childRelative}`);
+    if (stats.isDirectory()) {
+      results.push({ relative: childRelative, type: "directory", mode: stats.mode });
+      results.push(...walkTree(root, childRelative));
+    } else if (stats.isFile()) {
+      results.push({ relative: childRelative, type: "file", mode: stats.mode });
+    } else {
+      fail(`Selected source tree contains an unsupported entry: ${childRelative}`);
+    }
+  }
+  return results;
+}
+
+function scalarValue(value) {
+  const trimmed = value.trim();
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1);
+  }
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  return trimmed;
+}
+
+function parseSimpleYaml(contents, label) {
+  const root = {};
+  const stack = [{ indent: -1, value: root }];
+  for (const [index, line] of contents.split(/\r?\n/).entries()) {
+    if (!line.trim() || /^\s*#/.test(line)) continue;
+    if (/\t/.test(line)) fail(`${label}:${index + 1}: tabs are not supported in metadata`);
+    const match = line.match(/^( *)([A-Za-z0-9_-]+):(?:\s*(.*))?$/);
+    if (!match) fail(`${label}:${index + 1}: expected YAML mapping entry`);
+    const indent = match[1].length;
+    if (indent % 2 !== 0) fail(`${label}:${index + 1}: expected two-space indentation`);
+    while (stack.at(-1).indent >= indent) stack.pop();
+    if (stack.at(-1).indent !== indent - 2 && indent !== 0) fail(`${label}:${index + 1}: invalid indentation`);
+    const parent = stack.at(-1).value;
+    const key = match[2];
+    if (Object.hasOwn(parent, key)) fail(`${label}:${index + 1}: duplicate ${key} entry`);
+    const rawValue = match[3] || "";
+    const value = rawValue.trim() === "" ? {} : scalarValue(rawValue);
+    parent[key] = value;
+    if (typeof value === "object") stack.push({ indent, value });
+  }
+  return root;
+}
+
+function frontmatter(contents, expectedName, label) {
+  if (!contents.startsWith("---\n")) fail(`${label}: missing YAML frontmatter`);
+  const end = contents.indexOf("\n---\n", 4);
+  if (end === -1) fail(`${label}: unterminated YAML frontmatter`);
+  const yaml = contents.slice(4, end + 1);
+  const metadata = parseSimpleYaml(yaml, label);
+  if (metadata.name !== expectedName) fail(`${label}: frontmatter name must be ${expectedName}`);
+  if (typeof metadata.description !== "string" || !metadata.description) fail(`${label}: frontmatter description must be a scalar`);
+  return { end, metadata, yaml };
+}
+
+function enforceExplicitFrontmatter(contents, name) {
+  const parsed = frontmatter(contents, name, `${name}/SKILL.md`);
+  let lines = parsed.yaml.trimEnd().split("\n");
+  const matching = lines.map((line, index) => ({ line, index })).filter(({ line }) => /^disable-model-invocation:/.test(line));
+  if (matching.length > 1) fail(`${name}/SKILL.md: duplicate disable-model-invocation entries`);
+  if (matching.length === 1) {
+    lines[matching[0].index] = "disable-model-invocation: true";
+  } else {
+    lines.push("disable-model-invocation: true");
+  }
+  const updated = `---\n${lines.join("\n")}\n${contents.slice(parsed.end + 1)}`;
+  const verified = frontmatter(updated, name, `${name}/SKILL.md`).metadata;
+  if (verified["disable-model-invocation"] !== true) fail(`${name}/SKILL.md: could not enforce explicit invocation`);
+  return updated;
+}
+
+function validateCodexMetadata(contents, name) {
+  const metadata = parseSimpleYaml(contents, `${name}/agents/openai.yaml`);
+  if (typeof metadata.interface !== "object" || Array.isArray(metadata.interface)) fail(`${name}/agents/openai.yaml: interface must be a mapping`);
+  if (typeof metadata.interface.display_name !== "string" || !metadata.interface.display_name) fail(`${name}/agents/openai.yaml: missing interface.display_name`);
+  if (typeof metadata.interface.short_description !== "string" || !metadata.interface.short_description) fail(`${name}/agents/openai.yaml: missing interface.short_description`);
+  return metadata;
+}
+
+function enforceExplicitCodexMetadata(contents, name) {
+  validateCodexMetadata(contents, name);
+  const lines = contents.trimEnd().split("\n");
+  const policyIndexes = lines.map((line, index) => ({ line, index })).filter(({ line }) => /^policy:\s*$/.test(line));
+  if (policyIndexes.length > 1) fail(`${name}/agents/openai.yaml: duplicate policy mappings`);
+
+  if (policyIndexes.length === 0) {
+    lines.push("policy:", "  allow_implicit_invocation: false");
+  } else {
+    const start = policyIndexes[0].index;
+    let end = start + 1;
+    while (end < lines.length && (/^\s/.test(lines[end]) || lines[end].trim() === "")) end += 1;
+    const matches = [];
+    for (let index = start + 1; index < end; index += 1) {
+      if (/^  allow_implicit_invocation:/.test(lines[index])) matches.push(index);
+    }
+    if (matches.length > 1) fail(`${name}/agents/openai.yaml: duplicate policy.allow_implicit_invocation entries`);
+    if (matches.length === 1) lines[matches[0]] = "  allow_implicit_invocation: false";
+    else lines.splice(end, 0, "  allow_implicit_invocation: false");
+  }
+
+  const updated = `${lines.join("\n")}\n`;
+  const metadata = validateCodexMetadata(updated, name);
+  if (typeof metadata.policy !== "object" || metadata.policy.allow_implicit_invocation !== false) {
+    fail(`${name}/agents/openai.yaml: could not enforce explicit invocation`);
+  }
+  return updated;
+}
+
+function replaceExactlyOnce(contents, preimage, replacement, label) {
+  const occurrences = contents.split(preimage).length - 1;
+  if (occurrences !== 1) fail(`${label}: patch preimage must appear exactly once; found ${occurrences}`);
+  return contents.replace(preimage, replacement);
+}
+
+function provenance(name, tag, commit) {
+  const patches = [];
+  if (DEEP_DESIGN_SKILLS.has(name)) {
+    patches.push("Require explicit invocation in SKILL.md and agents/openai.yaml.");
+  }
+  if (name === "resolving-merge-conflicts") {
+    patches.push("Replace the absolute never-abort instruction with the local human-decision rule.");
+  }
+  if (patches.length === 0) patches.push("None.");
+  return `# Upstream provenance\n\n- Repository: ${UPSTREAM_REPOSITORY}\n- Tag: \`${tag}\`\n- Commit: \`${commit}\`\n- Local patches:\n${patches.map((patch) => `  - ${patch}`).join("\n")}\n`;
+}
+
+function checksumSkill(skillPath) {
+  const hash = createHash("sha256");
+  for (const entry of walkTree(skillPath)) {
+    if (entry.type !== "file" || entry.relative === ".managed-checksum") continue;
+    hash.update(entry.relative.split(path.sep).join("/"));
+    hash.update("\0");
+    hash.update(fs.readFileSync(path.join(skillPath, entry.relative)));
+    hash.update("\0");
+  }
+  return hash.digest("hex");
+}
+
+function generateTree(sourceRoot, destinationRoot, tag, commit) {
+  const licensePath = path.join(sourceRoot, "LICENSE");
+  if (!fs.statSync(licensePath).isFile()) fail("Upstream LICENSE is missing");
+  const license = fs.readFileSync(licensePath);
+  fs.mkdirSync(destinationRoot, { recursive: true });
+
+  for (const [name, sourceRelativePath] of Object.entries(SELECTED_SKILLS)) {
+    const sourcePath = path.join(sourceRoot, sourceRelativePath);
+    if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isDirectory()) fail(`Selected upstream skill is missing: ${sourceRelativePath}`);
+    walkTree(sourcePath);
+    const destination = path.join(destinationRoot, name);
+    fs.cpSync(sourcePath, destination, { recursive: true, preserveTimestamps: false });
+
+    const skillPath = path.join(destination, "SKILL.md");
+    const codexPath = path.join(destination, "agents/openai.yaml");
+    let skill = fs.readFileSync(skillPath, "utf8");
+    frontmatter(skill, name, `${name}/SKILL.md`);
+    let codex = fs.readFileSync(codexPath, "utf8");
+    validateCodexMetadata(codex, name);
+
+    if (DEEP_DESIGN_SKILLS.has(name)) {
+      skill = enforceExplicitFrontmatter(skill, name);
+      codex = enforceExplicitCodexMetadata(codex, name);
+    }
+    if (name === "resolving-merge-conflicts") {
+      skill = replaceExactlyOnce(skill, MERGE_CONFLICT_PREIMAGE, MERGE_CONFLICT_REPLACEMENT, `${name}/SKILL.md`);
+    }
+
+    fs.writeFileSync(skillPath, skill);
+    fs.writeFileSync(codexPath, codex);
+    fs.writeFileSync(path.join(destination, "LICENSE"), license);
+    fs.writeFileSync(path.join(destination, "UPSTREAM.md"), provenance(name, tag, commit));
+    fs.writeFileSync(path.join(destination, ".managed-checksum"), `${checksumSkill(destination)}\n`);
+  }
+}
+
+function readExistingProvenance(vendorRoot) {
+  if (!fs.existsSync(vendorRoot)) return null;
+  let recorded = null;
+  for (const name of Object.keys(SELECTED_SKILLS)) {
+    const metadataPath = path.join(vendorRoot, name, "UPSTREAM.md");
+    if (!fs.existsSync(metadataPath)) continue;
+    const contents = fs.readFileSync(metadataPath, "utf8");
+    const tag = contents.match(/^- Tag: `([^`]+)`$/m)?.[1];
+    const commit = contents.match(/^- Commit: `([0-9a-f]{40})`$/m)?.[1];
+    if (!tag || !commit) fail(`Cannot parse existing provenance: ${metadataPath}`);
+    if (recorded && (recorded.tag !== tag || recorded.commit !== commit)) fail("Existing generated skills contain inconsistent provenance");
+    recorded = { tag, commit };
+  }
+  return recorded;
+}
+
+function snapshotsMatch(leftRoot, rightRoot) {
+  if (!fs.existsSync(leftRoot) || !fs.existsSync(rightRoot)) return false;
+  const left = walkTree(leftRoot);
+  const right = walkTree(rightRoot);
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    const leftEntry = left[index];
+    const rightEntry = right[index];
+    if (leftEntry.relative !== rightEntry.relative || leftEntry.type !== rightEntry.type) return false;
+    if ((leftEntry.mode & 0o111) !== (rightEntry.mode & 0o111)) return false;
+    if (leftEntry.type === "file") {
+      const leftContents = fs.readFileSync(path.join(leftRoot, leftEntry.relative));
+      const rightContents = fs.readFileSync(path.join(rightRoot, rightEntry.relative));
+      if (!leftContents.equals(rightContents)) return false;
+    }
+  }
+  return true;
+}
+
+function replaceTree(generatedRoot, vendorRoot) {
+  const backupRoot = `${vendorRoot}.backup-${process.pid}-${Date.now()}`;
+  const hadExisting = fs.existsSync(vendorRoot);
+  if (hadExisting) fs.renameSync(vendorRoot, backupRoot);
+  try {
+    fs.renameSync(generatedRoot, vendorRoot);
+    if (hadExisting) fs.rmSync(backupRoot, { recursive: true, force: true });
+  } catch (error) {
+    if (hadExisting && !fs.existsSync(vendorRoot) && fs.existsSync(backupRoot)) fs.renameSync(backupRoot, vendorRoot);
+    throw error;
+  }
+}
+
+function main() {
+  const options = parseArguments(process.argv.slice(2));
+  const repoRoot = path.resolve(options.repoRoot);
+  const tag = readPinnedTag(repoRoot);
+  const vendorRoot = path.join(repoRoot, VENDOR_RELATIVE_PATH);
+  const vendorParent = path.dirname(vendorRoot);
+  fs.mkdirSync(vendorParent, { recursive: true });
+  const workspace = fs.mkdtempSync(path.join(vendorParent, ".mattpocock-skills-update-"));
+  const sourceRoot = path.join(workspace, "source");
+  const generatedRoot = path.join(workspace, "generated");
+
+  try {
+    const commit = prepareSource(options.source, tag, sourceRoot);
+    const existing = readExistingProvenance(vendorRoot);
+    if (existing && existing.tag === tag && existing.commit !== commit && !options.allowMovedTag) {
+      fail(`Refusing moved tag ${tag}: existing commit ${existing.commit}, resolved commit ${commit}. Use --allow-moved-tag to override.`);
+    }
+    generateTree(sourceRoot, generatedRoot, tag, commit);
+
+    if (options.check) {
+      if (!snapshotsMatch(generatedRoot, vendorRoot)) fail(`Vendored AI Hero skills are out of date for ${tag} (${commit})`);
+      process.stdout.write(`Vendored AI Hero skills are synchronized with ${tag} (${commit}).\n`);
+    } else {
+      replaceTree(generatedRoot, vendorRoot);
+      process.stdout.write(`Updated vendored AI Hero skills to ${tag} (${commit}).\n`);
+    }
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
+try {
+  main();
+} catch (error) {
+  process.stderr.write(`update-ai-hero-skills: ${error.message}\n`);
+  process.exitCode = 1;
+}
