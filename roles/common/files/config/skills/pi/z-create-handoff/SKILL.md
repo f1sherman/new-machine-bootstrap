@@ -23,6 +23,8 @@ Use the following information to create your document:
 ### 2. Handoff writing
 Using the above conventions, write your document. Use the defined filepath and the following YAML frontmatter pattern. Use the metadata gathered in step 1. Structure the document with YAML frontmatter followed by content:
 
+Redact secrets and personal information, including any quoted output. Cite existing specs, plans, ADRs, issues, commits, and diffs by path, URL, or hash instead of copying their contents.
+
 Use the following template structure:
 ```markdown
 ---
