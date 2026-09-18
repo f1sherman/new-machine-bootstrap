@@ -102,6 +102,24 @@ create_squash_merged_worktree() {
   CREATED_WORKTREE="$(realpath "$feature_path")"
 }
 
+create_published_unmerged_worktree() {
+  local name="$1"
+  local branch="$2"
+  local file="$3"
+  local repo feature_path
+
+  repo="$(create_repo "$name")"
+  feature_path="$TMPROOT/${name}-feature"
+  git -C "$repo" worktree add -q -b "$branch" "$feature_path" main
+  printf '%s\n' "feature content" >"$feature_path/$file"
+  git -C "$feature_path" add "$file"
+  git -C "$feature_path" commit -q -m "feature work"
+  git -C "$feature_path" push -q -u origin "$branch"
+
+  CREATED_REPO="$repo"
+  CREATED_WORKTREE="$(realpath "$feature_path")"
+}
+
 run_case() {
   local name="$1"
   local repo="$2"
@@ -123,6 +141,23 @@ run_case() {
   fi
 
   printf 'PASS  %s\n' "$name"
+}
+
+run_closed_case() {
+  local name="$1"
+  local repo="$2"
+  local home_dir="$3"
+  local out="$4"
+  local err="$5"
+
+  if (cd "$repo" && HOME="$home_dir" "$REPO_END_SCRIPT" --closed --print-path >"$out" 2>"$err"); then
+    printf 'PASS  %s\n' "$name"
+    return 0
+  fi
+
+  printf 'FAIL  %s\nrepo-end --closed failed unexpectedly\nstderr: %s\n' \
+    "$name" "$(cat "$err")" >&2
+  return 1
 }
 
 run_case_with_deadline() {
@@ -552,6 +587,51 @@ assert_file_not_contains \
   "$interrupt_log" \
   "callback-orphaned" \
   "repo-end interrupt terminates callback descendants"
+
+closed_proof_home="$TMPROOT/closed-proof-home"
+mkdir -p "$closed_proof_home/.local/bin/repo-end.d" "$closed_proof_home/.local/state"
+create_published_unmerged_worktree closed-proof-callbacks \
+  feature/closed-provider-proof closed-provider-proof.txt
+closed_proof_main="$CREATED_REPO"
+closed_proof_worktree="$CREATED_WORKTREE"
+
+cat >"$closed_proof_home/.local/bin/repo-end.d/10-proof" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$HOME/.local/state/closed-proof.log"
+case " $* " in
+  *' --phase closed-proof '*) printf 'closed proof progress\n'; printf 'Using closed provider callback proof\n' >&2; exit 0 ;;
+  *' --phase post-cleanup '*) exit 0 ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod +x "$closed_proof_home/.local/bin/repo-end.d/10-proof"
+
+run_closed_case "closed-proof callback success allows cleanup" \
+  "$closed_proof_worktree" \
+  "$closed_proof_home" \
+  "$TMPROOT/closed-proof.out" \
+  "$TMPROOT/closed-proof.err"
+assert_file_contains "$TMPROOT/closed-proof.err" \
+  "Using closed provider callback proof" \
+  "closed-proof callback proof message is visible"
+assert_file_contains "$TMPROOT/closed-proof.err" \
+  "closed proof progress" \
+  "closed-proof callback progress is visible on stderr"
+assert_file_equals \
+  "$TMPROOT/closed-proof.out" \
+  "$closed_proof_main" \
+  "closed-proof keeps print-path stdout clean"
+assert_ordered_output \
+  "$closed_proof_home/.local/state/closed-proof.log" \
+  "closed-proof runs before post-cleanup" \
+  "--phase closed-proof --repo-dir $closed_proof_worktree --branch feature/closed-provider-proof --main-branch main --main-path $closed_proof_main" \
+  "--phase post-cleanup --repo-dir $closed_proof_worktree --branch feature/closed-provider-proof --main-branch main --main-path $closed_proof_main"
+if [[ -d "$closed_proof_worktree" ]]; then
+  printf 'FAIL  closed-proof callback removes worktree\nworktree remains at %s\n' \
+    "$closed_proof_worktree" >&2
+  exit 1
+fi
+printf 'PASS  closed-proof callback removes worktree\n'
 
 merge_proof_home="$TMPROOT/merge-proof-home"
 mkdir -p "$merge_proof_home/.local/bin/repo-end.d" "$merge_proof_home/.local/state"

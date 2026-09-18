@@ -100,7 +100,7 @@ When useful, inspect `/tmp/provision-*.log`; `ls -t /tmp/provision-*.log` lists 
 
 NMB owns generic `repo-start`/`repo-end` lifecycle helpers. Provider-specific internal forge behavior does not belong in this repo. If a consuming environment needs extra merge proof for a private Git provider, install an executable callback from that consuming repo under `~/.local/bin/repo-end.d`.
 
-`repo-end` calls callbacks with `--phase merge-proof` before cleanup only when built-in proof fails. Exit `0` means the callback proved the branch was merged, exit `1` means no proof and lets `repo-end` try the next callback, and exit `2+` aborts cleanup. After successful cleanup, callbacks run with `--phase post-cleanup` for notification or sweep behavior.
+`repo-end` calls callbacks with `--phase merge-proof` before cleanup only when built-in proof fails. `repo-end --closed` uses the separate `--phase closed-proof` callback phase after it confirms that the local branch is fully published. For both proof phases, exit `0` means the callback supplied proof, exit `1` means no proof and lets `repo-end` try the next callback, and exit `2+` aborts cleanup. After successful cleanup, callbacks run with `--phase post-cleanup` for notification or sweep behavior.
 
 ## Code Style
 - Ruby: Standard Ruby conventions, minimal comments

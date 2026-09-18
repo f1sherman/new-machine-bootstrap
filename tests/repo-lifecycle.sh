@@ -198,6 +198,173 @@ git -C "$unmerged_repo" show-ref --verify --quiet refs/heads/feature/unmerged ||
   fail_case "repo-end preserves unmerged branch" "branch was removed"
 pass_case "repo-end preserves unmerged branch and worktree"
 
+create_remote_repo end-closed-github
+closed_github_origin="$CREATED_ORIGIN"
+closed_github_repo="$CREATED_REPO"
+closed_github_feature="$TMPROOT/end-closed-github-feature"
+git -C "$closed_github_repo" worktree add -q -b feature/closed-github \
+  "$closed_github_feature" main
+commit_file "$closed_github_feature" closed.txt closed "closed feature commit"
+git -C "$closed_github_feature" push -q -u origin feature/closed-github
+closed_github_tip="$(git -C "$closed_github_feature" rev-parse HEAD)"
+git -C "$closed_github_repo" remote set-url origin \
+  git@github.com:example/end-closed-github.git
+closed_github_bin="$TMPROOT/end-closed-github-bin"
+mkdir -p "$closed_github_bin"
+cat >"$closed_github_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$CLOSED_GH_LOG"
+case " $* " in
+  *' --method GET '*) ;;
+  *) printf 'expected GitHub lookup to use GET\n' >&2; exit 1 ;;
+esac
+if [[ "${CLOSED_GH_MODE:-closed}" == "active" ]]; then
+  cat <<JSON
+[
+  {"number":16,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-github","sha":"$CLOSED_GH_HEAD_SHA"}},
+  {"number":17,"state":"open","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-github","sha":"$CLOSED_GH_HEAD_SHA"}}
+]
+JSON
+elif [[ "${CLOSED_GH_MODE:-closed}" == "stale" ]]; then
+  cat <<'JSON'
+[
+  {"number":15,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-github","sha":"0000000000000000000000000000000000000000"}}
+]
+JSON
+else
+  cat <<JSON
+[
+  {"number":17,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-github","sha":"$CLOSED_GH_HEAD_SHA"}}
+]
+JSON
+fi
+EOF
+cat >"$closed_github_bin/ssh" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  *git-upload-pack*) exec git-upload-pack '$closed_github_origin' ;;
+  *git-receive-pack*) exec git-receive-pack '$closed_github_origin' ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$closed_github_bin/gh" "$closed_github_bin/ssh"
+closed_github_home="$TMPROOT/end-closed-github-home"
+mkdir -p "$closed_github_home"
+if (cd "$closed_github_feature" && \
+  HOME="$closed_github_home" CLOSED_GH_LOG="$TMPROOT/end-closed-github-gh.log" \
+  PATH="$closed_github_bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$closed_github_bin/ssh" "$REPO_END_SCRIPT" >/dev/null 2>&1); then
+  fail_case "plain repo-end rejects a closed unmerged PR" \
+    "plain repo-end removed a closed unmerged branch"
+fi
+[ -d "$closed_github_feature" ] || \
+  fail_case "plain repo-end preserves closed PR worktree" "worktree was removed"
+pass_case "plain repo-end preserves a closed unmerged PR"
+if (cd "$closed_github_feature" && \
+  HOME="$closed_github_home" CLOSED_GH_LOG="$TMPROOT/end-closed-github-gh.log" \
+  CLOSED_GH_HEAD_SHA="$closed_github_tip" CLOSED_GH_MODE=stale \
+  PATH="$closed_github_bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$closed_github_bin/ssh" \
+  "$REPO_END_SCRIPT" --closed >/dev/null 2>&1); then
+  fail_case "closed cleanup rejects a PR for an old branch tip" \
+    "closed cleanup accepted closure proof for a reused branch name"
+fi
+[ -d "$closed_github_feature" ] || \
+  fail_case "stale PR proof preserves worktree" "worktree was removed"
+pass_case "closed cleanup binds GitHub PR proof to the remote tip"
+if (cd "$closed_github_feature" && \
+  HOME="$closed_github_home" CLOSED_GH_LOG="$TMPROOT/end-closed-github-gh.log" \
+  CLOSED_GH_HEAD_SHA="$closed_github_tip" CLOSED_GH_MODE=active \
+  PATH="$closed_github_bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$closed_github_bin/ssh" \
+  "$REPO_END_SCRIPT" --closed >/dev/null 2>&1); then
+  fail_case "closed cleanup rejects an active PR" \
+    "closed cleanup accepted historical closure proof for an active branch"
+fi
+[ -d "$closed_github_feature" ] || \
+  fail_case "active PR preserves worktree" "worktree was removed"
+pass_case "closed cleanup rejects an active PR despite historical closure proof"
+(cd "$closed_github_feature" && \
+  HOME="$closed_github_home" CLOSED_GH_LOG="$TMPROOT/end-closed-github-gh.log" \
+  CLOSED_GH_HEAD_SHA="$closed_github_tip" \
+  PATH="$closed_github_bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$closed_github_bin/ssh" "$REPO_END_SCRIPT" --closed \
+    >"$TMPROOT/end-closed-github.out" \
+    2>"$TMPROOT/end-closed-github.err")
+[ ! -d "$closed_github_feature" ] || \
+  fail_case "closed PR cleanup removes worktree" "worktree remains"
+if git -C "$closed_github_repo" show-ref --verify --quiet \
+  refs/heads/feature/closed-github; then
+  fail_case "closed PR cleanup removes local branch" "local branch remains"
+fi
+if git --git-dir="$closed_github_origin" show-ref --verify --quiet \
+  refs/heads/feature/closed-github; then
+  fail_case "closed PR cleanup removes remote branch" "remote branch remains"
+fi
+grep -q "state=all" "$TMPROOT/end-closed-github-gh.log" || \
+  fail_case "closed PR lookup includes active PRs" "GitHub lookup did not query all states"
+grep -q "Using closed GitHub PR #17 as closure proof" \
+  "$TMPROOT/end-closed-github.err" || \
+  fail_case "closed PR cleanup reports proof" "closure proof message is missing"
+grep -q "Cleaned up closed PR branch: feature/closed-github" \
+  "$TMPROOT/end-closed-github.err" || \
+  fail_case "closed PR cleanup reports policy" "cleanup policy message is missing"
+pass_case "repo-end --closed cleans one closed unmerged GitHub PR"
+
+create_remote_repo end-closed-race
+closed_race_origin="$CREATED_ORIGIN"
+closed_race_repo="$CREATED_REPO"
+closed_race_feature="$TMPROOT/end-closed-race-feature"
+git -C "$closed_race_repo" worktree add -q -b feature/closed-race \
+  "$closed_race_feature" main
+commit_file "$closed_race_feature" closed-race.txt closed "closed race feature commit"
+git -C "$closed_race_feature" push -q -u origin feature/closed-race
+closed_race_verified_tip="$(git -C "$closed_race_feature" rev-parse HEAD)"
+closed_race_peer="$TMPROOT/end-closed-race-peer"
+git clone -q "$closed_race_origin" "$closed_race_peer"
+git -C "$closed_race_peer" checkout -q feature/closed-race
+commit_file "$closed_race_peer" closed-race.txt advanced "advanced remote commit"
+closed_race_advanced_tip="$(git -C "$closed_race_peer" rev-parse HEAD)"
+git -C "$closed_race_peer" push -q origin \
+  HEAD:refs/heads/staged-closed-race
+git -C "$closed_race_repo" remote set-url origin \
+  git@github.com:example/end-closed-race.git
+closed_race_bin="$TMPROOT/end-closed-race-bin"
+mkdir -p "$closed_race_bin"
+cat >"$closed_race_bin/gh" <<EOF
+#!/usr/bin/env bash
+git --git-dir='$closed_race_origin' update-ref \
+  refs/heads/feature/closed-race '$closed_race_advanced_tip'
+cat <<'JSON'
+[
+  {"number":18,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-race","sha":"$closed_race_verified_tip"}}
+]
+JSON
+EOF
+cat >"$closed_race_bin/ssh" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  *git-upload-pack*) exec git-upload-pack '$closed_race_origin' ;;
+  *git-receive-pack*) exec git-receive-pack '$closed_race_origin' ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$closed_race_bin/gh" "$closed_race_bin/ssh"
+(cd "$closed_race_feature" && \
+  HOME="$TMPROOT/end-closed-race-home" PATH="$closed_race_bin:$PATH" \
+  GIT_CONFIG_GLOBAL=/dev/null GIT_SSH="$closed_race_bin/ssh" \
+  "$REPO_END_SCRIPT" --closed >/dev/null \
+    2>"$TMPROOT/end-closed-race.err")
+assert_equals \
+  "$(git --git-dir="$closed_race_origin" rev-parse refs/heads/feature/closed-race)" \
+  "$closed_race_advanced_tip" \
+  "closed cleanup preserves a remote tip that advances after proof starts"
+grep -q "Warning: failed to delete remote branch feature/closed-race" \
+  "$TMPROOT/end-closed-race.err" || \
+  fail_case "closed cleanup reports a remote branch race" \
+    "remote deletion warning is missing"
+pass_case "closed cleanup leases the verified remote tip"
+
 create_remote_repo end-remote-proof
 remote_proof_origin="$CREATED_ORIGIN"
 remote_proof_main="$CREATED_REPO"
@@ -246,6 +413,104 @@ assert_equals \
   "repo-end preserves local-ahead branch tip"
 assert_git_has_file "$local_ahead_repo" "$local_ahead_tip" local-ahead.txt \
   "repo-end preserves local-only commit content"
+local_ahead_home="$TMPROOT/end-local-ahead-closed-home"
+mkdir -p "$local_ahead_home/.local/bin/repo-end.d"
+cat >"$local_ahead_home/.local/bin/repo-end.d/10-proof" <<'EOF'
+#!/usr/bin/env bash
+printf 'called\n' >"$HOME/closed-proof-called"
+exit 0
+EOF
+chmod +x "$local_ahead_home/.local/bin/repo-end.d/10-proof"
+if (cd "$local_ahead_feature" && HOME="$local_ahead_home" \
+  GIT_CONFIG_GLOBAL=/dev/null "$REPO_END_SCRIPT" --closed >/dev/null 2>&1); then
+  fail_case "closed cleanup rejects local-only commits" \
+    "closed cleanup removed unpublished commits"
+fi
+[ ! -e "$local_ahead_home/closed-proof-called" ] || \
+  fail_case "closed cleanup validates publication before proof" \
+    "closed-proof callback ran for a local-ahead branch"
+[ -d "$local_ahead_feature" ] || \
+  fail_case "closed cleanup preserves local-ahead worktree" "worktree was removed"
+pass_case "closed cleanup rejects local-only commits before provider proof"
+
+create_remote_repo end-closed-ambiguous
+closed_ambiguous_origin="$CREATED_ORIGIN"
+closed_ambiguous_repo="$CREATED_REPO"
+closed_ambiguous_feature="$TMPROOT/end-closed-ambiguous-feature"
+git -C "$closed_ambiguous_repo" worktree add -q -b feature/closed-ambiguous \
+  "$closed_ambiguous_feature" main
+commit_file "$closed_ambiguous_feature" ambiguous-closed.txt closed \
+  "ambiguous closed feature commit"
+git -C "$closed_ambiguous_feature" push -q -u origin feature/closed-ambiguous
+closed_ambiguous_tip="$(git -C "$closed_ambiguous_feature" rev-parse HEAD)"
+git -C "$closed_ambiguous_repo" remote set-url origin \
+  git@github.com:example/end-closed-ambiguous.git
+closed_ambiguous_bin="$TMPROOT/end-closed-ambiguous-bin"
+mkdir -p "$closed_ambiguous_bin"
+cat >"$closed_ambiguous_bin/gh" <<EOF
+#!/usr/bin/env bash
+cat <<'JSON'
+[
+  {"number":20,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-ambiguous","sha":"$closed_ambiguous_tip"}},
+  {"number":21,"state":"closed","merged_at":null,"base":{"ref":"main"},"head":{"ref":"feature/closed-ambiguous","sha":"$closed_ambiguous_tip"}}
+]
+JSON
+EOF
+cat >"$closed_ambiguous_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$closed_ambiguous_origin'
+EOF
+chmod +x "$closed_ambiguous_bin/gh" "$closed_ambiguous_bin/ssh"
+if (cd "$closed_ambiguous_feature" && \
+  HOME="$TMPROOT/end-closed-ambiguous-home" \
+  PATH="$closed_ambiguous_bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$closed_ambiguous_bin/ssh" \
+  "$REPO_END_SCRIPT" --closed >/dev/null 2>&1); then
+  fail_case "closed cleanup rejects ambiguous PR proof" \
+    "closed cleanup accepted multiple matching pull requests"
+fi
+[ -d "$closed_ambiguous_feature" ] || \
+  fail_case "ambiguous closed proof preserves worktree" "worktree was removed"
+pass_case "closed cleanup rejects ambiguous PR proof"
+
+create_remote_repo end-closed-malformed
+closed_malformed_origin="$CREATED_ORIGIN"
+closed_malformed_repo="$CREATED_REPO"
+closed_malformed_feature="$TMPROOT/end-closed-malformed-feature"
+git -C "$closed_malformed_repo" worktree add -q -b feature/closed-malformed \
+  "$closed_malformed_feature" main
+commit_file "$closed_malformed_feature" malformed-closed.txt closed \
+  "malformed closed feature commit"
+git -C "$closed_malformed_feature" push -q -u origin feature/closed-malformed
+closed_malformed_tip="$(git -C "$closed_malformed_feature" rev-parse HEAD)"
+git -C "$closed_malformed_repo" remote set-url origin \
+  git@github.com:example/end-closed-malformed.git
+closed_malformed_bin="$TMPROOT/end-closed-malformed-bin"
+mkdir -p "$closed_malformed_bin"
+cat >"$closed_malformed_bin/gh" <<EOF
+#!/usr/bin/env bash
+cat <<'JSON'
+[
+  {"number":22,"state":"closed","base":{"ref":"main"},"head":{"ref":"feature/closed-malformed","sha":"$closed_malformed_tip"}}
+]
+JSON
+EOF
+cat >"$closed_malformed_bin/ssh" <<EOF
+#!/usr/bin/env bash
+exec git-upload-pack '$closed_malformed_origin'
+EOF
+chmod +x "$closed_malformed_bin/gh" "$closed_malformed_bin/ssh"
+if (cd "$closed_malformed_feature" && \
+  HOME="$TMPROOT/end-closed-malformed-home" \
+  PATH="$closed_malformed_bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+  GIT_SSH="$closed_malformed_bin/ssh" \
+  "$REPO_END_SCRIPT" --closed >/dev/null 2>&1); then
+  fail_case "closed cleanup rejects malformed PR proof" \
+    "closed cleanup accepted a response without merged_at"
+fi
+[ -d "$closed_malformed_feature" ] || \
+  fail_case "malformed closed proof preserves worktree" "worktree was removed"
+pass_case "closed cleanup rejects malformed PR proof"
 
 create_remote_repo end-ambiguous-github-proof
 ambiguous_origin="$CREATED_ORIGIN"
