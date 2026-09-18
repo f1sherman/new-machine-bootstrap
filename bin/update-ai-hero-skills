@@ -19,6 +19,8 @@ const SELECTED_SKILLS = Object.freeze({
   "writing-for-agents": "skills/productivity/writing-for-agents",
 });
 const DEEP_DESIGN_SKILLS = new Set(["grill-with-docs", "domain-modeling", "grilling"]);
+const GRILL_WITH_DOCS_PREIMAGE = "Run a `/grilling` session, using the `/domain-modeling` skill.";
+const GRILL_WITH_DOCS_REPLACEMENT = "Use the harness's skill mechanism, when available, to load and follow both the `grilling` and `domain-modeling` skills. Otherwise, read and follow the sibling files `../grilling/SKILL.md` and `../domain-modeling/SKILL.md`.";
 const MERGE_CONFLICT_PREIMAGE = "Always resolve; never `--abort`.";
 const MERGE_CONFLICT_REPLACEMENT = "Continue a clearly intended operation and do not `--abort` merely because resolution is difficult. If the available context cannot establish whether the operation itself should continue, stop and ask a human to decide.";
 
@@ -232,6 +234,9 @@ function provenance(name, tag, commit) {
   if (DEEP_DESIGN_SKILLS.has(name)) {
     patches.push("Require explicit invocation in SKILL.md and agents/openai.yaml.");
   }
+  if (name === "grill-with-docs") {
+    patches.push("Load grilling and domain-modeling through the harness skill mechanism, with sibling SKILL.md files as the fallback.");
+  }
   if (name === "resolving-merge-conflicts") {
     patches.push("Replace the absolute never-abort instruction with the local human-decision rule.");
   }
@@ -279,6 +284,9 @@ function generateTree(sourceRoot, destinationRoot, tag, commit) {
     if (DEEP_DESIGN_SKILLS.has(name)) {
       skill = enforceExplicitFrontmatter(skill, name);
       codex = enforceExplicitCodexMetadata(codex, name);
+    }
+    if (name === "grill-with-docs") {
+      skill = replaceExactlyOnce(skill, GRILL_WITH_DOCS_PREIMAGE, GRILL_WITH_DOCS_REPLACEMENT, `${name}/SKILL.md`);
     }
     if (name === "resolving-merge-conflicts") {
       skill = replaceExactlyOnce(skill, MERGE_CONFLICT_PREIMAGE, MERGE_CONFLICT_REPLACEMENT, `${name}/SKILL.md`);

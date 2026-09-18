@@ -13,7 +13,8 @@ Evaluated source:
 - Guide: <https://www.aihero.dev/skills>
 - Repository: <https://github.com/mattpocock/skills>
 - Tag: `v1.2.3`
-- Commit: `835450ef244ab7335f75d95b83e7d979eae22a6d`
+- Annotated tag object: `835450ef244ab7335f75d95b83e7d979eae22a6d`
+- Peeled source commit: `6acc160e4e0cd062dbbbd7a1b26ae92855edf07e`
 
 ## Decision states
 
@@ -26,7 +27,7 @@ Evaluated source:
 | --- | --- | --- |
 | `setup-matt-pocock-skills` | Skip | No selected skill needs its issue-tracker configuration. Avoid adding per-repository setup and tracker maintenance. |
 | `ask-matt` | Skip | It adds a manual routing step, knows only Matt's skills, and duplicates automatic skill selection. |
-| `grill-with-docs` | Install, user-only | Use only when Brian explicitly requests a deep design interview for large, ambiguous repository work. Preserve upstream behavior and prevent model invocation. |
+| `grill-with-docs` | Install, adapted, user-only | Use only when Brian explicitly requests a deep design interview for large, ambiguous repository work. The local portability patch loads `grilling` and `domain-modeling` through the harness skill mechanism, or reads their sibling `SKILL.md` files when no such mechanism exists. Prevent model invocation. |
 | `to-spec` | Skip | Existing workflows already create versioned specifications and plans without a separate issue-tracker artifact or manual invocation. |
 | `to-tickets` | Skip | Existing planning and subagent orchestration avoid manual tracker, dispatch, and completion work. |
 | `implement` | Skip | Existing `z-fix` and `z-quick-pr` workflows add worktree isolation, verification, review fixes, and pull-request creation. |

@@ -22,6 +22,8 @@ ideas from skipped skills.
 
 - The upstream source is `mattpocock/skills` under the MIT license.
 - Tagged releases are the update boundary. The initial version is `v1.2.3`.
+  Its annotated tag object is `835450ef244ab7335f75d95b83e7d979eae22a6d`;
+  its peeled source commit is `6acc160e4e0cd062dbbbd7a1b26ae92855edf07e`.
 - A skill update must produce a repository diff before it reaches a machine.
 - Original upstream skill names should remain stable across all three harnesses.
 - Pi and Claude honor `disable-model-invocation: true`. Codex honors
@@ -49,7 +51,12 @@ Keep the upstream content unchanged except for these explicit patches:
    frontmatter files. Also enforce `policy.allow_implicit_invocation: false` in
    all three `agents/openai.yaml` files. The three skills form an explicit,
    user-invoked deep-design bundle in Claude, Codex, and Pi.
-2. In `resolving-merge-conflicts`, replace the absolute instruction to always
+2. In `grill-with-docs`, replace the exact upstream instruction to run
+   `/grilling` with `/domain-modeling`. The local instruction must load and
+   follow both skills through the harness skill mechanism when one exists, and
+   otherwise read the sibling `../grilling/SKILL.md` and
+   `../domain-modeling/SKILL.md` files. Keep the skill user-only.
+3. In `resolving-merge-conflicts`, replace the absolute instruction to always
    resolve and never abort. The local instruction must continue a clearly
    intended operation, never abort merely because resolution is difficult, and
    stop for a human decision when available context cannot establish whether
@@ -58,7 +65,7 @@ Keep the upstream content unchanged except for these explicit patches:
 Do not rename selected skills per harness. Their upstream names keep internal
 references valid and make update diffs easier to review. The updater must parse
 invocation metadata structurally enough to enforce these invariants on every
-release. It must abort when the merge-conflict patch preimage is missing or
+release. It must abort when either content patch preimage is missing or
 ambiguous rather than silently generating a partially adapted tree.
 
 ## Source and installation architecture
@@ -98,7 +105,7 @@ source tree. It must:
 4. Refuse a moved tag when the existing generated metadata records the same tag
    with a different commit, unless the operator supplies an explicit override.
 5. Copy only the approved skills and their complete supporting content.
-6. Apply the two documented local adaptations with fail-closed preconditions.
+6. Apply the three documented local adaptations with fail-closed preconditions.
 7. Add source, license, and generated checksum metadata.
 8. Replace the generated vendor tree atomically enough that removed upstream
    files do not survive an update.
@@ -157,8 +164,9 @@ This is simple initially but has no reliable update path. Rejected.
 
 - Unit-test the updater against a local fixture repository. Verify selection,
   complete recursive copying, frontmatter and Codex invocation patches,
-  fail-closed merge-conflict patching, metadata, moved-tag protection, rejection
-  of symlinks, removal of stale files, and check-mode drift detection.
+  fail-closed portability and merge-conflict patching, metadata, moved-tag
+  protection, rejection of symlinks, removal of stale files, and check-mode
+  drift detection.
 - Run the updater against upstream `v1.2.3` and run it again in check mode.
 - Validate every generated `SKILL.md` with Pi's skill discovery or equivalent
   frontmatter checks.

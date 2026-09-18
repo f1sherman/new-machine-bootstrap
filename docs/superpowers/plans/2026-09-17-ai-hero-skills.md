@@ -13,7 +13,8 @@
 ## Global Constraints
 
 - Initial upstream tag: `v1.2.3`.
-- Initial upstream commit: `835450ef244ab7335f75d95b83e7d979eae22a6d`.
+- Initial annotated tag object: `835450ef244ab7335f75d95b83e7d979eae22a6d`.
+- Initial peeled source commit: `6acc160e4e0cd062dbbbd7a1b26ae92855edf07e`.
 - Preserve original upstream skill names across all harnesses.
 - Deep-design skills must require explicit user invocation in Claude, Codex, and Pi.
 - Generated updates must fail closed when local patch preconditions no longer match.
@@ -42,12 +43,13 @@ with all six skill paths. Assert that a normal generation:
 - Adds `LICENSE`, `UPSTREAM.md`, and `.managed-checksum` to every skill.
 - Enforces `disable-model-invocation: true` for all three deep-design skills.
 - Enforces Codex `policy.allow_implicit_invocation: false` for all three.
+- Replaces exactly the approved `grill-with-docs` portability preimage.
 - Replaces exactly the approved merge-conflict sentence.
 - Removes stale generated files on regeneration.
 - Makes `--check` pass when synchronized and fail after drift.
 - Rejects a moved existing tag without `--allow-moved-tag`.
 - Rejects a symlink in a selected source tree.
-- Fails when the merge-conflict patch preimage is absent or duplicated.
+- Fails when either content patch preimage is absent or duplicated.
 
 - [ ] **Step 2: Run the updater tests and verify failure**
 
@@ -73,9 +75,10 @@ mattpocock_skills: v1.2.3
 Implement an executable Node.js script using only standard-library modules and
 Git subprocesses. Keep the selected source path map in one constant. Parse CLI
 arguments explicitly. Resolve tags to commits, reject source symlinks, validate
-frontmatter and Codex metadata, apply the exact merge-conflict preimage, write
-provenance and license files, calculate per-skill checksums, and replace the
-vendor tree through a temporary sibling directory.
+frontmatter and Codex metadata, apply the exact `grill-with-docs` portability
+and merge-conflict preimages, write provenance and license files, calculate
+per-skill checksums, and replace the vendor tree through a temporary sibling
+directory.
 
 In check mode, generate to a temporary directory and compare recursively without
 modifying the repository. When the existing generated metadata records the same

@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const UPDATER = path.join(PROJECT_ROOT, "bin/update-ai-hero-skills");
 const TAG = "v-test";
+const GRILL_WITH_DOCS_PREIMAGE = "Run a `/grilling` session, using the `/domain-modeling` skill.";
+const GRILL_WITH_DOCS_REPLACEMENT = "Use the harness's skill mechanism, when available, to load and follow both the `grilling` and `domain-modeling` skills. Otherwise, read and follow the sibling files `../grilling/SKILL.md` and `../domain-modeling/SKILL.md`.";
 const MERGE_PREIMAGE = "Always resolve; never `--abort`.";
 const MERGE_REPLACEMENT = "Continue a clearly intended operation and do not `--abort` merely because resolution is difficult. If the available context cannot establish whether the operation itself should continue, stop and ask a human to decide.";
 const SKILLS = {
@@ -41,8 +43,10 @@ function createFixture() {
   writeFileSync(path.join(upstream, "LICENSE"), "fixture MIT license\n");
 
   for (const [name, sourcePath] of Object.entries(SKILLS)) {
-    const mergeText = name === "resolving-merge-conflicts" ? ` ${MERGE_PREIMAGE}` : "";
-    write(upstream, `${sourcePath}/SKILL.md`, `---\nname: ${name}\ndescription: Fixture ${name}\n---\n\n# ${name}\n\nFixture body.${mergeText}\n`);
+    let body = "Fixture body.";
+    if (name === "grill-with-docs") body = GRILL_WITH_DOCS_PREIMAGE;
+    if (name === "resolving-merge-conflicts") body = `Fixture body. ${MERGE_PREIMAGE}`;
+    write(upstream, `${sourcePath}/SKILL.md`, `---\nname: ${name}\ndescription: Fixture ${name}\n---\n\n# ${name}\n\n${body}\n`);
     write(upstream, `${sourcePath}/agents/openai.yaml`, `interface:\n  display_name: "${name}"\n  short_description: "Fixture ${name}"\n`);
     write(upstream, `${sourcePath}/support/nested.txt`, `support for ${name}\n`);
   }
@@ -98,6 +102,7 @@ test("generates only complete selected skills with adaptations and metadata", ()
     assert.equal(readFileSync(path.join(destination, "LICENSE"), "utf8"), "fixture MIT license\n");
     const provenance = readFileSync(path.join(destination, "UPSTREAM.md"), "utf8");
     assert.match(provenance, new RegExp("Tag: `" + TAG + "`[\\s\\S]*Commit: `[0-9a-f]{40}`"));
+    if (name === "grill-with-docs") assert.match(provenance, /sibling SKILL\.md files as the fallback/);
     assert.match(readFileSync(path.join(destination, ".managed-checksum"), "utf8"), /^[0-9a-f]{64}\n$/);
   }
 
@@ -107,6 +112,11 @@ test("generates only complete selected skills with adaptations and metadata", ()
     const codex = readFileSync(path.join(generatedSkill(fixture, name), "agents/openai.yaml"), "utf8");
     assert.match(codex, /^policy:\n  allow_implicit_invocation: false$/m);
   }
+
+  const grillWithDocs = readFileSync(path.join(generatedSkill(fixture, "grill-with-docs"), "SKILL.md"), "utf8");
+  assert.equal(grillWithDocs.includes(GRILL_WITH_DOCS_PREIMAGE), false);
+  assert.equal(grillWithDocs.split(GRILL_WITH_DOCS_REPLACEMENT).length - 1, 1);
+  assert.match(grillWithDocs, /^disable-model-invocation: true$/m);
 
   const mergeSkill = readFileSync(path.join(generatedSkill(fixture, "resolving-merge-conflicts"), "SKILL.md"), "utf8");
   assert.equal(mergeSkill.includes(MERGE_PREIMAGE), false);
@@ -182,6 +192,18 @@ test("rejects a selected skill root symlink", () => withFixture((fixture) => {
 }));
 
 for (const mutation of ["absent", "duplicated"]) {
+  test(`fails when the grill-with-docs patch preimage is ${mutation}`, () => withFixture((fixture) => {
+    const skillPath = path.join(fixture.upstream, SKILLS["grill-with-docs"], "SKILL.md");
+    const original = readFileSync(skillPath, "utf8");
+    writeFileSync(skillPath, mutation === "absent" ? original.replace(GRILL_WITH_DOCS_PREIMAGE, "Use some skills.") : `${original}\n${GRILL_WITH_DOCS_PREIMAGE}\n`);
+    commitFixture(fixture.upstream, `make grill-with-docs preimage ${mutation}`);
+    moveTag(fixture.upstream);
+
+    const result = runUpdater(fixture);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /exactly once/i);
+  }));
+
   test(`fails when the merge-conflict patch preimage is ${mutation}`, () => withFixture((fixture) => {
     const skillPath = path.join(fixture.upstream, SKILLS["resolving-merge-conflicts"], "SKILL.md");
     const original = readFileSync(skillPath, "utf8");
