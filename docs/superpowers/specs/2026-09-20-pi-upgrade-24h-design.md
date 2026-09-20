@@ -4,8 +4,8 @@ Status: self-approved.
 
 ## Goal and scope
 
-Upgrade managed interactive Pi from 0.85.1 to the latest stable release at least
-24 hours old. Give future Pi updates a 24-hour Renovate age gate instead of the
+Upgrade managed interactive Pi from 0.85.1 to 0.86.1 under Brian's explicit
+one-time early-upgrade request. Give future Pi updates a 24-hour Renovate age gate instead of the
 repository-wide seven days. Preserve exact version pins, dependency safeguards,
 review, and merge authority. Do not change service runtimes or frozen replay
 images in HNP, refresh credentials, or claim that upgrading fixes Astra access.
@@ -14,8 +14,10 @@ images in HNP, refresh credentials, or claim that upgrading fixes Astra access.
 
 At 2026-09-20 23:16 UTC, npm latest is 0.86.1 (published 11:16 UTC that day).
 0.86.0 was published 2026-09-19 23:14 UTC and is the latest eligible release.
-The requested 24-hour wait applies to this upgrade too; do not exempt Pi from
-Aube's release-age policy to install a younger version.
+The initial upgrade selected 0.86.0. Brian then explicitly requested 0.86.1 for
+its bug fixes. Permit a one-time package-scoped age exception for the matching
+Pi release packages during deployment; do not persist this exception or weaken
+checks for other dependencies. Future automated eligibility remains 24 hours.
 
 NMB owns the Pi pin and mise installation, including matching pi-server and
 pi-client packages. Renovate currently has a global seven-day age and daily scan.
@@ -25,7 +27,7 @@ Retain this layered behavior rather than adding an inconsistent third gate.
 
 ## Approach
 
-Recommended: pin 0.86.0, override minimumReleaseAge to 1 day for only the existing
+Recommended: pin 0.86.1, override minimumReleaseAge to 1 day for only the existing
 custom.regex manager's @earendil-works/pi-coding-agent dependency, and run the
 existing Renovate workflow hourly instead of daily. Other packages keep seven
 days. Hourly scanning reduces eligibility discovery delay; it is not a promise
@@ -43,7 +45,9 @@ release times. Validate YAML and render the managed version consistently for Pi
 and its runtime companions. No configuration-presence test is retained under the
 repository test-quality policy. Install through normal provisioning, preserve
 running sessions, and verify the resulting CLI version and companion imports.
-Aube may reject a newly published transitive dependency; do not bypass its policy.
+Aube may reject a newly published transitive dependency. Only the Pi release
+packages have an operator-approved one-time age exception; retain all other
+checks and restore the source task immediately after this deployment.
 Report any blocked live install separately from the completed source change.
 
 Pi 0.86 introduces a TranscriptContext custom-provider contract. Review release
