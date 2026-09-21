@@ -144,6 +144,13 @@ profile and focuses that exact window in workspace 9. If there is no single Work
 Safari window, it opens the link normally in Safari. It does not move or summon
 the Safari window.
 
+### Open a link from Todoist
+
+Click the link normally. The managed URL handler opens it in the Safari Personal
+profile and focuses that exact window in workspace 2. If there is no single
+Personal Safari window, it opens the link normally in Safari. It does not move
+or summon the Safari window.
+
 ### Open a link from another application
 
 Click the link normally. The managed URL handler opens it in Safari. It then

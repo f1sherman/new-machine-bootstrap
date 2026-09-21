@@ -70,6 +70,18 @@ assertEqual(
   "tab creation fallback"
 )
 
+local todoistFailureCalls = run({
+  openTab = function()
+    return false, nil
+  end,
+  openError = "Could not open the Todoist link in Personal Safari",
+})
+assertEqual(
+  "notify:Could not open the Todoist link in Personal Safari,fallback:https://example.test",
+  table.concat(todoistFailureCalls, ","),
+  "Todoist tab creation fallback"
+)
+
 local navigationFailureCalls = run({
   navigate = function(_, callback)
     callback({}, "Could not focus Work Safari")

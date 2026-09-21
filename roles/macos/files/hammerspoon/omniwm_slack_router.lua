@@ -8,7 +8,11 @@ function M.route(url, target, deps)
 
   local created, createError = deps.openTab(target, url)
   if not created then
-    deps.notify(createError or "Could not open the Slack link in Work Safari")
+    deps.notify(
+      createError
+        or deps.openError
+        or "Could not open the Slack link in Work Safari"
+    )
     deps.fallback(url)
     return
   end
