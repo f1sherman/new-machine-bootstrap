@@ -28,6 +28,40 @@ end
 
 assertEqual(true, source.isSlackSender("com.tinyspeck.slackmacgap"), "Slack sender")
 assertEqual(false, source.isSlackSender("com.apple.MobileSMS"), "non-Slack sender")
+assertEqual(true, source.isTodoistSender("com.todoist.mac.Todoist"), "Todoist sender")
+assertEqual(false, source.isTodoistSender("com.apple.MobileSMS"), "non-Todoist sender")
+
+local personalSafari = {
+  id = "ow_personal",
+  app = {bundleId = "com.apple.Safari"},
+  title = "Personal — Inbox",
+  workspace = {number = 2},
+}
+assertEqual(true, source.isPersonalSafariWindow(personalSafari), "Personal Safari window")
+local personalTarget, personalError = source.resolvePersonalSafariWindow({personalSafari})
+assertEqual("ow_personal", personalTarget and personalTarget.id, "one Personal Safari target")
+assertEqual(nil, personalError, "one Personal Safari target error")
+assertEqual(false, source.isPersonalSafariWindow({
+  app = {bundleId = "com.apple.Safari"},
+  title = "Work — Inbox",
+}), "Work is not Personal Safari")
+personalTarget, personalError = source.resolvePersonalSafariWindow({})
+assertEqual(nil, personalTarget, "absent Personal Safari target")
+assertEqual(nil, personalError, "absent Personal Safari target error")
+personalTarget, personalError = source.resolvePersonalSafariWindow({
+  personalSafari,
+  {
+    id = "ow_personal_2",
+    app = {bundleId = "com.apple.Safari"},
+    title = "Personal — Second",
+  },
+})
+assertEqual(nil, personalTarget, "ambiguous Personal Safari target")
+assertEqual(
+  "More than one Safari Personal window is managed by OmniWM",
+  personalError,
+  "ambiguous Personal Safari target error"
+)
 
 local workSafari = {
   id = "ow_work",

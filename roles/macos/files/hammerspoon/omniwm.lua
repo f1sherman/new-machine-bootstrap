@@ -957,7 +957,7 @@ local function openSafariTab(window, url)
   return true, nil
 end
 
-local function routeSlackURL(url)
+local function routeProfileSafariURL(url, resolver, openError)
   M.windows(function(windows, windowsError)
     if windowsError then
       M.notify(windowsError)
@@ -965,7 +965,7 @@ local function routeSlackURL(url)
       return
     end
 
-    local safariWindow, resolveError = urlSource.resolveWorkSafariWindow(windows)
+    local safariWindow, resolveError = resolver(windows)
     if resolveError then
       M.notify(resolveError)
     end
@@ -974,8 +974,25 @@ local function routeSlackURL(url)
       navigate = navigateAndConfirmWindow,
       fallback = openNormallyInSafari,
       notify = M.notify,
+      openError = openError,
     })
   end)
+end
+
+local function routeSlackURL(url)
+  routeProfileSafariURL(
+    url,
+    urlSource.resolveWorkSafariWindow,
+    "Could not open the Slack link in Work Safari"
+  )
+end
+
+local function routeTodoistURL(url)
+  routeProfileSafariURL(
+    url,
+    urlSource.resolvePersonalSafariWindow,
+    "Could not open the Todoist link in Personal Safari"
+  )
 end
 
 local function openURLInExactSafariWindow(safariWindow, url, focusAfterOpen)
@@ -1099,6 +1116,15 @@ hs.urlevent.httpCallback = function(_, _, _, fullURL, senderPID)
       tostring(senderBundle)
     ))
     routeSlackURL(fullURL)
+    return
+  end
+  if urlSource.isTodoistSender(senderBundle) then
+    logger.i(string.format(
+      "URL source pid=%s bundle=%s decision=todoist-personal-safari",
+      tostring(senderPID),
+      tostring(senderBundle)
+    ))
+    routeTodoistURL(fullURL)
     return
   end
   if senderBundle and senderBundle ~= "org.hammerspoon.Hammerspoon" then

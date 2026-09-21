@@ -4,12 +4,34 @@ local chromeBundleID = "com.google.Chrome"
 local ghosttyBundleID = "com.mitchellh.ghostty"
 local hammerspoonBundleID = "org.hammerspoon.Hammerspoon"
 local slackBundleID = "com.tinyspeck.slackmacgap"
+local todoistBundleID = "com.todoist.mac.Todoist"
 
 function M.isSafariBrowserWindow(window)
   return window.app
     and window.app.bundleId == "com.apple.Safari"
     and type(window.title) == "string"
     and window.title ~= ""
+end
+
+function M.isPersonalSafariWindow(window)
+  return M.isSafariBrowserWindow(window)
+    and window.title:sub(1, #"Personal —") == "Personal —"
+end
+
+function M.resolvePersonalSafariWindow(windows)
+  local candidates = {}
+  for _, window in ipairs(windows or {}) do
+    if M.isPersonalSafariWindow(window) then
+      table.insert(candidates, window)
+    end
+  end
+
+  if #candidates == 1 then
+    return candidates[1], nil
+  elseif #candidates > 1 then
+    return nil, "More than one Safari Personal window is managed by OmniWM"
+  end
+  return nil, nil
 end
 
 function M.isDevelopmentSafariWindow(window)
@@ -93,6 +115,10 @@ end
 
 function M.isSlackSender(senderBundle)
   return senderBundle == slackBundleID
+end
+
+function M.isTodoistSender(senderBundle)
+  return senderBundle == todoistBundleID
 end
 
 function M.isChromeBrowserWindow(window)
