@@ -10,12 +10,14 @@ Update the current Pi session's durable broad name.
 
 - If arguments were supplied after the skill command, use them to identify the requested theme.
 - If no arguments were supplied, infer the top-level objective from the current conversation.
+- If the request cites an accessible issue, ticket, PR, branch, commit, or other opaque reference, inspect its content before choosing the name.
+- Derive the recognizable subject and broad outcome from the referenced work. The name must be useful without recalling the identifier.
 - Use the form `[recognizable subject] + [broad outcome]`.
 - Preserve the user's central system, initiative, or capability terms when they are clear.
 - Put the most distinctive subject terms first. Make the first 31 characters useful for finding the session and include the broad outcome there when practical.
 - Name why the session exists. Choose an outcome that stays accurate through related design, implementation, debugging, testing, and review.
 - Do not make the current symptom, implementation detail, phase, workflow, or next action the subject.
-- Do not use a ticket, repository, or other identifier as the complete name. Keep one only when it is part of a recognizable subject.
+- Keep an identifier only as optional secondary context after the name is recognizable without it.
 - Check the breadth: if the current task disappeared from the transcript, the name must still describe why the session exists.
 - For example, use `Pi compaction reliability` instead of `Fix overlay replay`, `Safari URL routing reliability` instead of `Ignore companion panels`, and `Workspace restore reliability` instead of `Debug stale manifests`.
 - Prefer a complete name of at most 40 characters. Preserve important meaning up to the hard 80-character limit. Do not create an unclear abbreviation only to fit the discovery target.
