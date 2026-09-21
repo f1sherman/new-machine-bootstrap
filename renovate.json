@@ -16,6 +16,12 @@
   ],
   "packageRules": [
     {
+      "description": "Make Pi updates eligible after 24 hours",
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["@earendil-works/pi-coding-agent"],
+      "minimumReleaseAge": "1 day"
+    },
+    {
       "description": "Keep superpowers updates explicit and easy to spot",
       "matchManagers": ["custom.regex"],
       "matchPackageNames": ["obra/superpowers"],
