@@ -15,6 +15,7 @@ mkdir -p \
   "$source_one/shared" \
   "$source_one/overlaid" \
   "$source_one/excluded" \
+  "$source_one/removed" \
   "$source_two/overlaid" \
   "$target_one/overlaid" \
   "$target_one/unmanaged" \
@@ -24,6 +25,7 @@ printf '#!/bin/sh\n' >"$source_one/shared/run.sh"
 chmod 0755 "$source_one/shared/run.sh"
 printf 'base\n' >"$source_one/overlaid/SKILL.md"
 printf 'excluded source\n' >"$source_one/excluded/SKILL.md"
+printf 'removed source\n' >"$source_one/removed/SKILL.md"
 printf 'old managed copy\n' >"$target_one/overlaid/SKILL.md"
 printf 'keep excluded\n' >"$target_one/excluded"
 printf 'keep me\n' >"$target_one/unmanaged/SKILL.md"
@@ -48,6 +50,16 @@ second_output="$(
   "$linker" --exclude excluded "$source_one" "$target_one" "$target_two"
 )"
 test "$second_output" = unchanged
+
+rm -rf "$source_one/removed"
+removal_output="$(
+  "$linker" --exclude excluded "$source_one" "$target_one" "$target_two"
+)"
+test "$removal_output" = changed
+test ! -e "$target_one/removed"
+test ! -L "$target_one/removed"
+test ! -e "$target_two/removed"
+test ! -L "$target_two/removed"
 
 overlay_output="$("$linker" "$source_two" "$target_one")"
 test "$overlay_output" = changed

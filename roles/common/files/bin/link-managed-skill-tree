@@ -28,16 +28,37 @@ fi
 source_root=$(cd "$source_root" && pwd -P)
 changed=false
 
+is_excluded() {
+  local skill_name=$1
+  local excluded_skill
+
+  for excluded_skill in "${excluded_skills[@]}"; do
+    [[ "$skill_name" == "$excluded_skill" ]] && return 0
+  done
+  return 1
+}
+
 for target_root in "$@"; do
   mkdir -p "$target_root"
   target_root=$(cd "$target_root" && pwd -P)
 
+  for target_skill in "$target_root"/*; do
+    [[ -L "$target_skill" ]] || continue
+    skill_name=${target_skill##*/}
+    is_excluded "$skill_name" && continue
+    link_target=$(readlink "$target_skill")
+
+    if [[ "$link_target" == "$source_root/$skill_name" &&
+          ! -d "$source_root/$skill_name" ]]; then
+      rm -f "$target_skill"
+      changed=true
+    fi
+  done
+
   for source_skill in "$source_root"/*; do
     [[ -d "$source_skill" ]] || continue
     skill_name=${source_skill##*/}
-    for excluded_skill in "${excluded_skills[@]}"; do
-      [[ "$skill_name" == "$excluded_skill" ]] && continue 2
-    done
+    is_excluded "$skill_name" && continue
     target_skill="$target_root/$skill_name"
 
     if [[ -L "$target_skill" ]]; then
