@@ -2550,6 +2550,7 @@
     checksum: true
     delete: true
     rsync_opts:
+      - '--omit-dir-times'
       - '--exclude=.DS_Store'
       - '--exclude=._*'
   loop:
