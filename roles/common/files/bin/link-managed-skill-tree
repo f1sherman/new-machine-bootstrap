@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+excluded_skills=()
+while [[ ${1:-} == --exclude ]]; do
+  if [[ $# -lt 2 ]]; then
+    printf 'Missing skill name after --exclude\n' >&2
+    exit 2
+  fi
+  excluded_skills+=("$2")
+  shift 2
+done
+
+if [[ $# -lt 2 ]]; then
+  printf 'Usage: %s [--exclude NAME] SOURCE_TREE TARGET_ROOT [...]\n' \
+    "$0" >&2
+  exit 2
+fi
+
+source_root=$1
+shift
+
+if [[ ! -d "$source_root" ]]; then
+  printf 'Source skill tree does not exist: %s\n' "$source_root" >&2
+  exit 1
+fi
+
+source_root=$(cd "$source_root" && pwd -P)
+changed=false
+
+is_excluded() {
+  local skill_name=$1
+  local excluded_skill
+
+  for excluded_skill in "${excluded_skills[@]}"; do
+    [[ "$skill_name" == "$excluded_skill" ]] && return 0
+  done
+  return 1
+}
+
+for target_root in "$@"; do
+  mkdir -p "$target_root"
+  target_root=$(cd "$target_root" && pwd -P)
+
+  for target_skill in "$target_root"/*; do
+    [[ -L "$target_skill" ]] || continue
+    skill_name=${target_skill##*/}
+    is_excluded "$skill_name" && continue
+    link_target=$(readlink "$target_skill")
+
+    if [[ "$link_target" == "$source_root/$skill_name" &&
+          ! -d "$source_root/$skill_name" ]]; then
+      rm -f "$target_skill"
+      changed=true
+    fi
+  done
+
+  for source_skill in "$source_root"/*; do
+    [[ -d "$source_skill" ]] || continue
+    skill_name=${source_skill##*/}
+    is_excluded "$skill_name" && continue
+    target_skill="$target_root/$skill_name"
+
+    if [[ -L "$target_skill" ]]; then
+      resolved_target=$(cd "$target_skill" 2>/dev/null && pwd -P || true)
+      if [[ "$resolved_target" == "$source_skill" ]]; then
+        continue
+      fi
+    fi
+
+    if [[ -e "$target_skill" || -L "$target_skill" ]]; then
+      rm -rf "$target_skill"
+    fi
+    ln -s "$source_skill" "$target_skill"
+    changed=true
+  done
+done
+
+if $changed; then
+  printf 'changed\n'
+else
+  printf 'unchanged\n'
+fi
