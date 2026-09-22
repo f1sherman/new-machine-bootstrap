@@ -36,6 +36,7 @@
       - python3-pip
       - python3-venv
       - pipx
+      - rsync
       - shellcheck
       - sudo
       - unzip

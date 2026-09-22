@@ -2526,113 +2526,105 @@
     - z-mark-done
     - z-spec-to-pr
 
-- name: Reconcile vendored AI Hero skills across harnesses
-  vars:
-    ai_hero_skill_names:
-      - grill-with-docs
-      - grilling
-      - domain-modeling
-      - resolving-merge-conflicts
-      - wait-what
-      - writing-for-agents
-    ai_hero_skill_roots:
+- name: Define managed skill deployment paths
+  tags: managed-skills
+  set_fact:
+    managed_skill_root: >-
+      {{ ansible_facts["user_dir"] }}/.local/share/new-machine-bootstrap/skills
+    managed_skill_linker: >-
+      {{ playbook_dir }}/roles/common/files/bin/link-managed-skill-tree
+
+- name: Create canonical managed skill tree directory
+  tags: managed-skills
+  file:
+    path: '{{ managed_skill_root }}'
+    state: directory
+    mode: '0755'
+
+- name: Synchronize managed skill trees once
+  tags: managed-skills
+  ansible.posix.synchronize:
+    src: '{{ item.src }}/'
+    dest: '{{ managed_skill_root }}/{{ item.name }}/'
+    archive: true
+    checksum: true
+    delete: true
+    rsync_opts:
+      - '--exclude=.DS_Store'
+      - '--exclude=._*'
+  loop:
+    - name: ai-hero
+      src: '{{ playbook_dir }}/roles/common/files/vendor/mattpocock-skills'
+    - name: common
+      src: '{{ playbook_dir }}/roles/common/files/config/skills/common'
+    - name: claude
+      src: '{{ playbook_dir }}/roles/common/files/config/skills/claude'
+    - name: codex
+      src: '{{ playbook_dir }}/roles/common/files/config/skills/codex'
+    - name: pi
+      src: '{{ playbook_dir }}/roles/common/files/config/skills/pi'
+  loop_control:
+    label: '{{ item.name }}'
+
+- name: Link shared managed skills to Claude and Codex
+  tags: managed-skills
+  command:
+    argv:
+      - '{{ managed_skill_linker }}'
+      - '--exclude'
+      - '_commit'
+      - '{{ managed_skill_root }}/common'
       - '{{ ansible_facts["user_dir"] }}/.claude/skills'
       - '{{ ansible_facts["user_dir"] }}/.codex/skills'
-      - '{{ ansible_facts["user_dir"] }}/.pi/agent/skills'
-  block:
-    - name: Read deployed AI Hero skill checksums
-      slurp:
-        src: '{{ item.0 }}/{{ item.1 }}/.managed-checksum'
-      loop: '{{ ai_hero_skill_roots | product(ai_hero_skill_names) | list }}'
-      loop_control:
-        label: '{{ item.0 }}/{{ item.1 }}'
-      register: ai_hero_deployed_checksums
-      changed_when: false
-      failed_when: false
+  register: shared_managed_skill_links
+  changed_when: shared_managed_skill_links.stdout == 'changed'
 
-    - name: Remove outdated AI Hero skill directories
-      file:
-        path: '{{ item.0 }}/{{ item.1 }}'
-        state: absent
-      loop: '{{ ai_hero_skill_roots | product(ai_hero_skill_names) | list }}'
-      loop_control:
-        label: '{{ item.0 }}/{{ item.1 }}'
-        index_var: ai_hero_target_index
-      when: >-
-        (ai_hero_deployed_checksums.results[ai_hero_target_index].content
-        | default('') | b64decode | trim)
-        !=
-        (lookup('ansible.builtin.file',
-        playbook_dir ~ '/roles/common/files/vendor/mattpocock-skills/'
-        ~ item.1 ~ '/.managed-checksum') | trim)
+- name: Link Claude-specific managed skills
+  tags: managed-skills
+  command:
+    argv:
+      - '{{ managed_skill_linker }}'
+      - '{{ managed_skill_root }}/claude'
+      - '{{ ansible_facts["user_dir"] }}/.claude/skills'
+  register: claude_managed_skill_links
+  changed_when: claude_managed_skill_links.stdout == 'changed'
 
-    - name: Install AI Hero skills
-      copy:
-        src: '{{ playbook_dir }}/roles/common/files/vendor/mattpocock-skills/{{ item.1 }}/'
-        dest: '{{ item.0 }}/{{ item.1 }}/'
-        mode: preserve
-        directory_mode: '0755'
-      loop: '{{ ai_hero_skill_roots | product(ai_hero_skill_names) | list }}'
-      loop_control:
-        label: '{{ item.0 }}/{{ item.1 }}'
-
-- name: Install common skills to ~/.claude/skills
-  copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/'
-    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/'
-    mode: preserve
-    directory_mode: '0755'
-
-- name: Install Claude-specific skills to ~/.claude/skills
-  copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/claude/'
-    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/'
-    mode: preserve
-    directory_mode: '0755'
-
-- name: Install shared commit helper to ~/.claude/skills
-  copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/_commit/commit.sh'
-    dest: '{{ ansible_facts["user_dir"] }}/.claude/skills/_commit/commit.sh'
-    mode: '0755'
-
-- name: Install common skills to ~/.codex/skills
-  copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/'
-    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/'
-    mode: preserve
-    directory_mode: '0755'
-
-- name: Install Codex-specific skills to ~/.codex/skills
-  copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/codex/'
-    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/'
-    mode: preserve
-    directory_mode: '0755'
-
-- name: Install shared commit helper to ~/.codex/skills
-  copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/common/_commit/commit.sh'
-    dest: '{{ ansible_facts["user_dir"] }}/.codex/skills/_commit/commit.sh'
-    mode: '0755'
+- name: Link Codex-specific managed skills
+  tags: managed-skills
+  command:
+    argv:
+      - '{{ managed_skill_linker }}'
+      - '{{ managed_skill_root }}/codex'
+      - '{{ ansible_facts["user_dir"] }}/.codex/skills'
+  register: codex_managed_skill_links
+  changed_when: codex_managed_skill_links.stdout == 'changed'
 
 - name: Remove obsolete Pi session goal skill
   file:
     path: '{{ ansible_facts["user_dir"] }}/.pi/agent/skills/z-update-session-goal'
     state: absent
 
-- name: Install Pi skills to ~/.pi/agent/skills
-  copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/pi/'
-    dest: '{{ ansible_facts["user_dir"] }}/.pi/agent/skills/'
-    mode: preserve
-    directory_mode: '0755'
+- name: Link Pi-specific managed skills
+  tags: managed-skills
+  command:
+    argv:
+      - '{{ managed_skill_linker }}'
+      - '{{ managed_skill_root }}/pi'
+      - '{{ ansible_facts["user_dir"] }}/.pi/agent/skills'
+  register: pi_managed_skill_links
+  changed_when: pi_managed_skill_links.stdout == 'changed'
 
-- name: Install Pi commit helper to ~/.pi/agent/skills
-  copy:
-    src: '{{ playbook_dir }}/roles/common/files/config/skills/pi/z-commit/commit.sh'
-    dest: '{{ ansible_facts["user_dir"] }}/.pi/agent/skills/z-commit/commit.sh'
-    mode: '0755'
+- name: Link AI Hero skills to all harnesses
+  tags: managed-skills
+  command:
+    argv:
+      - '{{ managed_skill_linker }}'
+      - '{{ managed_skill_root }}/ai-hero'
+      - '{{ ansible_facts["user_dir"] }}/.claude/skills'
+      - '{{ ansible_facts["user_dir"] }}/.codex/skills'
+      - '{{ ansible_facts["user_dir"] }}/.pi/agent/skills'
+  register: ai_hero_skill_links
+  changed_when: ai_hero_skill_links.stdout == 'changed'
 
 - name: Reconcile managed Pi session staleness baseline
   command: '{{ ansible_facts["user_dir"] }}/.local/bin/pi-session-staleness-reconcile-new-machine-bootstrap'
