@@ -11,6 +11,7 @@
 # are available before the common role runs.
 
 - name: Update apt cache
+  tags: managed-skills
   apt:
     update_cache: yes
     cache_valid_time: 3600
@@ -22,6 +23,7 @@
   until: apt_cache_result is success
 
 - name: Install Linux packages
+  tags: managed-skills
   apt:
     name:
       - bat
