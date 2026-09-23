@@ -18,6 +18,20 @@
   set_fact:
     pi_managed_model_overrides: "{{ lookup('file', pi_model_overrides_file | default(playbook_dir + '/roles/common/files/pi/models.json')) | from_json }}"
 
+- name: Remove retired Pi model overrides
+  set_fact:
+    pi_models: >-
+      {{ pi_models | combine({
+        "providers": pi_models.get("providers", {}) | combine({
+          "openai-codex": pi_models.get("providers", {}).get("openai-codex", {}) | combine({
+            "modelOverrides": pi_models.get("providers", {}).get("openai-codex", {}).get("modelOverrides", {})
+              | dict2items
+              | rejectattr("key", "in", ["gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.6-luna"])
+              | items2dict
+          })
+        })
+      }) }}
+
 - name: Merge managed Pi model overrides
   set_fact:
     pi_merged_models: "{{ pi_models | combine(pi_managed_model_overrides, recursive=True) }}"
