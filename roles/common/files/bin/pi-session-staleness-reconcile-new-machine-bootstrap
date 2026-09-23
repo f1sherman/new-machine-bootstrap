@@ -12,7 +12,7 @@ RESTART_REASON = "Managed Pi runtime changed"
 GUARD_ROLES = %w[
   worker reviewer delegate planner oracle scout context-builder researcher
 ].freeze
-MANAGED_MODELS = %w[gpt-5.6-luna gpt-5.6-sol gpt-5.6-terra].freeze
+MANAGED_MODELS = %w[gpt-6-luna gpt-6-sol].freeze
 MANAGED_SKILLS = %w[
   z-approve-spec z-catchup z-commit z-convert-skill-from-claude
   z-convert-skill-from-codex z-create-handoff z-create-ics z-deep-research
