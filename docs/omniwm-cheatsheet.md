@@ -140,9 +140,11 @@ does not create or move a Safari window.
 ### Open a link from Slack
 
 Click the link normally. The managed URL handler opens it in the Safari Work
-profile and focuses that exact window in workspace 9. If there is no single Work
-Safari window, it opens the link normally in Safari. It does not move or summon
-the Safari window.
+profile and focuses that exact window. If no Work Safari window exists, it
+creates one through Safari's New Work Window menu and waits for OmniWM to
+identify it before opening the link. If creation fails or more than one Work
+window exists, the handler reports an error. It does not open the link in
+another profile or move or summon any existing window.
 
 ### Open a link from Todoist
 

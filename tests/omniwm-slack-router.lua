@@ -59,6 +59,41 @@ assertEqual(
   "missing Work Safari fallback"
 )
 
+assertEqual(
+  "open:ow_work:https://example.test,navigate:ow_work",
+  table.concat(run({
+    target = false,
+    failClosed = true,
+    createTarget = function(callback)
+      callback(workSafari, nil)
+    end,
+  }), ","),
+  "confirmed new Work window receives the link"
+)
+assertEqual(
+  "notify:Could not create Work Safari window",
+  table.concat(run({
+    target = false,
+    failClosed = true,
+    createTarget = function(callback)
+      callback(nil, "Could not create Work Safari window")
+    end,
+  }), ","),
+  "creation failure does not open another profile"
+)
+assertEqual(
+  "notify:Could not open the Slack link in Work Safari",
+  table.concat(run({
+    target = false,
+    failClosed = true,
+    openError = "Could not open the Slack link in Work Safari",
+    createTarget = function(callback)
+      callback(nil, nil)
+    end,
+  }), ","),
+  "missing created target does not open another profile"
+)
+
 local createFailureCalls = run({
   openTab = function()
     return false, "Could not open Work Safari tab"
@@ -68,6 +103,18 @@ assertEqual(
   "notify:Could not open Work Safari tab,fallback:https://example.test",
   table.concat(createFailureCalls, ","),
   "tab creation fallback"
+)
+
+local slackFailureCalls = run({
+  failClosed = true,
+  openTab = function()
+    return false, "Could not open Work Safari tab"
+  end,
+})
+assertEqual(
+  "notify:Could not open Work Safari tab",
+  table.concat(slackFailureCalls, ","),
+  "Slack tab failure does not open another profile"
 )
 
 local todoistFailureCalls = run({

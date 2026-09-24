@@ -968,17 +968,23 @@ local function openSafariTab(window, url)
   return true, nil
 end
 
-local function routeProfileSafariURL(url, resolver, openError)
+local function routeProfileSafariURL(url, resolver, openError, options)
+  options = options or {}
   M.windows(function(windows, windowsError)
     if windowsError then
       M.notify(windowsError)
-      openNormallyInSafari(url)
+      if not options.failClosed then
+        openNormallyInSafari(url)
+      end
       return
     end
 
     local safariWindow, resolveError = resolver(windows)
     if resolveError then
       M.notify(resolveError)
+      if options.failClosed then
+        return
+      end
     end
     slackRouter.route(url, safariWindow, {
       openTab = openSafariTab,
@@ -986,7 +992,37 @@ local function routeProfileSafariURL(url, resolver, openError)
       fallback = openNormallyInSafari,
       notify = M.notify,
       openError = openError,
+      createTarget = options.createTarget,
+      failClosed = options.failClosed,
     })
+  end)
+end
+
+local function createWorkSafariWindow(callback)
+  local safari = hs.application.get("com.apple.Safari")
+  if not safari and not hs.application.launchOrFocusByBundleID("com.apple.Safari") then
+    callback(nil, "Could not launch Safari to create a Work window")
+    return
+  end
+  M.poll(function(done)
+    done(hs.application.get("com.apple.Safari") or false, nil)
+  end, 5, function(application, applicationError)
+    if applicationError then
+      callback(nil, applicationError)
+    elseif not application:selectMenuItem({"File", "New Window", "New Work Window"}) then
+      callback(nil, "Could not create the Safari Work window")
+    else
+      M.poll(function(done)
+        M.windows(function(windows, windowsError)
+          if windowsError then
+            done(nil, windowsError)
+            return
+          end
+          local target, resolveError = urlSource.resolveWorkSafariWindow(windows)
+          done(target or false, resolveError)
+        end)
+      end, 5, callback)
+    end
   end)
 end
 
@@ -994,7 +1030,8 @@ local function routeSlackURL(url)
   routeProfileSafariURL(
     url,
     urlSource.resolveWorkSafariWindow,
-    "Could not open the Slack link in Work Safari"
+    "Could not open the Slack link in Work Safari",
+    {createTarget = createWorkSafariWindow, failClosed = true}
   )
 end
 
