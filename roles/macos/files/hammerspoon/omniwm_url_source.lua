@@ -113,6 +113,21 @@ function M.isChatGPTSender(senderBundle)
   return senderBundle == chatGPTBundleID
 end
 
+function M.chatGPTDestination(senderBundle, url, parseURL)
+  if not M.isChatGPTSender(senderBundle) then
+    return nil
+  end
+  local parsedOK, parts = pcall(parseURL, url)
+  local host = parsedOK and type(parts) == "table" and parts.host or nil
+  if type(host) == "string" then
+    host = host:lower()
+    if host == "fastmail.com" or host:sub(-#".fastmail.com") == ".fastmail.com" then
+      return "personal-safari"
+    end
+  end
+  return "chrome"
+end
+
 function M.isSlackSender(senderBundle)
   return senderBundle == slackBundleID
 end

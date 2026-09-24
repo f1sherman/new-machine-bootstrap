@@ -940,19 +940,30 @@ local function openSafariTab(window, url)
   if not nativeWindowID then
     return nil, "Could not resolve the dedicated Safari window ID"
   end
-  local script = string.format([[
+  local createScript = string.format([[
     tell application "Safari"
       set targetWindow to first window whose id is %d
       tell targetWindow
-        set newTab to make new tab at end of tabs with properties {URL:%s}
-        set current tab to newTab
+        make new tab at end of tabs with properties {URL:%s}
+        return count of tabs
       end tell
-      activate
     end tell
   ]], nativeWindowID, appleScriptLiteral(url))
-  local success, result = hs.osascript.applescript(script)
-  if not success then
-    return nil, "Could not open the Safari tab: " .. tostring(result)
+  local created, tabIndex = hs.osascript.applescript(createScript)
+  if not created or type(tabIndex) ~= "number" then
+    return false, "Could not open the Safari tab: " .. tostring(tabIndex)
+  end
+
+  local selectScript = string.format([[
+    tell application "Safari"
+      set targetWindow to first window whose id is %d
+      set current tab of targetWindow to tab %d of targetWindow
+      activate
+    end tell
+  ]], nativeWindowID, tabIndex)
+  local selected, selectError = hs.osascript.applescript(selectScript)
+  if not selected then
+    return true, "Safari opened the tab but could not select it: " .. tostring(selectError)
   end
   return true, nil
 end
@@ -995,10 +1006,20 @@ local function routeTodoistURL(url)
   )
 end
 
+local function routeFastmailURL(url)
+  routeProfileSafariURL(
+    url,
+    urlSource.resolvePersonalSafariWindow,
+    "Could not open the Fastmail link in Personal Safari"
+  )
+end
+
 local function openURLInExactSafariWindow(safariWindow, url, focusAfterOpen)
-  local _, tabError = openSafariTab(safariWindow, url)
+  local created, tabError = openSafariTab(safariWindow, url)
   if tabError then
     M.notify(tabError)
+  end
+  if not created then
     openNormallyInSafari(url)
     return
   end
@@ -1100,7 +1121,20 @@ hs.urlevent.httpCallback = function(_, _, _, fullURL, senderPID)
     sender = hs.application.applicationForPID(senderPID)
   end
   local senderBundle = sender and sender:bundleID() or nil
-  if urlSource.isChatGPTSender(senderBundle) then
+  local chatGPTDestination = urlSource.chatGPTDestination(
+    senderBundle,
+    fullURL,
+    hs.http.urlParts
+  )
+  if chatGPTDestination == "personal-safari" then
+    logger.i(string.format(
+      "URL source pid=%s bundle=%s decision=chatgpt-fastmail-personal-safari",
+      tostring(senderPID),
+      tostring(senderBundle)
+    ))
+    routeFastmailURL(fullURL)
+    return
+  elseif chatGPTDestination == "chrome" then
     logger.i(string.format(
       "URL source pid=%s bundle=%s decision=chatgpt-chrome",
       tostring(senderPID),
