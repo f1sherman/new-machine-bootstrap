@@ -1015,9 +1015,11 @@ local function routeFastmailURL(url)
 end
 
 local function openURLInExactSafariWindow(safariWindow, url, focusAfterOpen)
-  local _, tabError = openSafariTab(safariWindow, url)
+  local created, tabError = openSafariTab(safariWindow, url)
   if tabError then
     M.notify(tabError)
+  end
+  if not created then
     openNormallyInSafari(url)
     return
   end

@@ -6,13 +6,14 @@ local windows = {}
 local navigationError
 local tabError
 local activationError
+local senderBundle = "com.openai.codex"
 hs = {
   logger = {new = function() return {i = function() end} end},
   timer = {doAfter = function() end},
   hotkey = {bind = function() return {} end},
   application = {
     applicationForPID = function()
-      return {bundleID = function() return "com.openai.codex" end}
+      return {bundleID = function() return senderBundle end}
     end,
     get = function() return nil end,
     launchOrFocusByBundleID = function(bundle)
@@ -84,6 +85,11 @@ check("tab:safari,tab:safari,notify:Safari opened the tab but could not select i
 activationError = nil
 navigationError = "navigate failed"
 check("tab:safari,tab:safari,window:navigate:ow_native42,notify:navigate failed", click(url), "post-creation failure does not reopen link")
+navigationError = nil
+senderBundle = "com.mitchellh.ghostty"
+windows = {{id = "ow_native44", app = {bundleId = "com.apple.Safari"}, title = "Development — Mail", workspace = {number = 4}}}
+activationError = "activation failed"
+check("tab:safari,tab:safari,notify:Safari opened the tab but could not select it: activation failed,window:focus:ow_native44", click(url), "Ghostty selection failure does not reopen link")
 
 if failures > 0 then os.exit(1) end
 print("PASS: ChatGPT Fastmail callback routing")
