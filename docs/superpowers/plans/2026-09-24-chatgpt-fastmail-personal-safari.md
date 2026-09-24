@@ -39,6 +39,8 @@
 **Files:**
 - Modify: `roles/macos/files/hammerspoon/omniwm.lua`
 - Create: `tests/omniwm-chatgpt-fastmail.lua`
+- Modify: `tests/omniwm-slack-router.lua`
+- Modify: `roles/macos/files/hammerspoon/omniwm_slack_router.lua`
 - Modify: `docs/omniwm-cheatsheet.md`
 
 **Interfaces:**
@@ -46,6 +48,7 @@
 
 - [ ] Add a callback-level test loading the production `omniwm.lua` with Hammerspoon boundary doubles. Invoke `hs.urlevent.httpCallback` with ChatGPT sender and Fastmail URL, assert exact Personal Safari tab creation and navigation; with a non-Fastmail URL, assert the Chrome path. Check absent and ambiguous Personal targets fall back to Safari once. Check that navigation failure after successful tab creation never falls back. Run `lua tests/omniwm-chatgpt-fastmail.lua`; expect a failure on the Fastmail branch before implementing it.
 - [ ] In the HTTP callback, use the classifier to route ChatGPT Fastmail URLs to the existing Personal Safari helper before the Chrome branch. Pass `hs.http.urlParts`; preserve the other ChatGPT route and sender precedence. Log the new decision.
+- [ ] Add a failing test for Safari tab selection failure after tab creation. Split Safari tab creation from selection, returning `true` with an error after creation; let the shared profile router notify without reopening the URL. Run the callback and shared-router tests; expect PASS.
 - [ ] Document ChatGPT Fastmail behavior and absent/ambiguous Safari fallback in the cheat sheet.
 - [ ] Run all `tests/omniwm-*.lua` with `lua` and `luac -p` on the changed Lua files; expect PASS.
 

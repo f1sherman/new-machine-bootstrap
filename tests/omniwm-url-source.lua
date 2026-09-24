@@ -239,6 +239,55 @@ assertEqual("More than one Safari window matched the received URL", nativeError,
 assertEqual(true, isChatGPTSender("com.openai.codex"), "ChatGPT sender")
 assertEqual(false, isChatGPTSender("com.apple.Safari"), "non-ChatGPT sender")
 
+local parsedHosts = {
+  ["https://fastmail.com/mail"] = "fastmail.com",
+  ["https://app.fastmail.com/mail"] = "app.fastmail.com",
+  ["https://APP.FASTMAIL.COM/mail"] = "APP.FASTMAIL.COM",
+  ["https://fastmail.com.example.test/"] = "fastmail.com.example.test",
+  ["https://notfastmail.com/"] = "notfastmail.com",
+  ["https://fastmail.com@other.test/mail"] = "other.test",
+  ["https://other.test/fastmail.com"] = "other.test",
+  ["invalid-url"] = false,
+}
+local function parseTestURL(url)
+  return {host = parsedHosts[url]}
+end
+local destination = source.chatGPTDestination
+assertEqual(
+  "personal-safari",
+  destination("com.openai.codex", "https://fastmail.com/mail", parseTestURL),
+  "Fastmail apex"
+)
+assertEqual(
+  "personal-safari",
+  destination("com.openai.codex", "https://app.fastmail.com/mail", parseTestURL),
+  "Fastmail subdomain"
+)
+assertEqual(
+  "personal-safari",
+  destination("com.openai.codex", "https://APP.FASTMAIL.COM/mail", parseTestURL),
+  "case-insensitive Fastmail"
+)
+for _, url in ipairs({
+  "https://fastmail.com.example.test/",
+  "https://notfastmail.com/",
+  "https://fastmail.com@other.test/mail",
+  "https://other.test/fastmail.com",
+  "invalid-url",
+}) do
+  assertEqual("chrome", destination("com.openai.codex", url, parseTestURL), "non-Fastmail URL: " .. url)
+end
+assertEqual(
+  "chrome",
+  destination("com.openai.codex", "https://fastmail.com", function() error("bad URL") end),
+  "parser failure"
+)
+assertEqual(
+  nil,
+  destination("com.tinyspeck.slackmacgap", "https://fastmail.com/mail", parseTestURL),
+  "other sender"
+)
+
 local chromeInWorkspace4 = {
   id = "ow_chrome",
   windowId = 42,

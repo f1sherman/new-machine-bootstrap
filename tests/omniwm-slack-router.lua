@@ -82,6 +82,17 @@ assertEqual(
   "Todoist tab creation fallback"
 )
 
+local partialCreationCalls = run({
+  openTab = function()
+    return true, "Safari opened the tab but could not select it"
+  end,
+})
+assertEqual(
+  "notify:Safari opened the tab but could not select it,navigate:ow_work",
+  table.concat(partialCreationCalls, ","),
+  "selection failure reports error without reopening"
+)
+
 local navigationFailureCalls = run({
   navigate = function(_, callback)
     callback({}, "Could not focus Work Safari")

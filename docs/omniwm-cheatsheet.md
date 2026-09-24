@@ -159,11 +159,16 @@ focuses that exact window. It does not move or summon the Safari window.
 
 ### Open a link from ChatGPT
 
-Click the link normally. The managed URL handler prefers Chrome's last-focused
-browser window when it is in the current workspace. It opens the tab there and
-focuses that exact window. This keeps routing stable when an extra Chrome window
-exists. If there is no preferred or single clear target, the handler opens the
-link normally in Chrome.
+Click the link normally. Links to `fastmail.com` or its subdomains open in the
+Safari Personal profile window, which the handler focuses in workspace 2. If
+there is no single Personal Safari window, the link opens normally in Safari.
+The handler does not move or summon the Safari window.
+
+Other links use Chrome. The handler prefers Chrome's last-focused browser window
+when it is in the current workspace. It opens the tab there and focuses that
+exact window. This keeps routing stable when an extra Chrome window exists. If
+there is no preferred or single clear target, the handler opens the link
+normally in Chrome.
 
 ### Enter a two-factor authentication code
 

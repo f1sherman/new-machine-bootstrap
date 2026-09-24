@@ -17,6 +17,9 @@ function M.route(url, target, deps)
     return
   end
 
+  if createError then
+    deps.notify(createError)
+  end
   deps.navigate(target.id, function(_, navigateError)
     if navigateError then
       deps.notify(navigateError)

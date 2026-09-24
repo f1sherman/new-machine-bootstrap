@@ -16,7 +16,7 @@ Links to `fastmail.com` or a subdomain, when clicked in ChatGPT, open in the exi
 
 ## Recommended design
 
-Add a pure URL-destination classifier to `omniwm_url_source.lua`. For the exact ChatGPT sender it uses `hs.http.urlParts` to read the URL host and returns Personal Safari only for the accepted host boundary; otherwise it selects Chrome. Malformed URLs or parser failures remain on the existing Chrome path. The HTTP callback uses that classifier before its normal ChatGPT Chrome dispatch and calls the existing profile-Safari helper with a Fastmail-specific error message. This retains Safari's exact-window tab creation, navigation, and no-duplicate fallback semantics.
+Add a pure URL-destination classifier to `omniwm_url_source.lua`. For the exact ChatGPT sender it uses `hs.http.urlParts` to read the URL host and returns Personal Safari only for the accepted host boundary; otherwise it selects Chrome. Malformed URLs or parser failures remain on the existing Chrome path. The HTTP callback uses that classifier before its normal ChatGPT Chrome dispatch and calls the existing profile-Safari helper with a Fastmail-specific error message. Split Safari tab creation from tab selection so selection failures report an error but cannot trigger a second open. This applies to the shared Slack and Todoist profile route as well. After confirmed creation, navigate to the exact window without fallback.
 
 Alternatives: A substring search is smaller but mistakes a URL path, userinfo, or deceptive hostname for Fastmail. A new Safari routing module duplicates the established profile flow with no added value. The existing helper plus a parsed-host classifier is safer and smaller.
 
