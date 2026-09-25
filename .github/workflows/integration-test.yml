@@ -51,6 +51,9 @@ jobs:
       - name: Verify Slack Work Safari routing
         run: lua5.4 tests/omniwm-slack-router.lua
 
+      - name: Verify Slack Work Safari window creation
+        run: lua5.4 tests/omniwm-slack-window.lua
+
       - name: Verify ChatGPT Chrome routing
         run: lua5.4 tests/omniwm-chatgpt-router.lua
 

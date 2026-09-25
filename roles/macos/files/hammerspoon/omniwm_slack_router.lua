@@ -2,7 +2,19 @@ local M = {}
 
 function M.route(url, target, deps)
   if not target then
-    deps.fallback(url)
+    if deps.createTarget then
+      deps.createTarget(function(createdTarget, createError)
+        if createError or not createdTarget then
+          deps.notify(createError or deps.openError or "Could not create the Safari window")
+          return
+        end
+        M.route(url, createdTarget, deps)
+      end)
+    elseif deps.failClosed then
+      deps.notify(deps.openError or "Could not open the Safari link in its profile")
+    else
+      deps.fallback(url)
+    end
     return
   end
 
@@ -13,7 +25,9 @@ function M.route(url, target, deps)
         or deps.openError
         or "Could not open the Slack link in Work Safari"
     )
-    deps.fallback(url)
+    if not deps.failClosed then
+      deps.fallback(url)
+    end
     return
   end
 
