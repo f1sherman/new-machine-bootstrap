@@ -2,12 +2,14 @@
 set -euo pipefail
 
 excluded_skills=()
+excluded_skill_count=0
 while [[ ${1:-} == --exclude ]]; do
   if [[ $# -lt 2 ]]; then
     printf 'Missing skill name after --exclude\n' >&2
     exit 2
   fi
   excluded_skills+=("$2")
+  excluded_skill_count=$((excluded_skill_count + 1))
   shift 2
 done
 
@@ -31,6 +33,10 @@ changed=false
 is_excluded() {
   local skill_name=$1
   local excluded_skill
+
+  if ((excluded_skill_count == 0)); then
+    return 1
+  fi
 
   for excluded_skill in "${excluded_skills[@]}"; do
     [[ "$skill_name" == "$excluded_skill" ]] && return 0
