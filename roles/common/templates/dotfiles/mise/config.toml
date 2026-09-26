@@ -7,7 +7,6 @@ aube = "{{ tool_versions.runtimes.aube }}"
 "npm:@earendil-works/pi-coding-agent" = { version = "{{ tool_versions.runtimes.pi_coding_agent }}", depends = ["aube"], minimum_release_age = "0d", aube_args = "--deny-build=@google/genai --deny-build=protobufjs", trust_policy_excludes = ["@smithy/core@3.33.0", "@smithy/node-http-handler@4.11.0"] }
 
 [settings]
-npm.package_manager = "aube"
 node.verify = false
 ruby.compile = false
 trusted_config_paths = ["{{ ansible_facts['user_dir'] }}/projects"]
