@@ -128,6 +128,17 @@
     brew_output is failed and
     (brew_output.msg is not search("It seems there is already an App at"))
 
+- name: Check whether Brave is present in Applications
+  stat:
+    path: /Applications/Brave Browser.app
+  register: brave_app
+
+- name: Reinstall Brave when its cask remains registered but the app is missing
+  command: brew reinstall --cask brave-browser
+  when:
+    - not brave_app.stat.exists
+    - not ansible_check_mode
+
 - name: Install OmniWM trial on Brian's MacBook Pro
   include_tasks: install_omniwm.yml
   when: ansible_facts['hostname'] == 'brian-macbook-pro'
