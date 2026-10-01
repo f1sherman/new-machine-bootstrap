@@ -44,9 +44,9 @@ Create a task for each item and complete them in order:
 12. **Self-approve plan** - review the plan internally and mark it approved.
 13. **Execute plan** - use Native execution (`executing-plans`) by default.
 14. **Verify and commit** - run required verification and commit completed work.
-15. **Create pull request** - invoke `_pull-request`.
+15. **Create pull request** - invoke `git:pr-creation` (Claude Code) or `pull-request` (Pi).
 
-The terminal state is an open or updated pull request handled by `_pull-request`.
+The terminal state is an open or updated pull request that `watch-pr` monitors.
 
 ## Process
 
@@ -218,6 +218,12 @@ unauthorized, disclose the self-review limit.
 
 ### Pull Request
 
-After verification passes and work is complete, invoke `_pull-request` from the
-implementation worktree. Let that shared workflow review, push, create or update
-the pull request, post proof, and monitor the PR to its terminal state.
+After verification passes and work is complete, create the pull request from the
+implementation worktree:
+
+- **Claude Code:** invoke `git:pr-creation`. After it creates the draft, the
+  `betterup-toolkit` hook prompts you to start `/betterup-toolkit:watch-pr`; start it.
+- **Pi:** invoke `pull-request`, then `/watch-pr <PR_NUMBER>`.
+
+If a pull request already exists for the branch, push and update it with
+`gh pr edit --body-file` instead. Monitor the PR to its terminal state.

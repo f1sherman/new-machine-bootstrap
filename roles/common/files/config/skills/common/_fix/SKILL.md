@@ -25,4 +25,5 @@ For difficult, intermittent, or performance bugs, establish diagnosis evidence b
 - Redact secrets and personal information before showing command output or logs.
 - Add a regression test only at a behavioral seam that reproduces the real failure.
 
-After verification passes and the work is complete, invoke `_pull-request`.
+After verification passes and the work is complete, create the pull request with
+`git:pr-creation` (Claude Code) or `pull-request` (Pi), then start `watch-pr`.
