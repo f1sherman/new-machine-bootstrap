@@ -44,9 +44,10 @@ Create a task for each item and complete them in order:
 12. **Self-approve plan** - review the plan internally and mark it approved.
 13. **Execute plan** - use Native execution (`executing-plans`) by default.
 14. **Verify and commit** - run required verification and commit completed work.
-15. **Create pull request** - invoke `_pull-request`.
+15. **Create pull request** - invoke the pull request creation skill.
 
-The terminal state is an open or updated pull request handled by `_pull-request`.
+The terminal state is an open or updated pull request, monitored by the pull
+request monitoring skill when one is available.
 
 ## Process
 
@@ -210,14 +211,20 @@ context instead of starting an implementer and reviewers for every task. Use
 Follow the selected execution skill until implementation is complete. Respect
 repo test policy and TDD, keep plan checkboxes current, run verification, and
 commit completed work. Keep Native execution's one final fresh-context branch
-review when delegation is authorized and available. For this workflow, the PR
-workflow performs that final review; defer Native execution's final review to
-that gate instead of dispatching a duplicate review before it. Resolve material
-findings and verify fixes before PR creation. If delegation is unavailable or
-unauthorized, disclose the self-review limit.
+review when delegation is authorized and available. Run it before you create or
+update the pull request; do not rely on the pull request creation skill to review
+the branch. Resolve material findings and verify fixes before PR creation. If
+delegation is unavailable or unauthorized, disclose the self-review limit.
 
 ### Pull Request
 
-After verification passes and work is complete, invoke `_pull-request` from the
-implementation worktree. Let that shared workflow review, push, create or update
-the pull request, post proof, and monitor the PR to its terminal state.
+After verification passes and work is complete, create the pull request from the
+implementation worktree:
+
+1. If a pull request already exists for the branch, push and update it with
+   `gh pr edit --body-file`.
+2. Otherwise, invoke the pull request creation skill. If no such skill is
+   available, push and create a draft with
+   `gh pr create --draft --title <title> --body-file <file>`.
+3. Start the pull request monitoring skill if one is available, and follow the PR
+   to its terminal state. Otherwise, report the PR URL and stop.

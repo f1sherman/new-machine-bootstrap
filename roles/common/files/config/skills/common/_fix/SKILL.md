@@ -25,4 +25,11 @@ For difficult, intermittent, or performance bugs, establish diagnosis evidence b
 - Redact secrets and personal information before showing command output or logs.
 - Add a regression test only at a behavioral seam that reproduces the real failure.
 
-After verification passes and the work is complete, invoke `_pull-request`.
+After verification passes and the work is complete, run one final
+fresh-context review of the branch when delegation is available, and resolve
+material findings. Do not rely on the pull request creation skill to review the
+branch. Then push the branch. If the branch already has a pull request, update
+it with `gh pr edit --body-file`. Otherwise, invoke the pull request creation
+skill. If no such skill is available, create a draft with
+`gh pr create --draft --title <title> --body-file <file>`. Then start the pull
+request monitoring skill if one is available; otherwise stop at the PR URL.
