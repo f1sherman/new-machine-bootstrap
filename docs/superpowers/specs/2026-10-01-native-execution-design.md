@@ -18,6 +18,7 @@ Inspect all active execution-selection guidance, compare both skill copies, vali
 
 ## Checklist
 - [x] Explore context, silent question pass, compare approaches, self-review and self-approve spec.
-- [ ] Commit spec, write and self-approve plan.
-- [ ] Update guidance and verify consistency and authorization boundaries.
-- [ ] Commit, review, create PR and arm monitoring.
+- [x] Commit spec, write and self-approve plan.
+- [x] Update guidance and verify consistency and authorization boundaries.
+
+PR creation and monitoring follow the committed implementation.
