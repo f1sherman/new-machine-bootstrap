@@ -27,4 +27,6 @@ For difficult, intermittent, or performance bugs, establish diagnosis evidence b
 
 After verification passes and the work is complete, create the pull request with
 `git:pr-creation` (Claude Code) or `pull-request` (Pi), then start `watch-pr`. On
-Codex, create a draft with `gh pr create --draft` and stop at the PR URL.
+Codex, create a draft with `gh pr create --draft` and stop at the PR URL. If the
+branch already has a pull request, push and update it with
+`gh pr edit --body-file` instead.
