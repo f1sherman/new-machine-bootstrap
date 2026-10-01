@@ -44,9 +44,10 @@ Create a task for each item and complete them in order:
 12. **Self-approve plan** - review the plan internally and mark it approved.
 13. **Execute plan** - use Native execution (`executing-plans`) by default.
 14. **Verify and commit** - run required verification and commit completed work.
-15. **Create pull request** - invoke `git:pr-creation` (Claude Code) or `pull-request` (Pi). On Codex, create a draft with `gh pr create --draft`.
+15. **Create pull request** - invoke the pull request creation skill.
 
-The terminal state is an open or updated pull request that `watch-pr` monitors. Codex has no PR monitor, so on Codex the terminal state is the PR URL.
+The terminal state is an open or updated pull request, monitored by the pull
+request monitoring skill when one is available.
 
 ## Process
 
@@ -211,20 +212,18 @@ Follow the selected execution skill until implementation is complete. Respect
 repo test policy and TDD, keep plan checkboxes current, run verification, and
 commit completed work. Keep Native execution's one final fresh-context branch
 review when delegation is authorized and available. Run it before you create or
-update the pull request, because the PR skills do not review the branch. Resolve
-material findings and verify fixes before PR creation. If delegation is unavailable or
-unauthorized, disclose the self-review limit.
+update the pull request; do not rely on the pull request creation skill to review
+the branch. Resolve material findings and verify fixes before PR creation. If
+delegation is unavailable or unauthorized, disclose the self-review limit.
 
 ### Pull Request
 
 After verification passes and work is complete, create the pull request from the
 implementation worktree:
 
-- **Claude Code:** invoke `git:pr-creation`. After it creates the draft, the
-  `betterup-toolkit` hook prompts you to start `/betterup-toolkit:watch-pr`; start it.
-- **Pi:** invoke `pull-request`, then `/watch-pr <PR_NUMBER>`.
-- **Codex:** push, run `gh pr create --draft --body-file <file>`, report the PR
-  URL, and stop. Codex has no PR monitor.
-
-If a pull request already exists for the branch, push and update it with
-`gh pr edit --body-file` instead. On Claude Code and Pi, monitor the PR to its terminal state.
+1. If a pull request already exists for the branch, push and update it with
+   `gh pr edit --body-file`.
+2. Otherwise, invoke the pull request creation skill. If no such skill is
+   available, push and create a draft with `gh pr create --draft --body-file <file>`.
+3. Start the pull request monitoring skill if one is available, and follow the PR
+   to its terminal state. Otherwise, report the PR URL and stop.

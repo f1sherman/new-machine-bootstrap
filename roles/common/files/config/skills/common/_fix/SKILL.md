@@ -25,8 +25,8 @@ For difficult, intermittent, or performance bugs, establish diagnosis evidence b
 - Redact secrets and personal information before showing command output or logs.
 - Add a regression test only at a behavioral seam that reproduces the real failure.
 
-After verification passes and the work is complete, create the pull request with
-`git:pr-creation` (Claude Code) or `pull-request` (Pi), then start `watch-pr`. On
-Codex, create a draft with `gh pr create --draft` and stop at the PR URL. If the
-branch already has a pull request, push and update it with
-`gh pr edit --body-file` instead.
+After verification passes and the work is complete, invoke the pull request
+creation skill. If no such skill is available, push and create a draft with
+`gh pr create --draft`. If the branch already has a pull request, push and update
+it with `gh pr edit --body-file` instead. Then start the pull request monitoring
+skill if one is available; otherwise stop at the PR URL.
