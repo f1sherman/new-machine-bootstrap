@@ -42,7 +42,7 @@ Create a task for each item and complete them in order:
 10. **Self-approve spec** - mark the spec approved internally.
 11. **Write implementation plan** - invoke `writing-plans` immediately.
 12. **Self-approve plan** - review the plan internally and mark it approved.
-13. **Execute plan** - choose `subagent-driven-development` automatically when available.
+13. **Execute plan** - use Native execution (`executing-plans`) by default.
 14. **Verify and commit** - run required verification and commit completed work.
 15. **Create pull request** - invoke `_pull-request`.
 
@@ -84,14 +84,9 @@ Before choosing an approach, answer likely clarifying questions internally. Cove
 purpose, users, constraints, success criteria, data ownership, risks, rollout,
 testing, and what should be explicitly out of scope.
 
-If subagents are available, dispatch one read-only design reviewer with the
-request, relevant context, and this instruction: answer likely clarifying
-questions internally, identify assumptions, compare plausible approaches, and
-challenge whether the design is coherent. Use that output as input, but keep
-ownership of the final spec in the main agent.
-
-If subagents are unavailable, run the same pass yourself. Record important
-answers as assumptions in the spec.
+Run this pass inline. Identify assumptions, compare plausible approaches, and
+challenge whether the design is coherent. Record important answers as
+assumptions in the spec.
 
 ### Compare Approaches
 
@@ -207,11 +202,19 @@ the plan approved internally.
 Do not ask for implementation approval. Do not ask whether to use subagent or
 sequential execution.
 
-If subagents are available, choose `subagent-driven-development` automatically.
-If subagents are unavailable, use `executing-plans` and continue inline.
+Use Native execution (`executing-plans`) in the current session by default,
+even when subagents are available. This saves tokens by reusing the implementer's
+context instead of starting an implementer and reviewers for every task. Use
+`subagent-driven-development` only when the user explicitly requests that mode.
 
 Follow the selected execution skill until implementation is complete. Respect
-TDD, keep plan checkboxes current, run verification, and commit completed work.
+repo test policy and TDD, keep plan checkboxes current, run verification, and
+commit completed work. Keep Native execution's one final fresh-context branch
+review when delegation is authorized and available. For this workflow, the PR
+workflow performs that final review; defer Native execution's final review to
+that gate instead of dispatching a duplicate review before it. Resolve material
+findings and verify fixes before PR creation. If delegation is unavailable or
+unauthorized, disclose the self-review limit.
 
 ### Pull Request
 
