@@ -224,6 +224,7 @@ implementation worktree:
 1. If a pull request already exists for the branch, push and update it with
    `gh pr edit --body-file`.
 2. Otherwise, invoke the pull request creation skill. If no such skill is
-   available, push and create a draft with `gh pr create --draft --body-file <file>`.
+   available, push and create a draft with
+   `gh pr create --draft --title <title> --body-file <file>`.
 3. Start the pull request monitoring skill if one is available, and follow the PR
    to its terminal state. Otherwise, report the PR URL and stop.

@@ -29,7 +29,8 @@ After verification passes and the work is complete, run one final
 fresh-context review of the branch when delegation is available, and resolve
 material findings. Do not rely on the pull request creation skill to review the
 branch. Then invoke the pull request creation skill. If no such skill is
-available, push and create a draft with `gh pr create --draft`. If the branch
+available, push and create a draft with
+`gh pr create --draft --title <title> --body-file <file>`. If the branch
 already has a pull request, push and update it with `gh pr edit --body-file`
 instead. Then start the pull request monitoring skill if one is available;
 otherwise stop at the PR URL.
