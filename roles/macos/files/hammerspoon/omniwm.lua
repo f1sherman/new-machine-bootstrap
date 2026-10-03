@@ -1,6 +1,7 @@
 local M = {}
 local cheatsheetPanel = require("omniwm_cheatsheet").new()
 local downloads = require("omniwm_downloads").new()
+local photos = require("omniwm_photos")
 local browserOpener = require("omniwm_browser_opener")
 local chatGPTRouter = require("omniwm_chatgpt_router")
 local safariRouter = require("omniwm_safari_router")
@@ -676,25 +677,37 @@ local function summonWindow(window, callback, activeWorkspace)
   end)
 end
 
-local function summonPhotos(window)
-  M.run({"window", "summon-right", window.id}, function(_, summonError)
-    if summonError then
-      M.notify(summonError)
+local function queryPhotos(callback)
+  M.windows(function(windows, windowsError)
+    if windowsError then
+      callback(nil, windowsError)
       return
     end
-    pollWindow(window.id, function(candidate)
-      return candidate.isVisible == true
-    end, function(_, visibilityError)
-      if visibilityError then
-        M.notify(visibilityError)
-        return
-      end
-      focusSummonedWindow(window.id, function(_, focusError)
-        if focusError then
-          M.notify(focusError)
+    callback(findWindows(windows, function(window)
+      return bundleID(window) == "com.apple.Photos"
+    end), nil)
+  end)
+end
+
+local function showPhotos(window, activeWorkspace)
+  photos.show(window, activeWorkspace, {
+    focus = focusSummonedWindow,
+    summon = function(id, callback)
+      M.run({"window", "summon-right", id}, function(_, summonError)
+        if summonError then
+          callback(nil, summonError)
+          return
         end
+        pollWindow(id, function(candidate)
+          return candidate.isVisible == true
+        end, callback)
       end)
-    end)
+    end,
+    queryPhotos = queryPhotos,
+  }, function(_, showError)
+    if showError then
+      M.notify(showError)
+    end
   end)
 end
 
@@ -702,20 +715,12 @@ local function placePhotos(window, activeWorkspace)
   if window.isVisible == true or workspaceNumber(window) == activeWorkspace.number then
     moveWindowToWorkspace(window, 10)
   else
-    summonPhotos(window)
+    showPhotos(window, activeWorkspace)
   end
 end
 
 local function showNewPhotos(window, activeWorkspace)
-  if window.isVisible == true or workspaceNumber(window) == activeWorkspace.number then
-    focusSummonedWindow(window.id, function(_, focusError)
-      if focusError then
-        M.notify(focusError)
-      end
-    end)
-  else
-    summonPhotos(window)
-  end
+  showPhotos(window, activeWorkspace)
 end
 
 local function launchPhotos(previousIDs, activeWorkspace)

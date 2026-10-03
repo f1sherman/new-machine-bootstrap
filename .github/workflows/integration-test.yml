@@ -39,6 +39,9 @@ jobs:
       - name: Verify OmniWM Downloads scratchpad
         run: lua5.4 tests/omniwm-downloads.lua
 
+      - name: Verify OmniWM Photos routing
+        run: lua5.4 tests/omniwm-photos.lua
+
       - name: Verify OmniWM URL routing
         run: lua5.4 tests/omniwm-url-source.lua
 
