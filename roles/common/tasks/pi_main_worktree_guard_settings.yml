@@ -73,6 +73,12 @@
     ((item.source if item is mapping else item) |
     regex_search('^git:github\.com/algal/pi-openai-server-compaction(@[^@]+)?$')) is none
 
+- name: Resolve Neovim executable for Pi external editor
+  shell: command -v nvim
+  register: pi_external_editor
+  changed_when: false
+  check_mode: false
+
 - name: Merge managed Pi settings
   set_fact:
     pi_merged_settings: >-
@@ -80,6 +86,7 @@
         'hideThinkingBlock': true,
         'quietStartup': true,
         'collapseChangelog': true,
+        'externalEditor': pi_external_editor.stdout,
         'defaultTools': ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'],
         'showCacheMissNotices': true,
         'packages': pi_preserved_packages,
