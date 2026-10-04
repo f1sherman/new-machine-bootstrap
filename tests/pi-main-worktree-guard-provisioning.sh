@@ -39,7 +39,7 @@ cat >"$tmp_root/playbook.yml" <<EOF
 ---
 - hosts: localhost
   connection: local
-  gather_facts: false
+  gather_facts: true
   tasks:
     - include_tasks: $settings_tasks
       vars:

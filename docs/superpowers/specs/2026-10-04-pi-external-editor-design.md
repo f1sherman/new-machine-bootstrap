@@ -17,8 +17,9 @@ Linux and macOS. Its existing Pi settings task merges managed preferences.
 
 ## Approach
 
-Resolve Neovim with command -v nvim on the target during provisioning. Store
-that absolute executable path as externalEditor in the managed settings merge.
+Resolve Neovim with command -v nvim on the target during provisioning. Prepend
+~/.local/bin to the target PATH, as the existing Neovim tasks do. Store that
+absolute executable path as externalEditor in the managed settings merge.
 Fail provisioning if Neovim is unavailable. Run this read-only resolution in
 check mode too. Preserve other settings through the existing merge.
 

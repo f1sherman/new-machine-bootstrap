@@ -75,6 +75,8 @@
 
 - name: Resolve Neovim executable for Pi external editor
   shell: command -v nvim
+  environment:
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   register: pi_external_editor
   changed_when: false
   check_mode: false

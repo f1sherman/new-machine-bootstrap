@@ -23,13 +23,15 @@ on spaces; this is already true of the supported installation paths.
 
 ## Task 1: Provision the editor setting
 
-File: roles/common/tasks/pi_main_worktree_guard_settings.yml.
+Files: roles/common/tasks/pi_main_worktree_guard_settings.yml and the existing
+Pi settings provisioning fixture in tests/pi-main-worktree-guard-provisioning.sh.
 
 - [x] Run the existing production task in an isolated agent directory seeded
       with externalEditor=vi and an unrelated preference. Confirm it keeps vi.
 - [x] Add a read-only shell task using command -v nvim, register its result as
       pi_external_editor, set changed_when to false and check_mode to false.
-      Merge pi_external_editor.stdout into externalEditor.
+      Prepend the target ~/.local/bin to its PATH. Gather facts in the existing
+      provisioning fixture. Merge pi_external_editor.stdout into externalEditor.
 - [x] Run the same task twice and in check mode. Expect an absolute nvim path,
       preservation of the unrelated preference, and no changes on the second
       run. Verify resolution fails when nvim is absent from the target PATH.
@@ -41,3 +43,10 @@ File: roles/common/tasks/pi_main_worktree_guard_settings.yml.
       branch review, publication, and session-bound PR monitoring.
 
 Use focused manual verification, not a new automated configuration test.
+
+## Review result
+
+Fixed the fresh-host PATH omission found by independent review. Verified the
+production task with target PATH=/usr/bin:/bin after adding the managed binary
+directory. The missing-Neovim check still fails visibly. Existing settings
+provisioning coverage and full-playbook syntax validation pass.
