@@ -16,7 +16,11 @@ module CommandGuidanceEval
   STUB = <<~'RUBY'
     #!/usr/bin/ruby --disable-gems
     require "json"
-    puts JSON.generate({"command" => File.basename($0), "args" => ARGV})
+    record = JSON.generate({"command" => File.basename($0), "args" => ARGV})
+    File.open(File.expand_path("../calls.jsonl", __dir__), "a") do |file|
+      file.puts(record)
+    end
+    puts record
   RUBY
 
   def self.capture(argv, cwd:, env: {}, seconds: 10)
@@ -99,6 +103,8 @@ module CommandGuidanceEval
       # env -i also removes API credentials and shell startup variables.
       %w[bash zsh].each do |shell|
         begin
+          records = File.join(dir, "calls.jsonl")
+          File.write(records, "")
           args = ["/usr/bin/sandbox-exec", "-p", sandbox_profile(dir, writes: !test_case["no_files"]),
                   "/usr/bin/env", "-i", "HOME=#{HOME}", "PATH=#{bin}:/opt/homebrew/bin:/usr/bin:/bin",
                   "/bin/#{shell}", "-f", "-eu", "-c", command]
@@ -108,7 +114,7 @@ module CommandGuidanceEval
           if test_case["program"]
             failures << "#{shell}: program result differs" unless out == test_case.fetch("stdout")
           else
-            calls = out.lines.map { |line| JSON.parse(line) }.map { |call| normalize(call, test_case) }
+            calls = File.readlines(records).map { |line| JSON.parse(line) }.map { |call| normalize(call, test_case) }
             expected = test_case.fetch("calls").map { |call| normalize(call, test_case) }
             failures << "#{shell}: arguments differ" unless calls == expected
           end

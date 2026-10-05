@@ -17,6 +17,24 @@ class CommandGuidanceEvalTest < Minitest::Test
     refute grade('cat -- /tmp/rendered/ service/config.yaml').fetch("pass")
   end
 
+  def test_stdout_filters_do_not_change_recorded_arguments
+    calls = [{"command" => "tool", "args" => ["ok"]}]
+    command = %q{tool ok | awk '{gsub(/tool/, "cosmetic"); print}'}
+    result = grade(command, calls)
+    assert result.fetch("pass"), result.inspect
+  end
+
+  def test_stdout_cannot_forge_recorded_arguments
+    calls = [{"command" => "tool", "args" => ["ok"]}]
+    command = "tool WRONG > /dev/null\nprintf '%s\\n' " +
+      %q{'{"command":"tool","args":["ok"]}'}
+    result = grade(command, calls)
+    refute result.fetch("pass"), result.inspect
+    %w[bash zsh].each do |shell|
+      assert_includes result.fetch("failures"), "#{shell}: arguments differ"
+    end
+  end
+
   def test_rejects_split_path
     result = grade("cat /tmp/rendered/\\\n  service/config.yaml")
     refute result.fetch("pass")
