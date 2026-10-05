@@ -1,5 +1,9 @@
 # Session Naming Evals and Compression
 
+Historical plan. The naming-only runner and tool shim were replaced by the
+[Harbor workflow plan](2026-10-05-harbor-session-naming.md). Commands below
+record earlier work; they are not instructions for the current runner.
+
 > Execution: Native execution in the current session.
 
 **Goal:** Reduce naming-guidance input tokens while checking actual rename decisions.

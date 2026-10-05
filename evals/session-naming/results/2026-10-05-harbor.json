@@ -1,0 +1,776 @@
+{
+  "startedAt": "2026-10-05T21:13:30.061Z",
+  "finishedAt": "2026-10-05T21:27:34.973Z",
+  "model": "openai/gpt-6.1-sol",
+  "thinking": "low",
+  "trials": 1,
+  "harborVersion": "0.24.0",
+  "piVersion": "1.0.2",
+  "productionSha256": "dde0024985f91324f950c9423d5615654a1324f22e384cf31d17b7cd28ed0b3d",
+  "usageScope": "All main-agent requests across five steps; automatic naming child usage is not captured by Harbor.",
+  "scope": "One repository-derived five-step task; not captured private sessions or live macOS verification.",
+  "variants": [
+    {
+      "id": "baseline",
+      "descriptionCharacters": 2071,
+      "descriptionSha256": "b6a751303f9742593175a749a8dea142e25b562a2aae366046ad23d8e429768a",
+      "ref": "46c647db1449ebd8d509173d783471e0c21e523d"
+    },
+    {
+      "id": "current",
+      "descriptionCharacters": 1133,
+      "descriptionSha256": "fd759ebf76c3535c57854173f92bca93aa40296fbfa3c666fe67b6d979a42a3a"
+    },
+    {
+      "id": "without-call-threshold",
+      "descriptionCharacters": 837,
+      "descriptionSha256": "ac401e58cab4d1053cf1828edb3277ce3e9cc1b464ba3b788548223b0b613d4c"
+    },
+    {
+      "id": "without-side-task-context",
+      "descriptionCharacters": 864,
+      "descriptionSha256": "fee11ae214932ee2a0eefe82cd6c5deba8edfedc7179918ac0b6832041675053"
+    },
+    {
+      "id": "without-name-construction",
+      "descriptionCharacters": 563,
+      "descriptionSha256": "72c45e7fd107217dbe5f17c2b01307b37367f1417f0c481700b266937faf6b43"
+    },
+    {
+      "id": "without-description",
+      "descriptionCharacters": 0,
+      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "results": [
+    {
+      "variant": "baseline",
+      "mainAgentUsage": {
+        "input": 84,
+        "output": 2413,
+        "cacheRead": 241266,
+        "cacheWrite": 12552
+      },
+      "namingPassed": 5,
+      "tasksPassed": 5,
+      "steps": [
+        {
+          "step": "repair-restoration",
+          "beforeName": "",
+          "name": "Ghostty selected-tab restoration",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 2847,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 3,
+            "edit": 1,
+            "read": 3,
+            "set_session_name": 1
+          },
+          "namingCalls": [
+            "Ghostty selected-tab restoration"
+          ],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "report-incidental-bug",
+          "beforeName": "Ghostty selected-tab restoration",
+          "name": "Ghostty selected-tab restoration",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 8617,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 1,
+            "create_issue": 1,
+            "read": 1
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "continue-restoration",
+          "beforeName": "Ghostty selected-tab restoration",
+          "name": "Ghostty selected-tab restoration",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 9920,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 1,
+            "edit": 1,
+            "read": 1
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "explicit-rename",
+          "beforeName": "Ghostty selected-tab restoration",
+          "name": "Ghostty workspace reliability",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 10376,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "set_session_name": 1
+          },
+          "namingCalls": [
+            "Ghostty workspace reliability"
+          ],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "change-goal",
+          "beforeName": "Ghostty workspace reliability",
+          "name": "Git branch picker reliability",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 10486,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 3,
+            "edit": 1,
+            "get_issue": 1,
+            "read": 1,
+            "set_session_name": 1,
+            "write": 1
+          },
+          "namingCalls": [
+            "Git branch picker reliability"
+          ],
+          "sameSessionAcrossSteps": true
+        }
+      ]
+    },
+    {
+      "variant": "current",
+      "mainAgentUsage": {
+        "input": 75,
+        "output": 2257,
+        "cacheRead": 206855,
+        "cacheWrite": 11326
+      },
+      "namingPassed": 5,
+      "tasksPassed": 5,
+      "steps": [
+        {
+          "step": "repair-restoration",
+          "beforeName": "",
+          "name": "Ghostty selected tab restoration",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 2671,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 3,
+            "edit": 1,
+            "read": 3,
+            "set_session_name": 1
+          },
+          "namingCalls": [
+            "Ghostty selected tab restoration"
+          ],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "report-incidental-bug",
+          "beforeName": "Ghostty selected tab restoration",
+          "name": "Ghostty selected tab restoration",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 8091,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 1,
+            "create_issue": 1,
+            "read": 1
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "continue-restoration",
+          "beforeName": "Ghostty selected tab restoration",
+          "name": "Ghostty selected tab restoration",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 9352,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 1,
+            "edit": 1,
+            "read": 1
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "explicit-rename",
+          "beforeName": "Ghostty selected tab restoration",
+          "name": "Ghostty workspace reliability",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 9840,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "set_session_name": 1
+          },
+          "namingCalls": [
+            "Ghostty workspace reliability"
+          ],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "change-goal",
+          "beforeName": "Ghostty workspace reliability",
+          "name": "Git branch picker reliability",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 9950,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 3,
+            "edit": 1,
+            "get_issue": 1,
+            "set_session_name": 1,
+            "write": 1
+          },
+          "namingCalls": [
+            "Git branch picker reliability"
+          ],
+          "sameSessionAcrossSteps": true
+        }
+      ]
+    },
+    {
+      "variant": "without-call-threshold",
+      "mainAgentUsage": {
+        "input": 78,
+        "output": 2293,
+        "cacheRead": 213232,
+        "cacheWrite": 11555
+      },
+      "namingPassed": 4,
+      "tasksPassed": 5,
+      "steps": [
+        {
+          "step": "repair-restoration",
+          "beforeName": "",
+          "name": "Ghostty selected tab restoration",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 2611,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 4,
+            "edit": 1,
+            "read": 2,
+            "set_session_name": 1
+          },
+          "namingCalls": [
+            "Ghostty selected tab restoration"
+          ],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "report-incidental-bug",
+          "beforeName": "Ghostty selected tab restoration",
+          "name": "Ghostty selected tab restoration",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 8479,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 1,
+            "create_issue": 1,
+            "read": 1
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "continue-restoration",
+          "beforeName": "Ghostty selected tab restoration",
+          "name": "Ghostty selected tab restoration",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 9703,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 2,
+            "edit": 1,
+            "read": 1
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "explicit-rename",
+          "beforeName": "Ghostty selected tab restoration",
+          "name": "Ghostty workspace reliability",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 10235,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "set_session_name": 1
+          },
+          "namingCalls": [
+            "Ghostty workspace reliability"
+          ],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "change-goal",
+          "beforeName": "Ghostty workspace reliability",
+          "name": "Ghostty workspace reliability",
+          "naming": false,
+          "task": true,
+          "firstRequestInput": 10345,
+          "reward": {
+            "reward": 0,
+            "task": 1,
+            "naming": 0
+          },
+          "toolCounts": {
+            "bash": 2,
+            "edit": 1,
+            "get_issue": 1,
+            "write": 1
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        }
+      ]
+    },
+    {
+      "variant": "without-side-task-context",
+      "mainAgentUsage": {
+        "input": 90,
+        "output": 2869,
+        "cacheRead": 275834,
+        "cacheWrite": 13369
+      },
+      "namingPassed": 5,
+      "tasksPassed": 5,
+      "steps": [
+        {
+          "step": "repair-restoration",
+          "beforeName": "",
+          "name": "Ghostty selected-tab restoration",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 2620,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 4,
+            "edit": 1,
+            "read": 2,
+            "set_session_name": 1
+          },
+          "namingCalls": [
+            "Ghostty selected-tab restoration"
+          ],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "report-incidental-bug",
+          "beforeName": "Ghostty selected-tab restoration",
+          "name": "Ghostty selected-tab restoration",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 8320,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 1,
+            "create_issue": 1,
+            "read": 1
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "continue-restoration",
+          "beforeName": "Ghostty selected-tab restoration",
+          "name": "Ghostty selected-tab restoration",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 9594,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 1,
+            "edit": 1,
+            "read": 1
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "explicit-rename",
+          "beforeName": "Ghostty selected-tab restoration",
+          "name": "Ghostty workspace reliability",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 10094,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "set_session_name": 1
+          },
+          "namingCalls": [
+            "Ghostty workspace reliability"
+          ],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "change-goal",
+          "beforeName": "Ghostty workspace reliability",
+          "name": "Git branch picker reliability",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 10204,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 6,
+            "edit": 2,
+            "get_issue": 1,
+            "read": 1,
+            "set_session_name": 1,
+            "write": 1
+          },
+          "namingCalls": [
+            "Git branch picker reliability"
+          ],
+          "sameSessionAcrossSteps": true
+        }
+      ]
+    },
+    {
+      "variant": "without-name-construction",
+      "mainAgentUsage": {
+        "input": 78,
+        "output": 2340,
+        "cacheRead": 208949,
+        "cacheWrite": 11505
+      },
+      "namingPassed": 4,
+      "tasksPassed": 5,
+      "steps": [
+        {
+          "step": "repair-restoration",
+          "beforeName": "",
+          "name": "Ghostty selected tab restore fix",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 2568,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 3,
+            "edit": 1,
+            "read": 3,
+            "set_session_name": 1
+          },
+          "namingCalls": [
+            "Ghostty selected tab restore fix"
+          ],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "report-incidental-bug",
+          "beforeName": "Ghostty selected tab restore fix",
+          "name": "Ghostty selected tab restore fix",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 8372,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 1,
+            "create_issue": 1,
+            "read": 1
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "continue-restoration",
+          "beforeName": "Ghostty selected tab restore fix",
+          "name": "Ghostty selected tab restore fix",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 9624,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 1,
+            "edit": 1,
+            "read": 1
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "explicit-rename",
+          "beforeName": "Ghostty selected tab restore fix",
+          "name": "Ghostty workspace reliability",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 10099,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "set_session_name": 1
+          },
+          "namingCalls": [
+            "Ghostty workspace reliability"
+          ],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "change-goal",
+          "beforeName": "Ghostty workspace reliability",
+          "name": "Branch picker Git failure handling",
+          "naming": false,
+          "task": true,
+          "firstRequestInput": 10209,
+          "reward": {
+            "reward": 0,
+            "task": 1,
+            "naming": 0
+          },
+          "toolCounts": {
+            "bash": 2,
+            "edit": 1,
+            "get_issue": 1,
+            "set_session_name": 1,
+            "write": 1
+          },
+          "namingCalls": [
+            "Branch picker Git failure handling"
+          ],
+          "sameSessionAcrossSteps": true
+        }
+      ]
+    },
+    {
+      "variant": "without-description",
+      "mainAgentUsage": {
+        "input": 75,
+        "output": 2235,
+        "cacheRead": 196830,
+        "cacheWrite": 10917
+      },
+      "namingPassed": 3,
+      "tasksPassed": 5,
+      "steps": [
+        {
+          "step": "repair-restoration",
+          "beforeName": "",
+          "name": "Ghostty workspace restore reliability",
+          "naming": false,
+          "task": true,
+          "firstRequestInput": 2457,
+          "reward": {
+            "reward": 0,
+            "task": 1,
+            "naming": 0
+          },
+          "toolCounts": {
+            "bash": 3,
+            "edit": 1,
+            "read": 3
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "report-incidental-bug",
+          "beforeName": "Ghostty workspace restore reliability",
+          "name": "Ghostty workspace restore reliability",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 7882,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 1,
+            "create_issue": 1,
+            "read": 1
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "continue-restoration",
+          "beforeName": "Ghostty workspace restore reliability",
+          "name": "Ghostty workspace restore reliability",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 9045,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "bash": 1,
+            "edit": 1,
+            "read": 1
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "explicit-rename",
+          "beforeName": "Ghostty workspace restore reliability",
+          "name": "Ghostty workspace reliability",
+          "naming": true,
+          "task": true,
+          "firstRequestInput": 9499,
+          "reward": {
+            "reward": 1,
+            "task": 1,
+            "naming": 1
+          },
+          "toolCounts": {
+            "set_session_name": 1
+          },
+          "namingCalls": [
+            "Ghostty workspace reliability"
+          ],
+          "sameSessionAcrossSteps": true
+        },
+        {
+          "step": "change-goal",
+          "beforeName": "Ghostty workspace reliability",
+          "name": "Ghostty workspace reliability",
+          "naming": false,
+          "task": true,
+          "firstRequestInput": 9609,
+          "reward": {
+            "reward": 0,
+            "task": 1,
+            "naming": 0
+          },
+          "toolCounts": {
+            "bash": 3,
+            "edit": 1,
+            "get_issue": 1,
+            "write": 1
+          },
+          "namingCalls": [],
+          "sameSessionAcrossSteps": true
+        }
+      ]
+    }
+  ],
+  "firstRequestComparison": {
+    "baselineInput": 2847,
+    "currentInput": 2671,
+    "savedInput": 176,
+    "savedPercent": 6.18
+  },
+  "manualNameObservations": [
+    "Baseline and current initial names identify Ghostty selected-tab restoration; this pilot does not automate semantic breadth scoring.",
+    "The name-construction ablation initially used Ghostty selected tab restore fix, a task-oriented label."
+  ],
+  "limitations": [
+    "One workflow per variant; preliminary, not statistically conclusive.",
+    "The side-task/context ablation passed this strongly scoped workflow; compaction, uncertainty, and other incidental workflows remain untested.",
+    "All main-agent requests are counted; automatic naming-child usage is excluded.",
+    "Workflow token totals vary with agent choices; only the first request is a matched description-input comparison."
+  ]
+}
