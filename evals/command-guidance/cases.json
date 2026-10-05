@@ -1,0 +1,341 @@
+{
+  "development": [
+    {
+      "id": "long-path",
+      "prompt": "Give a cat command for /home/eval/.config/remote-environments/rendered/production/application/settings.yaml. Keep it narrow enough for an 80-column terminal. Indent any continuation lines.",
+      "calls": [
+        {
+          "command": "cat",
+          "args": [
+            "/home/eval/.config/remote-environments/rendered/production/application/settings.yaml"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "path-spaces",
+      "prompt": "Use cat to read this exact path: /home/eval/Library/Application Support/Remote Environment/production/service settings.yaml. Return a pasteable command with narrow lines.",
+      "calls": [
+        {
+          "command": "cat",
+          "args": [
+            "/home/eval/Library/Application Support/Remote Environment/production/service settings.yaml"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "long-url",
+      "prompt": "Use curl -fsSL to fetch this exact URL: https://downloads.example.org/releases/remote-environment/production/application-settings.yaml?format=yaml&version=2026-10-05. Wrap for an 80-column terminal, with indented continuations.",
+      "calls": [
+        {
+          "command": "curl",
+          "args": [
+            "-fsSL",
+            "https://downloads.example.org/releases/remote-environment/production/application-settings.yaml?format=yaml&version=2026-10-05"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "long-option",
+      "prompt": "Run tool with --config=/home/eval/.config/remote-environments/rendered/production/application/settings.yaml and --check. Keep the command readable in an 80-column terminal.",
+      "calls": [
+        {
+          "command": "tool",
+          "args": [
+            "--config",
+            "/home/eval/.config/remote-environments/rendered/production/application/settings.yaml",
+            "--check"
+          ]
+        }
+      ],
+      "options": {
+        "--config": []
+      }
+    },
+    {
+      "id": "jsonpath-equals",
+      "prompt": "Give a wrapped kubectl command: get pod example in namespace production; output must use -o jsonpath='{.metadata.annotations.description}'. Keep the template exact. Put the output option on its own continuation line.",
+      "calls": [
+        {
+          "command": "kubectl",
+          "args": [
+            "get",
+            "pod",
+            "example",
+            "-n",
+            "production",
+            "-o",
+            "jsonpath={.metadata.annotations.description}"
+          ]
+        }
+      ],
+      "options": {
+        "-o": [
+          "--output"
+        ],
+        "-n": [
+          "--namespace"
+        ]
+      }
+    },
+    {
+      "id": "quoted-header",
+      "prompt": "Use curl -fsSL with the header X-Description: production release for the remote environment application configuration, then fetch https://example.org/config. Keep narrow lines and preserve the full header.",
+      "calls": [
+        {
+          "command": "curl",
+          "args": [
+            "-fsSL",
+            "--header",
+            "X-Description: production release for the remote environment application configuration",
+            "https://example.org/config"
+          ]
+        }
+      ],
+      "options": {
+        "--header": [
+          "-H"
+        ]
+      }
+    },
+    {
+      "id": "key-value",
+      "prompt": "Pass one literal argument to tool: release=production/application-with-a-long-name/settings-for-the-remote-environment.yaml. This is an argument, not an environment assignment. Format for an 80-column terminal.",
+      "calls": [
+        {
+          "command": "tool",
+          "args": [
+            "release=production/application-with-a-long-name/settings-for-the-remote-environment.yaml"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "quoted-value",
+      "prompt": "Run tool --message with the exact text: production application settings for the remote environment must remain on one logical line. Wrap the command for an 80-column display without changing the text.",
+      "calls": [
+        {
+          "command": "tool",
+          "args": [
+            "--message",
+            "production application settings for the remote environment must remain on one logical line."
+          ]
+        }
+      ],
+      "options": {
+        "--message": []
+      }
+    },
+    {
+      "id": "jq-program",
+      "prompt": "Use jq -r on input.json, whose top-level object contains an items array. Select entries in .items whose ready field is true, then print each metadata.name. Show a readable multi-line single-quoted jq program, not a script file.",
+      "program": "jq",
+      "input": "{\"items\":[{\"ready\":true,\"metadata\":{\"name\":\"alpha\"}},{\"ready\":false,\"metadata\":{\"name\":\"beta\"}},{\"ready\":true,\"metadata\":{\"name\":\"gamma\"}}]}",
+      "stdout": "alpha\ngamma\n"
+    },
+    {
+      "id": "awk-program",
+      "prompt": "Use awk on input.txt. Sum column 2 only for rows whose column 1 is active, then print the total. Show a readable multi-line single-quoted awk program, not a script file.",
+      "program": "awk",
+      "input": "active 4\ninactive 7\nactive 9\n",
+      "stdout": "13\n"
+    },
+    {
+      "id": "mixed-arguments",
+      "prompt": "Run tool with --config=/home/eval/.config/remote-environments/rendered/production/application/settings.yaml, --endpoint=https://downloads.example.org/releases/remote-environment/production/application-settings.yaml?format=yaml&version=2026-10-05, and --dry-run, in that order. Give narrow, indented continuation lines.",
+      "calls": [
+        {
+          "command": "tool",
+          "args": [
+            "--config",
+            "/home/eval/.config/remote-environments/rendered/production/application/settings.yaml",
+            "--endpoint",
+            "https://downloads.example.org/releases/remote-environment/production/application-settings.yaml?format=yaml&version=2026-10-05",
+            "--dry-run"
+          ]
+        }
+      ],
+      "options": {
+        "--config": [],
+        "--endpoint": []
+      }
+    },
+    {
+      "id": "no-heredoc",
+      "no_files": true,
+      "prompt": "Give pasteable shell commands that print exactly these two lines: alpha then beta. A heredoc looks convenient; use whatever the command rules permit. No input files or helper files.",
+      "program": "shell",
+      "input": "",
+      "stdout": "alpha\nbeta\n"
+    }
+  ],
+  "holdout": [
+    {
+      "id": "holdout-path",
+      "prompt": "Use cat to show /home/eval/.local/share/background-tasks/generated/customer-export/nightly/manifest-final.json. Keep every line within 80 columns and indent wrapped lines.",
+      "calls": [
+        {
+          "command": "cat",
+          "args": [
+            "/home/eval/.local/share/background-tasks/generated/customer-export/nightly/manifest-final.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "holdout-url",
+      "prompt": "Use curl --fail --silent --show-error on https://api.example.net/v3/background-tasks/customer-export/manifest?environment=staging&include=metadata%2Cstatus. Keep it readable in a narrow terminal.",
+      "calls": [
+        {
+          "command": "curl",
+          "args": [
+            "--fail",
+            "--silent",
+            "--show-error",
+            "https://api.example.net/v3/background-tasks/customer-export/manifest?environment=staging&include=metadata%2Cstatus"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "holdout-jsonpath",
+      "prompt": "Run kubectl get pods in namespace staging and use -o with the exact value jsonpath={range .items[*]}{.metadata.name}{\"\\n\"}{end}. Put each option on a new indented continuation line.",
+      "calls": [
+        {
+          "command": "kubectl",
+          "args": [
+            "get",
+            "pods",
+            "-n",
+            "staging",
+            "-o",
+            "jsonpath={range .items[*]}{.metadata.name}{\"\\n\"}{end}"
+          ]
+        }
+      ],
+      "options": {
+        "-o": [
+          "--output"
+        ],
+        "-n": [
+          "--namespace"
+        ]
+      }
+    },
+    {
+      "id": "holdout-jq",
+      "prompt": "Use jq -r with input.json, whose top-level object contains a records array. For each record, concatenate its directory, a slash, and its filename; output one path per record. Format the jq program across several lines. Values contain spaces and must remain exact.",
+      "program": "jq",
+      "input": "{\"records\":[{\"directory\":\"/tmp/saved reports\",\"filename\":\"final output.csv\"},{\"directory\":\"/tmp/archive\",\"filename\":\"records.json\"}]}",
+      "stdout": "/tmp/saved reports/final output.csv\n/tmp/archive/records.json\n"
+    },
+    {
+      "id": "holdout-awk",
+      "prompt": "Use awk on input.txt to print exactly prefix= followed by column 1 for every row. Use a multi-line quoted awk program. The literal prefix must not contain a newline.",
+      "program": "awk",
+      "input": "one 3\ntwo 5\n",
+      "stdout": "prefix=one\nprefix=two\n"
+    },
+    {
+      "id": "holdout-quoted-option",
+      "prompt": "Run tool --pattern with the exact regex ^/home/eval/Library/Application Support/Background Tasks/exports/[a-z]+/manifest[.]json$ and --check. Wrap for an 80-column terminal.",
+      "calls": [
+        {
+          "command": "tool",
+          "args": [
+            "--pattern",
+            "^/home/eval/Library/Application Support/Background Tasks/exports/[a-z]+/manifest[.]json$",
+            "--check"
+          ]
+        }
+      ],
+      "options": {
+        "--pattern": []
+      }
+    }
+  ],
+  "validation": [
+    {
+      "id": "validation-path",
+      "prompt": "Read this exact path with cat: /home/eval/Documents/Archived Reports/monthly exports/north-region/2026/summary report.csv. Return commands for an 80-column terminal.",
+      "calls": [
+        {
+          "command": "cat",
+          "args": [
+            "/home/eval/Documents/Archived Reports/monthly exports/north-region/2026/summary report.csv"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "validation-url",
+      "prompt": "Fetch this exact URL using curl -fsSL: https://downloads.example.net/artifacts/background-workers/monthly-exports/north-region/configuration?release=stable&format=json. Use readable indented continuation lines as needed.",
+      "calls": [
+        {
+          "command": "curl",
+          "args": [
+            "-fsSL",
+            "https://downloads.example.net/artifacts/background-workers/monthly-exports/north-region/configuration?release=stable&format=json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "validation-jsonpath",
+      "prompt": "Use kubectl get pods -n development and -o with the exact value `jsonpath={range .items[*]}{.metadata.labels.application}{\": \"}{.status.phase}{\"\\n\"}{end}`. Keep narrow lines without changing the value.",
+      "calls": [
+        {
+          "command": "kubectl",
+          "args": [
+            "get",
+            "pods",
+            "-n",
+            "development",
+            "-o",
+            "jsonpath={range .items[*]}{.metadata.labels.application}{\": \"}{.status.phase}{\"\\n\"}{end}"
+          ]
+        }
+      ],
+      "options": {
+        "-n": [
+          "--namespace"
+        ],
+        "-o": [
+          "--output"
+        ]
+      }
+    },
+    {
+      "id": "validation-data",
+      "prompt": "Invoke tool --message with exactly this text, including the final period: `Archived monthly export records: preserve all spaces and punctuation for the north-region background worker.` Format for an 80-column terminal.",
+      "calls": [
+        {
+          "command": "tool",
+          "args": [
+            "--message",
+            "Archived monthly export records: preserve all spaces and punctuation for the north-region background worker."
+          ]
+        }
+      ],
+      "options": {
+        "--message": []
+      }
+    },
+    {
+      "id": "validation-jq",
+      "prompt": "Use jq -r on input.json, a top-level object with a jobs array. For jobs with state \"queued\", print each outputFile unchanged. Show a multi-line quoted jq program.",
+      "program": "jq",
+      "input": "{\"jobs\":[{\"state\":\"queued\",\"outputFile\":\"/tmp/monthly reports/north.csv\"},{\"state\":\"done\",\"outputFile\":\"/tmp/old.csv\"},{\"state\":\"queued\",\"outputFile\":\"/tmp/monthly reports/south.csv\"}]}",
+      "stdout": "/tmp/monthly reports/north.csv\n/tmp/monthly reports/south.csv\n"
+    },
+    {
+      "id": "validation-awk",
+      "prompt": "Use awk on input.txt. For each row whose first field is ready, print the second field followed by exactly \" = ready\". Use a multi-line quoted program without inserting newlines into that literal text.",
+      "program": "awk",
+      "input": "ready north\npaused south\nready west\n",
+      "stdout": "north = ready\nwest = ready\n"
+    }
+  ]
+}
