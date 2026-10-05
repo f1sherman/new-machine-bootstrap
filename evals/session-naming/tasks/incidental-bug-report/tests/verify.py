@@ -1,4 +1,5 @@
 """Hidden Harbor verifier for real work and Pi naming events."""
+import hashlib
 import json
 import re
 import subprocess
@@ -7,6 +8,8 @@ from pathlib import Path
 
 STEPS = ("repair-restoration", "report-incidental-bug", "continue-restoration", "explicit-rename", "change-goal")
 EXPLICIT_NAME = "Ghostty workspace reliability"
+# SHA-256 of the pinned public branch-picker fixture.
+BRANCH_PICKER_SNAPSHOT_SHA256 = "805beafbe68c835ff900b0ce5bd26714527299ef68adf62bc98995f079ef7f38"
 
 
 def read_issue_result(end):
@@ -168,7 +171,9 @@ def verify(index):
         issues = json.loads(Path("/workspace/.issues/issues.json").read_text())
         reports = [issue for issue in issues if "git-switch-branch" in issue["title"] + issue["body"] and "0" in issue["body"]]
         task = restored and len(reports) == 1 and not run_check(["bash", "/tests/branch-picker.sh"], "/logs/verifier/branch-picker.txt")
-        task = task and assessment["reproducedBug"] and any(c["tool"] == "create_issue" for c in assessment["calls"])
+        picker = Path("/workspace/bin/git-switch-branch")
+        unchanged = picker.is_file() and hashlib.sha256(picker.read_bytes()).hexdigest() == BRANCH_PICKER_SNAPSHOT_SHA256
+        task = task and unchanged and assessment["reproducedBug"] and any(c["tool"] == "create_issue" for c in assessment["calls"])
     elif index == 2:
         readme = Path("/workspace/README.md").read_text().lower()
         task = restored and "manifest" in readme and ("selected" in readme or "selection" in readme) and len(readme) > 150

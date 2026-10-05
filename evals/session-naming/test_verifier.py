@@ -8,6 +8,7 @@ from unittest.mock import patch
 from pathlib import Path
 
 PATH = Path(__file__).parent / "tasks/incidental-bug-report/tests/verify.py"
+BRANCH_PICKER = PATH.parent.parent / "environment/project/bin/git-switch-branch"
 
 
 def load_verifier():
@@ -78,7 +79,7 @@ class TraceVerifierTest(unittest.TestCase):
         self.assertTrue(result["naming"])
         self.assertEqual(result["calls"][0]["tool"], "create_issue")
 
-    def report_reward(self, command=None, output=None, is_error=False, after_issue=False):
+    def report_reward(self, command=None, output=None, is_error=False, after_issue=False, branch_source=None):
         events, session = fixture()
         if command is not None:
             args = {"command": command}
@@ -102,6 +103,7 @@ class TraceVerifierTest(unittest.TestCase):
                 "/logs/agent/pi.txt": "\n".join(json.dumps(e) for e in events),
                 "/logs/agent/pi/sessions/session.jsonl": "\n".join(json.dumps(e) for e in session),
                 "/workspace/.issues/issues.json": json.dumps([{"title": "git-switch-branch", "body": "Exit status 0"}]),
+                "/workspace/bin/git-switch-branch": BRANCH_PICKER.read_text() if branch_source is None else branch_source,
             }.items():
                 file = sandbox(path)
                 file.parent.mkdir(parents=True, exist_ok=True)
@@ -119,6 +121,13 @@ class TraceVerifierTest(unittest.TestCase):
         output = 'fatal: not a git repository (or any of the parent directories): .git\nstatus=0\n'
         self.assertEqual(self.report_reward(command, output), 1)
         self.assertEqual(self.report_reward(command, output.replace("status=0", "0")), 1)
+
+    def test_report_rejects_a_modified_picker_with_broken_selection(self):
+        command = 'cd /tmp; bash /workspace/bin/git-switch-branch; echo $?'
+        output = 'fatal: not a git repository\n0\n'
+        modified = BRANCH_PICKER.read_text().replace("set -eu\n", "set -euo pipefail\n")
+        modified = modified.replace("printf '%s\\t%s\\n' \"$action\" \"$payload\"", "exit 1")
+        self.assertEqual(self.report_reward(command, output, branch_source=modified), 0)
 
     def test_report_rejects_other_failure_classes_and_late_reproduction(self):
         command = 'cd /tmp; bash /workspace/bin/git-switch-branch; echo $?'

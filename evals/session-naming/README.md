@@ -121,8 +121,10 @@ otherwise passing current policy. Infrastructure errors still exit nonzero.
   the observed failure and must come from an actual `create_issue` call. Before
   issue creation, a completed agent `bash` call must invoke `git-switch-branch`
   and capture its status. Its untruncated result must show the fatal Git
-  repository error and a printed status 0. Issue text and the hidden branch
-  check alone do not prove agent reproduction.
+  repository error and a printed status 0. The script must still match the
+  pinned public fixture byte for byte; another branch-test failure cannot hide
+  a partial repair or broken selection. Issue text and the hidden branch check
+  alone do not prove agent reproduction.
 - Incomplete streams, disconnected sessions, missing usage, and failed
   naming/issue tools are infrastructure errors, not passing evals. Ordinary
   coding/test tool errors remain observable agent behavior.
