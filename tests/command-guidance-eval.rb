@@ -97,6 +97,7 @@ class CommandGuidanceEvalTest < Minitest::Test
       "evals/command-guidance/cases.json"))).fetch("development")
     guidance = File.read(File.join(CommandGuidanceEval::ROOT,
       "evals/command-guidance/variants/compact-portable.md"))
+    FileUtils.mkdir_p(CommandGuidanceEval::SCRATCH)
     Dir.mktmpdir("missing-sandbox-", CommandGuidanceEval::SCRATCH) do |dir|
       options[:output] = dir
       cases.each do |test_case|
