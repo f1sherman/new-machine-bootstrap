@@ -19,7 +19,7 @@ end
 local function newHarness()
   local applications = {}
   local clock = 100
-  local events = {quit = {}, launch = {}, error = {}}
+  local events = {quit = {}, launch = {}, error = {}, afterRelaunch = {}}
   local polls = {}
   local scheduled = {count = 0}
   local quitResults = {}
@@ -61,9 +61,15 @@ local function newHarness()
     end,
   }
 
+  local controller = browserRestart.new(dependencies)
+  controller.afterRelaunch = function(bundleID)
+    table.insert(events.afterRelaunch, bundleID)
+    assertEqual(bundleID, events.launch[#events.launch], "callback follows browser launch")
+  end
+
   return {
     applications = applications,
-    controller = browserRestart.new(dependencies),
+    controller = controller,
     events = events,
     launchResults = launchResults,
     polls = polls,
@@ -115,6 +121,8 @@ assertEqual(
   "stopped Brave relaunches"
 )
 assertEqual(true, successHarness.polls[1].stopped, "successful poll stops")
+assertEqual("com.brave.Browser", successHarness.events.afterRelaunch[1],
+  "successful Brave relaunch invokes the local hook")
 
 local quitFailureHarness = newHarness()
 quitFailureHarness.applications["com.google.Chrome"] = {
@@ -135,6 +143,7 @@ launchFailureHarness.controller.runNow()
 launchFailureHarness.applications["com.brave.Browser"] = nil
 launchFailureHarness.polls[1].callback()
 assertEqual(1, #launchFailureHarness.events.error, "failed relaunch logs one error")
+assertEqual(0, #launchFailureHarness.events.afterRelaunch, "failed launch skips the hook")
 
 local independentHarness = newHarness()
 independentHarness.applications["com.brave.Browser"] = {
@@ -158,6 +167,23 @@ assertEqual(true, independentHarness.polls[1].stopped, "completed Brave poll sto
 assertEqual(true, independentHarness.polls[2].stopped, "timed-out Chrome poll stops")
 assertEqual(1, #independentHarness.events.launch, "timeout does not relaunch Chrome")
 assertEqual(1, #independentHarness.events.error, "timeout logs one error")
+assertEqual(1, #independentHarness.events.afterRelaunch, "timeout skips the hook")
+
+local hookFailureHarness = newHarness()
+hookFailureHarness.applications["com.brave.Browser"] = {bundleID = "com.brave.Browser"}
+hookFailureHarness.applications["com.google.Chrome"] = {bundleID = "com.google.Chrome"}
+hookFailureHarness.controller.afterRelaunch = function(bundleID)
+  if bundleID == "com.brave.Browser" then error("companion launch failed") end
+  table.insert(hookFailureHarness.events.afterRelaunch, bundleID)
+end
+hookFailureHarness.controller.runNow()
+hookFailureHarness.applications["com.brave.Browser"] = nil
+hookFailureHarness.applications["com.google.Chrome"] = nil
+hookFailureHarness.polls[1].callback()
+hookFailureHarness.polls[2].callback()
+assertEqual(1, #hookFailureHarness.events.error, "callback failure is logged")
+assertEqual("com.google.Chrome", hookFailureHarness.events.afterRelaunch[1],
+  "callback failure does not stop another browser")
 
 local weakTimer = setmetatable({}, {__mode = "v"})
 local retainedController = browserRestart.start({
