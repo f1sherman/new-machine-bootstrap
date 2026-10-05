@@ -9,6 +9,12 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 FAKE_BIN="$TMP_ROOT/bin"
 mkdir -p "$FAKE_BIN"
 
+# Ansible must be absent until fake apt installs it, even on provisioned hosts.
+# Only expose bootstrap utilities; never discover host apt, sudo, or Ansible.
+for tool in awk basename cat chmod cksum date dirname env git grep id ln mkdir mktemp ps rm rmdir sed sleep sort tee tr wc; do
+  ln -s "$(command -v "$tool")" "$FAKE_BIN/$tool"
+done
+
 cat > "$FAKE_BIN/sudo" <<'SCRIPT'
 #!/bin/bash
 set -e
@@ -89,7 +95,7 @@ run_provision() {
 
   set +e
   PROVISION_OUTPUT=$(cd "$REPO_ROOT" && \
-    PATH="$FAKE_BIN:/usr/bin:/bin" \
+    PATH="$FAKE_BIN" \
     HOME="$case_root/home" \
     OSTYPE=linux-gnu \
     PROVISION_LOCK_DIR="$case_root/provision.lock" \
