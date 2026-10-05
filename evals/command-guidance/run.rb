@@ -114,7 +114,9 @@ module CommandGuidanceEval
           if test_case["program"]
             failures << "#{shell}: program result differs" unless out == test_case.fetch("stdout")
           else
-            calls = File.readlines(records).map { |line| JSON.parse(line) }.map { |call| normalize(call, test_case) }
+            recorded = File.readlines(records).map { |line| JSON.parse(line) }
+            details[shell]["calls"] = recorded
+            calls = recorded.map { |call| normalize(call, test_case) }
             expected = test_case.fetch("calls").map { |call| normalize(call, test_case) }
             failures << "#{shell}: arguments differ" unless calls == expected
           end

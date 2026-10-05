@@ -22,6 +22,9 @@ class CommandGuidanceEvalTest < Minitest::Test
     command = %q{tool ok | awk '{gsub(/tool/, "cosmetic"); print}'}
     result = grade(command, calls)
     assert result.fetch("pass"), result.inspect
+    result.fetch("shells").each_value do |detail|
+      assert_equal calls, detail.fetch("calls")
+    end
   end
 
   def test_stdout_cannot_forge_recorded_arguments
