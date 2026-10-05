@@ -7,6 +7,7 @@ require "minitest/autorun"
 require "open3"
 require "rbconfig"
 require "tmpdir"
+require "timeout"
 
 REPO_ROOT = File.expand_path("..", __dir__)
 HELPER = File.join(REPO_ROOT, "roles/common/files/bin/tmux-attach-or-new")
@@ -44,18 +45,56 @@ class TmuxRestoreStartupTest < Minitest::Test
 
   def test_concurrent_helpers_select_distinct_restored_sessions
     set_sessions(%w[one two three four])
-    env = helper_env("FAKE_TMUX_ATTACH_DELAY" => "0.25")
+    release_path = File.join(@tmpdir, "release-attachments")
+    env = helper_env("FAKE_TMUX_ATTACH_RELEASE" => release_path)
+    helpers = []
 
-    results = 4.times.map do
-      Thread.new { Open3.capture3(env, HELPER) }
-    end.map(&:value)
+    begin
+      # Exercise concurrent reservation occupancy, not a four-way lock-start race.
+      # Keep clients unattached and alive while each subsequent helper selects.
+      4.times do |index|
+        handles = Open3.popen3(env, HELPER, pgroup: true)
+        handles.first.close
+        helpers << handles
+        wait_until { read_attachments.length == index + 1 }
+      end
 
-    attachments = JSON.parse(File.read(@attachments_path))
-    assert_equal 4, attachments.length
-    assert_equal 4, attachments.map { |entry| entry.fetch("session_id") }.uniq.length,
-      "concurrent helpers selected duplicate targets: #{attachments.inspect}"
-    attachments.each { |entry| assert_helper_owned_reservation(entry) }
-    results.each { |_out, _err, status| assert status.success? }
+      attachments = read_attachments
+      assert_equal 4, attachments.length
+      assert_equal 4, attachments.map { |entry| entry.fetch("session_id") }.uniq.length,
+        "concurrent helpers selected duplicate targets: #{attachments.inspect}"
+      attachments.each do |entry|
+        assert_helper_owned_reservation(entry)
+        assert Process.kill(0, entry.fetch("tmux_pid")), "fake client exited before release"
+      end
+      assert read_state.fetch("sessions").all? { |session| session.fetch("attached").zero? },
+        "selection must rely on live reservations, not attached clients"
+
+      File.write(release_path, "release\n")
+      Timeout.timeout(2) do
+        helpers.each do |_stdin, stdout, stderr, waiter|
+          out, err = stdout.read, stderr.read
+          assert waiter.value.success?, "helper failed: #{out}#{err}"
+        end
+      end
+      attachments.each do |entry|
+        assert_raises(Errno::ESRCH) { Process.kill(0, entry.fetch("tmux_pid")) }
+      end
+      assert read_state.fetch("sessions").all? { |session| session.fetch("options").empty? },
+        "helpers must clear reservations after release"
+    ensure
+      File.write(release_path, "release\n")
+      helpers.each do |stdin, stdout, stderr, waiter|
+        begin
+          Process.kill("KILL", -waiter.pid) if waiter.alive?
+        rescue Errno::ESRCH
+          nil
+        ensure
+          waiter.join
+          [stdin, stdout, stderr].each { |io| io.close unless io.closed? }
+        end
+      end
+    end
   end
 
   def test_slow_restore_runs_once_and_waiter_never_uses_tmux_unlocked
@@ -256,7 +295,10 @@ class TmuxRestoreStartupTest < Minitest::Test
   end
 
   def read_attachments
-    JSON.parse(File.read(@attachments_path))
+    File.open(@attachments_path) do |file|
+      file.flock(File::LOCK_SH)
+      JSON.parse(file.read)
+    end
   end
 
   def assert_event(pattern)
@@ -438,7 +480,6 @@ class TmuxRestoreStartupTest < Minitest::Test
           ready_reader.read
           ready_reader.close
         end
-        sleep ENV.fetch("FAKE_TMUX_ATTACH_DELAY", "0").to_f
         session = locked_json(state_path) do |state|
           selected = find_session(state, target)
           exit 1 unless selected
@@ -446,19 +487,21 @@ class TmuxRestoreStartupTest < Minitest::Test
         end
         exit 42 if [session.fetch("id"), session.fetch("name"), "all"].include?(ENV["FAKE_TMUX_ATTACH_FAILURE"])
 
-        session = locked_json(state_path) do |state|
-          selected = find_session(state, target)
-          exit 1 unless selected
-          selected["attached"] += 1
-          selected.dup
-        end
         locked_json(attachments_path) do |attachments|
           attachments << {
             "session_id" => session.fetch("id"),
             "session_name" => session.fetch("name"),
             "reservation_owner" => session.fetch("options").fetch("@ghostty_attach_owner", nil),
-            "tmux_parent_pid" => Process.ppid
+            "tmux_parent_pid" => Process.ppid,
+            "tmux_pid" => Process.pid
           }
+        end
+        release_path = ENV["FAKE_TMUX_ATTACH_RELEASE"]
+        sleep 0.01 while release_path && !File.exist?(release_path)
+        locked_json(state_path) do |state|
+          selected = find_session(state, target)
+          exit 1 unless selected
+          selected["attached"] += 1
         end
       else
         warn "unexpected fake tmux command: #{([command] + args).inspect}"
