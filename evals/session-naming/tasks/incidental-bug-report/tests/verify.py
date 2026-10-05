@@ -44,8 +44,21 @@ def reproduced_bug(start, end):
         and type(result.get("exit_code")) is int and result["exit_code"] == 0
         and result.get("truncated") is False
         and "fatal: not a git repository" in output
-        and re.search(r"(?im)(?:\b|_)(?:exit[_ ]+)?(?:status|code)\s*[:=]\s*0\s*$", output) is not None
+        and re.search(r"(?im)^\s*(?:(?:actual[ _]+)?(?:exit[ _]+)?(?:status|code|rc)\s*[:=]?\s*)?0\s*$", output) is not None
     )
+
+
+def reproduced_branch_bug(events):
+    """Require a completed shell probe before issue creation, not report prose."""
+    starts = {e["toolCallId"]: e for e in events if e.get("type") == "tool_execution_start"}
+    for event in events:
+        if event.get("type") == "tool_execution_start" and event.get("toolName") == "create_issue":
+            return False
+        if event.get("type") == "tool_execution_end" and event.get("toolName") == "bash":
+            if reproduced_bug(starts[event["toolCallId"]], event):
+                return True
+    return False
+
 
 
 def score_trace(events, session, index):
@@ -114,7 +127,7 @@ def score_trace(events, session, index):
             raise ValueError("Naming or issue tool failed")
     calls = [{"tool": e["toolName"], "args": e["args"]} for e in starts]
     naming_calls = [c for c in calls if c["tool"] == "set_session_name"]
-    reproduced = any(reproduced_bug(start, next(end for end in ends if end["toolCallId"] == start["toolCallId"])) for start in starts)
+    reproduced = reproduced_branch_bug(events)
     valid_name = isinstance(name, str) and 0 < len(name.strip()) <= 80 and "\n" not in name
     inspected = [i for i, start in enumerate(starts) if read_issue_result(next(e for e in ends if e["toolCallId"] == start["toolCallId"]))]
     if index in (1, 2):

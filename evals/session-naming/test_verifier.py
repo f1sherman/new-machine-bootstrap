@@ -2,19 +2,25 @@
 import copy
 import importlib.util
 import json
+import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 PATH = Path(__file__).parent / "tasks/incidental-bug-report/tests/verify.py"
 
 
-def load_score():
-    if not PATH.exists():
-        return lambda *_: None
+def load_verifier():
     spec = importlib.util.spec_from_file_location("workflow_verifier", PATH)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.score_trace
+    return module
+
+
+def load_score():
+    if not PATH.exists():
+        return lambda *_: None
+    return load_verifier().score_trace
 
 
 def fixture(tool="create_issue", name="Ghostty restoration reliability"):
@@ -72,6 +78,65 @@ class TraceVerifierTest(unittest.TestCase):
         self.assertTrue(result["naming"])
         self.assertEqual(result["calls"][0]["tool"], "create_issue")
 
+    def report_reward(self, command=None, output=None, is_error=False, after_issue=False):
+        events, session = fixture()
+        if command is not None:
+            args = {"command": command}
+            shell = [
+                {"type": "message_end", "message": {"role": "assistant", "stopReason": "toolUse",
+                 "usage": {"input": 10, "output": 2, "cacheRead": 0, "cacheWrite": 0},
+                 "content": [{"type": "toolCall", "id": "shell", "name": "bash", "arguments": args}]}},
+                {"type": "tool_execution_start", "toolCallId": "shell", "toolName": "bash", "args": args},
+                {"type": "tool_execution_end", "toolCallId": "shell", "toolName": "bash", "isError": is_error,
+                 "result": {"content": [{"type": "text", "text": output}],
+                            "structuredContent": {"output": output, "exit_code": 0, "truncated": False}}},
+            ]
+            position = -1 if after_issue else 1
+            events[position:position] = shell
+        module = load_verifier()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def sandbox(path):
+                return root / str(path).lstrip("/")
+            for path, content in {
+                "/logs/agent/pi.txt": "\n".join(json.dumps(e) for e in events),
+                "/logs/agent/pi/sessions/session.jsonl": "\n".join(json.dumps(e) for e in session),
+                "/workspace/.issues/issues.json": json.dumps([{"title": "git-switch-branch", "body": "Exit status 0"}]),
+            }.items():
+                file = sandbox(path)
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_text(content)
+            sandbox("/logs/verifier").mkdir(parents=True)
+            with patch.object(module, "Path", side_effect=sandbox), patch.object(module, "run_check", side_effect=[True, False]):
+                module.verify(1)
+            return json.loads(sandbox("/logs/verifier/reward.json").read_text())["task"]
+
+    def test_report_requires_shell_reproduction_not_only_issue_text(self):
+        self.assertEqual(self.report_reward(), 0)
+
+    def test_report_accepts_matched_shell_error_and_zero_status(self):
+        command = 'cd /tmp; bash /workspace/bin/git-switch-branch; printf "status=%s\\n" "$?"'
+        output = 'fatal: not a git repository (or any of the parent directories): .git\nstatus=0\n'
+        self.assertEqual(self.report_reward(command, output), 1)
+        self.assertEqual(self.report_reward(command, output.replace("status=0", "0")), 1)
+
+    def test_report_rejects_other_failure_classes_and_late_reproduction(self):
+        command = 'cd /tmp; bash /workspace/bin/git-switch-branch; echo $?'
+        output = 'fatal: not a git repository (or any of the parent directories): .git\n0\n'
+        cases = [
+            (command, output.replace("0\n", "1\n"), False, False),
+            (command, "0\n", False, False),
+            (command, 'fatal: not a git repository\n', False, False),
+            ('bash /workspace/bin/git-switch-branch', output, False, False),
+            (command, output, True, False),
+            ("cat /workspace/.issues/issues.json", output, False, False),
+            (command, output, False, True),
+            (command, 'fatal: not a git repository\n100\n', False, False),
+        ]
+        for args in cases:
+            with self.subTest(args=args):
+                self.assertEqual(self.report_reward(*args), 0)
+
     def test_redundant_same_name_call_fails_retention(self):
         events, session = fixture("set_session_name")
         events[2]["args"] = {"name": "Ghostty restoration reliability"}
@@ -124,10 +189,13 @@ class TraceVerifierTest(unittest.TestCase):
             "exit_code": 0, "truncated": False}}
         score = load_score()
         self.assertTrue(score(events, session, 1).get("reproducedBug", False))
-        for output in ("exit_status=0\n", "fatal: not a git repository\n", "fatal: not a git repository\nexit_status=1\n"):
-            broken = copy.deepcopy(events)
-            broken[3]["result"]["structuredContent"]["output"] = output
-            self.assertFalse(score(broken, session, 1)["reproducedBug"])
+        for marker in ("actual_exit_status=0", "Actual exit status: 0", "exit status: 0", "0"):
+            valid = copy.deepcopy(events)
+            valid[3]["result"]["structuredContent"]["output"] = "fatal: not a git repository\n" + marker + "\n"
+            self.assertTrue(score(valid, session, 1)["reproducedBug"])
+        broken = copy.deepcopy(events)
+        broken[3]["result"]["structuredContent"]["exit_code"] = 1
+        self.assertFalse(score(broken, session, 1)["reproducedBug"])
         broken = copy.deepcopy(events)
         broken[3]["result"]["structuredContent"]["truncated"] = True
         self.assertFalse(score(broken, session, 1)["reproducedBug"])
@@ -135,12 +203,6 @@ class TraceVerifierTest(unittest.TestCase):
         broken[2]["args"]["command"] = 'printf "fatal: not a git repository\\nexit_status=0\\n"'
         broken[1]["message"]["content"][0]["arguments"] = broken[2]["args"]
         self.assertFalse(score(broken, session, 1)["reproducedBug"])
-
-    def test_issue_text_without_a_shell_probe_is_not_reproduction(self):
-        events, session = fixture("create_issue")
-        events[2]["args"]["body"] = "git-switch-branch: fatal: not a git repository; exit_status=0"
-        events[1]["message"]["content"][0]["arguments"] = events[2]["args"]
-        self.assertFalse(load_score()(events, session, 1).get("reproducedBug", True))
 
     def test_explicit_rename_requires_exact_name_and_persisted_effect(self):
         events, session = fixture("set_session_name")
