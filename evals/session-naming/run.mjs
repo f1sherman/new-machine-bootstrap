@@ -150,5 +150,12 @@ for (const variant of report.variants) {
   console.log(`${variant.id}: ${report.results.filter(result => result.variant === variant.id).map(result => `${result.namingPassed}/5 naming, ${result.tasksPassed}/5 task steps`).join('; ')}`);
 }
 report.finishedAt = new Date().toISOString();
+const currentResults = report.results.filter(result => result.variant === 'current');
+report.currentPolicyPassed = currentResults.length === trials
+  && currentResults.every(result => result.steps.every(step => step.naming && step.task));
 save();
 console.log(`Raw traces, native sessions, rewards, and report: ${output}`);
+if (!report.currentPolicyPassed) {
+  console.error('Current policy failed a naming or task check; baseline and ablation scores remain separate.');
+  process.exitCode = 1;
+}

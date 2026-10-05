@@ -102,7 +102,10 @@ networks are pruned and no daemon settings change.
 
 Each step writes Harbor rewards `task`, `naming`, and their conjunction
 `reward`. The task uses the mean strategy and no early stop, so a naming
-violation does not prevent observation of later steps.
+violation does not prevent observation of later steps. After all variants finish,
+the CLI exits nonzero if any current-policy naming or task step fails. Baseline
+and ablation score failures remain reported separately and do not fail an
+otherwise passing current policy. Infrastructure errors still exit nonzero.
 
 - Actual `tool_execution_start/end` events must match assistant tool calls.
 - The stream must settle, contain valid usage, and expose normal workflow tools.
