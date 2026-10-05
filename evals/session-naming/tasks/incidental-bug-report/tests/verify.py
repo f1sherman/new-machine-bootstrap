@@ -1,5 +1,6 @@
 """Hidden Harbor verifier for real work and Pi naming events."""
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -24,6 +25,26 @@ def read_issue_result(end):
         if isinstance(value, list):
             values.extend(value)
         elif isinstance(value, dict) and value.get("id") == "issue-1" and value.get("title") and value.get("body"):
+            return True
+    return False
+
+
+def reproduced_branch_bug(events):
+    """Require a completed shell probe before issue creation, not report prose."""
+    starts = {e["toolCallId"]: e for e in events if e.get("type") == "tool_execution_start"}
+    for event in events:
+        if event.get("type") == "tool_execution_start" and event.get("toolName") == "create_issue":
+            return False
+        if event.get("type") != "tool_execution_end" or event.get("toolName") != "bash" or event.get("isError"):
+            continue
+        start = starts[event["toolCallId"]]
+        command = start["args"].get("command", "")
+        if "git-switch-branch" not in command or "$?" not in command:
+            continue
+        output = "\n".join(block.get("text", "") for block in event.get("result", {}).get("content", []) if block.get("type") == "text")
+        git_error = "fatal: not a git repository" in output.lower()
+        zero_status = re.search(r"(?im)^\s*(?:(?:exit[ _-]?)?(?:status|code|rc)\s*[:=]?\s*)?0\s*$", output)
+        if git_error and zero_status:
             return True
     return False
 
@@ -134,7 +155,7 @@ def verify(index):
         issues = json.loads(Path("/workspace/.issues/issues.json").read_text())
         reports = [issue for issue in issues if "git-switch-branch" in issue["title"] + issue["body"] and "0" in issue["body"]]
         task = restored and len(reports) == 1 and not run_check(["bash", "/tests/branch-picker.sh"], "/logs/verifier/branch-picker.txt")
-        task = task and any(c["tool"] == "create_issue" for c in assessment["calls"])
+        task = task and any(c["tool"] == "create_issue" for c in assessment["calls"]) and reproduced_branch_bug(events)
     elif index == 2:
         readme = Path("/workspace/README.md").read_text().lower()
         task = restored and "manifest" in readme and ("selected" in readme or "selection" in readme) and len(readme) > 150
