@@ -1376,7 +1376,7 @@ function recordSessionGoalFailure(value, validation = "", stage = "evaluation") 
   );
 }
 
-async function evaluateInitialSessionGoal(pi, request, signal) {
+async function evaluateInitialSessionGoal(pi, request, signal, retry = false) {
   return pi.exec("pi", [
     "--mode", "text",
     "--print",
@@ -1390,7 +1390,9 @@ async function evaluateInitialSessionGoal(pi, request, signal) {
     "--no-themes",
     "--no-context-files",
     "--no-approve",
-    "--system-prompt", SESSION_GOAL_CHILD_SYSTEM_PROMPT,
+    "--system-prompt", SESSION_GOAL_CHILD_SYSTEM_PROMPT + (retry
+      ? " The previous attempt had invalid formatting. Return exactly one plain-text line: a session name or NEEDS_CONTEXT. Do not include explanations, alternatives, Markdown, or line breaks."
+      : ""),
     `New session prompt: ${request.prompt}`,
   ], { cwd: request.cwd, timeout: SUBJECT_CHILD_TIMEOUT_MS, signal });
 }
@@ -1518,21 +1520,28 @@ export default function managedHooks(pi) {
 
     void (async () => {
       try {
-        const result = await evaluateInitialSessionGoal(pi, request, running.controller.signal);
-        if (result.code !== 0 || result.killed) {
-          if (requestIsCurrent(request)) recordSessionGoalFailure(result);
-          return;
-        }
-        const output = typeof result.stdout === "string"
-          ? result.stdout.trimEnd()
-          : result.stdout;
-        if (output === SESSION_GOAL_INSUFFICIENT_CONTEXT) return;
-        const inspected = inspectSessionGoalSubject(output);
-        if (!inspected.subject) {
-          if (requestIsCurrent(request)) {
-            recordSessionGoalFailure(result, inspected.reason);
+        let inspected;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          if (!requestIsCurrent(request) || running.controller.signal.aborted) return;
+          const result = await evaluateInitialSessionGoal(
+            pi, request, running.controller.signal, attempt > 0,
+          );
+          if (result.code !== 0 || result.killed) {
+            if (requestIsCurrent(request)) recordSessionGoalFailure(result);
+            return;
           }
-          return;
+          const output = typeof result.stdout === "string"
+            ? result.stdout.trimEnd()
+            : result.stdout;
+          if (output === SESSION_GOAL_INSUFFICIENT_CONTEXT) return;
+          inspected = inspectSessionGoalSubject(output);
+          if (inspected.subject) break;
+          if (attempt === 1) {
+            if (requestIsCurrent(request)) {
+              recordSessionGoalFailure(result, inspected.reason);
+            }
+            return;
+          }
         }
         try {
           await applySessionName(pi, request.ctx, inspected.subject, {
