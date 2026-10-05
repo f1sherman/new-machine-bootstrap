@@ -90,6 +90,39 @@ class CommandGuidanceEvalTest < Minitest::Test
     assert_includes result.fetch("failures"), "zsh: execution failed"
   end
 
+  def test_reports_missing_sandbox_as_infrastructure_failure
+    options = {pi: "/bin/false", provider: "test", model: "test", thinking: "medium",
+               set: "development", repeats: 1, jobs: 1, variants: ["compact-portable"]}
+    cases = JSON.parse(File.read(File.join(CommandGuidanceEval::ROOT,
+      "evals/command-guidance/cases.json"))).fetch("development")
+    guidance = File.read(File.join(CommandGuidanceEval::ROOT,
+      "evals/command-guidance/variants/compact-portable.md"))
+    Dir.mktmpdir("missing-sandbox-", CommandGuidanceEval::SCRATCH) do |dir|
+      options[:output] = dir
+      cases.each do |test_case|
+        record = {"provider" => "test", "model" => "test", "thinking" => "medium",
+                  "variant" => "compact-portable", "case" => test_case.fetch("id"), "repeat" => 1,
+                  "system_prompt" => "You are a coding assistant. Give terminal commands for a user to copy and paste.\n\n" + guidance,
+                  "prompt" => test_case.fetch("prompt") + "\nReturn only one shell code block with all required commands. Do not execute anything.",
+                  "response" => "```sh\nprintf ok\n```", "usage" => {"input" => 1}}
+        File.write(File.join(dir, "compact-portable-#{test_case.fetch('id')}-1.json"),
+          JSON.generate(record))
+      end
+      executable = File.method(:executable?)
+      begin
+        File.define_singleton_method(:executable?) do |path|
+          path == "/usr/bin/sandbox-exec" ? false : executable.call(path)
+        end
+        capture_io { refute CommandGuidanceEval.run(options) }
+      ensure
+        File.define_singleton_method(:executable?, executable)
+      end
+      summary = JSON.parse(File.read(File.join(dir, "summary.json"))).fetch("compact-portable")
+      assert_equal cases.length, summary.fetch("infrastructure_errors")
+      assert_equal 0, summary.fetch("passes")
+    end
+  end
+
   def test_times_out_runaway_commands
     result = grade("while :; do :; done")
     refute result.fetch("pass")

@@ -8,6 +8,8 @@ require "timeout"
 require "shellwords"
 
 module CommandGuidanceEval
+  class InfrastructureError < StandardError; end
+
   ROOT = File.expand_path("../..", __dir__)
   SCRATCH = File.join(ROOT, "tmp", "command-guidance")
   HOME = "/home/eval"
@@ -69,7 +71,7 @@ module CommandGuidanceEval
   end
 
   def self.grade(command, test_case)
-    raise "macOS sandbox-exec is required; refusing unsandboxed execution" unless File.executable?("/usr/bin/sandbox-exec")
+    raise InfrastructureError, "macOS sandbox-exec is required; refusing unsandboxed execution" unless File.executable?("/usr/bin/sandbox-exec")
     failures = []
     failures << "format: line exceeds 80 characters" if command.lines.any? { |line| line.chomp.length > 80 }
     failures << "format: heredoc is forbidden" if command.include?("<<")
