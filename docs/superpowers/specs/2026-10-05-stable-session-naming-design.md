@@ -24,4 +24,4 @@ Shorten the production description toward half its current length without changi
 
 ## Verification
 
-Run the existing managed-hook checks. Run the live eval suite with repeated trials against both descriptions. Confirm it can detect a deliberately wrong rename policy and fails on provider or parse errors. Apply with `bin/provision` and compare the deployed extension with the source. Keep the eval command, actual results, and limitations visible in the PR.
+Run the existing managed-hook checks. Run the live eval suite with repeated trials against both descriptions and leave-one-section-out ablations. Include an empty-description control and keep the name parameter schema unchanged. Score call behavior automatically and review durable-name quality separately. Record regressions and token changes; a negative control is not an ablation. Confirm the suite can detect a deliberately wrong rename policy and fails on provider or parse errors. Apply with `bin/provision` and compare the deployed extension with the source. Keep the eval command, actual results, and limitations visible in the PR.

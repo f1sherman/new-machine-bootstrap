@@ -86,5 +86,23 @@
     "request": "We are done with restoration. Switch this session to improving image editor reliability.",
     "calls": 1,
     "previousName": "Reliable workspace recovery"
+  },
+  {
+    "id": "name-compaction",
+    "context": "This is a new session. No deliberate session name has been selected.",
+    "request": "Make the Pi OpenAI compaction extension reliable while fixing overlay replay.",
+    "calls": 1
+  },
+  {
+    "id": "name-routing",
+    "context": "This is a new session. No deliberate session name has been selected.",
+    "request": "Improve Safari URL routing while ignoring companion panels.",
+    "calls": 1
+  },
+  {
+    "id": "name-inspected-reference",
+    "context": "This is a new session. No deliberate session name has been selected. Issue #42 was already inspected. Its description says the goal is safe repository cleanup, and the current failure is missing merge proof.",
+    "request": "Fix issue #42.",
+    "calls": 1
   }
 ]

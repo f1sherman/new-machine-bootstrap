@@ -11,11 +11,12 @@ const { values } = parseArgs({ options: {
   'compare-ref': { type: 'string' },
   'description-file': { type: 'string' },
   case: { type: 'string' },
+  ablate: { type: 'boolean' },
   output: { type: 'string', default: 'tmp/session-naming-eval.json' },
   help: { type: 'boolean' },
 } });
 if (values.help) {
-  console.log('Usage: node evals/session-naming/run.mjs --model <provider/model> [--trials 3] [--compare-ref <commit>] [--case <id>] [--description-file <path>] [--output <path>]');
+  console.log('Usage: node evals/session-naming/run.mjs --model <provider/model> [--trials 3] [--compare-ref <commit>] [--case <id>] [--description-file <path>] [--ablate] [--output <path>]');
   process.exit(0);
 }
 const model = values.model || process.env.PI_MODEL;
@@ -31,13 +32,30 @@ const baseline = values['compare-ref']
   ? execFileSync('git', ['rev-parse', '--verify', '--end-of-options', `${values['compare-ref']}^{commit}`], { cwd: root, encoding: 'utf8' }).trim()
   : undefined;
 const descriptionFile = values['description-file'] ? path.resolve(values['description-file']) : undefined;
-const variants = baseline ? [{ id: 'baseline', ref: baseline }, { id: 'current' }] : [{ id: 'current' }];
+const variants = baseline ? [{ id: 'baseline', ref: baseline }, { id: 'current', descriptionFile }] : [{ id: 'current', descriptionFile }];
+if (values.ablate) {
+  const definition = await loadDefinition();
+  const description = descriptionFile ? fs.readFileSync(descriptionFile, 'utf8') : definition.description;
+  const sections = description.split('\n\n');
+  if (sections.length !== 3) throw new Error('--ablate expects three sections: call threshold, side-task/context rules, name construction');
+  const ablations = [
+    { id: 'without-call-threshold', description: sections.slice(1).join('\n\n') },
+    { id: 'without-side-task-context', description: [sections[0], sections[2]].join('\n\n') },
+    { id: 'without-name-construction', description: sections.slice(0, 2).join('\n\n') },
+    { id: 'without-description', description: '' },
+  ];
+  for (const ablation of ablations) {
+    const file = `${output}.${ablation.id}.txt`;
+    fs.writeFileSync(file, ablation.description);
+    variants.push({ id: ablation.id, descriptionFile: file });
+  }
+}
 const report = { model, thinking: 'low', trials, startedAt: new Date().toISOString(), variants: [], results: [] };
 for (const variant of variants) {
   const definition = await loadDefinition(variant.ref);
-  const description = variant.id === 'current' && descriptionFile
-    ? fs.readFileSync(descriptionFile, 'utf8') : definition.description;
-  report.variants.push({ ...variant, descriptionFile: variant.id === 'current' ? descriptionFile : undefined,
+  const description = variant.descriptionFile
+    ? fs.readFileSync(variant.descriptionFile, 'utf8') : definition.description;
+  report.variants.push({ ...variant,
     descriptionCharacters: description.length,
     descriptionSha256: crypto.createHash('sha256').update(description).digest('hex'),
   });
@@ -50,7 +68,7 @@ async function evaluate(variant, scenario) {
   delete env.SESSION_NAMING_EVAL_REF;
   delete env.SESSION_NAMING_EVAL_DESCRIPTION_FILE;
   if (variant.ref) env.SESSION_NAMING_EVAL_REF = variant.ref;
-  if (variant.id === 'current' && descriptionFile) env.SESSION_NAMING_EVAL_DESCRIPTION_FILE = descriptionFile;
+  if (variant.descriptionFile) env.SESSION_NAMING_EVAL_DESCRIPTION_FILE = variant.descriptionFile;
   const pending = run('pi', [
     '--mode', 'json', '--no-session', '--no-extensions', '--no-skills',
     '--no-context-files', '--no-prompt-templates', '--no-themes', '--no-builtin-tools',
@@ -100,7 +118,9 @@ async function evaluate(variant, scenario) {
 try {
   for (let trial = 1; trial <= trials; trial++) {
     for (const scenario of cases) {
-      for (const variant of variants) {
+      const offset = (trial - 1) % variants.length;
+      const orderedVariants = [...variants.slice(offset), ...variants.slice(0, offset)];
+      for (const variant of orderedVariants) {
         let result;
         try {
           result = await evaluate(variant, scenario);
@@ -124,12 +144,20 @@ try {
     };
   });
   if (baseline) {
-    const [before, after] = report.summary;
+    const before = report.summary.find(row => row.variant === 'baseline');
+    const after = report.summary.find(row => row.variant === 'current');
     report.inputReduction = { meanTokens: before.meanFirstRequestInputTokens - after.meanFirstRequestInputTokens,
       percent: 100 * (1 - after.meanFirstRequestInputTokens / before.meanFirstRequestInputTokens) };
   }
+  if (values.ablate) {
+    const full = report.summary.find(row => row.variant === 'current');
+    report.ablations = report.summary.filter(row => row.variant.startsWith('without-')).map(row => ({
+      ...row, additionalFailures: full.passed - row.passed,
+      meanInputTokensSaved: full.meanFirstRequestInputTokens - row.meanFirstRequestInputTokens,
+    }));
+  }
   report.finishedAt = new Date().toISOString();
-  console.log(JSON.stringify({ summary: report.summary, inputReduction: report.inputReduction, report: output }, null, 2));
+  console.log(JSON.stringify({ summary: report.summary, inputReduction: report.inputReduction, ablations: report.ablations, report: output }, null, 2));
   process.exitCode = report.results.some(row => row.variant === 'current' && !row.passed) ? 1 : 0;
 } catch (error) {
   report.error = error.message;

@@ -47,3 +47,15 @@ The final live run used `openai/gpt-6.1-sol` with low thinking. Baseline and cur
 The evals rejected a permissive policy on incidental ticket filing. A first compressed candidate passed only 34/42: eight calls redundantly reapplied the current name. The final description explicitly gates calls, including same-name calls. Synthetic malformed JSON, provider errors, tool errors, missing usage, and incomplete streams all produced failures. Initial development also exposed a piped-stdin timeout; closing the child stdin fixed it.
 
 Recorded case results are in `evals/session-naming/results/2026-10-05.json`. Generated names were manually reviewed for broad-goal relevance. Existing hook checks and provisioning passed, and deployed source matched. The independent review launcher still failed before creating a run, so final review was parent-only. Passing samples do not guarantee future model behavior.
+
+## Ablation follow-up
+
+- [x] Add `--ablate` to remove each description paragraph separately and run an empty-description control. Keep the name parameter schema unchanged.
+- [x] Add three broad-name construction cases. Run the expanded 17-case suite over three trials for baseline, current, and four ablated variants (306 model requests). Rotate variant order by trial.
+- [x] Score observed calls automatically and grade the nine new name samples per variant manually against durable-goal relevance. Preserve all observed names and state the grading method.
+- [x] Record the results in `evals/session-naming/results/2026-10-05-ablations.json`.
+- [x] Add the global prompt-optimization rule in `roles/common/files/pi/AGENTS.md.d/00-base.md`: use baseline evals and leave-one-component-out ablations, record behavior/token changes, and retain untested safeguards.
+
+The intact baseline and compact descriptions passed 51/51 call-policy checks. Removing the call threshold passed 30/51; removing side-task/context rules passed 50/51; removing name-construction rules passed 51/51; removing the whole description passed 36/51. Manual broad-name quality passed 9/9 for intact and first-two-section ablations, 3/9 without name construction, and 2/9 without the description. Symptom/action-centered names were the semantic failures. The automatic score does not capture those failures.
+
+Retain all three sections. The compact description still saves 176 first-request input tokens (30.7%). The global rule clarifies that a wrong-policy negative control is not an ablation. These small, single-model samples are not a statistical-significance result or a held-out generalization test.
