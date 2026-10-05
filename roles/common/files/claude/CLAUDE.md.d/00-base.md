@@ -17,9 +17,94 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 * Scripts/snippets: write scripts in ruby; snippets in bash unless otherwise instructed.
 * JSON/YAML parsing: use `jq` or `yq`, never use python or ruby.
 * Fuzzy judgment: when logic needs semantic or human judgment, use an LLM/model call instead of keyword or regex heuristics.
-* Terminal commands: for commands intended for the user to copy and paste, keep every line at 80 characters or fewer. Use syntactically valid line breaks and continuation syntax. Never rely on visual wrapping. Never use heredocs in commands intended for user copy and paste. Use `printf`, repeated options, helper scripts, or direct file-editing tools instead.
+* Terminal commands: before sending commands for the user to copy and paste, apply the Terminal commands rules and examples below.
 * Testing: use Red/Green TDD only for meaningful behavior tests. A useful test fails for a plausible regression and survives harmless refactors. Do not add tautological tests that merely assert exact prose, YAML snippets, install-loop entries, docs wording, skill text, or command strings, except when the exact literal value is the user-facing behavior or compatibility contract. No test is better than a tautological test; use manual or end-to-end verification when no useful automated test exists.
 * Superpowers specs/plans commit step: check `git check-ignore -q docs/superpowers`. If ignored, skip commit — keep local. Never `git add -f` / `--force` on `docs/superpowers/`.
 * Temp files: prefer `./tmp` if exists, else `/tmp`
 * Errors: never silently swallow in code/scripts. Log at minimum.
 * Verification: end to end verify; confirm empirically.
+
+# Terminal commands
+
+Keep every command line at 80 characters or fewer. Use syntactically valid
+line breaks and continuation syntax. Never rely on visual wrapping. Never use
+heredocs in commands intended for user copy and paste. Use `printf`, repeated
+options, helper scripts, or direct file-editing tools instead.
+
+1. Put a `\` line continuation only between complete arguments. Never put it
+   inside a path, URL, quoted string, `--opt=value`, or `key=value` pair.
+   Keep option values attached to `=`.
+
+   Bad (splits the path into two arguments):
+
+   ```bash
+   cat ~/.config/rendered/\
+     service/config.yaml
+   ```
+
+   Correct:
+
+   ```bash
+   cat \
+     ~/.config/rendered/service/config.yaml
+   ```
+
+2. If one argument exceeds about 60 characters, keep it whole in a short shell
+   variable on its own line, then use a quoted expansion such as `"$f"`.
+   If the assignment would exceed 80 characters, build it with `printf` or
+   append whole path components to the variable. Never split the argument.
+
+   Bad:
+
+   ```bash
+   cat ~/.config/remote-environments/rendered/\
+     production/application/settings.yaml
+   ```
+
+   Correct:
+
+   ```bash
+   f="$HOME/.config/remote-environments/rendered"
+   f="$f/production/application/settings.yaml"
+   cat "$f"
+   ```
+
+3. Use literal line breaks inside quoted programs only where the program treats
+   newlines as whitespace, such as between expressions in a single-quoted
+   `jq` or `awk` program. Keep paths and data values free of inserted newlines.
+
+   Bad (inserts a newline and spaces into the path):
+
+   ```bash
+   cat "$HOME/.config/rendered/
+     service/config.yaml"
+   ```
+
+   Correct (newlines separate expressions in a program, not parts of a value):
+
+   ```bash
+   jq '
+     .items[]
+     | .metadata.name
+   ' input.json
+   ```
+
+4. Before sending a multi-line command, rejoin it as the shell does: remove each
+   unquoted `\` plus newline and retain the next line's indentation. Between
+   unquoted arguments, that indentation acts as whitespace. Check that every
+   intended argument remains whole. Do not assume the shell inserts a space;
+   quoted newlines remain literal unless the shell escapes them.
+
+   Bad (rejoins as `jsonpath=  '{.metadata.name}'`, two arguments):
+
+   ```bash
+   kubectl get pod example -o jsonpath=\
+     '{.metadata.name}'
+   ```
+
+   Correct (the format and template remain one argument):
+
+   ```bash
+   kubectl get pod example \
+     -o jsonpath='{.metadata.name}'
+   ```

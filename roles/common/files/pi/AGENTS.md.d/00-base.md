@@ -5,7 +5,7 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 * Follow the YAGNI principle.
 * Superpowers execution: use Native execution (`superpowers:executing-plans`) in the current session by default to save tokens, including when subagents are available. Use `subagent-driven-development` when Brian explicitly requests it. Apply this default to plan headers and handoffs; do not ask for an execution-mode choice. Keep verification and one final fresh-context branch review when authorized and available.
 * Subagents: use them only for complex implementation, parallel work, or independent review when their value exceeds coordination cost. Do small mechanical edits directly. The parent owns live provisioning, production inspection, runtime decisions, and user communication.
-* Terminal commands: for commands intended for the user to copy and paste, keep every line at 80 characters or fewer. Use syntactically valid line breaks and continuation syntax. Never rely on visual wrapping. Never use heredocs in commands intended for user copy and paste. Use `printf`, repeated options, helper scripts, or direct file-editing tools instead.
+* Terminal commands: before sending commands for the user to copy and paste, apply the Terminal commands rules and examples below.
 * Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.
 
 * Follow repository-local instructions first. Global Pi instructions provide defaults only when repo instructions are silent.
@@ -16,3 +16,88 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 * External contributions: treat repositories owned by `f1sherman`, the user, or the user's employer as first-party. Normal repository-local PR workflows are authorized in first-party repositories. A request to create, watch, or address a first-party PR includes in-scope follow-up commits, review replies, check reruns, and merge-readiness work; do not request renewed authorization as the PR content changes within that task. For other repositories, do not create or publish a pull request, issue, comment, release, or other contribution unless the user directly instructs you to do so. For a public third-party repository, always show the user the repository, contribution type, and exact proposed content. Get explicit authorization before publishing. If the destination, content, or contribution type changes, get authorization again. A task that needs an upstream dependency change is not permission to contribute to that upstream project. You may prepare the proposed change locally, but ask before publication. If ownership is otherwise unclear, treat the repository as third-party.
 * During spec or design work involving an existing system, consider Chesterton's Fence: understand why existing behavior or structure may exist before proposing changes.
 * Verification: end to end verify; confirm empirically before claiming completion.
+
+# Terminal commands
+
+Keep every command line at 80 characters or fewer. Use syntactically valid
+line breaks and continuation syntax. Never rely on visual wrapping. Never use
+heredocs in commands intended for user copy and paste. Use `printf`, repeated
+options, helper scripts, or direct file-editing tools instead.
+
+1. Put a `\` line continuation only between complete arguments. Never put it
+   inside a path, URL, quoted string, `--opt=value`, or `key=value` pair.
+   Keep option values attached to `=`.
+
+   Bad (splits the path into two arguments):
+
+   ```bash
+   cat ~/.config/rendered/\
+     service/config.yaml
+   ```
+
+   Correct:
+
+   ```bash
+   cat \
+     ~/.config/rendered/service/config.yaml
+   ```
+
+2. If one argument exceeds about 60 characters, keep it whole in a short shell
+   variable on its own line, then use a quoted expansion such as `"$f"`.
+   If the assignment would exceed 80 characters, build it with `printf` or
+   append whole path components to the variable. Never split the argument.
+
+   Bad:
+
+   ```bash
+   cat ~/.config/remote-environments/rendered/\
+     production/application/settings.yaml
+   ```
+
+   Correct:
+
+   ```bash
+   f="$HOME/.config/remote-environments/rendered"
+   f="$f/production/application/settings.yaml"
+   cat "$f"
+   ```
+
+3. Use literal line breaks inside quoted programs only where the program treats
+   newlines as whitespace, such as between expressions in a single-quoted
+   `jq` or `awk` program. Keep paths and data values free of inserted newlines.
+
+   Bad (inserts a newline and spaces into the path):
+
+   ```bash
+   cat "$HOME/.config/rendered/
+     service/config.yaml"
+   ```
+
+   Correct (newlines separate expressions in a program, not parts of a value):
+
+   ```bash
+   jq '
+     .items[]
+     | .metadata.name
+   ' input.json
+   ```
+
+4. Before sending a multi-line command, rejoin it as the shell does: remove each
+   unquoted `\` plus newline and retain the next line's indentation. Between
+   unquoted arguments, that indentation acts as whitespace. Check that every
+   intended argument remains whole. Do not assume the shell inserts a space;
+   quoted newlines remain literal unless the shell escapes them.
+
+   Bad (rejoins as `jsonpath=  '{.metadata.name}'`, two arguments):
+
+   ```bash
+   kubectl get pod example -o jsonpath=\
+     '{.metadata.name}'
+   ```
+
+   Correct (the format and template remain one argument):
+
+   ```bash
+   kubectl get pod example \
+     -o jsonpath='{.metadata.name}'
+   ```
