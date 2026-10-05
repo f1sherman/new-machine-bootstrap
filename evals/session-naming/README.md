@@ -118,7 +118,10 @@ otherwise passing current policy. Infrastructure errors still exit nonzero.
   response that starts after the cited issue's successful read result. A read
   and rename planned in the same response do not count as prior inspection.
 - Hidden behavioral tests execute the repaired scripts. The report must contain
-  the observed failure and must come from an actual `create_issue` call.
+  the observed failure and must come from an actual `create_issue` call. The
+  agent must also run a shell probe that invokes the branch picker and captures
+  its status. The completed, untruncated result must show the Git error and an
+  explicitly printed status 0; issue text alone does not prove reproduction.
 - Incomplete streams, disconnected sessions, missing usage, and failed
   naming/issue tools are infrastructure errors, not passing evals. Ordinary
   coding/test tool errors remain observable agent behavior.

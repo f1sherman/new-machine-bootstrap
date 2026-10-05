@@ -1,5 +1,6 @@
 """Hidden Harbor verifier for real work and Pi naming events."""
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -26,6 +27,25 @@ def read_issue_result(end):
         elif isinstance(value, dict) and value.get("id") == "issue-1" and value.get("title") and value.get("body"):
             return True
     return False
+
+
+def reproduced_bug(start, end):
+    if start.get("toolName") != "bash" or end.get("isError"):
+        return False
+    command = start.get("args", {}).get("command", "")
+    result = end.get("result", {}).get("structuredContent", {})
+    output = result.get("output", "")
+    if not isinstance(command, str) or not isinstance(output, str):
+        return False
+    script = command.find("git-switch-branch")
+    captured_status = command.find("$?", script)
+    return (
+        script >= 0 and captured_status > script
+        and type(result.get("exit_code")) is int and result["exit_code"] == 0
+        and result.get("truncated") is False
+        and "fatal: not a git repository" in output
+        and re.search(r"(?im)(?:\b|_)(?:exit[_ ]+)?(?:status|code)\s*[:=]\s*0\s*$", output) is not None
+    )
 
 
 def score_trace(events, session, index):
@@ -94,6 +114,7 @@ def score_trace(events, session, index):
             raise ValueError("Naming or issue tool failed")
     calls = [{"tool": e["toolName"], "args": e["args"]} for e in starts]
     naming_calls = [c for c in calls if c["tool"] == "set_session_name"]
+    reproduced = any(reproduced_bug(start, next(end for end in ends if end["toolCallId"] == start["toolCallId"])) for start in starts)
     valid_name = isinstance(name, str) and 0 < len(name.strip()) <= 80 and "\n" not in name
     inspected = [i for i, start in enumerate(starts) if read_issue_result(next(e for e in ends if e["toolCallId"] == start["toolCallId"]))]
     if index in (1, 2):
@@ -109,7 +130,7 @@ def score_trace(events, session, index):
                 result_positions[starts[i]["toolCallId"]] < rename_planned_at for i in inspected
             )
             naming = naming and bool(before) and name != before and inspected_before_planning
-    return {"naming": bool(naming), "inspectedIssue": bool(inspected), "beforeName": before, "name": name, "calls": calls, "usage": usage, "firstRequestInput": sum(messages[0]["usage"][key] for key in ("input", "cacheRead", "cacheWrite")), "sessionId": session[0]["id"]}
+    return {"naming": bool(naming), "inspectedIssue": bool(inspected), "reproducedBug": reproduced, "beforeName": before, "name": name, "calls": calls, "usage": usage, "firstRequestInput": sum(messages[0]["usage"][key] for key in ("input", "cacheRead", "cacheWrite")), "sessionId": session[0]["id"]}
 
 
 def run_check(command, destination):
@@ -134,7 +155,7 @@ def verify(index):
         issues = json.loads(Path("/workspace/.issues/issues.json").read_text())
         reports = [issue for issue in issues if "git-switch-branch" in issue["title"] + issue["body"] and "0" in issue["body"]]
         task = restored and len(reports) == 1 and not run_check(["bash", "/tests/branch-picker.sh"], "/logs/verifier/branch-picker.txt")
-        task = task and any(c["tool"] == "create_issue" for c in assessment["calls"])
+        task = task and assessment["reproducedBug"] and any(c["tool"] == "create_issue" for c in assessment["calls"])
     elif index == 2:
         readme = Path("/workspace/README.md").read_text().lower()
         task = restored and "manifest" in readme and ("selected" in readme or "selection" in readme) and len(readme) > 150

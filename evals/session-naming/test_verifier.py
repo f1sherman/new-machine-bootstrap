@@ -114,6 +114,34 @@ class TraceVerifierTest(unittest.TestCase):
     def test_later_response_started_before_read_result_fails_inspection(self):
         self.assertFalse(load_score()(*goal_fixture(planned_early=True), 4)["naming"])
 
+    def test_report_requires_observed_shell_reproduction(self):
+        events, session = fixture("bash")
+        command = 'tmp=$(mktemp -d); (cd "$tmp" && /workspace/bin/git-switch-branch); status=$?; printf "exit_status=%s\\n" "$status"; rmdir "$tmp"'
+        events[2]["args"] = {"command": command}
+        events[1]["message"]["content"][0]["arguments"] = events[2]["args"]
+        events[3]["result"] = {"structuredContent": {
+            "output": "fatal: not a git repository (or any of the parent directories): .git\nexit_status=0\n",
+            "exit_code": 0, "truncated": False}}
+        score = load_score()
+        self.assertTrue(score(events, session, 1).get("reproducedBug", False))
+        for output in ("exit_status=0\n", "fatal: not a git repository\n", "fatal: not a git repository\nexit_status=1\n"):
+            broken = copy.deepcopy(events)
+            broken[3]["result"]["structuredContent"]["output"] = output
+            self.assertFalse(score(broken, session, 1)["reproducedBug"])
+        broken = copy.deepcopy(events)
+        broken[3]["result"]["structuredContent"]["truncated"] = True
+        self.assertFalse(score(broken, session, 1)["reproducedBug"])
+        broken = copy.deepcopy(events)
+        broken[2]["args"]["command"] = 'printf "fatal: not a git repository\\nexit_status=0\\n"'
+        broken[1]["message"]["content"][0]["arguments"] = broken[2]["args"]
+        self.assertFalse(score(broken, session, 1)["reproducedBug"])
+
+    def test_issue_text_without_a_shell_probe_is_not_reproduction(self):
+        events, session = fixture("create_issue")
+        events[2]["args"]["body"] = "git-switch-branch: fatal: not a git repository; exit_status=0"
+        events[1]["message"]["content"][0]["arguments"] = events[2]["args"]
+        self.assertFalse(load_score()(events, session, 1).get("reproducedBug", True))
+
     def test_explicit_rename_requires_exact_name_and_persisted_effect(self):
         events, session = fixture("set_session_name")
         session.extend([
