@@ -123,6 +123,17 @@ class CommandGuidanceEvalTest < Minitest::Test
     end
   end
 
+  def test_timeout_covers_pipes_held_by_background_children
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    error = assert_raises(RuntimeError) do
+      CommandGuidanceEval.capture(["/bin/bash", "-c", "sleep 2 & printf ready"],
+        cwd: CommandGuidanceEval::ROOT, seconds: 0.1)
+    end
+    assert_includes error.message, "timeout"
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+    assert_operator elapsed, :<, 1.5
+  end
+
   def test_times_out_runaway_commands
     result = grade("while :; do :; done")
     refute result.fetch("pass")

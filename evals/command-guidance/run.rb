@@ -26,13 +26,20 @@ module CommandGuidanceEval
       stdin.close
       readers = [Thread.new { stdout.read }, Thread.new { stderr.read }]
       begin
-        Timeout.timeout(seconds) { status = wait.value }
+        Timeout.timeout(seconds) do
+          status = wait.value
+          out, err = readers.map(&:value)
+        end
       rescue Timeout::Error
-        Process.kill("KILL", -wait.pid) rescue Errno::ESRCH
-        wait.value
         raise "timeout after #{seconds}s"
       ensure
-        out, err = readers.map(&:value)
+        begin
+          Process.kill("KILL", -wait.pid)
+        rescue Errno::ESRCH
+          # The process group has already exited.
+        end
+        readers.each(&:kill)
+        readers.each(&:join)
       end
     end
     [out, err, status]
