@@ -114,8 +114,9 @@ otherwise passing current policy. Infrastructure errors still exit nonzero.
 - Incidental reporting and related continuation require no naming calls,
   including redundant same-name calls, and an unchanged persisted name.
 - Explicit rename requires one call and the exact persisted user-selected name.
-- Goal change requires one call, a different persisted name, and reading the
-  cited issue before naming it.
+- Goal change requires one call, a different persisted name, and a new model
+  response that starts after the cited issue's successful read result. A read
+  and rename planned in the same response do not count as prior inspection.
 - Hidden behavioral tests execute the repaired scripts. The report must contain
   the observed failure and must come from an actual `create_issue` call.
 - Incomplete streams, disconnected sessions, missing usage, and failed

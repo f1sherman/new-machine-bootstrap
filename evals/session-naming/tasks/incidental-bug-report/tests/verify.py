@@ -69,6 +69,19 @@ def score_trace(events, session, index):
     starts = [e for e in events if e.get("type") == "tool_execution_start"]
     ends = [e for e in events if e.get("type") == "tool_execution_end"]
     planned = [block for message in messages for block in message.get("content", []) if block.get("type") == "toolCall"]
+    planned_at = {}
+    response_start = None
+    result_positions = {}
+    for position, event in enumerate(events):
+        if event.get("type") == "message_start" and event.get("message", {}).get("role") == "assistant":
+            response_start = position
+        elif event.get("type") == "message_end" and event.get("message", {}).get("role") == "assistant":
+            for block in event["message"].get("content", []):
+                if block.get("type") == "toolCall":
+                    planned_at[block["id"]] = response_start
+            response_start = None
+        elif event.get("type") == "tool_execution_end":
+            result_positions[event["toolCallId"]] = position
     ids = [s["toolCallId"] for s in starts]
     if len(set(ids)) != len(ids) or sorted(ids) != sorted(e["toolCallId"] for e in ends) or sorted(ids) != sorted(p["id"] for p in planned):
         raise ValueError("Incomplete or inconsistent tool execution")
@@ -90,8 +103,12 @@ def score_trace(events, session, index):
         if index == 3:
             naming = naming and name == EXPLICIT_NAME
         if index == 4:
-            rename = next((i for i, call in enumerate(calls) if call["tool"] == "set_session_name"), -1)
-            naming = naming and bool(before) and name != before and bool(inspected) and inspected[0] < rename
+            rename = next((start for start in starts if start["toolName"] == "set_session_name"), None)
+            rename_planned_at = planned_at.get(rename["toolCallId"]) if rename else None
+            inspected_before_planning = rename_planned_at is not None and any(
+                result_positions[starts[i]["toolCallId"]] < rename_planned_at for i in inspected
+            )
+            naming = naming and bool(before) and name != before and inspected_before_planning
     return {"naming": bool(naming), "inspectedIssue": bool(inspected), "beforeName": before, "name": name, "calls": calls, "usage": usage, "firstRequestInput": sum(messages[0]["usage"][key] for key in ("input", "cacheRead", "cacheWrite")), "sessionId": session[0]["id"]}
 
 

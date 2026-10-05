@@ -38,6 +38,33 @@ def fixture(tool="create_issue", name="Ghostty restoration reliability"):
     return events, session
 
 
+def goal_fixture(batched=False, planned_early=False):
+    events, session = fixture("read")
+    session.extend({"type": "message", "message": {"role": "user", "content": "next"}} for _ in range(3))
+    session.append({"type": "session_info", "name": "Git branch picker reliability"})
+    report = {"id": "issue-1", "title": "Git branch picker", "body": "Outside a repository the exit status is 0."}
+    events[2]["args"] = {"path": "/workspace/.issues/issues.json"}
+    events[1]["message"]["content"][0]["arguments"] = events[2]["args"]
+    events[3]["result"] = {"content": [{"type": "text", "text": json.dumps([report])}]}
+    rename = {"type": "toolCall", "id": "call-2", "name": "set_session_name", "arguments": {"name": "Git branch picker reliability"}}
+    rename_message = copy.deepcopy(events[1])
+    rename_message["message"]["content"] = [rename]
+    start_message = {"type": "message_start", "message": {"role": "assistant", "content": []}}
+    rename_events = [
+        {"type": "tool_execution_start", "toolCallId": "call-2", "toolName": rename["name"], "args": rename["arguments"]},
+        {"type": "tool_execution_end", "toolCallId": "call-2", "toolName": rename["name"], "isError": False},
+    ]
+    prefix = [events[0], start_message, events[1], events[2]]
+    if batched:
+        events[1]["message"]["content"].append(rename)
+        tail = [events[3], *rename_events]
+    elif planned_early:
+        tail = [start_message, rename_message, events[3], *rename_events]
+    else:
+        tail = [events[3], start_message, rename_message, *rename_events]
+    return [*prefix, *tail, events[-1]], session
+
+
 class TraceVerifierTest(unittest.TestCase):
     def test_report_preserves_name_and_records_real_tool_execution(self):
         result = load_score()(*fixture(), 1)
@@ -79,18 +106,13 @@ class TraceVerifierTest(unittest.TestCase):
                 load_score()(events, session, 1)
 
     def test_goal_change_requires_actual_issue_inspection_before_naming(self):
-        events, session = fixture("read")
-        session.extend({"type": "message", "message": {"role": "user", "content": "next"}} for _ in range(3))
-        session.append({"type": "session_info", "name": "Git branch picker reliability"})
-        report = {"id": "issue-1", "title": "Git branch picker", "body": "Outside a repository the exit status is 0."}
-        events[3]["result"] = {"content": [{"type": "text", "text": json.dumps([report])}]}
-        rename = {"type": "toolCall", "id": "call-2", "name": "set_session_name", "arguments": {"name": "Git branch picker reliability"}}
-        events[1]["message"]["content"].append(rename)
-        events.insert(4, {"type": "tool_execution_start", "toolCallId": "call-2", "toolName": rename["name"], "args": rename["arguments"]})
-        events.insert(5, {"type": "tool_execution_end", "toolCallId": "call-2", "toolName": rename["name"], "isError": False})
-        self.assertTrue(load_score()(events, session, 4)["naming"])
-        events[2:6] = events[4:6] + events[2:4]
-        self.assertFalse(load_score()(events, session, 4)["naming"])
+        self.assertTrue(load_score()(*goal_fixture(), 4)["naming"])
+
+    def test_batched_read_and_rename_does_not_count_as_inspection(self):
+        self.assertFalse(load_score()(*goal_fixture(batched=True), 4)["naming"])
+
+    def test_later_response_started_before_read_result_fails_inspection(self):
+        self.assertFalse(load_score()(*goal_fixture(planned_early=True), 4)["naming"])
 
     def test_explicit_rename_requires_exact_name_and_persisted_effect(self):
         events, session = fixture("set_session_name")
