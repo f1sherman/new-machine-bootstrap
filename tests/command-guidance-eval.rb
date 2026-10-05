@@ -145,6 +145,38 @@ class CommandGuidanceEvalTest < Minitest::Test
     end
   end
 
+  def test_cleanup_accepts_permission_error_only_after_group_disappears
+    kill = Process.method(:kill)
+    begin
+      Process.define_singleton_method(:kill) do |signal, _pid|
+        raise Errno::EPERM if signal == "KILL"
+        raise Errno::ESRCH if signal == 0
+      end
+      out, _, status = CommandGuidanceEval.capture(["/bin/bash", "-c", "printf ready"],
+        cwd: CommandGuidanceEval::ROOT)
+      assert_equal "ready", out
+      assert status.success?
+    ensure
+      Process.define_singleton_method(:kill, kill)
+    end
+  end
+
+  def test_cleanup_does_not_ignore_permission_error_for_existing_group
+    kill = Process.method(:kill)
+    begin
+      Process.define_singleton_method(:kill) do |signal, _pid|
+        raise Errno::EPERM if signal == "KILL"
+        1 if signal == 0
+      end
+      assert_raises(Errno::EPERM) do
+        CommandGuidanceEval.capture(["/bin/bash", "-c", "printf ready"],
+          cwd: CommandGuidanceEval::ROOT)
+      end
+    ensure
+      Process.define_singleton_method(:kill, kill)
+    end
+  end
+
   def test_timeout_covers_pipes_held_by_background_children
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     error = assert_raises(RuntimeError) do

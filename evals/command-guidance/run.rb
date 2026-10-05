@@ -41,9 +41,18 @@ module CommandGuidanceEval
           Process.kill("KILL", -wait.pid)
         rescue Errno::ESRCH
           # The process group has already exited.
+        rescue Errno::EPERM => error
+          begin
+            Process.kill(0, -wait.pid)
+          rescue Errno::ESRCH
+            # Ignore the denial only when the group no longer exists.
+          else
+            raise error
+          end
+        ensure
+          readers.each(&:kill)
+          readers.each(&:join)
         end
-        readers.each(&:kill)
-        readers.each(&:join)
       end
     end
     [out, err, status]
