@@ -56,6 +56,11 @@ function M.new(dependencies)
         stopPoll(pollTimer)
         if not dependencies.launch(browser.bundleID) then
           dependencies.logError("Could not relaunch " .. browser.name .. " after update restart")
+        elseif controller.afterRelaunch then
+          local ok, err = pcall(controller.afterRelaunch, browser.bundleID)
+          if not ok then
+            dependencies.logError("After-relaunch hook failed for " .. browser.name .. ": " .. tostring(err))
+          end
         end
       elseif dependencies.now() >= deadline then
         stopPoll(pollTimer)
@@ -65,6 +70,8 @@ function M.new(dependencies)
     pollTimers[pollTimer] = true
   end
 
+  -- Local configuration may set afterRelaunch(bundleID) to reopen companion apps.
+  -- It runs only after a successful browser launch request.
   function controller.runNow()
     for _, browser in ipairs(browsers) do
       restart(browser)
