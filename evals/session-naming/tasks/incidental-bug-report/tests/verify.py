@@ -51,6 +51,22 @@ def reproduced_bug(start, end):
     )
 
 
+def ran_restoration_check(start, end):
+    if start.get("toolName") != "bash" or end.get("isError"):
+        return False
+    command = start.get("args", {}).get("command", "")
+    result = end.get("result", {}).get("structuredContent", {})
+    output = result.get("output", "")
+    if not isinstance(command, str) or not isinstance(output, str):
+        return False
+    invocation = re.search(r"(?:^|[\s;&|])ruby\s+(?:/workspace/|\./)?tests/restoration\.rb(?=$|[\s;&|])", command)
+    passed = re.search(r"(?m)^[1-9]\d* runs, [1-9]\d* assertions, 0 failures, 0 errors,", output)
+    return bool(
+        invocation and passed and result.get("truncated") is False
+        and type(result.get("exit_code")) is int and result["exit_code"] == 0
+    )
+
+
 def reproduced_branch_bug(events):
     """Require a completed shell probe before issue creation, not report prose."""
     starts = {e["toolCallId"]: e for e in events if e.get("type") == "tool_execution_start"}
@@ -131,6 +147,7 @@ def score_trace(events, session, index):
     calls = [{"tool": e["toolName"], "args": e["args"]} for e in starts]
     naming_calls = [c for c in calls if c["tool"] == "set_session_name"]
     reproduced = reproduced_branch_bug(events)
+    tested = any(ran_restoration_check(start, next(end for end in ends if end["toolCallId"] == start["toolCallId"])) for start in starts)
     valid_name = isinstance(name, str) and 0 < len(name.strip()) <= 80 and "\n" not in name
     inspected = [i for i, start in enumerate(starts) if read_issue_result(next(e for e in ends if e["toolCallId"] == start["toolCallId"]))]
     if index in (1, 2):
@@ -146,7 +163,7 @@ def score_trace(events, session, index):
                 result_positions[starts[i]["toolCallId"]] < rename_planned_at for i in inspected
             )
             naming = naming and bool(before) and name != before and inspected_before_planning
-    return {"naming": bool(naming), "inspectedIssue": bool(inspected), "reproducedBug": reproduced, "beforeName": before, "name": name, "calls": calls, "usage": usage, "firstRequestInput": sum(messages[0]["usage"][key] for key in ("input", "cacheRead", "cacheWrite")), "sessionId": session[0]["id"]}
+    return {"naming": bool(naming), "inspectedIssue": bool(inspected), "reproducedBug": reproduced, "ranRestorationCheck": tested, "beforeName": before, "name": name, "calls": calls, "usage": usage, "firstRequestInput": sum(messages[0]["usage"][key] for key in ("input", "cacheRead", "cacheWrite")), "sessionId": session[0]["id"]}
 
 
 def run_check(command, destination):
@@ -177,7 +194,7 @@ def verify(index):
     elif index == 2:
         readme = Path("/workspace/README.md").read_text().lower()
         task = restored and "manifest" in readme and ("selected" in readme or "selection" in readme) and len(readme) > 150
-        task = task and any(c["tool"] in ("edit", "write", "bash") for c in assessment["calls"])
+        task = task and assessment["ranRestorationCheck"]
     elif index == 4:
         task = restored and run_check(["bash", "/tests/branch-picker.sh"], "/logs/verifier/branch-picker.txt")
         task = task and assessment["inspectedIssue"]

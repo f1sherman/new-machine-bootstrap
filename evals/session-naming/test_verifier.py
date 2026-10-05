@@ -146,6 +146,56 @@ class TraceVerifierTest(unittest.TestCase):
             with self.subTest(args=args):
                 self.assertEqual(self.report_reward(*args), 0)
 
+    def continuation_reward(self, command=None, output="", is_error=False, truncated=False):
+        events, session = fixture("edit")
+        session.append({"type": "message", "message": {"role": "user", "content": "Continue restoration and rerun checks"}})
+        if command is not None:
+            args = {"command": command}
+            shell = [
+                {"type": "message_end", "message": {"role": "assistant", "stopReason": "toolUse",
+                 "usage": {"input": 10, "output": 2, "cacheRead": 0, "cacheWrite": 0},
+                 "content": [{"type": "toolCall", "id": "shell", "name": "bash", "arguments": args}]}},
+                {"type": "tool_execution_start", "toolCallId": "shell", "toolName": "bash", "args": args},
+                {"type": "tool_execution_end", "toolCallId": "shell", "toolName": "bash", "isError": is_error,
+                 "result": {"structuredContent": {"output": output, "exit_code": int(is_error), "truncated": truncated}}},
+            ]
+            events[-1:-1] = shell
+        module = load_verifier()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def sandbox(path):
+                return root / str(path).lstrip("/")
+            for path, content in {
+                "/logs/agent/pi.txt": "\n".join(json.dumps(e) for e in events),
+                "/logs/agent/pi/sessions/session.jsonl": "\n".join(json.dumps(e) for e in session),
+                "/workspace/README.md": "The manifest saver preserves the selected tab during restoration. " * 4,
+            }.items():
+                file = sandbox(path)
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_text(content)
+            sandbox("/logs/verifier").mkdir(parents=True)
+            with patch.object(module, "Path", side_effect=sandbox), patch.object(module, "run_check", return_value=True):
+                module.verify(2)
+            return json.loads(sandbox("/logs/verifier/reward.json").read_text())["task"]
+
+    def test_continuation_requires_a_successful_agent_restoration_check(self):
+        self.assertEqual(self.continuation_reward(), 0)
+        summary = "9 runs, 40 assertions, 0 failures, 0 errors, 0 skips\n"
+        command = "ruby tests/restoration.rb && git diff --check"
+        self.assertEqual(self.continuation_reward(command, summary), 1)
+        cases = [
+            ("cat tests/restoration.rb", summary, False, False),
+            ("ruby tests/other.rb", summary, False, False),
+            (command, "", False, False),
+            (command, summary.replace("0 failures", "1 failures"), False, False),
+            (command, "0 runs, 0 assertions, 0 failures, 0 errors, 0 skips\n", False, False),
+            (command, summary, True, False),
+            (command, summary, False, True),
+        ]
+        for args in cases:
+            with self.subTest(args=args):
+                self.assertEqual(self.continuation_reward(*args), 0)
+
     def test_redundant_same_name_call_fails_retention(self):
         events, session = fixture("set_session_name")
         events[2]["args"] = {"name": "Ghostty restoration reliability"}

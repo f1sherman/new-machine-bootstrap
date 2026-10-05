@@ -125,6 +125,10 @@ otherwise passing current policy. Infrastructure errors still exit nonzero.
   pinned public fixture byte for byte; another branch-test failure cannot hide
   a partial repair or broken selection. Issue text and the hidden branch check
   alone do not prove agent reproduction.
+- Restoration continuation requires a completed, successful agent invocation
+  of `ruby tests/restoration.rb`. Its untruncated result must show a nonempty
+  Minitest run with zero failures and errors. A README edit and the verifier's
+  own test run do not satisfy the requested rerun.
 - Incomplete streams, disconnected sessions, missing usage, and failed
   naming/issue tools are infrastructure errors, not passing evals. Ordinary
   coding/test tool errors remain observable agent behavior.
