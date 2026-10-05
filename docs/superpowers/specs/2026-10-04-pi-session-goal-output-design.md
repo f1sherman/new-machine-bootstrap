@@ -25,6 +25,6 @@ Use the production extension with forced invalid responses to prove recovery, bo
 - [x] Explore context and assess scope.
 - [x] Answer silent questions and record assumptions.
 - [x] Compare approaches and self-review the spec.
-- [ ] Commit spec, write and approve plan.
-- [ ] Execute, verify, and commit.
+- [x] Commit spec, write and approve plan.
+- [x] Execute and verify; implementation commit follows.
 - [ ] Review and open PR.

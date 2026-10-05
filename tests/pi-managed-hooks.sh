@@ -688,7 +688,7 @@ assert.deepEqual(publishedIdentity, {
 
 currentSessionName = "";
 const invalidGoalOutput = "private first line\nprivate second line\n";
-goalChildResultQueue.push(ok(invalidGoalOutput));
+goalChildResultQueue.push(ok(invalidGoalOutput), ok(invalidGoalOutput));
 const invalidGoalWarningIndex = warnings.length;
 await handlers.get("before_agent_start")({
   prompt: "prompt content must not be logged",
