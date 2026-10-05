@@ -14,6 +14,14 @@ Related implementation, debugging, verification, deployment, and review retain t
 
 Update only the model-facing description of `set_session_name` in `roles/common/files/pi/extensions/managed-hooks.ts`. Keep initial automatic naming, the explicit rename skill, and the mutation interface unchanged. Keep the existing subject and outcome naming guidance.
 
+## Live evals and prompt size
+
+Add opt-in live tool-call evals under `evals/session-naming/`. Load the production tool definition but replace execution with a harmless recording stub. Give each case its own in-memory Pi invocation, with no other tools, extensions, context files, or persisted sessions. Score observed calls rather than asking the model to classify cases. Require one valid call for initial naming, explicit renames, and clear goal changes; require zero calls for related work and incidental findings. An explicit user name must match exactly.
+
+Cover incidental tickets and reports, brief investigation, uncertainty, resume, user-selected names, provisional initial naming, explicit renames, and genuine goal changes. Run repeated trials against the current description and a selected Git revision. Keep the fixture expectations out of model context. Save model identity, calls, errors, and first-request provider usage to a report. Compare matched first-request input totals, including cache reads and writes; do not label this as a tokenizer count of the description alone.
+
+Shorten the production description toward half its current length without changing the approved threshold or the subject-and-outcome criteria. Use observed decisions and input-token usage to evaluate the trade-off. Evals require credentials and model calls, so keep them out of routine CI. Sample decisions are not a guarantee of future behavior.
+
 ## Verification
 
-Run the existing managed-hook checks. Use the actual registered description in a model spot-check for related work, incidental reporting, an ambiguous request, a resumed session, an explicit rename, and a clear broad-goal switch. Apply with `bin/provision` and compare the deployed extension with the source. These checks verify installation and sample decisions, not a guarantee of future model behavior.
+Run the existing managed-hook checks. Run the live eval suite with repeated trials against both descriptions. Confirm it can detect a deliberately wrong rename policy and fails on provider or parse errors. Apply with `bin/provision` and compare the deployed extension with the source. Keep the eval command, actual results, and limitations visible in the PR.
