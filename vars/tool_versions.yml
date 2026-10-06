@@ -12,7 +12,7 @@ tool_versions:
     # renovate: datasource=github-releases depName=neovim/neovim
     neovim: v0.12.5
     # renovate: datasource=github-releases depName=mikefarah/yq
-    yq: v4.53.6
+    yq: v4.54.1
     # renovate: datasource=github-releases depName=ajeetdsouza/zoxide
     zoxide: v0.10.0
     # renovate: datasource=github-releases depName=BarutSRB/OmniWM
