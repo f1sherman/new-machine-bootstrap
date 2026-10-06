@@ -81,6 +81,8 @@ node evals/harbor/run.mjs --replay tmp/commands-live \
 Replay makes no model or Docker calls. It validates every source trial's
 assessments, rewards, usage, expected steps, and continuity before regrading.
 Incomplete source evidence fails; replay does not repair it into a passing run.
+Completed replay rows are saved immediately, so a later failure retains earlier
+outcomes in the partial report.
 Command replay executes the hashed Ruby
 grader staged with the task, in the real macOS sandbox. Grading scratch stays
 outside the frozen task tree. Naming replay loads the hashed scorer from the staged task

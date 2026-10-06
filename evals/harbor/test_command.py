@@ -288,6 +288,22 @@ trial.mkdir(parents=True)
                 self.assertFalse(list(destination.rglob("replay.log")), "Validate the complete source before any regrading")
                 self.assertFalse(reward.exists())
 
+    def test_replay_saves_completed_rows_before_later_trace_failure(self):
+        source = asyncio.run(self.recorded_trials())
+        later = source / "jobs/none/long-path-1/long-path__fixture/agent/pi.txt"
+        events = [json.loads(line) for line in later.read_text().splitlines()]
+        later.write_text("\n".join(json.dumps(event) for event in events if event["type"] != "agent_settled"))
+        destination = self.directory / "partial-replay"
+        result = self.driver("--replay", source, "--output", destination)
+        self.assertNotEqual(result.returncode, 0)
+        report = json.loads((destination / "report.json").read_text())
+        self.assertTrue(report["errors"])
+        self.assertEqual(len(report["results"]), 1, "A later replay failure must preserve earlier completed outcomes")
+        self.assertEqual(report["results"][0]["condition"], "guidance")
+        self.assertTrue(report["results"][0]["passed"])
+        self.assertEqual((source / "jobs/guidance/long-path-1/long-path__fixture/verifier/assessment.json").read_text(),
+                         (destination / "jobs/guidance/long-path-1/long-path__fixture/verifier/assessment.json").read_text())
+
     def test_trial_collection_rejects_partial_command_rewards(self):
         source = asyncio.run(self.recorded_trials())
         trial = source / "jobs/guidance/long-path-1/long-path__fixture"

@@ -99,6 +99,8 @@ try {
     for (const variant of manifest.variants) for (const trial of findTrials(path.join(output, 'jobs', variant.id))) {
       const item = completedResult(trial).task_name;
       await execute(python, ['-m', 'evals.harbor.replay', '--suite', suite, '--task', path.join(output, 'tasks', variant.id, item), '--trial', trial], path.join(trial, 'replay.log'), env);
+      report.results.push(collectTrial(manifest, output, variant, trial));
+      save();
     }
   } else {
     const key = model.startsWith('openai/') ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY';
