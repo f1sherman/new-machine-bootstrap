@@ -93,6 +93,7 @@ function execute(binary, args, log, env) {
 }
 try {
   if (source) {
+    for (const variant of manifest.variants) collect(manifest, source, variant);
     const python = path.resolve(root, options.python);
     const env = { PATH: process.env.PATH, PYTHONPATH: root, PYTHONDONTWRITEBYTECODE: '1' };
     for (const variant of manifest.variants) for (const trial of findTrials(path.join(output, 'jobs', variant.id))) {

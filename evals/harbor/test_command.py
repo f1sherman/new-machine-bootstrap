@@ -274,6 +274,20 @@ trial.mkdir(parents=True)
         self.assertEqual((source / "jobs/guidance/long-path-1/long-path__fixture/verifier/assessment.json").read_text(),
                          (self.directory / "replay/jobs/guidance/long-path-1/long-path__fixture/verifier/assessment.json").read_text())
 
+    def test_replay_rejects_incomplete_source_before_regrading(self):
+        source = asyncio.run(self.recorded_trials())
+        reward = source / "jobs/guidance/long-path-1/long-path__fixture/verifier/reward.json"
+        reward.unlink()
+        for mode in ("regression", "compare"):
+            with self.subTest(mode=mode):
+                destination = self.directory / ("missing-reward-" + mode)
+                result = self.driver("--replay", source, "--mode", mode, "--output", destination)
+                self.assertNotEqual(result.returncode, 0, "Replay must not repair missing source evidence into PASS")
+                report = json.loads((destination / "report.json").read_text())
+                self.assertTrue(report["errors"])
+                self.assertFalse(list(destination.rglob("replay.log")), "Validate the complete source before any regrading")
+                self.assertFalse(reward.exists())
+
     def test_trial_collection_rejects_partial_command_rewards(self):
         source = asyncio.run(self.recorded_trials())
         trial = source / "jobs/guidance/long-path-1/long-path__fixture"
