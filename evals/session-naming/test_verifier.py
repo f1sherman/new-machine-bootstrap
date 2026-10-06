@@ -79,7 +79,7 @@ class TraceVerifierTest(unittest.TestCase):
         self.assertTrue(result["naming"])
         self.assertEqual(result["calls"][0]["tool"], "create_issue")
 
-    def report_reward(self, command=None, output=None, is_error=False, after_issue=False, branch_source=None):
+    def report_reward(self, command=None, output=None, is_error=False, after_issue=False, branch_source=None, report_kind="branch-picker"):
         events, session = fixture()
         if command is not None:
             args = {"command": command}
@@ -102,7 +102,9 @@ class TraceVerifierTest(unittest.TestCase):
             for path, content in {
                 "/logs/agent/pi.txt": "\n".join(json.dumps(e) for e in events),
                 "/logs/agent/pi/sessions/session.jsonl": "\n".join(json.dumps(e) for e in session),
-                "/workspace/.issues/issues.json": json.dumps([{"title": "git-switch-branch", "body": "Exit status 0"}]),
+                "/workspace/.issues/issues.json": json.dumps([
+                    {"title": "PR monitor stale status", "body": "Checks completed but the monitor still shows running."}
+                    if report_kind == "pr-monitor" else {"title": "git-switch-branch", "body": "Exit status 0"}]),
                 "/workspace/bin/git-switch-branch": BRANCH_PICKER.read_text() if branch_source is None else branch_source,
             }.items():
                 file = sandbox(path)
@@ -110,8 +112,12 @@ class TraceVerifierTest(unittest.TestCase):
                 file.write_text(content)
             sandbox("/logs/verifier").mkdir(parents=True)
             with patch.object(module, "Path", side_effect=sandbox), patch.object(module, "run_check", side_effect=[True, False]):
-                module.verify(1)
+                module.verify(1, report_kind=report_kind)
             return json.loads(sandbox("/logs/verifier/reward.json").read_text())["task"]
+
+    def test_monitor_report_accepts_the_supplied_symptoms_without_a_branch_probe(self):
+        self.assertEqual(self.report_reward(report_kind="pr-monitor"), 1)
+        self.assertEqual(self.report_reward(), 0)
 
     def test_report_requires_shell_reproduction_not_only_issue_text(self):
         self.assertEqual(self.report_reward(), 0)

@@ -7,6 +7,7 @@ import { loadDefinition, root } from './definition.mjs';
 
 const { values } = parseArgs({ options: {
   model: { type: 'string' }, trials: { type: 'string', default: '1' },
+  task: { type: 'string', default: 'incidental-bug-report' },
   'compare-ref': { type: 'string' }, ablate: { type: 'boolean' },
   'stage-only': { type: 'boolean' },
   'docker-subnet': { type: 'string' },
@@ -15,9 +16,12 @@ const { values } = parseArgs({ options: {
   help: { type: 'boolean' },
 } });
 if (values.help) {
-  console.log('Usage: node evals/session-naming/run.mjs --model provider/model\n  [--trials 1] [--compare-ref ref] [--ablate] [--stage-only]\n  [--harbor path] [--docker-subnet CIDR] [--output tmp/session-naming-harbor]');
+  console.log('Usage: node evals/session-naming/run.mjs --model provider/model\n  [--task incidental-bug-report|incidental-monitor-report]\n  [--trials 1] [--compare-ref ref] [--ablate] [--stage-only]\n  [--harbor path] [--docker-subnet CIDR] [--output tmp/session-naming-harbor]');
   process.exit(0);
 }
+const taskName = values.task;
+if (!['incidental-bug-report', 'incidental-monitor-report'].includes(taskName)) throw new Error('Unknown --task');
+const stepCount = taskName === 'incidental-monitor-report' ? 3 : 5;
 const model = values.model;
 if (!model || !/^(openai|anthropic)\/[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(model)) {
   throw new Error('Supply --model openai/model or anthropic/model explicitly; live runs make paid calls');
@@ -46,15 +50,19 @@ if (values.ablate) {
   );
 }
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
-const report = { startedAt: new Date().toISOString(), model, thinking: 'low', trials,
+const report = { startedAt: new Date().toISOString(), task: taskName, model, thinking: 'low', trials,
   harborVersion: '0.24.0', piVersion: '1.0.2', productionSha256: hash(fs.readFileSync(production)),
-  usageScope: 'All main-agent requests across five steps; automatic naming child usage is not captured by Harbor.',
+  usageScope: `All main-agent requests across ${stepCount} steps; automatic naming child usage is not captured by Harbor.`,
   variants: [], results: [], errors: [] };
 fs.mkdirSync(output, { recursive: true });
 const save = () => fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2) + '\n');
 for (const variant of variants) {
-  const task = path.join(output, 'tasks', variant.id, 'incidental-bug-report');
+  const task = path.join(output, 'tasks', variant.id, taskName);
   fs.cpSync(path.join(root, 'evals/session-naming/tasks/incidental-bug-report'), task, { recursive: true, filter: source => !source.includes('__pycache__') });
+  if (taskName === 'incidental-monitor-report') {
+    fs.renameSync(path.join(task, 'tests/verify.py'), path.join(task, 'tests/base_verify.py'));
+    fs.cpSync(path.join(root, 'evals/session-naming/tasks', taskName), task, { recursive: true, filter: source => !source.includes('__pycache__') });
+  }
   fs.mkdirSync(path.join(task, 'environment/project/tests'), { recursive: true });
   fs.copyFileSync(path.join(task, 'tests/restoration.rb'), path.join(task, 'environment/project/tests/restoration.rb'));
   fs.copyFileSync(production, path.join(task, 'environment/managed-hooks.ts'));
@@ -117,7 +125,7 @@ function collect(variant) {
     const trial = path.join(job, folder.name);
     const result = JSON.parse(fs.readFileSync(path.join(trial, 'result.json')));
     if (result.exception_info || result.step_results?.some(step => step.exception_info)) throw new Error(`Harbor infrastructure error in ${trial}/result.json`);
-    if (result.step_results?.length !== 5) throw new Error(`Incomplete workflow in ${trial}`);
+    if (result.step_results?.length !== stepCount) throw new Error(`Incomplete workflow in ${trial}`);
     const steps = result.step_results.map(step => {
       const directory = path.join(trial, 'steps', step.step_name);
       const assessment = JSON.parse(fs.readFileSync(path.join(directory, 'verifier/assessment.json')));
@@ -132,7 +140,7 @@ function collect(variant) {
   }
 }
 for (const variant of report.variants) {
-  console.log(`Running ${variant.id}: ${trials} five-step workflow(s)`);
+  console.log(`Running ${variant.id}: ${trials} ${stepCount}-step workflow(s)`);
   try {
     await run(['run', '--path', variant.task, '--agent', 'pi', '--model', model,
       '--agent-kwarg', 'version=1.0.2', '--agent-kwarg', 'thinking=low',
@@ -147,7 +155,7 @@ for (const variant of report.variants) {
     throw error;
   }
   save();
-  console.log(`${variant.id}: ${report.results.filter(result => result.variant === variant.id).map(result => `${result.namingPassed}/5 naming, ${result.tasksPassed}/5 task steps`).join('; ')}`);
+  console.log(`${variant.id}: ${report.results.filter(result => result.variant === variant.id).map(result => `${result.namingPassed}/${stepCount} naming, ${result.tasksPassed}/${stepCount} task steps`).join('; ')}`);
 }
 report.finishedAt = new Date().toISOString();
 const currentResults = report.results.filter(result => result.variant === 'current');

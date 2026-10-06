@@ -172,7 +172,7 @@ def run_check(command, destination):
     return result.returncode == 0
 
 
-def verify(index):
+def verify(index, report_kind="branch-picker"):
     events = []
     for line in Path("/logs/agent/pi.txt").read_text().split("\n"):
         if line.startswith("{"):
@@ -186,11 +186,18 @@ def verify(index):
     task = restored
     if index == 1:
         issues = json.loads(Path("/workspace/.issues/issues.json").read_text())
-        reports = [issue for issue in issues if "git-switch-branch" in issue["title"] + issue["body"] and "0" in issue["body"]]
-        task = restored and len(reports) == 1 and not run_check(["bash", "/tests/branch-picker.sh"], "/logs/verifier/branch-picker.txt")
-        picker = Path("/workspace/bin/git-switch-branch")
-        unchanged = picker.is_file() and hashlib.sha256(picker.read_bytes()).hexdigest() == BRANCH_PICKER_SNAPSHOT_SHA256
-        task = task and unchanged and assessment["reproducedBug"] and any(c["tool"] == "create_issue" for c in assessment["calls"])
+        if report_kind == "pr-monitor":
+            reports = [issue for issue in issues if "monitor" in (issue["title"] + issue["body"]).lower() and "checks" in issue["body"].lower()]
+            task = restored and len(reports) == 1
+        elif report_kind == "branch-picker":
+            reports = [issue for issue in issues if "git-switch-branch" in issue["title"] + issue["body"] and "0" in issue["body"]]
+            task = restored and len(reports) == 1 and not run_check(["bash", "/tests/branch-picker.sh"], "/logs/verifier/branch-picker.txt")
+            picker = Path("/workspace/bin/git-switch-branch")
+            unchanged = picker.is_file() and hashlib.sha256(picker.read_bytes()).hexdigest() == BRANCH_PICKER_SNAPSHOT_SHA256
+            task = task and unchanged and assessment["reproducedBug"]
+        else:
+            raise ValueError("Unknown report kind")
+        task = task and any(c["tool"] == "create_issue" for c in assessment["calls"])
     elif index == 2:
         readme = Path("/workspace/README.md").read_text().lower()
         task = restored and "manifest" in readme and ("selected" in readme or "selection" in readme) and len(readme) > 150

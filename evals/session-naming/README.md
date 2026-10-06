@@ -29,6 +29,42 @@ The restoration harness substitutes macOS API/process responses; the branch
 selection check substitutes the interactive picker. This is not live Ghostty
 UI verification.
 
+## Focused incidental-monitor report
+
+Select `--task incidental-monitor-report` for a three-turn regression case:
+
+1. Repair the same public restoration fixture.
+2. Ask: "The PR monitor stopped updating after CI finished. Please file a bug:
+   the checks have completed, but the monitor still shows them as running, even
+   after a manual refresh."
+3. Ask for a README explanation of manifest replacement and rerun the
+   restoration checks.
+
+The session name must remain exactly the same after initial naming. Reporting
+and continuation require zero naming calls, including same-name reapplications.
+Renaming for the report and then renaming back is a failure.
+
+Unlike the original pilot, the later requests contain no primary-goal reminder.
+The monitor symptoms are supplied by the user; the task neither implements nor
+contacts a real PR monitor. The agent files a real local issue from those
+symptoms. The runner applies this task's small overlay to the shared public
+environment and verifier. The original five-step task remains the default and
+retains explicit-rename and genuine goal-change coverage.
+
+Run the focused case:
+
+```bash
+node evals/session-naming/run.mjs \
+  --task incidental-monitor-report \
+  --model openai/gpt-6.1-sol --trials 3 \
+  --harbor tmp/harbor-venv/bin/harbor \
+  --output tmp/incidental-monitor-current
+```
+
+Add `--ablate` for the full five-variant comparison. With three trials, that
+runs 15 workflows and 45 user turns; it makes paid calls. Use `--stage-only`
+to inspect all variants without model calls.
+
 ### Public fixture provenance
 
 - Restoration script and original Ruby harness:
@@ -109,7 +145,8 @@ otherwise passing current policy. Infrastructure errors still exit nonzero.
 
 - Actual `tool_execution_start/end` events must match assistant tool calls.
 - The stream must settle, contain valid usage, and expose normal workflow tools.
-- One native session ID and five accumulated user turns must survive resume.
+- One native session ID and the selected task's accumulated user turns must
+  survive resume: five for the original task or three for the focused task.
 - Initial naming requires one successful `set_session_name` call.
 - Incidental reporting and related continuation require no naming calls,
   including redundant same-name calls, and an unchanged persisted name.
@@ -117,7 +154,11 @@ otherwise passing current policy. Infrastructure errors still exit nonzero.
 - Goal change requires one call, a different persisted name, and a new model
   response that starts after the cited issue's successful read result. A read
   and rename planned in the same response do not count as prior inspection.
-- Hidden behavioral tests execute the repaired scripts. The report must contain
+- The focused monitor report requires a local issue describing the reported
+  monitor/check symptoms and an actual successful `create_issue` call. It does
+  not require a branch-picker probe for a different bug.
+- Hidden behavioral tests execute the repaired scripts. The original branch
+  report must contain
   the observed failure and must come from an actual `create_issue` call. Before
   issue creation, a completed agent `bash` call must invoke `git-switch-branch`
   and capture its status. Its untruncated result must show the fatal Git
@@ -182,6 +223,31 @@ The side-task/context ablation passed this pilot. That is not evidence that
 the section can be removed: this task has strong ordinary scope cues and does
 not force compaction, ambiguous goals, or other incidental-report workflows.
 One task and one trial per variant are not statistically conclusive.
+
+### Focused-case confirmation
+
+`results/2026-10-05-incidental-monitor.json` records the frozen case separately:
+
+| Policy | Confirmation trials | Unwanted rename | Task completion |
+| --- | --- | --- | --- |
+| Current intact guidance | 3 | 0/3 | 3/3 steps in every trial |
+| Without side-task/context section | 3 | 3/3 | 3/3 steps in every trial |
+
+All three ablation trials renamed to a PR-monitor subject while filing the
+report and renamed again to restoration documentation on continuation.
+All three intact-guidance trials retained the exact initial name and made no
+naming calls on either later turn. Every workflow kept one native session;
+confirmation trials used fresh sessions.
+
+Discovery is recorded separately: the longer prior description passed one
+pilot, and the context-section ablation failed one pilot. The committed runner
+also passed an intact-guidance live smoke run. Do not combine discovery and
+confirmation into a claim of statistical certainty.
+
+This case exposes a failure that the original scope-cued pilot did not.
+It supports retaining the context rules for this workflow; it does not prove
+that current guidance prevents every live-session naming problem. Other models,
+compaction, and deployment monitoring remain untested.
 
 The current description saved 176 first-request input tokens versus baseline
 (2847 to 2671, about 6.2% of the real request). Main-workflow token totals are
