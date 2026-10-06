@@ -584,6 +584,17 @@
     - .config/mise
     - .config/aube
 
+- name: Check for external Pi runtime ownership
+  stat:
+    path: "{{ ansible_facts['user_dir'] }}/.config/new-machine-bootstrap/external-pi-runtime"
+  register: common_external_pi_runtime
+  tags: always
+
+- name: Set Pi runtime ownership
+  set_fact:
+    common_manage_pi_runtime: "{{ not common_external_pi_runtime.stat.exists }}"
+  tags: always
+
 - name: Install machine-wide mise and aube configuration
   template:
     src: "{{ item.src }}"
@@ -1356,12 +1367,13 @@
   command: bash {{ playbook_dir }}/roles/common/files/bin/purge-legacy-pi-coding-agent
   register: common_purge_legacy_pi
   changed_when: common_purge_legacy_pi.stdout.strip() == 'changed'
+  when: common_manage_pi_runtime
 
 - name: Install managed mise npm tools through aube
   command: >-
     {{ mise_bin }} install --yes
     'npm:@openai/codex@latest'
-    'npm:@earendil-works/pi-coding-agent@{{ tool_versions.runtimes.pi_coding_agent }}'
+    {{ ('npm:@earendil-works/pi-coding-agent@' ~ tool_versions.runtimes.pi_coding_agent) if common_manage_pi_runtime else '' }}
   environment:
     AUBE_PARANOID: "true"
     # Codex tracks "latest", so a release under the 24h paranoid age gate would
@@ -1406,6 +1418,7 @@
   retries: 3
   delay: 10
   changed_when: common_mise_pi_repair_result.stdout_lines | last == 'changed'
+  when: common_manage_pi_runtime
 
 - name: Install Pi async runtime dependencies
   shell: |
@@ -1430,6 +1443,7 @@
     AUBE_PARANOID: "true"
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   changed_when: false
+  when: common_manage_pi_runtime
 
 - name: Install pi-session-manager plugin for pi-coding-agent (macOS)
   command: >-
@@ -1629,6 +1643,7 @@
     NODE_PATH: "{{ (ansible_facts['os_family'] == 'Darwin') | ternary(common_aube_global_tools_node_path_macos.stdout, common_aube_global_tools_node_path_linux.stdout) }}"
   register: common_pi_coding_agent_global_node_link
   changed_when: common_pi_coding_agent_global_node_link.stdout.strip() == 'changed'
+  when: common_manage_pi_runtime
 
 # Symlink globally-installed Node package binaries into ~/.local/bin so they work
 # regardless of which Node version the current directory's mise.toml selects, and
@@ -1639,6 +1654,8 @@
   shell: |
     set -euo pipefail
     codex_bin="$("{{ mise_bin }}" where 'npm:@openai/codex')/bin/codex"
+    ln -sf "$codex_bin" "{{ ansible_facts['user_dir'] }}/.local/bin/codex"
+    if [[ "{{ common_manage_pi_runtime | bool | lower }}" == "false" ]]; then exit 0; fi
     pi_root="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')"
     pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
     pi_manifest="$pi_package_root/package.json"
@@ -1653,7 +1670,6 @@
     [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]] || { echo "Managed Pi package manifest has unexpected identity or version: $pi_manifest" >&2; exit 1; }
     pi_bin="$pi_package_root/dist/cli.js"
     [[ -x "$pi_bin" ]] || { echo "Managed Pi executable is missing or not executable: $pi_bin" >&2; exit 1; }
-    ln -sf "$codex_bin" "{{ ansible_facts['user_dir'] }}/.local/bin/codex"
     ln -sf "$pi_bin" "{{ ansible_facts['user_dir'] }}/.local/bin/pi"
   args:
     executable: /bin/bash

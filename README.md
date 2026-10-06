@@ -41,6 +41,14 @@ Requirements:
 - **Tools**: fzf, ripgrep, fd, bat, jq, yq, mise, and helper scripts
 - **AI tooling**: Claude Code, Codex CLI, and related local config
 
+## External Pi runtime ownership
+
+Provisioning normally installs its pinned Pi runtime through mise. If a separate installer owns Pi, complete and verify that installation first. Then create `~/.config/new-machine-bootstrap/external-pi-runtime` containing the absolute path to its `@earendil-works/pi-coding-agent` package root, followed by a newline.
+
+With this explicit marker, provisioning omits Pi from its mise configuration and skips Pi installation, repair, peer dependency installation, per-Node cleanup, and launcher replacement. Codex and shared agent configuration remain managed here. Existing runtime directories are retained; this transition does not delete files used by running sessions. Session staleness checks read the external package root instead of asking mise for Pi.
+
+The external installer must keep the marker current when it selects a new runtime. Remove the marker only when returning runtime ownership to this repository. A marker is an ownership choice, not a runtime installer or an automatic fallback.
+
 ## Testing
 
 ```bash
