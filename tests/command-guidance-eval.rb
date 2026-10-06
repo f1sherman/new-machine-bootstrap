@@ -131,6 +131,88 @@ class CommandGuidanceEvalTest < Minitest::Test
     end
   end
 
+  def native_grade(response, settled: true, tool_event: false,
+                   usage: {"input" => 9, "output" => 4}, actual_prompt: "fixture")
+    message = {"role" => "assistant", "stopReason" => "stop",
+               "content" => [{"type" => "text", "text" => response}],
+               "usage" => usage, "provider" => "fixture", "model" => "fixture"}
+    events = [{"type" => "message_end", "message" => {"role" => "system",
+                 "sections" => {"preamble" => "fixture", "cwd" => "fixture"}}},
+              {"type" => "message_end", "message" => {"role" => "user",
+                 "content" => [{"type" => "text", "text" => actual_prompt}]}},
+              {"type" => "message_end", "message" => message}]
+    events << {"type" => "tool_execution_start", "toolName" => "bash"} if tool_event
+    events << {"type" => "agent_settled"} if settled
+    request = {"events" => events.map { |e| JSON.generate(e) }.join("\n"),
+               "test_case" => {"calls" => [{"command" => "cat",
+                 "args" => ["/tmp/rendered/service/config.yaml"]}]},
+               "settings" => {"provider" => "fixture", "model" => "fixture",
+                 "thinking" => "medium", "system_prompt" => "fixture", "prompt" => "fixture"}}
+    FileUtils.mkdir_p(CommandGuidanceEval::SCRATCH)
+    Dir.mktmpdir("native-fixture-", CommandGuidanceEval::SCRATCH) do |dir|
+      input = File.join(dir, "request.json")
+      File.write(input, JSON.generate(request))
+      stdout, stderr, status = CommandGuidanceEval.capture(
+        [RbConfig.ruby, File.join(CommandGuidanceEval::ROOT,
+          "evals/command-guidance/grader.rb"), input], cwd: dir)
+      yield stdout, stderr, status
+    end
+  end
+
+  def test_native_stream_entry_point_grades_actual_arguments
+    native_grade("```sh\ncat /tmp/rendered/service/config.yaml\n```") do |out, err, status|
+      assert status.success?, err
+      refute_empty out, "native grader entry point must emit an assessment"
+      result = JSON.parse(out)
+      assert result.fetch("grade").fetch("pass"), result.inspect
+      result.fetch("grade").fetch("shells").each_value do |detail|
+        assert_equal [{"command" => "cat", "args" => ["/tmp/rendered/service/config.yaml"]}], detail.fetch("calls")
+      end
+    end
+  end
+
+  def test_native_stream_entry_point_retains_ungradable_response_and_usage
+    native_grade("No code fences.") do |out, err, status|
+      assert status.success?, err
+      refute_empty out, "native grader entry point must retain model evidence"
+      result = JSON.parse(out)
+      assert_equal "No code fences.", result.fetch("response")
+      assert_equal({"input" => 9, "output" => 4}, result.fetch("usage"))
+      assert result.fetch("grade").fetch("ungradable")
+      refute result.fetch("grade").fetch("pass")
+    end
+  end
+
+  def test_native_stream_entry_point_rejects_unsettled_trials
+    native_grade("```sh\ncat /tmp/rendered/service/config.yaml\n```", settled: false) do |out, _, status|
+      refute status.success?, "an incomplete stream must not produce a passing trial"
+      assert_match(/settled/, JSON.parse(out).fetch("infrastructure_error"))
+    end
+  end
+
+  def test_native_stream_entry_point_rejects_tool_using_trials
+    native_grade("```sh\ncat /tmp/rendered/service/config.yaml\n```", tool_event: true) do |out, _, status|
+      refute status.success?, "tool use violates isolated response generation"
+      assert_match(/tool/, JSON.parse(out).fetch("infrastructure_error"))
+    end
+  end
+
+  def test_native_stream_entry_point_rejects_invalid_usage
+    [{"output" => 4}, {"input" => -1, "output" => 4}].each do |usage|
+      native_grade("```sh\ncat /tmp/rendered/service/config.yaml\n```", usage: usage) do |out, _, status|
+        refute status.success?, "missing or invalid usage must not become a measured trial"
+        assert_match(/usage/, JSON.parse(out).fetch("infrastructure_error"))
+      end
+    end
+  end
+
+  def test_native_stream_entry_point_rejects_mismatched_prompt
+    native_grade("```sh\ncat /tmp/rendered/service/config.yaml\n```", actual_prompt: "different task") do |out, _, status|
+      refute status.success?, "a response to a different task must not be graded as this case"
+      assert_match(/prompt/, JSON.parse(out).fetch("infrastructure_error"))
+    end
+  end
+
   def test_evaluates_multiline_awk_program
     test_case = {"program" => "awk", "input" => "alpha 3\nbeta 4\n", "stdout" => "7\n"}
     assert CommandGuidanceEval.grade("awk '\n  { total += $2 }\n  END { print total }\n' input.txt", test_case).fetch("pass")
