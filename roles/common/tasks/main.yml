@@ -2615,6 +2615,13 @@
   register: pi_managed_skill_links
   changed_when: pi_managed_skill_links.stdout == 'changed'
 
+- name: Link shared eval-design skill to Pi
+  tags: managed-skills
+  file:
+    src: '{{ managed_skill_root }}/common/eval-design'
+    dest: '{{ ansible_facts["user_dir"] }}/.pi/agent/skills/eval-design'
+    state: link
+
 - name: Link AI Hero skills to all harnesses
   tags: managed-skills
   command:

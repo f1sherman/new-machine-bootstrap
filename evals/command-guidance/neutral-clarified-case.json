@@ -1,0 +1,7 @@
+{
+  "id": "neutral-jq-schema",
+  "prompt": "Give a jq -r command to print metadata.name for items whose ready field is true from input.json, which contains: {\"items\":[{\"ready\":true,\"metadata\":{\"name\":\"alpha\"}},{\"ready\":false,\"metadata\":{\"name\":\"beta\"}},{\"ready\":true,\"metadata\":{\"name\":\"gamma\"}}]}",
+  "program": "jq",
+  "input": "{\"items\":[{\"ready\":true,\"metadata\":{\"name\":\"alpha\"}},{\"ready\":false,\"metadata\":{\"name\":\"beta\"}},{\"ready\":true,\"metadata\":{\"name\":\"gamma\"}}]}",
+  "stdout": "alpha\ngamma\n"
+}

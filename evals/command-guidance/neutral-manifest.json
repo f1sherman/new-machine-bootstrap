@@ -1,0 +1,34 @@
+{
+  "frozen_at": "2026-10-06T15:35:25Z",
+  "question": "Does full terminal guidance improve compliance under task-only user prompts versus empty guidance?",
+  "models": [
+    "openai/gpt-6.1-sol",
+    "anthropic/claude-sonnet-4-6"
+  ],
+  "thinking": "medium",
+  "repeats": 3,
+  "case_count": 18,
+  "variants": [
+    "compact-portable",
+    "ablation-none"
+  ],
+  "expected_responses": 216,
+  "shuffle_seed": 631,
+  "jobs_per_model": 4,
+  "hashes": {
+    "evals/command-guidance/neutral-cases.json": "734ae2a4cd002dc44a87ba2c5c1d83d3c9159ff9e124cce8df41e52dc969805a",
+    "evals/command-guidance/run.rb": "adc529670773556b31ba329c073589aadb13d49878e38754618222b09a9c492a",
+    "evals/command-guidance/variants/compact-portable.md": "5280b0e4ac6c66a1f1b693e1f7731dc2ad0f03e082dbf9d66c674dd2fd4c2f53",
+    "evals/command-guidance/variants/ablation-none.md": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "preflight": {
+    "correct_constructions_accepted": 18,
+    "incorrect_constructions_rejected": 18
+  },
+  "limits": [
+    "Synthetic long-value-focused tasks, not representative workload frequencies.",
+    "Task structures reuse previously studied categories; not an unseen selection holdout.",
+    "Argument-only cases measure normalized call traces, not arbitrary CLI semantic equivalence.",
+    "Common one-code-block output contract is identical across conditions and is not a terminal-guidance rule."
+  ]
+}

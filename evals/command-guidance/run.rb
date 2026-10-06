@@ -58,11 +58,12 @@ module CommandGuidanceEval
     [out, err, status]
   end
 
-  def self.sandbox_profile(directory, writes: true)
+  def self.sandbox_profile(directory, writes: true, program: false)
     # Default-deny: only scratch and system runtimes are readable. No network.
     paths = [directory, "/usr", "/bin", "/System", "/Library", "/opt/homebrew"]
     reads = paths.map { |path| "(subpath #{path.to_json})" }.join(" ")
     executables = %w[/usr/bin/env /usr/bin/ruby /usr/bin/uname /usr/bin/awk /bin/bash /bin/zsh /opt/homebrew/bin/jq]
+    executables << "/bin/cat" if program
     execs = executables.map { |path| "(literal #{File.realpath(path).to_json})" }.join(" ")
     writable = writes ? "(subpath #{directory.to_json})" : ""
     "(version 1)(deny default)(allow process-fork)(allow process-info*)" \
@@ -101,7 +102,7 @@ module CommandGuidanceEval
     Dir.mktmpdir("grade-", SCRATCH) do |dir|
       bin = File.join(dir, "bin")
       FileUtils.mkdir_p(bin)
-      %w[cat kubectl curl tool].each do |name|
+      (test_case["program"] ? [] : %w[cat kubectl curl tool]).each do |name|
         File.write(File.join(bin, name), STUB)
         File.chmod(0o755, File.join(bin, name))
       end
@@ -114,8 +115,8 @@ module CommandGuidanceEval
         begin
           records = File.join(dir, "calls.jsonl")
           File.write(records, "")
-          args = ["/usr/bin/sandbox-exec", "-p", sandbox_profile(dir, writes: !test_case["no_files"]),
-                  "/usr/bin/env", "-i", "HOME=#{HOME}", "PATH=#{bin}:/opt/homebrew/bin:/usr/bin:/bin",
+          args = ["/usr/bin/sandbox-exec", "-p", sandbox_profile(dir, writes: !test_case["no_files"], program: !!test_case["program"]),
+                  "/usr/bin/env", "-i", "HOME=#{HOME}", "TMPDIR=#{dir}", "TMPPREFIX=#{dir}/zsh", "PATH=#{bin}:/opt/homebrew/bin:/usr/bin:/bin",
                   "/bin/#{shell}", "-f", "-eu", "-c", command]
           out, err, status = capture(args, cwd: dir, seconds: 3)
           details[shell] = {"stdout" => out, "stderr" => err, "status" => status.exitstatus, "signal" => status.termsig}
@@ -167,7 +168,8 @@ module CommandGuidanceEval
   end
 
   def self.run(options)
-    cases = JSON.parse(File.read(File.join(__dir__, "cases.json"))).fetch(options.fetch(:set))
+    case_file = options.fetch(:set) == "neutral" ? "neutral-cases.json" : "cases.json"
+    cases = JSON.parse(File.read(File.join(__dir__, case_file))).fetch(options.fetch(:set))
     variants = Dir[File.join(__dir__, "variants", "*.md")].sort.to_h { |path| [File.basename(path, ".md"), File.read(path)] }
     variants.select! { |name, _| options[:variants].include?(name) } if options[:variants]
     raise "no variants selected" if variants.empty?
@@ -240,7 +242,7 @@ if $PROGRAM_NAME == __FILE__
     parser.on("--provider NAME") { |v| options[:provider] = v }
     parser.on("--model NAME") { |v| options[:model] = v }
     parser.on("--thinking LEVEL") { |v| options[:thinking] = v }
-    parser.on("--set NAME", %w[development holdout validation]) { |v| options[:set] = v }
+    parser.on("--set NAME", %w[development holdout validation neutral]) { |v| options[:set] = v }
     parser.on("--variants LIST", Array) { |v| options[:variants] = v }
     parser.on("--repeats N", Integer) { |v| options[:repeats] = v }
     parser.on("--jobs N", Integer) { |v| options[:jobs] = v }

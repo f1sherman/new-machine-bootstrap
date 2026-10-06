@@ -5,7 +5,6 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 * Follow the YAGNI principle.
 * Superpowers execution: use Native execution (`superpowers:executing-plans`) in the current session by default to save tokens, including when subagents are available. Use `subagent-driven-development` when Brian explicitly requests it. Apply this default to plan headers and handoffs; do not ask for an execution-mode choice. Keep verification and one final fresh-context branch review when authorized and available.
 * Subagents: use them only for complex implementation, parallel work, or independent review when their value exceeds coordination cost. Do small mechanical edits directly. The parent owns live provisioning, production inspection, runtime decisions, and user communication.
-* Terminal commands: before sending commands for the user to copy and paste, apply the Terminal commands rules and examples below.
 * Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.
 
 * Follow repository-local instructions first. Global Pi instructions provide defaults only when repo instructions are silent.

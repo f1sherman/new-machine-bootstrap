@@ -4,7 +4,14 @@ This eval checks generated commands, not whether an agent repeats the rules.
 It compares frozen guidance candidates without loading existing personal or
 repository instructions. The selected text is `variants/compact-portable.md`.
 
-## Result
+The original `development`, `holdout`, and `validation` prompts repeat some
+terminal rules, such as narrow formatting and argument preservation. They are
+**prompted stress tests**, not clean tests of unsolicited adherence. Their
+candidate-selection and ablation evidence is retained with that scope.
+The separate `neutral` set removes these reminders. Its primary comparison and
+input-schema correction are described below.
+
+## Original result (prompted stress tests)
 
 The selected guidance has 106 words and 829 characters, versus 315 words and
 2,449 characters in the detailed version. It keeps one construction example.
@@ -58,7 +65,7 @@ Totals include uncached input, cache reads, and cache writes.
 This cuts guidance characters by 66%. Total prompt input falls by about 58%
 for the OpenAI run and 29% for Sonnet, whose provider overhead is larger.
 
-## Ablation results
+## Ablation results (prompted stress tests)
 
 A separate frozen experiment compared the full text with an **empty-guidance
 control** and eight single rule-group omissions: ten conditions total. It
@@ -140,6 +147,88 @@ remain fatal. The completed response was recovered from the original event
 stream, not regenerated. Final serial replays contain no infrastructure
 errors; failed attempts and the correction remain recorded separately.
 
+## Neutral-prompt comparison
+
+`neutral-cases.json` contains 18 task-only requests. They specify operations,
+options, and data, without width, indentation, wrapping, preservation, or
+construction reminders. The output task does not inherit the old stress case's
+no-helper-file restriction. Literal message data also avoids policy cues.
+The common one-shell-code-block output contract is identical in both conditions;
+it is not one of the terminal rules under study.
+
+`neutral-manifest.json` freezes the cases, grader, conditions, settings, and
+preflight before generation: full selected guidance versus empty guidance,
+three responses per case on both models at `medium` reasoning, **216 responses**.
+Eighteen known correct constructions were accepted and eighteen incorrect
+constructions were rejected before generation. The two conditions are shuffled
+with the same fixed seed per model. No candidate is tuned during this run.
+
+The first run exposed an underspecified jq input shape. That case is excluded
+from **all four primary conditions**, leaving 17 cases and 51 responses per
+condition. All 216 original responses and original 18-case scores remain in
+`neutral-results.json` as diagnostics. This exclusion followed inspection of the
+results; it was not preregistered. The runner's summary retains raw 18-case
+totals; the primary table removes that same case from each condition.
+
+| Model | Full combined | Empty combined | Full functional | Empty functional |
+| --- | ---: | ---: | ---: | ---: |
+| OpenAI | 51/51 | 12/51 | 51/51 | 51/51 |
+| Sonnet | 48/51 | 12/51 | 51/51 | 49/51 |
+
+The strongest observed effect is formatting. OpenAI kept arguments and program
+results correct with or without guidance; the control used longer command lines.
+Sonnet's remaining control failures changed `release=` into `--release=` and
+tried to execute a nonexistent `run` command. Its full-guidance failures were
+three oversized message assignments. These counts do not establish significance.
+
+A separately frozen 12-response follow-up supplies the complete JSON input in
+`neutral-clarified-case.json`. Both conditions passed 3/3 on both models. This
+is a post-inspection clarification, not unseen validation or a replacement for
+failed responses. The artifact records its protocol, usage, hashes, and all
+responses separately. Do not combine it with the 17-case primary totals.
+
+Reproduce that follow-up with a new output directory:
+
+```bash
+ruby evals/command-guidance/schema-followup.rb \
+  tmp/command-guidance/reproduce-neutral-schema
+```
+
+`neutral-results.json` separates combined compliance, functional correctness,
+format-policy outcomes, and ungradable responses. It retains per-case results,
+usage, stream hashes, and representative raw responses. Functional success means
+the declared normalized argument trace or real program output matched in both
+shells; it is not general proof of arbitrary CLI semantic equivalence.
+
+These synthetic tasks reuse previously studied categories and emphasize long
+values. They are not an unseen selection holdout or a representative sample of
+real command frequencies. Three responses per case are not independent case
+designs. This comparison does not estimate the value of individual clauses or
+the removed pointer line in the complete deployed instruction files.
+
+Run either model with a new output directory:
+
+```bash
+ruby evals/command-guidance/run.rb \
+  --provider openai --model gpt-6.1-sol \
+  --set neutral --variants compact-portable,ablation-none \
+  --output tmp/command-guidance/reproduce-neutral-openai
+```
+
+For Sonnet, use `--provider anthropic --model claude-sonnet-4-6` and a separate
+output directory. Defaults make 108 calls per model. Reuse the exact settings
+and directory with `--jobs 1` to replay saved responses without new calls.
+
+The grader now uses real `cat` in program-output cases, including pipelines
+and heredocs. Argument-only cases retain stand-ins. Bash and Zsh temporary files
+stay in scratch through `TMPDIR` and `TMPPREFIX`. Behavioral regressions verify
+that correct heredoc output can pass functionality while failing heredoc policy.
+The old no-helper-file case still denies scratch writes.
+
+Future eval work uses the shared `eval-design` skill. Its body loads only for
+eval tasks. It covers neutral prompts, isolated controls, grader validation,
+frozen experiments, and bounded conclusions.
+
 ## What is checked
 
 - Twelve development cases: long paths and URLs, spaces, option attachment,
@@ -173,11 +262,14 @@ or saved session. The runner replaces the system prompt and uses isolated
 calls. Normal provider credentials and model configuration remain available
 to Pi; they are not copied into result files.
 
-Generated code runs under a default-deny sandbox with an empty environment.
+Generated code runs under a default-deny sandbox with a minimal environment.
 Network access and writes outside scratch are denied. Executable access is
 limited to grading runtimes and stand-ins. Scratch and system runtime reads
 are allowed; other user files are not. `cat`, `curl`, `kubectl`, and `tool`
-are stand-ins that report arguments; they perform no real operation.
+are stand-ins in argument-only cases; they perform no real operation. Program
+cases use real `cat`, jq, awk, and shell output. The follow-up driver retains
+successful generations with invalid code-block format as failed/ungradable
+responses, not infrastructure errors, including their response and usage.
 Each shell process group has a three-second timeout.
 
 Treat the sandbox as defense in depth, not a proof against malicious native
@@ -269,7 +361,8 @@ iterations, not 684 passing calls. The separate ablation experiment adds 1,080
 responses and the grading retry history described above. Repeated provider responses can be correlated; three
 calls do not imply three statistically independent samples.
 
-These results show no observed regression on the tested cases. They do not
+The original comparisons show no observed regression on the tested prompted
+stress cases. They do not
 prove equal reliability across models, long conversations, tools, or all shell
 syntax. Revisit the guidance if real failures appear. Do not tune further on
 the final validation set and continue calling it a holdout.

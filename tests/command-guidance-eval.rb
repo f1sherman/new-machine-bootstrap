@@ -72,6 +72,59 @@ class CommandGuidanceEvalTest < Minitest::Test
     refute CommandGuidanceEval.grade("jq -r '.missing' input.json", test_case).fetch("pass")
   end
 
+  def test_program_results_use_real_cat_through_a_pipeline
+    test_case = {"program" => "jq", "input" => '{"name":"alpha"}',
+                 "stdout" => "alpha\n"}
+    result = CommandGuidanceEval.grade("cat input.json | jq -r '.name'", test_case)
+    assert result.fetch("pass"), result.inspect
+  end
+
+  def test_heredoc_policy_is_separate_from_program_output
+    test_case = {"program" => "shell", "stdout" => "alpha\nbeta\n"}
+    result = CommandGuidanceEval.grade("cat <<'EOF'\nalpha\nbeta\nEOF", test_case)
+    refute result.fetch("pass")
+    assert_equal ["format: heredoc is forbidden"], result.fetch("failures")
+    result.fetch("shells").each_value do |detail|
+      assert_equal "alpha\nbeta\n", detail.fetch("stdout")
+      assert_equal "", detail.fetch("stderr")
+      assert_equal 0, detail.fetch("status")
+    end
+  end
+
+  def test_followup_retains_ungradable_model_responses
+    FileUtils.mkdir_p(CommandGuidanceEval::SCRATCH)
+    Dir.mktmpdir("followup-fixture-", CommandGuidanceEval::SCRATCH) do |parent|
+      output = File.join(parent, "results")
+      fixture = <<~'RUBY'
+        require_relative "evals/command-guidance/run"
+        CommandGuidanceEval.define_singleton_method(:generate) do |policy, test_case, options, stem|
+          File.write(stem + ".events.jsonl", "captured transport fixture\n")
+          {"response" => "A successful response with no code fences.",
+           "usage" => {"input" => 9, "output" => 4},
+           "provider" => options.fetch(:provider), "model" => options.fetch(:model),
+           "thinking" => options.fetch(:thinking)}
+        end
+        load "evals/command-guidance/schema-followup.rb"
+      RUBY
+      stdout, stderr, status = CommandGuidanceEval.capture(
+        [RbConfig.ruby, "-e", fixture, output], cwd: CommandGuidanceEval::ROOT)
+      assert status.success?, "#{stdout}\n#{stderr}"
+      rows = JSON.parse(File.read(File.join(output, "summary.json")))
+      assert_equal 12, rows.length
+      assert_equal 0, rows.count { |r| r.key?("infrastructure_error") }
+      rows.each do |row|
+        assert_equal "A successful response with no code fences.", row.fetch("response")
+        assert_equal({"input" => 9, "output" => 4}, row.fetch("usage"))
+        refute row.fetch("grade").fetch("pass")
+        assert row.fetch("grade").fetch("ungradable")
+        assert_includes row.fetch("grade").fetch("failures").join, "expected exactly one shell code block"
+        assert row.fetch("stream_sha256")
+        stem = "#{row.fetch('provider')}-#{row.fetch('variant')}-#{row.fetch('repeat')}"
+        assert_equal row, JSON.parse(File.read(File.join(output, stem + ".json")))
+      end
+    end
+  end
+
   def test_evaluates_multiline_awk_program
     test_case = {"program" => "awk", "input" => "alpha 3\nbeta 4\n", "stdout" => "7\n"}
     assert CommandGuidanceEval.grade("awk '\n  { total += $2 }\n  END { print total }\n' input.txt", test_case).fetch("pass")
