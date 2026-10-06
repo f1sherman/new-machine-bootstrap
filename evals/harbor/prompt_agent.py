@@ -24,15 +24,15 @@ class PromptOnlyPi(Pi):
 
     async def install(self, environment) -> None:
         # The pinned Docker layer is shared; each trial only verifies its CLI.
-        await self.exec_as_agent(environment, command='test "$(pi --version)" = 1.0.2')
+        await self.exec_as_agent(environment, command=f'test "$(pi --version)" = {shlex.quote(self.options.version)}')
 
     async def run(self, instruction, environment, context: AgentContext) -> None:
         if (self.skills_dir or self.mcp_servers or self.load_trajectory
                 or self.options.prompt_template_path or self.options.max_turns
                 or self.options.config or self.options.model_api):
             raise ValueError("Prompt-only evals do not accept extra context or prompt features")
-        if self.options.version != "1.0.2" or self.options.thinking != "medium":
-            raise ValueError("Command evals require Pi 1.0.2 and medium thinking")
+        if not self.options.version or self.options.thinking != "medium":
+            raise ValueError("Command evals require an exact Pi version and medium thinking")
         provider, model = self.model_name.split("/", 1)
         access = self.model_connection
         if provider not in ("openai", "anthropic") or access.configured_base_url:

@@ -7,14 +7,14 @@ import { prepare, collect, collectTrial, findTrials, completedResult, root, read
 import { jobArguments } from './invocation.mjs';
 
 const { values: options } = parseArgs({ options: {
-  suite: { type: 'string' }, model: { type: 'string' }, trials: { type: 'string', default: '1' },
+  suite: { type: 'string' }, model: { type: 'string' }, trials: { type: 'string', default: '1' }, 'pi-version': { type: 'string' },
   cases: { type: 'string' }, conditions: { type: 'string' }, 'compare-ref': { type: 'string' }, ablate: { type: 'boolean' },
   mode: { type: 'string', default: 'regression' }, live: { type: 'boolean' }, replay: { type: 'string' },
   harbor: { type: 'string', default: 'tmp/harbor-venv/bin/harbor' }, python: { type: 'string', default: 'tmp/harbor-venv/bin/python' },
   'docker-subnet': { type: 'string' }, output: { type: 'string', default: 'tmp/harbor-evals' }, help: { type: 'boolean' },
 } });
 if (options.help) {
-  console.log('Usage: node evals/harbor/run.mjs --suite command-guidance|session-naming\n  --model provider/model [--cases ids] [--conditions ids] [--trials 1]\n  [--live | --replay tmp/prior-run] [--mode regression|compare]\n  [--ablate] [--compare-ref ref] [--harbor path] [--python path]\n  [--docker-subnet CIDR] [--output tmp/fresh-run]\nDefault: stage only. --live makes paid calls. Replay makes no model calls.');
+  console.log('Usage: node evals/harbor/run.mjs --suite command-guidance|session-naming\n  --model provider/model [--cases ids] [--conditions ids] [--trials 1]\n  [--live | --replay tmp/prior-run] [--mode regression|compare]\n  [--ablate] [--compare-ref ref] [--harbor path] [--python path]\n  [--pi-version X.Y.Z] [--docker-subnet CIDR] [--output tmp/fresh-run]\nDefault: stage only. --live makes paid calls. Replay makes no model calls.');
   process.exit(0);
 }
 if (!['regression', 'compare'].includes(options.mode)) throw Error('Unknown --mode');
@@ -35,7 +35,8 @@ const output = localPath(options.output);
 if (fs.existsSync(output)) throw Error('Use a fresh --output to preserve prior evidence');
 const source = options.replay ? localPath(options.replay) : null;
 const prior = source ? readJSON(path.join(source, 'manifest.json')) : null;
-if (prior && (options.suite || options.model || options.cases || options.conditions || options.ablate || options['compare-ref'])) throw Error('Replay uses its frozen manifest; do not override inputs');
+if (prior && (options.suite || options.model || options.cases || options.conditions || options.ablate || options['compare-ref'] || options['pi-version'])) throw Error('Replay uses its frozen manifest; do not override inputs');
+if (prior && prior.suite !== 'command-guidance') throw Error('Replay is supported only for command-guidance');
 const suite = prior?.suite ?? options.suite;
 const model = prior?.model ?? options.model;
 const trials = prior?.trials ?? Number(options.trials);
@@ -58,14 +59,18 @@ function hashes(directory) {
 }
 let manifest;
 if (source) {
-  if (prior.schemaVersion !== 1 || !['command-guidance', 'session-naming'].includes(suite)) throw Error('Unsupported replay manifest');
+  if (prior.schemaVersion !== 1) throw Error('Unsupported replay manifest');
   if (JSON.stringify(hashes(path.join(source, 'tasks'))) !== JSON.stringify(prior.inputHashes)) throw Error('Frozen staged inputs changed');
   fs.cpSync(path.join(source, 'tasks'), path.join(output, 'tasks'), { recursive: true });
   fs.cpSync(path.join(source, 'jobs'), path.join(output, 'jobs'), { recursive: true });
   manifest = prior;
 } else {
-  manifest = { schemaVersion: 1, model, trials, harborVersion: '0.24.0', piVersion: '1.0.2',
-    ...(await prepare(suite, { ...options, model }, output)) };
+  const piVersion = options['pi-version'] ?? execFileSync('ruby', ['-ryaml', '-e',
+    'puts YAML.safe_load(File.read(ARGV[0])).fetch("tool_versions").fetch("runtimes").fetch("pi_coding_agent")',
+    path.join(root, 'vars/tool_versions.yml')], { encoding: 'utf8' }).trim();
+  if (!/^\d+\.\d+\.\d+$/.test(piVersion)) throw Error('Use an exact Pi release: --pi-version X.Y.Z');
+  manifest = { schemaVersion: 1, model, trials, harborVersion: '0.24.0', piVersion,
+    ...(await prepare(suite, { ...options, model, piVersion }, output)) };
   manifest.inputHashes = hashes(path.join(output, 'tasks'));
 }
 if (options.mode === 'regression' && !manifest.variants.some(variant => variant.primary)) throw Error('Regression mode requires the primary guidance/current condition');
@@ -98,7 +103,7 @@ try {
     const env = { PATH: process.env.PATH, PYTHONPATH: root, PYTHONDONTWRITEBYTECODE: '1' };
     for (const variant of manifest.variants) for (const trial of findTrials(path.join(output, 'jobs', variant.id))) {
       const item = completedResult(trial).task_name;
-      await execute(python, ['-m', 'evals.harbor.replay', '--suite', suite, '--task', path.join(output, 'tasks', variant.id, item), '--trial', trial], path.join(trial, 'replay.log'), env);
+      await execute(python, ['-m', 'evals.harbor.command_verifier', '--task', path.join(output, 'tasks', variant.id, item), '--trial', trial], path.join(trial, 'replay.log'), env);
       report.results.push(collectTrial(manifest, output, variant, trial));
       save();
     }

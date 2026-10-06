@@ -46,3 +46,15 @@ class MacOSCommandVerifier(BaseVerifier):
         }
         self.trial_paths.reward_json_path.write_text(json.dumps(rewards) + "\n")
         return VerifierResult(rewards=rewards)
+
+
+if __name__ == "__main__":
+    import argparse
+    from harbor.models.task.task import Task
+    from harbor.models.trial.paths import TrialPaths
+
+    parser = argparse.ArgumentParser(description="Replay a copied command trial without model calls.")
+    parser.add_argument("--task", type=Path, required=True)
+    parser.add_argument("--trial", type=Path, required=True)
+    args = parser.parse_args()
+    asyncio.run(MacOSCommandVerifier(task=Task(args.task), trial_paths=TrialPaths(args.trial), environment=None).verify())

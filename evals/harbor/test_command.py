@@ -116,6 +116,7 @@ class CommandHarborTest(unittest.IsolatedAsyncioTestCase):
         capture = self.directory / "argv.json"
         fake = bindir / "pi"
         fake.write_text(f"#!{sys.executable}\nimport json,sys\nfrom pathlib import Path\n"
+                        "if sys.argv[1:] == ['--version']: print('9.8.7'); sys.exit(0)\n"
                         f"Path({str(capture)!r}).write_text(json.dumps(sys.argv[1:]))\n"
                         "print('native stdout')\nprint('native stderr',file=sys.stderr)\n")
         fake.chmod(0o755)
@@ -137,9 +138,10 @@ class CommandHarborTest(unittest.IsolatedAsyncioTestCase):
         agent = await asyncio.to_thread(
             PromptOnlyPi, logs_dir=logs, environment_logs_dir=PurePosixPath(logs),
             model_name="openai/fixture", system_prompt=system,
-            version="1.0.2", thinking="medium", extra_env={"OPENAI_API_KEY": "fixture-key"})
+            version="9.8.7", thinking="medium", extra_env={"OPENAI_API_KEY": "fixture-key"})
         await asyncio.to_thread(lambda: agent.model_connection)
         try:
+            await agent.install(Environment())
             await agent.run(prompt, Environment(), AgentContext())
         except Exception as error:
             stderr_file = logs / "pi.stderr"
@@ -154,6 +156,9 @@ class CommandHarborTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(args[args.index("--thinking") + 1], "medium")
         self.assertEqual((logs / "pi.txt").read_text(), "native stdout\n")
         self.assertEqual((logs / "pi.stderr").read_text(), "native stderr\n")
+        fake.write_text(fake.read_text().replace("print('9.8.7')", "print('1.0.2')"))
+        with self.assertRaisesRegex(RuntimeError, "exit 1"):
+            await agent.install(Environment())
 
     def driver(self, *args, env=None):
         if env is None:
@@ -169,6 +174,26 @@ class CommandHarborTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((output / "manifest.json").is_file())
         return output
+
+    def test_staging_resolves_one_pi_version_for_image_and_native_agent(self):
+        import yaml
+        managed = yaml.safe_load((ROOT / "vars/tool_versions.yml").read_text())["tool_versions"]["runtimes"]["pi_coding_agent"]
+        for version, extra in ((managed, []), ("1.0.2", ["--pi-version", "1.0.2"])):
+            with self.subTest(version=version):
+                output = self.directory / ("override" if extra else "managed")
+                result = self.driver("--suite", "command-guidance", "--model", "openai/fixture",
+                                     "--cases", "long-path", "--output", output, *extra)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                manifest = json.loads((output / "manifest.json").read_text())
+                self.assertEqual(manifest["piVersion"], version)
+                image = (output / "tasks/guidance/long-path/environment/Dockerfile").read_text()
+                self.assertIn(f"ARG PI_VERSION={version}\n", image)
+                code = ('import {jobArguments} from "./evals/harbor/invocation.mjs";'
+                        'const m=JSON.parse(process.argv[1]);'
+                        'console.log(JSON.stringify(jobArguments(m,"/fixture",m.variants[0],m.cases[0],1)));')
+                invoked = subprocess.run(["node", "--input-type=module", "-e", code, json.dumps(manifest)],
+                                         cwd=ROOT, text=True, capture_output=True, check=True)
+                self.assertIn(f"version={version}", json.loads(invoked.stdout))
 
     async def recorded_trials(self, primary_pass=True):
         output = self.staged_run()
@@ -328,36 +353,15 @@ trial.mkdir(parents=True)
         compare = self.driver("--replay", source, "--mode", "compare", "--output", self.directory / "comparison")
         self.assertEqual(compare.returncode, 0, compare.stderr)
 
-    async def test_naming_replay_uses_each_frozen_task_verifier(self):
-        from evals.harbor.replay import replay
-        for task_name, filename, persisted_name in (
-                ("incidental-bug-report", "verify.py", "retained"),
-                ("incidental-monitor-report", "base_verify.py", "changed")):
-            task = self.directory / task_name
-            (task / "tests").mkdir(parents=True)
-            (task / "tests" / filename).write_text(
-                'def score_trace(events, session, index):\n'
-                '    return {"naming": session[0]["name"] == events[0]["name"],\n'
-                '            "scorer": "frozen task", "sessionId": "fixture"}\n')
-            trial = self.directory / (task_name + "-trial")
-            step = trial / "steps/repair-restoration"
-            (step / "agent/pi/sessions").mkdir(parents=True)
-            (step / "verifier").mkdir()
-            (trial / "result.json").write_text(json.dumps({"step_results": [
-                {"step_name": "repair-restoration"}]}))
-            (step / "agent/pi.txt").write_text(json.dumps({"name": "retained"}) + "\n")
-            (step / "agent/pi/sessions/native.jsonl").write_text(json.dumps({"name": persisted_name}))
-            (step / "verifier/assessment.json").write_text(json.dumps({"task": True}))
-            try:
-                await replay("session-naming", task, trial)
-            except Exception as error:
-                self.fail(f"Replay must execute the frozen scorer for {task_name}: {error}")
-            assessment = json.loads((step / "verifier/assessment.json").read_text())
-            reward = json.loads((step / "verifier/reward.json").read_text())
-            self.assertEqual(assessment["scorer"], "frozen task")
-            self.assertEqual(reward["naming"], int(persisted_name == "retained"))
-            self.assertTrue(assessment["task"])
-            self.assertIn("not rerun", assessment["taskEvidence"])
+    def test_naming_replay_is_rejected_before_copying_evidence(self):
+        source = self.directory / "naming-source"
+        staged = self.driver("--suite", "session-naming", "--model", "openai/fixture", "--output", source)
+        self.assertEqual(staged.returncode, 0, staged.stderr)
+        destination = self.directory / "naming-replay"
+        result = self.driver("--replay", source, "--output", destination)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Replay is supported only for command-guidance", result.stderr)
+        self.assertFalse(destination.exists())
 
     def test_driver_rejects_missing_trial_evidence(self):
         source = asyncio.run(self.recorded_trials())

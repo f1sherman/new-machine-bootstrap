@@ -1,8 +1,9 @@
 # Session naming regression evals
 
 These opt-in evals observe a normal Pi agent doing repository work. Harbor
-**0.24.0** runs Pi **1.0.2** in Docker and continues one native session between
-user turns. Routine CI makes no model calls and runs no Harbor containers.
+**0.24.0** runs the resolved Pi version in Docker and continues one native
+session between user turns. Routine CI makes no model calls and runs no
+Harbor containers.
 
 ## Maintained cases
 
@@ -31,7 +32,8 @@ Ghostty UI tests or captured private conversations.
 ## Requirements and runs
 
 Use the [shared Harbor driver](../harbor/README.md) for installation,
-isolated credentials, staging, replay, and live execution. Run the focused case:
+isolated credentials, staging, version selection, and live execution. Naming
+replay is not supported. Run the focused case:
 
 ```bash
 node evals/harbor/run.mjs --suite session-naming \

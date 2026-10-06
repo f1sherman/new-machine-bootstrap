@@ -1,30 +1,27 @@
 # Shared Harbor eval driver
 
-One driver owns staging, isolated host configuration, trial scheduling,
-artifacts, replay, usage reporting, and regression/comparison exits. Harbor
-**0.24.0** owns the actual agent/environment/verifier lifecycle. There is no
-Harbor fork and no second live experiment loop.
+Harbor **0.24.0** owns agent/environment/verifier execution. One driver stages
+both suites, schedules trials, collects evidence, and sets regression exits.
+There is no Harbor fork or second live experiment loop.
 
-| Suite | Native execution contract | Verification |
+| Suite | Execution | Verification |
 | --- | --- | --- |
-| [command-guidance](../command-guidance/README.md) | Pi 1.0.2, medium thinking, one response; no tools/context/sessions | Custom host verifier invokes macOS Ruby/Bash/Zsh sandbox |
-| [session-naming](../session-naming/README.md) | Stock Pi adapter, low thinking, ordinary tools, native continuation | Existing hidden behavioral checks and trace grader |
+| [command-guidance](../command-guidance/README.md) | Medium thinking; one response; no tools/context/sessions | Native macOS Ruby/Bash/Zsh sandbox |
+| [session-naming](../session-naming/README.md) | Stock Pi adapter; low thinking; tools and native continuation | Existing hidden behavioral checks and trace grader |
 
 Production guidance, all 18 command prompts, and both naming workflows are
-unchanged. Command generation now runs in Docker instead of host scratch.
-The exact common system/user text and isolation flags are preserved; Pi's
-incidental CWD section now points to `/workspace`. Command grading is **not**
-ported to Linux. No expected naming decisions are added to agent prompts.
+unchanged. Command generation moves from host scratch to Docker; only Pi's
+incidental CWD section changes to `/workspace`. Command grading stays on macOS.
 
 ## Requirements
 
-Use Node.js, Python 3.12+, local Docker with Compose, and network access for
-image installation/live provider calls. Live runs require only the selected
-`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. Host OAuth, session, and agent config
-files are not mounted or copied. Command grading also requires the macOS tools
-listed in its suite README.
+Use Node.js, Ruby (including standard YAML), Python 3.12+, and local Docker with
+Compose. Image installation and live calls need network access. Live runs need
+only the selected `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. No host OAuth, session,
+or agent config files are mounted or copied. See the command suite's additional
+macOS grading requirements.
 
-Install Harbor in this checkout's ignored `tmp/`:
+Install Harbor under this checkout's ignored `tmp/`:
 
 ```bash
 mkdir -p tmp
@@ -34,22 +31,27 @@ UV_CACHE_DIR="$PWD/tmp/uv-cache" \
   uv pip install --python tmp/harbor-venv/bin/python 'harbor==0.24.0'
 ```
 
-Use an installed interpreter. If uv must download Python, first set
-`UV_PYTHON_INSTALL_DIR` under this repository's `tmp/`. The driver defaults to
-these Harbor/Python paths; `--harbor` and `--python` accept explicit overrides.
-The live driver checks Harbor's exact version before running trials.
+Use an installed Python, or set `UV_PYTHON_INSTALL_DIR` under `tmp/` before uv
+downloads it. `--harbor` and `--python` override the default installation paths.
+The driver checks Harbor's exact version before live trials.
 
-## Stage, run, and replay
+## Stage and run
 
-Staging is the default. It makes no Docker/model calls and needs no credential:
+Staging is the default: no Docker/model calls or credentials.
 
 ```bash
 node evals/harbor/run.mjs --suite command-guidance \
   --model openai/gpt-6.1-sol --output tmp/commands-stage
 ```
 
-Add `--live` explicitly for paid execution. Select cases/conditions with
-comma-separated lists, and use a fresh output directory each time:
+New runs resolve Pi from `tool_versions.runtimes.pi_coding_agent` in
+`vars/tool_versions.yml`. Use `--pi-version X.Y.Z` for a historical release.
+One resolved version controls the staged Docker image and Harbor adapter, and
+is recorded in `manifest.json`. Each run stays pinned even if the managed
+version changes later. Compare guidance with the same Pi version; do not
+attribute a version upgrade's effects to guidance.
+
+Add `--live` explicitly for paid calls. Select cases/conditions with CSV lists:
 
 ```bash
 node evals/harbor/run.mjs --suite command-guidance \
@@ -57,91 +59,66 @@ node evals/harbor/run.mjs --suite command-guidance \
   --output tmp/commands-live
 ```
 
-Default: one trial per selected case/condition, sequential execution. Conditions
-rotate across cases/trials. Each Harbor job owns one fresh response or complete
-multi-turn workflow. Before the next job, the driver validates that trial's
-assessments, rewards, expected steps, usage, and continuity. Naming steps continue
-through ordinary task/policy failures
-so later behavior remains observable. Counts show **user turns**, not a maximum
-billed-request count; naming can invoke automatic child requests.
+Default: one trial per case/condition, sequential execution. Conditions rotate
+across cases/trials. Each job owns a fresh response or complete naming workflow.
+The driver validates completed evidence before the next paid job and saves rows
+immediately. Naming continues through task/policy failures to observe later
+behavior. Planned user turns are **not** a billed-request limit; automatic
+naming-child requests and their usage are not captured.
 
-Host caches, configuration, and temporary files stay under ignored `tmp/`.
-Only the selected provider credential is forwarded. The driver uses a local
-Docker socket and does not change the daemon's configuration. If its address
-pool is exhausted, add `--docker-subnet CIDR` with an unused, non-overlapping
-subnet. The override applies only to eval networks.
+Host caches/config/temp files stay under ignored `tmp/`. Only the selected
+credential is forwarded. The driver uses a local Docker socket without changing
+the daemon. If needed, `--docker-subnet CIDR` selects an unused, non-overlapping
+subnet for eval networks only.
 
-Replay copies evidence to a fresh destination and uses frozen staged inputs:
+## Command replay and evidence
+
+Command replay preserves the existing ability to regrade saved responses:
 
 ```bash
 node evals/harbor/run.mjs --replay tmp/commands-live \
   --output tmp/commands-replay
 ```
 
-Replay makes no model or Docker calls. It validates every source trial's
-assessments, rewards, usage, expected steps, and continuity before regrading.
-Incomplete source evidence fails; replay does not repair it into a passing run.
-Completed replay rows are saved immediately, so a later failure retains earlier
-outcomes in the partial report.
-Command replay executes the hashed Ruby
-grader staged with the task, in the real macOS sandbox. Grading scratch stays
-outside the frozen task tree. Naming replay loads the hashed scorer from the staged task
-and rechecks traces and native continuity; **it does not rerun container
-behavioral tests**. It preserves and labels their captured
-task outcomes. Keep original evidence; do not use replay to conceal failed
-transport or rewrite input settings.
+Replay makes no Docker/model calls. It requires a fresh destination, validates
+source outcomes and frozen input hashes, and copies evidence before grading.
+It executes the staged Ruby grader in the real macOS sandbox, with scratch
+outside the task tree. Incomplete evidence fails; replay does not repair it into
+PASS. Completed rows survive later failures. Input/version overrides are rejected.
+**Naming replay is not supported:** use captured native results or a fresh live
+workflow. Keep original evidence rather than hiding transport or policy failures.
 
-`manifest.json` records the selected matrix, thinking, versions, conditions,
-and staged-file SHA-256 hashes. Replay rejects changed inputs. Raw job/trial
-results, SDK events, stderr, assessments, rewards, trajectories, and workspace
-artifacts remain under `jobs/<condition>/<job>/<trial>/`. They are ignored and
-are not Git-recoverable. Preserve them separately when needed.
+`manifest.json` records matrix, thinking, versions, conditions, and staged-file
+SHA-256 hashes. `jobs/<condition>/<job>/<trial>/` retains native results, events,
+stderr, assessments, rewards, trajectories, and workspace artifacts. Ignored
+artifacts are not Git-recoverable; preserve them separately when needed.
 
-`report.json` separates per-case policy/task outcomes, control/ablation results,
-and infrastructure errors. Regression mode (default) exits nonzero on any
-primary guidance/current failure. `--mode compare` permits model failures.
-**Both modes fail on missing, incomplete, or failed infrastructure evidence.**
-Control failures never conceal primary-policy failures. Usage is main-agent
-input/output/cache usage, not total billing; automatic naming-child usage is
-not captured. Broad-name quality remains a manual assessment.
+`report.json` separates primary policy/task outcomes, controls/ablations, and
+infrastructure errors. Regression exits nonzero on any primary failure;
+`--mode compare` permits policy failures. **Both modes fail on infrastructure
+errors.** Usage covers main-agent input/output/cache only, not total billing.
+Broad-name quality remains a manual assessment.
 
-## Verification and migration evidence
+## Verification
 
-Routine offline grader tests do not need Harbor, Docker, credentials, or calls:
+Offline tests make no model or Docker calls:
 
 ```bash
 ruby tests/command-guidance-eval.rb
 python3 -m unittest evals/session-naming/test_verifier.py
-```
-
-The optional Harbor boundary tests need the pinned installation but make no
-Docker/model calls. They exercise the adapter's real transport with a fake CLI,
-the native verifier factory, native CLI prompt serialization, grading failure
-classification, frozen naming-scorer selection, and credential-free replay/exit
-behavior:
-
-```bash
 PYTHONDONTWRITEBYTECODE=1 \
   tmp/harbor-venv/bin/python -m unittest evals.harbor.test_command
 ```
 
-Migration checks used frozen existing guidance, with no prompt tuning:
+The last command needs pinned Harbor and macOS. It checks native transport,
+verifier creation, exact prompt serialization, version propagation, frozen
+command grading, evidence failures, command replay, and exits.
 
-- **216 saved command responses** (108 per provider) reproduced exact grading,
-  per-shell observations, failure categories, response, usage, and settings.
-- The first four live responses exposed prompt-whitespace serialization and
-  job/trial collection errors. These were retained as infrastructure failures,
-  not policy scores. Native CLI serialization now has a red-green regression.
-- A fresh **four-response** command matrix (two cases × guidance/empty × one
-  trial) passed both guided cases; the empty control failed one format check.
-  All four had functional passes. Credential-free replay preserved outcomes.
-- Fresh current-policy naming smoke: both workflows passed **8/8 naming and
-  task steps**, with one continuous native session per workflow. Trace replay
-  also passed, while labeling behavioral outcomes as captured, not rerun.
-
-That is 16 live user turns during migration, including the four invalid command
-responses. Automatic naming-child usage is additional and not captured. These
-small samples verify transport and lifecycle boundaries, not statistical model
-parity, unseen workloads, universal naming quality, or guidance minimality.
-Historical naming confirmations and fixture provenance remain in its suite
-README. Raw local evidence is not committed.
+Migration checks on Pi **1.0.2**, without guidance tuning: 216 saved command
+responses (108 per provider) matched exact grading/settings/usage; a fresh
+four-response matrix passed both guided cases and all functional checks; both
+naming workflows passed 8/8 task/naming steps with native continuity. Four earlier
+responses exposed transport/collection errors and remain infrastructure failures.
+These 16 live user turns exclude automatic naming-child requests. They are
+bounded transport checks, not statistical parity or current-version results.
+Historical naming findings remain in the suite README; raw evidence is local.
