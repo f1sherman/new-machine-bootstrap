@@ -98,17 +98,31 @@ function currentHerdrWorkspaceId() {
   return process.env.HERDR_WORKSPACE_ID?.trim() || "";
 }
 
-async function renameCurrentHerdrTab(pi, name) {
+async function execHerdr(pi, args, ctx) {
+  const command = process.env.HERDR_BIN_PATH?.trim() || "herdr";
+  const result = await exec(pi, command, args);
+  if (result.code !== 0 || result.killed) {
+    const category = result.killed ? "timeout" : `exit ${result.code}`;
+    warn(`Herdr label synchronization failed (${args[0]} ${args[1]}): ${category}`);
+    ctx?.ui?.notify?.(
+      `Herdr label synchronization failed (${category}). The Pi session name is unchanged.`,
+      "warning",
+    );
+  }
+  return result;
+}
+
+async function renameCurrentHerdrTab(pi, name, ctx) {
   const tabId = currentHerdrTabId();
   if (!tabId) return false;
-  const result = await exec(pi, "herdr", ["tab", "rename", tabId, name]);
+  const result = await execHerdr(pi, ["tab", "rename", tabId, name], ctx);
   return result.code === 0 && !result.killed;
 }
 
-async function renameCurrentHerdrWorkspaceIfSingleTab(pi, name) {
+async function renameCurrentHerdrWorkspaceIfSingleTab(pi, name, ctx) {
   const workspaceId = currentHerdrWorkspaceId();
   if (!workspaceId) return false;
-  const result = await exec(pi, "herdr", ["workspace", "get", workspaceId]);
+  const result = await execHerdr(pi, ["workspace", "get", workspaceId], ctx);
   if (result.code !== 0 || result.killed) return false;
 
   let response;
@@ -119,13 +133,13 @@ async function renameCurrentHerdrWorkspaceIfSingleTab(pi, name) {
   }
   if (response?.result?.workspace?.tab_count !== 1) return false;
 
-  const renamed = await exec(pi, "herdr", ["workspace", "rename", workspaceId, name]);
+  const renamed = await execHerdr(pi, ["workspace", "rename", workspaceId, name], ctx);
   return renamed.code === 0 && !renamed.killed;
 }
 
-async function renameCurrentHerdrLabels(pi, name) {
-  const tabRenamed = await renameCurrentHerdrTab(pi, name);
-  const workspaceRenamed = await renameCurrentHerdrWorkspaceIfSingleTab(pi, name);
+async function renameCurrentHerdrLabels(pi, name, ctx) {
+  const tabRenamed = await renameCurrentHerdrTab(pi, name, ctx);
+  const workspaceRenamed = await renameCurrentHerdrWorkspaceIfSingleTab(pi, name, ctx);
   return tabRenamed || workspaceRenamed;
 }
 
@@ -1167,7 +1181,7 @@ async function canonicalSessionNameStatus(pi) {
 }
 
 async function clearPublishedSessionName(pi, ctx) {
-  const herdrCleared = await renameCurrentHerdrLabels(pi, "");
+  const herdrCleared = await renameCurrentHerdrLabels(pi, "", ctx);
   if (!ownsTmuxPane()) return herdrCleared;
   const status = await canonicalSessionNameStatus(pi);
   if (status.kind !== "non-branch"
@@ -1468,7 +1482,7 @@ export default function managedHooks(pi) {
     const liveName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
     if (liveName !== normalizedExpectedName) return false;
 
-    const herdrPublished = await renameCurrentHerdrLabels(pi, normalizedExpectedName);
+    const herdrPublished = await renameCurrentHerdrLabels(pi, normalizedExpectedName, ctx);
     if (!ownsTmuxPane()) return herdrPublished;
     return writeTmuxIdentity(pi, "manual", normalizedExpectedName);
   }
