@@ -41,6 +41,7 @@ class CommandHarborTest(unittest.IsolatedAsyncioTestCase):
         payload = {"settings": settings, "test_case": {"calls": [
             {"command": "cat", "args": ["/tmp/rendered/service/config.yaml"]}]}}
         (task_dir / "tests" / "case.json").write_text(json.dumps(payload))
+        (task_dir / "tests" / "grader.rb").write_bytes((ROOT / "evals/command-guidance/grader.rb").read_bytes())
         paths = TrialPaths(self.directory / "trial")
         paths.mkdir()
         message = {"role": "assistant", "stopReason": "stop", "provider": "openai",
@@ -70,6 +71,21 @@ class CommandHarborTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(assessment["usage"], {"input": 9, "output": 4})
         self.assertEqual(assessment["grade"]["shells"]["bash"]["calls"],
                          [{"command": "cat", "args": ["/tmp/rendered/service/config.yaml"]}])
+
+    async def test_command_verifier_executes_frozen_grader_without_mutating_task(self):
+        verifier, paths = self.task()
+        grader = self.directory / "case/tests/grader.rb"
+        grader.write_text(grader.read_text().replace('failures = []',
+                          'failures = ["format: frozen policy rejects this response"]'))
+        before = sorted(str(file.relative_to(self.directory / "case"))
+                        for file in (self.directory / "case").rglob("*") if file.is_file())
+        result = await verifier.verify()
+        self.assertEqual(result.rewards, {"reward": 0, "functional": 1, "format_policy": 0})
+        assessment = json.loads((paths.verifier_dir / "assessment.json").read_text())
+        self.assertIn("format: frozen policy rejects this response", assessment["grade"]["failures"])
+        after = sorted(str(file.relative_to(self.directory / "case"))
+                       for file in (self.directory / "case").rglob("*") if file.is_file())
+        self.assertEqual(before, after, "Host grading must not create scratch artifacts in frozen inputs")
 
     async def test_native_verifier_retains_ungradable_outputs_as_model_failures(self):
         verifier, paths = self.task(response="No code fences.")

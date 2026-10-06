@@ -76,8 +76,9 @@ node evals/harbor/run.mjs --replay tmp/commands-live \
   --output tmp/commands-replay
 ```
 
-Replay makes no model or Docker calls. Command replay executes the real macOS
-sandbox grader. Naming replay loads the hashed scorer from the staged task
+Replay makes no model or Docker calls. Command replay executes the hashed Ruby
+grader staged with the task, in the real macOS sandbox. Grading scratch stays
+outside the frozen task tree. Naming replay loads the hashed scorer from the staged task
 and rechecks traces and native continuity; **it does not rerun container
 behavioral tests**. It preserves and labels their captured
 task outcomes. Keep original evidence; do not use replay to conceal failed

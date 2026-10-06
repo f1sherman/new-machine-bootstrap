@@ -27,6 +27,7 @@ export async function prepare(suite, options, output) {
       write(path.join(task, 'task.toml'), 'schema_version = "1.3"\n[environment]\nbuild_timeout_sec = 600\ncpus = 1\nmemory_mb = 1024\n[agent]\ntimeout_sec = 180\n[verifier]\ntimeout_sec = 30\n');
       write(path.join(task, 'environment/Dockerfile'), fs.readFileSync(path.join(root, 'evals/harbor/command.Dockerfile')));
       write(path.join(task, 'tests/test.sh'), '#!/bin/sh\nprintf "%s\\n" "This task requires the macOS host verifier." >&2\nexit 1\n');
+      fs.copyFileSync(path.join(directory, 'grader.rb'), path.join(task, 'tests/grader.rb'));
       write(path.join(task, 'tests/case.json'), JSON.stringify({ test_case: item, settings: {
         provider: options.model.split('/')[0], model: options.model.split('/')[1], thinking: 'medium', system_prompt: variant.systemPrompt, prompt,
       } }, null, 2) + '\n');

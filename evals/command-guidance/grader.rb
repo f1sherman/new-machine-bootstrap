@@ -10,7 +10,7 @@ module CommandGuidanceEval
   class InfrastructureError < StandardError; end
 
   ROOT = File.expand_path("../..", __dir__)
-  SCRATCH = File.join(ROOT, "tmp", "command-guidance")
+  SCRATCH = ENV.fetch("COMMAND_GUIDANCE_EVAL_SCRATCH") { File.join(ROOT, "tmp", "command-guidance") }
   HOME = "/home/eval"
   STUB = <<~'RUBY'
     #!/usr/bin/ruby --disable-gems

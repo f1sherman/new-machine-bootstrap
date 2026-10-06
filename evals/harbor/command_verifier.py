@@ -20,8 +20,9 @@ class MacOSCommandVerifier(BaseVerifier):
         # Trusted grading code gets no model credentials; generated shell code is
         # further isolated by the grader's default-deny macOS sandbox and env -i.
         env = {key: os.environ[key] for key in ("PATH", "LANG", "TMPDIR") if key in os.environ}
+        env["COMMAND_GUIDANCE_EVAL_SCRATCH"] = str(ROOT / "tmp/command-guidance")
         process = await asyncio.create_subprocess_exec(
-            "ruby", str(ROOT / "evals/command-guidance/grader.rb"), str(request_path),
+            "ruby", str(self.task.paths.tests_dir / "grader.rb"), str(request_path),
             cwd=ROOT, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         )
         try:
