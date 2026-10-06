@@ -91,9 +91,9 @@ class CommandGuidanceEvalTest < Minitest::Test
     end
   end
 
-  def test_followup_retains_ungradable_model_responses
+  def test_runner_retains_ungradable_model_responses
     FileUtils.mkdir_p(CommandGuidanceEval::SCRATCH)
-    Dir.mktmpdir("followup-fixture-", CommandGuidanceEval::SCRATCH) do |parent|
+    Dir.mktmpdir("runner-fixture-", CommandGuidanceEval::SCRATCH) do |parent|
       output = File.join(parent, "results")
       fixture = <<~'RUBY'
         require_relative "evals/command-guidance/run"
@@ -104,22 +104,28 @@ class CommandGuidanceEvalTest < Minitest::Test
            "provider" => options.fetch(:provider), "model" => options.fetch(:model),
            "thinking" => options.fetch(:thinking)}
         end
-        load "evals/command-guidance/schema-followup.rb"
+        exit(CommandGuidanceEval.run(pi: "unused", provider: "fixture", model: "fixture",
+          thinking: "medium", repeats: 1, jobs: 2, variants: ["guidance"], output: ARGV.fetch(0)) ? 0 : 1)
       RUBY
       stdout, stderr, status = CommandGuidanceEval.capture(
         [RbConfig.ruby, "-e", fixture, output], cwd: CommandGuidanceEval::ROOT)
       assert status.success?, "#{stdout}\n#{stderr}"
-      rows = JSON.parse(File.read(File.join(output, "summary.json")))
-      assert_equal 12, rows.length
-      assert_equal 0, rows.count { |r| r.key?("infrastructure_error") }
+      summary = JSON.parse(File.read(File.join(output, "summary.json"))).fetch("guidance")
+      rows = Dir[File.join(output, "guidance-*.json")].map { |p| JSON.parse(File.read(p)) }
+      cases = JSON.parse(File.read(File.join(CommandGuidanceEval::ROOT, "evals/command-guidance/cases.json")))
+      assert_equal cases.length, rows.length
+      assert_equal 0, summary.fetch("infrastructure_errors")
+      assert_equal cases.length, summary.fetch("ungradable_responses")
+      assert_equal 0, summary.fetch("functional_passes")
+      assert_equal 0, summary.fetch("format_policy_passes")
       rows.each do |row|
         assert_equal "A successful response with no code fences.", row.fetch("response")
         assert_equal({"input" => 9, "output" => 4}, row.fetch("usage"))
         refute row.fetch("grade").fetch("pass")
         assert row.fetch("grade").fetch("ungradable")
         assert_includes row.fetch("grade").fetch("failures").join, "expected exactly one shell code block"
-        assert row.fetch("stream_sha256")
-        stem = "#{row.fetch('provider')}-#{row.fetch('variant')}-#{row.fetch('repeat')}"
+        stem = "#{row.fetch('variant')}-#{row.fetch('case')}-#{row.fetch('repeat')}"
+        assert_equal "captured transport fixture\n", File.read(File.join(output, stem + ".events.jsonl"))
         assert_equal row, JSON.parse(File.read(File.join(output, stem + ".json")))
       end
     end
@@ -128,14 +134,6 @@ class CommandGuidanceEvalTest < Minitest::Test
   def test_evaluates_multiline_awk_program
     test_case = {"program" => "awk", "input" => "alpha 3\nbeta 4\n", "stdout" => "7\n"}
     assert CommandGuidanceEval.grade("awk '\n  { total += $2 }\n  END { print total }\n' input.txt", test_case).fetch("pass")
-  end
-
-  def test_rejects_helper_files_when_case_forbids_them
-    test_case = {"program" => "shell", "no_files" => true,
-                 "input" => "", "stdout" => "alpha\nbeta\n"}
-    assert CommandGuidanceEval.grade("printf '%s\\n' alpha beta", test_case).fetch("pass")
-    command = "printf '%s\\n' alpha beta > out; /usr/bin/awk '{print}' out"
-    refute CommandGuidanceEval.grade(command, test_case).fetch("pass")
   end
 
   def test_denies_writes_outside_scratch
@@ -166,21 +164,21 @@ class CommandGuidanceEvalTest < Minitest::Test
 
   def test_reports_missing_sandbox_as_infrastructure_failure
     options = {pi: "/bin/false", provider: "test", model: "test", thinking: "medium",
-               set: "development", repeats: 1, jobs: 1, variants: ["compact-portable"]}
+               repeats: 1, jobs: 1, variants: ["guidance"]}
     cases = JSON.parse(File.read(File.join(CommandGuidanceEval::ROOT,
-      "evals/command-guidance/cases.json"))).fetch("development")
+      "evals/command-guidance/cases.json")))
     guidance = File.read(File.join(CommandGuidanceEval::ROOT,
-      "evals/command-guidance/variants/compact-portable.md"))
+      "evals/command-guidance/variants/guidance.md"))
     FileUtils.mkdir_p(CommandGuidanceEval::SCRATCH)
     Dir.mktmpdir("missing-sandbox-", CommandGuidanceEval::SCRATCH) do |dir|
       options[:output] = dir
       cases.each do |test_case|
         record = {"provider" => "test", "model" => "test", "thinking" => "medium",
-                  "variant" => "compact-portable", "case" => test_case.fetch("id"), "repeat" => 1,
+                  "variant" => "guidance", "case" => test_case.fetch("id"), "repeat" => 1,
                   "system_prompt" => "You are a coding assistant. Give terminal commands for a user to copy and paste.\n\n" + guidance,
                   "prompt" => test_case.fetch("prompt") + "\nReturn only one shell code block with all required commands. Do not execute anything.",
                   "response" => "```sh\nprintf ok\n```", "usage" => {"input" => 1}}
-        File.write(File.join(dir, "compact-portable-#{test_case.fetch('id')}-1.json"),
+        File.write(File.join(dir, "guidance-#{test_case.fetch('id')}-1.json"),
           JSON.generate(record))
       end
       executable = File.method(:executable?)
@@ -192,7 +190,7 @@ class CommandGuidanceEvalTest < Minitest::Test
       ensure
         File.define_singleton_method(:executable?, executable)
       end
-      summary = JSON.parse(File.read(File.join(dir, "summary.json"))).fetch("compact-portable")
+      summary = JSON.parse(File.read(File.join(dir, "summary.json"))).fetch("guidance")
       assert_equal cases.length, summary.fetch("infrastructure_errors")
       assert_equal 0, summary.fetch("passes")
     end

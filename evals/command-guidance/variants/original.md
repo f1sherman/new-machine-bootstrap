@@ -1,1 +1,0 @@
-For commands intended for the user to copy and paste, keep every line at 80 characters or fewer. Use syntactically valid line breaks and continuation syntax. Never rely on visual wrapping. Never use heredocs in commands intended for user copy and paste. Use `printf`, repeated options, helper scripts, or direct file-editing tools instead.

@@ -58,6 +58,10 @@ practical. Count infrastructure failures separately from model failures.
 Correct a broken grader by replaying the same captured responses across all
 conditions, preserving superseded scores; do not reroll inconvenient outputs.
 
+Keep only cases, controls, and grader tests with ongoing regression value in
+the maintained suite. Use Git history for past experiments and rejected variants.
+Store raw run evidence separately from the fixtures.
+
 ## 6. Bound the conclusion
 
 Report per-case outcomes and failure types, not just aggregate totals. Distinguish
