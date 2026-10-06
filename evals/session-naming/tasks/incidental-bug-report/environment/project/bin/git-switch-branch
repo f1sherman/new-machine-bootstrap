@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -eu
+
+rows="$(
+  git for-each-ref \
+    --sort=refname \
+    --format='%(HEAD)%09%(refname:short)%09%(worktreepath)' \
+    refs/heads |
+  awk -F '\t' '
+    {
+      head[NR]   = $1
+      branch[NR] = $2
+      wtp[NR]    = $3
+      if ($1 == "*") current_root = $3
+    }
+    END {
+      for (i = 1; i <= NR; i++) {
+        if (branch[i] == "") continue
+        marker = " "
+        action = "checkout"
+        payload = branch[i]
+        if (head[i] == "*") {
+          marker = "*"
+        } else if (wtp[i] != "" && wtp[i] != current_root) {
+          marker = "+"
+          action = "cd"
+          payload = wtp[i]
+        }
+        printf "%s\t%s\t%s %s\n", action, payload, marker, branch[i]
+      }
+    }
+  '
+)" || exit 1
+
+[ -n "$rows" ] || exit 0
+
+if selection="$(
+  printf '%s\n' "$rows" | fzf +m --delimiter=$'\t' --with-nth=3
+)"; then
+  :
+else
+  fzf_status=$?
+  [ "$fzf_status" -eq 130 ] && exit 0
+  exit "$fzf_status"
+fi
+
+action="$(printf '%s' "$selection" | cut -f1)"
+payload="$(printf '%s' "$selection" | cut -f2)"
+display="$(printf '%s' "$selection" | cut -f3)"
+[ -n "$action" ] && [ -n "$payload" ] || exit 1
+
+if [ "$action" = cd ] && [ ! -d "$payload" ]; then
+  branch="${display#??}"
+  echo "Cannot switch to branch $branch because worktree path $payload is not a directory" >&2
+  exit 1
+fi
+
+printf '%s\t%s\n' "$action" "$payload"

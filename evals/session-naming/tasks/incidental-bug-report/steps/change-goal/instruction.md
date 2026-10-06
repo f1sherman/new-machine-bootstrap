@@ -1,0 +1,1 @@
+We are done with workspace restoration. Switch focus to the branch picker problem in issue-1. Read the report and fix bin/git-switch-branch so Git failures return a failure status, while normal branch selection still works. Verify both behaviors.

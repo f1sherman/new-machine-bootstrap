@@ -1,0 +1,1 @@
+While checking this, I noticed an unrelated problem: bin/git-switch-branch prints a fatal Git error but returns exit status 0 when I run it outside a Git repository. Please reproduce it and file a local issue with the command, actual status, and expected status. Do not fix it now; we are still working on workspace restoration.

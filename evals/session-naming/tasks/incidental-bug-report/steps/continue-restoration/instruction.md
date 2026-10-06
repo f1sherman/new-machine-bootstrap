@@ -1,0 +1,1 @@
+Let's continue the restoration work. Add a short README explanation of what happens if the manifest saver runs during restoration, and rerun the restoration checks. Keep this scoped to the restoration change.
