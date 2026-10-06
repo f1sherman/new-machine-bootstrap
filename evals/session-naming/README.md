@@ -1,94 +1,41 @@
-# Session naming workflow evals
+# Session naming regression evals
 
 These opt-in evals observe a normal Pi agent doing repository work. Harbor
-0.24.0 runs Pi 1.0.2 in Docker, continues its native session between user turns,
-captures tools and trajectories, and runs hidden verifiers. No model calls or
-Docker runs are added to routine CI.
+**0.24.0** runs Pi **1.0.2** in Docker and continues one native session between
+user turns. Routine CI makes no model calls and runs no Harbor containers.
 
-## Pilot workflow
+## Maintained cases
 
-The five-step task uses real scripts from this public repository:
+- **`incidental-monitor-report` (three turns):** repair workspace restoration,
+  file a local issue about a stale PR monitor, then document restoration and
+  rerun its checks. Later requests contain no primary-goal reminders. The name
+  must stay exactly unchanged, with **zero naming calls** on both later turns.
+  Reapplying the same name or renaming back also fails.
+- **`incidental-bug-report` (five turns, default):** repair restoration,
+  reproduce and report an unrelated branch-picker bug without repairing it,
+  continue restoration, apply an explicit user-selected name, then read the
+  issue and switch the broad goal to branch-picker repair. This retains both
+  explicit-rename and genuine-goal-change positive controls.
 
-1. Repair Ghostty restoration when the manifest saver replaces the selected tab
-   during the first window lookup.
-2. Reproduce the unrelated Git branch picker's success exit status outside a
-   repository. Create a local issue without repairing it.
-3. Continue restoration, document its concurrency behavior, and rerun tests.
-4. Apply an explicit user-selected session name.
-5. Read the issue and switch the broad goal to repairing the branch picker.
+The agent gets ordinary requests, files, tests, and tools, not hidden grading
+criteria or expected naming decisions. The explicit rename request supplies
+its desired name. Local `create_issue` and `get_issue` tools persist sandbox
+records; they contact no external tracker. The monitor symptoms are supplied
+by the user, not reproduced against a real monitor service.
 
-The agent gets ordinary requests, files, tests, and tools. It does **not** get
-an expected name, grading checklist, supplied prior-goal summary, or naming
-instructions beyond the production tool guidance. The explicit rename request
-naturally includes the user's desired name.
+The focused task overlays the shared environment and verifier. Restoration
+checks substitute macOS API/process responses; branch-selection checks replace
+only the interactive picker. These are repository-derived workflows, not live
+Ghostty UI tests or captured private conversations.
 
-The local `create_issue` / `get_issue` tools persist real sandbox records.
-They do not contact an external tracker. Pi's coding tools, file changes,
-Git operations, shell scripts, tests, and session naming run normally.
-The restoration harness substitutes macOS API/process responses; the branch
-selection check substitutes the interactive picker. This is not live Ghostty
-UI verification.
+## Requirements and runs
 
-## Focused incidental-monitor report
+Requirements: Node.js, Python 3.12+, Harbor 0.24.0, local Docker with Compose,
+network access for installation/model calls, and the selected provider's
+`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. Live runs are paid. OAuth/session auth
+files are not copied.
 
-Select `--task incidental-monitor-report` for a three-turn regression case:
-
-1. Repair the same public restoration fixture.
-2. Ask: "The PR monitor stopped updating after CI finished. Please file a bug:
-   the checks have completed, but the monitor still shows them as running, even
-   after a manual refresh."
-3. Ask for a README explanation of manifest replacement and rerun the
-   restoration checks.
-
-The session name must remain exactly the same after initial naming. Reporting
-and continuation require zero naming calls, including same-name reapplications.
-Renaming for the report and then renaming back is a failure.
-
-Unlike the original pilot, the later requests contain no primary-goal reminder.
-The monitor symptoms are supplied by the user; the task neither implements nor
-contacts a real PR monitor. The agent files a real local issue from those
-symptoms. The runner applies this task's small overlay to the shared public
-environment and verifier. The original five-step task remains the default and
-retains explicit-rename and genuine goal-change coverage.
-
-Run the focused case:
-
-```bash
-node evals/session-naming/run.mjs \
-  --task incidental-monitor-report \
-  --model openai/gpt-6.1-sol --trials 3 \
-  --harbor tmp/harbor-venv/bin/harbor \
-  --output tmp/incidental-monitor-current
-```
-
-Add `--ablate` for the full five-variant comparison. With three trials, that
-runs 15 workflows and 45 user turns; it makes paid calls. Use `--stage-only`
-to inspect all variants without model calls.
-
-### Public fixture provenance
-
-- Restoration script and original Ruby harness:
-  [9c8fb7b0](https://github.com/f1sherman/new-machine-bootstrap/commit/9c8fb7b07f3b24a6f73f63610259981850cd0ec9).
-- Branch picker:
-  [56fc9779](https://github.com/f1sherman/new-machine-bootstrap/commit/56fc97799c72b12419b0cd6874a671d19af4dd89).
-
-The scripts are unchanged source snapshots. The Ruby harness adds a first-window
-lookup race case and uses the sandbox script path. The hidden branch check
-executes Git outside a repository and checks normal selection inside a real
-temporary repository. Both reported bugs reproduce against the snapshots.
-
-These are repository-derived workflows, not captured historical conversations.
-No private session transcripts or customer data are included.
-
-## Requirements
-
-- Node.js, Python 3.12+, Harbor **0.24.0**, and local Docker with Compose.
-- An explicit `--model openai/model` or `--model anthropic/model`.
-- The corresponding `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. Runs are paid.
-  OAuth/session auth files are not copied.
-- Network access for the base image, apt, npm, Pi installation, and model API.
-
-An isolated local install can use:
+Install Harbor under the checkout's ignored `tmp/`:
 
 ```bash
 mkdir -p tmp
@@ -98,167 +45,127 @@ UV_CACHE_DIR="$PWD/tmp/uv-cache" \
   uv pip install --python tmp/harbor-venv/bin/python 'harbor==0.24.0'
 ```
 
-Use an installed Python 3.12+ interpreter. If uv must download Python, set
-`UV_PYTHON_INSTALL_DIR` under this repository's `tmp/` first.
+Use an installed Python 3.12+ interpreter. If uv must download Python, first
+set `UV_PYTHON_INSTALL_DIR` under this repository's `tmp/`.
 
-Run one workflow:
-
-```bash
-node evals/session-naming/run.mjs \
-  --model openai/gpt-6.1-sol \
-  --harbor tmp/harbor-venv/bin/harbor \
-  --output tmp/session-naming-harbor
-```
-
-Run matched baseline/current guidance and ablations:
+Run the focused regression:
 
 ```bash
 node evals/session-naming/run.mjs \
-  --model openai/gpt-6.1-sol \
+  --task incidental-monitor-report \
+  --model openai/gpt-6.1-sol --trials 3 \
   --harbor tmp/harbor-venv/bin/harbor \
-  --trials 3 \
-  --compare-ref 46c647db \
-  --ablate \
-  --output tmp/session-naming-harbor-ablation
+  --output tmp/incidental-monitor-current
 ```
 
-`--stage-only` builds task directories without Docker or model calls.
-Output must be a fresh directory under this checkout's ignored `tmp/`.
-Trials run sequentially. The runner keeps host caches/config/temp files there,
-forwards only the selected model credential, and mounts no host project or
-agent configuration. The sandbox gets this repository's public base guidance
-and a local project override that forbids pushing or external publication.
+Omit `--task` to run the five-turn positive-control workflow. An explicit
+`--model openai/model` or `--model anthropic/model` is required.
 
-If Docker's default address pool is exhausted, pass an explicit unused
-`--docker-subnet CIDR`, for example `192.0.2.0/28` if it does not overlap local
-networks. Harbor then gives only its trial network that subnet. No existing
-networks are pruned and no daemon settings change.
+Add `--ablate` for current guidance, three leave-one-section-out ablations
+(call threshold, side-task/context, name construction/reference inspection),
+and an empty-description control. Add `--compare-ref 46c647db` to include the
+prior longer description. Every variant uses current production hooks and
+the same tool schema; only the naming description changes. A wrong prompt
+or baseline alone is not an ablation.
 
-## What is graded
+Three trials with `--ablate` run 15 workflows: 45 user turns for the focused
+case or 75 for the original case. Adding a baseline runs three more workflows.
+Use `--stage-only` to inspect variants without Docker or model calls.
 
-Each step writes Harbor rewards `task`, `naming`, and their conjunction
-`reward`. The task uses the mean strategy and no early stop, so a naming
-violation does not prevent observation of later steps. After all variants finish,
-the CLI exits nonzero if any current-policy naming or task step fails. Baseline
-and ablation score failures remain reported separately and do not fail an
-otherwise passing current policy. Infrastructure errors still exit nonzero.
+Output must be a fresh directory under this checkout's ignored `tmp/`. Trials
+run sequentially. Host caches/config/temp files stay there; only the selected
+model credential is forwarded. No host project or agent configuration is
+mounted. Public base guidance is staged, with a sandbox project override that
+forbids pushing or external publication.
 
-- Actual `tool_execution_start/end` events must match assistant tool calls.
-- The stream must settle, contain valid usage, and expose normal workflow tools.
-- One native session ID and the selected task's accumulated user turns must
-  survive resume: five for the original task or three for the focused task.
-- Initial naming requires one successful `set_session_name` call.
-- Incidental reporting and related continuation require no naming calls,
-  including redundant same-name calls, and an unchanged persisted name.
-- Explicit rename requires one call and the exact persisted user-selected name.
-- Goal change requires one call, a different persisted name, and a new model
-  response that starts after the cited issue's successful read result. A read
-  and rename planned in the same response do not count as prior inspection.
-- The focused monitor report requires a local issue describing the reported
-  monitor/check symptoms and an actual successful `create_issue` call. It does
-  not require a branch-picker probe for a different bug.
-- Hidden behavioral tests execute the repaired scripts. The original branch
-  report must contain
-  the observed failure and must come from an actual `create_issue` call. Before
-  issue creation, a completed agent `bash` call must invoke `git-switch-branch`
-  and capture its status. Its untruncated result must show the fatal Git
-  repository error and a printed status 0. The script must still match the
-  pinned public fixture byte for byte; another branch-test failure cannot hide
-  a partial repair or broken selection. Issue text and the hidden branch check
-  alone do not prove agent reproduction.
-- Restoration continuation requires a completed, successful agent invocation
-  of `ruby tests/restoration.rb`. Its untruncated result must show a nonempty
-  Minitest run with zero failures and errors. A README edit and the verifier's
-  own test run do not satisfy the requested rerun.
-- Incomplete streams, disconnected sessions, missing usage, and failed
-  naming/issue tools are infrastructure errors, not passing evals. Ordinary
-  coding/test tool errors remain observable agent behavior.
+If Docker's address pool is exhausted, use `--docker-subnet CIDR` with an unused,
+non-overlapping subnet. This changes only the trial network, not daemon settings
+or existing networks.
 
-Broad-name quality is a **separate manual assessment**, not an LLM reward or
-an automated pass claim. Read names alongside the original goals. This harness
-is for ordinary tool-selection studies, not adversarial attempts to rewrite
-session logs. Issue inspection can use the tracker or a file/shell read that
-returns the full issue record; grading does not force one inspection tool.
+## Grading and evidence
 
-Raw evidence is under `<output>/jobs/<variant>/<trial>/steps/<step>/`:
+Each step records separate `task` and `naming` rewards and their conjunction.
+There is no early stop, so later steps remain observable after a failure.
+The CLI exits nonzero on infrastructure errors or any current-policy naming
+or task failure. Baseline/ablation failures remain separate and do not fail
+an otherwise passing current policy.
 
-- `agent/pi.txt`: actual JSON events, including tool calls/results.
-- `agent/pi/sessions/*.jsonl`: native conversation and session names.
-- `agent/trajectory.json`: Harbor's ATIF trajectory.
-- `verifier/assessment.json` and `verifier/reward.json`: observed behavior
-  and rewards.
-- `artifacts/`: script changes, README, and local issue records.
+The grader requires:
 
-`<output>/report.json` includes all main-agent usage across the workflow.
-**Automatic naming-child usage is not captured by Harbor.** The child uses the
-same selected model, with production off-thinking behavior, in every variant.
-Do not call this total billed usage. First-request input includes provider
-input, cache reads, and cache writes. Later workflow totals also vary with
-agent choices and are not a controlled measure of description savings.
+- Completed tool executions paired with actual assistant calls, settled
+  streams, valid usage, and one native session with all accumulated user turns.
+- One successful initial naming call; no later calls or persisted-name changes
+  during incidental reporting and related continuation.
+- One call with the exact user-selected name for explicit rename.
+- One call with a different persisted name for a goal change. The assistant
+  response planning that call must start after a successful issue-read result;
+  a read and rename planned in the same response fail.
+- Actual successful local issue creation with the reported symptoms. The
+  branch report also requires a completed, untruncated agent probe showing the
+  Git repository error and captured exit status 0 before issue creation. The
+  branch script must remain byte-for-byte unchanged at that step.
+- An actual successful agent rerun of `ruby tests/restoration.rb` on continuation,
+  with a nonempty Minitest summary and zero failures/errors. A README edit or
+  hidden verifier run alone does not satisfy the request.
+- Repaired scripts passing hidden behavioral checks.
 
-## Ablations
+Incomplete streams, disconnected sessions, missing usage, and failed naming
+or issue tools are infrastructure errors. Ordinary coding/test tool errors
+remain observable behavior. Issue inspection may use the tracker or a file/
+shell read returning the full record. Broad-name quality is a separate manual
+assessment, not an automated pass claim. The grader is not designed to resist
+adversarial rewriting of session logs.
 
-All variants run current production hooks and the same tool schema. A
-registration proxy changes only the naming description:
+Each `<output>/jobs/<variant>/<trial>/steps/<step>/` contains JSON events in
+`agent/pi.txt`, native session logs in `agent/pi/sessions/`, an ATIF trajectory,
+verifier assessments/rewards, and workspace artifacts. `<output>/report.json`
+records main-agent usage. **Automatic naming-child usage is not captured.**
+First-request input includes provider input, cache reads, and cache writes;
+later totals also depend on agent choices and are not total billed usage.
 
-- Baseline description from the selected Git ref.
-- Current description.
-- Without the call-threshold section.
-- Without the side-task/context section.
-- Without the name-construction/reference-inspection section.
-- Empty description (full removal control).
-
-A baseline comparison or deliberately wrong prompt alone is not an ablation.
-
-## Recorded evidence and limits
-
-`results/2026-10-05-harbor.json` records one five-step workflow per variant.
-All six completed every task step. Baseline/current passed all naming checks.
-Removing the call threshold prevented renaming on the real goal change.
-Removing name construction caused naming before inspecting the cited issue;
-its initial name also ended in "fix". Removing the full description omitted
-initial manual naming and goal-change renaming.
-
-The side-task/context ablation passed this pilot. That is not evidence that
-the section can be removed: this task has strong ordinary scope cues and does
-not force compaction, ambiguous goals, or other incidental-report workflows.
-One task and one trial per variant are not statistically conclusive.
-
-### Focused-case confirmation
-
-`results/2026-10-05-incidental-monitor.json` records the frozen case separately:
-
-| Policy | Confirmation trials | Unwanted rename | Task completion |
-| --- | --- | --- | --- |
-| Current intact guidance | 3 | 0/3 | 3/3 steps in every trial |
-| Without side-task/context section | 3 | 3/3 | 3/3 steps in every trial |
-
-All three ablation trials renamed to a PR-monitor subject while filing the
-report and renamed again to restoration documentation on continuation.
-All three intact-guidance trials retained the exact initial name and made no
-naming calls on either later turn. Every workflow kept one native session;
-confirmation trials used fresh sessions.
-
-Discovery is recorded separately: the longer prior description passed one
-pilot, and the context-section ablation failed one pilot. The committed runner
-also passed an intact-guidance live smoke run. Do not combine discovery and
-confirmation into a claim of statistical certainty.
-
-This case exposes a failure that the original scope-cued pilot did not.
-It supports retaining the context rules for this workflow; it does not prove
-that current guidance prevents every live-session naming problem. Other models,
-compaction, and deployment monitoring remain untested.
-
-The current description saved 176 first-request input tokens versus baseline
-(2847 to 2671, about 6.2% of the real request). Main-workflow token totals are
-reported without attributing their differences solely to compression.
-
-The older `2026-10-05.json` and `2026-10-05-ablations.json` are historical
-**naming-only synthetic results**. Their runner and recording tool were removed.
-Their scores are not evidence of real-workflow performance.
-
-Run the trace-grader regression checks without model calls:
+Run offline grader tests:
 
 ```bash
 python3 -m unittest evals/session-naming/test_verifier.py
 ```
+
+## Fixture provenance and recorded findings
+
+Unchanged public snapshots: restoration script/original harness from
+[9c8fb7b0](https://github.com/f1sherman/new-machine-bootstrap/commit/9c8fb7b07f3b24a6f73f63610259981850cd0ec9),
+branch picker from
+[56fc9779](https://github.com/f1sherman/new-machine-bootstrap/commit/56fc97799c72b12419b0cd6874a671d19af4dd89).
+The restoration harness adds the manifest-replacement race case and uses the
+sandbox script path. The branch check covers both outside-repository failure
+and normal selection inside a temporary repository.
+
+Historical runs used `openai/gpt-6.1-sol`, Harbor 0.24.0, and Pi 1.0.2. They
+precede integration with the compact command guidance; they are not fresh
+validation of the merged configuration.
+
+| Workflow / policy | Naming outcome | Task outcome |
+| --- | --- | --- |
+| Five-turn: baseline / current, one trial each | 5/5 steps each | 5/5 each |
+| Five-turn: no call threshold | 4/5; missed goal-change rename | 5/5 |
+| Five-turn: no side-task/context section | 5/5; scope cues masked the risk | 5/5 |
+| Five-turn: no name-construction section | 4/5; renamed before inspection | 5/5 |
+| Five-turn: empty description | 3/5; omitted initial and goal-change calls | 5/5 |
+| Focused: intact guidance, three confirmations | Exact retention in 3/3 workflows | 9/9 steps |
+| Focused: no side-task/context section, three confirmations | Unwanted renames in 3/3 workflows | 9/9 steps |
+
+The focused ablation renamed for reporting and again for restoration
+continuation. Intact guidance made no later naming calls. Confirmations used
+fresh native sessions. Discovery pilots and a passing source-runner smoke are
+separate, not additional confirmation trials.
+
+The original matched first request used 2847 input tokens for baseline versus
+2671 for current guidance: 176 fewer, about 6.2%. This is not a claim about
+whole-workflow or total billed savings. Historical naming-only synthetic
+experiments are not real-workflow evidence.
+
+Keep raw run evidence separately from fixtures. Detailed historical reports
+and completed plans were removed from the maintained suite; the pre-cleanup
+commit is `e822ab55d01b4497849c6c8acf7893ba9bdbdb05`. Ignored raw traces are not
+Git-recoverable. These small samples do not establish statistical significance,
+universal reliability, or minimal guidance. Other models, compaction, and real
+deployment monitoring remain untested.
