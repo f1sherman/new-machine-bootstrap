@@ -59,7 +59,9 @@ node evals/harbor/run.mjs --suite command-guidance \
 
 Default: one trial per selected case/condition, sequential execution. Conditions
 rotate across cases/trials. Each Harbor job owns one fresh response or complete
-multi-turn workflow. Naming steps continue through ordinary task/policy failures
+multi-turn workflow. Before the next job, the driver validates that trial's
+assessments, rewards, expected steps, usage, and continuity. Naming steps continue
+through ordinary task/policy failures
 so later behavior remains observable. Counts show **user turns**, not a maximum
 billed-request count; naming can invoke automatic child requests.
 

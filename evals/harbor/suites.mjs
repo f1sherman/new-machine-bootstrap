@@ -95,41 +95,45 @@ export function completedResult(trial) {
   return result;
 }
 
+export function collectTrial(manifest, output, variant, trial) {
+  const job = path.join(output, 'jobs', variant.id);
+  const result = completedResult(trial);
+  const item = manifest.cases.find(item => item.id === result.task_name);
+  if (!item) throw Error(`Unexpected task ${result.task_name}`);
+  let checks, usage, evidence;
+  if (manifest.suite === 'command-guidance') {
+    const assessment = readJSON(path.join(trial, 'verifier/assessment.json'));
+    const reward = readJSON(path.join(trial, 'verifier/reward.json'));
+    if (assessment.infrastructure_error || typeof assessment.grade?.pass !== 'boolean') throw Error('Invalid command assessment');
+    if (!['reward', 'functional', 'format_policy'].every(key => reward[key] === 0 || reward[key] === 1)) throw Error('Invalid command rewards');
+    checks = { combined: assessment.grade.pass, functional: reward.functional === 1, formatPolicy: reward.format_policy === 1 };
+    if (reward.reward !== Number(checks.combined)) throw Error('Command reward disagrees with assessment');
+    usage = assessment.usage;
+    evidence = { assessment, path: trial };
+  } else {
+    if (result.step_results?.map(step => step.step_name).join(',') !== item.steps.join(',')) throw Error(`Incomplete workflow in ${trial}`);
+    const steps = result.step_results.map(step => {
+      const directory = path.join(trial, 'steps', step.step_name);
+      const assessment = readJSON(path.join(directory, 'verifier/assessment.json'));
+      const reward = readJSON(path.join(directory, 'verifier/reward.json'));
+      if (typeof assessment.naming !== 'boolean' || typeof assessment.task !== 'boolean'
+        || reward.naming !== Number(assessment.naming) || reward.task !== Number(assessment.task)
+        || reward.reward !== Number(assessment.naming && assessment.task)) throw Error('Invalid naming rewards');
+      return { step: step.step_name, ...assessment, path: directory };
+    });
+    if (new Set(steps.map(step => step.sessionId)).size !== 1) throw Error('Session changed between steps');
+    checks = { naming: steps.every(step => step.naming), task: steps.every(step => step.task) };
+    usage = Object.fromEntries(['input', 'output', 'cacheRead', 'cacheWrite'].map(key => [key, steps.reduce((sum, step) => sum + step.usage[key], 0)]));
+    evidence = { steps, path: trial };
+  }
+  if (!usage || !['input', 'output'].every(key => Number.isFinite(usage[key]) && usage[key] >= 0)) throw Error('Missing usage');
+  return { condition: variant.id, case: item.id, trial: path.relative(job, trial), primary: variant.primary, checks,
+    passed: Object.values(checks).every(Boolean), mainAgentUsage: usage, ...evidence };
+}
+
 export function collect(manifest, output, variant) {
   const job = path.join(output, 'jobs', variant.id);
-  const rows = findTrials(job).map(trial => {
-    const result = completedResult(trial);
-    const item = manifest.cases.find(item => item.id === result.task_name);
-    if (!item) throw Error(`Unexpected task ${result.task_name}`);
-    let checks, usage, evidence;
-    if (manifest.suite === 'command-guidance') {
-      const assessment = readJSON(path.join(trial, 'verifier/assessment.json'));
-      const reward = readJSON(path.join(trial, 'verifier/reward.json'));
-      if (assessment.infrastructure_error || typeof assessment.grade?.pass !== 'boolean') throw Error('Invalid command assessment');
-      checks = { combined: assessment.grade.pass, functional: reward.functional === 1, formatPolicy: reward.format_policy === 1 };
-      if (reward.reward !== Number(checks.combined)) throw Error('Command reward disagrees with assessment');
-      usage = assessment.usage;
-      evidence = { assessment, path: trial };
-    } else {
-      if (result.step_results?.map(step => step.step_name).join(',') !== item.steps.join(',')) throw Error(`Incomplete workflow in ${trial}`);
-      const steps = result.step_results.map(step => {
-        const directory = path.join(trial, 'steps', step.step_name);
-        const assessment = readJSON(path.join(directory, 'verifier/assessment.json'));
-        const reward = readJSON(path.join(directory, 'verifier/reward.json'));
-        if (typeof assessment.naming !== 'boolean' || typeof assessment.task !== 'boolean'
-          || reward.naming !== Number(assessment.naming) || reward.task !== Number(assessment.task)
-          || reward.reward !== Number(assessment.naming && assessment.task)) throw Error('Invalid naming rewards');
-        return { step: step.step_name, ...assessment, path: directory };
-      });
-      if (new Set(steps.map(step => step.sessionId)).size !== 1) throw Error('Session changed between steps');
-      checks = { naming: steps.every(step => step.naming), task: steps.every(step => step.task) };
-      usage = Object.fromEntries(['input', 'output', 'cacheRead', 'cacheWrite'].map(key => [key, steps.reduce((sum, step) => sum + step.usage[key], 0)]));
-      evidence = { steps, path: trial };
-    }
-    if (!usage || !['input', 'output'].every(key => Number.isFinite(usage[key]) && usage[key] >= 0)) throw Error('Missing usage');
-    return { condition: variant.id, case: item.id, trial: path.relative(job, trial), primary: variant.primary, checks,
-      passed: Object.values(checks).every(Boolean), mainAgentUsage: usage, ...evidence };
-  });
+  const rows = findTrials(job).map(trial => collectTrial(manifest, output, variant, trial));
   for (const item of manifest.cases) if (rows.filter(row => row.case === item.id).length !== manifest.trials) throw Error(`Missing/extra trials for ${variant.id}/${item.id}`);
   return rows;
 }

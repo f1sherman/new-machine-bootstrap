@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
 import { parseArgs } from 'node:util';
-import { prepare, collect, findTrials, completedResult, root, readJSON } from './suites.mjs';
+import { prepare, collect, collectTrial, findTrials, completedResult, root, readJSON } from './suites.mjs';
 import { jobArguments } from './invocation.mjs';
 
 const { values: options } = parseArgs({ options: {
@@ -133,11 +133,12 @@ try {
         await execute(harbor, args, path.join(output, `${variant.id}-${job}.log`), env);
         const completed = findTrials(path.join(output, 'jobs', variant.id, job));
         if (completed.length !== 1) throw Error(`Expected one completed trial for ${variant.id}/${job}`);
-        completedResult(completed[0]);
+        report.results.push(collectTrial(manifest, output, variant, completed[0]));
+        save();
       }
     }
   }
-  for (const variant of manifest.variants) report.results.push(...collect(manifest, output, variant));
+  report.results = manifest.variants.flatMap(variant => collect(manifest, output, variant));
   const primary = report.results.filter(row => row.primary);
   report.currentPolicyPassed = primary.length > 0 && primary.every(row => row.passed);
   report.finishedAt = new Date().toISOString();

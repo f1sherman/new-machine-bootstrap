@@ -198,14 +198,15 @@ class CommandHarborTest(unittest.IsolatedAsyncioTestCase):
                 "verifier_result": {"rewards": reward.rewards}}))
         return output
 
-    def test_live_driver_stops_after_zero_exit_with_failed_native_trial(self):
-        bins = self.directory / "bin"
+    def failed_native_job(self, suite="command-guidance", mode="regression", exception=True):
+        tag = f"{suite}-{mode}-{exception}"
+        bins = self.directory / ("bin-" + tag)
         bins.mkdir()
         docker = bins / "docker"
         docker.write_text('#!/bin/sh\ncase "$1" in\ncontext) echo unix:///tmp/fixture.sock;;\n'
                           'info) echo \'[{"Name":"compose","Path":"/fixture/docker-compose"}]\';;\nesac\n')
         docker.chmod(0o755)
-        calls = self.directory / "calls.jsonl"
+        calls = self.directory / (tag + "-calls.jsonl")
         harbor = bins / "harbor"
         harbor.write_text(f'''#!{sys.executable}
 import json,pathlib,sys
@@ -220,18 +221,32 @@ trial=pathlib.Path(value("--jobs-dir"))/value("--job-name")/"fixture-trial"
 trial.mkdir(parents=True)
 (trial/"result.json").write_text(json.dumps({{
     "task_name":pathlib.Path(value("--path")).name,
-    "exception_info":{{"exception_message":"fixture transport failure"}}
+    "exception_info":{{"exception_message":"fixture transport failure"}} if {exception!r} else None
 }}))
 ''')
         harbor.chmod(0o755)
         env = dict(os.environ)
         env.update(PATH=str(bins) + os.pathsep + env["PATH"], OPENAI_API_KEY="fixture-key")
-        result = self.driver("--suite", "command-guidance", "--model", "openai/fixture",
-                             "--cases", "long-path,jq", "--live", "--harbor", str(harbor),
-                             "--output", str(self.directory / "live"), env=env)
+        cases = "long-path,jq" if suite == "command-guidance" else "incidental-bug-report,incidental-monitor-report"
+        result = self.driver("--suite", suite, "--model", "openai/fixture", "--mode", mode,
+                             "--cases", cases, "--live", "--harbor", str(harbor),
+                             "--output", str(self.directory / ("live-" + tag)), env=env)
+        return result, calls
+
+    def test_live_driver_stops_after_zero_exit_with_failed_native_trial(self):
+        result, calls = self.failed_native_job()
         self.assertEqual(result.returncode, 1)
         self.assertEqual(len(calls.read_text().splitlines()), 1,
                          "A native infrastructure failure must stop subsequent paid invocations")
+
+    def test_live_driver_stops_before_next_job_when_evidence_is_incomplete(self):
+        for suite in ("command-guidance", "session-naming"):
+            for mode in ("regression", "compare"):
+                with self.subTest(suite=suite, mode=mode):
+                    result, calls = self.failed_native_job(suite, mode, exception=False)
+                    self.assertEqual(result.returncode, 1)
+                    self.assertEqual(len(calls.read_text().splitlines()), 1,
+                                     "Missing rewards/steps must stop later paid jobs, even without exceptions")
 
     def test_harbor_cli_preserves_full_prompt_serialization(self):
         source = self.staged_run()
@@ -258,6 +273,21 @@ trial.mkdir(parents=True)
         self.assertEqual(len(report["results"]), 2)
         self.assertEqual((source / "jobs/guidance/long-path-1/long-path__fixture/verifier/assessment.json").read_text(),
                          (self.directory / "replay/jobs/guidance/long-path-1/long-path__fixture/verifier/assessment.json").read_text())
+
+    def test_trial_collection_rejects_partial_command_rewards(self):
+        source = asyncio.run(self.recorded_trials())
+        trial = source / "jobs/guidance/long-path-1/long-path__fixture"
+        reward_file = trial / "verifier/reward.json"
+        rewards = json.loads(reward_file.read_text())
+        del rewards["format_policy"]
+        reward_file.write_text(json.dumps(rewards))
+        code = ('import {collectTrial} from "./evals/harbor/suites.mjs";'
+                'import fs from "node:fs"; const [root,trial]=process.argv.slice(1);'
+                'const m=JSON.parse(fs.readFileSync(root+"/manifest.json"));'
+                'collectTrial(m,root,m.variants[0],trial);')
+        result = subprocess.run(["node", "--input-type=module", "-e", code, str(source), str(trial)],
+                                cwd=ROOT, text=True, capture_output=True, timeout=30)
+        self.assertNotEqual(result.returncode, 0, "Incomplete rewards must be infrastructure, not a policy score")
 
     def test_driver_replay_fails_on_current_policy_regression(self):
         source = asyncio.run(self.recorded_trials(primary_pass=False))
