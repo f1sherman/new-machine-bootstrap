@@ -252,6 +252,37 @@ trial.mkdir(parents=True)
         compare = self.driver("--replay", source, "--mode", "compare", "--output", self.directory / "comparison")
         self.assertEqual(compare.returncode, 0, compare.stderr)
 
+    async def test_naming_replay_uses_each_frozen_task_verifier(self):
+        from evals.harbor.replay import replay
+        for task_name, filename, persisted_name in (
+                ("incidental-bug-report", "verify.py", "retained"),
+                ("incidental-monitor-report", "base_verify.py", "changed")):
+            task = self.directory / task_name
+            (task / "tests").mkdir(parents=True)
+            (task / "tests" / filename).write_text(
+                'def score_trace(events, session, index):\n'
+                '    return {"naming": session[0]["name"] == events[0]["name"],\n'
+                '            "scorer": "frozen task", "sessionId": "fixture"}\n')
+            trial = self.directory / (task_name + "-trial")
+            step = trial / "steps/repair-restoration"
+            (step / "agent/pi/sessions").mkdir(parents=True)
+            (step / "verifier").mkdir()
+            (trial / "result.json").write_text(json.dumps({"step_results": [
+                {"step_name": "repair-restoration"}]}))
+            (step / "agent/pi.txt").write_text(json.dumps({"name": "retained"}) + "\n")
+            (step / "agent/pi/sessions/native.jsonl").write_text(json.dumps({"name": persisted_name}))
+            (step / "verifier/assessment.json").write_text(json.dumps({"task": True}))
+            try:
+                await replay("session-naming", task, trial)
+            except Exception as error:
+                self.fail(f"Replay must execute the frozen scorer for {task_name}: {error}")
+            assessment = json.loads((step / "verifier/assessment.json").read_text())
+            reward = json.loads((step / "verifier/reward.json").read_text())
+            self.assertEqual(assessment["scorer"], "frozen task")
+            self.assertEqual(reward["naming"], int(persisted_name == "retained"))
+            self.assertTrue(assessment["task"])
+            self.assertIn("not rerun", assessment["taskEvidence"])
+
     def test_driver_rejects_missing_trial_evidence(self):
         source = asyncio.run(self.recorded_trials())
         (source / "jobs/guidance/long-path-1/long-path__fixture/agent/pi.txt").unlink()

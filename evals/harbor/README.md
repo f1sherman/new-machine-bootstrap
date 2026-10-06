@@ -77,8 +77,9 @@ node evals/harbor/run.mjs --replay tmp/commands-live \
 ```
 
 Replay makes no model or Docker calls. Command replay executes the real macOS
-sandbox grader. Naming replay rechecks traces and native continuity; **it does
-not rerun container behavioral tests**. It preserves and labels their captured
+sandbox grader. Naming replay loads the hashed scorer from the staged task
+and rechecks traces and native continuity; **it does not rerun container
+behavioral tests**. It preserves and labels their captured
 task outcomes. Keep original evidence; do not use replay to conceal failed
 transport or rewrite input settings.
 
@@ -108,7 +109,8 @@ python3 -m unittest evals/session-naming/test_verifier.py
 The optional Harbor boundary tests need the pinned installation but make no
 Docker/model calls. They exercise the adapter's real transport with a fake CLI,
 the native verifier factory, native CLI prompt serialization, grading failure
-classification, and credential-free replay/exit behavior:
+classification, frozen naming-scorer selection, and credential-free replay/exit
+behavior:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 \

@@ -10,16 +10,15 @@ from harbor.models.task.task import Task
 from harbor.models.trial.paths import TrialPaths
 from evals.harbor.command_verifier import MacOSCommandVerifier
 
-ROOT = Path(__file__).resolve().parents[2]
-
-
 async def replay(suite, task_dir, trial_dir):
     if suite == "command-guidance":
         verifier = MacOSCommandVerifier(task=Task(task_dir), trial_paths=TrialPaths(trial_dir), environment=None)
         await verifier.verify()
         return
+    filename = {"incidental-bug-report": "verify.py",
+                "incidental-monitor-report": "base_verify.py"}[task_dir.name]
     spec = importlib.util.spec_from_file_location(
-        "naming_verifier", ROOT / "evals/session-naming/tasks/incidental-bug-report/tests/verify.py")
+        "naming_verifier", task_dir / "tests" / filename)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     result = json.loads((trial_dir / "result.json").read_text())
