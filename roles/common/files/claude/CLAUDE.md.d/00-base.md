@@ -17,9 +17,19 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 * Scripts/snippets: write scripts in ruby; snippets in bash unless otherwise instructed.
 * JSON/YAML parsing: use `jq` or `yq`, never use python or ruby.
 * Fuzzy judgment: when logic needs semantic or human judgment, use an LLM/model call instead of keyword or regex heuristics.
-* Terminal commands: for commands intended for the user to copy and paste, keep every line at 80 characters or fewer. Use syntactically valid line breaks and continuation syntax. Never rely on visual wrapping. Never use heredocs in commands intended for user copy and paste. Use `printf`, repeated options, helper scripts, or direct file-editing tools instead.
 * Testing: use Red/Green TDD only for meaningful behavior tests. A useful test fails for a plausible regression and survives harmless refactors. Do not add tautological tests that merely assert exact prose, YAML snippets, install-loop entries, docs wording, skill text, or command strings, except when the exact literal value is the user-facing behavior or compatibility contract. No test is better than a tautological test; use manual or end-to-end verification when no useful automated test exists.
 * Superpowers specs/plans commit step: check `git check-ignore -q docs/superpowers`. If ignored, skip commit — keep local. Never `git add -f` / `--force` on `docs/superpowers/`.
 * Temp files: prefer `./tmp` if exists, else `/tmp`
 * Errors: never silently swallow in code/scripts. Log at minimum.
 * Verification: end to end verify; confirm empirically.
+
+# Terminal commands
+
+For user copy-paste commands, every line—including variable assignments—must fit 80 characters. No heredocs or visual wrapping. Put `\` continuations between complete arguments only, never inside paths, URLs, quoted strings, or `--opt=value`/`key=value`. Store arguments over ~60 characters in variables named f or url (not Zsh’s path); expand them quoted (`"$f"`). If an assignment exceeds 80 characters, construct its value with `printf` or successive short assignments. Literal quoted newlines are allowed only where jq/awk treats them as program whitespace, never inside paths or data values. Before sending, remove `\`-newlines mentally, retain indentation, and verify intact arguments.
+
+Build long values across short assignments:
+```bash
+f="$HOME/.config/rendered"
+f="$f/production/application/settings.yaml"
+cat "$f"
+```
