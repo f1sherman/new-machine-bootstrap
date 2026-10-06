@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 require "minitest/autorun"
-require_relative "../evals/command-guidance/run"
+require_relative "../evals/command-guidance/grader"
 
 class CommandGuidanceEvalTest < Minitest::Test
   def grade(command, calls = [{"command" => "cat", "args" => ["/tmp/rendered/service/config.yaml"]}])
@@ -91,46 +91,6 @@ class CommandGuidanceEvalTest < Minitest::Test
     end
   end
 
-  def test_runner_retains_ungradable_model_responses
-    FileUtils.mkdir_p(CommandGuidanceEval::SCRATCH)
-    Dir.mktmpdir("runner-fixture-", CommandGuidanceEval::SCRATCH) do |parent|
-      output = File.join(parent, "results")
-      fixture = <<~'RUBY'
-        require_relative "evals/command-guidance/run"
-        CommandGuidanceEval.define_singleton_method(:generate) do |policy, test_case, options, stem|
-          File.write(stem + ".events.jsonl", "captured transport fixture\n")
-          {"response" => "A successful response with no code fences.",
-           "usage" => {"input" => 9, "output" => 4},
-           "provider" => options.fetch(:provider), "model" => options.fetch(:model),
-           "thinking" => options.fetch(:thinking)}
-        end
-        exit(CommandGuidanceEval.run(pi: "unused", provider: "fixture", model: "fixture",
-          thinking: "medium", repeats: 1, jobs: 2, variants: ["guidance"], output: ARGV.fetch(0)) ? 0 : 1)
-      RUBY
-      stdout, stderr, status = CommandGuidanceEval.capture(
-        [RbConfig.ruby, "-e", fixture, output], cwd: CommandGuidanceEval::ROOT)
-      assert status.success?, "#{stdout}\n#{stderr}"
-      summary = JSON.parse(File.read(File.join(output, "summary.json"))).fetch("guidance")
-      rows = Dir[File.join(output, "guidance-*.json")].map { |p| JSON.parse(File.read(p)) }
-      cases = JSON.parse(File.read(File.join(CommandGuidanceEval::ROOT, "evals/command-guidance/cases.json")))
-      assert_equal cases.length, rows.length
-      assert_equal 0, summary.fetch("infrastructure_errors")
-      assert_equal cases.length, summary.fetch("ungradable_responses")
-      assert_equal 0, summary.fetch("functional_passes")
-      assert_equal 0, summary.fetch("format_policy_passes")
-      rows.each do |row|
-        assert_equal "A successful response with no code fences.", row.fetch("response")
-        assert_equal({"input" => 9, "output" => 4}, row.fetch("usage"))
-        refute row.fetch("grade").fetch("pass")
-        assert row.fetch("grade").fetch("ungradable")
-        assert_includes row.fetch("grade").fetch("failures").join, "expected exactly one shell code block"
-        stem = "#{row.fetch('variant')}-#{row.fetch('case')}-#{row.fetch('repeat')}"
-        assert_equal "captured transport fixture\n", File.read(File.join(output, stem + ".events.jsonl"))
-        assert_equal row, JSON.parse(File.read(File.join(output, stem + ".json")))
-      end
-    end
-  end
-
   def native_grade(response, settled: true, tool_event: false,
                    usage: {"input" => 9, "output" => 4}, actual_prompt: "fixture")
     message = {"role" => "assistant", "stopReason" => "stop",
@@ -155,7 +115,7 @@ class CommandGuidanceEvalTest < Minitest::Test
       stdout, stderr, status = CommandGuidanceEval.capture(
         [RbConfig.ruby, File.join(CommandGuidanceEval::ROOT,
           "evals/command-guidance/grader.rb"), input], cwd: dir)
-      yield stdout, stderr, status
+      yield stdout, stderr, status, request
     end
   end
 
@@ -198,7 +158,7 @@ class CommandGuidanceEvalTest < Minitest::Test
   end
 
   def test_native_stream_entry_point_rejects_invalid_usage
-    [{"output" => 4}, {"input" => -1, "output" => 4}].each do |usage|
+    [{"output" => 4}, {"input" => -1, "output" => 4}, {"input" => 0, "output" => 4}].each do |usage|
       native_grade("```sh\ncat /tmp/rendered/service/config.yaml\n```", usage: usage) do |out, _, status|
         refute status.success?, "missing or invalid usage must not become a measured trial"
         assert_match(/usage/, JSON.parse(out).fetch("infrastructure_error"))
@@ -245,36 +205,16 @@ class CommandGuidanceEvalTest < Minitest::Test
   end
 
   def test_reports_missing_sandbox_as_infrastructure_failure
-    options = {pi: "/bin/false", provider: "test", model: "test", thinking: "medium",
-               repeats: 1, jobs: 1, variants: ["guidance"]}
-    cases = JSON.parse(File.read(File.join(CommandGuidanceEval::ROOT,
-      "evals/command-guidance/cases.json")))
-    guidance = File.read(File.join(CommandGuidanceEval::ROOT,
-      "evals/command-guidance/variants/guidance.md"))
-    FileUtils.mkdir_p(CommandGuidanceEval::SCRATCH)
-    Dir.mktmpdir("missing-sandbox-", CommandGuidanceEval::SCRATCH) do |dir|
-      options[:output] = dir
-      cases.each do |test_case|
-        record = {"provider" => "test", "model" => "test", "thinking" => "medium",
-                  "variant" => "guidance", "case" => test_case.fetch("id"), "repeat" => 1,
-                  "system_prompt" => "You are a coding assistant. Give terminal commands for a user to copy and paste.\n\n" + guidance,
-                  "prompt" => test_case.fetch("prompt") + "\nReturn only one shell code block with all required commands. Do not execute anything.",
-                  "response" => "```sh\nprintf ok\n```", "usage" => {"input" => 1}}
-        File.write(File.join(dir, "guidance-#{test_case.fetch('id')}-1.json"),
-          JSON.generate(record))
-      end
+    native_grade("```sh\ncat /tmp/rendered/service/config.yaml\n```") do |_, _, _, request|
       executable = File.method(:executable?)
       begin
         File.define_singleton_method(:executable?) do |path|
           path == "/usr/bin/sandbox-exec" ? false : executable.call(path)
         end
-        capture_io { refute CommandGuidanceEval.run(options) }
+        assert_raises(CommandGuidanceEval::InfrastructureError) { CommandGuidanceEval.evaluate(request) }
       ensure
         File.define_singleton_method(:executable?, executable)
       end
-      summary = JSON.parse(File.read(File.join(dir, "summary.json"))).fetch("guidance")
-      assert_equal cases.length, summary.fetch("infrastructure_errors")
-      assert_equal 0, summary.fetch("passes")
     end
   end
 

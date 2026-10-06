@@ -30,64 +30,38 @@ Ghostty UI tests or captured private conversations.
 
 ## Requirements and runs
 
-Requirements: Node.js, Python 3.12+, Harbor 0.24.0, local Docker with Compose,
-network access for installation/model calls, and the selected provider's
-`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. Live runs are paid. OAuth/session auth
-files are not copied.
-
-Install Harbor under the checkout's ignored `tmp/`:
+Use the [shared Harbor driver](../harbor/README.md) for installation,
+isolated credentials, staging, replay, and live execution. Run the focused case:
 
 ```bash
-mkdir -p tmp
-UV_CACHE_DIR="$PWD/tmp/uv-cache" \
-  uv venv tmp/harbor-venv --python 3.13
-UV_CACHE_DIR="$PWD/tmp/uv-cache" \
-  uv pip install --python tmp/harbor-venv/bin/python 'harbor==0.24.0'
-```
-
-Use an installed Python 3.12+ interpreter. If uv must download Python, first
-set `UV_PYTHON_INSTALL_DIR` under this repository's `tmp/`.
-
-Run the focused regression:
-
-```bash
-node evals/session-naming/run.mjs \
-  --task incidental-monitor-report \
-  --model openai/gpt-6.1-sol --trials 3 \
-  --harbor tmp/harbor-venv/bin/harbor \
+node evals/harbor/run.mjs --suite session-naming \
+  --cases incidental-monitor-report \
+  --model openai/gpt-6.1-sol --trials 3 --live \
   --output tmp/incidental-monitor-current
 ```
 
-Omit `--task` to run the five-turn positive-control workflow. An explicit
-`--model openai/model` or `--model anthropic/model` is required.
+Without `--live`, this only stages the frozen tasks. Omit `--cases` for the
+five-turn positive-control workflow, or select both cases as a comma-separated
+list. Thinking remains low, with ordinary tools and native session continuation.
 
 Add `--ablate` for current guidance, three leave-one-section-out ablations
 (call threshold, side-task/context, name construction/reference inspection),
 and an empty-description control. Add `--compare-ref 46c647db` to include the
 prior longer description. Every variant uses current production hooks and
-the same tool schema; only the naming description changes. A wrong prompt
-or baseline alone is not an ablation.
+the same schema; only the naming description changes. A wrong prompt or baseline
+alone is not an ablation.
 
 Three trials with `--ablate` run 15 workflows: 45 user turns for the focused
-case or 75 for the original case. Adding a baseline runs three more workflows.
-Use `--stage-only` to inspect variants without Docker or model calls.
-
-Output must be a fresh directory under this checkout's ignored `tmp/`. Trials
-run sequentially. Host caches/config/temp files stay there; only the selected
-model credential is forwarded. No host project or agent configuration is
-mounted. Public base guidance is staged, with a sandbox project override that
-forbids pushing or external publication.
-
-If Docker's address pool is exhausted, use `--docker-subnet CIDR` with an unused,
-non-overlapping subnet. This changes only the trial network, not daemon settings
-or existing networks.
+case or 75 for the original case. A baseline adds three workflows. Automatic
+naming can add model requests; user-turn counts are not total billing.
 
 ## Grading and evidence
 
 Each step records separate `task` and `naming` rewards and their conjunction.
 There is no early stop, so later steps remain observable after a failure.
-The CLI exits nonzero on infrastructure errors or any current-policy naming
-or task failure. Baseline/ablation failures remain separate and do not fail
+Regression mode exits nonzero on infrastructure errors or any current-policy
+naming or task failure. Comparison mode permits policy failures but never
+infrastructure errors. Baseline/ablation failures remain separate and do not fail
 an otherwise passing current policy.
 
 The grader requires:
@@ -116,7 +90,7 @@ shell read returning the full record. Broad-name quality is a separate manual
 assessment, not an automated pass claim. The grader is not designed to resist
 adversarial rewriting of session logs.
 
-Each `<output>/jobs/<variant>/<trial>/steps/<step>/` contains JSON events in
+Each `<output>/jobs/<condition>/<job>/<trial>/steps/<step>/` contains events in
 `agent/pi.txt`, native session logs in `agent/pi/sessions/`, an ATIF trajectory,
 verifier assessments/rewards, and workspace artifacts. `<output>/report.json`
 records main-agent usage. **Automatic naming-child usage is not captured.**

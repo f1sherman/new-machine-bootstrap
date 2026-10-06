@@ -171,6 +171,9 @@ module CommandGuidanceEval
         raise InfrastructureError, "invalid usage: #{key}"
       end
     end
+    unless usage.fetch("input") + usage.fetch("cacheRead", 0) + usage.fetch("cacheWrite", 0) > 0
+      raise InfrastructureError, "missing input usage"
+    end
     text = message.fetch("content").select { |part| part["type"] == "text" }.map { |part| part.fetch("text") }.join
     {"response" => text, "usage" => usage, "provider" => message.fetch("provider"),
      "model" => message.fetch("model"), "thinking" => settings.fetch("thinking"),
