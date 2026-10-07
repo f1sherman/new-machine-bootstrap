@@ -1,19 +1,37 @@
 #!/usr/bin/env bash
-# pir — resume the Pi session bound to this tmux pane.
+# pir — resume the Pi session bound to this tmux or Herdr pane.
 #
-# Reads the pane option @persist_pi_session_file (set by the managed-hooks
-# Pi extension on session_start). Errors out if the pane has no bound
-# session — falling back to `pi --continue` could silently resume the
-# wrong session when several run from the same directory.
+# tmux uses @persist_pi_session_file from managed-hooks. Herdr uses the
+# session path reported by its Pi integration. Never use `pi --continue`:
+# several panes can run different sessions from the same directory.
 set -u
 
 session_file=""
 if [ -n "${TMUX_PANE:-}" ]; then
   session_file=$(tmux show-options -pqv -t "$TMUX_PANE" @persist_pi_session_file 2>/dev/null || true)
-fi
-
-if [ -z "$session_file" ]; then
-  echo "pir: no Pi session bound to this pane (@persist_pi_session_file unset)" >&2
+  if [ -z "$session_file" ]; then
+    echo "pir: no Pi session bound to this pane (@persist_pi_session_file unset)" >&2
+    exit 1
+  fi
+elif [ "${HERDR_ENV:-}" = "1" ] && [ -n "${HERDR_PANE_ID:-}" ]; then
+  if ! pane_info=$("${HERDR_BIN_PATH:-herdr}" pane get "$HERDR_PANE_ID"); then
+    echo "pir: cannot read the current Herdr pane" >&2
+    exit 1
+  fi
+  if ! session_file=$(jq -er --arg pane "$HERDR_PANE_ID" '
+    .result.pane
+    | select(.pane_id == $pane)
+    | .agent_session
+    | select(.agent == "pi" and .kind == "path")
+    | .value
+    | select(type == "string")
+    | select(startswith("/") and length > 1)
+  ' <<< "$pane_info"); then
+    echo "pir: no valid Pi session path bound to this Herdr pane" >&2
+    exit 1
+  fi
+else
+  echo "pir: requires a tmux pane or a Herdr pane with the Pi integration" >&2
   exit 1
 fi
 
