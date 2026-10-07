@@ -279,6 +279,7 @@
     mode: 0755
 
 - name: Install pir script
+  tags: pir
   copy:
     backup: yes
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin/pir'
