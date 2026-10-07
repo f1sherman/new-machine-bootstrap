@@ -12,9 +12,6 @@ memusage() {
     done
 }
 
-set skip-completed-text on
-set completion-ignore-case on
-set mark-symlinked-directories on
 set -o vi
 
 encrypt() { gpg --symmetric "$1"; }
