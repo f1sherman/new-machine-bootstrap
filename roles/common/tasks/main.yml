@@ -1432,11 +1432,16 @@
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   changed_when: false
 
+# npm can fail while restoring retired package paths during a dependency-tree
+# update, then succeed on retry. Bound recovery and keep persistent errors fatal.
 - name: Install pi-session-manager plugin for pi-coding-agent (macOS)
   command: >-
     {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} --
     pi install npm:pi-session-manager@{{ tool_versions.pi_packages.session_manager }}
   register: pi_session_manager_plugin_macos
+  until: pi_session_manager_plugin_macos.rc == 0
+  retries: 2
+  delay: 5
   changed_when: "'already installed' not in pi_session_manager_plugin_macos.stdout"
   failed_when: pi_session_manager_plugin_macos.rc != 0
   when: ansible_facts["os_family"] == "Darwin"
@@ -1446,6 +1451,9 @@
     {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} --
     pi install npm:pi-session-manager@{{ tool_versions.pi_packages.session_manager }}
   register: pi_session_manager_plugin_linux
+  until: pi_session_manager_plugin_linux.rc == 0
+  retries: 2
+  delay: 5
   environment:
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   changed_when: "'already installed' not in pi_session_manager_plugin_linux.stdout"
