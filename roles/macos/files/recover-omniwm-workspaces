@@ -80,6 +80,11 @@ class OmniwmWorkspaceRecovery
         @check = true
       when "--rules"
         @rules_path = arguments.shift || raise(RecoveryError, "--rules requires a path")
+      when "--bundle-id"
+        @bundle_id = arguments.shift
+        unless @bundle_id&.match?(/\A[A-Za-z0-9.-]+\z/)
+          raise RecoveryError, "--bundle-id requires a valid bundle identifier"
+        end
       else
         raise RecoveryError, "unknown argument: #{argument}"
       end
@@ -250,7 +255,8 @@ class OmniwmWorkspaceRecovery
     raw_windows = document.dig("result", "payload", "windows")
     raise RecoveryError unless document["ok"] != false && raw_windows.is_a?(Array)
 
-    raw_windows.map { |raw| parse_window(raw) }
+    windows = raw_windows.map { |raw| parse_window(raw) }
+    @bundle_id ? windows.select { |window| window.bundle_id == @bundle_id } : windows
   rescue JSON::ParserError, TypeError, RecoveryError
     raise RecoveryError, "invalid OmniWM window response"
   end
