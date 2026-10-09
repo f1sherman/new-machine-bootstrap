@@ -12,6 +12,7 @@ hs = {
   timer = {doAfter = function() end},
   hotkey = {bind = function() return {} end},
   application = {
+    watcher = {new = function() return {start = function() end} end},
     applicationForPID = function()
       return {bundleID = function() return senderBundle end}
     end,

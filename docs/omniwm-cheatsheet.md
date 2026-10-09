@@ -29,6 +29,13 @@ workspace rule only when one managed rule clearly matches the window. Unknown,
 titleless, and ambiguous windows remain where they are. Recovery does not keep
 running during normal work.
 
+After Safari launches, including after a crash, Hammerspoon starts one recovery
+run for Safari only. It waits at least 30 seconds and for restored windows to
+settle. It restores Personal, Development, and Work profile windows to workspaces
+2, 3, and 9 when one managed rule clearly matches. Unknown, titleless, and
+ambiguous windows stay unchanged. It stops after that run, so later manual moves
+are not undone. Switching to Safari or reloading Hammerspoon does not trigger it.
+
 Use this read-only command to inspect proposed repairs:
 
 ```text
