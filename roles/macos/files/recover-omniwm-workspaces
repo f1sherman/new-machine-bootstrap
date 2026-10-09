@@ -6,7 +6,7 @@ require "json"
 require "open3"
 require "timeout"
 
-if defined?(Data)
+if (RUBY_VERSION.split(".").map(&:to_i).first(2) <=> [3, 2]) >= 0
   RecoveryRule = Data.define(:bundle_id, :title_regex, :workspace)
   Window = Data.define(:id, :bundle_id, :title, :workspace)
 else
