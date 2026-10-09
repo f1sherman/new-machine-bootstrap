@@ -42,6 +42,9 @@ jobs:
       - name: Verify OmniWM Photos routing
         run: lua5.4 tests/omniwm-photos.lua
 
+      - name: Verify Safari restart workspace recovery
+        run: lua5.4 tests/omniwm-safari-recovery.lua
+
       - name: Verify OmniWM URL routing
         run: lua5.4 tests/omniwm-url-source.lua
 

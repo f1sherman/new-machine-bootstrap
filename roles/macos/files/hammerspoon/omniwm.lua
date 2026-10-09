@@ -68,6 +68,8 @@ function M.notify(message)
   hs.notify.new({title = "OmniWM", informativeText = tostring(message)}):send()
 end
 
+M.safariRecovery = require("omniwm_safari_recovery").new(hs, M.notify)
+
 function M.run(args, callback)
   callback = callback or function() end
   local task

@@ -371,6 +371,12 @@
     dest: "{{ ansible_facts['user_dir'] }}/.hammerspoon/omniwm_photos.lua"
     mode: '0644'
 
+- name: Install Safari restart workspace recovery watcher
+  copy:
+    src: hammerspoon/omniwm_safari_recovery.lua
+    dest: "{{ ansible_facts['user_dir'] }}/.hammerspoon/omniwm_safari_recovery.lua"
+    mode: '0644'
+
 - name: Install OmniWM Hammerspoon helpers
   copy:
     src: hammerspoon/omniwm.lua

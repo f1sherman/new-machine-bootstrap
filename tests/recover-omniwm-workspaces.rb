@@ -140,6 +140,53 @@ class RecoverOmniwmWorkspacesTest < Minitest::Test
     assert_match(/skipped=4/, out)
   end
 
+  def test_bundle_scope_only_repairs_safari_after_late_profile_titles
+    safari = window("ow_personal", "com.apple.Safari", "Personal — Mail", 4)
+    chrome = window("ow_chrome", "com.google.Chrome", "ChatGPT", 1)
+    write_state(
+      "windows" => [safari, chrome],
+      "querySequences" => [
+        [window("ow_personal", "com.apple.Safari", nil, 4), chrome],
+        [safari, chrome],
+        [safari, window("ow_chrome", "com.google.Chrome", "Changing", 1)]
+      ],
+      "targets" => {"ow_personal" => 2, "ow_chrome" => 4}
+    )
+
+    out, err, status = run_helper("--bundle-id", "com.apple.Safari")
+
+    assert status.success?, err
+    assert_equal [["rule", "apply", "--window", "ow_personal"]],
+      read_calls.select { |call| call[0, 2] == ["rule", "apply"] }
+    state = JSON.parse(File.read(@state_path))
+    assert_equal [2, 1], state["windows"].map { |item| item.dig("workspace", "number") }
+    assert_equal 4, state["queryCount"], "non-Safari title changes must not delay stabilization"
+    assert_match(/moved=1/, out)
+  end
+
+  def test_bundle_scoped_check_does_not_report_or_apply_other_apps
+    write_state("windows" => [
+      window("ow_personal", "com.apple.Safari", "Personal — Mail", 4),
+      window("ow_chrome", "com.google.Chrome", "ChatGPT", 1)
+    ])
+
+    out, err, status = run_helper("--bundle-id", "com.apple.Safari", "--check")
+
+    assert status.success?, err
+    assert_match(/pending=1/, out)
+    refute_match(/ow_chrome/, out)
+    refute read_calls.any? { |call| call[0, 2] == ["rule", "apply"] }
+  end
+
+  def test_invalid_bundle_scope_fails_before_ipc
+    [["--bundle-id"], ["--bundle-id", ""], ["--bundle-id", "bad bundle"]].each do |args|
+      _out, err, status = run_helper(*args)
+      refute status.success?
+      assert_match(/--bundle-id/, err)
+      assert_empty read_calls
+    end
+  end
+
   def test_check_reports_drift_without_applying_rules
     write_state(
       "windows" => [window("ow_chrome", "com.google.Chrome", "ChatGPT", 1)],
