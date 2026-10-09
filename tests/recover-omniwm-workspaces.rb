@@ -164,6 +164,24 @@ class RecoverOmniwmWorkspacesTest < Minitest::Test
     assert_match(/moved=1/, out)
   end
 
+  def test_system_ruby_executes_scoped_recovery
+    skip "system Ruby unavailable" unless File.executable?("/usr/bin/ruby")
+    write_state(
+      "windows" => [
+        window("ow_personal", "com.apple.Safari", "Personal — Mail", 4),
+        window("ow_chrome", "com.google.Chrome", "ChatGPT", 1)
+      ],
+      "targets" => {"ow_personal" => 2, "ow_chrome" => 4}
+    )
+
+    out, err, status = run_helper("--bundle-id", "com.apple.Safari", ruby: "/usr/bin/ruby")
+
+    assert status.success?, err
+    assert_match(/moved=1/, out)
+    state = JSON.parse(File.read(@state_path))
+    assert_equal [2, 1], state["windows"].map { |item| item.dig("workspace", "number") }
+  end
+
   def test_bundle_scoped_check_does_not_report_or_apply_other_apps
     write_state("windows" => [
       window("ow_personal", "com.apple.Safari", "Personal — Mail", 4),
@@ -373,7 +391,7 @@ class RecoverOmniwmWorkspacesTest < Minitest::Test
 
   private
 
-  def run_helper(*arguments, environment: {})
+  def run_helper(*arguments, environment: {}, ruby: nil)
     env = {
       "OMNIWMCTL" => @fake_ctl,
       "FAKE_OMNIWM_STATE" => @state_path,
@@ -385,7 +403,7 @@ class RecoverOmniwmWorkspacesTest < Minitest::Test
       "OMNIWM_RECOVERY_TIMEOUT_SECONDS" => "1",
       "OMNIWM_RECOVERY_NOTIFY" => "0"
     }.merge(environment)
-    Open3.capture3(env, HELPER, "--rules", RULES, *arguments)
+    Open3.capture3(env, *Array(ruby), HELPER, "--rules", RULES, *arguments)
   end
 
   def run_helper_without_rules
