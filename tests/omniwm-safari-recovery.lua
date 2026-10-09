@@ -26,10 +26,18 @@ local function harness(options)
   end)
   return {
     controller = controller, tasks = tasks, notifications = notifications,
-    event = function(event, bundle)
-      eventCallback("Safari", event, {bundleID = function() return bundle end})
+    event = function(event, bundle, pid)
+      eventCallback("Safari", event, {
+        bundleID = function() return bundle end,
+        pid = function() return pid or (bundle == "com.apple.Safari" and 123 or 456) end,
+      })
     end,
-    launch = function() eventCallback("Safari", 1, {bundleID = function() return "com.apple.Safari" end}) end,
+    launch = function()
+      eventCallback("Safari", 1, {
+        bundleID = function() return "com.apple.Safari" end,
+        pid = function() return 123 end,
+      })
+    end,
   }
 end
 
@@ -46,7 +54,9 @@ h.launch()
 assert(#h.tasks == 1, "duplicate launch must not overlap recovery")
 h.event(2, "com.google.Chrome")
 assert(not h.tasks[1].terminated, "other app termination cannot cancel Safari recovery")
-h.event(2, "com.apple.Safari")
+h.event(2, nil, 456)
+assert(not h.tasks[1].terminated, "unrelated PID-only termination cannot cancel recovery")
+h.event(2, nil, 123)
 assert(h.tasks[1].terminated, "Safari termination cancels old recovery")
 h.launch()
 assert(#h.tasks == 2, "relaunch starts fresh recovery")

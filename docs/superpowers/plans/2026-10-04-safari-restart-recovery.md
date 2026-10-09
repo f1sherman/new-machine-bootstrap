@@ -31,14 +31,14 @@ with a bundle scope. Login recovery and its lock remain unchanged.
 `tests/recover-omniwm-workspaces.rb`.
 **Interface:** `recover-omniwm-workspaces [--bundle-id BUNDLE] [--check]`.
 
-- [ ] Add tests for Safari-only apply/check, changing non-Safari state, late
+- [x] Add tests for Safari-only apply/check, changing non-Safari state, late
   profile titles, and missing bundle argument. Assert exact apply IDs and final
   workspace results; no non-Safari rule application.
-- [ ] Run `ruby tests/recover-omniwm-workspaces.rb`; expect unknown argument
+- [x] Run `ruby tests/recover-omniwm-workspaces.rb`; expect unknown argument
   failures for the new flag.
-- [ ] Parse `--bundle-id`, reject empty/invalid values, and filter parsed windows
+- [x] Parse `--bundle-id`, reject empty/invalid values, and filter parsed windows
   before stabilization and final verification. Preserve default behavior.
-- [ ] Run the Ruby suite; expect no failures. Commit the helper and tests.
+- [x] Run the Ruby suite; expect no failures. Commit the helper and tests.
 
 ### Task 2: Connect Safari launch events and deployment
 
@@ -49,19 +49,19 @@ and `tests/omniwm-safari-recovery.lua`; modify `omniwm.lua`,
 **Interface:** module `.new(hs, notify)` returns `{watcher, ...}` retaining task
 state; integration keeps the returned object in exported `M.safariRecovery`.
 
-- [ ] Add Lua behavioral cases from Review Focus. Use watcher/task boundary
+- [x] Add Lua behavioral cases from Review Focus. Use watcher/task boundary
   doubles, invoke the production callback, and assert helper path/arguments,
   command count, cancellation, and notification outputs.
-- [ ] Run `lua5.4 tests/omniwm-safari-recovery.lua`; expect missing module.
-- [ ] Implement `.new(hs, notify)` with a started application watcher. Safari
+- [x] Run `lua5.4 tests/omniwm-safari-recovery.lua`; expect missing module.
+- [x] Implement `.new(hs, notify)` with a started application watcher. Safari
   launch starts an async scoped helper; terminate clears before cancelling;
   callbacks clear only their own task. Other events do nothing.
-- [ ] Deploy module before `omniwm.lua`, register it after `M.notify`, add CI
+- [x] Deploy module before `omniwm.lua`, register it after `M.notify`, add CI
   invocation and document restart recovery in the cheat sheet.
-- [ ] Run all `tests/omniwm-*.lua`, Ruby recovery/settings suites, Ruby and Lua
+- [x] Run all `tests/omniwm-*.lua`, Ruby recovery/settings suites, Ruby and Lua
   syntax, `ansible-playbook playbook.yml --syntax-check` and `git diff --check`.
   Expect success; classify any baseline timing failure before retrying.
-- [ ] Run the worktree helper with `--bundle-id com.apple.Safari --check` against
+- [x] Run the worktree helper with `--bundle-id com.apple.Safari --check` against
   live IPC. Expect pending=0 and no live-window changes.
 - [ ] Commit, perform one fresh-context branch review in the PR workflow,
   resolve material findings, and create a PR. Ask for provisioning approval.

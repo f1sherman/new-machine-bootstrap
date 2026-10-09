@@ -4,19 +4,23 @@ function M.new(hs, notify)
   local state = {}
   local helper = os.getenv("HOME") .. "/.local/bin/recover-omniwm-workspaces"
   state.watcher = hs.application.watcher.new(function(_, event, app)
-    if not app or app:bundleID() ~= "com.apple.Safari" then
-      return
-    end
+    if not app then return end
+    -- Terminated applications only guarantee a PID, not a bundle ID.
     if event == hs.application.watcher.terminated then
-      local task = state.task
-      state.task = nil
-      if task then task:terminate() end
+      if app:pid() == state.pid then
+        local task = state.task
+        state.task = nil
+        state.pid = nil
+        if task then task:terminate() end
+      end
       return
     end
-    if event ~= hs.application.watcher.launched or state.task then
+    if event ~= hs.application.watcher.launched
+      or app:bundleID() ~= "com.apple.Safari" or state.task then
       return
     end
 
+    state.pid = app:pid()
     local task
     task = hs.task.new(helper, function(exitCode, stdout, stderr)
       if state.task ~= task then return end
