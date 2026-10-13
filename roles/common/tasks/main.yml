@@ -1647,7 +1647,11 @@
 - name: Create ~/.local/bin symlinks for managed npm tools
   shell: |
     set -euo pipefail
-    codex_bin="$("{{ mise_bin }}" where 'npm:@openai/codex')/node_modules/.bin/codex"
+    codex_root="$("{{ mise_bin }}" where 'npm:@openai/codex')"
+    codex_bin="$codex_root/node_modules/.bin/codex"
+    if [[ ! -x "$codex_bin" ]]; then
+      codex_bin="$codex_root/bin/codex"
+    fi
     [[ -x "$codex_bin" ]] || { echo "Managed Codex executable is missing: $codex_bin" >&2; exit 1; }
     "$codex_bin" --version >/dev/null || { echo "Managed Codex executable cannot start: $codex_bin" >&2; exit 1; }
     pi_root="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')"
