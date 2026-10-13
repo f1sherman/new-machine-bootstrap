@@ -1181,6 +1181,7 @@ async function canonicalSessionNameStatus(pi) {
 }
 
 async function clearPublishedSessionName(pi, ctx) {
+  if (ctx.mode !== "tui") return false;
   const herdrCleared = await renameCurrentHerdrLabels(pi, "", ctx);
   if (!ownsTmuxPane()) return herdrCleared;
   const status = await canonicalSessionNameStatus(pi);
@@ -1310,7 +1311,7 @@ async function setCurrentSpec(pi, specPath) {
 }
 
 async function updateCurrentSpec(pi, event, ctx) {
-  if (!inTmux()) return;
+  if (ctx.mode !== "tui" || !inTmux()) return;
   if (event.toolName !== "edit" && event.toolName !== "write") return;
   const targetPath = event.input.path || event.input.file_path || "";
   const targetCwd = targetPath ? probeDir(targetPath, ctx.cwd) : ctx.cwd;
@@ -1321,7 +1322,7 @@ async function updateCurrentSpec(pi, event, ctx) {
 }
 
 async function updateCurrentSpecFromBash(pi, event, ctx) {
-  if (!inTmux() || event.isError) return;
+  if (ctx.mode !== "tui" || !inTmux() || event.isError) return;
   const command = event.input?.command || "";
   if (!command.includes("docs/superpowers/specs")) return;
   const cwd = await boundWorktreePath(pi, ctx.cwd);
@@ -1477,6 +1478,7 @@ export default function managedHooks(pi) {
   }
 
   async function publishCurrentSessionName(pi, ctx, expectedName) {
+    if (ctx.mode !== "tui") return false;
     const normalizedExpectedName = expectedName?.trim() || "";
     if (!normalizedExpectedName) return false;
     const liveName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
@@ -1662,12 +1664,14 @@ Before naming cited work, inspect accessible references. Use shortest recognizab
   pi.on("session_start", async (_event, ctx) => {
     resetSessionGoalLifecycle(ctx);
     void registerSession(pi, ctx);
-    await syncTmuxSubjectFromSession(pi, ctx);
-    if (ownsTmuxPane()) {
-      await refreshTmuxLabels(pi);
-      await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);
+    if (ctx.mode === "tui") {
+      await syncTmuxSubjectFromSession(pi, ctx);
+      if (ownsTmuxPane()) {
+        await refreshTmuxLabels(pi);
+        await exec(pi, "tmux-agent-state", ["set-kind", "pi"]);
+      }
+      await bindPaneSessionFile(pi, ctx);
     }
-    await bindPaneSessionFile(pi, ctx);
     await serializeNameOperation(() => synchronizeCurrentSessionName(
       pi,
       ctx,

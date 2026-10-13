@@ -23,6 +23,7 @@ export default function specShortcut(pi) {
   pi.registerShortcut(SHORTCUT, {
     description: "Open the current Superpowers spec pane",
     handler: async (ctx) => {
+      if (ctx.mode !== "tui") return;
       if (!tmuxAvailable()) {
         ctx.ui.notify("M-s spec shortcut is only available inside tmux.", "warning");
         return;
