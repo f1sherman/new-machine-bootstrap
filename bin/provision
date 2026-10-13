@@ -36,7 +36,11 @@ cleanup() {
   if $PLAYBOOK_STARTED && ! $SKIP_STALENESS_PUBLISH; then
     reconcile_command=${PI_SESSION_STALENESS_RECONCILE_BIN:-$HOME/.local/bin/pi-session-staleness-reconcile-new-machine-bootstrap}
     set +e
-    "$reconcile_command"
+    if [[ -x "$HOME/.local/bin/mise" ]]; then
+      "$HOME/.local/bin/mise" exec ruby@3.3 -- "$reconcile_command"
+    else
+      "$reconcile_command"
+    fi
     reconcile_status=$?
     set -e
     if [[ $reconcile_status -ne 0 ]]; then
