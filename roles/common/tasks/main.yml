@@ -1653,7 +1653,8 @@
       codex_bin="$codex_root/bin/codex"
     fi
     [[ -x "$codex_bin" ]] || { echo "Managed Codex executable is missing: $codex_bin" >&2; exit 1; }
-    "$codex_bin" --version >/dev/null || { echo "Managed Codex executable cannot start: $codex_bin" >&2; exit 1; }
+    node_root="$("{{ mise_bin }}" where 'node@{{ tool_versions.runtimes.node }}')"
+    PATH="$node_root/bin:$PATH" "$codex_bin" --version >/dev/null || { echo "Managed Codex executable cannot start: $codex_bin" >&2; exit 1; }
     pi_root="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')"
     pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
     pi_manifest="$pi_package_root/package.json"
