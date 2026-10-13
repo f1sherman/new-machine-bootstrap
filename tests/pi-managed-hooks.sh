@@ -223,6 +223,7 @@ const pi = {
 };
 
 const ctx = {
+  mode: "tui",
   cwd: "/repo",
   signal: new AbortController().signal,
   shutdown() {

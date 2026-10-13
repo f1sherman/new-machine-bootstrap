@@ -44,13 +44,18 @@ function handleActivityTransition(payload) {
 }
 
 export default function piAttentionBell(pi) {
-  const unsubscribe = pi.events.on(ACTIVITY_STATE_EVENT, handleActivityTransition);
+  let terminalMode = false;
+  const unsubscribe = pi.events.on(ACTIVITY_STATE_EVENT, (payload) => {
+    if (terminalMode) handleActivityTransition(payload);
+  });
 
   pi.on("session_start", async (_event, ctx) => {
-    wrapAttentionUi(ctx?.ui);
+    terminalMode = ctx.mode === "tui";
+    if (terminalMode) wrapAttentionUi(ctx?.ui);
   });
 
   pi.on("session_shutdown", () => {
+    terminalMode = false;
     if (typeof unsubscribe === "function") unsubscribe();
   });
 }
