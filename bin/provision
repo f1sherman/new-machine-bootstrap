@@ -31,13 +31,15 @@ cleanup() {
   local provision_status=$?
   local reconcile_status=0
   local reconcile_command
+  local ruby_root
   trap - EXIT
 
   if $PLAYBOOK_STARTED && ! $SKIP_STALENESS_PUBLISH; then
     reconcile_command=${PI_SESSION_STALENESS_RECONCILE_BIN:-$HOME/.local/bin/pi-session-staleness-reconcile-new-machine-bootstrap}
     set +e
-    if [[ -x "$HOME/.local/bin/mise" ]]; then
-      "$HOME/.local/bin/mise" exec ruby@3.3 -- "$reconcile_command"
+    if [[ -x "$HOME/.local/bin/mise" ]] && \
+      ruby_root=$("$HOME/.local/bin/mise" where ruby); then
+      PATH="$ruby_root/bin:$PATH" "$reconcile_command"
     else
       "$reconcile_command"
     fi
