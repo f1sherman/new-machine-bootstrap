@@ -1,0 +1,9 @@
+# shellcheck shell=bash
+
+# Login shells that are not interactive never read ~/.zshrc.d, but they do
+# run macOS path_helper, which moves the system directories ahead of the
+# mise shims. Re-apply the shims here, after path_helper.
+_mise_fragment="${ZDOTDIR:-$HOME}/.zshrc.d/05-mise-shims.zsh"
+# shellcheck disable=SC1090
+[[ -r "$_mise_fragment" ]] && source "$_mise_fragment"
+unset _mise_fragment
