@@ -1418,7 +1418,8 @@
       --deny-build=@google/genai --deny-build=esbuild \
       --deny-build=protobufjs \
       '@earendil-works/pi-server@{{ tool_versions.runtimes.pi_coding_agent }}' \
-      '@earendil-works/pi-client@{{ tool_versions.runtimes.pi_coding_agent }}'
+      '@earendil-works/pi-client@{{ tool_versions.runtimes.pi_coding_agent }}' \
+      '@earendil-works/chord@{{ tool_versions.runtimes.pi_chord }}'
     cd "$pi_root"
     "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} -- \
       node --input-type=module --eval \
