@@ -1413,6 +1413,7 @@ async function evaluateInitialSessionGoal(pi, request, signal, retry = false) {
 }
 
 export default function managedHooks(pi) {
+  const isBbSession = Boolean(process.env.BB_THREAD_ID?.trim());
   let sessionGoalGeneration = 0;
   let sessionGoalRunning;
   let currentSessionFile = "";
@@ -1518,6 +1519,7 @@ export default function managedHooks(pi) {
   }
 
   function startInitialSessionGoalEvaluation(pi, prompt, cwd, ctx) {
+    if (isBbSession) return;
     if (ctx?.sessionManager?.getSessionName?.()
       || sessionGoalRunning?.generation === sessionGoalGeneration) return;
 
@@ -1588,7 +1590,7 @@ export default function managedHooks(pi) {
     renderSessionFooter(ctx);
   }
 
-  pi.registerTool({
+  if (!isBbSession) pi.registerTool({
     name: "set_session_name",
     label: "Set Session Name",
     description: `Preserve the broad session goal's name by default. Call once to name it when the goal becomes clear, even if an automatic name exists. Call again only for an explicit user rename or a clear switch to an unrelated broad goal. Otherwise leave this tool unused, including reapplying the same name.
