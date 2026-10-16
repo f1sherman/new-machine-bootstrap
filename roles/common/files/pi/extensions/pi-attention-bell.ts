@@ -44,6 +44,7 @@ function handleActivityTransition(payload) {
 }
 
 export default function piAttentionBell(pi) {
+  if (process.env.BB_THREAD_ID?.trim()) return;
   let terminalMode = false;
   const unsubscribe = pi.events.on(ACTIVITY_STATE_EVENT, (payload) => {
     if (terminalMode) handleActivityTransition(payload);
