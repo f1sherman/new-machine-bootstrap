@@ -47,6 +47,7 @@ function createFixture() {
     let body = "Fixture body.";
     if (name === "grill-with-docs") body = GRILL_WITH_DOCS_PREIMAGE;
     if (name === "resolving-merge-conflicts") body = `Fixture body. ${MERGE_PREIMAGE}`;
+    if (name === "wait-what") body = "Re-pitch that and use the ubiquitous language from `CONTEXT.md`.";
     const explicitFrontmatter = name === "wait-what" ? "disable-model-invocation: true\n" : "";
     const explicitCodexPolicy = name === "wait-what" ? "policy:\n  allow_implicit_invocation: false\n" : "";
     write(upstream, `${sourcePath}/SKILL.md`, `---\nname: ${name}\ndescription: Fixture ${name}\n${explicitFrontmatter}---\n\n# ${name}\n\n${body}\n`);
