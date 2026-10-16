@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 # BB owns provider usage and thread presentation.
-[[ -n "${BB_THREAD_ID//[[:space:]]/}" ]] && exit 0
+[[ ${BB_THREAD_ID:-} =~ [^[:space:]] ]] && exit 0
 AUBE_PARANOID=true exec aubx ccstatusline@{{ ccstatusline_version }}
