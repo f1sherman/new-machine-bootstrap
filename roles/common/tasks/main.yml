@@ -560,7 +560,11 @@
     mode: '0600'
 
 - name: Resolve mise binary
-  include_tasks: '{{ playbook_dir }}/roles/common/tasks/resolve_mise_binary.yml'
+  include_tasks:
+    file: '{{ playbook_dir }}/roles/common/tasks/resolve_mise_binary.yml'
+    apply:
+      tags: agent-session-recovery
+  tags: agent-session-recovery
   when: mise_bin is not defined
 
 - name: Get current mise trusted_config_paths
