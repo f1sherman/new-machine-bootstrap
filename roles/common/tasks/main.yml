@@ -300,6 +300,7 @@
       - 47c77f4e846f8ef4a1d2545f9b5225dafb271a3936e6cd3c5cf053a50bf449ee
 
 - name: Install _recover-agent-sessions helper
+  tags: agent-session-recovery
   copy:
     backup: yes
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin/_recover-agent-sessions'
@@ -1645,6 +1646,7 @@
 # bin. Runs on macOS too — previously Linux-only, which left macOS without the
 # canonical symlink.
 - name: Create ~/.local/bin symlinks for managed npm tools
+  tags: agent-session-recovery
   shell: |
     set -euo pipefail
     codex_root="$("{{ mise_bin }}" where 'npm:@openai/codex')"
