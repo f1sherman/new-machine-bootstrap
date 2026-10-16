@@ -1,4 +1,6 @@
 #!/bin/bash
+# BB owns thread presentation, including descendants that inherit its marker.
+[[ -n "${BB_THREAD_ID//[[:space:]]/}" ]] && exit 0
 # Show icon in terminal tab title when Claude is actively working.
 # Sends an OSC title escape to the terminal(s) attached to THIS session
 # so it propagates through nested tmux/SSH to the Ghostty tab title.

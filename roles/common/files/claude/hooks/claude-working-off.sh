@@ -1,4 +1,6 @@
 #!/bin/bash
+# BB owns thread presentation, including descendants that inherit its marker.
+[[ -n "${BB_THREAD_ID//[[:space:]]/}" ]] && exit 0
 # Clear the "working" icon from the terminal tab title when Claude stops.
 # Re-sends the normal title to the terminal(s) attached to THIS session.
 #

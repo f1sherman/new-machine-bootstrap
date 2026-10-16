@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# BB owns thread presentation, including descendants that inherit its marker.
+[[ -n "${BB_THREAD_ID//[[:space:]]/}" ]] && exit 0
 set -euo pipefail
 
 [[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]] || exit 0
