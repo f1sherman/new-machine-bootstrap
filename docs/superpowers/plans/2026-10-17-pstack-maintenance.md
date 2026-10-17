@@ -54,7 +54,7 @@ Target scope: Pi on this MacBook, plus Pi and Claude Code on the connected dev h
 - [x] Exercise Claude Code explicit how, default routing, setup, and actual inherited-model read-only delegation on dev.
 - [x] Reproduce updater defects with production-artifact tests, repair them, and rerun on macOS and Linux.
 - [x] Resolve upstream main through Renovate itself and generate/check a real newer snapshot in an isolated consumer.
-- [ ] Final fresh review, publish verification repairs, and synchronize the dev verification worktree.
+- [x] Final fresh review found no actionable defects and independently reran all eight updater tests and the pinned-source check. Publish the repairs and synchronize the dev verification worktree before reporting completion.
 
 ### Observations
 
