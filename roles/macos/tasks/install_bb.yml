@@ -54,7 +54,7 @@
       command: >-
         {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} --
         node {{ bb_bundled_cli }} skill install-cli-skills
-        --machine {{ bb_host_id.content | b64decode | trim }} --json
+        --machine {{ bb_host_id.content | b64decode | trim }}
       when: >-
         (bb_skills_status.stdout | from_json).machines |
         selectattr('hostId', 'equalto', bb_host_id.content | b64decode | trim) |
