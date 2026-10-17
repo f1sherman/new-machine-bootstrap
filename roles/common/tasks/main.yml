@@ -2564,6 +2564,19 @@
     state: directory
     mode: '0755'
 
+- name: Synchronize pinned pstack reference outside skill discovery
+  tags: managed-skills
+  ansible.posix.synchronize:
+    src: '{{ playbook_dir }}/roles/common/files/vendor/pstack/'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/share/new-machine-bootstrap/pstack/'
+    archive: true
+    checksum: true
+    delete: true
+    rsync_opts:
+      - '--omit-dir-times'
+      - '--exclude=.DS_Store'
+      - '--exclude=._*'
+
 - name: Synchronize managed skill trees once
   tags: managed-skills
   ansible.posix.synchronize:
@@ -2579,6 +2592,8 @@
   loop:
     - name: ai-hero
       src: '{{ playbook_dir }}/roles/common/files/vendor/mattpocock-skills'
+    - name: pstack
+      src: '{{ playbook_dir }}/roles/common/files/config/skills/pstack'
     - name: common
       src: '{{ playbook_dir }}/roles/common/files/config/skills/common'
     - name: claude
@@ -2656,6 +2671,18 @@
       - '{{ ansible_facts["user_dir"] }}/.pi/agent/skills'
   register: ai_hero_skill_links
   changed_when: ai_hero_skill_links.stdout == 'changed'
+
+- name: Link explicit pstack entry to all harnesses
+  tags: managed-skills
+  command:
+    argv:
+      - '{{ managed_skill_linker }}'
+      - '{{ managed_skill_root }}/pstack'
+      - '{{ ansible_facts["user_dir"] }}/.claude/skills'
+      - '{{ ansible_facts["user_dir"] }}/.codex/skills'
+      - '{{ ansible_facts["user_dir"] }}/.pi/agent/skills'
+  register: pstack_skill_links
+  changed_when: pstack_skill_links.stdout == 'changed'
 
 - name: Reconcile managed Pi session staleness baseline
   command: '{{ ansible_facts["user_dir"] }}/.local/bin/pi-session-staleness-reconcile-new-machine-bootstrap'

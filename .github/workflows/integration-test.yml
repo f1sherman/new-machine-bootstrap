@@ -69,6 +69,9 @@ jobs:
       - name: Verify Chrome tab garbage collection
         run: node --test tests/chrome-tab-gc.test.js
 
+      - name: Verify pstack updater
+        run: node --test tests/update-pstack.test.js
+
       - name: Verify AI Hero skills updater
         run: node --test tests/update-ai-hero-skills.test.js
 

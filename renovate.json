@@ -7,6 +7,16 @@
   "customManagers": [
     {
       "customType": "regex",
+      "description": "Official pstack main branch digest",
+      "fileMatch": ["^vars/tool_versions\\.yml$"],
+      "matchStrings": ["    pstack: (?<currentDigest>[0-9a-f]{40})"],
+      "currentValueTemplate": "main",
+      "depNameTemplate": "pstack",
+      "packageNameTemplate": "https://github.com/cursor/plugins.git",
+      "datasourceTemplate": "git-refs"
+    },
+    {
+      "customType": "regex",
       "description": "Pinned tool versions in vars/tool_versions.yml",
       "fileMatch": ["^vars/tool_versions\\.yml$"],
       "matchStrings": [
@@ -15,6 +25,22 @@
     }
   ],
   "packageRules": [
+    {
+      "description": "Regenerate official pstack after main branch digest updates",
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["https://github.com/cursor/plugins.git"],
+      "minimumReleaseAge": "0 days",
+      "commitMessageTopic": "pstack",
+      "addLabels": ["pstack"],
+      "postUpgradeTasks": {
+        "commands": ["bin/update-pstack"],
+        "fileFilters": [
+          "vars/tool_versions.yml",
+          "roles/common/files/vendor/pstack/**"
+        ],
+        "executionMode": "update"
+      }
+    },
     {
       "description": "Make Pi updates eligible after 24 hours",
       "matchManagers": ["custom.regex"],
