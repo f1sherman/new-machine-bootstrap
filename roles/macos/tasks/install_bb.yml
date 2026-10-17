@@ -1,0 +1,78 @@
+---
+- name: Resolve mise binary for bb
+  include_tasks:
+    file: '{{ playbook_dir }}/roles/common/tasks/resolve_mise_binary.yml'
+    apply:
+      tags: bb
+  when: mise_bin is not defined
+
+- name: Check whether bb is installed
+  stat:
+    path: /Applications/bb.app
+  register: bb_application
+
+- name: Install bb application
+  homebrew_cask:
+    name: bb
+    state: present
+  when: not bb_application.stat.exists
+
+- name: Check whether this machine is enrolled in bb
+  stat:
+    path: '{{ ansible_facts["user_dir"] }}/.bb/host-id'
+  register: bb_enrollment
+
+- name: Explain bb first-run setup
+  debug:
+    msg: >-
+      Open bb and enroll this machine, then run bin/provision --tags bb
+      to install the CLI command and skills.
+  when: not bb_enrollment.stat.exists
+
+- name: Configure bb command line integration
+  when:
+    - not ansible_check_mode
+    - bb_enrollment.stat.exists
+  vars:
+    bb_bundled_cli: /Applications/bb.app/Contents/Resources/app.asar.unpacked/node_modules/bb-app/host-daemon/dist/bb
+  environment:
+    BB_CLI: '{{ bb_bundled_cli }}'
+  block:
+    - name: Read this machine's bb identifier
+      slurp:
+        src: '{{ ansible_facts["user_dir"] }}/.bb/host-id'
+      register: bb_host_id
+
+    - name: Check bb skills on this machine
+      command: >-
+        {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} --
+        node {{ bb_bundled_cli }} skill cli-skills-status --json
+      register: bb_skills_status
+      changed_when: false
+
+    - name: Install bb skills on this machine
+      command: >-
+        {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} --
+        node {{ bb_bundled_cli }} skill install-cli-skills
+        --machine {{ bb_host_id.content | b64decode | trim }}
+      when: >-
+        (bb_skills_status.stdout | from_json).machines |
+        selectattr('hostId', 'equalto', bb_host_id.content | b64decode | trim) |
+        selectattr('status', 'equalto', 'installed') | list | length == 0
+
+    - name: Check bb CLI command installation on the bb server
+      command: >-
+        {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} --
+        node {{ bb_bundled_cli }} settings cli-command show --json
+      register: bb_cli_status
+      changed_when: false
+
+    - name: Install bb CLI command on the bb server
+      command: >-
+        {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} --
+        node {{ bb_bundled_cli }} settings cli-command install --json
+      when:
+        - (bb_cli_status.stdout | from_json).installedPath is none
+        - >-
+          (bb_cli_status.stdout | from_json).shadowedBy is none or
+          (bb_cli_status.stdout | from_json).shadowedBy.source not in ['machine', 'npm']

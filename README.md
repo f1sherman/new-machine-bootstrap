@@ -21,6 +21,14 @@ ruby <(curl -fsSL https://raw.githubusercontent.com/f1sherman/new-machine-bootst
 
 The `macos` bootstrap script handles first-run machine setup, installs Homebrew and Ansible, and then runs `bin/provision`.
 
+Provisioning installs the bb desktop app through Homebrew. On a new machine,
+open bb and enroll the machine, then run `bin/provision --tags bb` again.
+This installs bb's built-in skills for the enrolled Mac and runs
+`bb settings cli-command install` on the configured bb server. A remote server
+receives the CLI command installation itself. The server must support that
+command. The skills go into `~/.agents/skills` and `~/.claude/skills`.
+An existing CLI installed by bb machine enrollment or npm is kept in place.
+
 ## Linux Dev Host
 
 Clone the repository on the host and run:
