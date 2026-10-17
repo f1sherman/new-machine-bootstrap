@@ -24,7 +24,8 @@ Keep all existing safeguards. No merges. Keep the single existing feedback conti
 - [x] Provision twice; expect the second run to report zero changes. Check production Pi discovery and real deployed upstream references.
 - [x] Execute the original how workflow through a native read-only explainer using the installed adapter and available parent model. Compare old/new role resolution with the same question; record behavioral and token evidence without claiming general quality gains.
 - [x] Preserve and verify continuation auto_hfoc68pvzti; rename it to a pstack feedback check. No duplicate registration.
-- [ ] Run relevant suites, Ansible and Renovate validation, inspect full diff, commit, get fresh-context branch review, fix material issues, and update PR 673 with truthful verification and rollout limits.
+- [x] Run relevant suites, Ansible and Renovate validation, inspect full diff, commit, get fresh-context branch review, and fix material issues.
+- [ ] Update PR 673 with truthful verification and rollout limits.
 
 ## Ledger
 
@@ -38,4 +39,6 @@ Keep all existing safeguards. No merges. Keep the single existing feedback conti
 - Matched read-only role-resolution diagnostics used the same question and available model. Original adapter required unavailable claude-opus-5-5-xhigh; repaired adapter selected inherit-parent openai-codex/gpt-6.1-sol. These are narrow compatibility diagnostics, not quality or token-efficiency estimates.
 - Actual deployed how workflow completed through a fresh native read-only reviewer assigned the explainer role, with no model override. It produced a source-grounded subsystem explanation. Workflow 1372ef86-71f1-4456-b484-c83d29fe5744; explainer run 290cc994-1484-440e-b34e-92dfc4020896. This verifies the original Pi explanation path, not every upstream workflow or live Claude/Codex dispatch.
 - Diagnostic reported tokens: baseline 8,350 (7,592 input / 758 output); repaired 8,408 (7,796 input / 612 output), a 58-token increase. Live explainer: 26,959 tokens across eight turns. Narrow compatibility evidence only; no quality or efficiency claim. Diagnostic children were forbidden from spawning; the parent separately launched the actual explainer successfully.
+- Final production Pi loader found exactly one explicit-only pstack skill, no diagnostics, and no automatic-prompt exposure. Both updater suites passed again (17 tests).
+- Fresh-context full-branch review against origin/main completed successfully with no actionable defects. It reran the updater tests and pinned-source comparison. Preserved upstream whitespace is not a local defect.
 - Optional github-workflows CI helper is absent from its installed skill directory. It is unrelated to pstack. Local tests and PR Status remain available; no helper repair is included.
