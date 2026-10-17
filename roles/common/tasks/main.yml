@@ -2672,7 +2672,7 @@
   register: ai_hero_skill_links
   changed_when: ai_hero_skill_links.stdout == 'changed'
 
-- name: Link explicit pstack entry to all harnesses
+- name: Link explicit pstack entries to all harnesses
   tags: managed-skills
   command:
     argv:
