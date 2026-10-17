@@ -27,6 +27,7 @@ This installs bb's built-in skills for the enrolled Mac and runs
 `bb settings cli-command install` on the configured bb server. A remote server
 receives the CLI command installation itself. The server must support that
 command. The skills go into `~/.agents/skills` and `~/.claude/skills`.
+An existing CLI installed by bb machine enrollment or npm is kept in place.
 
 ## Linux Dev Host
 

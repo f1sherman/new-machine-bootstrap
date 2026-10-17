@@ -71,4 +71,8 @@
       command: >-
         {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} --
         node {{ bb_bundled_cli }} settings cli-command install --json
-      when: (bb_cli_status.stdout | from_json).installedPath is none
+      when:
+        - (bb_cli_status.stdout | from_json).installedPath is none
+        - >-
+          (bb_cli_status.stdout | from_json).shadowedBy is none or
+          (bb_cli_status.stdout | from_json).shadowedBy.source not in ['machine', 'npm']
