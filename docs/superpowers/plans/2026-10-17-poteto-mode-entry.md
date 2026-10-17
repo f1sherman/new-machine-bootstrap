@@ -18,7 +18,7 @@ Preserve pstack routing. Keep one adapter. Resolve the sibling adapter correctly
 - [x] Rename the existing provisioning link task to cover both entries. Update docs/pstack.md with direct-mode commands and its distinction from the leaf router.
 - [x] Run the existing linker test and Ansible syntax check. Provision the managed tree locally and through the verified user-level role boundary on dev; require the second run to change nothing.
 - [x] Run production Pi discovery; expect one pstack and one poteto-mode, both excluded from automatic invocation. Run real direct-mode requests through local Pi and remote Pi/Claude Code, including a first-word leaf collision, plus empty/direct help and a pstack regression.
-- [ ] Record evidence, commit, get one fresh branch review, push, and create a PR with eligible verification.
+- [x] Record evidence, commit, get one fresh branch review, push, and create a PR with eligible verification.
 
 ## Ledger
 
@@ -29,4 +29,5 @@ Preserve pstack routing. Keep one adapter. Resolve the sibling adapter correctly
 - Real /skill:poteto-mode how ... invocations completed in local Pi and dev Pi with zero tool errors. Both read the shared adapter then upstream poteto-mode, followed by the Investigation/how workflow and one native explainer. The leading how was task text, not the pstack leaf-router selector.
 - Real /poteto-mode how ... completed in dev Claude Code, with one built-in Explore delegate, no permission denials, and only the parent Opus model in modelUsage. Empty direct invocations opened help in Pi and Claude. Existing /skill:pstack setup-pstack still completed with inherited defaults and no tool errors.
 - Installed wrapper contents match source on local Pi/Claude/Codex and dev Pi/Claude. The relative shared-adapter link resolves through installed symlinks. Copy-created AppleDouble metadata in the remote source was removed; deployment already excludes it. No upstream files, pstack entry, adapter content, or feedback schedule changed.
+- Fresh-context branch review found no actionable defects. Published PR #674 with real CLI and discovery evidence; no separate proof artifact is needed for this small nonvisual change.
 - These are functional registration and routing checks, not prompt optimization or quality/token-efficiency claims. No permanent static-content test was added; existing behavioral linker tests and actual CLI execution provide the relevant protection.
