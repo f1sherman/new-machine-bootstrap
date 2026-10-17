@@ -46,7 +46,15 @@ def resolve_mise(home)
     raise ReconcileError, "cannot resolve mise"
 end
 
-def resolve_pi_package_root(mise)
+def resolve_pi_package_root(mise, home)
+  marker = File.join(home, ".config/new-machine-bootstrap/external-pi-runtime")
+  if File.file?(marker)
+    root = Pathname.new(File.read(marker).strip)
+    raise ReconcileError, "external Pi package root must be absolute: #{marker}" unless root.absolute?
+    manifest = read_json(root.join("package.json"))
+    raise ReconcileError, "external Pi package has unexpected identity: #{root}" unless manifest["name"] == "@earendil-works/pi-coding-agent"
+    return root.realpath.to_s
+  end
   install_root = command_output(mise, "where", "npm:@earendil-works/pi-coding-agent")
   nested_root = File.join(
     install_root,
@@ -150,7 +158,7 @@ def run
   reload_inputs << value_input("managed-model-overrides", sorted_json(managed_models))
 
   mise = resolve_mise(home)
-  pi_package_root = resolve_pi_package_root(mise)
+  pi_package_root = resolve_pi_package_root(mise, home)
   node_executable = command_output(mise, "which", "node")
   unless File.file?(node_executable) && File.executable?(node_executable)
     raise ReconcileError, "managed Node.js executable is invalid: #{node_executable}"
