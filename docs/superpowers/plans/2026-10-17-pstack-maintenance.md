@@ -25,7 +25,7 @@ Keep all existing safeguards. No merges. Keep the single existing feedback conti
 - [x] Execute the original how workflow through a native read-only explainer using the installed adapter and available parent model. Compare old/new role resolution with the same question; record behavioral and token evidence without claiming general quality gains.
 - [x] Preserve and verify continuation auto_hfoc68pvzti; rename it to a pstack feedback check. No duplicate registration.
 - [x] Run relevant suites, Ansible and Renovate validation, inspect full diff, commit, get fresh-context branch review, and fix material issues.
-- [ ] Update PR 673 with truthful verification and rollout limits.
+- [x] Update PR 673 with truthful verification and rollout limits.
 
 ## Ledger
 
@@ -41,4 +41,5 @@ Keep all existing safeguards. No merges. Keep the single existing feedback conti
 - Diagnostic reported tokens: baseline 8,350 (7,592 input / 758 output); repaired 8,408 (7,796 input / 612 output), a 58-token increase. Live explainer: 26,959 tokens across eight turns. Narrow compatibility evidence only; no quality or efficiency claim. Diagnostic children were forbidden from spawning; the parent separately launched the actual explainer successfully.
 - Final production Pi loader found exactly one explicit-only pstack skill, no diagnostics, and no automatic-prompt exposure. Both updater suites passed again (17 tests).
 - Fresh-context full-branch review against origin/main completed successfully with no actionable defects. It reran the updater tests and pinned-source comparison. Preserved upstream whitespace is not a local defect.
+- PR 673 title/body now describe maintained tooling, native roles, Renovate dependency PR updates, and verified Pi scope. Published head matched local HEAD; integration checks were running. Existing BB read-only monitor reports detector_failed and is not providing active observation; direct GitHub status remains available. The feedback continuation is separately verified enabled for October 24 and targets this thread.
 - Optional github-workflows CI helper is absent from its installed skill directory. It is unrelated to pstack. Local tests and PR Status remain available; no helper repair is included.
