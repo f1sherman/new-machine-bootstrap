@@ -2,10 +2,12 @@
 """Regenerate the official pstack snapshot at the repository's pinned commit."""
 
 import argparse
+import fcntl
 import hashlib
 import io
 from pathlib import Path, PurePosixPath
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -64,7 +66,9 @@ def snapshot(root):
 
 
 def generate(checkout, commit, stage):
-    archive = git(checkout, "archive", commit, "pstack")
+    # The empty worktree ignores committed export-ignore/export-subst attributes.
+    archive = git(checkout, "-c", "core.attributesFile=/dev/null", "archive",
+                  "--worktree-attributes", commit, "pstack")
     copied = set()
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as source:
         for entry in source:
@@ -109,6 +113,33 @@ def generate(checkout, commit, stage):
     )
 
 
+def validate_destination(root, destination):
+    current = root
+    for part in destination.relative_to(root).parts:
+        current = current / part
+        if current.is_symlink() or (current.exists() and not current.is_dir()):
+            raise ValueError(f"Expected regular vendor directory: {current}")
+
+
+def replace_snapshot(stage, destination):
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    backup = Path(tempfile.mkdtemp(prefix=".pstack-backup-", dir=destination.parent))
+    previous = backup / "snapshot"
+    try:
+        if destination.exists():
+            destination.rename(previous)
+        stage.rename(destination)
+    except BaseException:
+        if previous.exists():
+            try:
+                previous.rename(destination)
+            except BaseException as error:
+                raise OSError(f"Restore failed; previous snapshot backup retained at {previous}") from error
+        backup.rmdir()
+        raise
+    shutil.rmtree(backup)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parent.parent)
@@ -116,10 +147,20 @@ def main():
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     root = args.repo_root.resolve()
-    commit = pinned_commit(root)
+    destination = root / VENDOR
+    validate_destination(root, destination)
     cache = root / ".cache"
+    if cache.is_symlink():
+        raise ValueError("Expected regular cache directory")
     cache.mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="pstack-", dir=cache) as temp:
+    with (cache / "update-pstack.lock").open("a") as lock, \
+            tempfile.TemporaryDirectory(prefix="pstack-", dir=cache) as temp:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        validate_destination(root, destination)
+        backups = sorted(destination.parent.glob(".pstack-backup-*"))
+        if backups:
+            raise ValueError(f"Previous snapshot backup needs recovery: {backups}")
+        commit = pinned_commit(root)
         temp = Path(temp)
         checkout, stage = temp / "source", temp / "generated"
         checkout.mkdir()
@@ -131,24 +172,13 @@ def main():
         if actual != commit:
             raise ValueError(f"Fetched commit differs from pinned SHA: {actual}")
         generate(checkout, commit, stage)
-        destination = root / VENDOR
+        validate_destination(root, destination)
         if snapshot(destination) == snapshot(stage):
             print(f"pstack snapshot matches {commit}")
             return
         if args.check:
             raise ValueError("pstack snapshot differs from pinned source; run bin/update-pstack")
-        if destination.is_symlink():
-            raise ValueError("Expected regular vendor directory")
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        previous = temp / "previous"
-        if destination.exists():
-            destination.rename(previous)
-        try:
-            stage.rename(destination)
-        except OSError:
-            if previous.exists():
-                previous.rename(destination)
-            raise
+        replace_snapshot(stage, destination)
         print(f"Updated pstack snapshot to {commit}")
 
 

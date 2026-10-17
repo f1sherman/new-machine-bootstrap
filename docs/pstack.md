@@ -7,7 +7,10 @@ It does not replace Superpowers or change the default delivery workflow.
 
 ## Use it
 
-Start a fresh session after provisioning, or reload skills in native Pi.
+Start a fresh session after provisioning, or run `/reload` in native Pi.
+No pstack-specific API keys, Cursor plugin, model rule, or setup interview is
+needed. Pi uses the existing pi-subagents package. Claude Code uses its built-in
+agents. Both use the current session model by default.
 
 | Harness | Example |
 | --- | --- |
@@ -94,7 +97,11 @@ bin/update-pstack --check
 
 The updater fetches the exact SHA, validates the selected complete paths,
 rejects symlinks and unsupported entries, preserves executable modes, and
-replaces the generated snapshot. Removed upstream files cannot linger. Check
+replaces the generated snapshot. Git export attributes cannot omit or rewrite
+selected files. A lock serializes updater runs. A failed replacement restores
+the previous snapshot. If restoration fails or the process is killed, the backup
+stays beside the vendor tree and subsequent runs stop for recovery instead of
+deleting it. Removed upstream files cannot linger. Check
 mode detects extra, missing, modified, or executable-mode-changed files without
 changing the snapshot. Local portability policy belongs in the adapter, not in
 hand edits to generated upstream files.

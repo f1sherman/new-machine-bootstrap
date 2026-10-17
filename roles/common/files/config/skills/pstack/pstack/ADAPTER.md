@@ -8,7 +8,7 @@ Keep native execution for ordinary implementation steps. For a user-invoked psta
 
 ## References
 
-The upstream root is `$HOME/.local/share/new-machine-bootstrap/pstack`. Resolve every upstream skill, playbook, reference, script, and agent pointer against this root or its referring file. The entry directory is not the upstream root. Files in `agents/` are prompt references, not registered agent types.
+The upstream root is `$HOME/.local/share/new-machine-bootstrap/pstack`. Resolve root-qualified paths such as `skills/how/SKILL.md` from this root. Resolve relative links from the file containing them. In particular, poteto-mode's `playbooks/<name>.md` means `$HOME/.local/share/new-machine-bootstrap/pstack/skills/poteto-mode/playbooks/<name>.md`, not a top-level `playbooks/` directory. The entry directory is not the upstream root. Files in `agents/` are prompt references, not registered agent types.
 
 For `/name` or a bold skill reference, read `skills/<name>/SKILL.md`. For `poteto-agent` or `comment-sicko`, read `agents/<name>.md` as part of the brief for an authorized existing agent. Include this adapter and the absolute upstream poteto-mode path in that brief. Do not install agent types or packages mid-task.
 
@@ -32,7 +32,9 @@ For Pi, discover native agents and use a read-only agent such as `reviewer` for 
 | Readonly worker | Use a read-only agent contract when available. The brief forbids edits; inspect actual changes before accepting results. |
 | Cloud agent, resume, background execution | Use the current harness contract, including its isolation, reuse, notification, and durable-work rules. |
 
-Claude Code can also read upstream `docs/harness/claude-code.md` for tool mapping, but this adapter and current tool schemas take precedence. Codex uses its current native tools and authorized subagent API. Pi uses its installed skill and subagent mechanisms, not shell-launched agent processes.
+For Claude Code, map read-only roles to the built-in `Explore` agent and poteto-agent/comment-sicko responsibilities to the built-in `general-purpose` agent with the upstream brief. Use the current native Agent/Task schema. These built-ins inherit the parent model; a custom agent can pin a different model even when the call omits `model`. Check for custom overrides before choosing a profile and select an inheriting profile for the default role map. The plugin-specific `pstack:poteto-agent` and `pstack:comment-sicko` agent types are not installed.
+
+Claude Code can also read upstream `docs/harness/claude-code.md` for other tool mapping, but this adapter and current tool schemas take precedence. Codex uses its current native tools and authorized subagent API. Pi uses its installed skill and subagent mechanisms, not shell-launched agent processes.
 
 ## Unsupported capabilities
 
