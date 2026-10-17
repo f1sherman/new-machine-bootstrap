@@ -30,7 +30,7 @@ Files: `roles/common/files/vendor/pstack/`, `roles/common/files/config/skills/ps
 - [x] Document commands, useful first trials, limitations, update review, and rollback.
 - [x] Run linker tests, Ansible syntax check, and `git diff --check`. Expected pass. No new static-text tests.
 - [x] Run `bin/provision --tags managed-skills` twice. Expected successful deployment and zero changes on second run. Inspect deployed paths and vendor checksums; upstream leaves must not be discovered.
-- [ ] Commit task files after a fresh-context branch review and any material fixes. Behavioral quality remains unverified pending real trial use; do not claim prompt gains.
+- [x] Commit task files after a fresh-context branch review and any material fixes. Behavioral quality remains unverified pending real trial use; do not claim prompt gains.
 
 ## Task 2: follow-up and PR
 
@@ -48,3 +48,6 @@ Files: `roles/common/files/vendor/pstack/`, `roles/common/files/config/skills/ps
 - Repository vendor/ ignore required a narrow explicit exception for the new snapshot; no force-add used.
 - BB continuation auto_hfoc68pvzti is enabled, one-shot at 2026-10-24T18:08:00Z, targeting thr_miw9ch3k73. Native continuations reject BB registration, so native BB scheduling supplies the requested follow-up.
 - Behavioral quality and live Claude/Codex execution are unverified. This is an additive packaging trial, not prompt optimization; no claims of token savings or quality improvement.
+- Fresh-context Codex branch review against origin/main found no actionable defects. No fixes or deferred findings.
+- Whitespace validation passes for locally authored files. Four existing upstream whitespace warnings are retained to preserve exact snapshot bytes; no upstream content changes.
+- Local main is one merged PR behind origin/main. Review and task-diff inspection use origin/main; the published PR targets remote main.
