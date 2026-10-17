@@ -1,10 +1,10 @@
 ---
 name: pstack
-description: Trial poteto's pstack workflows. Invoke explicitly with a task or a skill name and task.
+description: Use poteto's pstack workflows with an explicit task or skill name.
 disable-model-invocation: true
 ---
 
-# pstack trial
+# pstack
 
 Use this entry only when the user explicitly invokes `pstack`. It does not replace the default workflow.
 

@@ -48,6 +48,8 @@ Requirements:
 - **Editor**: Neovim and Vim via the shared dotvim repository
 - **Tools**: fzf, ripgrep, fd, bat, jq, yq, mise, and helper scripts
 - **AI tooling**: Claude Code, Codex CLI, and related local config
+- **Engineering workflows**: [pstack](docs/pstack.md), available explicitly in Pi,
+  Claude Code, and Codex, with Renovate-managed upstream updates
 
 ## Testing
 

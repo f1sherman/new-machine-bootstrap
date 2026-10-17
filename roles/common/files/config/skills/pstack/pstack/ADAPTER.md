@@ -4,7 +4,7 @@
 
 Use pstack as task guidance within the current user request and local policies. Existing repository, safety, test-value, worktree, provisioning, commit, PR, and publication rules remain authoritative. The upstream autonomy defaults do not grant new authority. In particular, a workflow name does not authorize a merge, external message, deployment, deletion, credential action, or third-party contribution.
 
-Use the existing native execution workflow unless the user authorizes delegation under the installed policy. If an upstream step requires delegation that is not authorized or available, report that step as blocked. Do not claim independent review or multi-model consensus from a single-context substitute. Do not rewrite managed skills as an automatic side effect of a broken workflow.
+Keep native execution for ordinary implementation steps. For a user-invoked pstack workflow, use its required delegates through the installed interface when the current request and session policy permit delegation. For `how`, a narrow question needs one read-only explainer; do not replace that explainer with the parent's own answer. If delegation is not permitted or available, report that specific limitation. Do not rewrite managed skills as an automatic side effect of a broken workflow.
 
 ## References
 
@@ -16,13 +16,19 @@ For `/name` or a bold skill reference, read `skills/<name>/SKILL.md`. For `potet
 
 Use only tools present in this session and their exact schemas.
 
-| Upstream concept | This trial |
+**Default role map: `inherit-parent` for every role.** This is the local role configuration. It overrides all upstream Cursor model defaults, including `how explorer`, `how explainer`, code, judgment, and panel roles, even when a routed skill repeats its own defaults. Omit a child model override so it inherits the current session model. No `.mdc` file or model setup step is required. An explicit user model choice overrides this default only after the installed interface confirms that model is available.
+
+Separate agents provide separate contexts, not model diversity. When a panel uses the same model, state that fact and never claim multi-model consensus. If the user explicitly requires distinct models, discover available choices and report a blocker only if that requirement cannot be met.
+
+For Pi, discover native agents and use a read-only agent such as `reviewer` for `how` explorers and explainers. A role name in an upstream skill is a prompt responsibility, not a required installed agent name. For a narrow `how` task, fill `references/explainer-prompt.md` without explorer findings and give the chosen agent the question, repository path, this adapter, and read-only scope. Follow the installed orchestration rules for multiple delegates. A parent's delegated brief already assigns the role: an explainer executes it directly rather than recursively spawning another explainer.
+
+| Upstream concept | Native mapping |
 | --- | --- |
 | Read, Grep, Glob, Bash | Current file-read, search, find, and command tools. Pi uses `read`, `grep`, `find`, `bash`. |
 | Task | Installed delegation interface, only within its authorization and orchestration rules. Never pass Cursor fields to it. |
 | AskQuestion | Current question mechanism, or a plain question only when local policy requires user input. |
 | TodoWrite | Installed checklist mechanism; otherwise a task-local plan. |
-| Cursor model slug | Discover available models with the installed delegation interface. Never infer an available model from an upstream name. If the required model or model diversity is unavailable, report the limitation before that workflow. |
+| Cursor model slug | Use the local inherit-parent role map above. Resolve explicit user overrides through available model discovery; never forward an upstream slug blindly. |
 | Readonly worker | Use a read-only agent contract when available. The brief forbids edits; inspect actual changes before accepting results. |
 | Cloud agent, resume, background execution | Use the current harness contract, including its isolation, reuse, notification, and durable-work rules. |
 
@@ -30,7 +36,7 @@ Claude Code can also read upstream `docs/harness/claude-code.md` for tool mappin
 
 ## Unsupported capabilities
 
-This trial does not install `cursor-team-kit`, Cursor automations, cloud agents, Bugbot, model rules, or external MCP servers. `setup-pstack` does not configure these harnesses; explain that limitation instead of writing `.cursor` rules or changing global instructions. Discover existing authorized tools before using an integration. Access to tools does not authorize searching unrelated private history.
+This integration does not install `cursor-team-kit`, Cursor automations, cloud agents, Bugbot, or external MCP servers. `setup-pstack` should explain the active inherit-parent role map and available user overrides in these harnesses, rather than write `.cursor` rules or change global instructions. Discover existing authorized tools before using an integration. Access to tools does not authorize searching unrelated private history.
 
 Use existing browser/terminal verification and PR workflows when they meet the upstream step's purpose. Name the substitution. If a required dependency, independent review, live surface, or evidence source is missing, stop that workflow and report the exact missing capability. Optional unavailable steps can be skipped with a reason. Never treat a skipped verification step as a pass.
 
@@ -38,4 +44,4 @@ Bundled scripts are reference material, not installation hooks. Inspect a script
 
 ## Scope
 
-Activation lasts for the explicit task. Later unrelated requests return to the default workflow. Keep pstack's quality claims labeled as trial hypotheses until actual use provides evidence.
+Activation lasts for the explicit task. Later unrelated requests return to the default workflow. Report only outcomes supported by actual execution evidence.

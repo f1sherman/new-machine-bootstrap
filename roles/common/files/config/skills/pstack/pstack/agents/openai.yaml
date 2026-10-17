@@ -1,5 +1,5 @@
 interface:
-  display_name: "pstack trial"
-  short_description: "Try poteto's engineering workflows explicitly"
+  display_name: "pstack"
+  short_description: "Use poteto's engineering workflows explicitly"
 policy:
   allow_implicit_invocation: false
