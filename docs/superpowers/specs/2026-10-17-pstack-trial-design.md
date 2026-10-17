@@ -14,7 +14,7 @@ Make poteto's pstack available in Brian's default managed setup for an explicit 
 
 ## Boundaries
 
-The existing canonical managed skill root owns one pstack skill directory with an upstream subdirectory. Only the wrapper is named SKILL.md in discovery; upstream markdown skill files use `.md` rather than `SKILL.md` to prevent recursive discovery. Preserve original content bytes and directory layout otherwise. The adapter resolves upstream `SKILL.md` references to these `.md` files. Copy complete skill support directories, agents, docs, README, and MIT license. Exclude assets and dormant automations. Record source commit, transforms, and SHA256 sums.
+The existing canonical managed skill root owns one pstack entry directory. Synchronize upstream separately to `~/.local/share/new-machine-bootstrap/pstack`, outside all harness skill discovery roots. Preserve upstream content bytes and directory layout. The wrapper points to that stable home-relative location. Copy complete skill support directories, agents, docs, README, and MIT license. Exclude assets and dormant automations. Record source commit and SHA256 sums.
 
 Explicit `pstack` invokes poteto-mode by default; `pstack how`, `pstack why`, and other exact skill directory names select a leaf. Sibling references resolve against the vendor tree. Parent instructions and tool contracts win over upstream defaults, including delegation authority, model selection, subagent reuse, publication, provisioning, and cleanup. Use current tools, never invented Cursor APIs. Do not install cursor-team-kit or write model rules. Unsupported mandatory capabilities stop that workflow with a clear gap; optional capabilities can be omitted explicitly.
 
