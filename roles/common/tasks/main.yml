@@ -300,6 +300,7 @@
       - 47c77f4e846f8ef4a1d2545f9b5225dafb271a3936e6cd3c5cf053a50bf449ee
 
 - name: Install _recover-agent-sessions helper
+  tags: agent-session-recovery
   copy:
     backup: yes
     dest: '{{ ansible_facts["user_dir"] }}/.local/bin/_recover-agent-sessions'
@@ -559,7 +560,11 @@
     mode: '0600'
 
 - name: Resolve mise binary
-  include_tasks: '{{ playbook_dir }}/roles/common/tasks/resolve_mise_binary.yml'
+  include_tasks:
+    file: '{{ playbook_dir }}/roles/common/tasks/resolve_mise_binary.yml'
+    apply:
+      tags: agent-session-recovery
+  tags: agent-session-recovery
   when: mise_bin is not defined
 
 - name: Get current mise trusted_config_paths
@@ -1658,9 +1663,17 @@
 # bin. Runs on macOS too — previously Linux-only, which left macOS without the
 # canonical symlink.
 - name: Create ~/.local/bin symlinks for managed npm tools
+  tags: agent-session-recovery
   shell: |
     set -euo pipefail
-    codex_bin="$("{{ mise_bin }}" where 'npm:@openai/codex')/bin/codex"
+    codex_root="$("{{ mise_bin }}" where 'npm:@openai/codex')"
+    codex_bin="$codex_root/node_modules/.bin/codex"
+    if [[ ! -x "$codex_bin" ]]; then
+      codex_bin="$codex_root/bin/codex"
+    fi
+    [[ -x "$codex_bin" ]] || { echo "Managed Codex executable is missing: $codex_bin" >&2; exit 1; }
+    node_root="$("{{ mise_bin }}" where 'node@{{ tool_versions.runtimes.node }}')"
+    PATH="$node_root/bin:$PATH" "$codex_bin" --version >/dev/null || { echo "Managed Codex executable cannot start: $codex_bin" >&2; exit 1; }
     pi_root="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')"
     pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
     pi_manifest="$pi_package_root/package.json"
