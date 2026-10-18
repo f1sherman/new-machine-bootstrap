@@ -1,0 +1,5 @@
+interface:
+  display_name: "poteto-mode"
+  short_description: "Use poteto's engineering workflow for a task"
+policy:
+  allow_implicit_invocation: false

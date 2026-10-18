@@ -1,8 +1,8 @@
 # pstack
 
 [pstack](https://github.com/cursor/plugins/tree/main/pstack) is poteto's set of
-engineering workflows. The managed setup provides one explicit entry in Pi,
-Claude Code, and Codex. It stays installed and maintained like other tooling.
+engineering workflows. The managed setup provides explicit `poteto-mode` and
+`pstack` entries in Pi, Claude Code, and Codex. It stays installed and maintained like other tooling.
 It does not replace Superpowers or change the default delivery workflow.
 
 ## Use it
@@ -12,15 +12,19 @@ No pstack-specific API keys, Cursor plugin, model rule, or setup interview is
 needed. Pi uses the existing pi-subagents package. Claude Code uses its built-in
 agents. Both use the current session model by default.
 
-| Harness | Example |
-| --- | --- |
-| Pi | `/skill:pstack how does this project's request cancellation work?` |
-| Claude Code | `/pstack how does this project's request cancellation work?` |
-| Codex | `$pstack how does this project's request cancellation work?` |
+| Harness | Direct workflow | Skill router |
+| --- | --- | --- |
+| Pi | `/skill:poteto-mode <task>` | `/skill:pstack <skill> <task>` |
+| Claude Code | `/poteto-mode <task>` | `/pstack <skill> <task>` |
+| Codex | `$poteto-mode <task>` | `$pstack <skill> <task>` |
 
-Put an exact upstream skill directory name first to select that skill. Without
-a matching name, the entry selects poteto-mode. Without arguments, it selects
-poteto-help. Examples in Pi:
+Use `poteto-mode` for a task. It passes the whole request to the upstream
+workflow, including a first word that matches another skill name. Native Pi
+uses the `/skill:` prefix, not a bare `/poteto-mode` command.
+
+Use `pstack` to select a leaf skill by its exact upstream directory name. Without
+a matching name, it selects poteto-mode. Both entries open poteto-help without
+arguments. Examples in Pi:
 
 ```text
 /skill:pstack how does link-managed-skill-tree work?
@@ -30,8 +34,10 @@ poteto-help. Examples in Pi:
 /skill:pstack add pagination to this endpoint
 ```
 
-The last example enters poteto-mode. There is one local command, not dozens of
-new commands competing with existing skill names.
+The last example enters poteto-mode. You can also write
+`/skill:poteto-mode add pagination to this endpoint`. Both entries read the same
+local adapter before upstream instructions. Individual upstream leaf skills
+are not registered as separate commands.
 
 ## Native agents and models
 
@@ -59,13 +65,14 @@ Inspect them and their dependencies before any authorized execution.
 
 ## Installation layout
 
-- Entry and adapter: `roles/common/files/config/skills/pstack/pstack/`.
+- Entries: `roles/common/files/config/skills/pstack/{pstack,poteto-mode}/`.
+- Shared adapter: `roles/common/files/config/skills/pstack/pstack/ADAPTER.md`.
 - Official source: `roles/common/files/vendor/pstack/`.
 - Deployed reference: `~/.local/share/new-machine-bootstrap/pstack`.
-- Entry links: `~/.pi/agent/skills/pstack`, `~/.claude/skills/pstack`, and
-  `~/.codex/skills/pstack`.
+- Entry links: `pstack` and `poteto-mode` under `~/.pi/agent/skills/`,
+  `~/.claude/skills/`, and `~/.codex/skills/`.
 
-Only the entry is discoverable. The complete upstream skills, support files,
+Only the two local entries are discoverable. The complete upstream skills, support files,
 agent briefs, documentation, and MIT license remain unchanged outside skill
 discovery. The updater records source provenance, SHA256 checksums, and modes.
 
