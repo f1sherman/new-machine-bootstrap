@@ -1,7 +1,7 @@
 # Official pstack reference snapshot
 
-- Source: https://github.com/cursor/plugins/tree/0317eb8b858c991c57721358daaee19dbe8c814d/pstack
-- Commit: `0317eb8b858c991c57721358daaee19dbe8c814d`
+- Source: https://github.com/cursor/plugins/tree/019a6a20592c10bf92869e5740368f578a9997fd/pstack
+- Commit: `019a6a20592c10bf92869e5740368f578a9997fd`
 - Branch tracked by Renovate: `main`.
 - License: MIT, preserved in `LICENSE`.
 - Selected complete paths: `skills/`, `agents/`, `docs/`, `README.md`, `LICENSE`.
