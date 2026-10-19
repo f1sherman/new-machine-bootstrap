@@ -1,0 +1,5 @@
+interface:
+  display_name: "setup-pstack"
+  short_description: "Configure machine-local pstack model roles"
+policy:
+  allow_implicit_invocation: false
