@@ -57,7 +57,8 @@ The budgets are unlimited (max), large (xhigh), medium (high), and small (medium
 These are targets: setup uses only reasoning controls the current model and
 harness actually support. Claude's delegate tool does not expose Pi's thinking
 suffix. There, budget guides model choice without claiming a per-delegate
-reasoning setting. Inheritance aliases retain the parent model and its settings.
+reasoning setting. Inheritance aliases retain the parent model and omit effort
+overrides; native agent reasoning defaults can still apply.
 
 Confirmed choices are private user-owned runtime state:
 

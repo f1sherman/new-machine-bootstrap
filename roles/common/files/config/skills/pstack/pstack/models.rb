@@ -138,7 +138,8 @@ begin
   when 'resolve'
     reject_profile('invalid_arguments') unless args.length == 2 && ROLES.include?(args[0])
     profile = load_profile(harness)
-    selections = profile&.fetch('roles')&.fetch(args[0], nil) || [{'model' => 'inherit-parent'}]
+    defaults = Array.new(PANELS.include?(args[0]) ? 2 : 1) { {'model' => 'inherit-parent'} }
+    selections = profile&.fetch('roles')&.fetch(args[0], nil) || defaults
     validate_choices(selections, catalog_from(args[1]))
     {status: profile ? 'configured' : 'unconfigured', selections: selections}
   else

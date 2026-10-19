@@ -47,6 +47,18 @@ class PstackModelsTest < Minitest::Test
     assert_equal 0o700, File.stat(File.dirname(state)).mode & 0o777
     assert_equal [{'model'=>'inherit-parent'}], cli('resolve', 'pi', 'how explorer', @catalog)[0]['selections']
   end
+  def test_unconfigured_and_omitted_panels_keep_two_inheriting_entries
+    empty = file('no-models', [])
+    %w[pi claude-code].each do |harness|
+      %w[arena\ runners arena\ cross-judge\ pool architect\ runners interrogate\ reviewers].each do |role|
+        result, ok = cli('resolve', harness, role, empty)
+        assert ok, result.inspect
+        assert_equal [{'model'=>'inherit-parent'}, {'model'=>'inherit-parent'}], result['selections']
+      end
+    end
+    assert save[1]
+    assert_equal 2, cli('resolve', 'pi', 'architect runners', empty)[0]['selections'].length
+  end
   def test_panel_aliases_and_harness_separation
     selections = [{model: 'test/fast'}, {model: 'inherit-parent'}, {model: 'auto'}]
     assert save(profile({'architect runners'=>selections}))[1]
