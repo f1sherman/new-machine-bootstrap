@@ -36,5 +36,19 @@ Files: `roles/common/files/bin/repo-lib.sh`, `repo-start`, `repo-end`,
   shell syntax, and diff checks. Inspect all failures before claiming success.
 - [x] Classify actual read-only BB metadata with the production helper. Do not
   create branches, run cleanup, or retire any real BB environment for proof.
-- [ ] Commit implementation and completed plan. Run one fresh-context whole-
-  branch review through the PR workflow, address material findings, and open PR.
+- [x] Commit implementation and completed plan. Run fresh-context whole-
+  branch review through the PR workflow and address material findings.
+
+## Evidence and review fixes
+
+Baseline lifecycle suite passed. The new reuse case failed against unchanged
+source by creating `.worktrees/feature-bb-reused`. Candidate lifecycle, callback,
+and generated-state suites pass. Real BB metadata classifies this thread root
+as managed and the separate NMB worktree as ordinary, without Git mutation.
+
+Review found callback fixtures inherited BB markers; both now clear them.
+Review then reproduced a Ruby startup exit 1 being mistaken for ordinary
+ownership. Added an injected interpreter failure case, observed it fail, then
+changed classification to an explicit successful output token. Every interpreter
+or protocol failure now maps to fail-closed status 2. All four suites pass after
+both fixes. Publication and rollout remain separate from these source checks.
