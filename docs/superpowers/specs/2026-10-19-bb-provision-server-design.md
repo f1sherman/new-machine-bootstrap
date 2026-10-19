@@ -44,4 +44,4 @@ and the real Ansible/CLI runs provide stronger evidence.
 - [x] Revise and approve spec and plan.
 - [x] Implement optional override and document personal setup.
 - [x] Verify explicit, inherited, absent, and check-mode cases.
-- [ ] Review, commit, and update PR #688.
+- [x] Review, commit, and update PR #688.

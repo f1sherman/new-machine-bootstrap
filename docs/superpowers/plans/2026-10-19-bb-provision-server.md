@@ -32,7 +32,7 @@ Interface: optional Ansible string `bb_server_url` becomes `BB_SERVER_URL`.
   on this Mac, proving no personal-server injection. This is a negative
   verification case, not an unresolved failure of explicit personal setup.
 - [x] Run check mode with the explicit override: expect no failures or changes.
-- [ ] Review diff, commit, obtain branch review, and update PR #688.
+- [x] Review diff, commit, obtain branch review, and update PR #688.
 
 ## Execution record
 
@@ -47,4 +47,5 @@ passed (ok=13, changed=0, failed=0). Check mode passed (ok=9, changed=0,
 failed=0). The absent-override case returned the original HTTP 410 as expected.
 The local bb connection remains stale; plain provisioning without either
 explicit setting still fails on this personal Mac. No deployed connection
-settings were changed.
+settings were changed. Independent review found no actionable defects. PR #688
+was updated with the optional override and the revised verification evidence.
