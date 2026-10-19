@@ -215,7 +215,17 @@ main() {
     return 1
   fi
 
-  mode="$(resolve_mode "$explicit_mode" "$repo_root" "$ephemeral")" || return $?
+  if _repo_bb_managed_worktree "$repo_root"; then
+    if [[ "$explicit_mode" == "worktree" || "$path_explicit" == "true" || -n "$path" ]]; then
+      printf 'Error: BB already owns this worktree; nested isolation is not supported.\n' >&2
+      return 1
+    fi
+    mode="branch"
+  else
+    classifier_status=$?
+    [[ "$classifier_status" -eq 1 ]] || return "$classifier_status"
+    mode="$(resolve_mode "$explicit_mode" "$repo_root" "$ephemeral")" || return $?
+  fi
 
   if ! "$(_worktree_cmd git)" -C "$repo_root" rev-parse --verify "$start_point" >/dev/null 2>&1; then
     printf 'Error: invalid start point: %s\n' "$start_point" >&2

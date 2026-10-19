@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-unset TMUX TMUX_PANE
+unset TMUX TMUX_PANE BB_THREAD_ID BB_ENVIRONMENT_ID
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
@@ -747,5 +747,111 @@ ignored_destination="$TMPROOT/ignored-root-destination"
 assert_equals "$(git -C "$ignored_destination" branch --show-current)" \
   ignored-branch \
   ".gitignore-only worktree root remains allowed"
+
+# Execute the lifecycle boundary with real Git worktrees and an inert BB CLI.
+bb_bin="$TMPROOT/bb-bin"
+mkdir -p "$bb_bin"
+cat >"$bb_bin/bb" <<'EOF'
+#!/usr/bin/env ruby
+require 'json'
+exit 1 if ENV['BB_FIXTURE_MODE'] == 'unavailable'
+abort 'unexpected BB command' unless ARGV == %w[thread show thr_fixture --json]
+mode = ENV.fetch('BB_FIXTURE_MODE', 'managed')
+if mode == 'malformed'
+  puts '{'
+  exit
+end
+managed = mode != 'shared'
+puts JSON.generate({
+  thread: {id: 'thr_fixture', environmentId: 'env_fixture'},
+  environment: {
+    id: mode == 'mismatch' ? 'env_other' : 'env_fixture',
+    path: ENV.fetch('BB_FIXTURE_PATH'),
+    managed: managed, isWorktree: managed,
+    environmentProviderId: managed ? 'git-worktree' : 'project',
+    workspaceProvisionType: managed ? 'managed-worktree' : 'project-checkout',
+    lifecycle: {phase: 'active'}
+  }
+})
+EOF
+cat >"$bb_bin/ruby" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${BB_FIXTURE_MODE:-}" == ruby-failure && "${1:-}" == -rjson ]]; then
+  printf 'injected Ruby startup failure\n' >&2
+  exit 1
+fi
+exec "$BB_REAL_RUBY" "$@"
+EOF
+chmod +x "$bb_bin/bb" "$bb_bin/ruby"
+bb_real_ruby="$(command -v ruby)"
+
+create_remote_repo bb-boundary
+bb_main="$CREATED_REPO"
+bb_worktree="$TMPROOT/bb-owned"
+git -C "$bb_main" worktree add -q -b feature/bb-owned "$bb_worktree" main
+printf 'use_worktrees: true\n' >"$bb_worktree/.repo.yml"
+bb_run() {
+  (cd "$bb_worktree" && PATH="$bb_bin:$PATH" \
+    BB_THREAD_ID=thr_fixture BB_ENVIRONMENT_ID=env_fixture \
+    BB_REAL_RUBY="$bb_real_ruby" \
+    BB_FIXTURE_PATH="${BB_TEST_PATH:-$bb_worktree}" \
+    BB_FIXTURE_MODE="${BB_TEST_MODE:-managed}" "$@")
+}
+bb_result="$(bb_run "$REPO_START_SCRIPT" feature/bb-reused --json)"
+assert_equals "$(printf '%s' "$bb_result" | ruby -rjson -e 'puts JSON.parse(STDIN.read).fetch("path")')" \
+  "$bb_worktree" "BB isolation is reused instead of nested"
+assert_equals "$(git -C "$bb_worktree" branch --show-current)" \
+  feature/bb-reused "BB reuse checks out the requested branch"
+assert_equals "$(<"$bb_worktree/.repo.yml")" 'use_worktrees: true' \
+  "BB reuse does not rewrite repository mode"
+assert_no_file "$bb_worktree/.worktrees" "BB reuse creates no nested directory"
+for args in '--use-worktrees --ephemeral' '--path /unused'; do
+  # Fixed argument lists only; intentionally split to exercise option parsing.
+  if bb_run "$REPO_START_SCRIPT" $args feature/bb-forbidden >/dev/null 2>&1; then
+    fail_case "BB rejects nested worktree arguments" "$args was accepted"
+  fi
+done
+pass_case "BB rejects nested mode and explicit destination"
+printf dirty >"$bb_worktree/dirty.txt"
+if bb_run "$REPO_START_SCRIPT" feature/bb-dirty >/dev/null 2>&1; then
+  fail_case "BB reuse preserves dirty checks" "dirty checkout was accepted"
+fi
+rm "$bb_worktree/dirty.txt"
+pass_case "BB reuse preserves dirty checks"
+for mode in unavailable malformed mismatch ruby-failure; do
+  BB_TEST_MODE="$mode"
+  if bb_run "$REPO_START_SCRIPT" --no-worktrees --ephemeral \
+    "feature/bb-$mode" >/dev/null 2>&1; then
+    fail_case "BB uncertainty blocks repo-start" "$mode allowed mutation"
+  fi
+  if bb_run "$REPO_END_SCRIPT" >/dev/null 2>&1; then
+    fail_case "BB uncertainty blocks repo-end" "$mode allowed cleanup"
+  fi
+  assert_equals "$(git -C "$bb_worktree" branch --show-current)" \
+    feature/bb-reused "BB $mode preserves branch"
+done
+unset BB_TEST_MODE
+# Both cleanup variants must refuse even when Git merge proof would pass.
+for option in '' --closed; do
+  if bb_run "$REPO_END_SCRIPT" $option >/dev/null 2>&1; then
+    fail_case "BB cleanup is not Git cleanup" "repo-end $option succeeded"
+  fi
+  [ -d "$bb_worktree" ] || fail_case "BB worktree preserved" "path deleted"
+  git -C "$bb_main" show-ref --verify --quiet refs/heads/feature/bb-reused || \
+    fail_case "BB branch preserved" "branch deleted"
+done
+pass_case "BB-owned worktree and branch survive both cleanup modes"
+
+# A child using a different checkout must not inherit BB isolation ownership.
+BB_TEST_PATH="$bb_main"
+bb_run "$REPO_START_SCRIPT" --no-worktrees --ephemeral feature/bb-child >/dev/null
+assert_equals "$(git -C "$bb_worktree" branch --show-current)" \
+  feature/bb-child "different-path BB child retains explicit branch mode"
+unset BB_TEST_PATH
+BB_TEST_MODE=shared
+bb_run "$REPO_START_SCRIPT" --no-worktrees --ephemeral feature/bb-shared >/dev/null
+assert_equals "$(git -C "$bb_worktree" branch --show-current)" \
+  feature/bb-shared "unmanaged BB checkout retains explicit branch mode"
+unset BB_TEST_MODE
 
 printf 'repo lifecycle behavior checks complete\n'

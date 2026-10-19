@@ -262,6 +262,15 @@ if [[ -z "$repo_root" ]]; then
   exit 1
 fi
 
+if _repo_bb_managed_worktree "$repo_root"; then
+  printf 'Error: BB owns this worktree; repo-end cannot retire it or delete its branch.\n' >&2
+  printf 'Use BB environment retirement after review; no Git cleanup was performed.\n' >&2
+  exit 1
+else
+  bb_ownership_status=$?
+  [[ "$bb_ownership_status" -eq 1 ]] || exit "$bb_ownership_status"
+fi
+
 current_branch="$($(_worktree_cmd git) -C "$repo_root" branch --show-current)"
 if [[ -z "$current_branch" ]]; then
   printf 'Error: detached HEAD; checkout a branch first\n' >&2
