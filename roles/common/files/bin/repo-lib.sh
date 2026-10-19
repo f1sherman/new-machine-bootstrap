@@ -21,7 +21,7 @@ _worktree_cmd() {
 
 # 0: this root is BB-owned isolation; 1: ordinary Git lifecycle; 2: uncertain.
 _repo_bb_managed_worktree() {
-  local repo_root="$1" metadata bb_thread_id="${BB_THREAD_ID:-}"
+  local repo_root="$1" metadata classification bb_thread_id="${BB_THREAD_ID:-}"
   [[ -n "${bb_thread_id//[[:space:]]/}" ]] || return 1
   if [[ -z "${BB_ENVIRONMENT_ID:-}" ]] || ! command -v bb >/dev/null 2>&1; then
     printf 'Error: BB lifecycle ownership cannot be verified; refusing mutation.\n' >&2
@@ -31,7 +31,7 @@ _repo_bb_managed_worktree() {
     printf 'Error: BB lifecycle lookup failed; refusing mutation.\n' >&2
     return 2
   fi
-  printf '%s' "$metadata" | ruby -rjson -e '
+  if ! classification="$(printf '%s' "$metadata" | ruby -rjson -e '
     begin
       data = JSON.parse(STDIN.read)
       thread = data.fetch("thread")
@@ -40,20 +40,38 @@ _repo_bb_managed_worktree() {
         thread.fetch("environmentId") == ENV.fetch("BB_ENVIRONMENT_ID") &&
         env.fetch("id") == ENV.fetch("BB_ENVIRONMENT_ID")
       root = File.realpath(ARGV.fetch(0))
-      exit 1 unless File.realpath(env.fetch("path")) == root
+      unless File.realpath(env.fetch("path")) == root
+        puts "ordinary"
+        exit
+      end
       managed = env.fetch("managed")
       raise "managed flag" unless [true, false].include?(managed)
-      exit 1 unless managed
+      unless managed
+        puts "ordinary"
+        exit
+      end
       raise "ownership" unless env.fetch("isWorktree") == true &&
         env.fetch("environmentProviderId") == "git-worktree" &&
         env.fetch("workspaceProvisionType") == "managed-worktree" &&
         env.fetch("lifecycle").fetch("phase") == "active" &&
         File.file?(File.join(root, ".git"))
+      puts "managed"
     rescue StandardError
       warn "Error: invalid BB lifecycle metadata; refusing mutation."
       exit 2
     end
-  ' "$repo_root"
+  ' "$repo_root")"; then
+    printf 'Error: BB lifecycle classification failed; refusing mutation.\n' >&2
+    return 2
+  fi
+  case "$classification" in
+    managed) return 0 ;;
+    ordinary) return 1 ;;
+    *)
+      printf 'Error: invalid BB lifecycle classification; refusing mutation.\n' >&2
+      return 2
+      ;;
+  esac
 }
 
 _worktree_debug() {

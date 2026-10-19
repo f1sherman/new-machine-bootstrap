@@ -774,7 +774,16 @@ puts JSON.generate({
   }
 })
 EOF
-chmod +x "$bb_bin/bb"
+cat >"$bb_bin/ruby" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${BB_FIXTURE_MODE:-}" == ruby-failure && "${1:-}" == -rjson ]]; then
+  printf 'injected Ruby startup failure\n' >&2
+  exit 1
+fi
+exec "$BB_REAL_RUBY" "$@"
+EOF
+chmod +x "$bb_bin/bb" "$bb_bin/ruby"
+bb_real_ruby="$(command -v ruby)"
 
 create_remote_repo bb-boundary
 bb_main="$CREATED_REPO"
@@ -784,6 +793,7 @@ printf 'use_worktrees: true\n' >"$bb_worktree/.repo.yml"
 bb_run() {
   (cd "$bb_worktree" && PATH="$bb_bin:$PATH" \
     BB_THREAD_ID=thr_fixture BB_ENVIRONMENT_ID=env_fixture \
+    BB_REAL_RUBY="$bb_real_ruby" \
     BB_FIXTURE_PATH="${BB_TEST_PATH:-$bb_worktree}" \
     BB_FIXTURE_MODE="${BB_TEST_MODE:-managed}" "$@")
 }
@@ -808,7 +818,7 @@ if bb_run "$REPO_START_SCRIPT" feature/bb-dirty >/dev/null 2>&1; then
 fi
 rm "$bb_worktree/dirty.txt"
 pass_case "BB reuse preserves dirty checks"
-for mode in unavailable malformed mismatch; do
+for mode in unavailable malformed mismatch ruby-failure; do
   BB_TEST_MODE="$mode"
   if bb_run "$REPO_START_SCRIPT" --no-worktrees --ephemeral \
     "feature/bb-$mode" >/dev/null 2>&1; then
