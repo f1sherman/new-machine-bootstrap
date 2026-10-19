@@ -20,7 +20,7 @@ tool_versions:
 
   git_commits:
     # Renovate tracks the main branch digest; generation uses this exact SHA.
-    pstack: 8ad8a41fe418f7c948540641cf1d8649fba99db7
+    pstack: 8838150c6b4829ea3c01782631213776d86df14a
 
   git_tags:
     # renovate: datasource=github-tags depName=f1sherman/agent-session-registry
