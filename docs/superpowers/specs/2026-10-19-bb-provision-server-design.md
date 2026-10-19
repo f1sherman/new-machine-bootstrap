@@ -41,4 +41,4 @@ manual changes outside this repository.
 - [x] Write, self-review, and approve this spec.
 - [x] Commit spec; write and approve implementation plan.
 - [x] Execute plan and verify provisioning.
-- [ ] Commit repair, review branch, and open PR.
+- [x] Commit repair, review branch, and open PR (#688).

@@ -32,8 +32,8 @@ Interface: Ansible block environment consumed by the bundled bb CLI.
   Expected: skills and CLI status checks succeed, failed=0.
 - [x] Run `env -u BB_SERVER_URL bin/provision --tags bb --check`.
   Expected: successful check mode without integration mutations.
-- [ ] Review `git diff --check` and scoped diff; commit verified repair.
-- [ ] Obtain final branch review and open a PR with macOS provisioning proof.
+- [x] Review `git diff --check` and scoped diff; commit verified repair.
+- [x] Obtain final branch review and open a PR with macOS provisioning proof (#688).
 
 ## Execution record
 
@@ -46,3 +46,6 @@ ok=13, changed=0, failed=0. Check mode passed: ok=9, changed=0, failed=0;
 integration commands were skipped as intended. Only the standard Ansible
 Python interpreter discovery warning appeared. Full untagged provisioning was
 not run; the affected bb workflow was run end to end.
+
+Final independent branch review found no actionable defects. No fixed or
+unfixed review findings remain. PR #688 contains the macOS verification proof.
