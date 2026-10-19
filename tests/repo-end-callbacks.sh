@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-unset TMUX TMUX_PANE
+unset TMUX TMUX_PANE BB_THREAD_ID BB_ENVIRONMENT_ID
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_END_SCRIPT="$(cd "$SCRIPT_DIR/../roles/common/files/bin" && pwd)/repo-end"
