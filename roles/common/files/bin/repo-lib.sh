@@ -19,6 +19,43 @@ _worktree_cmd() {
   printf '%s\n' "$cmd"
 }
 
+# 0: this root is BB-owned isolation; 1: ordinary Git lifecycle; 2: uncertain.
+_repo_bb_managed_worktree() {
+  local repo_root="$1" metadata bb_thread_id="${BB_THREAD_ID:-}"
+  [[ -n "${bb_thread_id//[[:space:]]/}" ]] || return 1
+  if [[ -z "${BB_ENVIRONMENT_ID:-}" ]] || ! command -v bb >/dev/null 2>&1; then
+    printf 'Error: BB lifecycle ownership cannot be verified; refusing mutation.\n' >&2
+    return 2
+  fi
+  if ! metadata="$(bb thread show "$BB_THREAD_ID" --json)"; then
+    printf 'Error: BB lifecycle lookup failed; refusing mutation.\n' >&2
+    return 2
+  fi
+  printf '%s' "$metadata" | ruby -rjson -e '
+    begin
+      data = JSON.parse(STDIN.read)
+      thread = data.fetch("thread")
+      env = data.fetch("environment")
+      raise "association" unless thread.fetch("id") == ENV.fetch("BB_THREAD_ID") &&
+        thread.fetch("environmentId") == ENV.fetch("BB_ENVIRONMENT_ID") &&
+        env.fetch("id") == ENV.fetch("BB_ENVIRONMENT_ID")
+      root = File.realpath(ARGV.fetch(0))
+      exit 1 unless File.realpath(env.fetch("path")) == root
+      managed = env.fetch("managed")
+      raise "managed flag" unless [true, false].include?(managed)
+      exit 1 unless managed
+      raise "ownership" unless env.fetch("isWorktree") == true &&
+        env.fetch("environmentProviderId") == "git-worktree" &&
+        env.fetch("workspaceProvisionType") == "managed-worktree" &&
+        env.fetch("lifecycle").fetch("phase") == "active" &&
+        File.file?(File.join(root, ".git"))
+    rescue StandardError
+      warn "Error: invalid BB lifecycle metadata; refusing mutation."
+      exit 2
+    end
+  ' "$repo_root"
+}
+
 _worktree_debug() {
   [[ "${WORKTREE_DEBUG:-}" == "1" ]] || return 0
   printf '[worktree] %s\n' "$*" >&2
