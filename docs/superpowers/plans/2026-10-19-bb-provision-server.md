@@ -1,51 +1,50 @@
 # bb provisioning server implementation plan
 
-> Execution: Native, using superpowers:executing-plans. Self-reviewed and approved.
+> Execution: Native, using superpowers:executing-plans. Revised and self-approved.
 
-**Goal:** Route macOS provisioning's bb commands to the current server.
-**Architecture:** Add one environment setting to the existing integration block.
+**Goal:** Let personal machines select their server without affecting work.
+**Architecture:** Optional `bb_server_url` supplies a block environment entry.
 **Tech stack:** Ansible YAML and bb CLI.
 **Spec:** `docs/superpowers/specs/2026-10-19-bb-provision-server-design.md`
 
-## Global constraints
+## Constraints and review focus
 
-Use `https://bb.brianjohn.com`. Preserve enrollment, `BB_CLI`, installation
-conditions, and failure handling. Do not edit deployed files directly.
-Repository test policy excludes permanent static-configuration tests.
+No personal-server default or machine classification inference. Keep `BB_CLI`,
+enrollment, installation conditions, and error handling unchanged. An absent
+Ansible override must preserve inherited environment and normal CLI resolution.
+No permanent static configuration tests under repository test policy.
 
-## Review focus
-
-Absent or stale inherited server URL must not select the old server.
-Unenrolled machines and check mode must retain their existing skip behavior.
-All four commands must share the environment setting; real failures must fail.
-
-## Task 1: Explicit server and end-to-end verification
+## Task 1: Optional server override
 
 Files: `roles/macos/tasks/install_bb.yml`, `README.md`, spec and plan.
-Interface: Ansible block environment consumed by the bundled bb CLI.
+Interface: optional Ansible string `bb_server_url` becomes `BB_SERVER_URL`.
 
-- [x] Reproduce bundled status command with `BB_SERVER_URL` unset.
-  Expected and observed: exit 1, HTTP 410 `server_moved`.
-- [x] Add `BB_SERVER_URL: https://bb.brianjohn.com` beside `BB_CLI`.
-- [x] Document the explicit provisioning server in README.
-- [x] Run `env -u BB_SERVER_URL bin/provision --tags bb`.
-  Expected: skills and CLI status checks succeed, failed=0.
-- [x] Run `env -u BB_SERVER_URL bin/provision --tags bb --check`.
-  Expected: successful check mode without integration mutations.
-- [x] Review `git diff --check` and scoped diff; commit verified repair.
-- [x] Obtain final branch review and open a PR with macOS provisioning proof (#688).
+- [x] Baseline: original CLI with no URL returns HTTP 410; hard-coded setting
+  passes but incorrectly applies personal server selection to work machines.
+- [x] Build environment from `BB_CLI` plus `BB_SERVER_URL` only when
+  `bb_server_url` is defined. No default URL.
+- [x] Document personal opt-in through extra vars or inherited environment.
+- [x] Run `env -u BB_SERVER_URL bin/provision --tags bb` with extra vars
+  `bb_server_url=https://bb.brianjohn.com`: expect failed=0.
+- [x] Run with no extra vars but inherited personal `BB_SERVER_URL`:
+  expect failed=0, proving caller connection is preserved.
+- [x] Run with no extra vars and no inherited URL: expect original HTTP 410
+  on this Mac, proving no personal-server injection. This is a negative
+  verification case, not an unresolved failure of explicit personal setup.
+- [x] Run check mode with the explicit override: expect no failures or changes.
+- [ ] Review diff, commit, obtain branch review, and update PR #688.
 
 ## Execution record
 
-Pre-flight: one task, no shared interfaces. Existing linked worktree confirmed.
-Baseline: clean; unset URL reproduces the reported HTTP 410. Explicit URL makes
-that same bundled CLI status command succeed against the current server.
+Original hard-coded repair passed live provisioning and check mode. Brian
+clarified that the URL is personal-only. The revised design uses an explicit
+setting instead of guessing which machines are personal. Work-machine live
+verification is unavailable; preserve connection selection by omitting the
+environment entry unless the optional Ansible variable is set.
 
-Verification: macOS bb provisioning passed with the inherited URL removed:
-ok=13, changed=0, failed=0. Check mode passed: ok=9, changed=0, failed=0;
-integration commands were skipped as intended. Only the standard Ansible
-Python interpreter discovery warning appeared. Full untagged provisioning was
-not run; the affected bb workflow was run end to end.
-
-Final independent branch review found no actionable defects. No fixed or
-unfixed review findings remain. PR #688 contains the macOS verification proof.
+Verification results: explicit extra-vars and inherited environment runs each
+passed (ok=13, changed=0, failed=0). Check mode passed (ok=9, changed=0,
+failed=0). The absent-override case returned the original HTTP 410 as expected.
+The local bb connection remains stale; plain provisioning without either
+explicit setting still fails on this personal Mac. No deployed connection
+settings were changed.
