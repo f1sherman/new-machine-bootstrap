@@ -16,7 +16,21 @@ For `/name` or a bold skill reference, read `skills/<name>/SKILL.md`. For `potet
 
 Use only tools present in this session and their exact schemas.
 
-**Default role map: `inherit-parent` for every role.** This is the local role configuration. It overrides all upstream Cursor model defaults, including `how explorer`, `how explainer`, code, judgment, and panel roles, even when a routed skill repeats its own defaults. Omit a child model override so it inherits the current session model. No `.mdc` file or model setup step is required. An explicit user model choice overrides this default only after the installed interface confirms that model is available.
+### Model setup
+
+For `setup-pstack`, read [MODEL-SETUP.md](MODEL-SETUP.md) and use its native discovery, budget, recommendation, confirmation and save procedure instead of upstream Cursor rule-writing. Choices are machine-local and harness-specific; no model IDs or catalogs are installed in the skills.
+
+### Model dispatch
+
+At the start of each pstack task, identify the harness (`pi` or `claude-code`) and run `ruby <adapter-directory>/models.rb show <harness>`. This reads user-owned runtime state at `$HOME/.local/state/pstack/models/<harness>.json`. The helper rejects copied-host, malformed or unsafe profiles. A failed read blocks model selection rather than resetting the profile. Other harnesses use inheritance and report persistent setup as unsupported.
+
+Precedence is an explicit user model choice, then the saved role selection, then `inherit-parent` for an unconfigured or omitted role. This overrides all upstream Cursor model defaults, including repeated defaults in routed skills. Never import a catalog or profile from another machine or harness.
+
+Before each delegate launch, discover the current native model catalog. In Pi, use the installed subagent model catalog and exact provider/id; CLI listings alone cannot override the current session registry. In Claude, use the native Agent/Task model schema and the current session's available choices; do not guess entitlement from CLI help. Normalize fresh catalog evidence to the JSON shape in MODEL-SETUP.md. Run `ruby <adapter-directory>/models.rb resolve <harness> <exact-role> <catalog-file>` for the role being launched. A configured but unavailable model or effort blocks that role and requests setup; do not silently inherit or substitute. An explicit user override may replace that role after current availability validation, without changing the saved profile.
+
+Use each returned selection for one delegate. For Pi, pass the exact model override and, only when resolved, its `:<thinking>` suffix. For Claude, pass the accepted native model value; never pass Pi provider IDs or thinking suffixes to Agent/Task. For `inherit-parent` or `auto`, omit both overrides and choose an inheriting native agent profile. For a real configured model, explicitly override any agent-pinned model. Panel list length controls delegate count, not permission to exceed current orchestration limits. Arena's cross-judge pool remains a candidate pool; choose one suitable entry as upstream specifies. The parent chat model stays unchanged.
+
+The local setup guide owns profile schema, budget handling and confirmation. Do not rerun setup or change saved choices merely because a normal task encounters a stale model.
 
 Separate agents provide separate contexts, not model diversity. When a panel uses the same model, state that fact and never claim multi-model consensus. If the user explicitly requires distinct models, discover available choices and report a blocker only if that requirement cannot be met.
 
@@ -28,17 +42,17 @@ For Pi, discover native agents and use a read-only agent such as `reviewer` for 
 | Task | Installed delegation interface, only within its authorization and orchestration rules. Never pass Cursor fields to it. |
 | AskQuestion | Current question mechanism, or a plain question only when local policy requires user input. |
 | TodoWrite | Installed checklist mechanism; otherwise a task-local plan. |
-| Cursor model slug | Use the local inherit-parent role map above. Resolve explicit user overrides through available model discovery; never forward an upstream slug blindly. |
+| Cursor model slug | Use the validated local role mapping above. Resolve explicit user overrides through fresh model discovery; never forward an upstream slug blindly. |
 | Readonly worker | Use a read-only agent contract when available. The brief forbids edits; inspect actual changes before accepting results. |
 | Cloud agent, resume, background execution | Use the current harness contract, including its isolation, reuse, notification, and durable-work rules. |
 
-For Claude Code, map read-only roles to the built-in `Explore` agent and poteto-agent/comment-sicko responsibilities to the built-in `general-purpose` agent with the upstream brief. Use the current native Agent/Task schema. These built-ins inherit the parent model; a custom agent can pin a different model even when the call omits `model`. Check for custom overrides before choosing a profile and select an inheriting profile for the default role map. The plugin-specific `pstack:poteto-agent` and `pstack:comment-sicko` agent types are not installed.
+For Claude Code, map read-only roles to the built-in `Explore` agent and poteto-agent/comment-sicko responsibilities to the built-in `general-purpose` agent with the upstream brief. Use the current native Agent/Task schema. Pass the resolved model for a configured role. For an inheritance alias, omit the model and verify that the chosen profile inherits: a custom agent can pin a different model even when the call omits `model`. The plugin-specific `pstack:poteto-agent` and `pstack:comment-sicko` agent types are not installed.
 
 Claude Code can also read upstream `docs/harness/claude-code.md` for other tool mapping, but this adapter and current tool schemas take precedence. Codex uses its current native tools and authorized subagent API. Pi uses its installed skill and subagent mechanisms, not shell-launched agent processes.
 
 ## Unsupported capabilities
 
-This integration does not install `cursor-team-kit`, Cursor automations, cloud agents, Bugbot, or external MCP servers. `setup-pstack` should explain the active inherit-parent role map and available user overrides in these harnesses, rather than write `.cursor` rules or change global instructions. Discover existing authorized tools before using an integration. Access to tools does not authorize searching unrelated private history.
+This integration does not install `cursor-team-kit`, Cursor automations, cloud agents, Bugbot, or external MCP servers. `setup-pstack` configures only the machine-local native profiles described in MODEL-SETUP.md; it does not write `.cursor` rules or change global instructions. Discover existing authorized tools before using an integration. Access to tools does not authorize searching unrelated private history.
 
 Use existing browser/terminal verification and PR workflows when they meet the upstream step's purpose. Name the substitution. If a required dependency, independent review, live surface, or evidence source is missing, stop that workflow and report the exact missing capability. Optional unavailable steps can be skipped with a reason. Never treat a skipped verification step as a pass.
 
