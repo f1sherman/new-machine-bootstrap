@@ -33,6 +33,7 @@ export default function(pi: ExtensionAPI) {
       log('subagent',args);
       if (args.action === 'models') return result(fixture.catalog);
       if (args.action === 'list') return result({agents:[{name:'reviewer',readOnly:true,model:'inherit-parent'}]});
+      if (args.action || !args.agent) throw new Error('Unsupported subagent action');
       return result({status:'completed',output:'The linker compares resolved managed symlinks and removes stale links only inside its managed source root.'});
     }});
 }

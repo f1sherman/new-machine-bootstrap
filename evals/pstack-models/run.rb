@@ -4,6 +4,9 @@ require 'digest'
 require 'fileutils'
 require 'open3'
 require 'tmpdir'
+require_relative 'grader'
+PstackModelEval.verify!
+Encoding.default_external = Encoding::UTF_8 # All replay text and JSON files are UTF-8.
 
 root = File.expand_path('../..', __dir__)
 model = ENV.fetch('EVAL_MODEL')
@@ -20,7 +23,6 @@ variants = {'baseline'=>old_adapter, 'candidate'=>adapter,
   'minus-dispatch'=>adapter.sub(/### Model dispatch\n.*?(?=Separate agents)/m, ''), 'empty-policy'=>''}
 roles = JSON.parse(IO.popen(['ruby',File.join(source,'models.rb'),'roles'], &:read))
 profile = {'version'=>1,'host'=>'fixture-host','harness'=>'pi','budget'=>'medium','roles'=>{'how explainer'=>[{'model'=>'fixture/deep'}]}}
-catalog = "Available models in this session registry: fixture/fast, fixture/deep. Both are valid native model overrides. No per-model thinking levels are exposed."
 user_tasks = {'setup'=>'setup-pstack', 'saved'=>'how does link-managed-skill-tree detect stale managed links? Read-only.', 'stale'=>'how does link-managed-skill-tree detect stale managed links? Read-only.'}
 # Freeze all comparisons before the first request. One trial per case/condition,
 # interleaved by case. These are bounded diagnostics, not reliability estimates.
@@ -62,17 +64,9 @@ user_tasks.each do |test_case, task|
     messages=events.select{|e|e['type']=='message_end' && e.dig('message','role')=='assistant'}.map{|e|e['message']}
     abort "incomplete trial no response: #{name}" if messages.empty? || messages.last['stopReason']=='error'
     actions=File.exist?(calls) ? File.readlines(calls).map{|line|JSON.parse(line)}:[]
-    spawns=actions.select{|a|a['tool']=='subagent' && a['args']['agent']}
-    saves=actions.any?{|a|a['tool']=='bash' && a['args']['command'].include?('models.rb save')}
-    discovered=actions.any?{|a|a['tool']=='subagent' && a['args']['action']=='models'}
-    resolved=actions.any?{|a|a['tool']=='bash' && a['args']['command'].include?('models.rb resolve')}
-    passed=case test_case
-      when 'setup'; discovered && !saves
-      when 'saved'; spawns.length==1 && spawns.first['args']['model']=='fixture/deep'
-      when 'stale'; resolved && spawns.empty? && !saves
-    end
+    grade=PstackModelEval.grade(test_case, actions)
     usage=messages.reduce(Hash.new(0)){|sum,m|m.fetch('usage',{}).each{|k,v|sum[k]+=v if v.is_a?(Numeric)};sum}
-    result={case:test_case,variant:variant,pass:passed,discovered:discovered,resolved:resolved,spawns:spawns.map{|s|s['args'].slice('agent','model')},saved:saves,usage:usage}
+    result={case:test_case,variant:variant,**grade,usage:usage}
     results<<result
     File.write(File.join(output,'results.json'),JSON.pretty_generate(results))
     puts JSON.generate(result)
