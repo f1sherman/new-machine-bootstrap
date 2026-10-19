@@ -23,7 +23,7 @@ No baked-in model IDs, credentials, model probes before budget confirmation, cro
 - [x] Run matched old/candidate and leave-one-component-out setup/dispatch diagnostics with frozen inputs/settings and token reporting. Label tool/harness limitations; retain untested safeguards.
 - [x] Provision managed skills twice locally and via the established user-level common-role boundary on dev. Verify the new entry, unchanged upstream bytes, preserved local-state sentinel, native CLI setup behavior, and actual saved-role delegate selection on both harnesses. Avoid selecting live user models without confirmation.
 - [x] Record evidence, commit, and run fresh branch review. Resolve material findings and recheck the branch.
-- [ ] Publish the PR and verify remote head/checks. Keep the existing feedback continuation unchanged.
+- [x] Publish PR #687. Verify the final remote head/checks before reporting it current. Keep the existing feedback continuation unchanged.
 
 ## Ledger
 
@@ -36,4 +36,5 @@ No baked-in model IDs, credentials, model probes before budget confirmation, cro
 - Real /skill:setup-pstack worked in local and dev Pi. A medium-budget local request produced the full table with two entries per initial panel and asked for confirmation, with zero tool errors in the final probe. Real /setup-pstack on dev Claude discovered native aliases, recommended role-specific choices, disclosed missing per-delegate effort controls, and asked for table confirmation. No live profile was saved.
 - Real saved-role probes used the production helper plus disposable profiles, redirecting only helper HOME. Pi on both machines launched its native read-only reviewer with an explicit Luna override. Claude launched one Explore delegate with Sonnet while its parent stayed on Opus; usage reported both models. The first Claude test hook redirected HOME too broadly and changed upstream reads; that infrastructure attempt is retained separately. Restricting redirection to the helper invocation preserved normal reads and the actual configured-model probe passed.
 - Fresh branch review found that unconfigured/omitted panel roles inherited only one delegate, reducing upstream independent contexts. Added a failing behavioral case, then corrected defaults to two inheritance entries for all panel/pool roles while preserving explicit saved lengths. Final macOS and Linux tests: 11 runs, 67 assertions, zero failures/errors/skips. Reprovisioned both boundaries twice; final second applies remained changed=0. No prompt guidance was pruned.
+- Follow-up fresh branch review found no actionable defects after the panel fallback correction.
 - CLI-generated temporary setup catalog was moved to private verification evidence before review; it was not committed. All shared profile reads remain unconfigured. No live model choices, credentials, global model defaults, or feedback continuation were changed. Profiles remain unconfigured until Brian confirms setup on each machine/harness.
