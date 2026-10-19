@@ -37,6 +37,7 @@
     bb_bundled_cli: /Applications/bb.app/Contents/Resources/app.asar.unpacked/node_modules/bb-app/host-daemon/dist/bb
   environment:
     BB_CLI: '{{ bb_bundled_cli }}'
+    BB_SERVER_URL: https://bb.brianjohn.com
   block:
     - name: Read this machine's bb identifier
       slurp:

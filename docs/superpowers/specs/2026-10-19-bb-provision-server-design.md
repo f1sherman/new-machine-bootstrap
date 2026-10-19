@@ -39,6 +39,6 @@ manual changes outside this repository.
 
 - [x] Explore context, scope, silent questions, assumptions, alternatives.
 - [x] Write, self-review, and approve this spec.
-- [ ] Commit spec; write and approve implementation plan.
-- [ ] Execute plan and verify provisioning.
+- [x] Commit spec; write and approve implementation plan.
+- [x] Execute plan and verify provisioning.
 - [ ] Commit repair, review branch, and open PR.

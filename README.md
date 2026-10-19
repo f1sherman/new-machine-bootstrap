@@ -24,8 +24,10 @@ The `macos` bootstrap script handles first-run machine setup, installs Homebrew 
 Provisioning installs the bb desktop app through Homebrew. On a new machine,
 open bb and enroll the machine, then run `bin/provision --tags bb` again.
 This installs bb's built-in skills for the enrolled Mac and runs
-`bb settings cli-command install` on the configured bb server. A remote server
-receives the CLI command installation itself. The server must support that
+`bb settings cli-command install` on `https://bb.brianjohn.com`. Provisioning
+sets `BB_SERVER_URL` for its bb commands so stale local connection settings do
+not select a previous server. A remote server receives the CLI command
+installation itself. The server must support that
 command. The skills go into `~/.agents/skills` and `~/.claude/skills`.
 An existing CLI installed by bb machine enrollment or npm is kept in place.
 
