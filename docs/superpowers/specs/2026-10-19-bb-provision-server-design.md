@@ -1,47 +1,61 @@
-# bb provisioning server selection
+# One-time bb server selection
 
-Status: self-reviewed and approved; revised after personal/work scope feedback.
+Status: approved by Brian in chat; personal/work prompt wording confirmed.
 
-## Goal and scope
+## Goal
 
-Let personal macOS machines target `https://bb.brianjohn.com` explicitly.
-Work machines must keep their own bb connection. Do not move a server,
-rewrite app-owned connection settings, or suppress command failures.
+Ask once for the bb server URL, save the choice, and reuse it on every
+provisioning run. Personal machines select `https://bb.brianjohn.com`; work
+machines leave the selection blank. No recurring flags, global personal-server
+default, machine classification, or mutation of bb-owned settings.
 
-## Evidence and assumptions
+## Context and selected approach
 
-The bundled CLI's skills status command returns HTTP 410 `server_moved` on
-the affected personal Mac when `BB_SERVER_URL` is unset. It succeeds when
-that variable names the personal server. There is no repository setting that
-classifies a Mac as personal or work; do not infer that classification.
+Commit `18a7ec4d` removed the personal/work prompt on March 19, 2026. Its
+legacy config may still exist but is no longer authoritative. Do not revive
+or infer settings from it. An optional per-run URL did not solve unattended
+subsequent provisioning. Brian approved one-time URL selection instead.
 
-## Approach and alternatives
+Use a Python standard-library helper invoked by Ansible only for enrolled Macs
+outside check mode. It opens the controlling terminal, prints instructions,
+and accepts `1` for the personal URL, an explicit HTTP(S) URL, or blank for
+work. It saves `{ "server_url": <string or null> }` atomically in
+`~/.config/new-machine-bootstrap/bb-server.json` with mode 0600. Blank is a
+saved choice, not an absent configuration. The helper emits JSON with
+`server_url` and `changed` for Ansible. A saved choice never prompts again.
 
-Accept optional Ansible variable `bb_server_url`. Only add `BB_SERVER_URL`
-to the integration block environment when that variable is defined. Always
-retain `BB_CLI`. Without an override, preserve the caller's environment and
-the CLI's normal connection resolution. Require an explicit personal URL
-through the environment or Ansible extra vars. Document both supported forms.
+Ansible applies `BB_SERVER_URL` only for a non-null saved URL. Null preserves
+the caller's environment and bb's normal settings. Keep `BB_CLI`, enrollment,
+installation conditions, and command failure handling unchanged. Missing
+configuration without a terminal fails with instructions to run provisioning
+interactively. Invalid input, corrupt saved data, EOF, or interruption must not
+silently save blank or overwrite an existing choice. Reject URLs containing
+credentials, whitespace, query strings, or fragments. Check mode neither
+invokes the helper nor writes configuration.
 
-A global personal-server default is rejected: it affects work machines.
-Hostname inference and rewriting app-owned state add unnecessary complexity.
+Alternative: an Ansible pause task is smaller, but returns empty input when
+stdin is noninteractive, which could accidentally persist a work choice.
+A helper using the controlling terminal makes that distinction explicit.
+Putting the prompt in the shell wrapper would need duplicate tag and enrollment
+logic, so keep it scoped to the existing bb tasks.
 
-## Verification and rollout
+## Verification
 
-Run the affected macOS provisioning workflow with the inherited URL removed
-and an explicit `bb_server_url`; require successful skills and CLI checks.
-Run without either override on the affected personal Mac; require the known
-HTTP 410 to prove the task no longer injects the personal URL. Also run with
-only the caller's `BB_SERVER_URL` and run check mode. No work-machine access
-is available, so verify connection-preservation semantics on this Mac.
+Behavioral tests execute the helper with a real pseudo-terminal. Cover personal
+selection, blank work selection, custom URL, invalid input, saved-state replay
+without a terminal, corrupt state, and interruption/noninteractive first run.
+These tests protect persistent connection routing and refusal to guess; manual
+provisioning cannot cover those state transitions. Add them to CI.
 
-Do not add static configuration tests: this setting has no complex behavior,
-and the real Ansible/CLI runs provide stronger evidence.
+Run the original `bin/provision --tags bb` with inherited URL removed in a
+pseudo-terminal and select personal once. Repeat without a terminal or flags;
+require success, no prompt, and changed=0. Run check mode. Exercise work/null
+selection in a temporary config with actual tasks, without contacting a work
+server. No live work-server access is available.
 
-## Workflow checklist
+## Progress
 
-- [x] Investigate original failure and personal/work scope.
-- [x] Revise and approve spec and plan.
-- [x] Implement optional override and document personal setup.
-- [x] Verify explicit, inherited, absent, and check-mode cases.
-- [x] Review, commit, and update PR #688.
+- [x] Investigate history and confirm approved design.
+- [ ] Implement and test saved selection.
+- [ ] Verify original workflow and repeat-run behavior.
+- [ ] Review and update PR #688.
