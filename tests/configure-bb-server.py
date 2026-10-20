@@ -11,7 +11,6 @@ import shlex
 import signal
 import subprocess
 import tempfile
-import termios
 import time
 import unittest
 
@@ -29,8 +28,27 @@ class ConfigureBBServerTest(unittest.TestCase):
             "hosts": "localhost", "connection": "local", "gather_facts": False,
             "tasks": [{"configure_bb_server": {"path": str(self.config)}}]
         }]))
+        # Signal after Ansible clears pending input, without changing production code.
+        hooks = Path(self.directory.name) / "hooks"
+        hooks.mkdir()
+        (hooks / "sitecustomize.py").write_text('''
+import os
+import termios
+import time
+original_tcflush = termios.tcflush
+
+def tcflush(fd, queue):
+    time.sleep(float(os.environ.get("BB_TEST_FLUSH_DELAY", "0")))
+    result = original_tcflush(fd, queue)
+    os.write(2, b"BB_TEST_PROMPT_READY\\n")
+    return result
+
+termios.tcflush = tcflush
+''')
+        python_path = str(hooks) + os.pathsep + os.environ.get("PYTHONPATH", "")
         self.environment = dict(os.environ, ANSIBLE_ACTION_PLUGINS=str(ROOT / "action_plugins"),
-                                ANSIBLE_NOCOLOR="1", ANSIBLE_FORCE_COLOR="0")
+                                ANSIBLE_NOCOLOR="1", ANSIBLE_FORCE_COLOR="0",
+                                PYTHONPATH=python_path)
 
     def command(self, check=False):
         command = ["ansible-playbook", "-i", "localhost,", str(self.playbook)]
@@ -61,13 +79,7 @@ class ConfigureBBServerTest(unittest.TestCase):
                 if not data:
                     break
                 output += data
-                if output.count(b"Selection: ") > answered_prompts and remaining:
-                    # Wait until Ansible has switched the terminal into input mode.
-                    while termios.tcgetattr(terminal)[3] & termios.ICANON:
-                        if time.monotonic() > deadline:
-                            self.fail("Prompt did not enter input mode")
-                        time.sleep(0.01)
-                    time.sleep(0.1)
+                if output.count(b"BB_TEST_PROMPT_READY") > answered_prompts and remaining:
                     os.write(terminal, remaining.pop(0))
                     answered_prompts += 1
             _, status = os.waitpid(pid, 0)
@@ -119,6 +131,12 @@ class ConfigureBBServerTest(unittest.TestCase):
         status, output = self.terminal([b"not-a-url\n", b"1\n"])
         self.assertEqual(status, 0, output)
         self.assertEqual(output.count("Selection: "), 2)
+        self.assertEqual(json.loads(self.config.read_text()), {"server_url": PERSONAL_URL})
+
+    def test_prompt_waits_for_slow_input_flush(self):
+        self.environment["BB_TEST_FLUSH_DELAY"] = "0.4"
+        status, output = self.terminal([b"1\n"])
+        self.assertEqual(status, 0, output)
         self.assertEqual(json.loads(self.config.read_text()), {"server_url": PERSONAL_URL})
 
     def test_first_run_without_terminal_does_not_save_blank(self):
