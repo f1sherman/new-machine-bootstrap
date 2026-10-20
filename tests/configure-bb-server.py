@@ -31,10 +31,18 @@ class ConfigureBBServerTest(unittest.TestCase):
         # Signal after Ansible clears pending input, without changing production code.
         hooks = Path(self.directory.name) / "hooks"
         hooks.mkdir()
-        (hooks / "sitecustomize.py").write_text('''
+        (hooks / "prompt_ready.py").write_text('''
 import os
 import termios
 import time
+from ansible.plugins.callback import CallbackBase
+
+class CallbackModule(CallbackBase):
+    CALLBACK_VERSION = 2.0
+    CALLBACK_TYPE = "aggregate"
+    CALLBACK_NAME = "prompt_ready"
+    CALLBACK_NEEDS_ENABLED = True
+
 original_tcflush = termios.tcflush
 
 def tcflush(fd, queue):
@@ -45,10 +53,10 @@ def tcflush(fd, queue):
 
 termios.tcflush = tcflush
 ''')
-        python_path = str(hooks) + os.pathsep + os.environ.get("PYTHONPATH", "")
         self.environment = dict(os.environ, ANSIBLE_ACTION_PLUGINS=str(ROOT / "action_plugins"),
                                 ANSIBLE_NOCOLOR="1", ANSIBLE_FORCE_COLOR="0",
-                                PYTHONPATH=python_path)
+                                ANSIBLE_CALLBACK_PLUGINS=str(hooks),
+                                ANSIBLE_CALLBACKS_ENABLED="prompt_ready")
 
     def command(self, check=False):
         command = ["ansible-playbook", "-i", "localhost,", str(self.playbook)]
