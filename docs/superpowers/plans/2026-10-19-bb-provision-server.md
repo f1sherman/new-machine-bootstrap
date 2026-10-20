@@ -1,51 +1,64 @@
-# bb provisioning server implementation plan
+# One-time bb server selection implementation plan
 
-> Execution: Native, using superpowers:executing-plans. Revised and self-approved.
+> Execution: Native, using superpowers:executing-plans. Self-reviewed and approved.
 
-**Goal:** Let personal machines select their server without affecting work.
-**Architecture:** Optional `bb_server_url` supplies a block environment entry.
-**Tech stack:** Ansible YAML and bb CLI.
+**Goal:** Save an explicit server choice once, with personal/work instructions.
+**Architecture:** A local Ansible action plugin owns the controller-side prompt
+and atomic JSON state. The existing bb command block consumes the action's
+result and scopes the selected URL to bb commands.
+**Tech stack:** Python standard library, Ansible, unittest, pseudo-terminals.
 **Spec:** `docs/superpowers/specs/2026-10-19-bb-provision-server-design.md`
 
 ## Constraints and review focus
 
-No personal-server default or machine classification inference. Keep `BB_CLI`,
-enrollment, installation conditions, and error handling unchanged. An absent
-Ansible override must preserve inherited environment and normal CLI resolution.
-No permanent static configuration tests under repository test policy.
+Never guess personal/work classification or import the obsolete `use` setting.
+Blank is a saved work choice and must survive noninteractive repeat runs.
+Noninteractive first run and interrupted input must never save a blank choice.
+A saved personal URL overrides stale CLI connection settings automatically.
+Check mode and unenrolled machines must never prompt or save configuration.
 
-## Task 1: Optional server override
+## Task 1: Helper, integration, and verification
 
-Files: `roles/macos/tasks/install_bb.yml`, `README.md`, spec and plan.
-Interface: optional Ansible string `bb_server_url` becomes `BB_SERVER_URL`.
+Files:
+- Create `action_plugins/configure_bb_server.py` and
+  `tests/configure-bb-server.py`.
+- Modify `roles/macos/tasks/install_bb.yml`, `README.md`, and
+  `.github/workflows/integration-test.yml`.
 
-- [x] Baseline: original CLI with no URL returns HTTP 410; hard-coded setting
-  passes but incorrectly applies personal server selection to work machines.
-- [x] Build environment from `BB_CLI` plus `BB_SERVER_URL` only when
-  `bb_server_url` is defined. No default URL.
-- [x] Document personal opt-in through extra vars or inherited environment.
-- [x] Run `env -u BB_SERVER_URL bin/provision --tags bb` with extra vars
-  `bb_server_url=https://bb.brianjohn.com`: expect failed=0.
-- [x] Run with no extra vars but inherited personal `BB_SERVER_URL`:
-  expect failed=0, proving caller connection is preserved.
-- [x] Run with no extra vars and no inherited URL: expect original HTTP 410
-  on this Mac, proving no personal-server injection. This is a negative
-  verification case, not an unresolved failure of explicit personal setup.
-- [x] Run check mode with the explicit override: expect no failures or changes.
-- [x] Review diff, commit, obtain branch review, and update PR #688.
+Interface: action takes `path`, returns `server_url` (HTTP(S) string or null)
+and `changed` (boolean). Errors fail the task with instructions.
+Config schema: JSON object containing `server_url`; private atomic write.
+
+- [x] Add behavioral tests for PTY personal/work/custom/invalid/EOF choices,
+  saved-state replay, validation, no-terminal first run, and file permissions.
+  Run `python3 tests/configure-bb-server.py`: observed red before action exists.
+- [x] Implement the action and CI invocation; rerun the same tests: green.
+- [x] Invoke the action for enrolled Macs only, outside check mode.
+  Replace per-run variable logic with the saved result.
+- [x] Update README with one-time prompt and saved config details.
+- [x] Run macOS `env -u BB_SERVER_URL bin/provision --tags bb` through a PTY;
+  answer `1` on this personal Mac. Expect failed=0 and one configuration change.
+- [x] Repeat without a terminal or flags: failed=0, changed=0, no prompt.
+- [x] Run check mode and temporary-config work/null integration verification.
+- [ ] Verify diff, commit, obtain fresh branch review, and update PR #688.
 
 ## Execution record
 
-Original hard-coded repair passed live provisioning and check mode. Brian
-clarified that the URL is personal-only. The revised design uses an explicit
-setting instead of guessing which machines are personal. Work-machine live
-verification is unavailable; preserve connection selection by omitting the
-environment entry unless the optional Ansible variable is set.
+Existing linked worktree is isolated and clean at implementation start.
+User approved the design and prompt wording. PR state must be refreshed before
+publication; review or auto-merge state does not grant merge authority.
+Pre-flight: single task; action result shape matches Ansible's consumer.
 
-Verification results: explicit extra-vars and inherited environment runs each
-passed (ok=13, changed=0, failed=0). Check mode passed (ok=9, changed=0,
-failed=0). The absent-override case returned the original HTTP 410 as expected.
-The local bb connection remains stale; plain provisioning without either
-explicit setting still fails on this personal Mac. No deployed connection
-settings were changed. Independent review found no actionable defects. PR #688
-was updated with the optional override and the revised verification evidence.
+Ruling: command modules lose their controlling terminal, so use a native
+Ansible action instead of a subprocess helper. A first integration probe proved
+that piped stdout buffered the prompt. Printing the prompt to stderr fixes the
+production pipeline; PTY tests now use the same pipeline. No dependency patch.
+
+Verification: 10 behavioral tests passed. Live personal selection completed
+(ok=14, changed=1, failed=0), and a noninteractive repeat with inherited URL
+removed completed (ok=14, changed=0, failed=0) without prompting. Check mode:
+ok=9, changed=0, failed=0. A temporary-fixture run of the production task file
+executed all four bb commands, including both install branches, in each case:
+work/null with no environment URL; work/null preserving an inherited work URL;
+and personal overriding a stale inherited URL. No real work server was used.
+Full untagged provisioning was not run; the affected bb workflow was verified.
