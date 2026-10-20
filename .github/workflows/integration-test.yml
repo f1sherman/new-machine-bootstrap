@@ -21,6 +21,9 @@ jobs:
           ANSIBLE_CALLBACKS_ENABLED: profile_tasks
           GITHUB_TOKEN: ${{ github.token }}
 
+      - name: Verify one-time bb server selection
+        run: python3 tests/configure-bb-server.py
+
       - name: Install Lua test runtime
         run: sudo apt-get install --yes lua5.4
 

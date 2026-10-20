@@ -24,9 +24,25 @@ The `macos` bootstrap script handles first-run machine setup, installs Homebrew 
 Provisioning installs the bb desktop app through Homebrew. On a new machine,
 open bb and enroll the machine, then run `bin/provision --tags bb` again.
 This installs bb's built-in skills for the enrolled Mac and runs
-`bb settings cli-command install` on the configured bb server. A remote server
-receives the CLI command installation itself. The server must support that
-command. The skills go into `~/.agents/skills` and `~/.claude/skills`.
+`bb settings cli-command install` on the configured bb server.
+
+The first bb provisioning run after enrollment asks for a server choice:
+- **Personal machines:** enter `1` to select `https://bb.brianjohn.com`.
+- **Work machines:** press Enter without selecting anything to keep bb's
+  configured connection.
+- You can also enter another HTTP(S) server URL.
+
+The choice is saved in `~/.config/new-machine-bootstrap/bb-server.json` and
+reused automatically. Blank is saved too, so work machines are not asked again.
+No provisioning flags are needed. A saved URL sets `BB_SERVER_URL` for bb
+commands only; a blank choice leaves the environment and bb settings unchanged.
+To change the choice, edit `server_url` in that file to a URL or JSON `null`.
+Check mode does not prompt or save settings. Without a saved choice, unattended
+provisioning stops and asks you to run `bin/provision --tags bb` interactively
+once. This does not change bb's own connection settings or enrollment.
+
+A remote server receives the CLI command installation itself. The server must
+support that command. The skills go into `~/.agents/skills` and `~/.claude/skills`.
 An existing CLI installed by bb machine enrollment or npm is kept in place.
 
 ## Linux Dev Host

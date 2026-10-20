@@ -29,14 +29,24 @@
       to install the CLI command and skills.
   when: not bb_enrollment.stat.exists
 
+- name: Load or configure this machine's bb server choice
+  configure_bb_server:
+    path: '{{ ansible_facts["user_dir"] }}/.config/new-machine-bootstrap/bb-server.json'
+  register: bb_server_choice
+  when:
+    - not ansible_check_mode
+    - bb_enrollment.stat.exists
+
 - name: Configure bb command line integration
   when:
     - not ansible_check_mode
     - bb_enrollment.stat.exists
   vars:
     bb_bundled_cli: /Applications/bb.app/Contents/Resources/app.asar.unpacked/node_modules/bb-app/host-daemon/dist/bb
-  environment:
-    BB_CLI: '{{ bb_bundled_cli }}'
+    bb_selected_server_url: '{{ bb_server_choice.server_url }}'
+  environment: >-
+    {{ {'BB_CLI': bb_bundled_cli} |
+       combine({'BB_SERVER_URL': bb_selected_server_url} if bb_selected_server_url is not none else {}) }}
   block:
     - name: Read this machine's bb identifier
       slurp:
