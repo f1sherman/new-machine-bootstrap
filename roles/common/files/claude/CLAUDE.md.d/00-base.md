@@ -22,7 +22,7 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 * Temp files: prefer `./tmp` if exists, else `/tmp`
 * Errors: never silently swallow in code/scripts. Log at minimum.
 * Verification: end to end verify; confirm empirically.
-* Other repositories: before you change, commit, or open a pull request in a repository this session did not start in, read its `CLAUDE.md`, `CLAUDE.local.md`, and `AGENTS*.md` files in full. A shell `cd` does not load them. Run `gh repo view --json visibility`. Keep internal names out of a public repository.
+* Other repositories: before you change, commit, or open a pull request in a repository this session did not start in, read its `CLAUDE.md` and `CLAUDE.local.md` files in full. A shell `cd` does not load them. Run `gh repo view --json visibility`. Keep internal names out of a public repository.
 
 # Terminal commands
 
