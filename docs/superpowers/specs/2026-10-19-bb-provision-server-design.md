@@ -62,4 +62,4 @@ server. No live work-server access is available.
 - [x] Investigate history and confirm approved design.
 - [x] Implement and test saved selection.
 - [x] Verify original workflow and repeat-run behavior.
-- [ ] Review and update PR #688.
+- [x] Independent branch review; PR #688 tracks publication.

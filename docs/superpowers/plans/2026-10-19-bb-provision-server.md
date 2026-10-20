@@ -40,7 +40,9 @@ Config schema: JSON object containing `server_url`; private atomic write.
   answer `1` on this personal Mac. Expect failed=0 and one configuration change.
 - [x] Repeat without a terminal or flags: failed=0, changed=0, no prompt.
 - [x] Run check mode and temporary-config work/null integration verification.
-- [ ] Verify diff, commit, obtain fresh branch review, and update PR #688.
+- [x] Verify diff, commit, and obtain fresh branch review.
+
+Publication is tracked by PR #688.
 
 ## Execution record
 
@@ -62,3 +64,4 @@ executed all four bb commands, including both install branches, in each case:
 work/null with no environment URL; work/null preserving an inherited work URL;
 and personal overriding a stale inherited URL. No real work server was used.
 Full untagged provisioning was not run; the affected bb workflow was verified.
+Final independent review found no actionable defects; no findings remain open.
