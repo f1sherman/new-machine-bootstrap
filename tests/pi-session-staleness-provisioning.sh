@@ -230,4 +230,24 @@ assert_not_equal "$reload_baseline" "$(read_generation reload)" \
 assert_equal "$restart_baseline" "$(read_generation restart)" \
   "assembled instructions restart generation"
 
+external_root="$home/runtime/external-pi"
+mkdir -p "$external_root" "$home/.config/new-machine-bootstrap"
+printf '{"name":"@earendil-works/pi-coding-agent","version":"1.0.2"}\n' \
+  >"$external_root/package.json"
+printf '%s\n' "$external_root" \
+  >"$home/.config/new-machine-bootstrap/external-pi-runtime"
+cat >"$home/.local/bin/mise" <<'STUB'
+#!/bin/bash
+[[ "$1 $2" == "which node" ]] || exit 42
+printf '%s\n' "$HOME/runtime/node/bin/node"
+STUB
+restart_before_external=$(read_generation restart)
+run_reconciler
+assert_not_equal "$restart_before_external" "$(read_generation restart)" \
+  "external Pi runtime restart generation"
+restart_external=$(read_generation restart)
+run_reconciler
+assert_equal "$restart_external" "$(read_generation restart)" \
+  "unchanged external Pi runtime restart generation"
+
 printf '%s\n' "Pi session staleness provisioning behavior passed"

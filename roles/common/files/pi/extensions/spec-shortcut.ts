@@ -20,6 +20,7 @@ function resultMessage(result) {
 }
 
 export default function specShortcut(pi) {
+  if (process.env.BB_THREAD_ID?.trim()) return;
   pi.registerShortcut(SHORTCUT, {
     description: "Open the current Superpowers spec pane",
     handler: async (ctx) => {

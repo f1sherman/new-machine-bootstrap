@@ -107,6 +107,13 @@
     name: anki
     state: latest
 
+- name: Install bb and its command line integration
+  include_tasks:
+    file: install_bb.yml
+    apply:
+      tags: bb
+  tags: bb
+
 - name: 'Install Brew casks'
   homebrew_cask:
     name: [

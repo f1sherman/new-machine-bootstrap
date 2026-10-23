@@ -23,6 +23,8 @@ const GRILL_WITH_DOCS_PREIMAGE = "Run a `/grilling` session, using the `/domain-
 const GRILL_WITH_DOCS_REPLACEMENT = "Use the harness's skill mechanism, when available, to load and follow both the `grilling` and `domain-modeling` skills. If the mechanism is unavailable or cannot load either dependency (including invocation-policy rejection), read and follow both sibling files `../grilling/SKILL.md` and `../domain-modeling/SKILL.md`.";
 const MERGE_CONFLICT_PREIMAGE = "Always resolve; never `--abort`.";
 const MERGE_CONFLICT_REPLACEMENT = "Continue a clearly intended operation and do not `--abort` merely because resolution is difficult. If the available context cannot establish whether the operation itself should continue, stop and ask a human to decide.";
+const WAIT_WHAT_PREIMAGE = "and use the ubiquitous language from `CONTEXT.md`.";
+const WAIT_WHAT_REPLACEMENT = "and use consistent terms from our conversation and the project.";
 
 function fail(message) {
   throw new Error(message);
@@ -254,6 +256,9 @@ function provenance(name, tag, commit) {
   if (name === "resolving-merge-conflicts") {
     patches.push("Replace the absolute never-abort instruction with the local human-decision rule.");
   }
+  if (name === "wait-what") {
+    patches.push("Use terms from the conversation and project without requiring a glossary file.");
+  }
   if (patches.length === 0) patches.push("None.");
   return `# Upstream provenance\n\n- Repository: ${UPSTREAM_REPOSITORY}\n- Tag: \`${tag}\`\n- Commit: \`${commit}\`\n- Local patches:\n${patches.map((patch) => `  - ${patch}`).join("\n")}\n`;
 }
@@ -302,6 +307,7 @@ function generateTree(sourceRoot, destinationRoot, tag, commit) {
     if (name === "wait-what") {
       requireExplicitFrontmatter(skill, name);
       requireExplicitCodexMetadata(codex, name);
+      skill = replaceExactlyOnce(skill, WAIT_WHAT_PREIMAGE, WAIT_WHAT_REPLACEMENT, `${name}/SKILL.md`);
     }
     if (name === "grill-with-docs") {
       skill = replaceExactlyOnce(skill, GRILL_WITH_DOCS_PREIMAGE, GRILL_WITH_DOCS_REPLACEMENT, `${name}/SKILL.md`);

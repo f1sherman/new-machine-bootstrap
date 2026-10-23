@@ -21,6 +21,9 @@ jobs:
           ANSIBLE_CALLBACKS_ENABLED: profile_tasks
           GITHUB_TOKEN: ${{ github.token }}
 
+      - name: Verify one-time bb server selection
+        run: python3 tests/configure-bb-server.py
+
       - name: Install Lua test runtime
         run: sudo apt-get install --yes lua5.4
 
@@ -68,6 +71,9 @@ jobs:
 
       - name: Verify Chrome tab garbage collection
         run: node --test tests/chrome-tab-gc.test.js
+
+      - name: Verify pstack updater
+        run: node --test tests/update-pstack.test.js
 
       - name: Verify AI Hero skills updater
         run: node --test tests/update-ai-hero-skills.test.js

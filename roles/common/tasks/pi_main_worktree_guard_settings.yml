@@ -67,7 +67,14 @@
 
 - name: Preserve Pi packages other than retired compaction extension
   set_fact:
-    pi_preserved_packages: "{{ pi_preserved_packages + [item] }}"
+    pi_preserved_packages: "{{ pi_preserved_packages + [managed_package] }}"
+  vars:
+    package_source: "{{ item.source if item is mapping else item }}"
+    managed_package: >-
+      {{ ((item if item is mapping else {'source': item}) |
+      combine({'extensions': []}))
+      if package_source is match('^npm:pi-session-manager(@|$)')
+      else item }}
   loop: "{{ pi_settings.get('packages', []) }}"
   when: >-
     ((item.source if item is mapping else item) |

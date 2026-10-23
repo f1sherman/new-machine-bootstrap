@@ -1413,6 +1413,7 @@ async function evaluateInitialSessionGoal(pi, request, signal, retry = false) {
 }
 
 export default function managedHooks(pi) {
+  const isBbSession = Boolean(process.env.BB_THREAD_ID?.trim());
   let sessionGoalGeneration = 0;
   let sessionGoalRunning;
   let currentSessionFile = "";
@@ -1455,6 +1456,7 @@ export default function managedHooks(pi) {
   }
 
   function registerSession(pi, ctx) {
+    if (isBbSession) return Promise.resolve(false);
     const session = registrySession(ctx);
     if (!session) return Promise.resolve(false);
     const name = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
@@ -1469,6 +1471,7 @@ export default function managedHooks(pi) {
   }
 
   function updateSessionName(pi, ctx, name) {
+    if (isBbSession) return Promise.resolve(false);
     const session = registrySession(ctx);
     if (!session) return Promise.resolve(false);
     return serializeRegistryPublication(() => runRegistryCommand(pi, [
@@ -1478,7 +1481,7 @@ export default function managedHooks(pi) {
   }
 
   async function publishCurrentSessionName(pi, ctx, expectedName) {
-    if (ctx.mode !== "tui") return false;
+    if (isBbSession || ctx.mode !== "tui") return false;
     const normalizedExpectedName = expectedName?.trim() || "";
     if (!normalizedExpectedName) return false;
     const liveName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
@@ -1494,7 +1497,7 @@ export default function managedHooks(pi) {
     const liveName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
     if (liveName !== normalizedExpectedName) return false;
     if (liveName) return publishCurrentSessionName(pi, ctx, liveName);
-    return clearPublishedSessionName(pi, ctx);
+    return isBbSession ? false : clearPublishedSessionName(pi, ctx);
   }
 
   function applySessionName(pi, ctx, subject, options = {}) {
@@ -1518,6 +1521,7 @@ export default function managedHooks(pi) {
   }
 
   function startInitialSessionGoalEvaluation(pi, prompt, cwd, ctx) {
+    if (isBbSession) return;
     if (ctx?.sessionManager?.getSessionName?.()
       || sessionGoalRunning?.generation === sessionGoalGeneration) return;
 
@@ -1588,7 +1592,7 @@ export default function managedHooks(pi) {
     renderSessionFooter(ctx);
   }
 
-  pi.registerTool({
+  if (!isBbSession) pi.registerTool({
     name: "set_session_name",
     label: "Set Session Name",
     description: `Preserve the broad session goal's name by default. Call once to name it when the goal becomes clear, even if an automatic name exists. Call again only for an explicit user rename or a clear switch to an unrelated broad goal. Otherwise leave this tool unused, including reapplying the same name.
@@ -1613,7 +1617,7 @@ Before naming cited work, inspect accessible references. Use shortest recognizab
     },
   });
 
-  pi.registerTool({
+  if (!isBbSession) pi.registerTool({
     name: "done_session",
     label: "Complete and Quit Session",
     description: "Mark the current persistent Pi session done and quit. Use only after the user explicitly asks.",
@@ -1664,7 +1668,7 @@ Before naming cited work, inspect accessible references. Use shortest recognizab
   pi.on("session_start", async (_event, ctx) => {
     resetSessionGoalLifecycle(ctx);
     void registerSession(pi, ctx);
-    if (ctx.mode === "tui") {
+    if (!isBbSession && ctx.mode === "tui") {
       await syncTmuxSubjectFromSession(pi, ctx);
       if (ownsTmuxPane()) {
         await refreshTmuxLabels(pi);
@@ -1720,7 +1724,7 @@ Before naming cited work, inspect accessible references. Use shortest recognizab
         notes.push("You are on main. Before changing files, run `repo-start <branch>` and continue from the created worktree.");
       }
 
-      if (await needsSubjectReminder(pi) && !await setSubjectFromSubagent(pi, event.prompt, cwd, ctx.signal)) {
+      if (!isBbSession && await needsSubjectReminder(pi) && !await setSubjectFromSubagent(pi, event.prompt, cwd, ctx.signal)) {
         notes.push("Choose a concise task subject, then run `tmux-agent-subject set \"<short subject>\"` before continuing. The provisional label will be replaced by the feature branch.");
       }
 
@@ -1745,14 +1749,14 @@ Before naming cited work, inspect accessible references. Use shortest recognizab
       return;
     }
 
-    if (event.toolName === "edit" || event.toolName === "write") {
+    if (!isBbSession && (event.toolName === "edit" || event.toolName === "write")) {
       await updateCurrentSpec(pi, event, ctx);
     }
   });
 
   pi.on("tool_result", async (event, ctx) => {
     if (event.toolName !== "bash") return;
-    if (event.isError) return;
+    if (event.isError || isBbSession) return;
     await updateCurrentSpecFromBash(pi, event, ctx);
   });
 }

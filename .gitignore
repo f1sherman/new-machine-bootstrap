@@ -25,6 +25,9 @@ __pycache__/
 venv/
 target/
 vendor/
+!roles/common/files/vendor/
+roles/common/files/vendor/*
+!roles/common/files/vendor/pstack/
 *.log
 coverage/
 .cache/

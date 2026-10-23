@@ -590,6 +590,17 @@
     - .config/mise
     - .config/aube
 
+- name: Check for external Pi runtime ownership
+  stat:
+    path: "{{ ansible_facts['user_dir'] }}/.config/new-machine-bootstrap/external-pi-runtime"
+  register: common_external_pi_runtime
+  tags: always
+
+- name: Set Pi runtime ownership
+  set_fact:
+    common_manage_pi_runtime: "{{ not common_external_pi_runtime.stat.exists }}"
+  tags: always
+
 - name: Install machine-wide mise and aube configuration
   template:
     src: "{{ item.src }}"
@@ -814,9 +825,15 @@
   set_fact:
     ccstatusline_version: "2.0.21"
 
+- name: Install BB-aware Claude statusline command
+  template:
+    src: claude-statusline.j2
+    dest: '{{ ansible_facts["user_dir"] }}/.local/bin/claude-statusline'
+    mode: '0755'
+
 - name: Merge model, statusLine, and permissions into Claude settings
   set_fact:
-    merged_settings: "{{ claude_settings | combine({'model': 'opus[1m]', 'effortLevel': 'max', 'statusLine': {'type': 'command', 'command': 'AUBE_PARANOID=true aubx ccstatusline@' ~ ccstatusline_version, 'padding': 0}, 'permissions': merged_permissions | combine({'defaultMode': 'acceptEdits'})}, recursive=True) }}"
+    merged_settings: "{{ claude_settings | combine({'model': 'opus[1m]', 'effortLevel': 'max', 'statusLine': {'type': 'command', 'command': (ansible_facts['user_dir'] ~ '/.local/bin/claude-statusline') | quote, 'padding': 0}, 'permissions': merged_permissions | combine({'defaultMode': 'acceptEdits'})}, recursive=True) }}"
 
 - name: Write merged Claude settings.json
   copy:
@@ -1362,12 +1379,13 @@
   command: bash {{ playbook_dir }}/roles/common/files/bin/purge-legacy-pi-coding-agent
   register: common_purge_legacy_pi
   changed_when: common_purge_legacy_pi.stdout.strip() == 'changed'
+  when: common_manage_pi_runtime
 
 - name: Install managed mise npm tools through aube
   command: >-
     {{ mise_bin }} install --yes
     'npm:@openai/codex@latest'
-    'npm:@earendil-works/pi-coding-agent@{{ tool_versions.runtimes.pi_coding_agent }}'
+    {{ ('npm:@earendil-works/pi-coding-agent@' ~ tool_versions.runtimes.pi_coding_agent) if common_manage_pi_runtime else '' }}
   environment:
     AUBE_PARANOID: "true"
     # Codex tracks "latest", so a release under the 24h paranoid age gate would
@@ -1412,6 +1430,7 @@
   retries: 3
   delay: 10
   changed_when: common_mise_pi_repair_result.stdout_lines | last == 'changed'
+  when: common_manage_pi_runtime
 
 - name: Install Pi async runtime dependencies
   shell: |
@@ -1423,7 +1442,8 @@
       --deny-build=@google/genai --deny-build=esbuild \
       --deny-build=protobufjs \
       '@earendil-works/pi-server@{{ tool_versions.runtimes.pi_coding_agent }}' \
-      '@earendil-works/pi-client@{{ tool_versions.runtimes.pi_coding_agent }}'
+      '@earendil-works/pi-client@{{ tool_versions.runtimes.pi_coding_agent }}' \
+      '@earendil-works/chord@{{ tool_versions.runtimes.pi_chord }}'
     cd "$pi_root"
     "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} -- \
       node --input-type=module --eval \
@@ -1436,6 +1456,7 @@
     AUBE_PARANOID: "true"
     PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
   changed_when: false
+  when: common_manage_pi_runtime
 
 # npm can fail while restoring retired package paths during a dependency-tree
 # update, then succeed on retry. Bound recovery and keep persistent errors fatal.
@@ -1568,6 +1589,12 @@
     dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/extensions/managed-hooks.ts"
     mode: '0644'
 
+- name: Install BB-aware native Pi session browser loader
+  copy:
+    src: pi/extensions/native-session-browser.ts
+    dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/extensions/native-session-browser.ts"
+    mode: '0644'
+
 - name: Install Pi main worktree mutation guard
   copy:
     src: pi/extensions/main-worktree-guard.ts
@@ -1643,6 +1670,7 @@
     NODE_PATH: "{{ (ansible_facts['os_family'] == 'Darwin') | ternary(common_aube_global_tools_node_path_macos.stdout, common_aube_global_tools_node_path_linux.stdout) }}"
   register: common_pi_coding_agent_global_node_link
   changed_when: common_pi_coding_agent_global_node_link.stdout.strip() == 'changed'
+  when: common_manage_pi_runtime
 
 # Symlink globally-installed Node package binaries into ~/.local/bin so they work
 # regardless of which Node version the current directory's mise.toml selects, and
@@ -1661,6 +1689,8 @@
     [[ -x "$codex_bin" ]] || { echo "Managed Codex executable is missing: $codex_bin" >&2; exit 1; }
     node_root="$("{{ mise_bin }}" where 'node@{{ tool_versions.runtimes.node }}')"
     PATH="$node_root/bin:$PATH" "$codex_bin" --version >/dev/null || { echo "Managed Codex executable cannot start: $codex_bin" >&2; exit 1; }
+    ln -sf "$codex_bin" "{{ ansible_facts['user_dir'] }}/.local/bin/codex"
+    if [[ "{{ common_manage_pi_runtime | bool | lower }}" == "false" ]]; then exit 0; fi
     pi_root="$("{{ mise_bin }}" where 'npm:@earendil-works/pi-coding-agent')"
     pi_package_root="$pi_root/node_modules/@earendil-works/pi-coding-agent"
     pi_manifest="$pi_package_root/package.json"
@@ -1675,7 +1705,6 @@
     [[ "$pi_name" == '@earendil-works/pi-coding-agent' && "$pi_version" == "{{ tool_versions.runtimes.pi_coding_agent }}" ]] || { echo "Managed Pi package manifest has unexpected identity or version: $pi_manifest" >&2; exit 1; }
     pi_bin="$pi_package_root/dist/cli.js"
     [[ -x "$pi_bin" ]] || { echo "Managed Pi executable is missing or not executable: $pi_bin" >&2; exit 1; }
-    ln -sf "$codex_bin" "{{ ansible_facts['user_dir'] }}/.local/bin/codex"
     ln -sf "$pi_bin" "{{ ansible_facts['user_dir'] }}/.local/bin/pi"
   args:
     executable: /bin/bash
@@ -2564,6 +2593,19 @@
     state: directory
     mode: '0755'
 
+- name: Synchronize pinned pstack reference outside skill discovery
+  tags: managed-skills
+  ansible.posix.synchronize:
+    src: '{{ playbook_dir }}/roles/common/files/vendor/pstack/'
+    dest: '{{ ansible_facts["user_dir"] }}/.local/share/new-machine-bootstrap/pstack/'
+    archive: true
+    checksum: true
+    delete: true
+    rsync_opts:
+      - '--omit-dir-times'
+      - '--exclude=.DS_Store'
+      - '--exclude=._*'
+
 - name: Synchronize managed skill trees once
   tags: managed-skills
   ansible.posix.synchronize:
@@ -2579,6 +2621,8 @@
   loop:
     - name: ai-hero
       src: '{{ playbook_dir }}/roles/common/files/vendor/mattpocock-skills'
+    - name: pstack
+      src: '{{ playbook_dir }}/roles/common/files/config/skills/pstack'
     - name: common
       src: '{{ playbook_dir }}/roles/common/files/config/skills/common'
     - name: claude
@@ -2656,6 +2700,18 @@
       - '{{ ansible_facts["user_dir"] }}/.pi/agent/skills'
   register: ai_hero_skill_links
   changed_when: ai_hero_skill_links.stdout == 'changed'
+
+- name: Link explicit pstack entries to all harnesses
+  tags: managed-skills
+  command:
+    argv:
+      - '{{ managed_skill_linker }}'
+      - '{{ managed_skill_root }}/pstack'
+      - '{{ ansible_facts["user_dir"] }}/.claude/skills'
+      - '{{ ansible_facts["user_dir"] }}/.codex/skills'
+      - '{{ ansible_facts["user_dir"] }}/.pi/agent/skills'
+  register: pstack_skill_links
+  changed_when: pstack_skill_links.stdout == 'changed'
 
 - name: Reconcile managed Pi session staleness baseline
   command: '{{ ansible_facts["user_dir"] }}/.local/bin/pi-session-staleness-reconcile-new-machine-bootstrap'
