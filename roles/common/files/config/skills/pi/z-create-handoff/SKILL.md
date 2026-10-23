@@ -44,6 +44,9 @@ type: implementation_strategy
 ## Task(s)
 {description of the task(s) that you were working on, along with the status of each (completed, work in progress, planned/discussed). If you are working on an implementation plan, make sure to call out which phase you are on. Make sure to reference the plan document and/or research document(s) you are working from that were provided to you at the beginning of the session, if applicable.}
 
+## Objective and authorization
+{Record the accepted objective, whether the request is implementation or design-only, prior approvals, remaining implementation work, and the next authorized action. List each gated action and its exact missing permission. Completing this handoff or a plan does not complete the implementation task. Keep specs and plans on the implementation branch.}
+
 ## Critical References
 {List any critical specification documents, architectural decisions, or design docs that must be followed. Include only 2-3 most important file paths. Leave blank if none.}
 
