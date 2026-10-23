@@ -15,6 +15,7 @@ USAGE = "Usage: _recover-agent-sessions [24h|4h|2d|today|yesterday] [--json]\n"
 NO_SUMMARY = "recent session activity"
 SUMMARY_CACHE_VERSION = 2
 SUMMARY_CONCURRENCY_CAP = 8
+SUMMARY_TIMEOUT_SECONDS = Float(ENV.fetch("RECOVER_AGENT_SESSIONS_SUMMARY_TIMEOUT_SECONDS", "30"))
 SUMMARY_OUTPUT_KEYS = %w[summary status last_completed next_step].freeze
 SUMMARY_STATUS_VALUES = %w[active blocked done].freeze
 
@@ -57,7 +58,10 @@ end
 
 def codex_binary
   candidate = ENV["RECOVER_AGENT_SESSIONS_CODEX_BIN"].to_s
-  candidate.empty? ? "codex" : candidate
+  return candidate unless candidate.empty?
+
+  managed = File.join(Dir.home, ".local", "bin", "codex")
+  command_exists?(managed) ? managed : "codex"
 end
 
 def capture_stdout(*command)
@@ -911,6 +915,7 @@ def summarize_with_codex(entry)
     command = [
       binary, "exec",
       "--ephemeral",
+      "--ignore-user-config",
       "--sandbox", "read-only",
       "--skip-git-repo-check",
       "--ignore-rules",
@@ -919,12 +924,54 @@ def summarize_with_codex(entry)
       "-o", output_file.path,
       "-"
     ]
-    _stdout, _stderr, status = Open3.capture3(*command, stdin_data: prompt)
-    return nil unless status.success?
+    status = run_summary_command(command, prompt)
+    if status && !status.success?
+      reason = status.exited? ? "exited #{status.exitstatus}" : "ended on signal #{status.termsig}"
+      warn "recover-agent-sessions: Codex summary #{reason}; using session metadata"
+    end
+    return nil unless status&.success?
 
     normalize_summary_payload(parse_json(File.read(output_file.path), nil))
   end
-rescue Errno::ENOENT
+rescue Errno::ENOENT => error
+  warn "recover-agent-sessions: Codex summary could not start: #{error.message}"
+  nil
+end
+
+def run_summary_command(command, prompt)
+  reader, writer = IO.pipe
+  pid = Process.spawn(*command, in: reader, out: File::NULL, err: File::NULL, pgroup: true)
+  reader.close
+  input_thread = Thread.new do
+    begin
+      writer.write(prompt)
+    rescue Errno::EPIPE, IOError
+      nil
+    ensure
+      writer.close
+    end
+  end
+  wait_thread = Thread.new { Process.waitpid2(pid).last }
+
+  unless wait_thread.join(SUMMARY_TIMEOUT_SECONDS)
+    warn "recover-agent-sessions: Codex summary timed out after #{SUMMARY_TIMEOUT_SECONDS}s; using session metadata"
+    signal_summary_process("TERM", pid)
+    wait_thread.join(1)
+    signal_summary_process("KILL", pid)
+    wait_thread.join
+    return nil
+  end
+
+  wait_thread.value
+ensure
+  input_thread&.join(1) || input_thread&.kill
+  reader&.close unless reader&.closed?
+  writer&.close unless writer&.closed?
+end
+
+def signal_summary_process(signal, pid)
+  Process.kill(signal, -pid)
+rescue Errno::ESRCH
   nil
 end
 

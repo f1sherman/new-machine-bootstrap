@@ -117,6 +117,13 @@ end
     File.write(File.join(package_root, "dist/cli.js"), "#!/bin/sh\nexit 0\n")
     FileUtils.chmod(0o755, File.join(package_root, "dist/cli.js"))
     FileUtils.mkdir_p(File.join(home, ".local/bin"))
+    codex_layout = platform == "Darwin" ? "node_modules/.bin/codex" : "bin/codex"
+    codex = File.join(home, "codex-install", codex_layout)
+    node = File.join(home, "node/bin/node")
+    FileUtils.mkdir_p([File.dirname(codex), File.dirname(node)])
+    File.write(codex, "#!/usr/bin/env node\n")
+    File.write(node, "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$HOME/node-invocations\"\nprintf 'codex-test-version\\n'\n")
+    FileUtils.chmod(0o755, [codex, node])
     pi = File.join(home, ".local/bin/pi")
     original = "#!/bin/sh\necho external-runtime\n"
     File.write(pi, original)
@@ -130,6 +137,7 @@ end
       case "$*" in
         'where npm:@earendil-works/pi-coding-agent') echo "$HOME/pi-install" ;;
         'where npm:@openai/codex') echo "$HOME/codex-install" ;;
+        'where node@22.19.0') echo "$HOME/node" ;;
         'exec ruby@3.4.0 -- ruby') exec ruby ;;
       esac
     SH
@@ -160,6 +168,8 @@ end
     abort "runtime ownership provision failed: #{stdout}\n#{stderr}" unless status.success?
     calls = File.read(File.join(home, "invocations"))
     abort "Codex setup was skipped" unless calls.include?("npm:@openai/codex")
+    abort "Codex launcher resolved the wrong layout" unless File.realpath(File.join(home, ".local/bin/codex")) == codex
+    abort "Codex launcher was not checked with managed Node" unless File.read(File.join(home, "node-invocations")).include?("#{codex} --version")
     includes_pi = File.read(config).include?('"npm:@earendil-works/pi-coding-agent"')
     if external
       abort "external Pi launcher was replaced" unless File.read(pi) == original && !File.symlink?(pi)

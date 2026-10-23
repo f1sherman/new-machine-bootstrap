@@ -253,6 +253,48 @@ complete_repo_tmux_state() {
   tmux-agent-worktree complete >/dev/null 2>&1 || true
 }
 
+origin_url() {
+  "$(_worktree_cmd git)" -C "$repo_root" remote get-url origin 2>/dev/null || true
+}
+
+github_repo_slug() {
+  local url="$1"
+  case "$url" in
+    git@github.com:*) printf '%s\n' "${url#git@github.com:}" | sed 's/[.]git$//' ;;
+    https://github.com/*) printf '%s\n' "${url#https://github.com/}" | sed 's/[.]git$//' ;;
+    ssh://git@github.com/*) printf '%s\n' "${url#ssh://git@github.com/}" | sed 's/[.]git$//' ;;
+    *) return 1 ;;
+  esac
+}
+
+github_merged_pr_proof() {
+  command -v gh >/dev/null 2>&1 || return 1
+  local slug json count number
+  slug="$(github_repo_slug "$(origin_url)")" || return 1
+  [[ -n "$slug" ]] || return 1
+  json="$(gh api --method GET "repos/${slug}/pulls" -f state=closed \
+    -f head="${slug%%/*}:${current_branch}" -f base="$main_branch" 2>/dev/null)" || return 1
+  count="$(printf '%s\n' "$json" | ruby -rjson -e '
+    prs = JSON.parse(STDIN.read)
+    matches = prs.select { |pr| pr["merged_at"].to_s != "" && pr.dig("base", "ref") == ARGV[0] && pr.dig("head", "ref") == ARGV[1] }
+    puts matches.length
+  ' "$main_branch" "$current_branch")" || return 1
+  if [[ "$count" == "1" ]]; then
+    number="$(printf '%s\n' "$json" | ruby -rjson -e '
+      prs = JSON.parse(STDIN.read)
+      matches = prs.select { |pr| pr["merged_at"].to_s != "" && pr.dig("base", "ref") == ARGV[0] && pr.dig("head", "ref") == ARGV[1] }
+      puts matches.fetch(0).fetch("number")
+    ' "$main_branch" "$current_branch")"
+    printf 'Using merged GitHub PR #%s as merge proof\n' "$number" >&2
+    return 0
+  fi
+  if [[ "$count" -gt 1 ]]; then
+    printf 'Error: multiple merged PRs found for branch %s targeting %s; refusing cleanup\n' "$current_branch" "$main_branch" >&2
+    exit 1
+  fi
+  return 1
+}
+
 repo_root="$(_worktree_repo_root)" || {
   printf 'Error: not inside a git repository\n' >&2
   exit 1
@@ -263,6 +305,17 @@ if [[ -z "$repo_root" ]]; then
 fi
 
 if _repo_bb_managed_worktree "$repo_root"; then
+  # BB removes its worktree once the thread is archived, so a merged PR needs no Git cleanup.
+  # The read-only forge lookup avoids fetch, callbacks, and branch changes.
+  if [[ "$closed_mode" != "true" ]]; then
+    current_branch="$($(_worktree_cmd git) -C "$repo_root" branch --show-current)"
+    main_branch="$(_worktree_main_branch)"
+    if [[ -n "$current_branch" && "$current_branch" != "$main_branch" ]] && github_merged_pr_proof; then
+      printf 'PR merged. Archive this BB thread; BB removes the worktree after its grace period and keeps the branch.\n' >&2
+      [[ "$print_path" != "true" ]] || printf '%s\n' "$repo_root"
+      exit 0
+    fi
+  fi
   printf 'Error: BB owns this worktree; repo-end cannot retire it or delete its branch.\n' >&2
   printf 'Use BB environment retirement after review; no Git cleanup was performed.\n' >&2
   exit 1
@@ -524,48 +577,6 @@ select_git_merge_proof_ref() {
 
   printf 'Error: local branch %s diverged from origin/%s; resolve manually before re-running repo-end\n' "$current_branch" "$current_branch" >&2
   exit 1
-}
-
-origin_url() {
-  "$(_worktree_cmd git)" -C "$repo_root" remote get-url origin 2>/dev/null || true
-}
-
-github_repo_slug() {
-  local url="$1"
-  case "$url" in
-    git@github.com:*) printf '%s\n' "${url#git@github.com:}" | sed 's/[.]git$//' ;;
-    https://github.com/*) printf '%s\n' "${url#https://github.com/}" | sed 's/[.]git$//' ;;
-    ssh://git@github.com/*) printf '%s\n' "${url#ssh://git@github.com/}" | sed 's/[.]git$//' ;;
-    *) return 1 ;;
-  esac
-}
-
-github_merged_pr_proof() {
-  command -v gh >/dev/null 2>&1 || return 1
-  local slug json count number
-  slug="$(github_repo_slug "$(origin_url)")" || return 1
-  [[ -n "$slug" ]] || return 1
-  json="$(gh api --method GET "repos/${slug}/pulls" -f state=closed \
-    -f head="${slug%%/*}:${current_branch}" -f base="$main_branch" 2>/dev/null)" || return 1
-  count="$(printf '%s\n' "$json" | ruby -rjson -e '
-    prs = JSON.parse(STDIN.read)
-    matches = prs.select { |pr| pr["merged_at"].to_s != "" && pr.dig("base", "ref") == ARGV[0] && pr.dig("head", "ref") == ARGV[1] }
-    puts matches.length
-  ' "$main_branch" "$current_branch")" || return 1
-  if [[ "$count" == "1" ]]; then
-    number="$(printf '%s\n' "$json" | ruby -rjson -e '
-      prs = JSON.parse(STDIN.read)
-      matches = prs.select { |pr| pr["merged_at"].to_s != "" && pr.dig("base", "ref") == ARGV[0] && pr.dig("head", "ref") == ARGV[1] }
-      puts matches.fetch(0).fetch("number")
-    ' "$main_branch" "$current_branch")"
-    printf 'Using merged GitHub PR #%s as merge proof\n' "$number" >&2
-    return 0
-  fi
-  if [[ "$count" -gt 1 ]]; then
-    printf 'Error: multiple merged PRs found for branch %s targeting %s; refusing cleanup\n' "$current_branch" "$main_branch" >&2
-    exit 1
-  fi
-  return 1
 }
 
 github_closed_pr_proof() {

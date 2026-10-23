@@ -126,6 +126,9 @@ jobs:
       - name: Verify murder helper behavior
         run: ruby tests/murder.rb
 
+      - name: Verify agent session recovery
+        run: ruby tests/recover-agent-sessions.rb
+
       - name: Verify smart upload behavior
         run: ruby tests/smart-upload.rb
 
