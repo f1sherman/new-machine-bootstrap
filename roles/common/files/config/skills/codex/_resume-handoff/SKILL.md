@@ -7,18 +7,7 @@ description: >
 
 # Resume Work from a Handoff Document
 
-You are tasked with resuming work from a handoff document by preserving the accepted objective and authorization. These handoffs contain critical context, learnings, and next steps from previous work sessions that need to be understood and continued.
-
-## Scope and authority
-
-Recover the accepted objective, prior approvals, remaining implementation work,
-and gated actions from the handoff and conversation. A short approval or request
-to continue preserves that scope; it does not authorize a merge, deployment,
-credential change, deletion, purchase, or third-party publication. Verify the
-current state before acting. Continue safe work and state the exact human blocker
-when a gate is reached. Explicit design-only work remains design-only. Keep
-specs and plans on the implementation branch; they do not replace the requested
-implementation or its substantive PR.
+You are tasked with resuming work from a handoff document through an interactive process. These handoffs contain critical context, learnings, and next steps from previous work sessions that need to be understood and continued.
 
 ## Initial Response
 
@@ -26,7 +15,7 @@ implementation or its substantive PR.
    - Immediately read the handoff document FULLY
    - Immediately read every critical artifact it links to, regardless of the artifact's ordinary repository path. Do NOT offload reading these critical files.
    - Begin the analysis process by ingesting relevant context from the handoff document and reading additional files it mentions
-   - Then continue the accepted work after verifying current state. Ask only for a precise blocker.
+   - Then propose a course of action to the user and confirm, or ask for clarification on direction
 
 2. **If no path was provided**:
    - Recursively enumerate Markdown files (`*.md`) beneath `.superpowers/handoffs/`
@@ -93,15 +82,15 @@ implementation or its substantive PR.
    - [Any conflicts or regressions found]
    - [Missing dependencies or broken code]
 
-   I will continue with [next authorized action]. [If blocked, state the exact action and required permission.]
+   Shall I proceed with [recommended action 1], or would you like to adjust the approach?
    ```
 
-2. **Continue within the accepted scope**. A prior approval remains valid unless current evidence exposes a real blocker. Ask only for the missing bounded permission.
+2. **Get confirmation** before proceeding
 
-### Step 3: Resume the Action Plan
+### Step 3: Create Action Plan
 
 1. **Use TodoWrite to create task list**:
-   - Reuse the existing implementation plan; create a plan only when one is missing. Convert remaining action items into todos.
+   - Convert action items from handoff into todos
    - Add any new tasks discovered during analysis
    - Prioritize based on dependencies and handoff guidance
 
@@ -111,7 +100,7 @@ implementation or its substantive PR.
 
    [Show todo list]
 
-   Beginning the next authorized task: [task description].
+   Ready to begin with the first task: [task description]?
    ```
 
 ### Step 4: Begin Implementation
@@ -131,7 +120,7 @@ implementation or its substantive PR.
 
 2. **Be Interactive**:
    - Present findings before starting work
-   - Preserve prior approvals; ask only about a real blocker
+   - Get buy-in on the approach
    - Allow for course corrections
    - Adapt based on current state vs handoff state
 
@@ -194,7 +183,8 @@ I've analyzed the handoff from [date]. Here's the current situation...
 
 [Presents analysis]
 
-I will continue with the next authorized implementation task.
+Shall I proceed with implementing the webhook validation fix, or would you like to adjust the approach?
 
+User: Yes, proceed with the webhook validation
 Assistant: [Creates todo list and begins implementation]
 ```

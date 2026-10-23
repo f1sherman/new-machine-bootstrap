@@ -19,28 +19,6 @@ Do NOT begin implementation until the design spec and implementation plan are co
 Do not create or update a pull request until verification passes and the branch is clean.
 </HARD-GATE>
 
-## Delivery contract
-
-For an implementation request, keep specs and plans on the implementation
-branch and continue through authorized code, configuration, or documentation
-changes, verification, and a substantive PR. A planning commit is an intermediate
-step, not a separate delivery milestone. A PR containing only a spec and plan
-does not complete implementation. Documents count as implementation when they
-are the requested deliverable.
-
-Preserve the accepted objective across short approvals such as "yes", requests
-to continue, planning handoffs, and session resumptions. Continue the accepted
-implementation work instead of offering another plan or requesting the same
-approval again. When the user explicitly requests design documents only, deliver
-those documents and stop within that scope. Do not reinterpret an implementation
-request as design-only work.
-
-Continue safe, authorized work up to a real blocker. If an action needs
-authorization, state the exact blocked action and ask only for the bounded
-permission needed to proceed, not permission to write another plan. A short
-approval does not expand the accepted scope or waive a merge, deployment,
-credential, destructive-action, budget, or publication gate.
-
 ## Anti-Pattern: "This Is Too Simple To Need A Design"
 
 Every project goes through this process. A todo list, a single-function utility,
