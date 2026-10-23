@@ -956,10 +956,9 @@ def run_summary_command(command, prompt)
   unless wait_thread.join(SUMMARY_TIMEOUT_SECONDS)
     warn "recover-agent-sessions: Codex summary timed out after #{SUMMARY_TIMEOUT_SECONDS}s; using session metadata"
     signal_summary_process("TERM", pid)
-    unless wait_thread.join(1)
-      signal_summary_process("KILL", pid)
-      wait_thread.join
-    end
+    wait_thread.join(1)
+    signal_summary_process("KILL", pid)
+    wait_thread.join
     return nil
   end
 
