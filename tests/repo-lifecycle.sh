@@ -842,6 +842,28 @@ for option in '' --closed; do
 done
 pass_case "BB-owned worktree and branch survive both cleanup modes"
 
+# A GitHub-confirmed merge makes repo-end succeed without any Git mutation:
+# origin is unreachable here, so any fetch would fail the run.
+cat >"$bb_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '[{"merged_at":"2026-01-01T00:00:00Z","number":7,"base":{"ref":"main"},"head":{"ref":"feature/bb-reused"}}]\n'
+EOF
+chmod +x "$bb_bin/gh"
+bb_origin="$(git -C "$bb_worktree" remote get-url origin)"
+git -C "$bb_worktree" remote set-url origin git@github.com:example/repo.git
+bb_merged_out="$(bb_run "$REPO_END_SCRIPT" --print-path 2>"$TMPROOT/bb-merged.err")" || \
+  fail_case "BB merged PR guidance" "repo-end failed: $(<"$TMPROOT/bb-merged.err")"
+assert_equals "$bb_merged_out" "$bb_worktree" "BB merged PR keeps the shell in place"
+if bb_run "$REPO_END_SCRIPT" --closed >/dev/null 2>&1; then
+  fail_case "BB merged PR guidance" "--closed was accepted"
+fi
+rm "$bb_bin/gh"
+git -C "$bb_worktree" remote set-url origin "$bb_origin"
+[ -d "$bb_worktree" ] || fail_case "BB worktree preserved" "path deleted"
+git -C "$bb_main" show-ref --verify --quiet refs/heads/feature/bb-reused || \
+  fail_case "BB branch preserved" "branch deleted"
+pass_case "BB-owned worktree with a merged PR exits 0 without cleanup"
+
 # A child using a different checkout must not inherit BB isolation ownership.
 BB_TEST_PATH="$bb_main"
 bb_run "$REPO_START_SCRIPT" --no-worktrees --ephemeral feature/bb-child >/dev/null
