@@ -2610,6 +2610,8 @@
       src: '{{ playbook_dir }}/roles/common/files/vendor/mattpocock-skills'
     - name: pstack
       src: '{{ playbook_dir }}/roles/common/files/config/skills/pstack'
+    - name: pstack-dependencies
+      src: '{{ playbook_dir }}/roles/common/files/vendor/pstack/external'
     - name: common
       src: '{{ playbook_dir }}/roles/common/files/config/skills/common'
     - name: claude
@@ -2699,6 +2701,18 @@
       - '{{ ansible_facts["user_dir"] }}/.pi/agent/skills'
   register: pstack_skill_links
   changed_when: pstack_skill_links.stdout == 'changed'
+
+- name: Link selected pstack dependencies to all harnesses
+  tags: managed-skills
+  command:
+    argv:
+      - '{{ managed_skill_linker }}'
+      - '{{ managed_skill_root }}/pstack-dependencies'
+      - '{{ ansible_facts["user_dir"] }}/.claude/skills'
+      - '{{ ansible_facts["user_dir"] }}/.codex/skills'
+      - '{{ ansible_facts["user_dir"] }}/.pi/agent/skills'
+  register: pstack_dependency_skill_links
+  changed_when: pstack_dependency_skill_links.stdout == 'changed'
 
 - name: Reconcile managed Pi session staleness baseline
   command: '{{ ansible_facts["user_dir"] }}/.local/bin/pi-session-staleness-reconcile-new-machine-bootstrap'

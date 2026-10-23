@@ -36,8 +36,11 @@ arguments. Examples in Pi:
 
 The last example enters poteto-mode. You can also write
 `/skill:poteto-mode add pagination to this endpoint`. Both entries read the same
-local adapter before upstream instructions. Individual upstream leaf skills
-are not registered as separate commands.
+local adapter before upstream instructions. Individual pstack leaf skills
+are not registered as separate commands. The required `deslop` cleanup skill
+from `cursor-team-kit` is installed separately for all three harnesses. It
+removes unnecessary code from the branch diff before commits; it is not the
+prose-only cleanup provided by `unslop`.
 
 ## Model setup on each machine
 
@@ -104,12 +107,21 @@ Inspect them and their dependencies before any authorized execution.
 - Shared adapter: `roles/common/files/config/skills/pstack/pstack/ADAPTER.md`.
 - Official source: `roles/common/files/vendor/pstack/`.
 - Deployed reference: `~/.local/share/new-machine-bootstrap/pstack`.
+- Selected dependency: `roles/common/files/vendor/pstack/external/deslop/`.
+- Dependency license: `roles/common/files/vendor/pstack/external/LICENSE`.
+- Deployed dependency: `~/.local/share/new-machine-bootstrap/skills/pstack-dependencies/deslop/`.
 - Entry links: `pstack`, `poteto-mode`, and `setup-pstack` under `~/.pi/agent/skills/`,
-  `~/.claude/skills/`, and `~/.codex/skills/`.
+  `~/.claude/skills/`, and `~/.codex/skills/`. Each also has a `deslop` link.
 
-Only the three local entries are discoverable. The complete upstream skills, support files,
-agent briefs, documentation, and MIT license remain unchanged outside skill
-discovery. The updater records source provenance, SHA256 checksums, and modes.
+The three local entries and the selected `deslop` dependency are discoverable.
+The complete pstack skills, support files, agent briefs, documentation, and MIT
+license remain unchanged outside skill discovery. The updater records source
+provenance, SHA256 checksums, and modes for both packages. It does not install
+the rest of `cursor-team-kit` or any Cursor services.
+
+After provisioning, reload native Pi or start a fresh session so its catalog
+includes `deslop`. BB sessions can need an agent-session restart to refresh the
+catalog. Installing the skill does not resume a previously blocked task.
 
 ```bash
 bin/provision --tags managed-skills
@@ -118,7 +130,9 @@ bin/provision --tags managed-skills
 ## Automatic updates
 
 `tool_versions.git_commits.pstack` in `vars/tool_versions.yml` pins the official
-`cursor/plugins` main branch by SHA. Upstream does not publish tags or releases.
+`cursor/plugins` main branch by SHA. The selected `cursor-team-kit` dependency
+uses the same SHA and is regenerated with pstack. Upstream does not publish
+tags or releases.
 Renovate checks that branch's digest through its `git-refs` datasource in the
 existing hourly workflow. Its pstack rule regenerates the snapshot and proposes
 a dependency PR containing both the new pin and the complete generated diff.

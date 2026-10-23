@@ -36,6 +36,8 @@ function fixture(fn) {
   write(source, 'pstack/docs/harness/claude-code.md', 'adapter\n');
   write(source, 'pstack/assets/excluded.txt', 'exclude\n');
   write(source, 'other/SKILL.md', 'exclude\n');
+  write(source, 'cursor-team-kit/skills/deslop/SKILL.md', '# deslop\n');
+  write(source, 'cursor-team-kit/LICENSE', 'MIT external fixture\n');
   const commit = () => {
     git(source, 'add', '-A');
     git(source, 'commit', '-qm', 'fixture');
@@ -163,12 +165,15 @@ test('check detects extra, changed, missing, and executable-mode changes without
 });
 
 test('rejects unsafe or incomplete upstream before replacing the previous snapshot', () => {
-  for (const kind of ['symlink', 'missing-license', 'missing-skill', 'invalid-pin']) fixture((f) => {
+  for (const kind of ['symlink', 'missing-license', 'missing-skill', 'invalid-pin', 'external-symlink', 'external-missing-license', 'external-missing-skill']) fixture((f) => {
     pass(f.run());
     const before = readFileSync(f.generated('SHA256SUMS'), 'utf8');
     if (kind === 'symlink') symlinkSync('/etc/passwd', path.join(f.source, 'pstack/skills/how/leak'));
     if (kind === 'missing-license') rmSync(path.join(f.source, 'pstack/LICENSE'));
     if (kind === 'missing-skill') rmSync(path.join(f.source, 'pstack/skills/how/SKILL.md'));
+    if (kind === 'external-symlink') symlinkSync('/etc/passwd', path.join(f.source, 'cursor-team-kit/skills/deslop/leak'));
+    if (kind === 'external-missing-license') rmSync(path.join(f.source, 'cursor-team-kit/LICENSE'));
+    if (kind === 'external-missing-skill') rmSync(path.join(f.source, 'cursor-team-kit/skills/deslop/SKILL.md'));
     if (kind === 'invalid-pin') f.pin('main');
     else f.pin(f.commit());
     const result = f.run();
