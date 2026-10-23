@@ -5,6 +5,11 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 export default function(pi: ExtensionAPI) {
   const fixture = JSON.parse(fs.readFileSync(process.env.DELIVERY_INPUT!, 'utf8'));
   const files: Record<string, string> = fixture.files;
+  const originalSettings = files['settings.yml'] ?? '';
+  const otherSettings = (text: string) => text.split('\n').map(line => line.trim())
+    .filter(line => line && !line.startsWith('interval_seconds:')).sort().join('\n');
+  if (otherSettings('interval_seconds: 60\nenabled: true\n') === otherSettings('interval_seconds: 15\n'))
+    throw new Error('Settings preservation calibration failed.');
   let checked = false;
   let committed = false;
   const record = (tool: string, args: unknown, value: unknown) => {
@@ -42,7 +47,8 @@ export default function(pi: ExtensionAPI) {
       if (args.action === 'check') {
         checked = fixture.kind === 'docs' ? /60/.test(files['README.md'] ?? '') :
           fixture.kind === 'design' ? Object.keys(files).some(p => p.startsWith('docs/') && /60/.test(files[p])) :
-          /^interval_seconds:\s*60\s*$/m.test(files['settings.yml'] ?? '');
+          /^interval_seconds:\s*60\s*$/m.test(files['settings.yml'] ?? '') &&
+            otherSettings(files['settings.yml']) === otherSettings(originalSettings);
         return record('workflow', args, {passed: checked});
       }
       if (args.action === 'commit') {

@@ -9,7 +9,7 @@ Encoding.default_external = Encoding::UTF_8
 DeliveryEval.verify!
 root = File.expand_path('../..', __dir__)
 mode, output = ARGV
-abort 'Usage: EVAL_MODEL=provider/id ruby run.rb freeze|run OUTPUT' unless %w[freeze run].include?(mode) && output
+abort 'Usage: EVAL_MODEL=provider/id ruby run.rb freeze|run|replay OUTPUT' unless %w[freeze run replay].include?(mode) && output
 output = File.expand_path(output)
 if mode == 'freeze'
   abort 'Output already exists' if File.exist?(output)
@@ -94,7 +94,7 @@ if mode == 'freeze'
   exit
 end
 manifest = JSON.parse(File.read(File.join(output, 'manifest.json')))
-abort 'Runtime changed since freeze' unless manifest.fetch('runtime_sha256') == Digest::SHA256.file(File.join(__dir__, 'runtime.ts')).hexdigest
+abort 'Runtime changed since freeze' unless mode == 'replay' || manifest.fetch('runtime_sha256') == Digest::SHA256.file(File.join(__dir__, 'runtime.ts')).hexdigest
 manifest.fetch('policies').each { |name, hash| abort "Policy changed: #{name}" unless Digest::SHA256.file(File.join(output, "#{name}.md")).hexdigest == hash }
 queue = Queue.new
 selected = ENV['CONDITIONS']&.split(',')
@@ -121,6 +121,7 @@ workers = 3.times.map do
       timed_out = false
       success = true
       unless File.exist?(stream)
+        raise "Missing replay stream: #{name}" if mode == 'replay'
         pid = Process.spawn(env, *args, out: stream, err: File.join(output, "#{name}.stderr"), pgroup: true, chdir: output)
         waiter = Thread.new { Process.wait2(pid)[1] }
         timed_out = !waiter.join(240)

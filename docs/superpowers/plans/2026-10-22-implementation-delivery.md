@@ -23,8 +23,8 @@ Keep all source changes inside this repo. Keep plans on the implementation branc
 
 ## Task 2: Deliver substantive work
 
-- [ ] Commit verified guidance and reproducible eval evidence.
-- [ ] Run one fresh-context branch review. Address material findings and verify fixes.
+- [x] Commit verified guidance and reproducible eval evidence.
+- [x] Run one fresh-context branch review. Address material findings and verify fixes.
 - [ ] Create a PR with eligible verification evidence and link #703.
 
 ## Ledger
@@ -35,4 +35,6 @@ Task 1 complete. See evals/implementation-delivery/README.md for per-case behavi
 
 Ruling: approval skills already say to implement immediately, so leave them unchanged. Handoff creation records objective and authority in the output template. Resume instructions remove renewed approval requests while retaining all read/verification steps. No upstream Superpowers change is needed.
 
-Provision proof: /tmp/provision-20261022-221908.log completed with failed=0. Installed quick-PR and Pi resume files matched source. Live operational failure remains unverified; the isolated safe boundary succeeded.
+Provision proof: /tmp/provision-20261022-221908.log completed with failed=0. A later provision from another worktree replaced managed files. Reapplying this branch in /tmp/provision-20261022-222946.log succeeded with failed=0; all nine installed skill paths then matched source. Live operational failure remains unverified; the isolated safe boundary succeeded.
+
+Final review found one material issue in eval verification: losing unrelated settings could pass. A new calibration failed before the fix and passed afterward. Corrected runtime and grader preserve non-interval settings, including PR snapshots. Regrading all 55 responses left results unchanged. Ten additional candidate checks completed implementation and preserved settings; one omitted the separate deployment approval report. See the eval report for this reporting limitation. No policy safeguards were removed.
