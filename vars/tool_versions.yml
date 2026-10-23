@@ -42,7 +42,7 @@ tool_versions:
     node: 24.22.0
     ruby: 4.0.2
     # renovate: datasource=npm depName=@earendil-works/pi-coding-agent
-    pi_coding_agent: 1.1.0
+    pi_coding_agent: 1.4.0
     # pi-server accepts chord ^1.1.0, but chord 1.2.0 dropped RemoteServiceError.
     # Bump this with pi_coding_agent once pi-server supports the newer chord.
     pi_chord: 1.1.0
