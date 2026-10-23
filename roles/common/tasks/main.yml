@@ -1432,6 +1432,8 @@
   changed_when: common_mise_pi_repair_result.stdout_lines | last == 'changed'
   when: common_manage_pi_runtime
 
+# Pi no longer releases pi-server/pi-client. The current background runner
+# uses the Pi SDK directly, but still requires the host's chord exports.
 - name: Install Pi async runtime dependencies
   shell: |
     set -euo pipefail
@@ -1441,15 +1443,12 @@
       --ignore-workspace-root-check \
       --deny-build=@google/genai --deny-build=esbuild \
       --deny-build=protobufjs \
-      '@earendil-works/pi-server@{{ tool_versions.runtimes.pi_coding_agent }}' \
-      '@earendil-works/pi-client@{{ tool_versions.runtimes.pi_coding_agent }}' \
       '@earendil-works/chord@{{ tool_versions.runtimes.pi_chord }}'
     cd "$pi_root"
     "{{ mise_bin }}" exec node@{{ tool_versions.runtimes.node }} -- \
       node --input-type=module --eval \
-      'await import("@earendil-works/pi-server");
-       await import("@earendil-works/pi-server/unix");
-       await import("@earendil-works/pi-client/unix");'
+      'await import("@earendil-works/chord");
+       await import("@earendil-works/chord/context");'
   args:
     executable: /bin/bash
   environment:

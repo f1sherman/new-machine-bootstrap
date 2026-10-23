@@ -19,15 +19,17 @@ old extensions that require retired packages are not a compatibility target.
 
 ## Approach
 
-Remove the obsolete async dependency installation task and the chord pin. Keep
-Pi launcher validation, managed Node resolution, and external-owner guards.
-Adapt the existing behavioral ownership fixture to stop selecting the removed
-task or expecting chord. Do not add a static test that repeats deleted text.
+Remove server/client requests and validate chord plus chord/context instead.
+Keep the existing independently pinned chord 1.1.0 dependency. A fresh Pi 1.4.0
+background launch proved that pi-subagents still requires these host exports,
+even though Pi itself removed chord. The all-dependency-removal experiment failed
+before a child started. Keep launcher validation, managed Node resolution, and
+external-owner guards. The existing ownership fixture needs no changes.
 
 Alternatives: independent 1.1.0 companion pins would unblock installation but
-retain an unused, retired protocol stack. Keeping Pi at 1.1.0 would avoid this
-failure but prevent supported runtime updates. Removal is the smaller durable
-repair for the current SDK-based extension.
+retain an unused, retired protocol stack. Removing chord too breaks the current
+runner's host alias checks. Keeping Pi at 1.1.0 prevents supported updates.
+Removing only server/client is the smallest verified repair.
 
 ## Verification and rollout
 
@@ -38,5 +40,5 @@ runtime is not proof of 1.4 compatibility. Require the original CI provisioning
 workflow to pass. Provisioning failure remains fatal; do not bypass checks.
 
 Existing wrapper directories for old Pi versions are not deleted. The new 1.4.0
-wrapper does not receive retired packages. Rollback is the prior source revision
+wrapper receives chord but not the retired server/client packages. Rollback is the prior source revision
 and normal provisioning. No deployed files are edited directly.
