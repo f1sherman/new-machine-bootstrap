@@ -1,10 +1,12 @@
 # Official pstack reference snapshot
 
 - Source: https://github.com/cursor/plugins/tree/190d28736eff128ec94f502a22c7fe0c4b56cd37/pstack
-- Commit: `190d28736eff128ec94f502a22c7fe0c4b56cd37`
+- Cleanup dependency: https://github.com/cursor/plugins/tree/190d28736eff128ec94f502a22c7fe0c4b56cd37/cursor-team-kit/skills/deslop
+- Commit: `190d28736eff128ec94f502a22c7fe0c4b56cd37` (both packages).
 - Branch tracked by Renovate: `main`.
 - License: MIT, preserved in `LICENSE`.
-- Selected complete paths: `skills/`, `agents/`, `docs/`, `README.md`, `LICENSE`.
+- Selected complete pstack paths: `skills/`, `agents/`, `docs/`, `README.md`, `LICENSE`.
+- Selected cursor-team-kit paths: `skills/deslop/` and `LICENSE`, mapped to `external/deslop/` and `external/LICENSE`.
 - Excluded: plugin registration, top-level assets, dormant automations, `.gitignore`.
 - Content modifications: none. Executable bits are preserved.
 - SHA256SUMS covers selected upstream files, not local provenance.

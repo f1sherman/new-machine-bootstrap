@@ -19,6 +19,7 @@ SELECTED = {"skills", "agents", "docs", "README.md", "LICENSE"}
 REQUIRED = {
     "LICENSE", "README.md", "agents/poteto-agent.md",
     "docs/harness/claude-code.md", "skills/how/SKILL.md",
+    "external/LICENSE", "external/deslop/SKILL.md",
     "skills/poteto-mode/SKILL.md", "skills/poteto-help/SKILL.md",
 }
 
@@ -68,14 +69,22 @@ def snapshot(root):
 def generate(checkout, commit, stage):
     # The empty worktree ignores committed export-ignore/export-subst attributes.
     archive = git(checkout, "-c", "core.attributesFile=/dev/null", "archive",
-                  "--worktree-attributes", commit, "pstack")
+                  "--worktree-attributes", commit, "pstack", "cursor-team-kit")
     copied = set()
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as source:
         for entry in source:
             parts = PurePosixPath(entry.name).parts
-            if not parts or parts[0] != "pstack":
+            if not parts or parts[0] not in {"pstack", "cursor-team-kit"}:
                 raise ValueError(f"Unexpected archive path: {entry.name}")
-            if len(parts) < 2 or parts[1] not in SELECTED:
+            if parts[0] == "pstack":
+                if len(parts) < 2 or parts[1] not in SELECTED:
+                    continue
+                relative = PurePosixPath(*parts[1:])
+            elif parts[1:] == ("LICENSE",):
+                relative = PurePosixPath("external/LICENSE")
+            elif parts[1:3] == ("skills", "deslop"):
+                relative = PurePosixPath("external", *parts[2:])
+            else:
                 continue
             if ".." in parts or entry.name.startswith("/"):
                 raise ValueError(f"Unsafe archive path: {entry.name}")
@@ -83,7 +92,6 @@ def generate(checkout, commit, stage):
                 continue
             if not entry.isfile():
                 raise ValueError(f"Expected regular upstream file: {entry.name}")
-            relative = PurePosixPath(*parts[1:])
             destination = stage / str(relative)
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(source.extractfile(entry).read())
@@ -99,10 +107,12 @@ def generate(checkout, commit, stage):
     (stage / "UPSTREAM.md").write_text(
         "# Official pstack reference snapshot\n\n"
         f"- Source: https://github.com/cursor/plugins/tree/{commit}/pstack\n"
-        f"- Commit: `{commit}`\n"
+        f"- Cleanup dependency: https://github.com/cursor/plugins/tree/{commit}/cursor-team-kit/skills/deslop\n"
+        f"- Commit: `{commit}` (both packages).\n"
         "- Branch tracked by Renovate: `main`.\n"
         "- License: MIT, preserved in `LICENSE`.\n"
-        "- Selected complete paths: `skills/`, `agents/`, `docs/`, `README.md`, `LICENSE`.\n"
+        "- Selected complete pstack paths: `skills/`, `agents/`, `docs/`, `README.md`, `LICENSE`.\n"
+        "- Selected cursor-team-kit paths: `skills/deslop/` and `LICENSE`, mapped to `external/deslop/` and `external/LICENSE`.\n"
         "- Excluded: plugin registration, top-level assets, dormant automations, `.gitignore`.\n"
         "- Content modifications: none. Executable bits are preserved.\n"
         "- SHA256SUMS covers selected upstream files, not local provenance.\n\n"
