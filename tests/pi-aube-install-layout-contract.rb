@@ -144,7 +144,7 @@ end
       "vars" => {
         "mise_bin" => mise,
         "ansible_facts" => {"user_dir" => home, "os_family" => platform, "env" => {"PATH" => ENV.fetch("PATH")}},
-        "tool_versions" => {"runtimes" => {"pi_coding_agent" => "1.0.2", "node" => "22.19.0", "ruby" => "3.4.0", "aube" => "1.0.0"}},
+        "tool_versions" => {"runtimes" => {"pi_coding_agent" => "1.0.2", "pi_chord" => "1.0.0", "node" => "22.19.0", "ruby" => "3.4.0", "aube" => "1.0.0"}},
         "common_aube_global_tools_node_path_macos" => {"stdout" => File.join(home, "node")},
         "common_aube_global_tools_node_path_linux" => {"stdout" => File.join(home, "node")}
       },
@@ -167,6 +167,7 @@ end
       abort "external runtime remained in mise config" if includes_pi
       abort "external runtime was linked into Node" if File.exist?(File.join(home, "node/lib/node_modules/@earendil-works/pi-coding-agent"))
     else
+      abort "managed runtime skipped its pinned chord dependency" unless calls.include?("@earendil-works/chord@1.0.0")
       abort "managed runtime disappeared from mise config" unless includes_pi
       abort "managed launcher was not installed" unless File.realpath(pi) == File.join(package_root, "dist/cli.js")
     end
