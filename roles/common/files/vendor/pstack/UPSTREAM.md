@@ -1,8 +1,8 @@
 # Official pstack reference snapshot
 
-- Source: https://github.com/cursor/plugins/tree/190d28736eff128ec94f502a22c7fe0c4b56cd37/pstack
-- Cleanup dependency: https://github.com/cursor/plugins/tree/190d28736eff128ec94f502a22c7fe0c4b56cd37/cursor-team-kit/skills/deslop
-- Commit: `190d28736eff128ec94f502a22c7fe0c4b56cd37` (both packages).
+- Source: https://github.com/cursor/plugins/tree/9580c23696ac8d7abed0c166f2f9918800afb819/pstack
+- Cleanup dependency: https://github.com/cursor/plugins/tree/9580c23696ac8d7abed0c166f2f9918800afb819/cursor-team-kit/skills/deslop
+- Commit: `9580c23696ac8d7abed0c166f2f9918800afb819` (both packages).
 - Branch tracked by Renovate: `main`.
 - License: MIT, preserved in `LICENSE`.
 - Selected complete pstack paths: `skills/`, `agents/`, `docs/`, `README.md`, `LICENSE`.
