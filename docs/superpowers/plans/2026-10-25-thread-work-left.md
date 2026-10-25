@@ -33,5 +33,6 @@ queued work, and obsolete obligations resolved by later completion evidence.
 - [x] Run `bin/provision --tags managed-skills` and compare deployed skill bytes.
 - [x] Complete an independent read-only branch review; fix material findings.
   Review found no actionable defects.
-- [ ] Commit exact changed files, push, and create a PR with a Verification
+- [x] Commit exact changed files, push, and create a PR with a Verification
   section describing author-initiated behavioral and live discovery evidence.
+  Published as PR #708.
