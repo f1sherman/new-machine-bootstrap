@@ -28,6 +28,7 @@ vendor/
 !roles/common/files/vendor/
 roles/common/files/vendor/*
 !roles/common/files/vendor/pstack/
+!roles/common/files/vendor/mattpocock-skills/
 *.log
 coverage/
 .cache/

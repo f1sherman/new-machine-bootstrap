@@ -8,13 +8,20 @@ The primary selection criterion is whether a skill improves outcomes without
 requiring unnecessary active time from Brian. Existing automated workflows are
 preferred when they provide the same or better behavior.
 
-Evaluated source:
+Current managed source (updated after the initial v1.2.3 evaluation):
 
 - Guide: <https://www.aihero.dev/skills>
 - Repository: <https://github.com/mattpocock/skills>
-- Tag: `v1.2.3`
-- Annotated tag object: `835450ef244ab7335f75d95b83e7d979eae22a6d`
-- Peeled source commit: `6acc160e4e0cd062dbbbd7a1b26ae92855edf07e`
+- Tag: `v1.3.1`
+- Annotated tag object: `0b6cee10f260a2e048279cf737bfd3e37b1fce0b`
+- Peeled source commit: `24fe0ef7737efae15c87225755e9f6f5965e4888`
+
+Upstream removed `resolving-merge-conflicts` without replacement in v1.3.1.
+It is no longer installed. `domain-modeling` now uses `GLOSSARY.md` and
+`GLOSSARY-MAP.md`, not `CONTEXT.md` and `CONTEXT-MAP.md`. Rename existing domain
+documents when continuing a deep-design session; provisioning does not change
+project documents. The `wait-what` patch still uses conversation and project
+terms without requiring either glossary file.
 
 ## Decision states
 
@@ -37,7 +44,7 @@ Evaluated source:
 | `research` | Skip | Existing research tools and controlled subagents provide the same value without recursive delegation risk or mandatory stale repository artifacts. |
 | `improve-codebase-architecture` | Skip | It tends to generate speculative maintenance work and long interviews; focused architecture review can use existing audit tools when a planned change justifies it. |
 | `diagnosing-bugs` | Skip | It strongly overlaps with `systematic-debugging` and over-triggers, but several of its stricter diagnosis rules should strengthen the existing harness. |
-| `resolving-merge-conflicts` | Install, adapted | Use when Git is already stopped on merge or rebase conflicts. Preserve intent from both sides and run repository checks. Adapt the absolute `never --abort` rule so an unclear or incorrect operation stops for a real human decision. |
+| `resolving-merge-conflicts` | Removed upstream | Previously installed with a human-decision safety patch. Removed without replacement in v1.3.1; use the existing repository merge and rebase guidance. |
 | `triage` | Skip | It is valuable for a large inbound issue queue, but current work is mainly self-initiated and the label state machine adds setup and approval overhead. |
 | `wizard` | Skip | Existing direct automation, browser tools, and secret-management guidance are preferable; generate a dedicated script only when a repeatable manual procedure justifies normal feature work. |
 | `grill-me` | Skip | Its large stateless interview adds substantial active time and duplicates the existing task-scaled brainstorming workflow. |
@@ -53,7 +60,7 @@ Evaluated source:
 
 ## Installed-skills quick reference
 
-All six skills keep their upstream names in every harness. To invoke a skill
+All five skills keep their upstream names in every harness. To invoke a skill
 explicitly, use its exact name with the harness-specific form shown below:
 
 - Claude Code: `/grill-with-docs`
@@ -67,9 +74,9 @@ The deep-design bundle (`grill-with-docs`, `grilling`, and `domain-modeling`) is
 user-only. Each skill has `disable-model-invocation: true`, and its Codex
 metadata has `policy.allow_implicit_invocation: false`. `wait-what` is also
 user-only, as specified by its upstream `disable-model-invocation: true`
-metadata. `resolving-merge-conflicts` and `writing-for-agents` do not disable
-model invocation, so an agent can select them when their described conditions
-match. A user can still invoke either one explicitly.
+metadata. `writing-for-agents` does not disable model invocation, so an agent
+can select it when its described conditions match. A user can still invoke it
+explicitly.
 
 | Skill | Exact explicit trigger | Invocation policy and when to use it | Do not use it when |
 | --- | --- | --- | --- |
@@ -77,7 +84,6 @@ match. A user can still invoke either one explicitly.
 | **grilling** | Claude `/grilling`; Codex `$grilling`; Pi `/skill:grilling` | User-only. Stress-test a plan, decision, or idea through a relentless decision-tree interview without requiring the documentation bundle. | The need is fact-finding the agent can perform, a routine clarification, or implementation rather than an explicit interview. |
 | **domain-modeling** | Claude `/domain-modeling`; Codex `$domain-modeling`; Pi `/skill:domain-modeling` | User-only. Build or change domain terminology, a ubiquitous language, context documents, or architectural decision records. It is also loaded by `grill-with-docs`. | Merely reading established terminology, or work that does not change the domain model or record a decision. |
 | **wait-what** | Claude `/wait-what`; Codex `$wait-what`; Pi `/skill:wait-what` | User-only. Invoke after an agent response does not land and needs to be re-pitched with enough context, ASD-STE100 Simplified Technical English, and established project terminology. | The prior response is already clear, or the request is for new analysis rather than a clearer restatement. |
-| **resolving-merge-conflicts** | Claude `/resolving-merge-conflicts`; Codex `$resolving-merge-conflicts`; Pi `/skill:resolving-merge-conflicts` | Model-invokable when Git is already stopped on an in-progress merge or rebase conflict. Establish both sides' intent, resolve without inventing behavior, run repository checks, and finish the clearly intended operation. | There is no active merge or rebase conflict, or available context cannot establish that the operation should continue; in the latter case, stop for a human decision. |
 | **writing-for-agents** | Claude `/writing-for-agents`; Codex `$writing-for-agents`; Pi `/skill:writing-for-agents` | Model-invokable when creating or editing skills, agent instructions, prompts, plans, tickets, or other agent-facing documents. Use its context-load, pointer, completion-criterion, and pruning guidance. | The audience is only human, the task is implementation rather than agent-facing writing, or a document-specific rule is more authoritative. |
 
 ## Maintenance and upstream updates
@@ -91,7 +97,7 @@ the generated `UPSTREAM.md` files. Do not describe the annotated tag object as
 the source commit.
 
 `roles/common/files/vendor/mattpocock-skills/` is a complete generated tree for
-the six selected skills. Do not hand-edit it. After deliberately changing the
+the five selected skills. Do not hand-edit it. After deliberately changing the
 pin, regenerate it from the repository root:
 
 ```sh
@@ -127,7 +133,7 @@ the pin change and the generated behavior diff for review.
 ### Local patch policy and review cost
 
 Local adaptations belong in `bin/update-ai-hero-skills`, not in hand edits to
-the generated files. There are three policy adaptations:
+the generated files. There are four policy adaptations:
 
 1. The entire deep-design bundle is made user-only in both skill frontmatter
    and Codex metadata.
@@ -141,16 +147,21 @@ the generated files. There are three policy adaptations:
    The generator smoke check verifies the written fallback contract and reads
    its generated targets; it does not prove a real interactive harness follows
    that contract.
-3. The `resolving-merge-conflicts` safety patch replaces the absolute
-   `never --abort` rule. It continues a clearly intended operation despite
-   difficulty, but stops for a human decision when context cannot establish
-   whether the merge or rebase itself should continue.
+3. `wait-what` retains its upstream user-only flags in both metadata files;
+   generation rejects missing or weakened flags.
+4. The `wait-what` content patch removes the requirement to read `GLOSSARY.md`
+   and `GLOSSARY-MAP.md`. It uses consistent terms from the conversation and
+   project instead.
+
+The former `resolving-merge-conflicts` safety patch was removed with its skill.
+Provisioning deletes the retired managed directory and its owned harness links
+through the existing synchronization and linker cleanup.
 
 The two content patches are fail-closed: each exact pinned upstream preimage
 must occur exactly once, or generation stops rather than silently omitting or
 misapplying the adaptation. Metadata parsing and post-patch validation likewise
 stop on malformed or contradictory invocation policy. This protects
-portability and merge safety, but it imposes a deliberate cost on every
+portability and local terminology policy, but it imposes a deliberate cost on every
 upstream update: a maintainer must inspect upstream changes, confirm that each
 local policy is still needed and semantically correct, and update an exact
 preimage only when the new upstream text has been understood.
@@ -160,7 +171,7 @@ files:
 
 1. Confirm the new tag and peeled commit are the intended immutable source and
    inspect every changed selected skill and support file.
-2. Re-evaluate all six install decisions and their invocation policies,
+2. Re-evaluate all five install decisions and their invocation policies,
    especially upstream trigger-description or metadata changes.
 3. Review each local adaptation against the new upstream behavior. Treat a
    failed preimage as a required review, not a reason to weaken the guard.
