@@ -5988,19 +5988,40 @@ test(
     const dir = mkdtempSync(join(tmpdir(), "statechart-"));
     const out = writeSlowPay(dir, 20000);
     const tmp = ownTmp(dir, "tmp");
-    const run = startRun(dir, { env: { TMPDIR: tmp } });
-    await until(() => tlcStarted(tmp));
-    await sleep(500);
-    const later = new Date(Date.now() + 60_000);
-    for (const name of ["Pay.tla", "Pay.cfg", "Pay.map.mjs"]) {
-      const file = join(dir, name);
-      const before = statSync(file);
-      writeFileSync(`${file}.new`, readFileSync(file));
-      renameSync(`${file}.new`, file);
-      utimesSync(file, later, later);
-      const after = statSync(file);
-      assert.notEqual(after.ino, before.ino);
-      assert.notEqual(after.ctimeMs, before.ctimeMs);
+    const ready = join(dir, "java-ready");
+    const release = join(dir, "java-release");
+    const java = join(dir, "java-gate");
+    writeFileSync(java, `#!/bin/sh
+: > "$STATECHART_READY"
+i=0
+while [ ! -f "$STATECHART_RELEASE" ]; do
+  i=$((i + 1))
+  [ "$i" -lt 3000 ] || exit 124
+  sleep 0.02
+done
+exec "$REAL_JAVA" "$@"
+`, { mode: 0o755 });
+    const run = startRun(dir, { env: {
+      TMPDIR: tmp, JAVA: java, REAL_JAVA: tools.java, TLA2TOOLS: tools.jar,
+      STATECHART_READY: ready, STATECHART_RELEASE: release,
+    } });
+    try {
+      await until(() => existsSync(ready) || run.child.exitCode !== null);
+      assert.equal(existsSync(ready), true, "Java must be blocked before replacing inputs");
+      const later = new Date(Date.now() + 60_000);
+      for (const name of ["Pay.tla", "Pay.cfg", "Pay.map.mjs"]) {
+        const file = join(dir, name);
+        const before = statSync(file);
+        writeFileSync(`${file}.new`, readFileSync(file));
+        renameSync(`${file}.new`, file);
+        utimesSync(file, later, later);
+        const after = statSync(file);
+        assert.notEqual(after.ino, before.ino);
+        assert.notEqual(after.ctimeMs, before.ctimeMs);
+      }
+    } finally {
+      writeFileSync(release, "go\n");
+      await run.done;
     }
     const r = await run.done;
     assert.equal(r.status, 0, r.stderr);

@@ -5,6 +5,8 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
+import './pstack-statechart-safety.test.mjs';
+
 const updater = path.resolve('bin/update-pstack');
 const vendor = 'roles/common/files/vendor/pstack';
 function git(root, ...args) {
@@ -165,7 +167,7 @@ test('check detects extra, changed, missing, and executable-mode changes without
 });
 
 test('rejects unsafe or incomplete upstream before replacing the previous snapshot', () => {
-  for (const kind of ['symlink', 'missing-license', 'missing-skill', 'invalid-pin', 'external-symlink', 'external-missing-license', 'external-missing-skill']) fixture((f) => {
+  for (const kind of ['symlink', 'missing-license', 'missing-skill', 'invalid-pin', 'external-symlink', 'external-missing-license', 'external-missing-skill', 'stale-local-patch']) fixture((f) => {
     pass(f.run());
     const before = readFileSync(f.generated('SHA256SUMS'), 'utf8');
     if (kind === 'symlink') symlinkSync('/etc/passwd', path.join(f.source, 'pstack/skills/how/leak'));
@@ -174,11 +176,12 @@ test('rejects unsafe or incomplete upstream before replacing the previous snapsh
     if (kind === 'external-symlink') symlinkSync('/etc/passwd', path.join(f.source, 'cursor-team-kit/skills/deslop/leak'));
     if (kind === 'external-missing-license') rmSync(path.join(f.source, 'cursor-team-kit/LICENSE'));
     if (kind === 'external-missing-skill') rmSync(path.join(f.source, 'cursor-team-kit/skills/deslop/SKILL.md'));
+    if (kind === 'stale-local-patch') write(f.source, 'pstack/skills/statechart/scripts/statechart.mjs', 'upstream context changed\n');
     if (kind === 'invalid-pin') f.pin('main');
     else f.pin(f.commit());
     const result = f.run();
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /regular|missing|SHA/);
+    assert.match(result.stderr, /regular|missing|SHA|patch|FAILED/);
     assert.equal(readFileSync(f.generated('SHA256SUMS'), 'utf8'), before);
   });
 });

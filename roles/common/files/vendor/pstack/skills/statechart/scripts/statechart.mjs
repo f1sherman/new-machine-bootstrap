@@ -583,10 +583,24 @@ const OWN =
 
 function foreign(dir) {
   try {
-    return fs
-      .readdirSync(dir)
-      .filter((f) => !OWN.test(f))
-      .sort();
+    const tlcFiles = /\.(cfg|dot|out|tla)$/;
+    const regions = /^regions-(proof|all)\.mmd$/;
+    const inspect = (folder, prefix = "") =>
+      fs.readdirSync(folder, { withFileTypes: true }).flatMap((entry) => {
+        const name = prefix + entry.name;
+        if (entry.isDirectory()) {
+          if ((!prefix && entry.name === "tlc") ||
+              (prefix === "tlc/" && ["fixed", "against"].includes(entry.name)))
+            return inspect(path.join(folder, entry.name), `${name}/`);
+          return [name];
+        }
+        if (!entry.isFile()) return [name];
+        const owned = prefix
+          ? tlcFiles.test(entry.name) || regions.test(entry.name) || entry.name === ".DS_Store"
+          : entry.name !== "tlc" && OWN.test(entry.name);
+        return owned ? [] : [name];
+      });
+    return inspect(dir).sort();
   } catch (e) {
     if (e.code === "ENOENT") return [];
     throw new CannotFinish(`cannot use ${rel(dir)} as the output folder: ${e.message}`);

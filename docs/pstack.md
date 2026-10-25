@@ -154,7 +154,11 @@ bin/update-pstack --check
 The updater fetches the exact SHA, validates the selected complete paths,
 rejects symlinks and unsupported entries, preserves executable modes, and
 replaces the generated snapshot. Git export attributes cannot omit or rewrite
-selected files. A lock serializes updater runs. A failed replacement restores
+selected files. The checked `patches/pstack-statechart-safety.patch` then protects
+nested output files and removes a timing assumption from an upstream test.
+Regeneration stops before publication if that patch no longer applies. The
+provenance names the patch; checksums cover the patched files. Remove the patch
+when a pinned upstream revision supplies these fixes. A lock serializes updater runs. A failed replacement restores
 the previous snapshot. If restoration fails or the process is killed, the backup
 stays beside the vendor tree and subsequent runs stop for recovery instead of
 deleting it. Removed upstream files cannot linger. Check
