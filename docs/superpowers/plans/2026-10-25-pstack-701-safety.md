@@ -43,4 +43,8 @@ A real from-chart run succeeded with its known invariant failure declared throug
 caused exit 2 while preserving the note and original chart. Full macOS provisioning
 passed 365 tasks with zero failures. The deployed helper matched the PR and ran
 the same real TLC workflow successfully. Independent review b0a63c6c found no
-issues. No upstream wording or prompt instructions were changed by the repair.
+issues. Fresh CI then passed. Automated PR review also identified fixed 300/150 ms
+delays in the kill and overlap tests. One follow-up fix shares the Java gate
+across all three tests, requires all six overlap children ready before release,
+and cleans up through finally. All three affected real-TLC tests passed. No
+upstream wording or prompt instructions were changed by the repair.

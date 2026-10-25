@@ -5901,6 +5901,27 @@ const startRun = (dir, { wrap = [], env = {}, args = ["from-spec", "Pay.tla"] } 
 const until = async (ready) => {
   while (!ready()) await sleep(20);
 };
+const javaGate = (dir, name = "java-gate") => {
+  const ready = join(dir, `${name}-ready`);
+  const release = join(dir, `${name}-release`);
+  const java = join(dir, name);
+  writeFileSync(java, `#!/bin/sh
+: > "$STATECHART_READY"
+i=0
+while [ ! -f "$STATECHART_RELEASE" ]; do
+  i=$((i + 1))
+  [ "$i" -lt 3000 ] || exit 124
+  sleep 0.02
+done
+exec "$REAL_JAVA" "$@"
+`, { mode: 0o755 });
+  return {
+    env: { JAVA: java, REAL_JAVA: tools.java, TLA2TOOLS: tools.jar,
+      STATECHART_READY: ready, STATECHART_RELEASE: release },
+    ready: () => existsSync(ready),
+    release: () => writeFileSync(release, "go\n"),
+  };
+};
 const ownTmp = (dir, name) => {
   const tmp = join(dir, name);
   mkdirSync(tmp);
@@ -5929,28 +5950,31 @@ test(
     const dir = mkdtempSync(join(tmpdir(), "statechart-"));
     const out = writeSlowPay(dir, 60000);
     const tmp = ownTmp(dir, "tmp");
-    const first = startRun(dir, { env: { TMPDIR: tmp } });
-    await until(() => tlcStarted(tmp));
-    await sleep(300);
-    first.child.kill("SIGTERM");
-    await first.done;
-    assert.doesNotThrow(() => process.kill(-first.child.pid, 0), "TLC outlives its Node");
-    assert.equal(existsSync(out), false);
-
-    writeSlowPay(dir, 200, "Receipt");
-    const second = node("statechart.mjs", ["from-spec", "Pay.tla"], dir);
+    const gate = javaGate(dir);
+    const first = startRun(dir, { env: { ...gate.env, TMPDIR: tmp } });
     try {
-      process.kill(-first.child.pid, "SIGKILL");
-    } catch (error) {
-      if (error.code !== "ESRCH") throw error;
+      await until(() => gate.ready() || first.child.exitCode !== null);
+      assert.equal(gate.ready(), true, "Java must be blocked before killing Node");
+      first.child.kill("SIGTERM");
+      await first.done;
+      assert.doesNotThrow(() => process.kill(-first.child.pid, 0), "TLC outlives its Node");
+      assert.equal(existsSync(out), false);
+
+      writeSlowPay(dir, 200, "Receipt");
+      const second = node("statechart.mjs", ["from-spec", "Pay.tla"], dir);
+      assert.equal(second.status, 0, second.stderr);
+      for (const file of ["chart.mmd", join("tlc", "Pay.dot")]) {
+        const text = readFileSync(join(out, file), "utf8");
+        assert.match(text, /Receipt/);
+        assert.doesNotMatch(text, /Paid/);
+      }
+      assert.deepEqual(staged(dir), []);
+    } finally {
+      try { process.kill(-first.child.pid, "SIGKILL"); }
+      catch (error) { if (error.code !== "ESRCH") throw error; }
+      gate.release();
+      await first.done;
     }
-    assert.equal(second.status, 0, second.stderr);
-    for (const file of ["chart.mmd", join("tlc", "Pay.dot")]) {
-      const text = readFileSync(join(out, file), "utf8");
-      assert.match(text, /Receipt/);
-      assert.doesNotMatch(text, /Paid/);
-    }
-    assert.deepEqual(staged(dir), []);
   },
 );
 
@@ -5988,26 +6012,11 @@ test(
     const dir = mkdtempSync(join(tmpdir(), "statechart-"));
     const out = writeSlowPay(dir, 20000);
     const tmp = ownTmp(dir, "tmp");
-    const ready = join(dir, "java-ready");
-    const release = join(dir, "java-release");
-    const java = join(dir, "java-gate");
-    writeFileSync(java, `#!/bin/sh
-: > "$STATECHART_READY"
-i=0
-while [ ! -f "$STATECHART_RELEASE" ]; do
-  i=$((i + 1))
-  [ "$i" -lt 3000 ] || exit 124
-  sleep 0.02
-done
-exec "$REAL_JAVA" "$@"
-`, { mode: 0o755 });
-    const run = startRun(dir, { env: {
-      TMPDIR: tmp, JAVA: java, REAL_JAVA: tools.java, TLA2TOOLS: tools.jar,
-      STATECHART_READY: ready, STATECHART_RELEASE: release,
-    } });
+    const gate = javaGate(dir);
+    const run = startRun(dir, { env: { ...gate.env, TMPDIR: tmp } });
     try {
-      await until(() => existsSync(ready) || run.child.exitCode !== null);
-      assert.equal(existsSync(ready), true, "Java must be blocked before replacing inputs");
+      await until(() => gate.ready() || run.child.exitCode !== null);
+      assert.equal(gate.ready(), true, "Java must be blocked before replacing inputs");
       const later = new Date(Date.now() + 60_000);
       for (const name of ["Pay.tla", "Pay.cfg", "Pay.map.mjs"]) {
         const file = join(dir, name);
@@ -6020,7 +6029,7 @@ exec "$REAL_JAVA" "$@"
         assert.notEqual(after.ctimeMs, before.ctimeMs);
       }
     } finally {
-      writeFileSync(release, "go\n");
+      gate.release();
       await run.done;
     }
     const r = await run.done;
@@ -6843,14 +6852,20 @@ test(
         await sleep(5);
       }
     })();
-    const runs = [];
-    for (let i = 0; i < 6; i++) {
-      runs.push(startRun(dir, { args: i % 2 ? lamp : pay }).done);
-      await sleep(150);
+    const gates = Array.from({ length: 6 }, (_, i) => javaGate(dir, `java-gate-${i}`));
+    const runs = gates.map((gate, i) =>
+      startRun(dir, { args: i % 2 ? lamp : pay, env: gate.env }));
+    let finished;
+    try {
+      await until(() => gates.every((gate, i) => gate.ready() || runs[i].child.exitCode !== null));
+      assert.equal(gates.every((gate) => gate.ready()), true,
+        "all six Java children must be blocked before any is released");
+    } finally {
+      for (const gate of gates) gate.release();
+      finished = await Promise.all(runs.map((run) => run.done));
+      watching = false;
+      await watch;
     }
-    const finished = await Promise.all(runs);
-    watching = false;
-    await watch;
     for (const r of finished) assert.equal(r.status, 0, r.stderr);
     const runsOf = new Map(Object.entries(alone).map(([spec, a]) => [a.tlc, spec]));
     for (const listing of seen) assert.ok(runsOf.has(listing), `tlc/ had ${listing}`);
