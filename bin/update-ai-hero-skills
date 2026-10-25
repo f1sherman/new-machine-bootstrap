@@ -13,17 +13,14 @@ const VENDOR_RELATIVE_PATH = "roles/common/files/vendor/mattpocock-skills";
 const SELECTED_SKILLS = Object.freeze({
   "grill-with-docs": "skills/engineering/grill-with-docs",
   "domain-modeling": "skills/engineering/domain-modeling",
-  "resolving-merge-conflicts": "skills/engineering/resolving-merge-conflicts",
   grilling: "skills/productivity/grilling",
   "wait-what": "skills/productivity/wait-what",
   "writing-for-agents": "skills/productivity/writing-for-agents",
 });
 const DEEP_DESIGN_SKILLS = new Set(["grill-with-docs", "domain-modeling", "grilling"]);
-const GRILL_WITH_DOCS_PREIMAGE = "Run a `/grilling` session, using the `/domain-modeling` skill.";
+const GRILL_WITH_DOCS_PREIMAGE = 'Call the Skill tool twice, for "grilling" and "domain-modeling".';
 const GRILL_WITH_DOCS_REPLACEMENT = "Use the harness's skill mechanism, when available, to load and follow both the `grilling` and `domain-modeling` skills. If the mechanism is unavailable or cannot load either dependency (including invocation-policy rejection), read and follow both sibling files `../grilling/SKILL.md` and `../domain-modeling/SKILL.md`.";
-const MERGE_CONFLICT_PREIMAGE = "Always resolve; never `--abort`.";
-const MERGE_CONFLICT_REPLACEMENT = "Continue a clearly intended operation and do not `--abort` merely because resolution is difficult. If the available context cannot establish whether the operation itself should continue, stop and ask a human to decide.";
-const WAIT_WHAT_PREIMAGE = "and use the ubiquitous language from `CONTEXT.md`.";
+const WAIT_WHAT_PREIMAGE = "and use the ubiquitous language from `GLOSSARY.md` (follow `GLOSSARY-MAP.md` to the right one if the repo has more than one).";
 const WAIT_WHAT_REPLACEMENT = "and use consistent terms from our conversation and the project.";
 
 function fail(message) {
@@ -253,9 +250,6 @@ function provenance(name, tag, commit) {
   if (name === "grill-with-docs") {
     patches.push("Load grilling and domain-modeling through the harness skill mechanism, with sibling SKILL.md files as the fallback when the mechanism is unavailable or cannot load either dependency (including invocation-policy rejection).");
   }
-  if (name === "resolving-merge-conflicts") {
-    patches.push("Replace the absolute never-abort instruction with the local human-decision rule.");
-  }
   if (name === "wait-what") {
     patches.push("Use terms from the conversation and project without requiring a glossary file.");
   }
@@ -311,9 +305,6 @@ function generateTree(sourceRoot, destinationRoot, tag, commit) {
     }
     if (name === "grill-with-docs") {
       skill = replaceExactlyOnce(skill, GRILL_WITH_DOCS_PREIMAGE, GRILL_WITH_DOCS_REPLACEMENT, `${name}/SKILL.md`);
-    }
-    if (name === "resolving-merge-conflicts") {
-      skill = replaceExactlyOnce(skill, MERGE_CONFLICT_PREIMAGE, MERGE_CONFLICT_REPLACEMENT, `${name}/SKILL.md`);
     }
 
     fs.writeFileSync(skillPath, skill);

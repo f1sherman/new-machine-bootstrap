@@ -10,14 +10,12 @@ import { fileURLToPath } from "node:url";
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const UPDATER = path.join(PROJECT_ROOT, "bin/update-ai-hero-skills");
 const TAG = "v-test";
-const GRILL_WITH_DOCS_PREIMAGE = "Run a `/grilling` session, using the `/domain-modeling` skill.";
+const GRILL_WITH_DOCS_PREIMAGE = 'Call the Skill tool twice, for "grilling" and "domain-modeling".';
+const WAIT_WHAT_PREIMAGE = "and use the ubiquitous language from `GLOSSARY.md` (follow `GLOSSARY-MAP.md` to the right one if the repo has more than one).";
 const GRILL_WITH_DOCS_REPLACEMENT = "Use the harness's skill mechanism, when available, to load and follow both the `grilling` and `domain-modeling` skills. If the mechanism is unavailable or cannot load either dependency (including invocation-policy rejection), read and follow both sibling files `../grilling/SKILL.md` and `../domain-modeling/SKILL.md`.";
-const MERGE_PREIMAGE = "Always resolve; never `--abort`.";
-const MERGE_REPLACEMENT = "Continue a clearly intended operation and do not `--abort` merely because resolution is difficult. If the available context cannot establish whether the operation itself should continue, stop and ask a human to decide.";
 const SKILLS = {
   "grill-with-docs": "skills/engineering/grill-with-docs",
   "domain-modeling": "skills/engineering/domain-modeling",
-  "resolving-merge-conflicts": "skills/engineering/resolving-merge-conflicts",
   grilling: "skills/productivity/grilling",
   "wait-what": "skills/productivity/wait-what",
   "writing-for-agents": "skills/productivity/writing-for-agents",
@@ -46,8 +44,7 @@ function createFixture() {
   for (const [name, sourcePath] of Object.entries(SKILLS)) {
     let body = "Fixture body.";
     if (name === "grill-with-docs") body = GRILL_WITH_DOCS_PREIMAGE;
-    if (name === "resolving-merge-conflicts") body = `Fixture body. ${MERGE_PREIMAGE}`;
-    if (name === "wait-what") body = "Re-pitch that and use the ubiquitous language from `CONTEXT.md`.";
+    if (name === "wait-what") body = `Re-pitch that ${WAIT_WHAT_PREIMAGE}`;
     const explicitFrontmatter = name === "wait-what" ? "disable-model-invocation: true\n" : "";
     const explicitCodexPolicy = name === "wait-what" ? "policy:\n  allow_implicit_invocation: false\n" : "";
     write(upstream, `${sourcePath}/SKILL.md`, `---\nname: ${name}\ndescription: Fixture ${name}\n${explicitFrontmatter}---\n\n# ${name}\n\n${body}\n`);
@@ -69,6 +66,14 @@ function createFixture() {
 function runUpdater(fixture, ...args) {
   return spawnSync(process.execPath, [UPDATER, "--repo-root", fixture.repoRoot, "--source", fixture.upstream, ...args], {
     encoding: "utf8",
+  });
+}
+
+function treeSnapshot(root) {
+  return readdirSync(root, { recursive: true }).sort().map((relative) => {
+    const absolute = path.join(root, relative);
+    const stats = statSync(absolute);
+    return [relative, stats.mode, stats.isFile() ? readFileSync(absolute).toString("hex") : null];
   });
 }
 
@@ -122,9 +127,9 @@ test("generates only complete selected skills with adaptations and metadata", ()
   assert.equal(grillWithDocs.split(GRILL_WITH_DOCS_REPLACEMENT).length - 1, 1);
   assert.match(grillWithDocs, /^disable-model-invocation: true$/m);
 
-  const mergeSkill = readFileSync(path.join(generatedSkill(fixture, "resolving-merge-conflicts"), "SKILL.md"), "utf8");
-  assert.equal(mergeSkill.includes(MERGE_PREIMAGE), false);
-  assert.equal(mergeSkill.split(MERGE_REPLACEMENT).length - 1, 1);
+  const waitWhat = readFileSync(path.join(generatedSkill(fixture, "wait-what"), "SKILL.md"), "utf8");
+  assert.equal(waitWhat.includes("GLOSSARY"), false);
+  assert.match(waitWhat, /and use consistent terms from our conversation and the project\./);
 }));
 
 test("rejects wait-what when an upstream user-only flag is missing or false", () => {
@@ -182,6 +187,7 @@ test("wrapper fallback contract points to readable dependencies even after invoc
 test("regeneration removes stale generated files and check mode detects drift", () => withFixture((fixture) => {
   assert.equal(runUpdater(fixture).status, 0);
   write(generatedSkill(fixture, "wait-what"), "stale.txt", "stale\n");
+  write(generatedSkill(fixture, "resolving-merge-conflicts"), "SKILL.md", "retired skill\n");
   const drift = runUpdater(fixture, "--check");
   assert.notEqual(drift.status, 0);
   assert.match(drift.stderr, /out of date/i);
@@ -189,6 +195,7 @@ test("regeneration removes stale generated files and check mode detects drift", 
   assert.equal(runUpdater(fixture).status, 0);
   assert.equal(runUpdater(fixture, "--check").status, 0);
   assert.equal(readdirSync(generatedSkill(fixture, "wait-what")).includes("stale.txt"), false);
+  assert.deepEqual(readdirSync(path.dirname(generatedSkill(fixture, "wait-what"))).sort(), Object.keys(SKILLS).sort());
 }));
 
 test("managed checksum includes executable mode with constant provenance", () => withFixture((fixture) => {
@@ -268,6 +275,20 @@ test("rejects symlinks in selected source trees", () => withFixture((fixture) =>
   assert.match(result.stderr, /symlink/i);
 }));
 
+test("rejects a missing selected skill without replacing the existing vendor tree", () => withFixture((fixture) => {
+  assert.equal(runUpdater(fixture).status, 0);
+  const vendorRoot = path.dirname(generatedSkill(fixture, "grilling"));
+  const before = treeSnapshot(vendorRoot);
+  rmSync(path.join(fixture.upstream, SKILLS["writing-for-agents"]), { recursive: true });
+  commitFixture(fixture.upstream, "remove a required skill");
+  moveTag(fixture.upstream);
+
+  const result = runUpdater(fixture, "--allow-moved-tag");
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Selected upstream skill is missing: skills\/productivity\/writing-for-agents/);
+  assert.deepEqual(treeSnapshot(vendorRoot), before);
+}));
+
 test("rejects a selected skill root symlink", () => withFixture((fixture) => {
   const selectedRoot = path.join(fixture.upstream, SKILLS["wait-what"]);
   rmSync(selectedRoot, { recursive: true });
@@ -293,15 +314,19 @@ for (const mutation of ["absent", "duplicated"]) {
     assert.match(result.stderr, /exactly once/i);
   }));
 
-  test(`fails when the merge-conflict patch preimage is ${mutation}`, () => withFixture((fixture) => {
-    const skillPath = path.join(fixture.upstream, SKILLS["resolving-merge-conflicts"], "SKILL.md");
+  test(`preserves the vendor tree when the wait-what patch preimage is ${mutation}`, () => withFixture((fixture) => {
+    assert.equal(runUpdater(fixture).status, 0);
+    const vendorRoot = path.dirname(generatedSkill(fixture, "wait-what"));
+    const before = treeSnapshot(vendorRoot);
+    const skillPath = path.join(fixture.upstream, SKILLS["wait-what"], "SKILL.md");
     const original = readFileSync(skillPath, "utf8");
-    writeFileSync(skillPath, mutation === "absent" ? original.replace(MERGE_PREIMAGE, "Resolve it somehow.") : `${original}\n${MERGE_PREIMAGE}\n`);
-    commitFixture(fixture.upstream, `make preimage ${mutation}`);
+    writeFileSync(skillPath, mutation === "absent" ? original.replace(WAIT_WHAT_PREIMAGE, "use project terms.") : `${original}\n${WAIT_WHAT_PREIMAGE}\n`);
+    commitFixture(fixture.upstream, `make wait-what preimage ${mutation}`);
     moveTag(fixture.upstream);
 
-    const result = runUpdater(fixture);
+    const result = runUpdater(fixture, "--allow-moved-tag");
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /exactly once/i);
+    assert.match(result.stderr, /wait-what\/SKILL\.md: patch preimage must appear exactly once/);
+    assert.deepEqual(treeSnapshot(vendorRoot), before);
   }));
 }
