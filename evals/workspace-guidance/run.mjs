@@ -221,8 +221,8 @@ try{
       if(old){r.superseded={status:old.status,error:old.error,judge:old.judge,judgeResponse:old.judgeResponse};r.status='complete';delete r.error;delete r.judge;delete r.judgeResponse;}
       try{
         const messages=restoreMessages(c,r);
-        let terminal=Boolean(old?.status==='complete'&&old.terminal);
-        if(!terminal){
+        let terminal=typeof old?.terminal==='string';
+        if(!terminal||!r.after){
           box=create(c.id);
           if(old){
             const material=s=>{const {execution,...state}=s;return state;};
@@ -233,7 +233,7 @@ try{
             }
           }else r.before=box.before;
         }
-        for(let turn=r.responses.length;!terminal&&turn<manifest.model.maxTurns;turn++){ 
+        for(let turn=r.responses.length;!terminal&&turn<manifest.model.maxTurns;turn++){
           const response=await complete({systemPrompt:'You are a coding assistant. Continue the task.\n\n'+conditions[row.condition]+'\nAlready loaded worktree skill:\n'+skill,messages,tools});
           r.responses.push(response);messages.push(response);
           const calls=response.content.filter(c=>c.type==='toolCall');

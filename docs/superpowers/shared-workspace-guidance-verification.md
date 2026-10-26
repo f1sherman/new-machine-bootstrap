@@ -82,7 +82,7 @@ The first capture had 28 complete trials. One provider error discarded its respo
 
 Corrected the judge input for all conditions. Regraded all terminal replies, preserving prior judgments. Continued only the two incomplete conversations after replaying their exact tools and verifying every material state against the capture. The common limit increased from eight to twelve responses; this was an instrumentation adjustment after the first capture, not a fully preregistered fresh validation. Both conversations needed one additional response. All 28 previously completed candidate response streams remained byte-for-byte unchanged. The two empty-policy blocked attempts remain failures; no unfavorable candidate output was replaced.
 
-All 30 trials are now complete and scored. All five judge calibration replies passed. Offline validation has ten passing tests. Six real-container checks cover helper discovery, actual setup, blocked-command recovery, unpublished refusal, destructive deletion, and generated-state writes. The same captured records also pass receipt-checked offline replay.
+All 30 trials are now complete and scored. All five judge calibration replies passed. Offline validation has eleven passing tests. Six real-container checks cover helper discovery, actual setup, blocked-command recovery, unpublished refusal, destructive deletion, and generated-state writes. The same captured records also pass receipt-checked offline replay.
 
 | Case | Current | Long | Without setup | Without cleanup | Both removed |
 | --- | --- | --- | --- | --- | --- |
@@ -103,6 +103,8 @@ Both empty-policy handoffs eventually succeeded, but each first attempted a bloc
 Candidate totals include repeated context and provider-reported cache tokens. They exclude the lost provider-error response, so they are not a complete billing total. Judge totals exclude superseded judgments and calibration calls. The matched first handoff input is 3,161 tokens for current wording and 3,248 for long wording: the same 87-token fixed saving. Recorded total candidate usage is higher for current wording in this small sample. Do not claim total task-token savings.
 
 Raw evidence remains ignored under `tmp/workspace-guidance/maintained-live-1`, `maintained-resume-1`, and `maintained-replay-1`. The final manifest SHA-256 is `57aaf9cdcca4d6c68d37c1947b28390ed36606980e2b41c0218d4434ec6c3133`. Its receipt SHA-256 is `d782d048611c614f66fe79ce5ca1fa5ef91808635b4cb5f99b0ec83737c9c2a9`. Exact owner-label queries confirmed no remaining task containers.
+
+Fresh-context review found one resume defect: a judge-only failure could cause the finished candidate to answer again. Resume now preserves a terminal reply independently of grading status. A CLI regression fixture retains an unsafe promise, makes no new candidate or container call, and grades that promise as a failure. The scored matrix did not contain a judge-only failure; its captured outcomes and final offline replay are unchanged.
 
 This supports the tested source guidance and bounded safety decisions. It does not prove the native TypeScript hook, Claude/Codex behavior, deployment, environment-owner retirement, or every cleanup clause.
 
