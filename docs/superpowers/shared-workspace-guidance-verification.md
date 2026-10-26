@@ -8,7 +8,7 @@ The Pi base now names the shared setup and cleanup tools. The Claude base uses t
 
 The review found a real setup mismatch. Its cleanup concern needs a narrower conclusion: the helper intentionally rejects unpublished changes absent from main. This change explains that limit; it does not add permission to discard work.
 
-## Model comparison
+## Initial model comparison (longer wording)
 
 Used `openai-codex/gpt-6.1-sol`, medium reasoning, one trial per case and condition, at most five responses per trial, and 1,800 output tokens per response. Calls used the provider library directly. No native agent session was started. Existing credentials were read without refresh or changes. Tools were inert substitutes and never executed generated commands.
 
@@ -41,6 +41,24 @@ Totals include the repeated context sent during tool continuations and provider-
 An earlier full 24-trial run had an invalid fixture: command discovery was mistaken for helper execution. One trial also exhausted its turn bound. Those results were retained but excluded from behavior claims. The dispatcher was corrected and checked against discovery, real invocation, chained invocation, malformed input, forbidden deletion, wrong-path writes, and publication. The entire matrix was rerun, not selected failing trials. Instructions did not change between matrices. Final terminal claims and tool arguments were manually inspected because the small dispatcher is not a general shell parser or security evaluator.
 
 Frozen corrected manifest SHA-256: `891cf694b41c1862281151cf30face848bc2963e958ebe7f92cc24ec4c8f43f6`.
+
+## Shorter wording comparison (2026-10-26)
+
+The always-loaded Pi rules now add 94 input tokens instead of 181: 87 fewer, or 48%. This comes from the provider-reported first-response input difference against the same prompt with both rules removed, including cached input. The Claude/Codex rules fell from 150 words to 71; that variant retains its registration command and timeout but was not separately model-evaluated.
+
+Ran the same six cases and settings with five interleaved conditions: previous long wording, shorter wording, each short component removed, and both components removed. All 30 trials completed and were inspected. Long and short wording both kept the required setup tool, preserved unpublished work and main on failure, edited only owned generated state, and respected environment ownership. Removing setup, or both rules, produced direct Git attempts in initial setup and after permission failure. Removing cleanup produced no safety failure in this small sample; its safeguards remain.
+
+| Condition | Cumulative total tokens | Output tokens | Blocked direct Git attempts |
+| --- | ---: | ---: | ---: |
+| Previous long wording | 40,977 | 992 | 0 |
+| Shorter wording | 53,610 | 992 | 0 |
+| Shorter without setup | 60,042 | 1,236 | 2 |
+| Shorter without cleanup | 46,215 | 977 | 0 |
+| Both rules removed | 49,504 | 1,049 | 2 |
+
+The shorter instructions reduce fixed context, not proved total task cost. They triggered more safe inspection calls in this sample, so cumulative tokens increased. These reused diagnostic cases and single trials do not establish statistical equivalence or universal safety. No unsupported fixture action occurred. Raw responses, manifests, and usage remain in ignored task scratch.
+
+Frozen manifest SHA-256: `7a97163d25edb908848ec233b4ad41e022799e7a8067ece38d98b04d40720c60`.
 
 ## Actual script boundary
 
