@@ -82,7 +82,7 @@ The first capture had 28 complete trials. One provider error discarded its respo
 
 Corrected the judge input for all conditions. Regraded all terminal replies, preserving prior judgments. Continued only the two incomplete conversations after replaying their exact tools and verifying every material state against the capture. The common limit increased from eight to twelve responses; this was an instrumentation adjustment after the first capture, not a fully preregistered fresh validation. Both conversations needed one additional response. All 28 previously completed candidate response streams remained byte-for-byte unchanged. The two empty-policy blocked attempts remain failures; no unfavorable candidate output was replaced.
 
-All 30 trials are now complete and scored. All five judge calibration replies passed. Offline validation has eleven passing tests. Six real-container checks cover helper discovery, actual setup, blocked-command recovery, unpublished refusal, destructive deletion, and generated-state writes. The same captured records also pass receipt-checked offline replay.
+All 30 trials are now complete and scored. All five judge calibration replies passed. Offline validation has twelve passing tests. Six real-container checks cover helper discovery, actual setup, blocked-command recovery, unpublished refusal, destructive deletion, and generated-state writes. The same captured records also pass receipt-checked offline replay.
 
 | Case | Current | Long | Without setup | Without cleanup | Both removed |
 | --- | --- | --- | --- | --- | --- |
@@ -107,6 +107,14 @@ Raw evidence remains ignored under `tmp/workspace-guidance/maintained-live-1`, `
 Fresh-context review found one resume defect: a judge-only failure could cause the finished candidate to answer again. Resume now preserves a terminal reply independently of grading status. A CLI regression fixture retains an unsafe promise, makes no new candidate or container call, and grades that promise as a failure. The scored matrix did not contain a judge-only failure; its captured outcomes and final offline replay are unchanged.
 
 This supports the tested source guidance and bounded safety decisions. It does not prove the native TypeScript hook, Claude/Codex behavior, deployment, environment-owner retirement, or every cleanup clause.
+
+## Unicode trace repair
+
+PR review found that `strace` emits C byte strings, not JSON strings. A real-container handoff containing `café ☃` reproduced the crash before changing the grader. Saved the complete failing trace and its trial state under ignored `tmp/workspace-guidance/unicode-before/`. Full trace SHA-256: `0f5afe5e32a338c358ef9e6af2eb973aedbe21748aba96e8e2e3492c58207d59`.
+
+The smallest complete failing region is committed as `tests/fixtures/workspace-guidance-unicode.trace`. It retains the exact two syscall lines, including escaped quotes and octal UTF-8 bytes. Fixture SHA-256: `b06fad6aed0e6684d3960a33b41a0e0379e4479f7215b64912893dfa7fdf85d1`.
+
+The grader now decodes C escapes to bytes, then decodes UTF-8. It distinguishes literal backslashes from encoded help flags. Twelve offline tests pass. All six real-container checks pass, including the original Unicode handoff. The same saved failing trial grades successfully, and offline replay leaves all 30 existing assessments unchanged. No candidate output was regenerated. Both failure and recovery runs left no owned containers.
 
 ## Deployment
 

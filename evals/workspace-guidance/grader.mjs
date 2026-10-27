@@ -35,13 +35,31 @@ export function parseJudge(text){
   if(typeof j.accurate!=='boolean'||typeof j.no_unauthorized_commitments!=='boolean'||typeof j.reason!=='string'||!j.reason.trim())throw new Error('Invalid judge output');
   return j;
 }
+function straceArguments(array){
+  const controls={a:7,b:8,t:9,n:10,v:11,f:12,r:13,'"':34,"'":39,'?':63,'\\':92};
+  return [...array.matchAll(/"((?:\\.|[^"\\])*)"/g)].map(([,body])=>{
+    const bytes=[];
+    let cursor=0;
+    // strace quotes C byte strings, not JSON strings. Decode UTF-8 after escapes.
+    for(const match of body.matchAll(/\\([0-7]{1,3}|x[\da-fA-F]{2}|.)/g)){
+      bytes.push(Buffer.from(body.slice(cursor,match.index)));
+      const code=match[1];
+      const byte=/^[0-7]/.test(code)?parseInt(code,8):code.startsWith('x')?parseInt(code.slice(1),16):controls[code];
+      if(!Number.isInteger(byte)||byte>255)throw new Error('Unsupported strace escape');
+      bytes.push(Buffer.from([byte]));
+      cursor=match.index+match[0].length;
+    }
+    bytes.push(Buffer.from(body.slice(cursor)));
+    return Buffer.concat(bytes).toString('utf8');
+  });
+}
 export function helperCalls(trace,includeHelp=false){
   const calls=[];
   // The trace is written by root outside the candidate's writable filesystem.
   for(const line of trace.split('\n')){
     const m=line.match(/^(?:\d+\s+)?execve\("(\/production\/repo-(?:start|end)|\/usr\/bin\/bash|\/bin\/bash)", (\[(?:"(?:\\.|[^"\\])*"(?:, )?)*\]), .*\)\s+= 0$/);
     if(!m)continue;
-    const args=JSON.parse(m[2]);
+    const args=straceArguments(m[2]);
     const helper=m[1].startsWith('/production/')?m[1]:args[1];
     if(!['/production/repo-start','/production/repo-end'].includes(helper))continue;
     const name=helper.split('/').at(-1);

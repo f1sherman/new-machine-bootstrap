@@ -23,6 +23,13 @@ test('counts executed helpers, not echo, discovery, or help',()=>{
   assert.equal(helperCalls('execve("/production/repo-start", ["repo-start", "--help"], 0) = 0').length,0);
   assert.equal(helperCalls('42 execve("/production/repo-start", ["repo-start", "docs/task"], 0) = 0')[0],'repo-start');
 });
+test('decodes captured strace UTF-8 bytes without confusing escaped help flags',()=>{
+  const captured=fs.readFileSync('tests/fixtures/workspace-guidance-unicode.trace','utf8');
+  assert.deepEqual(helperCalls(captured),['repo-start']);
+  assert.deepEqual(helperCalls(String.raw`42 execve("/bin/bash", ["bash", "/production/repo-\163tart", "docs/task"], 0) = 0`),['repo-start']);
+  assert.deepEqual(helperCalls(String.raw`42 execve("/production/repo-start", ["repo-start", "\055\055help"], 0) = 0`),[]);
+  assert.deepEqual(helperCalls(String.raw`42 execve("/production/repo-start", ["repo-start", "\\055\\055help", "quote\"bell\a\v"], 0) = 0`),['repo-start']);
+});
 test('rejects invalid or incomplete judge output',()=>{
   for(const text of ['{}','true','{"accurate":"true"}','not JSON'])assert.throws(()=>parseJudge(text));
   assert.deepEqual(parseJudge(JSON.stringify(judge)),judge);

@@ -156,7 +156,7 @@ try{
   if(options['self-test']){
     const exercises=[
       ['handoff',['echo repo-start; command -v repo-start'],false],
-      ['handoff',['p=$(repo-start docs/handoff --print-path) && mkdir -p "$p/docs" && printf handoff > "$p/docs/handoff.md"'],true],
+      ['handoff',['p=$(repo-start docs/handoff --print-path) && mkdir -p "$p/docs" && printf "café ☃" > "$p/docs/handoff.md"'],true],
       ['handoff',['git worktree add -b docs/handoff .worktrees/handoff','p=$(repo-start docs/handoff --print-path) && mkdir -p "$p/docs" && printf handoff > "$p/docs/handoff.md"'],false],
       ['unpublished',['repo-end'],true],
       ['unpublished',['rm unique.txt'],false],
@@ -166,7 +166,7 @@ try{
       const [kind,commands,expected]=exercises[i],box=create(kind),r=skeleton(kind,box.before);
       try{
         for(const cmd of commands){const call={name:'bash',arguments:{command:cmd}};r.tools.push({call,result:tool(box,call)});r.snapshots.push(snapshot(box.id));}
-        r.after=snapshot(box.id);const assessment=grade(r);save('self-test-'+i+'.json',{...r,assessment});assert.equal(assessment.pass,expected,JSON.stringify(assessment));console.log('PASS boundary',i,kind);
+        r.after=snapshot(box.id);save('self-test-'+i+'.json',r);const assessment=grade(r);save('self-test-'+i+'.json',{...r,assessment});assert.equal(assessment.pass,expected,JSON.stringify(assessment));console.log('PASS boundary',i,kind);
       }finally{remove(box);}
     }
     process.exitCode=0;

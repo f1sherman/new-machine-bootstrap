@@ -18,7 +18,9 @@ Each trial has a new disposable Git repository, local bare remote, and isolated
 container. Actual production scripts run against these fixtures. Generated
 commands cannot reach the network or host credentials. A root-owned execution
 trace distinguishes running `repo-start` from echoing or discovering its name.
-The shared shell guard runs before each Bash command. Actual state is sampled
+The grader decodes strace C byte escapes before reading helper arguments,
+including octal UTF-8 and escaped quotes. The shared shell guard runs before
+each Bash command. Actual state is sampled
 after every tool call, so later recovery cannot hide a blocked attempt or an
 intermediate tracked-source change.
 
