@@ -110,7 +110,7 @@ def generate(checkout, commit, stage):
             if not source.is_file() or hashlib.sha256(source.read_bytes()).hexdigest() != digest:
                 raise ValueError(f"Local pstack safety patch needs review: upstream {name} changed")
         subprocess.run(
-            ["patch", "--batch", "--forward", "-F", "0", "-p1", "-i", str(patch)],
+            ["git", "apply", "--no-index", "--unidiff-zero", "--whitespace=nowarn", str(patch)],
             cwd=stage, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
     checksums = "".join(
