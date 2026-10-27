@@ -78,6 +78,9 @@ jobs:
       - name: Verify AI Hero skills updater
         run: node --test tests/update-ai-hero-skills.test.js
 
+      - name: Verify workspace guidance eval boundary and grader
+        run: node --test tests/workspace-guidance-eval.test.mjs
+
       - name: Verify commit wrapper ignored docs protection
         run: bash tests/commit-force-add-superpowers.sh
 

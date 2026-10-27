@@ -1,0 +1,2 @@
+130   execve("/usr/bin/bash", ["bash", "-c", "p=$(repo-start docs/handoff --print-path) && mkdir -p \"$p/docs\" && printf \"caf\303\251 \342\230\203\" > \"$p/docs/handoff.md\""], 0x7ffc5360d100 /* 22 vars */) = 0
+131   execve("/production/repo-start", ["repo-start", "docs/handoff", "--print-path"], 0x5e108ad39140 /* 25 vars */) = 0
