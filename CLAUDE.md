@@ -98,8 +98,7 @@ When useful, inspect `/tmp/provision-*.log`; `ls -t /tmp/provision-*.log` lists 
 
 ## Work Selection in This Personal Repository
 
-This repository is used exclusively by Brian. Apply these priorities here, not
-as a rule for other repositories or their users.
+This repository is used exclusively by Brian.
 
 * Value first: before proposing or starting work, identify the observed problem and the concrete benefit to Brian: a useful capability, less waiting or manual effort, fewer interruptions, or protection against a concrete risk. Technical completeness, extra reporting, and bookkeeping alone are not benefits. Faster tests and less contention during concurrent PRs are real benefits when they reduce waiting.
 * Choose the smallest sufficient next action and an observable stopping condition. Check existing solutions and owners before creating work; exclude active workstreams from new-work rankings. Explain the benefit in plain language and weigh it against implementation, maintenance, and verification cost and the cost of doing nothing. Prefer no change when it meets the need.
