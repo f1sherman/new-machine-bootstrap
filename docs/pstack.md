@@ -40,7 +40,10 @@ local adapter before upstream instructions. Individual pstack leaf skills
 are not registered as separate commands. The required `deslop` cleanup skill
 from `cursor-team-kit` is installed separately for all three harnesses. It
 removes unnecessary code from the branch diff before commits; it is not the
-prose-only cleanup provided by `unslop`.
+prose-only cleanup provided by `unslop`. The `control-cli` skill from the same
+package is also installed. It guides local CLI/TUI reproduction and verification
+with an existing test harness, tmux, or a PTY script. It is a skill, not a
+`control-cli` executable, and it does not require a Cursor service.
 
 ## Model setup on each machine
 
@@ -107,21 +110,22 @@ Inspect them and their dependencies before any authorized execution.
 - Shared adapter: `roles/common/files/config/skills/pstack/pstack/ADAPTER.md`.
 - Official source: `roles/common/files/vendor/pstack/`.
 - Deployed reference: `~/.local/share/new-machine-bootstrap/pstack`.
-- Selected dependency: `roles/common/files/vendor/pstack/external/deslop/`.
+- Selected dependencies: `roles/common/files/vendor/pstack/external/{deslop,control-cli}/`.
 - Dependency license: `roles/common/files/vendor/pstack/external/LICENSE`.
-- Deployed dependency: `~/.local/share/new-machine-bootstrap/skills/pstack-dependencies/deslop/`.
+- Deployed dependencies: `~/.local/share/new-machine-bootstrap/skills/pstack-dependencies/{deslop,control-cli}/`.
 - Entry links: `pstack`, `poteto-mode`, and `setup-pstack` under `~/.pi/agent/skills/`,
-  `~/.claude/skills/`, and `~/.codex/skills/`. Each also has a `deslop` link.
+  `~/.claude/skills/`, and `~/.codex/skills/`. Each also has `deslop` and
+  `control-cli` links.
 
-The three local entries and the selected `deslop` dependency are discoverable.
+The three local entries and both selected dependencies are discoverable.
 The complete pstack skills, support files, agent briefs, documentation, and MIT
 license remain unchanged outside skill discovery. The updater records source
 provenance, SHA256 checksums, and modes for both packages. It does not install
 the rest of `cursor-team-kit` or any Cursor services.
 
 After provisioning, reload native Pi or start a fresh session so its catalog
-includes `deslop`. BB sessions can need an agent-session restart to refresh the
-catalog. Installing the skill does not resume a previously blocked task.
+includes `deslop` and `control-cli`. BB sessions can need an agent-session restart
+to refresh the catalog. Installing the skill does not resume a previously blocked task.
 
 ```bash
 bin/provision --tags managed-skills

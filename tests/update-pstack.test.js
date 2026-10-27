@@ -39,6 +39,8 @@ function fixture(fn) {
   write(source, 'pstack/assets/excluded.txt', 'exclude\n');
   write(source, 'other/SKILL.md', 'exclude\n');
   write(source, 'cursor-team-kit/skills/deslop/SKILL.md', '# deslop\n');
+  write(source, 'cursor-team-kit/skills/control-cli/SKILL.md', '# control-cli\n');
+  write(source, 'cursor-team-kit/skills/control-cli/references/detail.md', 'terminal support\n');
   write(source, 'cursor-team-kit/LICENSE', 'MIT external fixture\n');
   const commit = () => {
     git(source, 'add', '-A');
@@ -79,6 +81,8 @@ test('copies the exact pin with complete support files and executable modes', ()
   assert.equal(readFileSync(f.generated('README.md'), 'utf8'), 'readme\n');
   assert.equal(readFileSync(f.generated('skills/how/references/detail.md'), 'utf8'), 'support\n');
   assert.equal(statSync(f.generated('skills/how/scripts/run')).mode & 0o777, 0o755);
+  assert.equal(readFileSync(f.generated('external/control-cli/SKILL.md'), 'utf8'), '# control-cli\n');
+  assert.equal(readFileSync(f.generated('external/control-cli/references/detail.md'), 'utf8'), 'terminal support\n');
   assert.equal(existsSync(f.generated('assets')), false);
   assert.equal(existsSync(f.generated('other')), false);
   pass(f.run('--check'));
@@ -167,7 +171,7 @@ test('check detects extra, changed, missing, and executable-mode changes without
 });
 
 test('rejects unsafe or incomplete upstream before replacing the previous snapshot', () => {
-  for (const kind of ['symlink', 'missing-license', 'missing-skill', 'invalid-pin', 'external-symlink', 'external-missing-license', 'external-missing-skill', 'stale-local-patch']) fixture((f) => {
+  for (const kind of ['symlink', 'missing-license', 'missing-skill', 'invalid-pin', 'external-symlink', 'external-missing-license', 'external-missing-skill', 'missing-control-cli', 'stale-local-patch']) fixture((f) => {
     pass(f.run());
     const before = readFileSync(f.generated('SHA256SUMS'), 'utf8');
     if (kind === 'symlink') symlinkSync('/etc/passwd', path.join(f.source, 'pstack/skills/how/leak'));
@@ -176,6 +180,7 @@ test('rejects unsafe or incomplete upstream before replacing the previous snapsh
     if (kind === 'external-symlink') symlinkSync('/etc/passwd', path.join(f.source, 'cursor-team-kit/skills/deslop/leak'));
     if (kind === 'external-missing-license') rmSync(path.join(f.source, 'cursor-team-kit/LICENSE'));
     if (kind === 'external-missing-skill') rmSync(path.join(f.source, 'cursor-team-kit/skills/deslop/SKILL.md'));
+    if (kind === 'missing-control-cli') rmSync(path.join(f.source, 'cursor-team-kit/skills/control-cli/SKILL.md'));
     if (kind === 'stale-local-patch') write(f.source, 'pstack/skills/statechart/scripts/statechart.mjs', 'upstream context changed\n');
     if (kind === 'invalid-pin') f.pin('main');
     else f.pin(f.commit());

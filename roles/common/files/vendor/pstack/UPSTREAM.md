@@ -2,11 +2,12 @@
 
 - Source: https://github.com/cursor/plugins/tree/ab69380dd50ee47d426b35cb8369cffdddafc218/pstack
 - Cleanup dependency: https://github.com/cursor/plugins/tree/ab69380dd50ee47d426b35cb8369cffdddafc218/cursor-team-kit/skills/deslop
+- Terminal harness dependency: https://github.com/cursor/plugins/tree/ab69380dd50ee47d426b35cb8369cffdddafc218/cursor-team-kit/skills/control-cli
 - Commit: `ab69380dd50ee47d426b35cb8369cffdddafc218` (both packages).
 - Branch tracked by Renovate: `main`.
 - License: MIT, preserved in `LICENSE`.
 - Selected complete pstack paths: `skills/`, `agents/`, `docs/`, `README.md`, `LICENSE`.
-- Selected cursor-team-kit paths: `skills/deslop/` and `LICENSE`, mapped to `external/deslop/` and `external/LICENSE`.
+- Selected cursor-team-kit paths: `skills/deslop/`, `skills/control-cli/`, and `LICENSE`, mapped to `external/deslop/`, `external/control-cli/`, and `external/LICENSE`.
 - Excluded: plugin registration, top-level assets, dormant automations, `.gitignore`.
 - Content modifications: `patches/pstack-statechart-safety.patch` protects nested output files and synchronizes race tests. Executable bits are preserved.
 - SHA256SUMS covers selected files after local patches, not local provenance.
