@@ -96,6 +96,15 @@ When useful, inspect `/tmp/provision-*.log`; `ls -t /tmp/provision-*.log` lists 
 - **Require material value from tests**: Add or retain an automated test only when it passes all four gates: **Material harm** from a plausible regression; **Complex behavior** with meaningful logic or state; **Behavioral verification** that executes the production artifact and checks observable behavior; and **Unique protection** not already provided by provisioning, validation, manual end-to-end verification, or broader tests. Reject tests that restate static configuration or workflow bookkeeping. Use manual or end-to-end verification when no valuable automated test exists; no test is better than a low-value test.
 - **Keep the OmniWM cheat sheet current**: Update `docs/omniwm-cheatsheet.md` when OmniWM workspace assignments, shortcuts, or recommended workflows change.
 
+## Work Selection in This Personal Repository
+
+This repository is used exclusively by Brian. Apply these priorities here, not
+as a rule for other repositories or their users.
+
+* Value first: before proposing or starting work, identify the observed problem and the concrete benefit to Brian: a useful capability, less waiting or manual effort, fewer interruptions, or protection against a concrete risk. Technical completeness, extra reporting, and bookkeeping alone are not benefits. Faster tests and less contention during concurrent PRs are real benefits when they reduce waiting.
+* Choose the smallest sufficient next action and an observable stopping condition. Check existing solutions and owners before creating work; exclude active workstreams from new-work rankings. Explain the benefit in plain language and weigh it against implementation, maintenance, and verification cost and the cost of doing nothing. Prefer no change when it meets the need.
+* Keep investigation and verification proportional to the consequences. Preserve required safety checks and authorization gates; unresolved risk is not evidence of safety.
+
 ## Repo Lifecycle Provider Hooks
 
 NMB owns generic `repo-start`/`repo-end` lifecycle helpers. Provider-specific internal forge behavior does not belong in this repo. If a consuming environment needs extra merge proof for a private Git provider, install an executable callback from that consuming repo under `~/.local/bin/repo-end.d`.

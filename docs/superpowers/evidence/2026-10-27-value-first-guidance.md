@@ -1,4 +1,9 @@
-# Value-first guidance diagnostic
+# Value-first guidance diagnostic (superseded scope)
+
+This records the original shared-fragment experiment, not the current PR scope.
+Brian narrowed the rule to this personal-only repository. The final change leaves
+shared fragments unchanged. See `2026-10-27-repo-local-value-guidance.md` for the
+repository-context diagnostic and current activation boundary.
 
 ## Method
 
@@ -84,6 +89,7 @@ successes show that task evidence and model defaults already support much of
 the desired judgment. The supported observation is narrower: this candidate
 made owner exclusion and stopping criteria more explicit in this diagnostic.
 
-Claude/Codex received identical added text but were not independently evaluated.
-No deployed guidance was changed. After merge, normal provisioning installs and
-assembles the managed fragments. Live effectiveness remains unverified.
+The original candidate gave Claude/Codex identical added text, without an
+independent evaluation. No deployed guidance was changed. That shared-fragment
+candidate was withdrawn after scope feedback; do not provision it. The current
+PR changes repository instructions only. Live effectiveness remains unverified.

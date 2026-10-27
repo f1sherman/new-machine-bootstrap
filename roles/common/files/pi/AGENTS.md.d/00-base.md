@@ -3,9 +3,6 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 * Workspace: `~/projects/`
 * Bias toward action. Only ask user when you can't do it yourself.
 * Follow the YAGNI principle.
-* Value first: before proposing or starting work, identify the observed problem and the concrete benefit to Brian: a useful capability, less waiting or manual effort, fewer interruptions, or protection against a concrete risk. Technical completeness, extra reporting, and bookkeeping alone are not benefits. Faster tests and less contention during concurrent PRs are real benefits when they reduce waiting.
-* Choose the smallest sufficient next action and an observable stopping condition. Check existing solutions and owners before creating work; exclude active workstreams from new-work rankings. Explain the benefit in plain language and weigh it against implementation, maintenance, and verification cost and the cost of doing nothing. Prefer no change when it meets the need.
-* Keep investigation and verification proportional to the consequences. Preserve required safety checks and authorization gates; unresolved risk is not evidence of safety.
 * End any turn that reports on long-running or delegated work with a short status: **Goal**, **Done**, **Next**, **Needs you** (or "nothing").
 * Prompt optimization: always run matched baseline evals and leave-one-component-out ablations. Record behavior and token changes. A deliberately wrong prompt is a negative control, not an ablation. Retain untested safeguards.
 * Superpowers execution: use Native execution (`superpowers:executing-plans`) in the current session by default to save tokens, including when subagents are available. Use `subagent-driven-development` when Brian explicitly requests it. Apply this default to plan headers and handoffs; do not ask for an execution-mode choice. Keep verification and one final fresh-context branch review when authorized and available.

@@ -1,34 +1,23 @@
-# Value-first Guidance Implementation Plan
+# Repository-local Value-first Guidance Plan
 
 > Use `superpowers:executing-plans` in this session (Native execution).
 
-**Goal:** Improve work selection without adding a planning ritual.
-**Architecture:** Add identical guidance to existing Pi and Claude/Codex fragments.
-**Tech stack:** Markdown; existing Pi CLI for bounded behavior diagnostics.
+**Goal:** Apply the rule only to this personal-only repository.
 **Spec:** `docs/superpowers/specs/2026-10-27-value-first-guidance-design.md`
-**Status:** Self-reviewed and self-approved.
+**Status:** Self-reviewed and self-approved after scope correction.
 
-## Constraints and review focus
+## Task 1
 
-Preserve required safeguards and authorization. Recognize reduced waiting as
-value. Exclude existing owners from new-work recommendations. Avoid speculative
-projects. Keep advice proportional; do not demand a user-facing worksheet.
-Verify all five concerns in the paired diagnostic and final review.
+- [x] Restore the managed Pi and Claude/Codex base fragments to their pre-PR bytes.
+- [x] Move the unchanged three-bullet block to repository `CLAUDE.md`; state local
+  scope. Verify that the `AGENTS.md` symlink exposes it.
+- [x] Run one trial per case/condition with actual repository context: baseline,
+  candidate, an empty-policy control, and three leave-one-bullet-out ablations. Use the prior two cases,
+  model, medium thinking, 180-second bound, and frozen manual rubric. Preserve
+  every response. This is a placement diagnostic, not a reliability estimate.
+- [x] Inspect final diff and `git diff --check`. Record the scope correction and
+  new evidence separately from the original shared-fragment diagnostic.
+- [ ] Commit, obtain independent review, and update PR #719 and its description.
 
-## Task 1: Add and verify the rule
-
-- [x] Inspect fragment assembly and capture unchanged baseline guidance.
-- [x] Add the same short block after YAGNI in both base fragments.
-- [x] Freeze a local diagnostic: two cases, six conditions, two repetitions,
-  same model and medium thinking, tool-free, 180-second bound per trial.
-  Grade useful action, owner handling, performance value, proportional scope,
-  and authorization separately; preserve raw responses and token usage.
-- [x] Run all 24 trials; report failures and limits without selective retries.
-  Baseline removes the whole block; three conditions remove one bullet each.
-- [x] Review the diff and run `git diff --check`; record the diagnostic results
-  without private backlog details. No automated prose-presence test.
-- [x] Commit, invoke `z-pull-request`, resolve material review findings, and open
-  a PR with a Verification section. State deployment status explicitly.
-
-Independent review found no actionable defects. PR #719 is open; deployment is
-pending merge and normal provisioning. No deployed guidance was changed.
+Preserve required safeguards. No deployed files change. No provisioning is needed
+for this repository-only instruction change. Other repositories remain unaffected.
