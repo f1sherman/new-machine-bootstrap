@@ -8,7 +8,9 @@
     {
       "customType": "regex",
       "description": "Official pstack main branch digest",
-      "fileMatch": ["^vars/tool_versions\\.yml$"],
+      "managerFilePatterns": [
+        "/^vars/tool_versions\\.yml$/"
+      ],
       "matchStrings": ["    pstack: (?<currentDigest>[0-9a-f]{40})"],
       "currentValueTemplate": "main",
       "depNameTemplate": "pstack",
@@ -18,7 +20,9 @@
     {
       "customType": "regex",
       "description": "Pinned tool versions in vars/tool_versions.yml",
-      "fileMatch": ["^vars/tool_versions\\.yml$"],
+      "managerFilePatterns": [
+        "/^vars/tool_versions\\.yml$/"
+      ],
       "matchStrings": [
         "#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+depName=(?<depName>[^\\s]+)\\s*\\n\\s+[a-z_]+:\\s*['\"]?(?<currentValue>[^'\"\\s]+)['\"]?"
       ]
