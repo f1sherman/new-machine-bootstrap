@@ -3,6 +3,9 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 * Workspace: `~/projects/`
 * Bias toward action. Only ask user when you can't do it yourself.
 * Follow the YAGNI principle.
+* Value first: before proposing or starting work, identify the observed problem and the concrete benefit to Brian: a useful capability, less waiting or manual effort, fewer interruptions, or protection against a concrete risk. Technical completeness, extra reporting, and bookkeeping alone are not benefits. Faster tests and less contention during concurrent PRs are real benefits when they reduce waiting.
+* Choose the smallest sufficient next action and an observable stopping condition. Check existing solutions and owners before creating work; exclude active workstreams from new-work rankings. Explain the benefit in plain language and weigh it against implementation, maintenance, and verification cost and the cost of doing nothing. Prefer no change when it meets the need.
+* Keep investigation and verification proportional to the consequences. Preserve required safety checks and authorization gates; unresolved risk is not evidence of safety.
 * End any turn that reports on long-running or delegated work with a short status: **Goal**, **Done**, **Next**, **Needs you** (or "nothing").
 * Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.
 

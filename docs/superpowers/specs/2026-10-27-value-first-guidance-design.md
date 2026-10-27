@@ -35,8 +35,8 @@ deployed guidance directly. Merge remains Brian's decision.
 ## Verification
 
 Run a bounded paired diagnostic with baseline guidance, candidate, and empty
-policy. Treat the single added block as one component: baseline is also the
-leave-one-component-out ablation. Freeze scenarios, rubric, model, repetitions,
+policy. Include whole-block removal (baseline) and separate leave-one-bullet-out
+ablations. Freeze scenarios, rubric, model, repetitions,
 and limits before generation. Include a sanitized reconstruction of the observed
 ranking decision and a separately labeled synthetic safety-pressure case.
 Record behavior and token use; disclose reconstruction and tool-free limits.
