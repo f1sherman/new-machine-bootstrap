@@ -17,7 +17,10 @@
   every response. This is a placement diagnostic, not a reliability estimate.
 - [x] Inspect final diff and `git diff --check`. Record the scope correction and
   new evidence separately from the original shared-fragment diagnostic.
-- [ ] Commit, obtain independent review, and update PR #719 and its description.
+- [x] Commit, obtain independent review, and update PR #719 and its description.
 
 Preserve required safeguards. No deployed files change. No provisioning is needed
 for this repository-only instruction change. Other repositories remain unaffected.
+
+Independent review found no actionable defects. PR #719 now describes only the
+repository-local rule. Shared managed guidance has no net changes.
