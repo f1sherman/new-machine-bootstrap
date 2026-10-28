@@ -39,4 +39,5 @@
 - [x] Replace the early GitHub-specific proof path with the retained-by-owner no-op. Keep `--closed` and ownership error handling unchanged. Document that success does not prove merge state.
 - [x] Run lifecycle, repo-end callback and repo-start callback suites; all pass. The command guard rejects separate `bash -n` invocations of the source helper, but the full production helper executes under Bash in the passing suites.
 - [x] Execute the closest permitted boundary with the candidate source, actual Git worktrees and BB ownership fixtures. Direct live candidate execution is rejected by the command guard; do not bypass it. The installed helper is unchanged. Original live replay remains a post-merge provisioning check.
-- [ ] Run the PR workflow's fresh-context review, resolve material findings, commit verified changes and create the public PR. Report live installation as pending until merge.
+- [x] Run the PR workflow's fresh-context review. Reproduce and correct the fixture's mise-shim Ruby lookup failure; the lifecycle suite then passes with the shim first in PATH. No production finding remains.
+- [ ] Create the public PR from the verified clean branch. Report live installation as pending until merge.

@@ -783,7 +783,7 @@ fi
 exec "$BB_REAL_RUBY" "$@"
 EOF
 chmod +x "$bb_bin/bb" "$bb_bin/ruby"
-bb_real_ruby="$(command -v ruby)"
+bb_real_ruby="$(ruby -rrbconfig -e 'puts RbConfig.ruby')"
 
 create_remote_repo bb-boundary
 bb_main="$CREATED_REPO"
