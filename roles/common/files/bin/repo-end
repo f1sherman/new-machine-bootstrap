@@ -305,16 +305,11 @@ if [[ -z "$repo_root" ]]; then
 fi
 
 if _repo_bb_managed_worktree "$repo_root"; then
-  # BB removes its worktree once the thread is archived, so a merged PR needs no Git cleanup.
-  # The read-only forge lookup avoids fetch, callbacks, and branch changes.
   if [[ "$closed_mode" != "true" ]]; then
-    current_branch="$($(_worktree_cmd git) -C "$repo_root" branch --show-current)"
-    main_branch="$(_worktree_main_branch)"
-    if [[ -n "$current_branch" && "$current_branch" != "$main_branch" ]] && github_merged_pr_proof; then
-      printf 'PR merged. Archive this BB thread; BB removes the worktree after its grace period and keeps the branch.\n' >&2
-      [[ "$print_path" != "true" ]] || printf '%s\n' "$repo_root"
-      exit 0
-    fi
+    printf 'Worktree retained under BB ownership; no Git cleanup was performed.\n' >&2
+    printf 'PR state was not checked. After review and merge, archive this thread in BB to retire its worktree.\n' >&2
+    [[ "$print_path" != "true" ]] || printf '%s\n' "$repo_root"
+    exit 0
   fi
   printf 'Error: BB owns this worktree; repo-end cannot retire it or delete its branch.\n' >&2
   printf 'Use BB environment retirement after review; no Git cleanup was performed.\n' >&2

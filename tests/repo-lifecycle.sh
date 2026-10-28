@@ -831,38 +831,60 @@ for mode in unavailable malformed mismatch ruby-failure; do
     feature/bb-reused "BB $mode preserves branch"
 done
 unset BB_TEST_MODE
-# Both cleanup variants must refuse even when Git merge proof would pass.
-for option in '' --closed; do
-  if bb_run "$REPO_END_SCRIPT" $option >/dev/null 2>&1; then
-    fail_case "BB cleanup is not Git cleanup" "repo-end $option succeeded"
-  fi
-  [ -d "$bb_worktree" ] || fail_case "BB worktree preserved" "path deleted"
-  git -C "$bb_main" show-ref --verify --quiet refs/heads/feature/bb-reused || \
-    fail_case "BB branch preserved" "branch deleted"
-done
-pass_case "BB-owned worktree and branch survive both cleanup modes"
-
-# A GitHub-confirmed merge makes repo-end succeed without any Git mutation:
-# origin is unreachable here, so any fetch would fail the run.
+bb_home="$TMPROOT/bb-retention-home"
+mkdir -p "$bb_home/.local/bin/repo-end.d"
 cat >"$bb_bin/gh" <<'EOF'
 #!/usr/bin/env bash
-printf '[{"merged_at":"2026-01-01T00:00:00Z","number":7,"base":{"ref":"main"},"head":{"ref":"feature/bb-reused"}}]\n'
+printf 'forge lookup\n' >>"$HOME/unexpected-retention-action"
+exit 99
 EOF
-chmod +x "$bb_bin/gh"
+cat >"$bb_home/.local/bin/repo-end.d/00-guard" <<'EOF'
+#!/usr/bin/env bash
+printf 'callback\n' >>"$HOME/unexpected-retention-action"
+exit 99
+EOF
+bb_real_git="$(command -v git)"
+cat >"$bb_bin/git" <<'EOF'
+#!/usr/bin/env bash
+for arg in "$@"; do
+  if [[ "$arg" == fetch || "$arg" == push ]]; then
+    printf 'remote mutation\n' >>"$HOME/unexpected-retention-action"
+    exit 99
+  fi
+done
+exec "$BB_REAL_GIT" "$@"
+EOF
+chmod +x "$bb_bin/gh" "$bb_bin/git" "$bb_home/.local/bin/repo-end.d/00-guard"
+printf 'committed content\n' >"$bb_worktree/protected.txt"
+git -C "$bb_worktree" add protected.txt
+git -C "$bb_worktree" commit -q -m 'retain work in progress'
+printf 'dirty content\n' >"$bb_worktree/protected.txt"
+printf 'untracked content\n' >"$bb_worktree/untracked.txt"
 bb_origin="$(git -C "$bb_worktree" remote get-url origin)"
-git -C "$bb_worktree" remote set-url origin git@github.com:example/repo.git
-bb_merged_out="$(bb_run "$REPO_END_SCRIPT" --print-path 2>"$TMPROOT/bb-merged.err")" || \
-  fail_case "BB merged PR guidance" "repo-end failed: $(<"$TMPROOT/bb-merged.err")"
-assert_equals "$bb_merged_out" "$bb_worktree" "BB merged PR keeps the shell in place"
-if bb_run "$REPO_END_SCRIPT" --closed >/dev/null 2>&1; then
-  fail_case "BB merged PR guidance" "--closed was accepted"
-fi
-rm "$bb_bin/gh"
+bb_refs="$(git -C "$bb_worktree" show-ref)"
+bb_head="$(git -C "$bb_worktree" rev-parse HEAD)"
+bb_status="$(git -C "$bb_worktree" status --porcelain=v1 --untracked-files=all)"
+bb_bytes="$(git -C "$bb_worktree" hash-object protected.txt untracked.txt .repo.yml)"
+for remote in git@github.com:example/repo.git ssh://git@forge.example.test/example/repo.git "$bb_origin"; do
+  git -C "$bb_worktree" remote set-url origin "$remote"
+  bb_config="$(git -C "$bb_worktree" config --local --list)"
+  bb_retained_out="$(HOME="$bb_home" BB_REAL_GIT="$bb_real_git" bb_run "$REPO_END_SCRIPT" --print-path 2>"$TMPROOT/bb-retained.err")" || \
+    fail_case "BB-owned checkout is retained without forge proof" "repo-end failed: $(<"$TMPROOT/bb-retained.err")"
+  assert_equals "$bb_retained_out" "$bb_worktree" "BB retention keeps the caller in the same checkout"
+  if HOME="$bb_home" BB_REAL_GIT="$bb_real_git" bb_run "$REPO_END_SCRIPT" --closed >/dev/null 2>&1; then
+    fail_case "BB closed cleanup remains unsupported" "--closed was accepted"
+  fi
+  assert_equals "$(git -C "$bb_worktree" rev-parse HEAD)" "$bb_head" "BB retention preserves HEAD"
+  assert_equals "$(git -C "$bb_worktree" show-ref)" "$bb_refs" "BB retention preserves every ref"
+  assert_equals "$(git -C "$bb_worktree" status --porcelain=v1 --untracked-files=all)" "$bb_status" "BB retention preserves working state"
+  assert_equals "$(git -C "$bb_worktree" hash-object protected.txt untracked.txt .repo.yml)" "$bb_bytes" "BB retention preserves dirty and untracked bytes"
+  assert_equals "$(git -C "$bb_worktree" config --local --list)" "$bb_config" "BB retention preserves Git configuration"
+done
+assert_no_file "$bb_home/unexpected-retention-action" "BB retention runs no forge lookup, remote mutation or lifecycle callback"
+rm "$bb_bin/gh" "$bb_bin/git" "$bb_worktree/untracked.txt"
+git -C "$bb_worktree" checkout -- protected.txt
 git -C "$bb_worktree" remote set-url origin "$bb_origin"
-[ -d "$bb_worktree" ] || fail_case "BB worktree preserved" "path deleted"
-git -C "$bb_main" show-ref --verify --quiet refs/heads/feature/bb-reused || \
-  fail_case "BB branch preserved" "branch deleted"
-pass_case "BB-owned worktree with a merged PR exits 0 without cleanup"
+pass_case "BB retains its own worktree independently of provider or merge state"
 
 # A child using a different checkout must not inherit BB isolation ownership.
 BB_TEST_PATH="$bb_main"
