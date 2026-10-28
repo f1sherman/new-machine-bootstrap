@@ -67,6 +67,18 @@ Requirements:
 - **Engineering workflows**: [pstack](docs/pstack.md), available explicitly in Pi,
   Claude Code, and Codex, with Renovate-managed upstream updates
 
+## Repository cleanup in BB
+
+For a checkout owned by BB, normal `repo-end` succeeds without Git cleanup.
+It retains the worktree, branch and uncommitted files. This result does not
+check or prove that a pull request has merged. `--print-path` returns the same
+checkout path. Use BB's thread and environment lifecycle for retirement after
+review and merge; do not remove its managed worktree with Git helpers.
+
+BB-owned checkouts still reject `repo-end --closed`. Uncertain BB ownership
+fails closed. Standalone repository cleanup keeps its existing merge-proof
+and deletion checks.
+
 ## External Pi runtime ownership
 
 Provisioning normally installs its pinned Pi runtime through mise. If a separate installer owns Pi, complete and verify that installation first. Then create `~/.config/new-machine-bootstrap/external-pi-runtime` containing the absolute path to its `@earendil-works/pi-coding-agent` package root, followed by a newline.
