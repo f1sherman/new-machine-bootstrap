@@ -132,5 +132,16 @@ else
   echo "    Done."
 fi
 
+echo "==> Letting Brave update itself..."
+# Brave's updater cannot replace a root-owned app bundle without an admin
+# prompt, so unattended updates silently never install.
+BRAVE_APP="/Applications/Brave Browser.app"
+if [[ -d "$BRAVE_APP" ]]; then
+  chown -R "$TARGET_USER:admin" "$BRAVE_APP"
+  echo "    Done."
+else
+  echo "    Brave is not installed; skipping."
+fi
+
 echo ""
 echo "System setup complete. You can now run bin/provision without sudo."
