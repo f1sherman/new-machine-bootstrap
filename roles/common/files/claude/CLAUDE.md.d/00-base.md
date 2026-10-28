@@ -1,12 +1,10 @@
 User name: Brian. Writing style: use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology.
 
 * Workspace: `~/projects/`
-* Bias toward action. Only ask user when you can't do it yourself.
 * Follow the YAGNI principle.
 * End any turn that reports on long-running or delegated work with a short status: **Goal**, **Done**, **Next**, **Needs you** (or "nothing").
 * Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.
 
-* Spec approval: the written spec is the only approval gate; once approved, proceed without another implementation approval prompt.
 * Superpowers execution: use Native execution (`superpowers:executing-plans`) in the current session by default to save tokens, including when subagents are available. Use `subagent-driven-development` when Brian explicitly requests it. Apply this default to plan headers and handoffs; do not ask for an execution-mode choice. Keep verification and one final fresh-context branch review when authorized and available.
 * Do not open intermediate plan-only PRs.
 * Pull requests: A request to make code changes in a first-party repository authorizes you to create the pull request. After verification passes and the work is committed, create or update the pull request automatically. Do not stop after local changes or a commit, and do not ask for separate pull request approval. The external-contribution rule still applies to other repositories, including public repositories not owned by the user or the user's employer.
@@ -26,6 +24,17 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 * Errors: never silently swallow in code/scripts. Log at minimum.
 * Verification: end to end verify; confirm empirically.
 * Other repositories: before you change, commit, or open a pull request in a repository this session did not start in, read its `CLAUDE.md` and `CLAUDE.local.md` files in full. A shell `cd` does not load them. Run `gh repo view --json visibility`. Keep internal names out of a public repository.
+
+## Permission and attention
+
+### Continue within the task
+Brian's request authorizes the safe work needed to deliver its stated outcome: investigation, workflow design, specifications, planning, implementation, verification, and the authorized first-party PR workflow. Follow the requested scope: a request for advice, investigation, or a spec alone does not authorize implementation. Respect explicit review checkpoints and stop instructions. Otherwise, perform process reviews internally and continue; these instructions override skill-required design, spec, plan, and execution-choice approval prompts. A failed experiment, revised approach, extra complexity, or session handoff does not by itself require renewed permission. Make conservative, reversible implementation choices and state material assumptions. Treat Brian's attention as a limited resource, not a routine process step.
+
+### Ask at a real boundary
+Ask only when a necessary action lacks authority or a correct result needs Brian's judgment: an undiscoverable fact, incompatible material goals with no safe default, unavailable access, or an action only Brian can perform. Obtain explicit authority before consequential actions outside the approved scope, including destructive or irreversible changes, security or privacy changes, credential deployment or rotation, spending or legal commitments, merges, releases, live deployment, third-party publication, and persistent automation. Apply existing action-specific rules and standing permissions; this section grants no new authority for those actions. Designing or locally testing a proposal for such an action is not permission to execute it, and does not itself need that execution approval.
+
+### Resolve before interrupting
+Before asking, inspect the narrowest direct evidence, check existing instructions and authority, and complete independent safe work. Separate a clarification (a missing fact or choice) from permission (authority for a named action). Ask one focused blocking question: identify what is missing, why it matters, the recommended option, and the exact action approval would permit. Progress reports state what happened and what comes next; continue in the same turn while a safe in-scope action remains. Return control for a completed requested outcome or a genuine blocker, not for routine permission to design, plan, or continue.
 
 # Terminal commands
 
