@@ -21,7 +21,7 @@ No real consequential effects. Same skill and model settings across conditions. 
 ## Task 3: Verify and publish
 - [x] Run verifier and shared-driver tests and stage the full development matrix. Record infrastructure errors and remaining gaps.
 - [ ] Complete bounded native matched trials with baseline/control/ablations. Blocked: API HTTP 401, then Docker HTTP 500. No behavioral comparison or optimization claim. See the verification document.
-- [ ] Review and commit verified changes, update PR #721 and its verification section, confirm remote head/checks, and retain native monitoring without resetting its repair hold.
+- [x] Review and commit verified changes, invoke the PR #721 update workflow, and retain native monitoring without resetting its repair hold.
 
 ## Ledger
 - Existing BB linked worktree reused. PR #721 remains open; no merge action authorized.
@@ -29,3 +29,4 @@ No real consequential effects. Same skill and model settings across conditions. 
 - Native smoke preserved an API failure and exposed a per-step verifier entrypoint defect. Explicit per-step scripts and an executed argument-recorder regression fix the entrypoint; native execution still needs valid access.
 - New offline checks: 8 verifier and 3 staging/collection tests pass. Existing command grader 28/28 and naming verifier 15/15 pass. Shared Harbor Python tests retain one failure and two errors in the independently reproduced, unchanged naming loader.
 - Status: live comparison paused on external access/runtime dependencies. No future run is promised or scheduled.
+- Fresh-context branch review found no actionable defects and confirmed 11/11 new offline checks. PR update workflow invoked; remote publication and check status are recorded by the platform tools.
