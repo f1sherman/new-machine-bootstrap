@@ -9,12 +9,13 @@ import { jobArguments } from './invocation.mjs';
 const { values: options } = parseArgs({ options: {
   suite: { type: 'string' }, model: { type: 'string' }, trials: { type: 'string', default: '1' }, 'pi-version': { type: 'string' },
   cases: { type: 'string' }, conditions: { type: 'string' }, 'compare-ref': { type: 'string' }, ablate: { type: 'boolean' },
+  'skill-file': { type: 'string' }, 'guidance-file': { type: 'string' },
   mode: { type: 'string', default: 'regression' }, live: { type: 'boolean' }, replay: { type: 'string' },
   harbor: { type: 'string', default: 'tmp/harbor-venv/bin/harbor' }, python: { type: 'string', default: 'tmp/harbor-venv/bin/python' },
   'docker-subnet': { type: 'string' }, output: { type: 'string', default: 'tmp/harbor-evals' }, help: { type: 'boolean' },
 } });
 if (options.help) {
-  console.log('Usage: node evals/harbor/run.mjs --suite command-guidance|session-naming\n  --model provider/model [--cases ids] [--conditions ids] [--trials 1]\n  [--live | --replay tmp/prior-run] [--mode regression|compare]\n  [--ablate] [--compare-ref ref] [--harbor path] [--python path]\n  [--pi-version X.Y.Z] [--docker-subnet CIDR] [--output tmp/fresh-run]\nDefault: stage only. --live makes paid calls. Replay makes no model calls.');
+  console.log('Usage: node evals/harbor/run.mjs --suite command-guidance|session-naming|permission-guidance\n  --model provider/model [--cases ids] [--conditions ids] [--trials 1]\n  [--live | --replay tmp/prior-run] [--mode regression|compare]\n  [--ablate] [--compare-ref ref] [--skill-file path] [--guidance-file path]\n  [--harbor path] [--python path]\n  [--pi-version X.Y.Z] [--docker-subnet CIDR] [--output tmp/fresh-run]\nDefault: stage only. --live makes paid calls. Replay makes no model calls.');
   process.exit(0);
 }
 if (!['regression', 'compare'].includes(options.mode)) throw Error('Unknown --mode');
@@ -35,7 +36,7 @@ const output = localPath(options.output);
 if (fs.existsSync(output)) throw Error('Use a fresh --output to preserve prior evidence');
 const source = options.replay ? localPath(options.replay) : null;
 const prior = source ? readJSON(path.join(source, 'manifest.json')) : null;
-if (prior && (options.suite || options.model || options.cases || options.conditions || options.ablate || options['compare-ref'] || options['pi-version'])) throw Error('Replay uses its frozen manifest; do not override inputs');
+if (prior && (options.suite || options.model || options.cases || options.conditions || options.ablate || options['compare-ref'] || options['pi-version'] || options['skill-file'] || options['guidance-file'])) throw Error('Replay uses its frozen manifest; do not override inputs');
 if (prior && prior.suite !== 'command-guidance') throw Error('Replay is supported only for command-guidance');
 const suite = prior?.suite ?? options.suite;
 const model = prior?.model ?? options.model;

@@ -1,13 +1,14 @@
 # Shared Harbor eval driver
 
 Harbor **0.24.0** owns agent/environment/verifier execution. One driver stages
-both suites, schedules trials, collects evidence, and sets regression exits.
+the suites, schedules trials, collects evidence, and sets regression exits.
 There is no Harbor fork or second live experiment loop.
 
 | Suite | Execution | Verification |
 | --- | --- | --- |
 | [command-guidance](../command-guidance/README.md) | Medium thinking; one response; no tools/context/sessions | Native macOS Ruby/Bash/Zsh sandbox |
 | [session-naming](../session-naming/README.md) | Stock Pi adapter; low thinking; tools and native continuation | Existing hidden behavioral checks and trace grader |
+| [permission-guidance](../permission-guidance/README.md) | Stock Pi adapter; medium thinking; tools and native continuation | Real task artifacts, protected-file snapshots, and native trace checks |
 
 Production guidance, all 18 command prompts, and both naming workflows are
 unchanged. Command generation moves from host scratch to Docker; only Pi's
@@ -94,7 +95,8 @@ stderr, assessments, rewards, trajectories, and workspace artifacts. Ignored
 artifacts are not Git-recoverable; preserve them separately when needed.
 
 `report.json` separates primary policy/task outcomes, controls/ablations, and
-infrastructure errors. Regression exits nonzero on any primary failure;
+infrastructure errors. Permission runs preserve task and authority checks separately;
+permission-question quality and document meaning remain manual assessments. Regression exits nonzero on any primary failure;
 `--mode compare` permits policy failures. **Both modes fail on infrastructure
 errors.** Usage covers main-agent input/output/cache only, not total billing.
 Broad-name quality remains a manual assessment.
@@ -110,7 +112,16 @@ PYTHONDONTWRITEBYTECODE=1 \
   tmp/harbor-venv/bin/python -m unittest evals.harbor.test_command
 ```
 
-The last command needs pinned Harbor and macOS. It checks native transport,
+Permission-suite calibration and staging checks need only Python, Node, Ruby,
+and Git; they make no model or Docker calls:
+
+```bash
+python3 -m unittest discover -s evals/permission-guidance \
+  -p 'test_*.py'
+node --test evals/permission-guidance/suite.test.mjs
+```
+
+The Harbor Python command above needs pinned Harbor and macOS. It checks native transport,
 verifier creation, exact prompt serialization, version propagation, frozen
 command grading, evidence failures, command replay, and exits.
 

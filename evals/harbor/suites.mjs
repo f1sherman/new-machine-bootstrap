@@ -3,6 +3,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadDefinition } from '../session-naming/definition.mjs';
+import { preparePermission, collectPermission } from '../permission-guidance/suite.mjs';
 
 export const root = fileURLToPath(new URL('../../', import.meta.url));
 export const readJSON = file => JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -14,6 +15,8 @@ export function select(items, csv, defaults = items.map(item => item.id)) {
 }
 
 export async function prepare(suite, options, output) {
+  if (suite === 'permission-guidance') return preparePermission(root, options, output, select);
+  if (options['skill-file'] || options['guidance-file']) throw Error('Permission guidance input flags require --suite permission-guidance');
   if (suite === 'command-guidance') {
     if (options.ablate || options['compare-ref']) throw Error('Command suite has guidance/empty conditions; naming ablation flags do not apply');
     const directory = path.join(root, 'evals/command-guidance');
@@ -36,7 +39,7 @@ export async function prepare(suite, options, output) {
       verifier: 'evals.harbor.command_verifier:MacOSCommandVerifier', resume: false,
       variants, cases: cases.map(({ id }) => ({ id, steps: [] })) };
   }
-  if (suite !== 'session-naming') throw Error('Select --suite command-guidance or session-naming');
+  if (suite !== 'session-naming') throw Error('Select --suite command-guidance, session-naming, or permission-guidance');
   const cases = select([
     { id: 'incidental-bug-report', steps: ['repair-restoration', 'report-incidental-bug', 'continue-restoration', 'explicit-rename', 'change-goal'] },
     { id: 'incidental-monitor-report', steps: ['repair-restoration', 'report-incidental-bug', 'continue-restoration'] },
@@ -110,6 +113,8 @@ export function collectTrial(manifest, output, variant, trial) {
     if (reward.reward !== Number(checks.combined)) throw Error('Command reward disagrees with assessment');
     usage = assessment.usage;
     evidence = { assessment, path: trial };
+  } else if (manifest.suite === 'permission-guidance') {
+    ({ checks, usage, evidence } = collectPermission(result, item, trial, readJSON));
   } else {
     if (result.step_results?.map(step => step.step_name).join(',') !== item.steps.join(',')) throw Error(`Incomplete workflow in ${trial}`);
     const steps = result.step_results.map(step => {
