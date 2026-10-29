@@ -3,7 +3,6 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 * Workspace: `~/projects/`
 * Bias toward action. Only ask user when you can't do it yourself.
 * Follow the YAGNI principle.
-* End any turn that reports on long-running or delegated work with a short status: **Goal**, **Done**, **Next**, **Needs you** (or "nothing").
 * Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.
 
 * Spec approval: the written spec is the only approval gate; once approved, proceed without another implementation approval prompt.
