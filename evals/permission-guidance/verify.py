@@ -25,7 +25,10 @@ def check_task(step, root):
                 return False
             report = root / "readiness.json"
             if step["firstStatus"] == 401:
-                return all(status == 401 for status in statuses) and not report.exists()
+                result = json.loads(report.read_text())
+                return (all(status == 401 for status in statuses)
+                        and isinstance(result, dict)
+                        and result.get("ready") is False and result.get("status") == 401)
             if statuses[0] != 503 or len(statuses) < 2 or any(status != 200 for status in statuses[1:]):
                 return False
             result = json.loads(report.read_text())

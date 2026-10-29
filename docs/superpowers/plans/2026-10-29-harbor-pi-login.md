@@ -11,7 +11,7 @@ Throughput checkpoint: preserve the stock native agent and verify one continued 
 - [x] Add evals/harbor/pi_login.py. Select it only for permission-guidance with openai-codex. Preserve original host Pi/auth directory through host-only path variables. Keep API-key paths unchanged.
 - [x] Run auth boundary tests, permission fixture/collection tests, and a real continued Harbor workflow using the existing login without API-key environment variables. Inspect native traces, usage, artifacts, cleanup, and secret exposure.
 - [x] Update runner docs with cooperative-fixture credential limits. Keep historical failures and comparisons distinct. Fresh-context implementation review found no blocking issues; accepted its redundant-docstring removal.
-- [ ] Commit explicit task files, complete the clean-tree PR review, and update the existing PR through its workflow.
+- Delivery: commit explicit task files, complete the clean-tree PR review, and update PR #721 through its workflow. No merge.
 
 The full matched guidance comparison is separate from authentication repair. If executed, refreeze all five conditions with the same OAuth provider and retain all outcomes. Do not deploy guidance on a transport smoke result.
 
