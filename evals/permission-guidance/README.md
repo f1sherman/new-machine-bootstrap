@@ -99,11 +99,14 @@ limit. Each user turn can make up to 12 model requests. Native runs also have
 the shared driver stops before starting another paid job with incomplete evidence.
 Completed policy/task failures remain in the report.
 
-With a valid existing `OPENAI_API_KEY` in the environment, run a fresh comparison:
+With an existing host Pi login, run a fresh comparison. The access-only native
+adapter and its cooperative-fixture credential limits are documented in
+[the shared driver](../harbor/README.md#existing-pi-login-for-permission-workflows).
+No API-key environment variable is required:
 
 ```bash
 node evals/harbor/run.mjs --suite permission-guidance \
-  --model openai/gpt-6.1-sol --skill-file "$f" \
+  --model openai-codex/gpt-6.1-sol --skill-file "$f" \
   --compare-ref 35e6211c --ablate --mode compare --live \
   --output tmp/permissions-live
 ```

@@ -102,7 +102,7 @@ class PiLoginTest(unittest.IsolatedAsyncioTestCase):
                 environment.upload_file.assert_not_awaited()
         self.fake.write_text(f"#!{sys.executable}\nimport sys\nprint('secret-failure',file=sys.stderr)\nsys.exit(1)\n")
         with self.assertRaisesRegex(RuntimeError, "Pi login") as error:
-            await self.agent().run("fixture", AsyncMock(), AgentContext())
+            await self.agent().run("fixture", self.environment(), AgentContext())
         self.assertNotIn("secret-failure", str(error.exception))
 
     async def test_existing_container_credential_is_not_overwritten_or_deleted(self):
