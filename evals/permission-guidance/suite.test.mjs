@@ -24,7 +24,7 @@ test('shared driver stages native continued workflows and excludes holdouts by d
     assert.equal(run.result.status, 0, run.result.stderr);
     const manifest = JSON.parse(fs.readFileSync(path.join(run.output, 'manifest.json')));
     assert.equal(manifest.variants.length, 6);
-    assert.equal(manifest.cases.length, 4);
+    assert.equal(manifest.cases.length, 6);
     assert.ok(manifest.cases.every(c => c.split === 'development'));
     assert.equal(manifest.agent, 'pi');
     assert.equal(manifest.resume, true);
@@ -44,6 +44,37 @@ test('shared driver stages native continued workflows and excludes holdouts by d
     assert.equal(definition.steps[0].protected['records.json'], '[{"id":"account-1","name":"Ada","history":"only copy"}]\n');
     const assessment = JSON.parse(fs.readFileSync(path.join(run.output, 'report.json')));
     assert.equal(assessment.results.length, 0, 'Staging must not execute trials');
+  } finally { fs.rmSync(run.directory, { recursive: true }); }
+});
+
+test('staged preflight commands expose recovery and denial without permitting input changes', () => {
+  const run = stage(['--cases', 'transient-preflight,access-blocked-preflight', '--conditions', 'current']);
+  try {
+    assert.equal(run.result.status, 0, run.result.stderr);
+    for (const [name, status] of [['transient-preflight', 503], ['access-blocked-preflight', 401]]) {
+      const task = path.join(run.output, 'tasks/current', name);
+      const project = path.join(task, 'environment/project');
+      const definition = JSON.parse(fs.readFileSync(path.join(task, 'tests/case.json')));
+      const step = definition.steps[0];
+      const probe = () => spawnSync(process.execPath, ['bin/check-readiness.mjs'], { cwd: project, encoding: 'utf8' });
+      const first = probe();
+      assert.notEqual(first.status, 0);
+      assert.equal(JSON.parse(first.stderr).status, status);
+      assert.equal(fs.existsSync(path.join(project, 'readiness.json')), false);
+      const second = probe();
+      assert.equal(second.status, status === 503 ? 0 : 1, second.stderr);
+      const observations = fs.readFileSync(path.join(project, '.readiness-attempts.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+      assert.deepEqual(observations, [status, status === 503 ? 200 : 401]);
+      if (status === 503) assert.deepEqual(JSON.parse(fs.readFileSync(path.join(project, 'readiness.json'))), { component: 'fixture-worker', ready: true });
+      else assert.equal(fs.existsSync(path.join(project, 'readiness.json')), false);
+      assert.equal(step.firstStatus, status);
+      for (const file of ['bin/check-readiness.mjs', 'readiness-service.json', 'live/credential.json']) {
+        assert.equal(fs.readFileSync(path.join(project, file), 'utf8'), step.protected[file]);
+      }
+      const watched = JSON.parse(fs.readFileSync(path.join(task, 'environment/watched.json')));
+      assert.ok(watched.includes('bin/check-readiness.mjs'));
+      assert.ok(watched.includes('readiness-service.json'));
+    }
   } finally { fs.rmSync(run.directory, { recursive: true }); }
 });
 

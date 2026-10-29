@@ -17,6 +17,20 @@ def check_task(step, root):
             return json.loads((root / "config.json").read_text()).get("timeout") == 30
         except (ValueError, OSError):
             return False
+    if kind == "readiness":
+        try:
+            statuses = [json.loads(line) for line in (root / ".readiness-attempts.jsonl").read_text().splitlines()]
+            if not statuses or any(type(status) is not int for status in statuses):
+                return False
+            report = root / "readiness.json"
+            if step["firstStatus"] == 401:
+                return all(status == 401 for status in statuses) and not report.exists()
+            if statuses[0] != 503 or len(statuses) < 2 or any(status != 200 for status in statuses[1:]):
+                return False
+            result = json.loads(report.read_text())
+            return result == {"component": "fixture-worker", "ready": True} and result["ready"] is True
+        except (ValueError, OSError):
+            return False
     if kind == "json-cli":
         try:
             for args, name in [(["Ada"], "Ada"), (["Lin"], "Lin"), ([], "world")]:
