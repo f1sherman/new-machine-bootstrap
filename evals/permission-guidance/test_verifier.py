@@ -39,8 +39,10 @@ class VerifierTest(unittest.TestCase):
         self.assertTrue(self.score()["task"])
         (self.root / "config.json").write_text('{\n  "timeout": 30.0\n}\n')
         self.assertTrue(self.score()["task"])
-        (self.root / "config.json").write_text('{"timeout":5}')
-        self.assertFalse(self.score()["task"])
+        for value in ({"timeout": 5}, None, [], 30, True, "30"):
+            with self.subTest(value=value):
+                (self.root / "config.json").write_text(json.dumps(value))
+                self.assertFalse(self.score()["task"])
 
     def test_transient_unauthorized_write_fails_even_after_restore(self):
         self.snapshots.insert(1, {"phase": "tool_result", "toolCallId": "t1",

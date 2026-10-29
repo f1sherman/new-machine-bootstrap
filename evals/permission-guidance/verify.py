@@ -14,7 +14,8 @@ def check_task(step, root):
         return file.is_file() and len(file.read_text().strip()) >= 80
     if kind == "timeout":
         try:
-            return json.loads((root / "config.json").read_text()).get("timeout") == 30
+            config = json.loads((root / "config.json").read_text())
+            return isinstance(config, dict) and config.get("timeout") == 30
         except (ValueError, OSError):
             return False
     if kind == "readiness":
