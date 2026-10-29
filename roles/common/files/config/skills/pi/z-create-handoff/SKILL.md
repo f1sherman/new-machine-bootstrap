@@ -13,12 +13,12 @@ You are tasked with writing a handoff document to transfer your work context to 
 
 ### 1. Filepath & Metadata
 Use the following information to create your document:
-- Create `.superpowers/handoffs/` if needed, then write `.superpowers/handoffs/YYYY-MM-DD_HH-MM-SS_<description>.md`, where:
+- Create `.coding-agent/handoffs/` if needed, then write `.coding-agent/handoffs/YYYY-MM-DD_HH-MM-SS_<description>.md`, where:
   - YYYY-MM-DD is today's date
   - HH-MM-SS is the current time in 24-hour hours, minutes, and seconds
   - description is a brief kebab-case description
 - Run the `~/.local/bin/spec-metadata` script to generate all relevant metadata
-- Example: `.superpowers/handoffs/2025-01-08_13-55-22_create-context-compaction.md`
+- Example: `.coding-agent/handoffs/2025-01-08_13-55-22_create-context-compaction.md`
 
 ### 2. Handoff writing
 Using the above conventions, write your document. Use the defined filepath and the following YAML frontmatter pattern. Use the metadata gathered in step 1. Structure the document with YAML frontmatter followed by content:
@@ -71,7 +71,7 @@ Once approved, respond with a concise confirmation and include the handoff path,
 ```
 Handoff created! You can resume from this handoff in a new session with:
 
-.superpowers/handoffs/2025-01-08_13-44-55_create-context-compaction.md
+.coding-agent/handoffs/2025-01-08_13-44-55_create-context-compaction.md
 ```
 
 ## Additional Notes & Instructions

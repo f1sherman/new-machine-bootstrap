@@ -18,7 +18,7 @@ You are tasked with resuming work from a handoff document through an interactive
    - Then propose a course of action to the user and confirm, or ask for clarification on direction
 
 2. **If no path was provided**:
-   - Recursively enumerate Markdown files (`*.md`) beneath `.superpowers/handoffs/`
+   - Recursively enumerate Markdown files (`*.md`) beneath `.coding-agent/handoffs/`
    - Select the newest handoff by the `YYYY-MM-DD_HH-MM-SS` timestamp in its filename
    - If no Markdown handoff exists there, clearly report that none was found
    - Never search or recreate retired handoff locations
@@ -171,7 +171,7 @@ You are tasked with resuming work from a handoff document through an interactive
 ## Example Interaction Flow
 
 ```
-User: Please resume from .superpowers/handoffs/2025-01-08_13-44-55_webhook-validation.md
+User: Please resume from .coding-agent/handoffs/2025-01-08_13-44-55_webhook-validation.md
 Assistant: Let me read and analyze that handoff document...
 
 [Reads handoff completely]

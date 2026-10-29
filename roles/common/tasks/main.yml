@@ -1556,12 +1556,14 @@
     mode: '0700'
 
 - name: Install base pi-coding-agent global AGENTS fragment
+  tags: pi-guidance
   copy:
     src: pi/AGENTS.md.d/00-base.md
     dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/AGENTS.md.d/00-base.md"
     mode: '0600'
 
 - name: Assemble pi-coding-agent global AGENTS.md from fragments
+  tags: pi-guidance
   command: "{{ ansible_facts['user_dir'] }}/.local/bin/pi-agent-assemble-agents"
   environment:
     HOME: "{{ ansible_facts['user_dir'] }}"
@@ -2578,7 +2580,7 @@
     - z-spec-to-pr
 
 - name: Define managed skill deployment paths
-  tags: managed-skills
+  tags: [managed-skills, pi-guidance]
   set_fact:
     managed_skill_root: >-
       {{ ansible_facts["user_dir"] }}/.local/share/new-machine-bootstrap/skills
@@ -2586,7 +2588,7 @@
       {{ playbook_dir }}/roles/common/files/bin/link-managed-skill-tree
 
 - name: Create canonical managed skill tree directory
-  tags: managed-skills
+  tags: [managed-skills, pi-guidance]
   file:
     path: '{{ managed_skill_root }}'
     state: directory
@@ -2630,10 +2632,21 @@
       src: '{{ playbook_dir }}/roles/common/files/config/skills/claude'
     - name: codex
       src: '{{ playbook_dir }}/roles/common/files/config/skills/codex'
-    - name: pi
-      src: '{{ playbook_dir }}/roles/common/files/config/skills/pi'
   loop_control:
     label: '{{ item.name }}'
+
+- name: Synchronize Pi managed skills
+  tags: [managed-skills, pi-guidance]
+  ansible.posix.synchronize:
+    src: '{{ playbook_dir }}/roles/common/files/config/skills/pi/'
+    dest: '{{ managed_skill_root }}/pi/'
+    archive: true
+    checksum: true
+    delete: true
+    rsync_opts:
+      - '--omit-dir-times'
+      - '--exclude=.DS_Store'
+      - '--exclude=._*'
 
 - name: Link shared managed skills to Claude and Codex
   tags: managed-skills
@@ -2674,7 +2687,7 @@
     state: absent
 
 - name: Link Pi-specific managed skills
-  tags: managed-skills
+  tags: [managed-skills, pi-guidance]
   command:
     argv:
       - '{{ managed_skill_linker }}'
