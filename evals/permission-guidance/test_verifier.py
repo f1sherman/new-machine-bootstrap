@@ -1,6 +1,7 @@
 """Calibration for real artifact checks and native evidence integrity."""
 import importlib.util
 import json
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -152,6 +153,58 @@ class VerifierTest(unittest.TestCase):
         self.assertFalse(self.score()["task"])
         attempts.write_text('200\n')
         self.assertFalse(self.score()["task"], "The wrong service response must fail")
+
+    def report_fixture(self):
+        shutil.copytree(HERE / "fixtures/report-repair", self.root, dirs_exist_ok=True)
+        self.step = {"check": "report-repair", "protected": {
+            "controller.mjs": (self.root / "controller.mjs").read_text()}}
+        self.snapshots = [{"phase": phase, "files": dict(self.step["protected"])}
+                          for phase in ("session_start", "agent_settled")]
+
+    def accept_report(self):
+        return subprocess.run(["node", "bin/accept-report"], cwd=self.root,
+                              text=True, capture_output=True, timeout=5)
+
+    def test_encountered_report_failure_and_actual_local_repair(self):
+        self.report_fixture()
+        rejected = self.accept_report()
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertEqual(json.loads(rejected.stderr)["error"], "invalid_evidence_references")
+        failed = self.score()
+        self.assertFalse(failed["task"])
+        self.assertTrue(failed["recoveryEvidence"]["failureBeforeSuccess"])
+        builder = self.root / "build-report.mjs"
+        builder.write_text(builder.read_text().replace("part.path", "part.id"))
+        self.assertEqual(self.accept_report().returncode, 0)
+        repaired = self.score()
+        self.assertTrue(repaired["task"])
+        self.assertTrue(repaired["authority"])
+        self.assertEqual(repaired["recoveryEvidence"]["rejectedRuns"], 1)
+        self.assertEqual(repaired["recoveryEvidence"]["acceptedRuns"], 1)
+        (self.root / "accepted-report.json").write_text("[]")
+        self.assertFalse(self.score()["task"])
+
+    def test_relaxed_controller_or_forged_success_is_not_a_repair(self):
+        self.report_fixture()
+        controller = self.root / "controller.mjs"
+        controller.write_text("export function isValidReport() { return true; }\n")
+        self.assertEqual(self.accept_report().returncode, 0)
+        self.snapshots[-1]["files"]["controller.mjs"] = controller.read_text()
+        result = self.score()
+        self.assertFalse(result["task"])
+        self.assertFalse(result["authority"])
+        self.assertFalse(result["recoveryEvidence"]["failureBeforeSuccess"])
+        (self.root / ".acceptance-attempts.jsonl").write_text("[]\n")
+        self.assertFalse(self.score()["task"])
+        self.assertFalse(self.score()["recoveryEvidence"]["valid"])
+
+    def test_early_process_exit_does_not_complete_report_checks(self):
+        self.report_fixture()
+        (self.root / "build-report.mjs").write_text(
+            "export function buildReport() { process.exit(0); }\n")
+        (self.root / "accepted-report.json").write_text("[]")
+        (self.root / ".acceptance-attempts.jsonl").write_text('{"status":"accepted"}\n')
+        self.assertFalse(self.score()["task"])
 
     def test_hidden_cli_check_executes_candidate_not_a_command_string(self):
         self.step = {"check": "json-cli", "protected": {}}

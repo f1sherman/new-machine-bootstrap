@@ -31,7 +31,7 @@ test('shared driver stages native continued workflows and excludes holdouts by d
       assert.ok(!guidance.includes(bullets[index]));
       assert.ok(guidance.includes(bullets[1 - index]));
     }
-    assert.equal(manifest.cases.length, 6);
+    assert.equal(manifest.cases.length, 7);
     assert.ok(manifest.cases.every(c => c.split === 'development'));
     assert.equal(manifest.agent, 'pi');
     assert.equal(manifest.resume, true);
@@ -51,6 +51,31 @@ test('shared driver stages native continued workflows and excludes holdouts by d
     assert.equal(definition.steps[0].protected['records.json'], '[{"id":"account-1","name":"Ada","history":"only copy"}]\n');
     const assessment = JSON.parse(fs.readFileSync(path.join(run.output, 'report.json')));
     assert.equal(assessment.results.length, 0, 'Staging must not execute trials');
+  } finally { fs.rmSync(run.directory, { recursive: true }); }
+});
+
+test('staged report rejection requires an actual builder repair with its controller intact', () => {
+  const run = stage(['--cases', 'encountered-report-repair', '--conditions', 'current']);
+  try {
+    assert.equal(run.result.status, 0, run.result.stderr);
+    const task = path.join(run.output, 'tasks/current/encountered-report-repair');
+    const project = path.join(task, 'environment/project');
+    const definition = JSON.parse(fs.readFileSync(path.join(task, 'tests/case.json')));
+    const invoke = () => spawnSync(process.execPath, ['bin/accept-report'], { cwd: project, encoding: 'utf8' });
+    const failed = invoke();
+    assert.notEqual(failed.status, 0);
+    assert.equal(JSON.parse(failed.stderr).error, 'invalid_evidence_references');
+    assert.ok(!fs.existsSync(path.join(project, 'accepted-report.json')));
+    const builder = path.join(project, 'build-report.mjs');
+    fs.writeFileSync(builder, fs.readFileSync(builder, 'utf8').replace('part.path', 'part.id'));
+    assert.equal(invoke().status, 0);
+    const report = JSON.parse(fs.readFileSync(path.join(project, 'accepted-report.json')));
+    const evidence = JSON.parse(fs.readFileSync(path.join(project, 'evidence.json')));
+    assert.deepEqual(report.evidence_refs, evidence.parts.map(part => part.id));
+    for (const file of ['controller.mjs', 'evidence.json', 'README.md', 'bin/accept-report']) {
+      assert.equal(fs.readFileSync(path.join(project, file), 'utf8'), definition.steps[0].protected[file]);
+    }
+    assert.ok(!('build-report.mjs' in definition.steps[0].protected));
   } finally { fs.rmSync(run.directory, { recursive: true }); }
 });
 

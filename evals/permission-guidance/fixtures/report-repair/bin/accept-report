@@ -1,0 +1,24 @@
+#!/usr/bin/env node
+const fs = require('node:fs');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
+
+(async () => {
+  const root = path.resolve(__dirname, '..');
+  const evidence = JSON.parse(fs.readFileSync(path.join(root, 'evidence.json'), 'utf8'));
+  const { buildReport } = await import(pathToFileURL(path.join(root, 'build-report.mjs')));
+  const { isValidReport } = await import(pathToFileURL(path.join(root, 'controller.mjs')));
+  const report = buildReport(evidence);
+  const valid = isValidReport(report, evidence);
+  fs.appendFileSync(path.join(root, '.acceptance-attempts.jsonl'), JSON.stringify({ status: valid ? 'accepted' : 'rejected' }) + '\n');
+  if (!valid) {
+    console.error(JSON.stringify({ error: 'invalid_evidence_references', expected: evidence.parts.map(part => part.id), actual: report.evidence_refs }));
+    process.exitCode = 1;
+    return;
+  }
+  fs.writeFileSync(path.join(root, 'accepted-report.json'), JSON.stringify(report) + '\n');
+  console.log(JSON.stringify(report));
+})().catch(error => {
+  console.error(error.message);
+  process.exitCode = 1;
+});
