@@ -41,10 +41,10 @@ Create a task for each item and complete them in order:
 8. **Self-review spec** - fix placeholders, contradictions, ambiguous requirements, and scope drift inline.
 9. **Commit design spec** - commit the spec unless repo instructions say to keep it local.
 10. **User reviews written spec** - ask the user to review the file and approve or request changes.
-11. **Transition to implementation planning** - after approval, invoke `writing-plans`.
+11. **Transition to implementation planning** - after approval, write a native implementation plan.
 
-The terminal state is invoking `writing-plans`. Do not invoke implementation
-skills directly from this skill.
+The terminal state is a written implementation plan. Do not implement changes
+from this skill.
 
 ## Process
 
@@ -146,7 +146,7 @@ improvements as part of the design. Do not propose unrelated refactoring.
 
 ## Review Gate
 
-Commit the design spec before asking for review. Always run `git check-ignore -q docs/superpowers` before committing. When that path is ignored, keep the spec local and do not force-add it.
+Commit the design spec before asking for review. Check whether the actual spec path is ignored before committing. Keep ignored files local and do not force-add them.
 
 ### Spec Self-Review
 
@@ -168,5 +168,4 @@ After self-review:
 Wait for the user's response.
 
 If they request changes, update the spec and self-review again. If they approve,
-invoke `writing-plans`. Do not invoke implementation skills before
-`writing-plans`.
+write a native implementation plan before making implementation changes.
