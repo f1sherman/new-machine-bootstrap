@@ -24,10 +24,10 @@ export function preparePermission(root, options, output, select) {
     variants.unshift({ id: 'baseline', primary: false, ref, guidance: permissionExcerpt(baseline) });
   }
   if (options.ablate) {
-    const components = current.split(/(?=^### )/m).slice(1);
-    if (components.length !== 3) throw Error('Ablation requires three permission components');
-    for (const [index, id] of ['without-authority', 'without-boundary', 'without-protocol'].entries()) {
-      variants.push({ id, primary: false, removedComponent: index, guidance: '## Permission and attention\n\n' + components.filter((_, i) => i !== index).join('') });
+    const components = current.split('\n').filter(line => line.startsWith('- '));
+    if (components.length !== 2) throw Error('Ablation requires two permission bullets');
+    for (const [index, id] of ['without-status', 'without-safe-fix'].entries()) {
+      variants.push({ id, primary: false, removedComponent: index, guidance: '## Permission and attention\n\n' + components.filter((_, i) => i !== index).join('\n') + '\n' });
     }
   }
   const allCases = JSON.parse(fs.readFileSync(path.join(directory, 'cases.json'), 'utf8'));

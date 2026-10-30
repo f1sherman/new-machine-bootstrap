@@ -70,13 +70,13 @@ local input. No host sessions, extensions, configuration, or OAuth files are cop
 - `current`: permission section extracted from the managed Pi base.
 - `baseline`: optional excerpt from `--compare-ref` (resolved to a commit).
 - `empty`: no personal permission excerpt; the fixed skill remains.
-- `--ablate`: adds `without-authority`, `without-boundary`, and
-  `without-protocol`, each removing exactly one current component.
+- `--ablate`: adds `without-status` and `without-safe-fix`, each removing
+  exactly one of the two current bullets.
 
 Ablations retain other rules and skill/model defaults. A null ablation cannot
 prove its omitted safeguard unnecessary. Use `--guidance-file` to test a candidate
 section without editing or provisioning production guidance. Candidate files
-must contain the `## Permission and attention` section and its three components
+must contain the `## Permission and attention` section and its two bullets
 when ablations are selected. Keep all other inputs, model, Pi version, and
 thinking identical across comparisons. The current excerpt is the primary
 condition; controls and ablations do not count as primary regression results.
@@ -94,7 +94,7 @@ node evals/harbor/run.mjs --suite permission-guidance \
   --compare-ref 35e6211c --ablate --output tmp/permissions-stage
 ```
 
-That matrix has 36 workflows and 48 planned user turns, not a billed-request
+That matrix has 30 workflows and 40 planned user turns, not a billed-request
 limit. Each user turn can make up to 12 model requests. Native runs also have
 240-second per-step timeouts. Harbor aborts a workflow on infrastructure errors;
 the shared driver stops before starting another paid job with incomplete evidence.

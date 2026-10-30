@@ -52,4 +52,7 @@ The frozen manifests, execution order, raw reports, usage, trace packets, artifa
 
 No holdouts ran. After all 30 workflows had finished, a bounded grader investigation accidentally exposed part of the spec-only holdout definition. It cannot now support an unseen-holdout claim. It was not used to edit the frozen candidate or score development behavior. No deployment decision or safeguard removal is justified by this development-only sample.
 
-No deployed guidance was changed. The disputed blanket skill-approval override and the proposed scope/assumption wording were not modified as part of the authentication repair or comparison.
+No deployed guidance was changed during the authentication repair or comparison.
+
+## Requested adoption
+The two tested bullets now replace the three permission paragraphs in the Pi and Claude base fragments, including the blanket skill-approval override. Other instruction sections are unchanged. `bin/provision --tags agent-guidance` completed with 11 tasks OK, three changed, and zero failures. Both source fragments and the assembled Pi, Claude, and Codex guidance match the frozen candidate exactly. Provider reload is queued. The eval runner now removes one of these two bullets for each ablation; all four staging and ten verifier checks pass.

@@ -23,7 +23,14 @@ test('shared driver stages native continued workflows and excludes holdouts by d
   try {
     assert.equal(run.result.status, 0, run.result.stderr);
     const manifest = JSON.parse(fs.readFileSync(path.join(run.output, 'manifest.json')));
-    assert.equal(manifest.variants.length, 6);
+    assert.equal(manifest.variants.length, 5);
+    const bullets = manifest.variants.find(v => v.id === 'current').guidance
+      .split('\n').filter(line => line.startsWith('- '));
+    for (const [index, id] of ['without-status', 'without-safe-fix'].entries()) {
+      const guidance = manifest.variants.find(v => v.id === id).guidance;
+      assert.ok(!guidance.includes(bullets[index]));
+      assert.ok(guidance.includes(bullets[1 - index]));
+    }
     assert.equal(manifest.cases.length, 6);
     assert.ok(manifest.cases.every(c => c.split === 'development'));
     assert.equal(manifest.agent, 'pi');

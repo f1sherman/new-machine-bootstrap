@@ -496,30 +496,35 @@
 # same directory using a numeric prefix to control order. Re-running this
 # play is idempotent: any fragment present at assemble time is included.
 - name: Create ~/.claude/CLAUDE.md.d directory
+  tags: agent-guidance
   file:
     path: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md.d'
     state: directory
     mode: '0700'
 
 - name: Install base ~/.claude/CLAUDE.md fragment
+  tags: agent-guidance
   copy:
     src: '{{ playbook_dir }}/roles/common/files/claude/CLAUDE.md.d/00-base.md'
     dest: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md.d/00-base.md'
     mode: '0600'
 
 - name: Assemble ~/.claude/CLAUDE.md from fragments
+  tags: agent-guidance
   assemble:
     src: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md.d'
     dest: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md'
     mode: '0600'
 
 - name: Create ~/.codex directory
+  tags: agent-guidance
   file:
     path: '{{ ansible_facts["user_dir"] }}/.codex'
     state: directory
     mode: '0700'
 
 - name: Create ~/.codex/AGENTS.md symlink to ~/.claude/CLAUDE.md
+  tags: agent-guidance
   file:
     src: '{{ ansible_facts["user_dir"] }}/.claude/CLAUDE.md'
     dest: '{{ ansible_facts["user_dir"] }}/.codex/AGENTS.md'
@@ -1550,18 +1555,21 @@
     mode: '0644'
 
 - name: Create pi-coding-agent global AGENTS fragment directory
+  tags: agent-guidance
   file:
     path: "{{ ansible_facts['user_dir'] }}/.pi/agent/AGENTS.md.d"
     state: directory
     mode: '0700'
 
 - name: Install base pi-coding-agent global AGENTS fragment
+  tags: agent-guidance
   copy:
     src: pi/AGENTS.md.d/00-base.md
     dest: "{{ ansible_facts['user_dir'] }}/.pi/agent/AGENTS.md.d/00-base.md"
     mode: '0600'
 
 - name: Assemble pi-coding-agent global AGENTS.md from fragments
+  tags: agent-guidance
   command: "{{ ansible_facts['user_dir'] }}/.local/bin/pi-agent-assemble-agents"
   environment:
     HOME: "{{ ansible_facts['user_dir'] }}"
