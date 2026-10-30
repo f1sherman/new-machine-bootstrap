@@ -40,9 +40,9 @@ Create a task for each item and complete them in order:
 8. **Self-review spec** - fix placeholders, contradictions, ambiguous requirements, and scope drift inline.
 9. **Commit design spec** - commit the spec unless repo instructions say to keep it local.
 10. **Self-approve spec** - mark the spec approved internally.
-11. **Write implementation plan** - invoke `writing-plans` immediately.
+11. **Write implementation plan** - write a native implementation plan immediately.
 12. **Self-approve plan** - review the plan internally and mark it approved.
-13. **Execute plan** - use Native execution (`executing-plans`) by default.
+13. **Execute plan** - use native execution in the current session.
 14. **Verify and commit** - run required verification and commit completed work.
 15. **Create pull request** - invoke `pull-request`.
 
@@ -145,7 +145,7 @@ improvements as part of the design. Do not propose unrelated refactoring.
 
 ## Spec Gate
 
-Commit the design spec before planning. Always run `git check-ignore -q docs/superpowers` before committing. When that path is ignored, keep the spec local and do not force-add it.
+Commit the design spec before planning. Check whether the actual spec path is ignored before committing. Keep ignored files local and do not force-add them.
 
 ### Spec Self-Review
 
@@ -171,15 +171,12 @@ internally:
 
 If any item fails, revise the spec and repeat self-review. When all pass, mark
 the spec as self-approved in your working notes or final spec status, then
-invoke `writing-plans` immediately.
+write the native implementation plan immediately.
 
 ## Plan And Execution Gate
 
-Invoke `writing-plans` with this explicit continuation rule:
-
-> Do not offer the execution choice from `writing-plans`. After the plan is
-> written and self-reviewed, return directly to `z-quick-pr` so it can
-> self-approve the plan and continue execution.
+Write and self-review the implementation plan in the current session. Continue
+with native execution after self-approval. Do not ask for an execution-mode choice.
 
 ### Self-Approve The Plan
 
@@ -202,17 +199,14 @@ the plan approved internally.
 Do not ask for implementation approval. Do not ask whether to use subagent or
 sequential execution.
 
-Use Native execution (`executing-plans`) in the current session by default,
-even when subagents are available. This saves tokens by reusing the implementer's
-context instead of starting an implementer and reviewers for every task. Use
-`subagent-driven-development` only when the user explicitly requests that mode.
+Use native execution in the current session by default, even when subagents are
+available. Use delegated implementation only when the user explicitly requests it.
 
-Follow the selected execution skill until implementation is complete. Respect
-repo test policy and TDD, keep plan checkboxes current, run verification, and
-commit completed work. Keep Native execution's one final fresh-context branch
-review when delegation is authorized and available. For this workflow, the PR
-workflow performs that final review; defer Native execution's final review to
-that gate instead of dispatching a duplicate review before it. Resolve material
+Follow the implementation plan until the work is complete. Respect repo test
+policy and TDD, keep plan checkboxes current, run verification, and commit
+completed work. Keep one final fresh-context branch review when delegation is
+authorized and available. The PR workflow performs that review. Do not dispatch
+a duplicate review before that gate. Resolve material
 findings and verify fixes before PR creation. If delegation is unavailable or
 unauthorized, disclose the self-review limit.
 

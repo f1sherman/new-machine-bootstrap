@@ -22,7 +22,7 @@ function resultMessage(result) {
 export default function specShortcut(pi) {
   if (process.env.BB_THREAD_ID?.trim()) return;
   pi.registerShortcut(SHORTCUT, {
-    description: "Open the current Superpowers spec pane",
+    description: "Open the current design spec pane",
     handler: async (ctx) => {
       if (ctx.mode !== "tui") return;
       if (!tmuxAvailable()) {
