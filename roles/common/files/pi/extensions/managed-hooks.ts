@@ -1279,7 +1279,7 @@ async function setSubjectFromSubagent(pi, prompt, cwd, signal) {
   return applyTmuxSubject(pi, subject);
 }
 
-function normalizeCurrentSpecPath(candidatePath, cwd, repoRoot, resolveFrom = cwd) {
+function normalizeSuperpowersSpecPath(candidatePath, cwd, repoRoot, resolveFrom = cwd) {
   if (!candidatePath) return "";
   const unquoted = candidatePath.replace(/^['\"`]+|['\"`.,:;]+$/g, "");
   if (/[*?[\]]/.test(unquoted)) return "";
@@ -1287,19 +1287,19 @@ function normalizeCurrentSpecPath(candidatePath, cwd, repoRoot, resolveFrom = cw
   const absolute = path.isAbsolute(expanded) ? expanded : path.resolve(resolveFrom, expanded);
   const root = repoRoot || cwd;
   const relative = path.relative(root, absolute).replaceAll(path.sep, "/");
-  if (/^(?:[.]coding-agent|docs\/superpowers)\/specs\/[^/]+[.]md$/.test(relative)) return absolute;
+  if (/^docs\/superpowers\/specs\/[^/]+[.]md$/.test(relative)) return absolute;
   return "";
 }
 
-function currentSpecPath(event, cwd, repoRoot) {
-  return normalizeCurrentSpecPath(event.input.path || event.input.file_path || "", cwd, repoRoot, cwd);
+function superpowersSpecPath(event, cwd, repoRoot) {
+  return normalizeSuperpowersSpecPath(event.input.path || event.input.file_path || "", cwd, repoRoot, cwd);
 }
 
-function currentSpecPathsInCommand(command, cwd, repoRoot) {
+function superpowersSpecPathsInCommand(command, cwd, repoRoot) {
   const paths = [];
-  const pathPattern = /(?:^|[\s'"`])((?:\.\/)?(?:[.]coding-agent|docs\/superpowers)\/specs\/[^\s'"`;&|()<>]+[.]md|\/[^\s'"`;&|()<>]*\/(?:[.]coding-agent|docs\/superpowers)\/specs\/[^\s'"`;&|()<>]+[.]md)(?=$|[\s'"`.,:;]|[;&|()<>])/g;
+  const pathPattern = /(?:^|[\s'"`])((?:\.\/)?docs\/superpowers\/specs\/[^\s'"`;&|()<>]+[.]md|\/[^\s'"`;&|()<>]*\/docs\/superpowers\/specs\/[^\s'"`;&|()<>]+[.]md)(?=$|[\s'"`.,:;]|[;&|()<>])/g;
   for (const match of command.matchAll(pathPattern)) {
-    const specPath = normalizeCurrentSpecPath(match[1], cwd, repoRoot, repoRoot || cwd);
+    const specPath = normalizeSuperpowersSpecPath(match[1], cwd, repoRoot, repoRoot || cwd);
     if (specPath && fs.existsSync(specPath) && !paths.includes(specPath)) paths.push(specPath);
   }
   return paths;
@@ -1316,7 +1316,7 @@ async function updateCurrentSpec(pi, event, ctx) {
   const targetPath = event.input.path || event.input.file_path || "";
   const targetCwd = targetPath ? probeDir(targetPath, ctx.cwd) : ctx.cwd;
   const root = await gitRoot(pi, targetCwd);
-  const specPath = currentSpecPath(event, ctx.cwd, root);
+  const specPath = superpowersSpecPath(event, ctx.cwd, root);
   if (!specPath) return;
   await setCurrentSpec(pi, specPath);
 }
@@ -1324,10 +1324,10 @@ async function updateCurrentSpec(pi, event, ctx) {
 async function updateCurrentSpecFromBash(pi, event, ctx) {
   if (ctx.mode !== "tui" || !inTmux() || event.isError) return;
   const command = event.input?.command || "";
-  if (!command.includes(".coding-agent/specs") && !command.includes("docs/superpowers/specs")) return;
+  if (!command.includes("docs/superpowers/specs")) return;
   const cwd = await boundWorktreePath(pi, ctx.cwd);
   const root = await gitRoot(pi, cwd);
-  const specPaths = currentSpecPathsInCommand(command, cwd, root);
+  const specPaths = superpowersSpecPathsInCommand(command, cwd, root);
   if (specPaths.length !== 1) return;
   await setCurrentSpec(pi, specPaths[0]);
 }

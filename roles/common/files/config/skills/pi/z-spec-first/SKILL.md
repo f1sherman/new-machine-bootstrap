@@ -37,7 +37,7 @@ Create a task for each item and complete them in order:
 4. **Infer assumptions** - skip clarifying questions unless blocked; write assumptions directly into the spec.
 5. **Compare approaches** - include 2-3 approaches, tradeoffs, and a recommended choice.
 6. **Internal approval pass** - evaluate each design section and revise until it is coherent.
-7. **Write design spec** - save to `.coding-agent/specs/YYYY-MM-DD-<topic>-design.md` unless the user gave another path.
+7. **Write design spec** - save to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` unless the user gave another path.
 8. **Self-review spec** - fix placeholders, contradictions, ambiguous requirements, and scope drift inline.
 9. **Commit design spec** - commit the spec unless repo instructions say to keep it local.
 10. **User reviews written spec** - ask the user to review the file and approve or request changes.
