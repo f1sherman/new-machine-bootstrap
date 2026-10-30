@@ -104,6 +104,23 @@ This repository is used exclusively by Brian.
 * Choose the smallest sufficient next action and an observable stopping condition. Check existing solutions and owners before creating work; exclude active workstreams from new-work rankings. Explain the benefit in plain language and weigh it against implementation, maintenance, and verification cost and the cost of doing nothing. Prefer no change when it meets the need.
 * Keep investigation and verification proportional to the consequences. Preserve required safety checks and authorization gates; unresolved risk is not evidence of safety.
 
+## PR Benefit to Brian
+
+* Include a `## Benefit to Brian` section near the start of every PR description, including documentation and maintenance PRs. Keep it accurate when materially updating a description. Name the task or process Brian uses, what changes for him, and how that saves effort, adds a useful capability, protects him from a concrete risk, or lowers meaningful costs. Connect reliability work to the interruption, recovery work, or loss it avoids. Technical changes alone are not the benefit.
+
+* Classify the benefit with exactly one `Primary category` from the table below. Add `Additional categories` only when each has its own concrete explanation. A category label alone is not a benefit. Reliability and maintenance describe the work, not separate benefit categories. Connect them to the effort, loss, or cost avoided.
+
+| Category | Personal outcome |
+| --- | --- |
+| `time-saved` | Less manual work, waiting, troubleshooting, or interruption. |
+| `capability-added` | A useful task Brian could not do before. |
+| `risk-reduced` | Less risk of data loss, credential exposure, unauthorized actions, or another concrete harm. |
+| `cost-reduced` | Lower spending or resource use with a meaningful personal payoff. |
+
+* If no category honestly applies, write `Benefit not demonstrated` and explain why the change is still proposed. Reconsider agent-proposed work without a concrete benefit.
+
+* Ground the benefit in the request or inspected evidence. Label expected gains as expectations. State material rollout requirements, costs, and limits. Use measured savings only when measured.
+
 ## Repo Lifecycle Provider Hooks
 
 NMB owns generic `repo-start`/`repo-end` lifecycle helpers. Provider-specific internal forge behavior does not belong in this repo. If a consuming environment needs extra merge proof for a private Git provider, install an executable callback from that consuming repo under `~/.local/bin/repo-end.d`.
