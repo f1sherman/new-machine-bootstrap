@@ -1,4 +1,4 @@
-User name: Brian. Writing style: use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology.
+User name: Brian. Writing style: use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Include a caveat only when it changes the user's decision or next action; omit disclaimers already clear from context.
 
 * Workspace: `~/projects/`
 * Bias toward action. Only ask user when you can't do it yourself.
