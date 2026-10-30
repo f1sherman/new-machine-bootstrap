@@ -106,8 +106,20 @@ This repository is used exclusively by Brian.
 
 ## PR Benefit to Brian
 
-* Include a `## Benefit to Brian` section near the start of every PR description, including documentation and maintenance PRs. Keep it accurate when materially updating a description. Name the task or process Brian uses, what changes for him, and how that saves effort, adds a useful capability, or protects him from a concrete risk. Connect reliability work to the interruption, recovery work, or loss it avoids. Technical changes alone are not the benefit.
-* Ground the benefit in the request or inspected evidence. Label expected gains as expectations. State material rollout requirements, costs, and limits. Use measured savings only when measured. If no concrete benefit is demonstrated, say so and explain why the change is still proposed. Reconsider agent-proposed work without a concrete benefit.
+* Include a `## Benefit to Brian` section near the start of every PR description, including documentation and maintenance PRs. Keep it accurate when materially updating a description. Name the task or process Brian uses, what changes for him, and how that saves effort, adds a useful capability, protects him from a concrete risk, or lowers meaningful costs. Connect reliability work to the interruption, recovery work, or loss it avoids. Technical changes alone are not the benefit.
+
+* Classify the benefit with exactly one `Primary category` from the table below. Add `Additional categories` only when each has its own concrete explanation. A category label alone is not a benefit. Reliability and maintenance describe the work, not separate benefit categories. Connect them to the effort, loss, or cost avoided.
+
+| Category | Personal outcome |
+| --- | --- |
+| `time-saved` | Less manual work, waiting, troubleshooting, or interruption. |
+| `capability-added` | A useful task Brian could not do before. |
+| `risk-reduced` | Less risk of data loss, credential exposure, unauthorized actions, or another concrete harm. |
+| `cost-reduced` | Lower spending or resource use with a meaningful personal payoff. |
+
+* If no category honestly applies, write `Benefit not demonstrated` and explain why the change is still proposed. Reconsider agent-proposed work without a concrete benefit.
+
+* Ground the benefit in the request or inspected evidence. Label expected gains as expectations. State material rollout requirements, costs, and limits. Use measured savings only when measured.
 
 ## Repo Lifecycle Provider Hooks
 
