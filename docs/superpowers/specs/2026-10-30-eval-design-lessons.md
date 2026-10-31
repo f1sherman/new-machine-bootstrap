@@ -35,6 +35,10 @@ The counterfactual addition shows no incremental gain on its own counterfactual 
 
 The candidate uses 275 more reported tokens than the baseline, an 8.8% increase. Input rises by 296; output falls by 21. Cache reads and writes are zero. Reviewer overhead is excluded. These are provider-reported token counts, not subscription charges or an efficiency gain.
 
+## Follow-up on the historical-baseline paragraph
+
+The [expanded follow-up](2026-10-31-counterfactual-guidance-follow-up.md) tests four development requests, alternative wording, and two separately authored reserved requests. It still finds no independent historical-claim benefit from this paragraph. Keep the original pilot and its ratings; do not treat a one-case development improvement as a proven rewrite or token win.
+
 ## Deployment and retained evidence
 Validate the unchanged YAML frontmatter and existing file structure. Deploy through `bin/provision --tags managed-skills`; the run completed with 16 OK, three changed, and zero failed tasks. Verify that the Pi, Claude, and Codex skill paths resolve to the exact source bytes. Do not edit deployed files directly.
 
