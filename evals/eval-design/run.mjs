@@ -37,8 +37,10 @@ const save = () => fs.writeFileSync(path.join(output, 'results.json'), JSON.stri
 save();
 for (const row of experiment.order) {
   let bearer = '';
+  let stage = 'runtime-check';
   try {
     assert.equal(hash(fs.readFileSync(sdk)), sdkHash, 'SDK changed during the run');
+    stage = 'authentication';
     bearer = execFileSync('pi', ['auth', 'print-bearer-token', '--provider',
       experiment.model.provider, '--min-expiry', '5m'],
     {encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000}).trim();
@@ -46,9 +48,11 @@ for (const row of experiment.order) {
     const task = experiment.cases.find(task => task.id === row.case);
     const context = {systemPrompt: experiment.systemPrefix + experiment.conditions[row.condition],
       messages: [{role: 'user', content: task.prompt, timestamp: 0}]};
+    stage = 'model-call';
     const response = await completeSimple(model, context, {apiKey: bearer,
       reasoning: experiment.model.reasoning, maxTokens: experiment.model.maxTokens,
       signal: AbortSignal.timeout(180000)});
+    stage = 'capture-response';
     const encoded = JSON.stringify(response);
     const redacted = encoded.includes(bearer);
     const safe = JSON.parse(encoded.replaceAll(bearer, '[redacted]'));
@@ -58,10 +62,18 @@ for (const row of experiment.order) {
       contextSha256: hash(JSON.stringify(context)), generationComplete,
       stopReason: safe.stopReason, usage: safe.usage, rawResponse: safe, redacted});
     save();
+    stage = 'validate-response';
     assert.ok(generationComplete && !redacted, 'Generation incomplete or credential redaction required');
     console.log(row.case, row.condition, 'completed; semantic review pending');
-  } catch {
+  } catch (error) {
     results.failedAt = row;
+    const message = stage === 'authentication' ?
+      'Access credential retrieval failed; inspect pi auth check.' :
+      String(error.message).replaceAll(bearer || '__no_credential__', '[redacted]')
+        .replace(/Bearer\s+[A-Za-z0-9_.-]+/gi, 'Bearer [redacted]')
+        .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[redacted]');
+    results.failure = {stage, name: error.name, message};
+    if (Number.isInteger(error.status)) results.failure.exitStatus = error.status;
     save();
     throw new Error('Stopped without retry. Inspect the private audit files; do not publish raw usage.');
   }

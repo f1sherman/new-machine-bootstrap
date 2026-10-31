@@ -39,7 +39,7 @@ The same command works with each scored file in `records/`. The files ending in 
 
 ## Run fresh responses
 
-Use the managed Pi installation and an existing `openai-codex` login. No API key, refresh-token copy, extra package install, or external service account is needed. This uses the Pi provider SDK directly, not a tool-using agent session.
+Use the managed Pi installation and an existing `openai-codex` login. No API key, refresh-token copy, extra package install, or external service account is needed. This uses Pi's installed library for model calls directly, not a tool-using agent session.
 
 ```bash
 mkdir -p tmp
@@ -50,7 +50,7 @@ node evals/eval-design/run.mjs token-reporting \
   --sdk-module "$f"
 ```
 
-Choose a new output directory for each authorized run. The runner freezes inputs and runtime hashes before the first model call, preserves all responses, stops on an incomplete generation, and never retries automatically. Raw output must stay gitignored. Access credentials remain in memory; bearer values are not logged or saved.
+Choose a new output directory for each authorized run. The runner freezes inputs and runtime hashes before the first model call, preserves all responses, stops on an incomplete generation, and never retries automatically. Failures retain the failing stage and a credential-safe diagnostic. Raw output must stay gitignored. Access credentials remain in memory; bearer values are not logged or saved.
 
 Have a fresh reviewer read `tmp/eval-design-fresh/review-packet.md`, without the manifest or condition names. Save its JSON ratings with one `label`, `scores`, and `reason` per answer. Then publish the scored view and build the report:
 

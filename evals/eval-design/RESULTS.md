@@ -69,4 +69,6 @@ The [four writing-check answers](records/writing-check.json) are also retained. 
 
 The historical files preserve 50 answers: 14 from the first pilot, 32 from the historical-baseline study, and four from the separate writing check. The reporting change adds twelve answers. No answer was regenerated or excluded. No generation failed or was truncated in these studies.
 
+The twelve reporting responses used the runner at commit `04a39994`. A later runner-only diagnostic repair was verified with offline authentication and SDK failure fixtures. It did not change model inputs or regenerate answers.
+
 These are tool-free advice studies with one model, `openai-codex/gpt-6.1-sol`, at medium reasoning. Blind reviews use fresh contexts of that same model. All previously reserved cases are now exposed and must not be reused as unseen validation. These studies do not establish real agent repair performance.
