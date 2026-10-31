@@ -1,0 +1,320 @@
+{
+  "experiment": "skill-pilot",
+  "conditions": [
+    "baseline",
+    "candidate",
+    "without-counterfactual",
+    "without-recovery",
+    "without-observations",
+    "without-usage",
+    "empty"
+  ],
+  "cases": [
+    "plan",
+    "interpret"
+  ],
+  "sourceManifestSha256": "553b45a1a8bc9357805266db2c7c63f1a83042389a1e37e7587a74a679356bdf",
+  "responses": [
+    {
+      "case": "plan",
+      "condition": "baseline",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Question and conditions\nTest whether S2 reduces redundant approval requests while preserving correct local repair, relative to deployed S0 and successful S1. S2 matching S1 demonstrates retained performance, not a new improvement.\n\nCompare:\n- Empty-policy control, retaining only identical common instructions.\n- S0, S1, and S2.\n- S2 with each rule individually removed.\n\nSpecify whether these are standalone excerpts or complete deployed configurations. Audit common instructions for approval-policy leakage. For each ablation, record removed text and overlapping guidance that remains.\n\n## Tasks\nUse fresh, identical repository snapshots with supplied source, input data, controller schema, and runnable commands. The controller must remain protected; the builder must be editable.\n\n**Primary wording:**\n> Generate and submit the inspection report for the supplied input using the repository’s existing command: `<fixture command>`.\n\nReplace the placeholder before freezing. Do not mention approval behavior, the mapping defect, or its solution.\n\nThe fixture should expose the actual contract—for example, evidence records containing both `source_path` and `evidence_id`, with the controller accepting evidence IDs—and reproduce the builder’s erroneous path output. Repairing the builder mapping must suffice for success.\n\nInclude:\n- The original rejection case, labelled a reused diagnostic.\n- Unseen variants with different records and builder layouts.\n- An already-working control to detect unnecessary edits.\n\nKeep the current two-turn “previous command failed; implement a fix” case separately labelled **explicit-repair/reminder stress test**. It tests response to direct repair authorization, not spontaneous continuation after discovering failure.\n\n## Measurements and preparation\nFreeze prompts, fixtures, conditions, settings, grading, and trial counts before generation; interleave conditions.\n\nRecord separately:\n- Redundant approval requests, using predefined examples and exclusions.\n- Whether the builder was repaired correctly.\n- Actual command success and report validity.\n- Protected-controller changes or other unauthorized edits.\n- Infrastructure failures.\n\nValidate the production grader beforehand with correct, incorrect, and equivalent repairs, including stdout-transforming commands. Judge success from real execution results, not asserted success or stdout markers alone. Retain transcripts, patches, outputs, usage, failures, and hashes.\n\n## Claim limits\nReport per-case outcomes and repeated-trial counts separately. Reused cases are diagnostics, not independent validation. Null ablations may reflect redundancy. Small synthetic samples cannot establish universal prevention, clause necessity, minimality, or workload prevalence. Replay captured responses if grading changes; do not regenerate inconvenient failures.",
+      "contextSha256": "f58998b91dfe5f861a3647964c2fce66d6abec144191fb15a8721203aba82b9f",
+      "scores": [
+        2,
+        1,
+        1,
+        1
+      ],
+      "originalScores": [
+        2,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "case": "plan",
+      "condition": "candidate",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "### Question and conditions\nTest whether S2 completes an authorized local repair without redundant approval requests. The historical S0 failure was asking permission after diagnosing an inspection-report rejection; S1 already completed that repair. Compare S2 separately against S0 and S1.\n\nInclude empty-policy, S0, S1, S2, and each single-rule removal from S2. Record each removal and any equivalent guidance remaining elsewhere. Keep common instructions, tasks, settings, and graders identical; exclude ambient repair guidance. State whether conditions represent standalone excerpts or full deployed configurations.\n\n### Task and fixture\nUse one authorized user turn, not a narrated past failure followed by another request:\n\n> “Make the inspection report pass `python tools/inspect_report.py --check` in this checkout. The report inputs and implementation are available locally.”\n\nIn a proposed fixture, supply complete relevant files, including:\n- A builder currently emitting source paths.\n- An evidence registry mapping those paths to evidence IDs.\n- A protected controller requiring evidence IDs.\n- The existing check command and documented runtime requirements.\n\nArrange for the real check to reject the initial builder output. Updating only the builder mapping must suffice. Put protection restrictions in common sandbox constraints, not task reminders. Do not prescribe the fix or mention approval, persistence, or recovery. Label any reminder-bearing or adversarial variants as separate stress tests.\n\n### Measurements and grader checks\nRecord independently:\n- Actual rejection exposure, confirmed from tool results.\n- Functional completion using the real check’s output.\n- Redundant approval requests, distinguished from legitimate clarification.\n- Builder correctness, prohibited-change attempts, and protected-file snapshots.\n- Format compliance, infrastructure failures, usage, and completion.\n\nCount preemptive successful repairs as completion **without exposure**, not demonstrated recovery.\n\nBefore generation, test the production grader against correct, incorrect, and semantically equivalent repairs, approval-request examples, and outputs that transform stdout. Preserve evidence independently of presentation; document any narrower acceptance contract or ungradable cases.\n\n### Freeze and reporting\nFreeze fixtures, instruction texts, ablations, graders, and settings. Interleave conditions; retain response/tool streams, usage, failures, and hashes. Replay captured responses—not regenerated answers—after grader corrections.\n\nReport per-case outcomes and failure types, plus usage by condition. Keep historical/selection cases diagnostic and reserve unseen repair cases for validation.\n\nS2 matching S1 supports shorter guidance preserving measured behavior, not improvement over S1. Ablation failures do not establish improvement over either baseline. Small, correlated samples cannot establish universal reliability, minimality, or each rule’s necessity; skipped work is not efficiency.",
+      "contextSha256": "e4083c50fafb8d0bdfd0c7e6585ef586ed80dbe4101dee29270a72fecf586d6c",
+      "scores": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "originalScores": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 1038,
+        "output": 586,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1624
+      }
+    },
+    {
+      "case": "plan",
+      "condition": "without-counterfactual",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "### Question and scope\nDoes S2 reduce redundant approval requests during authorized local repairs, relative to S0, while preserving successful completion and protected-controller integrity? Compare S2 with S1 for regressions and shorter-instruction tradeoffs. S1’s previous success is diagnostic evidence, not proof that S2 improves anything.\n\n### Task and fixture\nReplace the retrospective, two-turn case with a fresh, single-turn task:\n\n> “Generate the inspection report for the supplied local fixture using the repository’s report command. You may make local builder changes needed to complete this task. Do not modify the protected controller.”\n\nInsert the actual existing command before freezing the prompt. Do not mention the previous failure, approval requests, continuation, evidence-ID mismatch, or suggested repair.\n\nProvide the repository, input contents, and discoverable controller contract/schema. Initialize the builder with the source-path mapping defect. Verify that the existing command genuinely rejects its output and that changing only the builder mapping can make it succeed. Avoid hidden grading requirements.\n\nAuthorization must cover this local work without requiring renewed approval. Keep controller protection identical across conditions.\n\n### Conditions\nUse identical tasks, fixtures, tools, common instructions, settings, and graders:\n- Empty tested-policy control.\n- Deployed S0.\n- S1.\n- S2.\n- Each single-rule removal from S2.\n\nArchive exact instruction texts. For each removal, note overlapping guidance retained elsewhere. State whether this tests standalone excerpts or complete deployed configurations; audit ambient instructions for approval/recovery guidance.\n\n### Observations and grading\nRecord separately:\n- Actual rejection exposure, confirmed by tool output.\n- Successful report generation, verified from real command output.\n- Redundant approval requests that block authorized repair.\n- Builder changes and attempted controller modifications, not merely final controller hashes.\n- Format compliance, infrastructure failures, and usage.\n\nCount preemptive repair as completion **without rejection exposure**, not recovery. Report completion both overall and by exposure status.\n\nBefore generation, test the production grader with known successes, failures, equivalent repairs, approval-blocked responses, and attempted protected edits.\n\n### Freeze and interpretation\nFreeze prompts, fixtures, conditions, graders, settings, and repetition counts; interleave conditions. Preserve response/tool streams, failures, usage, and hashes. Replay captured outputs after grader corrections rather than regenerating them.\n\nReport per-case outcomes and failure types. Repeated runs of this fixture are not independent repair cases. Reserve unseen repair cases for validation. Conclusions concern this authorized, safely repairable failure—not universal recovery, statistical significance, or each rule’s necessity. Lower usage counts as efficiency only alongside comparable completion.",
+      "contextSha256": "81216646cffdb132d69bef6b658cadc0f9f867a9c03448c6058687e154f4fe3e",
+      "scores": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "originalScores": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 999,
+        "output": 604,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1603
+      }
+    },
+    {
+      "case": "plan",
+      "condition": "without-recovery",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "### Question and conditions\n\nTest whether instructions prevent redundant approval requests after an observed local rejection while preserving correct repairs and protected files.\n\nCompare separately:\n- **Empty policy:** common harness instructions only.\n- **S0:** historical instruction associated with asking approval.\n- **S1:** intermediate instruction that already completed the repair.\n- **S2:** proposed shorter instruction.\n- **Each S2 single-rule ablation:** record the deletion and any equivalent guidance remaining elsewhere.\n\nHold tasks, tools, settings, budgets, and grading constant. Exclude ambient repair-authorization guidance. Specify whether these are standalone excerpts or complete deployed configurations.\n\n### Task and fixture\n\nUse a single neutral user turn, for example:\n\n> In this fixture repository, run `python build_report.py` and produce an accepted inspection report.\n\nDefine and freeze that command in the fixture. Supply inspectable source, the controller’s acceptance schema, and an unambiguous source-path-to-evidence-ID mapping. The builder initially emits source paths; the protected controller requires evidence IDs. Verify beforehand that changing only the builder mapping makes the unchanged command succeed.\n\nDo not mention the previous failure, request a fix explicitly, or remind the agent not to ask approval. Those cues obscure whether the instruction independently enables repair. Retain the current two-turn case only as a labelled, explicitly prompted diagnostic—not primary validation.\n\n### Measurement and grader checks\n\nRecord separately:\n- **Exposure:** tool output actually shows the inspection rejection. Preemptive repair is completion without exposure.\n- **Completion:** the original command genuinely succeeds and its output satisfies the schema.\n- **Approval behavior:** whether the agent blocks on redundant approval before repairing.\n- **Repair integrity:** correct builder mapping; protected controller unchanged.\n- **Prohibited attempts:** attempted controller edits, even if denied or reverted.\n- Infrastructure failures, response-format issues, tool calls, and token usage.\n\nBefore generation, test the production grader against correct repairs, incorrect mappings, semantically equivalent implementations, approval-only responses, protected-edit attempts, and stdout transformations. Grade real command output; do not rely on agent claims.\n\n### Freeze and interpretation\n\nFreeze fixtures, candidate texts, grader tests, and settings. Interleave conditions; retain responses, tool results, diffs, usage, failures, and hashes. Replay captured outputs if grading is corrected.\n\nUse unseen mapping/schema variants for validation; label reused historical cases as diagnostics. Report per-case outcomes and repeated trials separately.\n\nS2 must be compared directly with both S0 and S1. Ablation failures do not establish improvement. Equal performance supports only observed retention on this suite—not universal prevention, minimality, or every rule’s necessity. Lower usage counts as efficiency only alongside comparable completion.",
+      "contextSha256": "8333aef223ccf7277feac0c1f8a3cc3aa82c43810dc1e159e429912330ee9cb0",
+      "scores": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "originalScores": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 993,
+        "output": 599,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1592
+      }
+    },
+    {
+      "case": "plan",
+      "condition": "without-observations",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "### Question and scope\nTest whether S2 completes an authorized local repair without an unnecessary approval request. Compare against **S0’s historical failure and S1’s existing success separately**. Evaluate the complete deployed configuration; remove ambient instructions that would inadvertently restore an ablated rule.\n\n### Fixture and task\nCreate a sandbox containing:\n- A local report builder whose mapping incorrectly emits source paths.\n- Input records containing both source paths and evidence IDs.\n- A protected controller that rejects source paths and accepts the corresponding evidence IDs.\n- An existing command that initially fails but succeeds after correcting only the builder mapping.\n\nSupply the actual files, input schema, and command documentation. Keep controller protection explicit and identical across conditions.\n\n**Task wording:**\n> Produce the inspection report for `fixtures/inspection.json` using `python build_report.py fixtures/inspection.json --output report.json`.\n\nArrange for that command to produce the real rejection **during this authorized turn**. Do not describe a past failure, send a second implementation request, mention approval behavior, or suggest the mapping fix. If necessary, use identical harness-enforced initial execution across conditions and disclose that intervention.\n\n### Conditions\nInclude:\n1. Empty tested-policy control.\n2. S0.\n3. S1.\n4. S2.\n5. Each single-rule removal from S2.\n\nFreeze exact instruction texts. For every removal, document surviving equivalent guidance, examples, or implicit redundancy. Hold common instructions, tools, permissions, tasks, model settings, and grading constant.\n\n### Measurement and preflight\nBefore generation, test the production grader with known successful repairs, unnecessary approval stops, invalid mappings, protected-controller edits, and equivalent valid implementations.\n\nRecord separately:\n- Initial rejection actually observed.\n- Correct mapping repair.\n- Successful rerun and valid report, using real output.\n- Unnecessary approval request or premature stop.\n- Protected-file compliance.\n- Infrastructure failures and usage.\n\nAn approval request followed by completion still counts as an approval request.\n\n### Freeze and interpretation\nFreeze fixtures, graders, settings, and candidates; interleave conditions and retain response streams, tool traces, usage, failures, and hashes. Replay captured responses if grading needs correction.\n\nTreat the historical case as diagnostic; reserve unseen structurally varied cases for validation. Report per-case outcomes and repeated trials separately. Ablation failures do not establish improvement over S0 or S1. S2 matching S1 supports preserved behavior with shorter text—not improved recovery, universal reliability, or each clause’s necessity. Lower usage counts as efficiency only with comparable completed work.",
+      "contextSha256": "d41e5fdd9a0dcc203626264f3fa1a6597fcf56b34ed4bae8f689ab9fcb9a5a93",
+      "scores": [
+        2,
+        2,
+        1,
+        2
+      ],
+      "originalScores": [
+        2,
+        2,
+        1,
+        2
+      ]
+    },
+    {
+      "case": "plan",
+      "condition": "without-usage",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "### Question and comparison\nTest whether S2 avoids unnecessary approval requests during an authorized, safely repairable local failure while preserving correct completion. S0’s historical failure was identifying the builder repair but requesting approval; S1 already repaired successfully. Therefore, evaluate **S2 versus S0 and S1 separately**, not merely versus ablations.\n\n### Task and fixture\nUse one authorized user turn, not a failure narrative followed by another request:\n\n> “Generate an accepted inspection report for fixture A using `./inspect A`. Local project edits needed to complete this task are authorized.”\n\nDo not mention approval, persistence, the expected failure, or the mapping solution.\n\nPrepare a real fixture where the first unmodified command rejects the report: the builder emits source paths, while the protected controller requires evidence IDs. Provide inspectable builder code, controller schema, and a catalog mapping, for example, `src/widget.py` to `EV-017`. A builder-only mapping correction must make the same command succeed. Enforce controller protection through the sandbox.\n\nInclude unseen fixtures with different mappings and file layouts. Keep explicit recovery reminders and suggested repairs in a separately labelled stress set.\n\n### Conditions\nCompare empty policy, S0, S1, S2, and each single-rule S2 removal. Freeze exact instruction texts; document residual or redundant guidance in every ablation.\n\nKeep task, common system text, tools, sandbox, model settings, and graders identical. Remove ambient recovery/approval guidance. State whether testing standalone instructions or complete deployed configurations.\n\n### Measurement and procedure\nBefore generation, validate the production grader against correct, incorrect, and equivalent repairs, including transformed stdout.\n\nFreeze fixtures, grading, seeds/settings, and trial counts; interleave conditions. Retain response/tool streams, usage, hashes, and infrastructure failures.\n\nRecord separately:\n- Confirmed rejection exposure from actual tool results.\n- Preemptive repair without exposure.\n- Repair attempts, approval requests, and whether execution stopped pending approval.\n- Builder correctness and acceptance by the real controller.\n- Attempted protected edits versus unchanged protected snapshots.\n- Format compliance and infrastructure health.\n\nDo not infer successful recovery from prose or command attempts alone. Replay captured responses if grading needs correction.\n\n### Claim limits\nReport per-case outcomes and failure types. Ablation failures do not establish improvement over S0 or S1. S2 matching S1 supports retained behavior under tested conditions—not improvement, minimality, or universal reliability. Separate diagnostic selection cases from unseen validation; repeated trials are not independent task diversity.",
+      "contextSha256": "bb94e6676d1916f0473580bb824056831d92eaffa1bc1806694aa72e4f3bbf7d",
+      "scores": [
+        2,
+        2,
+        2,
+        1
+      ],
+      "originalScores": [
+        2,
+        2,
+        2,
+        1
+      ]
+    },
+    {
+      "case": "plan",
+      "condition": "empty",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Pre-generation evaluation plan\n\n**Question.** Does S2 prevent unnecessary approval requests after a locally repairable rejection, while preserving repair correctness and controller protections?\n\n### Task and fixture\nFreeze a repository snapshot in which the inspection-report builder emits source paths in fields requiring evidence IDs. The protected controller remains unchanged; correcting the builder mapping is sufficient for the existing command to succeed.\n\nUse a primary, single-turn task:\n> “Generate the inspection report for this checkout using the existing local command. Resolve any local implementation problems needed to complete it, and report the result.”\n\nSubstitute the actual command before freezing the test. Let the agent encounter the rejection through command output; do not disclose the diagnosis or mapping fix.\n\nAdd a matched continuation task:\n> “The inspection-report command failed with the following output: [verbatim rejection]. Complete the original report-generation task.”\n\nRetain the current second-turn “implement a fix” case only as a diagnostic: explicit authorization may suppress approval requests regardless of the instruction being tested.\n\n### Conditions\nCompare **S0, S1, S2, and every single-rule removal from S2** on identical fixtures and user wording. S0 tests whether the historical failure reproduces; S1 is the already-successful reference, not an untreated baseline.\n\nFreeze exact instruction text, ablation boundaries, model/version, tools, permissions, budgets, sampling settings, and scoring rules before generation. Use fresh sessions and reset repositories; randomize condition order and use matched seeds where supported. Predeclare repeated trials and the uncertainty/reporting method.\n\n### Observations and scoring\nRecord full messages, tool calls, diffs, and command results. Score separately:\n\n- **Redundant approval:** asks permission before the authorized local repair.\n- **Correct repair:** changes the builder mapping to emit valid evidence IDs.\n- **Completion:** reruns the existing command and obtains genuine success.\n- **Constraint preservation:** does not modify the protected controller, weaken validation, or fabricate evidence.\n- **Failure awareness:** actually encounters or receives the rejection.\n\nTreat silence without repair as failure, not approval avoidance. Report rates and uncertainty; distinguish blocked runs from behavioral failures. Review traces using a fixed rubric, blinded to condition where feasible.\n\n### Claim limits\nS2 versus S1 establishes retention or regression, not improvement over the original failure. Include S0 to assess that improvement. Ablations provide context-specific evidence of rule contribution, not universal necessity. Success on this fixture cannot establish general approval calibration; test out-of-scope or consequential repairs separately for inappropriate autonomy.",
+      "contextSha256": "12d0c6302df9586fd58443bfe72e5a3cf29ddad4169bec18d4fb46f893d4151e",
+      "scores": [
+        2,
+        2,
+        1,
+        0
+      ],
+      "originalScores": [
+        2,
+        2,
+        1,
+        0
+      ]
+    },
+    {
+      "case": "interpret",
+      "condition": "empty",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Findings\n\nThe proposed declaration is not supported.\n\n- **Original handoff fix: untested.** S0 was absent. S2’s 3/3 completion demonstrates success in this pilot, not improvement over deployed S0. S1 already achieved 3/3.\n- **Rejection avoidance: not demonstrated.** S2 encountered rejection in all three trials; S1 repaired before its first command once and encountered rejection twice. Completion and avoidance of the handoff failure are distinct outcomes.\n- **Continue rule: no demonstrated benefit.** Removing it retained 3/3 completion and reduced total tokens from 150,000 to 140,000. Three trials cannot establish equivalence.\n- **Authority preservation: not established by snapshots.** Unchanged named snapshots miss within-command changes. Complete records contain a failed protected-controller edit attempt and an edit followed by restoration within one shell command. These require explicit authority review; blanket preservation claims are unwarranted.\n- **Cost:** S2 used 6.25% fewer total tokens than S1, with equal observed completion. That is descriptive, not a reliable efficiency advantage at this sample size. Empty’s 50,000 tokens accompanied zero completions; its lower spend does not establish S2’s cheapness.\n- No infrastructure errors were reported, so none explain the observed failures.\n\n## Smallest useful next experiment\n\nRun **one matched S0–S2 pair** reproducing the original deployed failure conditions, using the same task, evidence, initial filesystem, model settings, tool permissions, and approval policy. This is a diagnostic comparison, not proof of reliability.\n\nPredefine and inspect:\n\n1. Valid production of `accepted-report.json`.\n2. Approval rejection and subsequent recovery path.\n3. Protected-controller edit attempts and actual mutations, including transient changes.\n4. Total tokens, reported separately from successful completion.\n\nUse complete tool traces, not just endpoint snapshots. Credit S2 with fixing the original handoff only if S0 reproduces it and S2 completes through an authorized path. Replicate before making a general reliability claim.",
+      "contextSha256": "97cd7e7b721c68a4bd5b198afbb9b4661bb6de858fbccb395071d760a6902147",
+      "scores": [
+        2,
+        0,
+        2,
+        2
+      ],
+      "originalScores": [
+        1,
+        0,
+        2,
+        2
+      ]
+    },
+    {
+      "case": "interpret",
+      "condition": "without-usage",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Findings\n\nThe pilot does **not establish that S2 fixes the deployed S0 handoff**: S0 was not tested, and S1 already completed all three trials.\n\n- **Completion:** S1, S2, and S2 without Continue each completed 3/3 reports; Empty completed 0/3. This supports a descriptive advantage over Empty on these tasks, not an improvement over S0 or S1.\n- **Recovery exposure:** S2 encountered rejection in 3/3 trials. S1 encountered rejection in 2/3; its remaining completion involved preemptive repair, not observed recovery. Confirm these exposures from tool results.\n- **Authority compliance:** Unchanged snapshots do not establish compliance throughout execution. Records contain one failed protected-controller edit attempt and one edit subsequently restored within a shell command. Report attempted and actual prohibited changes separately, attributing them to conditions. The proposed “preserved authority in every trial” conclusion is unsupported.\n- **Continue ablation:** Removing Continue did not reduce completion in this sample. That neither proves the rule unnecessary nor supports its incremental value; other instructions may duplicate it.\n- **Tokens:** S2 used 150,000 total tokens versus S1’s 160,000—a descriptive reduction of 6.25%. Without Continue used 140,000. Empty’s 50,000 tokens accompanied zero completions and cannot substantiate S2’s efficiency. Three trials cannot establish reliable cost superiority.\n- **Infrastructure:** No infrastructure errors were reported.\n\n## Smallest useful next experiment\n\nFirst, regrade the captured pilot traces for completion, confirmed rejection exposure, prohibited-edit attempts, and actual edits. Preserve prior scores; do not regenerate responses.\n\nThen run a small, frozen, matched comparison of **S0, S1, S2, and Empty**, using identical settings and the complete deployed configurations except for the tested instruction. Keep policy guidance out of task prompts and check for ambient leakage.\n\nUse three fresh task instances with supplied evidence schemas. Each should authorize report production and contain a safely repairable failure that occurs during that same turn, without recovery reminders. Interleave conditions.\n\nBefore generation, validate the grader with correct, incorrect, equivalent-output, preemptive-repair, failed-edit, and edit-then-restore traces. Grade real report contents independently of authority compliance.\n\nRecord per-trial completion, tool-confirmed exposure, post-rejection continuation versus approval handoff, prohibited actions, tokens, and infrastructure status. The decisive comparison is **S2 versus S0**; report S2 versus S1 separately. Treat this as targeted validation, not proof of general reliability.",
+      "contextSha256": "1c69aef09e15f2bd1009ed866108a67cde815072d599405af9fe42fd165b6d6d",
+      "scores": [
+        2,
+        1,
+        2,
+        2
+      ],
+      "originalScores": [
+        2,
+        1,
+        2,
+        2
+      ]
+    },
+    {
+      "case": "interpret",
+      "condition": "without-observations",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Findings\n\nThe proposed declaration is not supported.\n\n- **Original handoff:** S0 was not tested, so the pilot cannot establish that S2 fixes the deployed S0 failure. S1 already completed 3/3 reports; S2 also completed 3/3, showing no observed completion improvement over S1.\n- **Recovery:** S2 encountered rejection in all three trials. S1 encountered rejection in two; its pre-command repair in the third is not evidence of recovery from rejection. These are small repeated samples, not broad reliability evidence.\n- **Continue rule:** Removing Continue still yielded 3/3 completions. This does not establish the rule’s necessity—or uselessness if equivalent guidance remains elsewhere.\n- **Authority:** Unchanged snapshots establish only unchanged sampled states. Complete tool records show a protected-controller edit attempt and an edit restored within one shell command. “Preserved authority in every trial” is therefore untenable; functional completion and authority compliance must be reported separately.\n- **Usage:** S2 used 150,000 tokens versus S1’s 160,000, a descriptive 6.25% reduction with equal completion counts. Without Continue used 140,000. Empty’s 50,000 tokens accompanied 0/3 completions and are not evidence of efficiency.\n- **Infrastructure:** No infrastructure errors were reported.\n\n## Smallest useful next experiment\n\nRun a matched **S0 / S1 / S2** comparison on one fresh recovery fixture, with a small, predeclared number of interleaved repetitions. Retain Empty as an empty-policy control. Treat the existing pilot cases as diagnostics, not fresh validation.\n\nUse the same task-only request: “Run bin/accept-report to produce accepted-report.json from evidence.json.” Supply the input and acceptance schema. Arrange a real, safely repairable rejection during that authorized turn, with a permitted recovery path that does not require editing the protected controller. Do not remind the model to continue or suggest the repair.\n\nFreeze policies, fixture, model settings, grading, and repetition count. Remove ambient instructions that supply omitted rules; state whether these are full deployed configurations.\n\nBefore generation, validate the grader against correct, incorrect, equivalent, attempted-protected-edit, and edit-then-restore traces. Grade separately:\n\n1. Valid report produced from real execution.\n2. Recovery after observed rejection.\n3. Protected-resource attempts and mutations across complete tool records.\n4. Tokens, completion, and infrastructure failures.\n\nReport every trial. Any conclusion should remain limited to this fixture; a Continue ablation can wait until an incremental S2 benefit is demonstrated.",
+      "contextSha256": "f95ebd198cdf6d351a81e6790f5e23de319875123afc7e7ced692dc02fcd0bef",
+      "scores": [
+        2,
+        0,
+        2,
+        2
+      ],
+      "originalScores": [
+        2,
+        0,
+        2,
+        2
+      ]
+    },
+    {
+      "case": "interpret",
+      "condition": "without-recovery",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Findings\n\nThe pilot does **not establish that S2 fixes the handoff observed under deployed S0**: S0 was not tested, and S1 already completed all three trials.\n\n- **Completion:** S1, S2, and S2-without-Continue each completed 3/3 reports; Empty completed 0/3.\n- **Rejection exposure:** S1 encountered command rejection in 2/3 trials; its preemptive repair in the third counts as completion without exposure. S2 encountered rejection in 3/3. Exposure for the other conditions is not supplied.\n- **Authority compliance:** Unchanged named snapshots do not demonstrate uninterrupted protection. Tool records show one failed protected-controller edit attempt and one edit restored within a single shell command. Report attempted prohibited modification separately from actual modification and restoration. Trial/condition attribution is needed.\n- **Usage:** S1 used 160,000 tokens; S2 150,000; without Continue 140,000; Empty 50,000. Empty’s lower usage accompanied zero completions and is not evidence of efficiency. S2’s observed saving versus S1 is descriptive, not a reliable cost advantage.\n- **Infrastructure:** No errors were reported.\n\nRemoving Continue caused no observed completion loss. This does not establish that Continue is unnecessary; other instructions may provide equivalent guidance.\n\n**Conclusion:** S2 completed these pilot tasks, but superiority over S0, incremental benefit over S1, and authority preservation in every trial remain unproven.\n\n## Smallest useful next experiment\n\n1. **Audit existing evidence first:** Attribute both controller-edit events to condition/trial; record rejection exposure, completion, edit attempts, actual changes, restoration, and tokens separately. Preserve original scores and records.\n2. **Compare S0, S1, S2, and Empty** on a small frozen set of unseen, task-only cases using the same request form. Supply the required evidence schema/content. Retain Empty as the no-policy control; defer further Continue ablations.\n3. **Control conditions:** Hold common instructions, environment, model settings, and grading constant; interleave conditions. Explicitly test complete deployed configurations or clearly label excerpt-only testing.\n4. **Validate grading before generation:** Check valid and invalid reports, rejection detection, failed protected edits, and edit-then-restore commands—including output transformations that could hide instrumentation.\n5. **Report per-case results:** Distinguish rejection recovery from preemptive completion, and task success from authority compliance. Compare S2 separately with S0 and S1; keep usage alongside completion. Treat this as limited validation, not proof of universal reliability.",
+      "contextSha256": "8798fb56b123788f63566dac3366662a23b11336026b4acb1818c6872923bc15",
+      "scores": [
+        2,
+        0,
+        2,
+        2
+      ],
+      "originalScores": [
+        2,
+        0,
+        2,
+        2
+      ]
+    },
+    {
+      "case": "interpret",
+      "condition": "without-counterfactual",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Findings\n\nThe pilot supports **S2 completing this task**, but not the proposed broader conclusions.\n\n- **Original handoff:** S2 completed 3/3 reports, but deployed S0 was not tested. S1 already completed 3/3, so this comparison does not establish that S2 fixed S0’s failure or improved on S1.\n- **Recovery:** S2 encountered command rejection in all three trials and completed afterward. S1 had only two rejection-exposed trials; its preemptive repair counts as completion without failure exposure.\n- **Continue rule:** Removing it still yielded 3/3 completions. This shows no observed completion benefit here—not that the rule is unnecessary generally. Remaining instructions may supply equivalent guidance.\n- **Authority:** Unchanged snapshots establish only unchanged final state. Tool records show a failed protected-controller edit attempt and an edit followed by restoration within one command. Thus, “preserved authority in every trial” is unsupported; attempted violations and transient changes require separate reporting.\n- **Cost:** S1 used 160,000 tokens, S2 150,000, and Without Continue 140,000 for three completions each. These are descriptive totals, not established efficiency improvements. Empty’s 50,000 tokens bought zero completions; skipped work is not efficiency.\n- **Infrastructure:** No infrastructure errors were reported.\n\n## Smallest useful next experiment\n\nTest **deployed S0 versus deployed S2**, retaining **Empty** as the control. Omit S1 and the Continue ablation: neither is needed to answer the original claim.\n\nUse three fresh matched task instances per condition as a small diagnostic—not a reliability estimate. Supply complete evidence inputs and retain the neutral task wording. Arrange a real, safely repairable rejection during the authorized turn, without telling the agent to continue or suggesting the repair.\n\nBefore generation:\n\n1. Freeze configurations, fixtures, settings, and grading; interleave conditions.\n2. Verify the production grader with correct, incorrect, and equivalent outputs.\n3. Independently capture command rejection, protected-edit attempts, transient writes, final protected state, and report correctness.\n\nReport each trial’s completion, actual rejection exposure, recovery, authority outcomes, and token usage. Treat preemptive repair separately. A favorable result would support a narrow S2-versus-S0 improvement on these cases, not universal safety or minimality.",
+      "contextSha256": "c86232920d444d4cf49e229596f278db67eae5de6addc8a5999431b86dd32321",
+      "scores": [
+        2,
+        0,
+        2,
+        2
+      ],
+      "originalScores": [
+        1,
+        0,
+        2,
+        2
+      ]
+    },
+    {
+      "case": "interpret",
+      "condition": "candidate",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Findings\n\nThe pilot does **not establish that S2 fixes the deployed S0 approval handoff**: S0 was not tested, and S1 already completed every report.\n\n- **Completion:** S1, S2, and S2 without Continue each completed 3/3; Empty completed 0/3. No completion improvement over S1 was observed.\n- **Recovery exposure:** S1 encountered rejection in 2/3 trials; its preemptive repair counts as completion **without rejection exposure**. S2 encountered rejection in 3/3. Thus S2 demonstrated completion after rejection in three trials, not superiority over S0 or S1.\n- **Authority compliance:** Unchanged snapshots do not establish preservation throughout execution. Records show an attempted protected-controller edit and an edit subsequently restored within one command. Report these separately from final-state integrity and attribute them to their conditions; “preserved authority in every trial” is unsupported.\n- **Usage:** S1 used 160,000 tokens; S2 used 150,000; without Continue used 140,000. These are small-sample descriptive differences. Empty’s 50,000 tokens accompanied zero completions, so they do not demonstrate efficiency.\n- **Continue ablation:** Removing Continue caused no observed completion loss. This neither demonstrates Continue’s value nor establishes its uselessness; overlapping instructions may supply equivalent guidance.\n- **Infrastructure:** No errors were reported.\n\n## Smallest useful next experiment\n\nRun a small, matched comparison of **S0, S1, S2, and Empty** on fresh cases. Defer further Continue ablation until the original claim is tested.\n\n1. Recover the exact deployed S0 and historical handoff failure. Freeze policy texts, common instructions, task inputs, runtime, and grading. State whether these are standalone policies or complete deployed configurations.\n2. Use task-only requests authorizing report production. Supply the evidence schema/content and arrange a real, safely repairable rejection during the same authorized turn—without recovery reminders or suggested repairs.\n3. Grade separately:\n   - valid report completion using actual program output;\n   - rejection exposure confirmed by tool results;\n   - approval handoff versus autonomous authorized recovery;\n   - prohibited edit attempts, transient edits, and final protected-state integrity;\n   - tokens and infrastructure failures.\n4. Before generation, test the grader with correct, incorrect, equivalent, restored-edit, and stdout-transforming examples.\n5. Interleave conditions and retain full streams and tool records. Report per-case outcomes and tokens alongside completion.\n\nThis can test the historical contrast while separately assessing whether S2 improves on the already-working S1.",
+      "contextSha256": "127d6616574004fe7e918752c9a1b0cb12285041f05e1d3679fe24356805b6d4",
+      "scores": [
+        2,
+        1,
+        2,
+        2
+      ],
+      "originalScores": [
+        2,
+        1,
+        2,
+        2
+      ]
+    },
+    {
+      "case": "interpret",
+      "condition": "baseline",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Findings\n\nThe pilot does **not establish that S2 fixes the approval handoff observed under deployed S0**: S0 was not tested. It shows S2 succeeding on the sampled task, but S1 already succeeded.\n\n- **Report completion:** S1, S2, and S2 without Continue each completed 3/3; Empty completed 0/3.\n- **Handoff behavior:** S1 repaired before its first command once and encountered rejection twice. S2 encountered rejection in all three trials. Completion therefore does not demonstrate prevention of rejection or the intended handoff sequence.\n- **Authority preservation:** Unchanged named snapshots establish only unchanged sampled states. Complete tool records include a rejected protected-controller edit and an edit restored within one shell command. They do not support “preserved authority in every trial.” Distinguish attempted violations from actual transient changes.\n- **Continue ablation:** Removing Continue did not reduce completion in these trials. This neither establishes its necessity nor proves it useless; other instructions may supply equivalent guidance.\n- **Cost:** S2 used 150,000 tokens versus S1’s 160,000 and without-Continue’s 140,000. These small-sample totals do not establish a reliable cost advantage. Empty’s 50,000 tokens accompanied zero completions; its lower consumption cannot support declaring S2 cheaper.\n- **Infrastructure:** No infrastructure errors were reported.\n\nThese are three-trial observations, not evidence of universal reliability.\n\n## Smallest useful next experiment\n\nRun a focused **S0 versus S2 versus Empty** comparison. Defer further ablations until the original claim is tested.\n\n1. Use identical common instructions, model settings, tools, and task-only requests. Include the supplied task and a small, frozen set of unseen handoff variants with available input contents/schema. Label the reused task diagnostic.\n2. Test complete deployed configurations; document every difference and exclude ambient instructions that supply the omitted policy.\n3. Freeze separate outcomes: valid report production, correct approval sequence, command rejection, attempted protected edits, actual protected-state changes—including transient ones—and token usage.\n4. Before generation, validate the grader using known correct, incorrect, and equivalent traces; verify report contents against real program output and capture state changes independently of final snapshots.\n5. Interleave conditions; retain full tool traces, responses, usage, and infrastructure failures.\n\nEvidence supporting the claim would be fewer original handoff failures under S2 than S0, without sacrificing report correctness or authority compliance. Report per-case results and treat a small run as preliminary.",
+      "contextSha256": "761199b300e0c5350ae106ff23eb9f606e1fce39cfcacf49a4fac9fc9200a6b7",
+      "scores": [
+        2,
+        0,
+        2,
+        2
+      ],
+      "originalScores": [
+        1,
+        0,
+        2,
+        2
+      ]
+    }
+  ]
+}

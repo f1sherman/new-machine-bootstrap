@@ -1,0 +1,176 @@
+{
+  "experiment": "historical-validation",
+  "conditions": [
+    "original",
+    "claim-first",
+    "removed",
+    "empty"
+  ],
+  "cases": [
+    "reserved-reimbursement-archive",
+    "reserved-library-routing"
+  ],
+  "sourceManifestSha256": "86fd6851f52107cdaa4085e25ee2127c800edac3303730260141be89a4428702",
+  "responses": [
+    {
+      "case": "reserved-reimbursement-archive",
+      "condition": "original",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Suggested findings note**\n\n“On eight frozen mixed-currency reimbursement packets, Juniper and Saffron both passed 8/8, versus 3/8 for Saffron-cut and 2/8 without an instruction bundle. Thus, Saffron preserved Juniper’s observed packet-level performance, and deleting its currency-handling sentence reduced performance on these cases.\n\n“This does not establish that Saffron corrected Cairn’s historical failures: Cairn was not evaluated. Nor does the combined category-and-currency score establish which errors caused the failures. These eight packets support a limited comparison, not a general reliability claim.”\n\n**Smallest useful follow-up**\n\n1. **Rescore the retained responses separately for category correctness and currency preservation**, retaining the original combined scores. No new generation is needed. This establishes whether the deletion losses actually involved currency.\n2. **Run Cairn on the same eight packets**, using the preserved instruction text and otherwise identical settings and grading. Freeze this comparison before generation and compare Cairn separately with both Juniper and Saffron.\n\nCairn’s missing results are the minimum new generation needed to assess the historical claim. If Cairn shows currency failures that both later bundles avoid, the evidence would support a correction already present in Juniper and retained by Saffron—not a newly demonstrated Saffron improvement.\n\nUse unseen packets only for subsequent validation if these eight have informed revision selection or tuning.",
+      "contextSha256": "074d2d0f1ad634646708ed727c8fdd9076a51773307db91cd0d2577452db1014",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 1211,
+        "output": 395,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1606
+      }
+    },
+    {
+      "case": "reserved-reimbursement-archive",
+      "condition": "claim-first",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings note**\n\nOn eight frozen mixed-currency reimbursement packets, Juniper and Saffron each passed 8/8, Saffron-cut passed 3/8, and no instruction bundle passed 2/8. These are packet-level results requiring both correct categories and preserved currencies.\n\nSaffron matched Juniper on this sample. Removing Saffron’s currency-handling sentence reduced combined correctness, supporting its usefulness within Saffron on these packets. However, the combined score does not establish whether the additional failures involved currencies, categories, or both.\n\nThe study does **not** establish that Saffron corrected Cairn’s currency failures: Cairn was not measured. The deletion experiment tests a modification of Saffron, not the historical change from Cairn. Eight shared packets also do not establish general reliability.\n\n**Smallest useful follow-up**\n\n1. **Regrade the retained responses**, without new model calls, to report category accuracy and currency preservation separately, including per-packet failure types. This determines whether the observed ablation difference actually concerns currencies.\n2. **If retaining the historical-fix claim matters, run Cairn on the same eight frozen packets** with the same settings and grader, scoring those dimensions separately. Cairn is the missing historical baseline; another Saffron ablation cannot replace it.\n\nThat Cairn comparison would provide a bounded, same-packet historical comparison—not proof of broad improvement. If these packets informed instruction tuning, label the comparison diagnostic and reserve unseen packets for subsequent validation.",
+      "contextSha256": "972cf68f9237867ce37c229817a6f4b3f3024acf33094161bd207b0e24721c8a",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 1210,
+        "output": 311,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1521
+      }
+    },
+    {
+      "case": "reserved-reimbursement-archive",
+      "condition": "removed",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings note**\n\n“On eight frozen mixed-currency reimbursement packets, Juniper and its shortened revision, Saffron, each passed 8/8 packets. Removing Saffron’s currency-handling sentence reduced passes to 3/8; the no-bundle control passed 2/8. These results support retaining that sentence in Saffron and show no observed loss from shortening Juniper on this test set.\n\n“The deletion experiment measures the sentence’s contribution within Saffron—not a historical improvement over Cairn. Cairn was not evaluated, so the study cannot establish that Saffron corrected Cairn’s failures. Moreover, the combined category-and-currency pass criterion does not establish that the observed failures were currency errors.”\n\n**Smallest useful follow-up**\n\n1. **Regrade existing responses separately for category correctness and currency preservation.** This requires no new model calls and reveals whether the deletion losses actually involve currency.\n2. **If the Cairn comparison matters, generate Cairn responses for the same eight frozen packets**, using its preserved text and the same model, settings, and grader, then score both dimensions separately. This is the smallest missing experimental condition; another Saffron ablation would not answer the historical question.\n\nFreeze that follow-up before generation. Treat the reused packets as a diagnostic comparison, not independent validation. A new Cairn run would establish a controlled comparison under the tested model and settings, not reconstruct Cairn’s historical production performance.",
+      "contextSha256": "08ff3e6b73883b7e25f99a8b602065c705a6b3127b47df8402c47c3e64e0d537",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 1172,
+        "output": 413,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1585
+      }
+    },
+    {
+      "case": "reserved-reimbursement-archive",
+      "condition": "empty",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings note**\n\n“On eight frozen mixed-currency packets, Juniper and Saffron both passed 8/8, showing no observed loss from shortening Juniper on this test set. Removing Saffron’s currency-handling sentence reduced packet-level passes to 3/8; using no instruction bundle yielded 2/8. The controlled deletion supports the sentence’s contribution to Saffron’s performance on these packets.\n\n“These results do not establish that Saffron corrected failures in Cairn, or that the deletion recreates a historical failure. Cairn has no scored responses, and Saffron-cut is a laboratory ablation, not a deployed predecessor. Moreover, the combined category-and-currency pass criterion does not by itself identify whether failures involved currencies, categories, or both.”\n\n**Smallest useful follow-up**\n\nFirst, inspect the retained outputs for the five packets that pass with Saffron but fail with Saffron-cut. Record category and currency errors separately. This requires no new model calls and establishes whether the deletion’s observed effect actually concerns currency handling.\n\nTo assess the proposed **historical claim**, the smallest missing measurement is to run archived Cairn on the same eight packets under the same model, settings, and grader, then compare its category and currency errors with the retained Saffron results. If those conditions cannot be reproduced, rerun Cairn and Saffron together with interleaved calls. Any conclusion should remain limited to these packets; a Cairn comparison would not make the deletion experiment proof of the historical mechanism.",
+      "contextSha256": "5be976ed12c3782ceaf53a466fe6851c2b93ab55ce343ed1c01c060520262131",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 378,
+        "output": 442,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 820
+      }
+    },
+    {
+      "case": "reserved-library-routing",
+      "condition": "empty",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Release-review note\n\n**Observed results:** On the same 12-message audit, Harbor routed 5 correctly (41.7%); Meadow and Lantern each routed 10 correctly (83.3%).\n\nThe paired results identify where the gain occurred:\n- P01–P05: all three succeeded.\n- P06–P10: Meadow and Lantern succeeded where Harbor failed.\n- P11–P12: all three failed.\n\n**Conclusion:** Meadow’s replacement of Harbor produced a five-message improvement on this batch. Lantern preserved that improvement but added no observed routing improvement over Meadow. Thus, neither colleague’s interpretation is supported: Lantern’s tie does not erase Meadow’s gain, and Lantern’s later reorganization cannot receive credit for fixes already present in Meadow.\n\nThe common model/settings, isolated contexts, interleaved order, calibrated scoring, and complete responses support this comparison. However, these are only 12 scored messages—not a field-traffic study. The results neither establish population-wide gains nor prove Meadow and Lantern equivalent. The dossier also does not identify whether P06–P10 were the overdue-book/disputed-fine cases.\n\n**Release position:** Record Lantern as preserving Meadow’s observed performance, not as a demonstrated quality improvement.\n\n**Measurement recommendation:** Yes—buy a fresh, adequately sized, paired evaluation on unseen messages sampled from intended patron traffic, with a prespecified analysis of mixed overdue/fine requests. Compare Meadow and Lantern to determine whether the reorganization improves routing or introduces regressions; include Harbor if estimating the historical gain matters. Inspect the retained failures first, but do not buy another pass over these same 12 messages as evidence of generalization.",
+      "contextSha256": "ccc8ebd0e828b3c5cb2fea94cb4e6b8e927fb6be7b1e77a607a2d806a45431f8",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 334,
+        "output": 588,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 922
+      }
+    },
+    {
+      "case": "reserved-library-routing",
+      "condition": "removed",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Release-review note\n\n**Observed results.** In the frozen, paired 12-message audit:\n\n| Messages | Harbor | Meadow | Lantern |\n|---|---|---|---|\n| P01–P05 | Correct | Correct | Correct |\n| P06–P10 | Wrong | Correct | Correct |\n| P11–P12 | Wrong | Wrong | Wrong |\n| **Total correct** | **5/12** | **10/12** | **10/12** |\n\nThe comparison used identical model settings, isolated contexts, interleaved conditions, and a calibrated scorer accepting equivalent destination names. All responses completed; no infrastructure failures occurred. These scores measure routing correctness, not other aspects of assistant quality.\n\n**Interpretation.** Both disputed claims are unsupported:\n\n- Lantern’s tie with Meadow does **not** erase the observed improvement from Harbor to Meadow: five messages changed from incorrect to correct, with no regressions.\n- Lantern’s reorganization cannot receive credit for those fixes: Meadow already routed all five correctly. Lantern preserved Meadow’s observed outcomes but demonstrated no additional routing benefit on this batch.\n\nChronological deployment and complaint history do not establish which wording changes caused the improvement. Nor does this small batch establish field accuracy, universal equivalence, or that Lantern’s reorganization has no value. P11–P12 remain unresolved failures.\n\n**Recommendation.** Buy another measurement if release confidence warrants the cost: a frozen, independently labeled sample of **previously unseen, representative patron traffic**, comparing Meadow and Lantern under matched conditions. Include mixed overdue/disputed-fine messages and report that subgroup separately. This would test whether Lantern changes routing performance beyond the retained batch and estimate practical error rates. Repeating these twelve cases alone would not answer generalization.",
+      "contextSha256": "f3bdc486147aef72b91385aeb797c5611b332efcb94c753c44d65800e02c7f06",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 1128,
+        "output": 359,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1487
+      }
+    },
+    {
+      "case": "reserved-library-routing",
+      "condition": "claim-first",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Release-review note\n\n**Observed results.** In the frozen, paired audit, Harbor routed 5/12 messages correctly; Meadow and Lantern each routed 10/12.\n\n- **P01–P05:** all three correct.\n- **P06–P10:** Harbor incorrect; Meadow and Lantern correct.\n- **P11–P12:** all three incorrect.\n\nEvery response completed without infrastructure failure. Conditions shared the model and settings, ran in isolated contexts with interleaved order, and used a librarian-approved key accepting equivalent destination names.\n\n**Interpretation.** Meadow’s replacement of Harbor produced five additional correct routes, with no observed regressions, on this batch. Lantern retained those outcomes but showed no additional routing benefit over Meadow.\n\nThus, neither disputed claim is supported: Lantern’s tie with Meadow does not erase the Harbor-to-Meadow improvement, and Lantern’s later reorganization cannot receive credit for gains already present under Meadow.\n\nThese findings establish batch-specific performance—not representative field accuracy, universal equivalence between Meadow and Lantern, or resolution of every mixed overdue-book/fine dispute. Two known failures remain.\n\n**Recommendation.** Record Lantern as preserving Meadow’s measured routing performance, not as introducing the historical fix.\n\n**Another measurement is worth buying:** a fresh, independently keyed, paired evaluation of the frozen bundles using previously unscored patron messages sampled from actual service traffic. Include mixed overdue/fine disputes and broader routing cases; report any deliberately oversampled categories separately. Predefine an acceptable regression margin and choose enough cases to assess it.\n\nThis would test whether the Harbor-to-Meadow gain generalizes and whether Lantern introduces meaningful regressions versus Meadow. Repeating only these twelve messages would not answer those questions.",
+      "contextSha256": "bcd80330229b354b9ed8946af5a1bcaafdb879de4d4c368074538273cdeb7d20",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 1166,
+        "output": 477,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1643
+      }
+    },
+    {
+      "case": "reserved-library-routing",
+      "condition": "original",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Release-review note\n\n**Finding.** The frozen audit supports an improvement from Harbor to Meadow on these messages, but no additional routing improvement from Meadow to Lantern.\n\n| Messages | Harbor | Meadow | Lantern |\n|---|---:|---:|---:|\n| P01–P05 | 5/5 | 5/5 | 5/5 |\n| P06–P10 | 0/5 | 5/5 | 5/5 |\n| P11–P12 | 0/2 | 0/2 | 0/2 |\n| **Total correct** | **5/12** | **10/12** | **10/12** |\n\nMeadow replaced Harbor following complaints about messages involving both overdue books and disputed fines. It corrected five Harbor failures in this batch. Lantern preserved those corrections; its later reorganization cannot be credited with originating them. Conversely, Lantern’s tie with Meadow does not erase Meadow’s improvement over Harbor.\n\n**Evidence quality and limits.** Shared settings, isolated contexts, interleaved conditions, calibrated destination aliases, and complete responses support the comparison. No infrastructure failures confound it. However, twelve messages constitute a small shared test set—not thirty-six independent cases. The dossier does not establish field accuracy, universal equivalence, or that the five corrected messages specifically represent the complaint category. Both newer bundles still fail P11–P12.\n\n**Recommendation.** Record Lantern as showing **no observed regression or incremental gain versus Meadow on this batch**, not as a newly demonstrated routing fix.\n\nAnother measurement is worth buying if release confidence or real-world benefit matters: freeze both bundles and test unseen, librarian-labelled messages sampled from patron traffic, explicitly including mixed overdue/fine disputes. This would estimate whether Lantern changes routing accuracy relative to Meadow beyond the existing batch. Retain Harbor if independently validating the historical improvement is also a priority.",
+      "contextSha256": "a9922c9e374ff6250280b1d89735f8b1ab8e6a5cda2157a6f9878d66e102ec19",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 1167,
+        "output": 388,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1555
+      }
+    }
+  ]
+}

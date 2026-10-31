@@ -1,0 +1,63 @@
+{
+  "experiment": "token-reporting",
+  "ready": true,
+  "counts": {
+    "baseline": {
+      "successes": 1,
+      "failures": 2,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "candidate": {
+      "successes": 3,
+      "failures": 0,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "without-reporting": {
+      "successes": 1,
+      "failures": 2,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "empty": {
+      "successes": 1,
+      "failures": 2,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    }
+  },
+  "matchedSuccessfulCases": [
+    "all-successful"
+  ],
+  "successfulTokenTotals": {
+    "baseline": {
+      "input": 936,
+      "output": 136,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 1072
+    },
+    "candidate": {
+      "input": 951,
+      "output": 113,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 1064
+    },
+    "without-reporting": {
+      "input": 917,
+      "output": 138,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 1055
+    },
+    "empty": {
+      "input": 103,
+      "output": 109,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 212
+    }
+  }
+}

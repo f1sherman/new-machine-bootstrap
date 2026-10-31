@@ -3,7 +3,7 @@
 ## Scope
 Update the shared `eval-design` skill with lessons from PR #721. Keep this change on a separate branch based on `main`; do not include that PR's instruction changes or evaluation harness.
 
-Add four components to the existing steps: historical counterfactuals, same-turn recovery setup, separate exposure and authority observations, and completion-conditioned token reporting. Keep every existing safeguard, the frontmatter, and the file structure. The skill grows by 17 lines. Existing grader-calibration and null-result rules already cover the other lessons; do not duplicate them.
+Add four components to the existing steps: historical counterfactuals, same-turn recovery setup, separate exposure and authority observations, and success-only token reporting. Keep every existing safeguard, the frontmatter, and the file structure. The initial pilot added 17 lines; the later token-reporting correction adds one more. Existing grader-calibration and null-result rules already cover the other lessons; do not duplicate them. The [public eval files](../../../evals/eval-design/README.md) contain runnable cases, captured answers, grading criteria, and current reports.
 
 ## Frozen comparison
 Two text-only development tasks ask for an evaluation plan and interpretation of a supplied pilot. The pilot contains an untested original instruction, a successful intermediate instruction, a preemptive repair, protected-edit attempts hidden by final snapshots, a null ablation, and cheaper incomplete work. The prompts ask for advice, not execution.
@@ -19,21 +19,23 @@ A fresh-context reviewer read all 14 responses with anonymous condition labels. 
 
 The frozen counterfactual criterion required the next experiment to include the intermediate instruction again. The reviewer noted that a focused original-versus-candidate comparison can answer the original claim after the existing intermediate comparison is reported separately. That is a valid smaller experiment. Preserve the strict ratings and report a sensitivity score that credits those three answers instead of treating an extra comparison arm as necessary for task correctness. No response is regenerated.
 
-| Condition | Frozen rubric / 16 | Task-aligned sensitivity / 16 | Reported tokens |
+| Condition | Frozen rubric / 16 | Task-aligned sensitivity / 16 | Successful answers / 2 |
 |---|---:|---:|---:|
-| Existing skill | 10 | 11 | 3,133 |
-| Four additions | 15 | 15 | 3,408 |
-| Without counterfactual addition | 13 | 14 | 3,307 |
-| Without recovery addition | 14 | 14 | 3,208 |
-| Without observations addition | 13 | 13 | 3,327 |
-| Without usage addition | 14 | 14 | 3,374 |
-| Empty | 10 | 11 | 1,832 |
+| Existing skill | 10 | 11 | 0 |
+| Four additions | 15 | 15 | 1 |
+| Without counterfactual addition | 13 | 14 | 1 |
+| Without recovery addition | 14 | 14 | 1 |
+| Without observations addition | 13 | 13 | 0 |
+| Without usage addition | 14 | 14 | 0 |
+| Empty | 10 | 11 | 0 |
+
+A successful answer must fully meet every criterion under the task-aligned ratings. A normally completed provider call is not sufficient.
 
 The candidate's plan explicitly separates observed rejection from completion, attempted protected edits from unchanged state, and token comparisons from skipped work. Its interpretation still leaves repair authorization partly implicit. Keep that limitation; do not label the candidate perfect.
 
 The counterfactual addition shows no incremental gain on its own counterfactual criterion under the task-aligned sensitivity. Differences elsewhere do not establish that paragraph's necessity. Removing each other component loses one point on its own criterion in this sample. These are two diagnostic tasks with one response each, not independent validation or a reliable effect estimate. Preserve the nulls and all existing safeguards.
 
-The candidate uses 275 more reported tokens than the baseline, an 8.8% increase. Input rises by 296; output falls by 21. Cache reads and writes are zero. Reviewer overhead is excluded. These are provider-reported token counts, not subscription charges or an efficiency gain.
+No case was successful under every compared condition, so no matched token comparison is available. The previous all-answer token comparison included failed answers and is withdrawn. Raw usage remains in private audit files; current public reports contain failure counts without their token figures.
 
 ## Follow-up on the historical-baseline paragraph
 
@@ -42,4 +44,4 @@ The [expanded follow-up](2026-10-31-counterfactual-guidance-follow-up.md) tests 
 ## Deployment and retained evidence
 Validate the unchanged YAML frontmatter and existing file structure. Deploy through `bin/provision --tags managed-skills`; the run completed with 16 OK, three changed, and zero failed tasks. Verify that the Pi, Claude, and Codex skill paths resolve to the exact source bytes. Do not edit deployed files directly.
 
-Retain the frozen manifest, both preparation records, all outputs, original blinded ratings, sensitivity analysis, and deployment checks under `tmp/eval-design-lessons/`. Its manifest SHA-256 is `553b45a1a8bc9357805266db2c7c63f1a83042389a1e37e7587a74a679356bdf`. Preserve these ignored artifacts before any worktree cleanup. Do not publish the raw runtime manifest with machine-local paths.
+The exact portable prompts, guidance conditions, captured answers, and both sets of scores are published under [evals/eval-design](../../../evals/eval-design/README.md). Failed answers have no published usage fields. Retain raw provider records and private runtime metadata under `tmp/eval-design-lessons/`. Its original manifest SHA-256 is `553b45a1a8bc9357805266db2c7c63f1a83042389a1e37e7587a74a679356bdf`. Preserve these ignored audit artifacts before worktree cleanup.

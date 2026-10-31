@@ -1,0 +1,66 @@
+{
+  "experiment": "writing-check",
+  "conditions": [
+    "existing",
+    "plain"
+  ],
+  "cases": [
+    "writing-results",
+    "writing-operations"
+  ],
+  "sourceManifestSha256": "1bf077bc30a8eb13e3eee5a2c99557379ea3f099dfe000c691add1d41dcb0431",
+  "responses": [
+    {
+      "case": "writing-results",
+      "condition": "existing",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "Brian, the four-component instruction scored **15/16**, compared with **11/16** for the existing instruction. This is a gain of four points across two diagnostic tasks.\n\n**What changed**\n- Input increased by 296 tokens.\n- Output decreased by 21 tokens.\n- Total token use increased by 275 tokens, or 8.8%.\n\nThe new instruction improved the measured score, but it used more tokens overall.\n\n**What the removals show**\n- Removing B, C, or D reduced its targeted criterion by one point. This supports keeping these components for the tested tasks.\n- Removing A did not reduce its targeted criterion under the corrected rubric. This test did not show a benefit from A. It does not prove that A has no value in other tasks.\n\n**What we should conclude**\n\nThe four-component instruction is promising, but the evidence is limited. Only one response was generated for each task and condition. The results do not show how consistent the gains are across repeated responses or other tasks.\n\nThese tests assessed advice only. They did not test actual repair execution. Do not treat the higher score as evidence of better repair outcomes.\n\nKeep B, C, and D for further testing. Test whether A adds value. Use more tasks and repeated responses before making a firm decision.",
+      "contextSha256": "b5db32c11f7fe390724e6215b3f3687bbab99c9a2b2dfb26fd4a5258bdeeb2fa",
+      "scores": [
+        1,
+        1,
+        2
+      ]
+    },
+    {
+      "case": "writing-results",
+      "condition": "plain",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "Brian, the four-component instruction improved the scores, but it also used more tokens. These results support more testing. They do not prove reliable performance or successful repairs.\n\n**What changed**\n- The four-component instruction scored 15/16 across two diagnostic tasks. The existing instruction scored 11/16. This is a gain of four points.\n- Input increased by 296 tokens. Output decreased by 21 tokens. Total use increased by 275 tokens, or 8.8%. Tokens are units used to measure model input and output.\n\n**What the removals tell us**\n- Removing B, C, or D lowered its targeted criterion by one point. This suggests that each component helped with the specific requirement it addressed.\n- Removing A did not lower its targeted criterion under the corrected scoring rubric. A rubric is a set of scoring rules. This test did not show a benefit from A. It does not prove that A has no value.\n\n**What we should conclude**\nThe full instruction gave a better score at a higher token cost in this small test. B, C, and D have initial support. A needs more testing.\n\nOnly one response was generated for each task and condition. The results therefore cannot show how consistent the gains are. The test assessed advice only. It did not test actual repair execution.\n\nKeep the result as preliminary evidence. Repeat the tests with more tasks and responses before deciding which components to retain.",
+      "contextSha256": "b49e0493f8f5ae55d87ebf0e06a0cd48336a1195a572e928522dbdd9661fcdc5",
+      "scores": [
+        1,
+        2,
+        2
+      ]
+    },
+    {
+      "case": "writing-operations",
+      "condition": "plain",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "Brian, the fix in PR 81 is merged, but we cannot confirm that it is deployed. The monitor is stopped with `native_branch identity_mismatch`. There have been zero repair attempts. Do not treat the system as recovered.\n\nThe old implementation used a server-wide repair claim. The fix changes exclusion to apply to a specific resource. Without a deployment receipt, we cannot confirm which behavior is running.\n\nA separate owner has `cleanup_uncertain`. There is no verified proof that its cleanup is complete. Treat that owner’s cleanup as unresolved.\n\n**Next safe actions:**\n1. Get a deployment receipt for PR 81. Confirm the running version includes the resource-scoped exclusion fix.\n2. Check the monitor’s expected identity against its native branch identity. Resolve the mismatch before restarting it.\n3. Obtain verified cleanup proof for the separate owner. Do not clear its state or assume its resources are safe to reuse.\n4. Before any repair, confirm that exclusion applies only to the intended resource and that ownership is valid.\n5. Restart monitoring or permit repair only after these checks pass. Then verify the result before reporting recovery.",
+      "contextSha256": "de16b67947939ea7fd41b8276bc62bfb49d9fee0858cc527ca30a61ad296eb33",
+      "scores": [
+        2,
+        1,
+        2
+      ]
+    },
+    {
+      "case": "writing-operations",
+      "condition": "existing",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "Brian, PR 81 is merged. It includes the resource-scoped exclusion fix. However, there is no deployment receipt. We cannot confirm that the fix is deployed.\n\nThe old implementation used a server-wide repair claim. Without deployment evidence, we cannot assume that repair exclusion is limited to one resource.\n\nThe monitor is stopped with `native_branch identity_mismatch`. Repair attempts are zero. No repair has been attempted.\n\nA separate owner has `cleanup_uncertain`. There is no verified cleanup proof. Do not treat that owner’s resources as released.\n\n**Practical consequence:** Repair is blocked. The merged fix does not prove deployment, safe cleanup, or recovery.\n\n**Next safe actions:**\n1. Obtain a deployment receipt that identifies the deployed version and confirms that it includes PR 81.\n2. Check and resolve the monitor’s identity mismatch before restarting it.\n3. Have the separate owner complete cleanup and provide verified cleanup proof.\n4. Before any repair retry, verify the active claim scope and confirm that no conflicting ownership remains.\n5. Restart the monitor and retry repair only after these checks pass. Verify the result before reporting recovery.",
+      "contextSha256": "41c05a5f1f6e0c413224a3f722a6ccd5ed95dba9a8ff5b0d71bd459bb6d6af59",
+      "scores": [
+        1,
+        1,
+        2
+      ]
+    }
+  ]
+}

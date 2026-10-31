@@ -83,8 +83,9 @@ repeated responses from independent cases. Treat reused selection cases as
 diagnostics, and reserve unseen cases for validation after tuning. Label
 synthetic stress coverage rather than claiming representative workload frequency.
 
-Report usage per condition alongside completion.
-Lower token usage from skipped work is not an efficiency gain.
+Compare token usage only on the same tasks successfully completed in each condition.
+Report failures separately, without token totals.
+Keep raw failure usage in audit artifacts, not performance reports.
 
 Match the conclusion to the tested scope. A small correlated sample does not
 prove significance, universal reliability, minimal guidance, or each clause's

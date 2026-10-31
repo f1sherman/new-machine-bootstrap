@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "id": "writing-check",
+  "scope": "Previously exposed, frozen text-only advice cases. Not reserved material for future tuning.",
+  "sourceManifestSha256": "1bf077bc30a8eb13e3eee5a2c99557379ea3f099dfe000c691add1d41dcb0431",
+  "systemPrefix": "You are a helpful technical assistant. Answer the user in at most 250 words.\n\n",
+  "model": {
+    "provider": "openai-codex",
+    "id": "gpt-6.1-sol",
+    "reasoning": "medium",
+    "maxTokens": 6000
+  },
+  "conditions": {
+    "existing": "User name: Brian. Writing style: use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology.",
+    "plain": "User name: Brian. Writing style: use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. Use plain English in user-facing replies. Explain the practical meaning before technical details. Define technical terms when needed."
+  },
+  "cases": [
+    {
+      "id": "writing-results",
+      "prompt": "Explain these results to Brian. A four-component instruction scored 15/16 on two diagnostic tasks. The existing instruction scored 11/16. Removing components B, C, or D reduced each targeted criterion by one point. Removing A did not reduce its targeted criterion under a corrected rubric. Input tokens rose by 296 and output tokens fell by 21, for 275 more total tokens, or 8.8%. One response per task and condition was generated. This was advice-only testing, not actual repair execution. Say what changed, what the removals tell us, and what we should conclude.",
+      "criteria": [
+        "Lead with what improved and its practical meaning in ordinary language, not unexplained scoring terminology.",
+        "Explain component removal in ordinary language and avoid or define ablation, rubric and criterion if used.",
+        "Preserve the null result for A, the 8.8% token increase, and the small advice-only scope without inventing execution evidence."
+      ]
+    },
+    {
+      "id": "writing-operations",
+      "prompt": "Explain the current situation to Brian. PR 81 is merged, but there is no deployment receipt for its resource-scoped exclusion fix. The old implementation had a server-wide repair claim. Our monitor is stopped with native_branch identity_mismatch. Repair attempts are zero. A separate owner has cleanup_uncertain and no verified cleanup proof. State the practical consequence and the next safe actions. Do not claim anything has been deployed or recovered.",
+      "criteria": [
+        "Lead with the practical consequence in ordinary language: merged code does not yet establish working deployment and our automatic monitoring is still stopped.",
+        "Define or translate technical error labels rather than using them as the explanation.",
+        "Keep deployment, our branch-identity recovery, and the separate owner cleanup distinct. Do not propose clearing holds or resetting budgets without proof."
+      ]
+    }
+  ],
+  "order": [
+    {
+      "case": "writing-results",
+      "condition": "existing"
+    },
+    {
+      "case": "writing-results",
+      "condition": "plain"
+    },
+    {
+      "case": "writing-operations",
+      "condition": "plain"
+    },
+    {
+      "case": "writing-operations",
+      "condition": "existing"
+    }
+  ],
+  "grading": "Score every criterion 0 for incorrect or missing, 1 for partial or ambiguous, 2 for fully correct. Success requires every criterion to score 2 and a complete generation. Preserve original historical ratings alongside corrected ratings."
+}

@@ -1,0 +1,20 @@
+{
+  "experiment": "writing-check",
+  "ready": true,
+  "counts": {
+    "existing": {
+      "successes": 0,
+      "failures": 2,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "plain": {
+      "successes": 0,
+      "failures": 2,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    }
+  },
+  "matchedSuccessfulCases": [],
+  "successfulTokenTotals": null
+}
