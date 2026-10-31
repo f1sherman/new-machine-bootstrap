@@ -1,0 +1,90 @@
+{
+  "experiment": "historical-development",
+  "ready": true,
+  "counts": {
+    "original": {
+      "successes": 2,
+      "failures": 2,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "removed": {
+      "successes": 2,
+      "failures": 2,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "short": {
+      "successes": 2,
+      "failures": 2,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "claim-first": {
+      "successes": 3,
+      "failures": 1,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "pre-730": {
+      "successes": 2,
+      "failures": 2,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "empty": {
+      "successes": 4,
+      "failures": 0,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    }
+  },
+  "matchedSuccessfulCases": [
+    "complete-record",
+    "new-capability"
+  ],
+  "successfulTokenTotals": {
+    "original": {
+      "input": 1956,
+      "output": 820,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 2776
+    },
+    "removed": {
+      "input": 1878,
+      "output": 843,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 2721
+    },
+    "short": {
+      "input": 1920,
+      "output": 790,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 2710
+    },
+    "claim-first": {
+      "input": 1954,
+      "output": 783,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 2737
+    },
+    "pre-730": {
+      "input": 1660,
+      "output": 697,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 2357
+    },
+    "empty": {
+      "input": 290,
+      "output": 756,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 1046
+    }
+  }
+}

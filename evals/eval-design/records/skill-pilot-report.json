@@ -1,0 +1,50 @@
+{
+  "experiment": "skill-pilot",
+  "ready": true,
+  "counts": {
+    "baseline": {
+      "successes": 0,
+      "failures": 2,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "candidate": {
+      "successes": 1,
+      "failures": 1,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "without-counterfactual": {
+      "successes": 1,
+      "failures": 1,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "without-recovery": {
+      "successes": 1,
+      "failures": 1,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "without-observations": {
+      "successes": 0,
+      "failures": 2,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "without-usage": {
+      "successes": 0,
+      "failures": 2,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    },
+    "empty": {
+      "successes": 0,
+      "failures": 2,
+      "incompleteGenerations": 0,
+      "ungraded": 0
+    }
+  },
+  "matchedSuccessfulCases": [],
+  "successfulTokenTotals": null
+}

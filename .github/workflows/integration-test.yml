@@ -81,6 +81,9 @@ jobs:
       - name: Verify workspace guidance eval boundary and grader
         run: node --test tests/workspace-guidance-eval.test.mjs
 
+      - name: Verify eval reports and failure diagnostics
+        run: node --test evals/eval-design/*.test.mjs
+
       - name: Verify commit wrapper ignored docs protection
         run: bash tests/commit-force-add-superpowers.sh
 

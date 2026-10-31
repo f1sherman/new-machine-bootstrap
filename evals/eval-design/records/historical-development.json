@@ -1,0 +1,437 @@
+{
+  "experiment": "historical-development",
+  "conditions": [
+    "original",
+    "removed",
+    "short",
+    "claim-first",
+    "pre-730",
+    "empty"
+  ],
+  "cases": [
+    "release-note",
+    "component-results",
+    "complete-record",
+    "new-capability"
+  ],
+  "sourceManifestSha256": "1bf077bc30a8eb13e3eee5a2c99557379ea3f099dfe000c691add1d41dcb0431",
+  "responses": [
+    {
+      "case": "release-note",
+      "condition": "original",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Release-readiness note**\n\n“In the eight evaluated cases, P3 and the deployed P1 baseline both completed 8/8. P3 used 8% fewer tokens for the same completed work. Removing P3’s repair sentence reduced completion to 2/8.”\n\nThese records support a **limited efficiency claim against P1**, not the claim that P3 fixes the March approval problem. P1 already fixed that incident in replay, and the workbook contains no P0 response. The ablation shows sensitivity to removing the repair sentence in this setup; it does not demonstrate improvement over P1 or P0.\n\nCompletion also does not establish that unnecessary approval requests were absent unless that behavior was separately graded. Eight cases are insufficient to claim general reliability or broad release readiness.\n\n**Smallest useful next step**\n\nRun a targeted, frozen replay of the March task under P0, P1, and P3, holding everything else constant. Grade unnecessary approval requests separately from completion and retain the responses and usage. If the incident involved recovery from a command failure, reproduce that failure during the authorized turn rather than merely describing it afterward.\n\nPublish the observed comparison—not “P3 fixes March”—and validate on an unseen case before generalizing.",
+      "contextSha256": "0e8df4e8b5770cbda3226dcc9ce769ebdd31b1da296f44fb7679daf7a2d5ecb5",
+      "scores": [
+        2,
+        2,
+        0
+      ]
+    },
+    {
+      "case": "release-note",
+      "condition": "removed",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Release-readiness note**\n\n> P3 matched the deployed P1 baseline on the eight workbook cases: both completed 8/8. P3 used 8% fewer tokens for the same completed work. This supports a limited claim of lower token usage with no observed completion regression on these cases—not general reliability or efficiency guarantees.\n\nDo **not** publish “P3 fixes the March approval problem.” The March incident occurred under P0; P1 already fixed it in replay and has been deployed since April. The workbook contains no P0 response, so it does not establish a new March-problem fix attributable to P3. Completion scores alone also do not establish whether unnecessary approval requests occurred.\n\nP3 without its repair sentence completed 2/8. That supports retaining the sentence in the tested configuration; it does not establish that P3 outperforms P1 or that the sentence is universally necessary.\n\n**Smallest useful next step**\n\nFreeze one unseen, March-like task and compare deployed P1 with P3 under identical settings. Score **completion and unnecessary approval requests separately**. If testing repair behavior, induce a real, safely repairable failure during the authorized turn without reminding the assistant to continue.\n\nTreat this as a targeted release check, not broad validation. The existing records support a narrower token-saving release note, not the proposed causal claim.",
+      "contextSha256": "9e6d80d20620a4df5b182fcda39331bcd1f1b6ae46f63bcaeec81b0c243f1179",
+      "scores": [
+        2,
+        2,
+        0
+      ]
+    },
+    {
+      "case": "release-note",
+      "condition": "short",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Release-readiness note**\n\n“In the workbook’s eight cases, P3 and the deployed P1 baseline each completed 8/8. P3 used 8% fewer tokens for the same completed work. Removing P3’s repair sentence reduced completion to 2/8 in this test set.”\n\nDo **not** publish “P3 fixes the March approval problem.” P1 already fixed that incident in a replay and has been deployed since April. The workbook contains no P0 response, so it does not establish a P3-versus-P0 historical fix. Nor does completion alone establish that unnecessary approval requests were eliminated.\n\nThese results support **matching observed completion with lower token usage versus P1**, not broad reliability or release-readiness claims. The ablation supports retaining the repair sentence in the tested configuration, not its universal necessity.\n\n**Smallest useful next step**\n\nRun a frozen replay of the March task under P0, P1, and P3, holding everything except the instruction constant. Authorize the intended outcome without prompting continuation; if recovery is involved, trigger the real, safely repairable failure within that turn. Record actual failure exposure, completion, unnecessary approval requests, and token usage separately.\n\nUse that replay as a historical diagnostic—not independent validation. If broader release assurance is needed, validate P3 versus P1 on unseen cases.",
+      "contextSha256": "b152f14045b93b1bdbe03cb3a321cc192b4351ad7f06b9bd1433e38fbeeafa63",
+      "scores": [
+        2,
+        2,
+        0
+      ]
+    },
+    {
+      "case": "release-note",
+      "condition": "claim-first",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Release-readiness note**\n\n“In the recorded evaluation, P3 and the deployed P1 instruction both completed 8/8 cases. P3 used 8% fewer tokens for the same completed work. This supports P3 as a token-saving replacement on the tested cases, with no observed completion loss—not a general reliability claim.\n\nRemoving P3’s repair sentence reduced completion to 2/8, supporting its value within this tested configuration.\n\nThe March approval incident was fixed by P1 in a replay. These records do not establish that P3 fixes that incident: the workbook contains no P0 response, and its ‘baseline’ is P1.”\n\nDo not publish **“P3 fixes the March approval problem.”** Publish the historical P1 fix separately from P3’s measured results. Completion totals also do not establish that P3 avoided unnecessary approval requests unless that behavior was explicitly recorded.\n\n**Smallest useful next step**\n\nRun a frozen, targeted comparison of P0, P1, and P3 on the March task, reproducing the safely repairable failure during the authorized turn without reminders to continue. Capture tool-confirmed failure exposure, completion, unnecessary approval requests, and token usage separately. This directly tests the missing historical-fix claim; the replay remains diagnostic, not unseen validation.",
+      "contextSha256": "ff4790660deee464e793cd686b3570d6d1335ab5998c31b26a2c6a2ad4e98b30",
+      "scores": [
+        2,
+        2,
+        0
+      ]
+    },
+    {
+      "case": "release-note",
+      "condition": "pre-730",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Publishable release-readiness note**\n\n“On the eight evaluated cases, P3 matched the deployed P1 baseline: both completed 8/8. P3 used 8% fewer tokens for the same completed work in this evaluation. Removing P3’s repair sentence reduced completion to 2/8, supporting retaining that sentence in the tested configuration.”\n\nDo **not** publish “P3 fixes the March approval problem.” The documented fix was P1’s successful incident replay; P1 has been deployed since April. The workbook contains no P0 responses, so it does not establish a P3-versus-P0 improvement or attribute the March fix to P3.\n\nThese results support **sample-level completion parity and token savings**, not general reliability or regression-free release readiness. The repair-sentence ablation also does not establish that every P3 clause is necessary.\n\n**Smallest useful next step**\n\nRun the frozen March incident replay under P1 and P3 with identical settings. Score unnecessary approval requests separately from task completion, and retain responses and token usage. Treat this reused incident as a diagnostic regression check—not independent validation.\n\nIf P3 passes, publish: “P3 also passes the March incident regression replay,” rather than claiming it introduced the fix.",
+      "contextSha256": "932fa16e15b245e932ce7ed88ae65a6c66691163abe08728ea443a472dc97e3c",
+      "scores": [
+        2,
+        2,
+        0
+      ]
+    },
+    {
+      "case": "release-note",
+      "condition": "empty",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Release-readiness note**\n\n“Against the deployed P1 baseline, P3 completed all 8 workbook cases, matching P1’s 8/8, while using 8% fewer tokens for the same completed work. Removing P3’s repair sentence reduced completion to 2/8, supporting retaining that sentence. These results support a limited claim of preserved completion with lower token use on the tested cases—not broader equivalence.”\n\nDo **not** publish “P3 fixes the March approval problem.” The records attribute that fix to P1’s replay, and P1 has been deployed since April. The workbook contains no P0 response, so it does not establish a P0-to-P3 improvement or show whether P3 handles the March case.\n\n**Smallest useful next step:** Replace the proposed release note with the qualified comparison above. If mentioning March is essential, first confirm whether the exact March case was tested under P3; if not, replay it and report P3 as *preserving* the fix already demonstrated by P1, if supported.",
+      "contextSha256": "35a0f7a6877daa6aa3ae0bd5b8d80e1277dbaf65d327922ad92d02e12465992f",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 168,
+        "output": 330,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 498
+      }
+    },
+    {
+      "case": "component-results",
+      "condition": "removed",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Decision:** Do not announce that oak “solved the old production issue” on these records.\n\n**What the results establish**\n- On the six tested requests, maple and oak each produced supported arguments in **6/6** cases.\n- Removing oak’s evidence sentence reduced that result to **1/6**; no instruction achieved **0/6**.\n- Assuming all other conditions and grading were identical, this supports the evidence sentence’s value **within oak on this test set**.\n- Oak is shorter and matched maple’s observed success count. This does not establish broader equivalence or reliability.\n\n**What they do not establish**\nCedar was not run. Historical user reports establish a reported production problem, not cedar’s performance on these six requests. The sentence-removal condition is not a substitute for cedar: it tests a component of oak, not whether oak fixes cedar’s failures.\n\n**Further run**\nFor the historical-fix announcement, run cedar and oak under matched conditions on reproducible examples of the reported production failures. Include maple as the current-production baseline. Validate on additional, previously unseen relevant requests, especially if these six informed instruction selection.\n\nFreeze prompts, settings, and grading before running; verify the grader against supported and invented arguments. Report per-case outcomes and infrastructure failures separately. Even favorable results should support a bounded claim, not universal resolution.\n\n**Announcement available now, without another run:**\n“On six local requests, the shorter oak instruction matched maple at 6/6 supported-argument responses. Removing oak’s evidence sentence yielded 1/6; no instruction yielded 0/6. Historical cedar failures have not yet been retested.”",
+      "contextSha256": "fc46e8e4f158a067093732e8b68ad34479ed37159c49fb09819b826a3ef65298",
+      "scores": [
+        2,
+        2,
+        0
+      ]
+    },
+    {
+      "case": "component-results",
+      "condition": "short",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Decision\n\n**Do not announce that the removed-sentence result proves oak solved the old production issue.**\n\n### What the records establish\n\nOn the six tested requests:\n- Maple and oak each produced supported arguments in **6/6**.\n- Oak without its evidence sentence did so in **1/6**.\n- No instruction did so in **0/6**.\n\nThis supports retaining the evidence sentence in oak for this test set. Oak also matched maple’s observed performance while using a shorter instruction. It does **not** establish general equivalence, universal reliability, or runtime efficiency.\n\nThe ablation compares oak with a weakened oak—not with cedar, the instruction associated with the historical reports. Therefore, it cannot establish that oak fixes cedar’s failure.\n\n### Further run needed\n\n**Yes, before making the historical-fix announcement.** Retrieve the exact cedar instruction and compare it directly with oak under identical tasks, settings, common instructions, and grading. Include the empty-instruction control; maple is useful as the current-production reference.\n\nUse recoverable historical failure cases where possible, plus unseen validation requests. Keep tasks neutral: do not remind the model to avoid inventing arguments. Freeze the setup and verify that the grader distinguishes supported from invented arguments. Report per-case outcomes and infrastructure failures separately.\n\nIf cedar does not reproduce the problem, the historical-fix claim remains unestablished.\n\n### Safe wording now\n\n“On six local requests, oak matched maple’s supported-argument results. Removing oak’s evidence sentence substantially reduced performance on those requests. We have not yet tested oak against the historical cedar baseline.”",
+      "contextSha256": "65f9182ad47b8296863713a1662b9f7ad3ebec40e3a0dc0772bc896be9b01bc3",
+      "scores": [
+        2,
+        2,
+        0
+      ]
+    },
+    {
+      "case": "component-results",
+      "condition": "claim-first",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Decision: Do not announce that oak solved the old production issue on this evidence.**\n\n**What the records establish**\n- On these six requests, maple and oak each produced supported arguments in 6/6 responses; oak without its evidence sentence did so in 1/6, and no instruction in 0/6.\n- Assuming other settings and grading were identical, the ablation supports the evidence sentence’s contribution **within oak on this test set**.\n- Oak matched maple’s observed correctness while using a shorter instruction. This does not establish universal reliability or lower total token usage.\n- The ablation does **not** establish improvement over the historical production instruction, cedar. It tests a different comparison. Maple’s earlier local checks also do not supply the missing cedar comparison.\n\n**Further run needed for the proposed announcement**\nRetrieve the actual cedar instruction from Git and compare cedar with oak under identical conditions. Include historical failure reproductions where available and previously unseen cases for validation. Report maple separately as the intervening production revision.\n\nFreeze task-only prompts, grading, and settings before running; keep policy reminders out of the tasks. Verify that the grader distinguishes supported from invented arguments, and report per-case outcomes and infrastructure failures separately. Treat this week’s reused six cases as diagnostics, not fresh validation.\n\n**Announcement supportable now**\n“On six local test requests, oak matched maple’s supported-argument results. Removing oak’s evidence sentence substantially reduced success on those requests. We have not yet tested oak against cedar, the instruction associated with the historical reports.”\n\nA cedar comparison is necessary for the historical-improvement claim, though its conclusions must still be bounded by the tested cases.",
+      "contextSha256": "7422035dc12e27f2a03948c9c4a2795483d062cab2664a602410a4ec07f1ecec",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 1005,
+        "output": 338,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1343
+      }
+    },
+    {
+      "case": "component-results",
+      "condition": "pre-730",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Decision\n\n**Do not announce that oak solved the old production issue based on these results.**\n\n### What the records establish\n- On these six requests, maple and oak each produced supported arguments in **6/6** cases, versus **0/6** without an instruction.\n- Removing oak’s evidence sentence reduced success to **1/6**. This supports that sentence’s contribution **within oak on these requests**, assuming all other conditions and grading were identical.\n- Oak is shorter and matched maple’s observed success here. This does not establish general equivalence or reliability.\n- The ablation does **not** establish improvement over cedar: cedar was not tested. Historical user reports and current local results are not a controlled comparison.\n\n### Further run needed\n**Yes, for the proposed historical-fix announcement.** Retrieve the deployed cedar version from Git and compare cedar, maple, and oak under identical settings and grading. Include:\n- Reproductions of the reported production failures, with the necessary input data.\n- Unseen cases reserved for validation, especially if these six requests informed instruction selection.\n\nFreeze the cases and grader before generation; verify the grader accepts supported equivalent arguments and rejects invented ones. Report argument correctness separately from formatting and infrastructure failures. Retain captured outputs.\n\nA cedar run on the existing six requests would fill the immediate missing comparison, but alone would not demonstrate that oak fixed the reported production issue.\n\n**Safe announcement now:** “Oak matched maple on six local requests; removing its evidence sentence substantially reduced success in that test.”",
+      "contextSha256": "86782699d3ccf4b439891dda8f33b35cabb81b706ce05c02bf8dfec765636f23",
+      "scores": [
+        2,
+        2,
+        0
+      ]
+    },
+    {
+      "case": "component-results",
+      "condition": "empty",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Decision\n\n**Do not announce that the removed-sentence result proves oak solved the old production issue.**\n\n### What the records establish\n- Cedar had historical reports of invented arguments, but was **not evaluated this week**.\n- On the same six requests, maple and oak each produced supported arguments in **6/6** cases. Oak therefore matched maple’s observed performance on this small test—not necessarily in general.\n- Removing oak’s evidence sentence reduced success to **1/6**; no instruction achieved **0/6**. This strongly supports retaining that sentence for these requests. It does not establish that the sentence fixes cedar’s historical failure mode.\n- Maple had already replaced cedar and passed local checks. These results do not show an additional correctness improvement from maple to oak.\n\n### Further run needed\nFor the proposed historical-fix claim, **yes**: retrieve the actual cedar instruction from Git and run it against oak under matched conditions—same requests, model, settings, and scoring. Include the original reported failures, if available.\n\nIf cedar fails where oak succeeds, that supports a targeted claim about those cases. A broader claim that oak “solved the production issue” requires representative evaluation beyond six requests; even a matched cedar run would not prove universal resolution.\n\n### Defensible announcement now\n“On six shared test requests, the shorter oak instruction matched maple at 6/6 supported outputs. Removing oak’s evidence sentence reduced that to 1/6, supporting its retention. We have not yet compared oak directly with cedar.”",
+      "contextSha256": "f4c8891c3912c6c187498084d6247e6d4d88a6bd16357882b8f82e150e78403d",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 173,
+        "output": 352,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 525
+      }
+    },
+    {
+      "case": "component-results",
+      "condition": "original",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "## Decision\n\n**Do not announce that oak solved the old production issue based on these records.**\n\n### What the results establish\n- On the six tested requests, **maple and oak both returned supported arguments in 6/6**. Oak is shorter and matched maple’s observed correctness on this set; no correctness improvement over maple was demonstrated.\n- Removing oak’s evidence sentence reduced supported outcomes to **1/6**, versus **0/6** with no instruction. This supports retaining that sentence within oak on these requests—not the claim that oak fixed cedar’s historical failure.\n- Cedar was not tested. Historical user reports establish a reported problem, but not a controlled comparison with oak. Maple may already have fixed it.\n\n### Further run needed\nFor an announcement connecting oak to the old issue, **run cedar alongside maple and oak** on historical reproductions of invented arguments, if available, plus unseen validation requests. Keep tasks, settings, grading, and common instructions identical; ensure task prompts do not repeat the evidence requirement. Validate that the grader distinguishes supported, invented, and missing arguments, and report completion separately.\n\nPreserve the existing results; treat any reused or tuning cases as diagnostics rather than independent validation. Report per-case outcomes and infrastructure failures separately.\n\n### Safe announcement now\n“On six local requests, shorter oak matched maple’s supported-argument results, 6/6. Removing oak’s evidence sentence reduced that result to 1/6. These checks do not establish an improvement over maple or a fix relative to cedar.”",
+      "contextSha256": "284d3c7f73d829d97d2d5d5e646fe473cc2d5507075bed8b43d5caad1b9302fa",
+      "scores": [
+        2,
+        2,
+        0
+      ]
+    },
+    {
+      "case": "complete-record",
+      "condition": "short",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "### Findings\n\nOn twelve frozen support tickets, fresh matched runs using the same model and settings resolved **3/12 with R0, 12/12 with deployed R1, and 12/12 with shorter R2**. R2 used **9% fewer tokens than R1**, with no reduction in observed completion. Removing one R2 clause yielded **4/12 resolutions**. All outputs and tool records were retained; no infrastructure failures occurred.\n\nThese results establish the observed differences on these twelve tickets only. They do not establish future reliability, statistical significance, or that every R2 clause is necessary.\n\n### Before describing the results\n\nConfirm or document:\n\n- **Measurement validity:** Resolution criteria were fixed before generation and applied identically. Check them against known correct, incorrect, and equivalent outputs using actual tool/program results.\n- **Controlled conditions:** Record exact instruction versions, common instructions, task prompts, and settings. Identify whether these tested complete configurations or standalone excerpts.\n- **Ablation scope:** Specify the removed clause and any overlapping guidance that remained. Report “the ablated version resolved 4/12,” rather than declaring the clause universally indispensable.\n- **Reporting:** Include per-ticket outcomes and failure types, plus token totals and the accounting basis for the 9% reduction. Separate resolution from policy or format compliance.\n\n**No additional ticket runs are inherently required for this narrow descriptive statement**, provided those checks hold. An empty-policy control would be needed to isolate performance relative to no policy, but is not necessary simply to report these observed R0/R1/R2 differences.",
+      "contextSha256": "c82441f84a31fd71350b9b046cbc3788309959e372ed3fa46c3f5aa0e20a358c",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 973,
+        "output": 415,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1388
+      }
+    },
+    {
+      "case": "complete-record",
+      "condition": "claim-first",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings note**\n\nOn twelve frozen support tickets, fresh matched runs using the same model and settings resolved 3/12 tickets with the original instruction R0, 12/12 with the deployed replacement R1, and 12/12 with the shorter R2. R2 used 9% fewer tokens than R1 while achieving the same observed completion count. Removing one clause from R2 reduced completion to 4/12 in a separate ablation. Outputs and tool records were retained; no infrastructure failures occurred.\n\nThese results document improvement over R0 on these twelve tickets. R2 matched R1’s completion count with lower token usage in this evaluation. The ablation supports retaining the clause in the tested R2 configuration; it does not establish that every clause is necessary or that R2 is minimal. No conclusion about future-ticket reliability is intended.\n\n**Before describing the results**\n\nNo additional tickets or reruns are inherently required for that bounded statement. Confirm or disclose:\n\n- **Measurement:** Validate the grader against known correct, incorrect, and equivalent outputs; verify completion using actual tool results.\n- **Comparability:** Confirm identical tasks, common instructions, tools, and grading—not just model settings—and document instruction versions.\n- **Task neutrality:** Check for reminders or ambient instructions supplying the tested guidance.\n- **Reporting:** Provide per-ticket outcomes and failure types, plus token totals and the accounting basis for the 9% reduction.\n- **Selection:** Disclose whether these tickets previously guided instruction tuning.\n\nAn empty-policy control would address instruction-versus-no-instruction effects, but is not necessary to report this R0/R1/R2 comparison.",
+      "contextSha256": "ae8a3d8357b8debe1b3580d9ab4293353807c1ca253f30b5577f950724030e25",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 990,
+        "output": 408,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1398
+      }
+    },
+    {
+      "case": "complete-record",
+      "condition": "pre-730",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings note**\n\nOn twelve frozen support tickets, fresh matched runs using the same model and settings resolved 3/12 tickets under R0, 12/12 under the deployed replacement R1, and 12/12 under the shorter R2. R2 used 9% fewer tokens than R1. Removing one clause from R2 reduced resolution to 4/12. All outputs and tool records were retained; no infrastructure failures occurred.\n\nOn these twelve tickets, R1 and R2 achieved the same observed resolution count, outperforming R0. R2 also reduced measured token use relative to R1. The clause-removal result supports retaining that clause in the tested configuration. These observations do not establish future reliability, general equivalence between R1 and R2, or a universally minimal instruction.\n\n**Before publishing**\n\n- Verify the resolution criteria and grader against retained outputs, including known correct, incorrect, and equivalent outcomes. Separate actual resolution from formatting or policy compliance.\n- Confirm that only the intended instructions differed across conditions, and document precisely what the ablation removed and what related guidance remained.\n- Specify the token accounting: what tokens were counted and how the 9% reduction was calculated.\n- Report per-ticket outcomes and failure types; disclose whether these tickets informed instruction selection. If so, label them diagnostic rather than unseen validation.\n\n**Is more evidence missing?** No additional tickets or reruns are inherently required for this narrowly descriptive statement, provided those measurement and comparison checks hold. An empty-policy control would address a different question; it is not necessary to report these observed comparisons.",
+      "contextSha256": "776dcb25096d0436267c40df354996c8278e2efe2da14e8c638a4420fa7b7588",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 843,
+        "output": 389,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1232
+      }
+    },
+    {
+      "case": "complete-record",
+      "condition": "empty",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings.** In fresh, matched runs on twelve frozen support tickets using the same model and settings, R0 resolved 3/12 tickets, while deployed replacement R1 and shorter variant R2 each resolved 12/12. R2 used 9% fewer tokens than R1. An ablated R2 variant with one clause removed resolved 4/12. All outputs and tool records were retained, and no infrastructure failures occurred.\n\nOn this fixed set, R1 and R2 each resolved nine more tickets than R0. R2 matched R1’s observed resolution count at lower token usage. The ablation result supports the removed clause’s contribution in these runs; it does not establish that the clause is universally necessary.\n\n**What still needs doing.** No additional experimental evidence is required for this narrowly descriptive statement about these twelve tickets. Before publication, confirm that:\n- “Resolved” uses a consistent criterion, supported by the retained records.\n- The 9% token reduction has a clearly specified accounting basis.\n- Instruction versions and the removed clause are identifiable.\n\nIf those checks are already complete, the findings are ready to describe. Additional tickets, repetitions, or statistical significance testing are not prerequisites for reporting these observed results. They would address broader questions—such as repeatability or future-ticket reliability—which this statement does not claim.",
+      "contextSha256": "e46b3dd5b00135af876c592e91621de4dcd24d0921f0ae5c8198218cc27f7fad",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 158,
+        "output": 331,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 489
+      }
+    },
+    {
+      "case": "complete-record",
+      "condition": "original",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "### Findings note\n\nOn twelve frozen support tickets, fresh matched runs using the same model and settings resolved **3/12 under R0, 12/12 under deployed R1, and 12/12 under shorter R2**. R2 used **9% fewer tokens than R1**, with the same observed resolution count. Removing one R2 clause reduced resolution to **4/12**. All outputs and tool records were retained; no infrastructure failures occurred.\n\nOn these twelve tickets, R1 and R2 both outperformed R0 on observed resolution. R2 matched R1’s resolution count with lower token usage. The ablation shows worse performance for that shortened variant; it does not establish improvement over either baseline or prove the removed clause is universally necessary. These findings make no claim about future-ticket reliability.\n\n### What still needs doing?\n\n**No additional tickets or repeat runs are inherently required for that bounded statement.** Before publishing, confirm or document:\n\n- **Measurement validity:** Verify resolution against actual tool results using a grader checked on known correct, incorrect, and equivalent outcomes.\n- **Experimental isolation:** Confirm identical tasks and grading, no ambient instructions supplying omitted guidance, and whether each revision was tested standalone or within the deployed configuration.\n- **Outcome detail:** Report per-ticket outcomes and failure types; keep resolution separate from policy compliance and formatting.\n- **Usage accounting:** State whether 9% means total or mean tokens and which token categories it includes.\n- **Scope and provenance:** Record exact revisions, the removed clause, and whether these tickets informed revision selection.\n\nAn empty-policy control would support policy-attribution claims, but is unnecessary for the stated revision-to-revision observations.",
+      "contextSha256": "9719863dee46e748f940d9fa01332901123f393e7d15ef7d170ab51821ed353f",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 991,
+        "output": 417,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1408
+      }
+    },
+    {
+      "case": "complete-record",
+      "condition": "removed",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings note**\n\nOn twelve frozen support tickets, fresh matched runs using the same model and settings recorded resolution on 3/12 tickets with R0, 12/12 with the deployed replacement R1, and 12/12 with the shorter R2. R2 used 9% fewer tokens than R1 while achieving the same observed completion count. Removing one clause from R2 reduced recorded resolution to 4/12. Outputs and tool records are retained; no infrastructure failures occurred.\n\nThese results describe these twelve tickets and runs. They do not establish future reliability, statistical equivalence between R1 and R2, or the removed clause’s universal necessity.\n\n**Before publishing**\n\nConfirm or document:\n- **Scoring validity:** Resolution criteria were fixed and applied consistently, using actual tool outcomes. Functional resolution is distinguished from policy or formatting compliance. Validate any automated grader with known correct, incorrect, and equivalent cases; if corrections are needed, rescore the retained outputs rather than rerunning.\n- **Comparison integrity:** The ablation changed only the named clause; record any overlapping guidance that remained. Preserve exact instruction versions, task inputs, and settings.\n- **Usage accounting:** Specify what the 9% measures—such as total input-plus-output tokens across all twelve tickets—and apply identical accounting.\n- **Selection history:** Disclose whether these tickets informed instruction development. If so, label them diagnostic rather than held-out validation.\n\n**No additional tickets or runs are inherently required for this bounded descriptive statement.** An empty-policy control would address a different question: performance without the tested guidance. The remaining need is verified measurement and transparent documentation, not a larger sample.",
+      "contextSha256": "b0f702e62779cb7272ff5dcd6a26e338981fdea42d990d262a09d6bc7db1aac3",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 952,
+        "output": 447,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1399
+      }
+    },
+    {
+      "case": "new-capability",
+      "condition": "claim-first",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Recommendation: publish the narrow claim, provided the grading and controls check out.** A historical failure instruction is unnecessary: this is a new capability, and no guidance is the appropriate baseline.\n\n**Suggested findings note**\n\n> On ten frozen requests using identical models, data, and settings, the new guidance produced valid YAML exports on 10/10 requests, compared with 3/10 without guidance. Removing the schema paragraph yielded 5/10. These results support that the guidance helped on these ten requests. They do not establish reliability on other requests or that every guidance clause is necessary. All responses and usage records were retained.\n\n**Before publishing**\n- Verify that “valid export” measures correct exported content and schema compliance—not merely parseable YAML. Report failure types and per-request outcomes.\n- Test the grader with known-correct, incorrect, and semantically equivalent exports. If corrections are needed, regrade the captured responses across all conditions; do not regenerate them.\n- Confirm requests were task-only, supplied the information needed to solve them, and contained no guidance reminders. Check that ambient instructions did not contaminate the no-guidance control.\n- Clarify exactly what the schema ablation removed and whether equivalent instructions remained elsewhere.\n- Report usage by condition and separate infrastructure failures from model failures.\n\n**Additional experiments:** None are inherently required for this bounded descriptive statement. Use unseen requests for broader validation, especially if these ten informed guidance selection. Repeated runs could assess variability but would not substitute for independent cases.",
+      "contextSha256": "c8f07623304405964751f2e0ac2251005bb76c4bbef26f0aec2019e07dcf6a0a",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 964,
+        "output": 375,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1339
+      }
+    },
+    {
+      "case": "new-capability",
+      "condition": "pre-730",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Finding:** On ten frozen requests using identical models, data, and settings, the new guidance produced valid YAML exports on 10/10 requests, versus 3/10 with no guidance. Removing the schema paragraph yielded 5/10. All responses and usage were retained.\n\n**Recommendation:** Publish the narrow statement that “the guidance helped on these ten requests,” provided the validity checks below pass. No historical failure instruction is required: the no-guidance condition supplies the relevant baseline for this new capability.\n\n**Before publication:**\n- Verify that the grader accepts known-correct and equivalent YAML exports and rejects incorrect ones. Distinguish YAML syntax, schema compliance, and content correctness.\n- Confirm that requests supplied the necessary input data without repeating the tested guidance, and that the control contained no ambient equivalent instructions.\n- Report paired, per-request outcomes and separate infrastructure failures from model failures.\n- Document exactly what the schema ablation removed and whether equivalent requirements remained elsewhere.\n\nThe ablation is evidence consistent with the schema paragraph contributing, not proof of its independent necessity.\n\n**For broader claims:** Validate on unseen requests after tuning, and use repeated generations if estimating reliability. Ten requests do not establish statistical significance, general workload performance, or minimal guidance. If these requests helped select the guidance, label them diagnostic rather than independent validation. No additional generation is necessary solely to publish the bounded descriptive finding.",
+      "contextSha256": "a77913696e254c6f9422ed779dfe9e3d95afee9e4b9ac126ebafaebe4f63d40b",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 817,
+        "output": 308,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1125
+      }
+    },
+    {
+      "case": "new-capability",
+      "condition": "empty",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings note.** On ten frozen requests, with identical models, data, and settings, the new guidance produced valid YAML exports on 10/10 requests, compared with 3/10 without guidance. Removing the schema paragraph yielded 5/10 valid exports. These results support the narrow statement that **the guidance helped on these ten requests**. The ablation also suggests that the schema paragraph contributed to the observed improvement; it does not establish that this paragraph alone is sufficient.\n\n**Recommendation:** Publish the narrow statement, with the counts and evaluation conditions alongside it. Because this is a newly supported capability, no guidance is a reasonable baseline; there is no need to invent a historical failure instruction.\n\n**Before publication:**\n- Verify validity against an explicit schema and task requirements, preferably using automated checks and review blinded to condition.\n- Confirm that all ten requests and all generated responses were included, with no selective retries or exclusions.\n- Document the guidance, ablation, generation settings, and scoring procedure. Report usage and any material cost differences.\n\n**For broader claims:** Test additional, independently selected requests, including difficult and edge cases, and repeat stochastic runs where relevant. Compare against other plausible guidance if claiming superiority over alternatives.\n\nThose extensions are not prerequisites for reporting this bounded result, but they are necessary before claiming reliable generalization or broad superiority. Retained responses and usage make the current result auditable; retention alone does not validate the scoring.",
+      "contextSha256": "9a4c03e0fceea3b5ff4b6f5cd8e7e38764fa023affb42c9cebb26233462b9eb3",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 132,
+        "output": 425,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 557
+      }
+    },
+    {
+      "case": "new-capability",
+      "condition": "original",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings note**\n\nOn ten frozen requests, guidance produced valid YAML exports in 10/10 cases, compared with 3/10 without guidance and 5/10 with the schema paragraph removed. Models, data, and settings were identical, and responses and usage were retained. These results support the limited statement that **the guidance helped on these ten requests**.\n\nThere is no historical failure instruction to identify: this is a new capability. The schema-removal result supports a contribution from that paragraph on this set, not a claim that it is universally necessary.\n\n**Publication recommendation:** Publish that bounded statement after checking:\n\n- **Measurement:** Verify the grader against known correct, incorrect, and semantically equivalent exports. Distinguish YAML syntax, schema compliance, and substantive export correctness.\n- **Fair comparison:** Confirm the no-guidance condition lacked ambient guidance, tasks did not repeat the tested policy, and every condition received the input information needed to solve the task.\n- **Evidence:** Report per-request outcomes, failure types, infrastructure failures, and usage by condition—not just totals. Confirm grading criteria and candidates were fixed before generation.\n- **Scope:** State whether these requests informed guidance development and whether the test covered standalone guidance or the deployed configuration.\n\nIf the grader needs correction, replay the retained responses across all conditions rather than generating replacements.\n\nUnseen validation requests and repeated runs would strengthen broader reliability claims, but are **not prerequisites for this narrowly scoped finding**. No historical-baseline reconstruction or significance claim is necessary.",
+      "contextSha256": "4da08a723fd54c147797dc6f722e340473b6e91f663d407bac9ceae7017c054f",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 965,
+        "output": 403,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1368
+      }
+    },
+    {
+      "case": "new-capability",
+      "condition": "removed",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings.** On ten frozen requests using identical models, data, and settings, the new guidance produced valid YAML exports on 10/10 requests, versus 3/10 without guidance. Removing the schema paragraph yielded 5/10. These results support the limited statement that **the guidance helped on these ten requests**. No historical failure instruction is needed: this is a new-capability comparison, not a recovery claim.\n\n**Publish that statement after confirming:**\n- The validity grader accepts known-correct and semantically equivalent exports and rejects incorrect ones. Report YAML syntax, schema compliance, and content correctness separately.\n- Task prompts and shared instructions did not inadvertently supply the tested guidance, and requests included the input data or schema needed to succeed.\n- The ablation changed only the schema paragraph; document any schema instructions remaining elsewhere.\n- Infrastructure failures are separated from invalid exports.\n\nInclude per-request outcomes and usage by condition, alongside completion rates. Retaining responses and usage enables this audit; retention alone does not validate the measurement.\n\nThe ablation suggests the schema paragraph contributed under this configuration, but does not establish its standalone value or necessity. Do not claim statistical significance, general reliability, or efficiency without corresponding evidence.\n\n**Further generation is not necessary for this narrowly bounded descriptive claim.** Unseen requests and repeated runs would be needed to support broader generalization or estimate variability. If any grader defect emerges, fix it and rescore the retained responses across all conditions rather than regenerating them.",
+      "contextSha256": "ee4049956fb19c2a364ca178457ee25d9913080beac53168a9761c72d9d952be",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 926,
+        "output": 396,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1322
+      }
+    },
+    {
+      "case": "new-capability",
+      "condition": "short",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings.** On ten frozen requests, the new guidance produced valid YAML exports in 10/10 cases, compared with 3/10 without guidance and 5/10 when the schema paragraph was removed. Models, data, and settings were identical across conditions; all responses and usage were retained. These results support the narrow statement that **the guidance helped on these ten requests**. They do not establish general reliability or isolate the schema paragraph’s independent contribution.\n\n**Recommendation.** Publish that bounded finding once the measurement checks below are complete. Because this is a new capability—not a claimed repair of historical behavior—no historical failure instruction is required.\n\n**Necessary checks and reporting:**\n- Verify the grader against known valid, invalid, and semantically equivalent exports. Distinguish YAML parsing, schema validity, and correct exported content.\n- Confirm that task prompts and common instructions did not repeat the tested guidance, and document what schema information remained in the ablation.\n- Confirm grading criteria were fixed before generation. Report per-request outcomes, infrastructure failures separately, and usage alongside successful completion. Do not treat skipped work as efficiency.\n- Describe whether this tested standalone guidance or the deployed configuration. If grading needs correction, replay the retained responses across every condition rather than regenerating them.\n\nAdditional runs are **not required solely to report this descriptive result**. Reserve unseen requests for validation after tuning; use broader coverage and repetitions before making reliability, statistical-significance, or schema-necessity claims.",
+      "contextSha256": "f2e27c893c57ebe33e60a1c0dbc794ccd7fb8885bd7292f686651dc5670e7b61",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "usage": {
+        "input": 947,
+        "output": 375,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1322
+      }
+    }
+  ]
+}

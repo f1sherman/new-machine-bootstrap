@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "id": "token-reporting",
+  "scope": "Frozen, tool-free advice study of successful-work-only token reporting. One response per case and condition. No reruns or tuning after generation.",
+  "systemPrefix": "You are a helpful technical assistant. Answer the user in at most 250 words.\n\n",
+  "model": {
+    "provider": "openai-codex",
+    "id": "gpt-6.1-sol",
+    "reasoning": "medium",
+    "maxTokens": 6000
+  },
+  "conditions": {
+    "baseline": "---\nname: eval-design\ndescription: Use when designing, running, or interpreting LLM evals or ablation studies.\n---\n\n# Eval design\n\n## 1. Define the question\n\nState the behavior, baseline, and observation that would support the claim.\nIdentify the historical instruction whose failure the change is meant to fix.\nIf an intermediate revision already fixes it, compare both revisions separately.\nAn ablation failure is not evidence of improvement over either baseline.\n\nSeparate functional correctness from policy compliance, response format, and\ninfrastructure health. For example, intact arguments and an 80-character line\nlimit are different outcomes. A combined score alone can hide that difference.\n\n## 2. Separate tasks from the policy\n\nFor instruction-following evals, put the tested policy only in the experimental\ncondition. Use task-only prompts: specify the operation and data, not reminders\nof the behavior being measured. A user request to read a file is neutral; a\nrequest to wrap it for an 80-column terminal repeats a line-limit policy.\n\nFor recovery claims, authorize the intended outcome without a reminder to continue.\nMake a real, safely repairable command fail during that same authorized turn.\nA past-error description followed by a new implementation request tests a\ndifferent behavior.\n\nKeep deliberate reminders, adversarial wrapping demands, and suggested\nsolutions in a separately labelled stress-test set. Stress tests measure\nbehavior under that pressure, not whether guidance works without reminders.\nReview literal task data for accidental policy cues too. Supply the input\ncontents or schema needed to solve the task; do not grade unseen structure.\n\n## 3. Isolate the comparison\n\nInclude an empty-policy control. Keep common system text, user tasks, model\nsettings, and grading identical across conditions. Exclude ambient instructions\nthat could supply the omitted policy. State whether the experiment tests a\nstandalone excerpt or the complete deployed configuration.\n\nFor each ablation, record what was removed and what remains implicit in other\nrules, examples, or prompts. A null result under redundant instructions does\nnot establish that a rule is useless.\n\n## 4. Verify the measurement\n\nExecute known correct, incorrect, and semantically equivalent constructions\nthrough the production grader before generating responses. Include cases that\ntransform stdout if stdout carries instrumentation. Capture the target behavior\nindependently of presentation changes; record the actual observations.\n\nRecord actual failure exposure separately from successful completion.\nConfirm exposure from tool results, not only agent prose or an attempt log.\nCount a preemptive repair as completion without exposure.\nRecord attempted prohibited changes separately from unchanged protected snapshots.\n\nUse real program output when grading program results. Use stand-ins only for\noperations whose arguments are the intended measurement. Support declared\naliases and equivalent forms, or document the narrower acceptance contract.\nKeep sandbox and runtime constraints explicit; hidden constraints can reject\nvalid answers. If an output cannot be graded, report that limit rather than\ninventing an observed behavioral failure.\n\n## 5. Freeze and run\n\nFreeze inputs, candidates, grading criteria, and run settings before generation.\nKeep response streams, usage, failures, and hashes. Interleave conditions where\npractical. Count infrastructure failures separately from model failures.\nCorrect a broken grader by replaying the same captured responses across all\nconditions, preserving superseded scores; do not reroll inconvenient outputs.\n\nKeep only cases, controls, and grader tests with ongoing regression value in\nthe maintained suite. Use Git history for past experiments and rejected variants.\nStore raw run evidence separately from the fixtures.\n\n## 6. Bound the conclusion\n\nReport per-case outcomes and failure types, not just aggregate totals. Distinguish\nrepeated responses from independent cases. Treat reused selection cases as\ndiagnostics, and reserve unseen cases for validation after tuning. Label\nsynthetic stress coverage rather than claiming representative workload frequency.\n\nReport usage per condition alongside completion.\nLower token usage from skipped work is not an efficiency gain.\n\nMatch the conclusion to the tested scope. A small correlated sample does not\nprove significance, universal reliability, minimal guidance, or each clause's\nvalue. Report negative and inconclusive results as clearly as improvements.\n",
+    "candidate": "---\nname: eval-design\ndescription: Use when designing, running, or interpreting LLM evals or ablation studies.\n---\n\n# Eval design\n\n## 1. Define the question\n\nState the behavior, baseline, and observation that would support the claim.\nIdentify the historical instruction whose failure the change is meant to fix.\nIf an intermediate revision already fixes it, compare both revisions separately.\nAn ablation failure is not evidence of improvement over either baseline.\n\nSeparate functional correctness from policy compliance, response format, and\ninfrastructure health. For example, intact arguments and an 80-character line\nlimit are different outcomes. A combined score alone can hide that difference.\n\n## 2. Separate tasks from the policy\n\nFor instruction-following evals, put the tested policy only in the experimental\ncondition. Use task-only prompts: specify the operation and data, not reminders\nof the behavior being measured. A user request to read a file is neutral; a\nrequest to wrap it for an 80-column terminal repeats a line-limit policy.\n\nFor recovery claims, authorize the intended outcome without a reminder to continue.\nMake a real, safely repairable command fail during that same authorized turn.\nA past-error description followed by a new implementation request tests a\ndifferent behavior.\n\nKeep deliberate reminders, adversarial wrapping demands, and suggested\nsolutions in a separately labelled stress-test set. Stress tests measure\nbehavior under that pressure, not whether guidance works without reminders.\nReview literal task data for accidental policy cues too. Supply the input\ncontents or schema needed to solve the task; do not grade unseen structure.\n\n## 3. Isolate the comparison\n\nInclude an empty-policy control. Keep common system text, user tasks, model\nsettings, and grading identical across conditions. Exclude ambient instructions\nthat could supply the omitted policy. State whether the experiment tests a\nstandalone excerpt or the complete deployed configuration.\n\nFor each ablation, record what was removed and what remains implicit in other\nrules, examples, or prompts. A null result under redundant instructions does\nnot establish that a rule is useless.\n\n## 4. Verify the measurement\n\nExecute known correct, incorrect, and semantically equivalent constructions\nthrough the production grader before generating responses. Include cases that\ntransform stdout if stdout carries instrumentation. Capture the target behavior\nindependently of presentation changes; record the actual observations.\n\nRecord actual failure exposure separately from successful completion.\nConfirm exposure from tool results, not only agent prose or an attempt log.\nCount a preemptive repair as completion without exposure.\nRecord attempted prohibited changes separately from unchanged protected snapshots.\n\nUse real program output when grading program results. Use stand-ins only for\noperations whose arguments are the intended measurement. Support declared\naliases and equivalent forms, or document the narrower acceptance contract.\nKeep sandbox and runtime constraints explicit; hidden constraints can reject\nvalid answers. If an output cannot be graded, report that limit rather than\ninventing an observed behavioral failure.\n\n## 5. Freeze and run\n\nFreeze inputs, candidates, grading criteria, and run settings before generation.\nKeep response streams, usage, failures, and hashes. Interleave conditions where\npractical. Count infrastructure failures separately from model failures.\nCorrect a broken grader by replaying the same captured responses across all\nconditions, preserving superseded scores; do not reroll inconvenient outputs.\n\nKeep only cases, controls, and grader tests with ongoing regression value in\nthe maintained suite. Use Git history for past experiments and rejected variants.\nStore raw run evidence separately from the fixtures.\n\n## 6. Bound the conclusion\n\nReport per-case outcomes and failure types, not just aggregate totals. Distinguish\nrepeated responses from independent cases. Treat reused selection cases as\ndiagnostics, and reserve unseen cases for validation after tuning. Label\nsynthetic stress coverage rather than claiming representative workload frequency.\n\nCompare token usage only on the same tasks successfully completed in each condition.\nReport failures separately, without token totals.\nKeep raw failure usage in audit artifacts, not performance reports.\n\nMatch the conclusion to the tested scope. A small correlated sample does not\nprove significance, universal reliability, minimal guidance, or each clause's\nvalue. Report negative and inconclusive results as clearly as improvements.\n",
+    "without-reporting": "---\nname: eval-design\ndescription: Use when designing, running, or interpreting LLM evals or ablation studies.\n---\n\n# Eval design\n\n## 1. Define the question\n\nState the behavior, baseline, and observation that would support the claim.\nIdentify the historical instruction whose failure the change is meant to fix.\nIf an intermediate revision already fixes it, compare both revisions separately.\nAn ablation failure is not evidence of improvement over either baseline.\n\nSeparate functional correctness from policy compliance, response format, and\ninfrastructure health. For example, intact arguments and an 80-character line\nlimit are different outcomes. A combined score alone can hide that difference.\n\n## 2. Separate tasks from the policy\n\nFor instruction-following evals, put the tested policy only in the experimental\ncondition. Use task-only prompts: specify the operation and data, not reminders\nof the behavior being measured. A user request to read a file is neutral; a\nrequest to wrap it for an 80-column terminal repeats a line-limit policy.\n\nFor recovery claims, authorize the intended outcome without a reminder to continue.\nMake a real, safely repairable command fail during that same authorized turn.\nA past-error description followed by a new implementation request tests a\ndifferent behavior.\n\nKeep deliberate reminders, adversarial wrapping demands, and suggested\nsolutions in a separately labelled stress-test set. Stress tests measure\nbehavior under that pressure, not whether guidance works without reminders.\nReview literal task data for accidental policy cues too. Supply the input\ncontents or schema needed to solve the task; do not grade unseen structure.\n\n## 3. Isolate the comparison\n\nInclude an empty-policy control. Keep common system text, user tasks, model\nsettings, and grading identical across conditions. Exclude ambient instructions\nthat could supply the omitted policy. State whether the experiment tests a\nstandalone excerpt or the complete deployed configuration.\n\nFor each ablation, record what was removed and what remains implicit in other\nrules, examples, or prompts. A null result under redundant instructions does\nnot establish that a rule is useless.\n\n## 4. Verify the measurement\n\nExecute known correct, incorrect, and semantically equivalent constructions\nthrough the production grader before generating responses. Include cases that\ntransform stdout if stdout carries instrumentation. Capture the target behavior\nindependently of presentation changes; record the actual observations.\n\nRecord actual failure exposure separately from successful completion.\nConfirm exposure from tool results, not only agent prose or an attempt log.\nCount a preemptive repair as completion without exposure.\nRecord attempted prohibited changes separately from unchanged protected snapshots.\n\nUse real program output when grading program results. Use stand-ins only for\noperations whose arguments are the intended measurement. Support declared\naliases and equivalent forms, or document the narrower acceptance contract.\nKeep sandbox and runtime constraints explicit; hidden constraints can reject\nvalid answers. If an output cannot be graded, report that limit rather than\ninventing an observed behavioral failure.\n\n## 5. Freeze and run\n\nFreeze inputs, candidates, grading criteria, and run settings before generation.\nKeep response streams, usage, failures, and hashes. Interleave conditions where\npractical. Count infrastructure failures separately from model failures.\nCorrect a broken grader by replaying the same captured responses across all\nconditions, preserving superseded scores; do not reroll inconvenient outputs.\n\nKeep only cases, controls, and grader tests with ongoing regression value in\nthe maintained suite. Use Git history for past experiments and rejected variants.\nStore raw run evidence separately from the fixtures.\n\n## 6. Bound the conclusion\n\nReport per-case outcomes and failure types, not just aggregate totals. Distinguish\nrepeated responses from independent cases. Treat reused selection cases as\ndiagnostics, and reserve unseen cases for validation after tuning. Label\nsynthetic stress coverage rather than claiming representative workload frequency.\n\nMatch the conclusion to the tested scope. A small correlated sample does not\nprove significance, universal reliability, minimal guidance, or each clause's\nvalue. Report negative and inconclusive results as clearly as improvements.\n",
+    "empty": ""
+  },
+  "cases": [
+    {
+      "id": "overlapping-successes",
+      "prompt": "Write a short findings note for our weekly decision report. Two assistant instructions, Pine and Oak, processed the same four records. A pass means the complete requested output was correct. These are reported total tokens for each response.\n\nRecord | Pine outcome | Pine tokens | Oak outcome | Oak tokens\nR1 | pass | 90 | fail | 10\nR2 | pass | 100 | pass | 80\nR3 | pass | 200 | pass | 160\nR4 | fail | 5 | pass | 400\n\nSummarize the outcomes and any supported token-efficiency comparison. The same model, settings, and scorer were used throughout.",
+      "criteria": [
+        "Report Pine and Oak each completed 3/4 successfully, with one failure each; do not count a complete provider response as task success.",
+        "Do not publish token figures or token totals for either failed response, including figures framed as a cheap failure.",
+        "Compare R2 and R3, which both instructions completed successfully: Pine 300 versus Oak 240 tokens, a 20% reduction for Oak on that matched subset. Do not compare totals over different successful record sets."
+      ]
+    },
+    {
+      "id": "disjoint-successes",
+      "prompt": "Please write the cost-and-outcome section of a short findings note. We ran instructions Reed and Moss on records A and B with identical settings. Reed passed A using 120 total tokens and failed B using 3. Moss failed A using 2 total tokens and passed B using 90. A pass means the entire task output met its requirements. Every provider call completed normally. What should the findings note say?",
+      "criteria": [
+        "Report each instruction succeeded on one of two records and failed on the other. Provider completion does not turn either failed task into a success.",
+        "Do not report either failed response token figure or a total that includes it.",
+        "Explain that there is no shared successfully completed record, so no matched token-efficiency comparison is available. Do not infer that Moss is cheaper from successes on different records."
+      ]
+    },
+    {
+      "id": "all-successful",
+      "prompt": "Write a compact outcome and efficiency note for these results. Instructions Birch and Elm completed the same three tasks. Every output met all requirements. Birch used 100, 200, and 300 total tokens on tasks A, B, and C. Elm used 80, 160, and 210. Settings and scoring were identical. All calls completed. What can we report?",
+      "criteria": [
+        "Report both instructions completed 3/3 successfully with no failures.",
+        "Report the valid matched totals: Birch 600 tokens and Elm 450, or equivalent per-task reporting.",
+        "State Elm used 25% fewer tokens on these three successfully completed tasks. Do not suppress this valid comparison or generalize to untested work."
+      ]
+    }
+  ],
+  "order": [
+    {
+      "case": "overlapping-successes",
+      "condition": "baseline"
+    },
+    {
+      "case": "overlapping-successes",
+      "condition": "candidate"
+    },
+    {
+      "case": "overlapping-successes",
+      "condition": "without-reporting"
+    },
+    {
+      "case": "overlapping-successes",
+      "condition": "empty"
+    },
+    {
+      "case": "disjoint-successes",
+      "condition": "candidate"
+    },
+    {
+      "case": "disjoint-successes",
+      "condition": "without-reporting"
+    },
+    {
+      "case": "disjoint-successes",
+      "condition": "empty"
+    },
+    {
+      "case": "disjoint-successes",
+      "condition": "baseline"
+    },
+    {
+      "case": "all-successful",
+      "condition": "without-reporting"
+    },
+    {
+      "case": "all-successful",
+      "condition": "empty"
+    },
+    {
+      "case": "all-successful",
+      "condition": "baseline"
+    },
+    {
+      "case": "all-successful",
+      "condition": "candidate"
+    }
+  ],
+  "grading": "Score each criterion 0 for incorrect or missing, 1 for partial or ambiguous, 2 for complete and correct. Success requires every criterion to score 2. A cost comparison may use only cases successful in every compared condition. Report failure counts without token usage. Model-call failures are distinct from semantic task failures.",
+  "calibration": [
+    {
+      "case": "overlapping-successes",
+      "answer": "Pine and Oak each succeeded on 3/4 records and failed on one. On the shared successful records R2 and R3, Pine used 300 tokens and Oak 240, so Oak used 20% fewer on that subset. This does not establish overall reliability.",
+      "scores": [
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "case": "overlapping-successes",
+      "answer": "Both instructions succeeded on all four records. Pine used 395 tokens and Oak 650, so Pine is more efficient. Its failed response used 5 tokens and Oak's used 10.",
+      "scores": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "case": "all-successful",
+      "answer": "Both instructions completed all three tasks successfully, with zero failures. On those matched tasks, Birch used 600 tokens and Elm 450. Elm therefore used 25% fewer tokens on this sample.",
+      "scores": [
+        2,
+        2,
+        2
+      ]
+    }
+  ]
+}
