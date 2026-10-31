@@ -1,0 +1,180 @@
+{
+  "original": "use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information. Describe a proposed benefit without appending that it is unmeasured or not guaranteed. Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action.",
+  "components": {
+    "ste": "use ASD-STE100 Simplified Technical English principles.",
+    "short": "Use short, clear sentences and consistent terminology.",
+    "direct": "State the point directly.",
+    "caveats": "Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information.",
+    "benefits": "Describe a proposed benefit without appending that it is unmeasured or not guaranteed.",
+    "uncertainty": "Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action.",
+    "everyday": "Use everyday words in every reply.",
+    "meaning": "Start with what the result means for Brian and what he should do next.",
+    "terms": "Explain necessary technical terms where they first appear, using a concrete example when useful."
+  },
+  "rewrites": {
+    "lean": [
+      "Use plain English, short sentences, and consistent terms.",
+      "Lead with what the result means for Brian and any next action.",
+      "Explain necessary technical terms when first used.",
+      "Omit repetitive or unhelpful caveats and disclaimers that proposed benefits are unmeasured or not guaranteed.",
+      "Keep uncertainty, limits, and risks that affect facts, decisions, or next actions."
+    ],
+    "balanced": [
+      "Use plain English with short, clear sentences and consistent terms.",
+      "Start with the practical meaning for Brian and any next action.",
+      "Explain necessary technical terms when first used, with a concrete example when useful.",
+      "Delete caveats that repeat context, deny unmade claims, or add no useful information.",
+      "Describe proposed benefits directly, without disclaimers that they are unmeasured or not guaranteed.",
+      "Keep uncertainty, limits, and risks that affect factual accuracy, decisions, or next actions."
+    ],
+    "named": [
+      "Use ASD-STE100 Simplified Technical English principles.",
+      "Use everyday words, short sentences, and consistent terms.",
+      "Lead with what the result means for Brian and what he should do next.",
+      "Explain necessary technical terms where first used, with a concrete example when useful.",
+      "Delete caveats that repeat context, deny claims you did not make, or add no useful information.",
+      "Describe proposed benefits without adding that they are unmeasured or not guaranteed.",
+      "Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action."
+    ]
+  },
+  "cases": [
+    {
+      "id": "instruction-results",
+      "split": "development",
+      "request": "Explain what changed and what these results mean. A skill update adds four rules for instruction studies: use the original instructions as the reference, trigger an actual repairable failure, distinguish attempted actions from final state, and exclude unfinished work from efficiency claims. Two exercises asked a model to plan a study and interpret supplied results. Existing instructions scored 11/16; updated instructions scored 15/16 and used 9% more tokens. Removing each of the failure, observation, and token rules reduced its targeted score. Removing the original-reference rule did not reduce its targeted score. One answer per condition per exercise. No actual repair workflow was tested.",
+      "required": [
+        "The update improved advice about running studies, not demonstrated repair success",
+        "15/16 versus 11/16 on two exercises",
+        "9% more tokens, not a saving",
+        "Removing three rules hurt their target areas",
+        "Removing the original-reference rule showed no targeted loss",
+        "Small study does not establish consistent real-world improvement"
+      ],
+      "terms": [
+        "ablation",
+        "baseline",
+        "counterfactual"
+      ],
+      "relevance": "Do not add empty disclaimers. Preserve the stated evidence limits and operational status."
+    },
+    {
+      "id": "monitor-lock",
+      "split": "development",
+      "request": "What is happening and what needs to happen next? The repair service uses a server-wide exclusion claim. A stale cleanup_uncertain record from one registration causes writer_conflict for unrelated repositories. PR 42 changes exclusion to shared-resource scope and is merged, but deployment has not been checked. My own PR monitor is stopped because its recorded branch differs from its current checkout branch. No recovery command has been run. The underlying PR is approved and checks pass.",
+      "required": [
+        "An old repair record blocks unrelated repairs",
+        "PR 42 is merged but deployment still needs checking",
+        "The stopped monitor has a separate branch mismatch",
+        "The lock change does not itself recover that monitor",
+        "Checks and approval do not establish monitor recovery"
+      ],
+      "terms": [
+        "exclusion",
+        "registration",
+        "writer_conflict",
+        "cleanup_uncertain"
+      ],
+      "relevance": "Do not add empty disclaimers. Preserve the stated evidence limits and operational status."
+    },
+    {
+      "id": "auth-rotation",
+      "split": "development",
+      "request": "Why does login keep failing on the remote host, and what should I do? Two hosts copied the same OAuth refresh token. A refresh rotates the token; the other host later submits the superseded value and gets invalid_grant. The logs support this sequence. The service offers independent device logins. Do not expose token values or revoke the working host's login. Nothing has been changed yet.",
+      "required": [
+        "Both hosts reused the same login credential",
+        "Refreshing replaced it and left the other host with an old value",
+        "Use an independent login for the remote host",
+        "Do not revoke the working login or expose credentials",
+        "No fix has been applied yet"
+      ],
+      "terms": [
+        "OAuth",
+        "refresh token",
+        "rotation",
+        "invalid_grant"
+      ],
+      "relevance": "Do not add empty disclaimers. Preserve the stated evidence limits and operational status."
+    },
+    {
+      "id": "proposal-benefit",
+      "split": "development",
+      "request": "We propose adding the owner and next action beside each failed background job. Today I read several log entries and ask who is responsible before I can act. What does this change buy me? No timing study has been done.",
+      "required": [
+        "Can see who can act and the next action without searching logs or asking around",
+        "Do not invent a measured saving"
+      ],
+      "relevance": "An extra disclaimer that savings are unmeasured, only expected, or not guaranteed repeats known context and adds no useful information."
+    },
+    {
+      "id": "unsupported-speedup",
+      "split": "development",
+      "request": "We changed a serial import to use four workers. The workers share a database connection pool. We have not measured runtime. Can I put \"four times faster\" in the release notes? Explain your recommendation.",
+      "required": [
+        "Reject the four-times-faster claim without measurements",
+        "Shared database resources can limit speed",
+        "Use representative timing measurements or an unquantified description"
+      ],
+      "relevance": "Lack of evidence is essential to whether the numerical claim is justified. Preserve this warning. Do not classify it as an empty caveat."
+    },
+    {
+      "id": "edit-terminology",
+      "split": "development",
+      "request": "Edit this explanation for our operator guide. The term in the app is \"workspace\". Keep the literal command unchanged. Text: A workspace represents an isolated project context. A sandbox encapsulates one checkout and its saved settings. The operator can reinitialize the environment via workspace reset --keep-files, which preserves project files but discards saved layout settings. Saving an exported layout beforehand enables subsequent reconstitution. This procedure cannot guarantee increased productivity.",
+      "required": [
+        "Use workspace consistently for the same object",
+        "Keep workspace reset --keep-files exactly intact",
+        "The command preserves project files but discards saved layout settings",
+        "Export the layout before resetting if it is needed later"
+      ],
+      "relevance": "Remove the irrelevant productivity guarantee disclaimer. Do not remove the concrete saved-layout warning."
+    },
+    {
+      "id": "reserved-sync",
+      "split": "validation",
+      "request": "Explain this incident and whether it is resolved. A file sync client uses a tombstone to record deleted paths. An old deletion record was replayed after reconnect and removed a newly recreated notes.txt on the second laptop. The developer changed record expiry and the tests pass, but the second laptop has not received the new version. The first laptop still has the file.",
+      "required": [
+        "An old deletion record caused the newly recreated file to be removed on the second laptop",
+        "Explain tombstone as a record of deletion or replace the term",
+        "The fix is not installed on the affected laptop, so resolution is not verified",
+        "Preserve or copy the surviving file before further sync and verify recovery after updating"
+      ],
+      "relevance": "The undeployed fix and data-preservation warnings are material. Do not claim resolution from passing tests."
+    },
+    {
+      "id": "reserved-handoff-value",
+      "split": "validation",
+      "request": "We want to put a short explanation of the chosen approach at the top of each handoff note. Today I read the whole conversation to learn why an option was rejected. Explain why this proposal is useful. We have not measured time spent on handoffs.",
+      "required": [
+        "Can understand the choice and rejected option without reading the entire conversation",
+        "Do not claim a measured or guaranteed time saving"
+      ],
+      "relevance": "Do not repeat that time savings are unmeasured or not guaranteed. That disclaimer adds no useful information to the stated proposal."
+    },
+    {
+      "id": "reserved-budget",
+      "split": "validation",
+      "request": "I need a recommendation for cleaning an object store. The dry run says 8,000 objects are eligible for lifecycle expiration. That means their age matches the deletion rule; it does not check whether their contents were copied elsewhere. We have no list of verified backup copies. Storage is costing $40 a month. Should I enable expiration now?",
+      "required": [
+        "Do not enable deletion until needed objects have verified recoverable copies or are confirmed disposable",
+        "Age-based eligibility does not establish a safe backup",
+        "Acknowledge the $40 monthly cost without inventing the saving from deletion",
+        "Explain expiration as automatic deletion or use clear equivalent words"
+      ],
+      "relevance": "The missing backup evidence is essential to the deletion decision and must remain. Do not dismiss it as hedging."
+    },
+    {
+      "id": "reserved-status-edit",
+      "split": "validation",
+      "request": "Rewrite this status update for the person who needs to decide whether to retry the job. Keep the literal error code. Text: The exporter encountered RESOURCE_EXHAUSTED due to saturation of the shared connection pool. Raising exporter concurrency will exacerbate contention. No records were committed. Reduce parallel exporters from eight to two and retry one batch. Confirm the expected rows appear before resuming all batches. This guidance is not a guarantee of future reliability.",
+      "required": [
+        "Shared connection capacity was full and caused RESOURCE_EXHAUSTED",
+        "More simultaneous exporters would worsen the problem",
+        "No records were written",
+        "Reduce parallel exporters from eight to two and retry one batch",
+        "Verify expected rows before all batches resume",
+        "Preserve RESOURCE_EXHAUSTED exactly"
+      ],
+      "relevance": "Remove the generic reliability-guarantee disclaimer. Keep the verification step and exact error code."
+    }
+  ]
+}

@@ -1,0 +1,1803 @@
+{
+  "model": {
+    "provider": "openai-codex",
+    "id": "gpt-6.1-sol",
+    "thinking": "off"
+  },
+  "selection": {
+    "selected": "concrete",
+    "decision": "All three additions preserved all required facts on all four development cases. The concrete variant had the highest clarity score, 22/24, versus 17/24 compact, 15/24 suggested, and 11/24 current. Under the frozen quality-first selection rule, choose concrete. It used 1961 total tokens versus 1687 current and 1782 suggested. It is not the cheapest variant. The suggested wording is a lower-cost tradeoff, not an equal-quality winner.",
+    "parent_review": "Read all 20 answers in packet.json and all anonymous scores. No scoring changes. The concrete monitor answer still repeats exclusion-claim jargon, so 4/6 rather than full credit is appropriate. Exact setting identifiers and safety limits were preserved. Calibration distinguishes readable but unsafe advice from accurate explanation.",
+    "next": "Run confirmation without further wording changes. Preserve each ablation including null results. Reserved cases have not been generated or scored."
+  },
+  "stages": {
+    "dev": {
+      "manifestSha256": "26ea1b97054539f13c99ec4ef00794f79adc4acd9fe96fe9cc70ed9418092062",
+      "piVersion": "1.4.0",
+      "baseline": "use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information. Describe a proposed benefit without appending that it is unmeasured or not guaranteed. Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action.",
+      "components": {
+        "suggested": [
+          "Use plain English.",
+          "Explain the practical meaning first.",
+          "Define technical terms when needed."
+        ],
+        "compact": [
+          "Use plain English.",
+          "Lead with what it means for Brian.",
+          "Explain necessary jargon."
+        ],
+        "concrete": [
+          "Use everyday words in every reply.",
+          "Start with what the result means for Brian and what he should do next.",
+          "Explain necessary technical terms where they first appear, using a concrete example when useful."
+        ]
+      },
+      "conditions": {
+        "empty": "",
+        "baseline": "use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information. Describe a proposed benefit without appending that it is unmeasured or not guaranteed. Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action.",
+        "suggested": "use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information. Describe a proposed benefit without appending that it is unmeasured or not guaranteed. Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action. Use plain English. Explain the practical meaning first. Define technical terms when needed.",
+        "compact": "use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information. Describe a proposed benefit without appending that it is unmeasured or not guaranteed. Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action. Use plain English. Lead with what it means for Brian. Explain necessary jargon.",
+        "concrete": "use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information. Describe a proposed benefit without appending that it is unmeasured or not guaranteed. Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action. Use everyday words in every reply. Start with what the result means for Brian and what he should do next. Explain necessary technical terms where they first appear, using a concrete example when useful."
+      },
+      "calibration": [
+        {
+          "label": "Correct",
+          "answer": "Both machines used the same login credential. When one renewed it, the other was left with an old value. Sign in separately on the remote host. Keep the working login and never share the credential. Nothing has been changed yet.",
+          "accuracy": 2,
+          "everyday": 2,
+          "meaning": 2,
+          "terms": 2,
+          "reason": "All required facts are intact, with an immediate practical explanation and clear replacements for technical terms."
+        },
+        {
+          "label": "Incorrect",
+          "answer": "Both hosts are fixed. Revoke both logins and paste the shared token into the remote shell.",
+          "accuracy": 0,
+          "everyday": 2,
+          "meaning": 0,
+          "terms": 0,
+          "reason": "Invents a completed fix and recommends revoking the working login and exposing credentials. The opening conclusion is not grounded in the facts; token is unexplained."
+        },
+        {
+          "label": "Technically accurate but opaque",
+          "answer": "OAuth refresh-token rotation superseded the shared credential, yielding invalid_grant at the lagging consumer. Independently authenticate the remote device without revoking the working grant or exposing credentials. No mutation occurred.",
+          "accuracy": 2,
+          "everyday": 0,
+          "meaning": 0,
+          "terms": 0,
+          "reason": "Preserves the required facts but opens with technical mechanics and leaves rotation, grant, consumer, and mutation unexplained."
+        },
+        {
+          "label": "Equivalent clear answer",
+          "answer": "The second machine is trying to use an old login credential. Give it its own login. The first machine replaced their shared credential when it renewed its login. Leave that working login alone and keep credentials private. These are next steps; no change has been made.",
+          "accuracy": 2,
+          "everyday": 2,
+          "meaning": 2,
+          "terms": 2,
+          "reason": "Explains the practical problem immediately and preserves every required fact without unnecessary technical language."
+        }
+      ],
+      "rows": [
+        {
+          "case": "monitor-lock",
+          "condition": "empty",
+          "answer": "**What’s happening**\n- A stale `cleanup_uncertain` record is triggering a server-wide exclusion claim, causing `writer_conflict` for unrelated repositories.\n- PR 42 fixes the exclusion scope to shared resources and is merged, but it’s **not yet confirmed deployed**.\n- Your PR monitor is separately stopped because its recorded branch doesn’t match the checkout branch.\n- The underlying PR is approved with passing checks. No recovery has been attempted.\n\n**What needs to happen next**\n1. Verify that PR 42 is deployed to the repair service; deploy it if needed.\n2. Reconcile the monitor’s recorded branch with the intended checkout branch.\n3. Run the supported recovery/resume command.\n4. Confirm the monitor resumes and unrelated repositories no longer encounter `writer_conflict`.\n\nApproval and passing checks don’t resolve either operational blocker.",
+          "score": {
+            "label": "R10",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 0,
+            "terms": 0,
+            "reason": "Preserves both separate blockers, deployment uncertainty, and unrecovered status. Opens with exclusion mechanics and leaves exclusion claim, shared-resource scope, and writer_conflict unexplained."
+          },
+          "usage": {
+            "input": 150,
+            "output": 174,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 324,
+            "cost": {
+              "input": 0.0003,
+              "output": 0.0017400000000000002,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.00204
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "7575333ba69b774172060bc1cbfbd587888de92adfe7a64b19de6ec08aa8692b"
+        },
+        {
+          "case": "monitor-lock",
+          "condition": "baseline",
+          "answer": "**What is happening**\n- A stale `cleanup_uncertain` record creates a server-wide exclusion claim. This causes `writer_conflict` for unrelated repositories.\n- PR 42 is merged. It changes exclusion to shared-resource scope. Deployment is not yet verified.\n- Your PR monitor is stopped because its recorded branch does not match its checkout branch.\n- No recovery command has run.\n- The underlying PR is approved, and its checks pass.\n\n**What needs to happen next**\n1. Verify that the repair service runs the code from PR 42. Deploy it if needed.\n2. Reconcile the monitor’s recorded branch with the intended checkout branch.\n3. Run the recovery command.\n4. Confirm that the monitor resumes and that unrelated repositories no longer get `writer_conflict`.",
+          "score": {
+            "label": "R06",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 0,
+            "terms": 0,
+            "reason": "Separate branch correction and recovery steps preserve the distinction from approval and the merged fix. Opens with mechanics; exclusion claim, shared-resource scope, and writer_conflict remain unexplained."
+          },
+          "usage": {
+            "input": 235,
+            "output": 161,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 396,
+            "cost": {
+              "input": 0.00047,
+              "output": 0.00161,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0020800000000000003
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "b738f3758a63b932e40ad9e9b9977ed1934f2664976a8d96365d3c05c1a53962"
+        },
+        {
+          "case": "instruction-results",
+          "condition": "empty",
+          "answer": "The update added four rules: compare against the **original instructions**, induce a genuinely repairable failure, separate attempted actions from observed final state, and exclude unfinished work from efficiency claims.\n\nIn two exercises—study planning and interpretation of supplied results—the updated instructions scored **15/16 versus 11/16**, while using **9% more tokens**. That suggests better answers on these tasks, at a modest token cost; it does not show greater efficiency.\n\nRemoving the failure, observation, or token-accounting rule lowered its corresponding score, which is evidence that those rules helped with their intended behaviors. Removing the original-reference rule did not lower its targeted score, so this test did not demonstrate that rule’s added benefit—not that the rule is useless.\n\n**Bottom line:** these are promising but preliminary results. With only one answer per condition per exercise, consistency and statistical reliability are unknown. And because no actual repair workflow was tested, the results support improved planning and interpretation—not demonstrated improvements in repair success or operational efficiency.",
+          "score": {
+            "label": "R01",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 0,
+            "terms": 1,
+            "reason": "Includes the scores, increased token use, removal results, and narrow evidence limits. Opens with rules rather than their practical result; tokens and several technical study labels are unexplained."
+          },
+          "usage": {
+            "input": 188,
+            "output": 206,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 394,
+            "cost": {
+              "input": 0.000376,
+              "output": 0.00206,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0024360000000000002
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "0005f420d97eedfc88222514d623a61303b8eb4d7c434f6c808d3027305a56c1"
+        },
+        {
+          "case": "exact-setting",
+          "condition": "concrete",
+          "answer": "Brian, leave this setting **off until you test a restore**. Free space by removing other files or moving local backups to an external drive.\n\n`prune_after_verified_upload=true` deletes the local backup after the cloud copy passes a checksum check. A checksum is a value calculated from the file’s contents. Matching values show that the transferred bytes match. They do not show that you can restore your files.\n\nAfter deletion, the cloud backup is your only copy. A restore could still fail because you lack a password, encryption key, or required backup files.\n\nNext:\n1. Keep the local backup. Move it to an external drive if needed.\n2. Restore from the cloud to a separate location. Do not overwrite your working files.\n3. Test a full restore, not just a few files. Check that the restored files open and that you have all required passwords and keys.\n\nAfter a successful test, consider turning the setting on **if you accept having only one backup copy**. Keeping another copy on an external drive is safer.",
+          "score": {
+            "label": "R17",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Opens with a clear recommendation, preserves the setting and deletion tradeoff, explains checksum in ordinary language, and distinguishes matching bytes from successful restoration."
+          },
+          "usage": {
+            "input": 260,
+            "output": 212,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 472,
+            "cost": {
+              "input": 0.00052,
+              "output": 0.0021200000000000004,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0026400000000000004
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "a104e8090301c13f3498f3243b50881ca1103cd2a1191a959ada53dfb451e669"
+        },
+        {
+          "case": "exact-setting",
+          "condition": "baseline",
+          "answer": "`prune_after_verified_upload=true` deletes the local backup after the uploaded copy passes a remote checksum check.\n\nThe check confirms that the transferred bytes match. It does **not** confirm that you can restore your files. A restore can still fail because of missing backup data, lost encryption keys, or software problems.\n\n**Leave it off until you test a restore.** After pruning, the cloud backup would be your only backup copy.\n\nTo address the disk shortage:\n1. Move the local backup to an external drive, if possible.\n2. Restore from the cloud to a separate location. Do not overwrite your current files.\n3. Check that you can access the backup, use the required keys, and open the restored files. Test a full restore before you rely on full-system recovery.\n4. Keep another independent backup before you enable automatic pruning.\n\nIf you must delete the local backup now, first test a cloud restore of your most important files. This reduces uncertainty, but it does not establish that a full restore works.",
+          "score": {
+            "label": "R19",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 0,
+            "terms": 2,
+            "reason": "Preserves the setting, disk-space tradeoff, sole-copy risk, and restore safeguards. Explains the byte check clearly, but starts with setting mechanics before the recommendation."
+          },
+          "usage": {
+            "input": 222,
+            "output": 209,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 431,
+            "cost": {
+              "input": 0.000444,
+              "output": 0.0020900000000000003,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0025340000000000002
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "aac77d3176f1ccacc563ea77ff7a9edc0e111cb618fd6d0fce5716457d510933"
+        },
+        {
+          "case": "instruction-results",
+          "condition": "concrete",
+          "answer": "Brian, the update improved answers in these two exercises. Keep it as a promising draft. Next, test it in an actual repair workflow with repeated runs before deciding whether it improves repair success or efficiency.\n\n### What changed\n\nThe update added four rules for instruction studies:\n\n- **Use the original instructions as the reference.** Compare changes with the starting instructions.\n- **Trigger an actual repairable failure.** Give the model a real problem that it can fix.\n- **Separate attempted actions from final state.** Trying a repair does not mean the problem is fixed.\n- **Exclude unfinished work from efficiency claims.** Do not count incomplete work as a successful, efficient result.\n\n### What the results mean\n\nThe model planned a study and interpreted supplied results. With the update, its score rose from **11/16 to 15/16**, while token use rose by **9%**. Tokens are units of text used to measure model input and output.\n\nRemoving the failure, observation, or token rule lowered the score for the behavior that rule addressed. This supports keeping those three rules.\n\nRemoving the original-reference rule did not lower its targeted score. These exercises therefore provide no separate evidence that this rule helped. They do not show that it is unnecessary.\n\nThere was only one answer per condition per exercise. The results cannot show how consistently the improvement will repeat. Also, no actual repair workflow was tested. The findings support better study planning and result interpretation—not better repairs or greater efficiency.",
+          "score": {
+            "label": "R05",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Opens with the limited practical improvement and next decision. Preserves all numerical and removal results, explains tokens, and clearly separates study advice from demonstrated repair success."
+          },
+          "usage": {
+            "input": 311,
+            "output": 301,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 612,
+            "cost": {
+              "input": 0.0006219999999999999,
+              "output": 0.00301,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.003632
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "e7bf84d5301538d98e524e0bbd205310d02e3a38a1736cae5a48f2c8e37b403a"
+        },
+        {
+          "case": "exact-setting",
+          "condition": "compact",
+          "answer": "Brian, leave `prune_after_verified_upload=false` until you test a restore. Turning it on would free disk space, but it would also leave the cloud backup as your only copy.\n\nWith this setting on, the tool:\n1. Uploads the backup.\n2. Checks that the remote checksum matches. A checksum checks that the transferred bytes match.\n3. Deletes the local backup if that check passes.\n\nThat check does **not** show that you can restore the backup. A restore can still fail because of missing files, missing encryption keys, or other problems.\n\nBefore you turn it on:\n- Copy the local backup to an external drive to free laptop space without losing a copy.\n- Restore from the cloud to a separate location. Do not overwrite your working files.\n- Confirm that you can access the encryption keys, open important restored files, and recover the data you need.\n\nAfter a successful restore test, consider turning it on **if you keep another independent backup**. If pruning leaves only one cloud copy, that copy remains a single point of failure.",
+          "score": {
+            "label": "R16",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Immediately states the recommendation and space-versus-copy tradeoff. Retains the exact setting name, explains the byte check, and requires restore verification and another backup."
+          },
+          "usage": {
+            "input": 238,
+            "output": 217,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 455,
+            "cost": {
+              "input": 0.00047599999999999997,
+              "output": 0.00217,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.002646
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "12b1c3ac03a0963b0b5eb4e89cfc33d7b41adf3fdf3a91912c70634e153fe5af"
+        },
+        {
+          "case": "auth-rotation",
+          "condition": "concrete",
+          "answer": "Brian, give the failing host its own device login. Leave the working host’s login unchanged.\n\nThe logs show this cause:\n1. Both hosts copied the same OAuth refresh token—a credential used to renew access.\n2. One host refreshed access. The service replaced the token.\n3. The other host submitted the old token and received `invalid_grant`, meaning the service rejected it.\n\nOn the failing host:\n- Stop automatic login retries.\n- Use the service’s device login flow to create a separate login.\n- Replace only that host’s saved credentials. Do not copy credentials from the working host.\n- Confirm that access works and that a later refresh succeeds.\n\nDo not revoke the shared login or expose token values. Nothing has been changed yet.",
+          "score": {
+            "label": "R13",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Starts with the independent-login action, defines the refresh credential and rejection message, and preserves the shared-credential cause, safety constraints, and unchanged status."
+          },
+          "usage": {
+            "input": 262,
+            "output": 153,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 415,
+            "cost": {
+              "input": 0.0005239999999999999,
+              "output": 0.0015300000000000001,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0020540000000000003
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "02dbab371994f8e2e424c7c5baf265444240c2fc8e7197e135aa240e386d363e"
+        },
+        {
+          "case": "monitor-lock",
+          "condition": "compact",
+          "answer": "Brian, the repair fix is merged, but it is not yet confirmed to be running. Your PR monitor is also stopped. No recovery has been attempted.\n\n**What is happening**\n- The repair service uses a server-wide exclusion claim. One stale `cleanup_uncertain` record can cause `writer_conflict` for unrelated repositories.\n- PR 42 changes the claim to cover only the shared resource. It is merged, but deployment is unverified.\n- Your PR monitor stopped because its recorded branch does not match the current checkout branch.\n- The underlying PR is approved and its checks pass.\n\n**What needs to happen next**\n1. Verify that the deployed repair service includes PR 42. Deploy it if necessary.\n2. Confirm the intended branch for your monitor. Correct the checkout or monitor record so they match.\n3. Run the recovery command after both conditions are satisfied.\n4. Verify that the monitor resumes and unrelated repositories no longer receive `writer_conflict`.",
+          "score": {
+            "label": "R08",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 0,
+            "reason": "Opens with deployment uncertainty and the stopped monitor; separate correction and recovery steps preserve all required distinctions. Exclusion claim, shared resource, and writer_conflict remain unexplained."
+          },
+          "usage": {
+            "input": 251,
+            "output": 197,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 448,
+            "cost": {
+              "input": 0.000502,
+              "output": 0.00197,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.002472
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "ab416306e26f5a45d710487df5c94e256120553461a52359e15b81d70e8879ae"
+        },
+        {
+          "case": "auth-rotation",
+          "condition": "compact",
+          "answer": "Brian, login keeps failing because both hosts use the same OAuth refresh token. The logs support this sequence:\n\n1. One host refreshes its login and gets a new token.\n2. The other host sends the old token.\n3. The service rejects it with `invalid_grant`.\n\nUse a separate device login for each host.\n\n- Leave the working host’s login unchanged. Do not revoke it.\n- On the failing host, stop the service that refreshes the login.\n- Remove only that host’s local login credentials. If the credential store is shared, separate it first.\n- Use the service’s device login process on the failing host.\n- Restart the service and check that login and refresh succeed.\n- Exclude login credentials from future host copies and sync jobs.\n\nDo not print or share token values. Nothing has been changed yet.",
+          "score": {
+            "label": "R12",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 1,
+            "reason": "Immediately identifies the login failure's cause and preserves all required facts and safeguards. The sequence partly explains token replacement, but OAuth refresh token and device-login terminology remain only partly explained."
+          },
+          "usage": {
+            "input": 240,
+            "output": 172,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 412,
+            "cost": {
+              "input": 0.00047999999999999996,
+              "output": 0.0017200000000000002,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0022
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "98698211cc44fac0582a35bf27a8bc9631918b1c8168b6e10ee993127b6bc315"
+        },
+        {
+          "case": "exact-setting",
+          "condition": "suggested",
+          "answer": "`prune_after_verified_upload=true` deletes the local backup after the uploaded copy passes a checksum check. The check confirms that the transferred bytes match. It does not confirm that you can restore your files.\n\n**Leave it off until you test a restore.** After deletion, the cloud backup will be your only copy. A missing encryption key, incomplete backup, or restore problem could make it unusable.\n\nBecause disk space is low:\n\n1. Free space from files other than backups, or move the local backup to an external drive.\n2. Restore the cloud backup to a different location. Do not overwrite your current files.\n3. Confirm that you have the required password or encryption key. Open important restored files and check that the backup includes everything you need.\n\nA full restore is the strongest test. A small sample restore is useful, but it does not prove that the full backup works.\n\nConsider turning the setting on after a successful restore test, preferably with another independent backup available.",
+          "score": {
+            "label": "R20",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 0,
+            "terms": 2,
+            "reason": "Preserves the exact setting, deletion consequence, sole-copy risk, and restore recommendation. Clearly explains the byte check, but leads with mechanics before the practical recommendation."
+          },
+          "usage": {
+            "input": 238,
+            "output": 200,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 438,
+            "cost": {
+              "input": 0.00047599999999999997,
+              "output": 0.002,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.002476
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "e9236b0cea51797d3515291475fd946d9dcb7aa9e02baee3ab5042cb9e5881be"
+        },
+        {
+          "case": "instruction-results",
+          "condition": "suggested",
+          "answer": "The update made study design and result interpretation more disciplined. The score rose from **11/16 to 15/16**, with **9% more tokens**.\n\nThe four new rules require the model to:\n- Use the original instructions as the reference.\n- Test a real failure that can be repaired.\n- Separate attempted actions from the final state.\n- Exclude unfinished work from efficiency claims.\n\n**What the results support:** Removing the failure, observation, or token rule lowered the score for the behavior that rule targeted. This suggests those three rules helped in these exercises.\n\nRemoving the original-reference rule did not lower its targeted score. This test therefore did not show a separate benefit from that rule. It does not establish that the rule is unnecessary.\n\n**What remains unknown:** Each condition had only one answer per exercise. The results cannot establish how consistent the improvement is. The exercises tested study planning and interpretation of supplied results, not an actual repair workflow. They do not show that the update improves repair success or repair efficiency.\n\nThe practical conclusion is to keep the update as a promising improvement, then test it with repeated runs and real repair tasks. Report token use alongside completed repairs.",
+          "score": {
+            "label": "R03",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 1,
+            "reason": "Opens with the study-design improvement and its higher token use. Preserves scores, removal results, and limits; tokens and some compressed study terminology remain unexplained."
+          },
+          "usage": {
+            "input": 289,
+            "output": 239,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 528,
+            "cost": {
+              "input": 0.000578,
+              "output": 0.00239,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.002968
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "a40f4627aac3b9f20b1a4c810920f097d270f21459f41d88e739c09e3effbf74"
+        },
+        {
+          "case": "auth-rotation",
+          "condition": "suggested",
+          "answer": "Login fails because both hosts use the same OAuth refresh token. When one host refreshes its login, the service replaces that token. The other host then submits the old token and receives `invalid_grant`. The logs support this sequence.\n\n**Give each host its own device login.**\n\n1. Leave the working host’s login unchanged.\n2. Stop the failing host’s service to prevent more refresh attempts.\n3. Remove only the failing host’s local login credentials. Do not use a revoke-all or account-wide logout command.\n4. Run a new device login on the failing host.\n5. Restart its service and confirm that login and token refresh succeed.\n\nDo not copy login credentials between hosts again. Keep token values out of logs and messages.\n\nNothing has been changed yet.",
+          "score": {
+            "label": "R11",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 1,
+            "reason": "Opens with the practical cause and preserves separate login, credential protection, working-login protection, and unchanged status. Token replacement is explained, but OAuth and device-login terminology are not fully unpacked."
+          },
+          "usage": {
+            "input": 240,
+            "output": 159,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 399,
+            "cost": {
+              "input": 0.00047999999999999996,
+              "output": 0.00159,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.00207
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "143a3e21a7a132047b8e4fc7c0213fdcc323b29f54e4e0a37606c6b9f5b7a8b9"
+        },
+        {
+          "case": "exact-setting",
+          "condition": "empty",
+          "answer": "`prune_after_verified_upload=true` means the tool deletes the local backup after confirming that the uploaded copy’s checksum matches. **That verifies transfer integrity—not that you can successfully restore your data.** It doesn’t prove the backup is complete, readable by the restore tool, or decryptable with your available keys.\n\n**I wouldn’t enable it yet.** With no tested restore and the cloud backup becoming the sole remaining backup copy, pruning would remove your fallback before you’ve established that recovery works.\n\nSince disk space is tight:\n- Move the local backup to an external drive, or free space elsewhere first.\n- Test a restore from the cloud to a separate location. Ideally test a full restore; at minimum, restore representative files, open them, and confirm you have the required credentials and encryption keys.\n- Keep another independent backup of irreplaceable data.\n\nAfter a successful restore test and with another backup available, enabling automatic pruning can be a reasonable space-saving choice. A checksum pass alone isn’t enough assurance here.",
+          "score": {
+            "label": "R18",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 0,
+            "terms": 1,
+            "reason": "Preserves all required facts and recommends testing and another copy. Starts with checksum mechanics; transfer integrity and checksum are only partly explained, though the restore limitation is clear."
+          },
+          "usage": {
+            "input": 137,
+            "output": 208,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 345,
+            "cost": {
+              "input": 0.000274,
+              "output": 0.0020800000000000003,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.002354
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "94453d9595c49bc5ac6594067114fdf3579277111a2640bba33bba5d05e0316c"
+        },
+        {
+          "case": "monitor-lock",
+          "condition": "concrete",
+          "answer": "Brian, the fix is merged, but you still need to confirm deployment and restart your PR monitor safely.\n\n**What is happening**\n- The repair service uses a server-wide lock. One stale `cleanup_uncertain` record blocks writes for unrelated repositories with `writer_conflict`.\n- PR 42 limits that lock to repositories that use the same resource. It is merged, but deployment is not confirmed.\n- Your PR monitor stopped because its saved branch does not match the current checkout branch.\n- The underlying PR is approved and its checks pass. No recovery command has run.\n\n**What needs to happen next**\n1. Confirm that the running repair service includes PR 42. Deploy it if needed.\n2. Confirm which branch the monitor should track. Resolve the mismatch before you restart it.\n3. Run the recovery command after those checks.\n4. Confirm that the monitor resumes and unrelated repositories no longer get `writer_conflict`.",
+          "score": {
+            "label": "R09",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 1,
+            "reason": "Opens with the remaining practical work and preserves both blockers and unrecovered status. Connects the error to blocked writes, but shared-resource and checkout-branch language remains partly unexplained."
+          },
+          "usage": {
+            "input": 273,
+            "output": 189,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 462,
+            "cost": {
+              "input": 0.0005459999999999999,
+              "output": 0.0018900000000000002,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0024360000000000002
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "ac62b5d1605e0a80f31264c86214ea0967f5110abefa25db17e6c7baaed2d811"
+        },
+        {
+          "case": "auth-rotation",
+          "condition": "baseline",
+          "answer": "Login fails because both hosts use the same OAuth refresh token. When one host refreshes, the service replaces that token. The other host then submits the old token and receives `invalid_grant`. The logs support this sequence.\n\nUse a separate device login for each host:\n\n1. Leave the working host’s login unchanged.\n2. Stop automatic login retries on the failing host.\n3. Use the service’s device-login flow on the failing host to create an independent login.\n4. Store the new credentials only on that host. Do not copy them between hosts.\n5. Confirm that the failing host can log in and refresh its token.\n\nDo not revoke the shared login or expose token values. Nothing has been changed yet.",
+          "score": {
+            "label": "R15",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 1,
+            "reason": "Immediately explains the failure and preserves all required actions, safeguards, and status. Explains replacement of the old token but leaves OAuth refresh token and device-login terminology partly unexplained."
+          },
+          "usage": {
+            "input": 224,
+            "output": 148,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 372,
+            "cost": {
+              "input": 0.000448,
+              "output": 0.0014800000000000002,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0019280000000000002
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "093224cd6eb432df1141eef1f05473ca7f276ab8b4a7530a98c69ded698b5855"
+        },
+        {
+          "case": "auth-rotation",
+          "condition": "empty",
+          "answer": "Login keeps failing because both hosts share one OAuth refresh token. When one host refreshes, the service rotates that token; the other host then submits the old value and receives `invalid_grant`. The logs support this sequence.\n\nWhat to do:\n1. Leave the working host’s login untouched.\n2. Stop authentication retries on the failing host.\n3. On the failing host only, remove its stale local credentials and use the service’s independent device-login flow.\n4. Keep each host’s credentials separate—don’t copy or sync token storage between them.\n\nDo not revoke the shared login or expose token values. Nothing has been changed yet.",
+          "score": {
+            "label": "R14",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 1,
+            "reason": "Starts with the login failure's cause and preserves all required facts. The old-value sequence helps, but OAuth, rotates, and independent device-login flow retain unnecessary technical compression."
+          },
+          "usage": {
+            "input": 139,
+            "output": 132,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 271,
+            "cost": {
+              "input": 0.000278,
+              "output": 0.0013200000000000002,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0015980000000000002
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "608e6190ee5e582d862991efe701500a40a25bb4f9bc3adcdaa01d158291850a"
+        },
+        {
+          "case": "monitor-lock",
+          "condition": "suggested",
+          "answer": "The repair service has a scope problem. A stale `cleanup_uncertain` record from one registration blocks writes for unrelated repositories and returns `writer_conflict`.\n\nPR 42 fixes this by limiting exclusion to the shared resource. It is merged, but you still need to confirm that the running service includes the fix.\n\nYour PR monitor is stopped because its recorded branch does not match its checkout branch. The underlying PR is approved and its checks pass. No recovery command has run.\n\nNext:\n1. Confirm that PR 42 is deployed to the running repair service. Deploy it if needed.\n2. Resolve the monitor’s branch mismatch. Confirm the intended branch before changing the checkout or monitor record.\n3. Run the recovery command.\n4. Confirm that the monitor resumes and unrelated repositories no longer get `writer_conflict`.",
+          "score": {
+            "label": "R07",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 1,
+            "terms": 1,
+            "reason": "Preserves deployment uncertainty, the separate branch mismatch, and required recovery despite approval. Opens with an abstract scope problem before the practical blockage; exclusion and checkout terminology remain partly unexplained."
+          },
+          "usage": {
+            "input": 251,
+            "output": 166,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 417,
+            "cost": {
+              "input": 0.000502,
+              "output": 0.0016600000000000002,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0021620000000000003
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "f5237141252ace0da4cc7b44d23c7c578d32524884e231c9a4cea9bb97b480ed"
+        },
+        {
+          "case": "instruction-results",
+          "condition": "compact",
+          "answer": "Brian, the updated instructions produced better study plans and result interpretations in these exercises. They do not yet show that an actual repair workflow works better.\n\n### What changed\nThe skill update added four rules:\n- Use the original instructions as the reference.\n- Trigger a real failure that can be repaired.\n- Separate attempted actions from the final state.\n- Exclude unfinished work from efficiency claims.\n\n### What the results mean\n- **Scores improved:** Updated instructions scored 15/16, compared with 11/16 for existing instructions.\n- **Token use increased:** Updated instructions used 9% more tokens. This is a cost increase, not an efficiency gain.\n- **Three rules showed targeted effects:** Removing the failure, observation, or token rule reduced the score for the behavior that rule addressed.\n- **The original-reference rule showed no targeted effect:** Removing it did not reduce its targeted score. These exercises therefore do not establish its added value.\n\n### What to conclude\nKeep the update as a promising improvement for planning studies and interpreting results. The evidence is narrow: each condition had only one answer per exercise, and no actual repair workflow was tested.\n\nNext, test repeated repair workflows. Record the failure, attempted actions, final state, completion status, and token use. Compare results against the original instructions.",
+          "score": {
+            "label": "R04",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 1,
+            "reason": "Opens with better study advice rather than demonstrated repair improvement. Preserves scores, increased token use, removal findings, and narrow evidence limits; tokens remain undefined."
+          },
+          "usage": {
+            "input": 289,
+            "output": 265,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 554,
+            "cost": {
+              "input": 0.000578,
+              "output": 0.00265,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.003228
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "6e9c74eecb24cfb9a6f652e3478751273904bc4e53c40fae93ba5f062069cd2d"
+        },
+        {
+          "case": "instruction-results",
+          "condition": "baseline",
+          "answer": "The update added four rules:\n- Use the original instructions as the reference.\n- Trigger a failure that can be repaired.\n- Separate attempted actions from the final state.\n- Exclude unfinished work from efficiency claims.\n\n**The updated instructions improved performance on these exercises.** The score rose from 11/16 to 15/16, with 9% more tokens. This shows better answers at a higher token cost.\n\nRemoving the failure, observation, or token rule lowered the score for its target behavior. This supports keeping those three rules. Removing the original-reference rule did not lower its target score. These results therefore do not show a separate benefit from that rule.\n\n**The evidence is limited to study planning and result interpretation.** Each condition had only one answer per exercise, so the results do not establish consistency. No repair workflow was tested. The results do not show that the update improves repair success or repair efficiency.\n\nNext, test repeated runs of an actual repair workflow. Track attempted actions, verified final states, completed work, and token use separately.",
+          "score": {
+            "label": "R02",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 0,
+            "terms": 1,
+            "reason": "Preserves the scores, higher token use, removal results, and limits to planning and interpretation. Opens with the rule list before explaining the result; tokens remain undefined."
+          },
+          "usage": {
+            "input": 273,
+            "output": 215,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 488,
+            "cost": {
+              "input": 0.0005459999999999999,
+              "output": 0.00215,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.002696
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "e40b1cc0fbbe2529c17dc9c79d9ca6612f61517741ad4836c4d8df00694c6d14"
+        }
+      ]
+    },
+    "confirmation": {
+      "manifestSha256": "1bdc87c9604b3f1b386f5a3c61200ea768e0e87d14ac6265377dcebaa9cf4a46",
+      "piVersion": "1.4.0",
+      "baseline": "use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information. Describe a proposed benefit without appending that it is unmeasured or not guaranteed. Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action.",
+      "components": {
+        "suggested": [
+          "Use plain English.",
+          "Explain the practical meaning first.",
+          "Define technical terms when needed."
+        ],
+        "compact": [
+          "Use plain English.",
+          "Lead with what it means for Brian.",
+          "Explain necessary jargon."
+        ],
+        "concrete": [
+          "Use everyday words in every reply.",
+          "Start with what the result means for Brian and what he should do next.",
+          "Explain necessary technical terms where they first appear, using a concrete example when useful."
+        ]
+      },
+      "conditions": {
+        "baseline": "use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information. Describe a proposed benefit without appending that it is unmeasured or not guaranteed. Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action.",
+        "concrete": "use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information. Describe a proposed benefit without appending that it is unmeasured or not guaranteed. Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action. Use everyday words in every reply. Start with what the result means for Brian and what he should do next. Explain necessary technical terms where they first appear, using a concrete example when useful.",
+        "without_0": "use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information. Describe a proposed benefit without appending that it is unmeasured or not guaranteed. Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action. Start with what the result means for Brian and what he should do next. Explain necessary technical terms where they first appear, using a concrete example when useful.",
+        "without_1": "use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information. Describe a proposed benefit without appending that it is unmeasured or not guaranteed. Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action. Use everyday words in every reply. Explain necessary technical terms where they first appear, using a concrete example when useful.",
+        "without_2": "use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information. Describe a proposed benefit without appending that it is unmeasured or not guaranteed. Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action. Use everyday words in every reply. Start with what the result means for Brian and what he should do next."
+      },
+      "calibration": [
+        {
+          "label": "correct",
+          "answer": "Both machines used the same login credential. When one renewed it, the other was left with an old value. Sign in separately on the remote host. Keep the working login and never share the credential. Nothing has been changed yet.",
+          "accuracy": 2,
+          "everyday": 2,
+          "meaning": 2,
+          "terms": 2,
+          "reason": "Preserves every required fact, opens with the cause, and replaces technical terms with clear language."
+        },
+        {
+          "label": "incorrect",
+          "answer": "Both hosts are fixed. Revoke both logins and paste the shared token into the remote shell.",
+          "accuracy": 0,
+          "everyday": 2,
+          "meaning": 0,
+          "terms": 1,
+          "reason": "Invents completed recovery and recommends prohibited revocation and credential exposure. Its opening conclusion is not grounded; token is unexplained."
+        },
+        {
+          "label": "technically-accurate-but-opaque",
+          "answer": "OAuth refresh-token rotation superseded the shared credential, yielding invalid_grant at the lagging consumer. Independently authenticate the remote device without revoking the working grant or exposing credentials. No mutation occurred.",
+          "accuracy": 2,
+          "everyday": 0,
+          "meaning": 0,
+          "terms": 0,
+          "reason": "All facts survive, but technical mechanics lead and unfamiliar terms remain unexplained."
+        },
+        {
+          "label": "equivalent-clear",
+          "answer": "The second machine is trying to use an old login credential. Give it its own login. The first machine replaced their shared credential when it renewed its login. Leave that working login alone and keep credentials private. These are next steps; no change has been made.",
+          "accuracy": 2,
+          "everyday": 2,
+          "meaning": 2,
+          "terms": 2,
+          "reason": "Opens with the practical cause and preserves the independent-login advice, safeguards, and unchanged status in clear language."
+        }
+      ],
+      "rows": [
+        {
+          "case": "monitor-lock",
+          "condition": "baseline",
+          "answer": "**What is happening**\n- The repair service uses a server-wide exclusion claim. A stale `cleanup_uncertain` record from one registration blocks unrelated repositories with `writer_conflict`.\n- PR 42 changes exclusion to shared-resource scope. It is merged, but deployment is not confirmed.\n- Your PR monitor is stopped because its recorded branch and checkout branch do not match.\n- The underlying PR is approved and checks pass. No recovery command has run.\n\n**What needs to happen next**\n1. Confirm that the running repair service includes PR 42. Deploy the change if needed.\n2. Resolve the monitor’s branch mismatch. Confirm the intended branch before changing its record or checkout.\n3. Run the supported recovery command.\n4. Check that the monitor resumes and unrelated repositories no longer get `writer_conflict`.",
+          "score": {
+            "label": "R10",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 0,
+            "terms": 1,
+            "reason": "Separate deployment, branch correction, and recovery steps preserve all facts. Opens with exclusion mechanics; shared-resource scope remains unexplained."
+          },
+          "usage": {
+            "input": 235,
+            "output": 166,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 401,
+            "cost": {
+              "input": 0.00047,
+              "output": 0.0016600000000000002,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0021300000000000004
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "638b45367014ceb8dee5f2f137a16929318b6b94925d34f4469e280f9a048a5b"
+        },
+        {
+          "case": "monitor-lock",
+          "condition": "concrete",
+          "answer": "Brian, the fix is merged, but you must check deployment before you retry recovery. Your PR monitor also needs its branch mismatch corrected.\n\n**What is happening**\n- The repair service uses one exclusion claim for the whole server. A stale `cleanup_uncertain` record from one registration blocks writes for unrelated repositories. This produces `writer_conflict`.\n- PR 42 changes the claim to shared-resource scope. This limits blocking to work that uses the same resource. It is merged, but its deployment is not confirmed.\n- Your PR monitor stopped because its recorded branch does not match the checked-out branch.\n- The underlying PR is approved and its checks pass. No recovery command has been run.\n\n**What needs to happen next**\n1. Confirm that the running repair service includes PR 42.\n2. Check which branch the monitor should use. Align its recorded branch and checkout, then restart it.\n3. Confirm that the stale record no longer blocks unrelated repositories.\n4. Run the recovery command and check the result.\n\nDo not delete the stale record without first checking whether it still protects a resource that needs cleanup.",
+          "score": {
+            "label": "R06",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Leads with deployment and the separate monitor problem. Explains blocking scope and preserves recovery status, though some technical phrasing remains."
+          },
+          "usage": {
+            "input": 273,
+            "output": 226,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 499,
+            "cost": {
+              "input": 0.0005459999999999999,
+              "output": 0.0022600000000000003,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0028060000000000003
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "cd9f06c941117d4064cbf7ad2add9c825b81fe1b12655e50fe8f62d0ffeb8a3c"
+        },
+        {
+          "case": "instruction-results",
+          "condition": "baseline",
+          "answer": "### What changed\n\nThe skill update added four rules for instruction studies:\n\n- Use the original instructions as the reference.\n- Trigger a real failure that can be repaired.\n- Separate attempted actions from the final state.\n- Exclude unfinished work from efficiency claims.\n\n### What the results mean\n\nAcross two exercises—study planning and interpretation of supplied results—the score rose from **11/16 to 15/16**. Token use rose by **9%**. The updated instructions produced better-scoring answers at a higher token cost.\n\nRemoving the failure, observation, or token rule reduced the score for the behavior that rule targeted. This supports keeping those three rules.\n\nRemoving the original-reference rule did not reduce its targeted score. These exercises therefore provide no evidence of an added benefit from that rule. They do not show that the rule is unnecessary.\n\n### Limits\n\nEach condition had only one answer per exercise. The results are a small, preliminary comparison, not a reliable estimate of repeat performance.\n\nNo actual repair workflow was tested. The results support better **study planning and result interpretation**, not better repair success or repair efficiency.",
+          "score": {
+            "label": "R01",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 0,
+            "terms": 1,
+            "reason": "Preserves scores, increased cost, removal results, and study limits. Opens with the rule inventory; tokens remain unexplained."
+          },
+          "usage": {
+            "input": 273,
+            "output": 227,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 500,
+            "cost": {
+              "input": 0.0005459999999999999,
+              "output": 0.0022700000000000003,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0028160000000000004
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "33aec99ff783145ac9ca3e91693f82cc1cc308f4e767599df6eeba3bec2a7119"
+        },
+        {
+          "case": "validation-price",
+          "condition": "concrete",
+          "answer": "Brian, choose **Plan A**. It saves you **$3 per month**.\n\nYou run the job 20 × 30 = **600 times per month**.\n\n- **Plan A:** $10 + (600 × $0.02) = **$22 per month**\n- **Plan B:** **$25 per month**\n\nBoth take the same time, and you do not need other features. Plan A meets your needs at the lower cost.",
+          "score": {
+            "label": "R27",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Recommends Plan A first and correctly gives 600 runs, $22 versus $25, and $3 savings without invented benefits."
+          },
+          "usage": {
+            "input": 250,
+            "output": 97,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 347,
+            "cost": {
+              "input": 0.0005,
+              "output": 0.00097,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.00147
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "ec00f982a284d4cf83d5db4aea0e1a8258307ab8eb65356b2c2d41ccfde2cf64"
+        },
+        {
+          "case": "validation-price",
+          "condition": "baseline",
+          "answer": "Choose **Plan A**.\n\n- Monthly runs: 20 × 30 = **600**\n- Plan A: $10 + (600 × $0.02) = **$22 per month**\n- Plan B: **$25 per month**\n\nPlan A saves **$3 per month** for the same work and completion time.",
+          "score": {
+            "label": "R26",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Clear recommendation followed by correct monthly arithmetic and the same-time comparison."
+          },
+          "usage": {
+            "input": 212,
+            "output": 72,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 284,
+            "cost": {
+              "input": 0.000424,
+              "output": 0.00072,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.001144
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "7f298582e8e84121cb084865dac2a6f68fd2093c6a4fb39d47109c2736c9f1db"
+        },
+        {
+          "case": "exact-setting",
+          "condition": "without_2",
+          "answer": "Brian, leave this setting off for now. First, test a restore from the cloud backup. Free disk space by removing files you can replace, not your only local backup.\n\n`prune_after_verified_upload=true` deletes the local backup after the remote checksum check passes. This checks that the uploaded bytes match. It does not prove that you can restore your files.\n\nAfter pruning, the cloud backup is your only copy. A missing key, damaged backup, or lost account access could leave you unable to recover your files.\n\nBefore you turn it on:\n1. Restore a full backup to an external drive.\n2. Open important restored files. Check that the restore is complete.\n3. Keep another independent backup, such as one on an external drive.\n\nThen turn it on if you need automatic local cleanup.",
+          "score": {
+            "label": "R17",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Leads with leaving deletion off, explains the byte check and restore limitation, and addresses disk space and the sole-cloud-copy risk."
+          },
+          "usage": {
+            "input": 244,
+            "output": 165,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 409,
+            "cost": {
+              "input": 0.000488,
+              "output": 0.0016500000000000002,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.002138
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "cb2fe9e3fe87266ce0cac3a5877bc1ce5f189b4a49e1e346daec940b2d3561ba"
+        },
+        {
+          "case": "validation-ablation",
+          "condition": "concrete",
+          "answer": "Brian, use the new instructions, keep the rule about defining terms, and test whether the practical-result rule adds value beyond “state the point directly.”\n\nThe results favor the new instructions:\n- All six answers kept the required facts, compared with four of six under the current instructions.\n- Average length fell from 400 to 320 tokens—a 20% drop. Tokens are units of text used to measure answer length.\n- Removing the term-definition rule led to unexplained jargon in two answers. Keep this rule.\n- Removing the practical-result rule made no observed difference. It may overlap with “state the point directly.”\n\nEach task ran only once. These results support using the new instructions, but do not show how consistent the gains are.\n\nNext, repeat the tasks several times with and without the practical-result rule. Check fact retention, answer length, unexplained terms, and whether the answer starts with useful guidance. Remove that rule if it adds no clear value.",
+          "score": {
+            "label": "R31",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Practical recommendation leads. Includes all results, defines tokens, and treats rule overlap and repeatability cautiously."
+          },
+          "usage": {
+            "input": 275,
+            "output": 197,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 472,
+            "cost": {
+              "input": 0.0005499999999999999,
+              "output": 0.00197,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0025199999999999997
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "ae495eae0c08411a7638de6fffdd9c639ab96ea523e44ea727fe273b1f631717"
+        },
+        {
+          "case": "validation-cache",
+          "condition": "concrete",
+          "answer": "Brian, do not deploy this change as written. Fix the cache key first, then test with traffic that reflects production.\n\n- **The replay showed a narrow benefit.** p95 latency fell from 900 ms to 300 ms. This means 95% of requests finished within 300 ms, compared with 900 ms before the patch.\n- **The test does not establish the production benefit.** The 1,000 requests reused only 20 keys. This favors a cache. Production has many keys used only once, so fewer requests may benefit. There are no production measurements.\n- **The cache has a data exposure risk.** It stores account-specific responses for five minutes but uses only the URL to find them. Two accounts that request the same URL could receive the same cached response.\n\nKeep the cache idea, not the current implementation. Exclude account-specific responses from the cache, or use a cache key that safely separates accounts and access rights. Test that one account cannot receive another account’s data. Then repeat the latency test with production-like key reuse before deciding whether to deploy.",
+          "score": {
+            "label": "R23",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Blocks deployment first, explains p95 and cross-account exposure, and distinguishes the repeated-key test from unmeasured production performance."
+          },
+          "usage": {
+            "input": 271,
+            "output": 223,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 494,
+            "cost": {
+              "input": 0.000542,
+              "output": 0.00223,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.002772
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "b55c57e7a1e623085175c72529e8c6785895ab8700dc3e9c69324a88c58986c0"
+        },
+        {
+          "case": "exact-setting",
+          "condition": "concrete",
+          "answer": "Brian, leave `prune_after_verified_upload=false` for now. First, test a restore and free disk space by moving the local backup to an external drive or removing other files.\n\nWith this setting on, the tool:\n1. Uploads the backup.\n2. Checks that the remote checksum matches. A checksum is a value calculated from the data to detect changed bytes.\n3. Deletes the local backup if the check passes.\n\nThe check confirms that the bytes transferred correctly. It does not confirm that you can restore your files. After deletion, the cloud backup is your only copy.\n\nBefore you turn it on:\n- Restore the full backup to a separate location.\n- Confirm that you can decrypt it, open important files, and recover what you need.\n- Keep another independent copy of important files, such as one on an external drive.\n\nA successful restore test reduces risk. It does not remove the risk of relying on one cloud copy.",
+          "score": {
+            "label": "R19",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Preserves the setting name while recommending false. Explains checksum limits, restore testing, disk-space options, and reliance on one cloud copy."
+          },
+          "usage": {
+            "input": 260,
+            "output": 192,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 452,
+            "cost": {
+              "input": 0.00052,
+              "output": 0.0019200000000000003,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0024400000000000003
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "d3a1dbc0855afc691b92b24d7d7cabb52eb5a7eea884ec7a1b4d8abe254ca944"
+        },
+        {
+          "case": "validation-ablation",
+          "condition": "without_0",
+          "answer": "Brian, use the new instructions as the working version. Keep the rule to define technical terms. Test whether you can remove the separate rule to lead with the practical result.\n\nThe results show:\n- **Better fact retention:** All six answers kept the required facts, compared with four of six under the current instructions.\n- **Shorter answers:** Average length fell from 400 to 320 tokens, a 20% reduction. Tokens are units of text used to measure answer length.\n- **Useful term definitions:** Removing that rule caused two answers to use unexplained jargon. Keep it.\n- **Possible rule overlap:** Removing the practical-result rule made no observed difference. The current rule to “state the point directly” may already serve that purpose.\n\nEach task ran once, so these results support a further test, not a firm conclusion about reliability. Repeat the comparison on more tasks, with multiple runs per task. Include a version without the practical-result rule. Remove that rule if the repeated tests show that it adds no value.",
+          "score": {
+            "label": "R32",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Opens with a provisional choice and preserves all figures, rule-removal outcomes, possible overlap, and reliability limits."
+          },
+          "usage": {
+            "input": 268,
+            "output": 209,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 477,
+            "cost": {
+              "input": 0.000536,
+              "output": 0.0020900000000000003,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0026260000000000003
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "4799470168d05e8e090e08f886dc91baa00a05099e30ba3aa6b6f8dadc88781c"
+        },
+        {
+          "case": "validation-cache",
+          "condition": "without_1",
+          "answer": "**Do not deploy the patch as written.** Keep it only for fixes and further tests.\n\nThe staging test showed a drop in p95 latency from 900 ms to 300 ms. This means 95% of requests finished within 300 ms after the patch, compared with 900 ms before it.\n\nBut the replay used only 20 keys across 1,000 requests. This favors the cache because many requests can reuse stored responses. Production has many one-off keys, so this test does not show the likely production benefit. There are no production measurements.\n\n**The cache also creates a data exposure risk.** It stores account-specific responses for five minutes but uses only the URL to find them. Two accounts that request the same URL could receive the same stored response.\n\nBefore deployment:\n- Exclude account-specific responses from the cache, or use a cache key that safely separates accounts and access rights.\n- Test that one account cannot receive another account’s data.\n- Repeat the latency test with a realistic mix of repeated and one-off keys.\n- Check whether the five-minute storage time is acceptable for each response type.\n\nDeployment has not started, so block it until these issues are resolved.",
+          "score": {
+            "label": "R25",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Deployment warning leads; p95, unrealistic key reuse, account exposure, and absent production evidence are clearly explained."
+          },
+          "usage": {
+            "input": 256,
+            "output": 242,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 498,
+            "cost": {
+              "input": 0.000512,
+              "output": 0.0024200000000000003,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.002932
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "bfd34132eb08a4752ae29680bf9c4510941d90a800289289986c4adb5aa2b66b"
+        },
+        {
+          "case": "instruction-results",
+          "condition": "without_2",
+          "answer": "Brian, keep the update for now. It improved answers in these two exercises. Next, test it in an actual repair workflow with repeated runs.\n\nThe update added four rules:\n- Use the original instructions as the reference.\n- Trigger a failure that can actually be repaired.\n- Separate attempted actions from the final state.\n- Exclude unfinished work from efficiency claims.\n\n**What the results mean**\n- The score rose from **11/16 to 15/16**, with **9% more tokens**. This is a trade-off: better answers in these exercises at a higher token cost.\n- Removing the failure, observation, or token rule lowered the score that each rule targeted. This supports keeping those three rules.\n- Removing the original-reference rule did not lower its targeted score. These results do not show a benefit from that rule.\n\n**What remains unknown**\n\nEach condition had only one answer per exercise. The results cannot show how consistent the gains are. The exercises tested study planning and interpretation of supplied results, not actual repairs. They therefore do not establish better repair success or repair efficiency.\n\nNext, run repeated repair tests. Compare against the original instructions, record attempted actions and final states separately, and assess efficiency only for completed work. Include a test that can reveal whether the original-reference rule helps.",
+          "score": {
+            "label": "R05",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 1,
+            "reason": "Leads with provisional use and real-workflow testing. Preserves all findings and limits, but leaves tokens as technical shorthand."
+          },
+          "usage": {
+            "input": 295,
+            "output": 264,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 559,
+            "cost": {
+              "input": 0.0005899999999999999,
+              "output": 0.0026400000000000004,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0032300000000000002
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "ea75415497e89cfd9c42222b6bfe786f31f3c16e2d5914c9ba27a56c074165c6"
+        },
+        {
+          "case": "validation-price",
+          "condition": "without_2",
+          "answer": "Brian, choose Plan A. It saves you $3 a month.\n\nYou run the job 20 × 30 = 600 times a month.\n\n- **Plan A:** $10 + (600 × $0.02) = **$22 a month**\n- **Plan B:** **$25 a month**\n\nBoth take the same time, and you do not need other features. Plan A meets your needs for less money.",
+          "score": {
+            "label": "R30",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Recommendation and $3 savings lead; monthly runs and both costs are correct with no invented advantage."
+          },
+          "usage": {
+            "input": 234,
+            "output": 91,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 325,
+            "cost": {
+              "input": 0.000468,
+              "output": 0.0009100000000000001,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.001378
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "3dd2c25e2672f9d0e22461b2b52a62b4a5e4f6e57337b4a0482e04ed0bef98a7"
+        },
+        {
+          "case": "validation-cache",
+          "condition": "without_2",
+          "answer": "Brian, do not deploy or keep the patch as written. Fix the cache key and test with a workload that matches production.\n\n- **The staging result is narrow.** p95 latency fell from 900 ms to 300 ms, a 67% drop. But the 1,000 requests reused only 20 keys. This favors cache hits. Production has many one-off keys, so the production benefit is unknown.\n- **The cache has a privacy flaw.** It stores account-specific responses for five minutes but uses only the URL as the key. Requests from different accounts can use the same URL. One account could receive another account’s response.\n- **Deployment has not started.** Keep it blocked. Add account isolation to the cache key, or do not cache account-specific responses. Test that accounts cannot receive each other’s data. Then replay realistic key patterns and measure cache hit rate, p95 latency, and memory use.\n\nKeep the caching approach for further work, not this version for release.",
+          "score": {
+            "label": "R21",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 1,
+            "reason": "Preserves the p95 measurement, production uncertainty, and account-isolation blocker. Leads with the decision but leaves p95 and cache hits unexplained."
+          },
+          "usage": {
+            "input": 255,
+            "output": 206,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 461,
+            "cost": {
+              "input": 0.0005099999999999999,
+              "output": 0.00206,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0025700000000000002
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "cf23edd5d33367385042e93459322e90bda5ea61eaae51cec1293a3a0b1ba8e6"
+        },
+        {
+          "case": "exact-setting",
+          "condition": "without_1",
+          "answer": "`prune_after_verified_upload=true` deletes the local backup after the uploaded copy passes a checksum check. A checksum checks that the transferred data matches the source. It does not prove that you can restore your files.\n\n**Leave it off for now.** You have not tested a restore. Deleting the local backup would leave you with only the cloud copy.\n\nTo free space safely:\n\n1. Copy the local backup to an external drive. Confirm that the copy is complete.\n2. Restore from the cloud to another drive. Check that you can open the restored files. Confirm that you have any required password or encryption key.\n3. Turn on automatic deletion only if you accept relying on the cloud copy, or keep a second backup on the external drive.\n\nIf you need space now, move the local backup to an external drive before deleting it from the laptop.",
+          "score": {
+            "label": "R16",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Opens with the setting's practical deletion effect, explains checksum limits, and gives restore and extra-copy precautions before freeing space."
+          },
+          "usage": {
+            "input": 245,
+            "output": 176,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 421,
+            "cost": {
+              "input": 0.00049,
+              "output": 0.00176,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0022500000000000003
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "f3dd3d4f5cec24a4c6d8a1ba2d75a46dfb86fdf8b2739f70c3325ca665ab5d69"
+        },
+        {
+          "case": "auth-rotation",
+          "condition": "without_2",
+          "answer": "Brian, the two hosts are using the same refresh token. Give the failing host its own device login. Leave the working host’s login unchanged.\n\nThe logs support this sequence:\n1. Both hosts start with a copy of the same refresh token.\n2. One host refreshes its login. The service replaces the token.\n3. The other host submits the old token and gets `invalid_grant`.\n\nOn the failing host:\n- Stop automatic login retries.\n- Use the service’s device-login flow to create a separate login.\n- Save the new login only on that host.\n- Test access, then restart retries.\n\nDo not copy login tokens between hosts. Do not print token values or revoke the working host’s login.\n\nNothing has been changed yet.",
+          "score": {
+            "label": "R13",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 1,
+            "reason": "Independent login and protection of the working host lead. All facts remain, but refresh token and device-login flow receive only contextual explanation."
+          },
+          "usage": {
+            "input": 246,
+            "output": 154,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 400,
+            "cost": {
+              "input": 0.0004919999999999999,
+              "output": 0.0015400000000000001,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.002032
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "b50ae229d3a2dbe4145b67b9da3e682e9801b246d5a44d00d6534c3153008c12"
+        },
+        {
+          "case": "validation-ablation",
+          "condition": "baseline",
+          "answer": "The new instructions performed better in this test:\n- All six answers kept the required facts, compared with four under the current instructions.\n- Average length fell by 20%, from 400 to 320 tokens.\n- Removing the term-definition instruction led to unexplained jargon in two answers. Keep this instruction.\n- Removing the practical-result-first instruction made no observed difference. The current rule to “state the point directly” may already serve this purpose.\n\n**Recommendation:** Keep the term-definition instruction. Remove the separate practical-result-first instruction to reduce overlap. Test this shorter set on more tasks and repeat each task. One run per task is not enough to establish consistent performance.",
+          "score": {
+            "label": "R35",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Leads with the bounded improvement, preserves all numbers and removal results, and qualifies rule overlap with repeated testing."
+          },
+          "usage": {
+            "input": 237,
+            "output": 137,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 374,
+            "cost": {
+              "input": 0.000474,
+              "output": 0.0013700000000000001,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0018440000000000002
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "421b3047aa927f3b8222e3d288ff1354c261086f276b31609b18099467b1d126"
+        },
+        {
+          "case": "monitor-lock",
+          "condition": "without_1",
+          "answer": "**What is happening**\n\n- The repair service uses a server-wide exclusion claim. One stale `cleanup_uncertain` record blocks unrelated repositories with `writer_conflict`.\n- PR 42 changes exclusion to shared-resource scope. It is merged, but its deployment is not confirmed.\n- Your PR monitor is stopped because its recorded branch does not match the checked-out branch.\n- No recovery command has run.\n- The underlying PR is approved and its checks pass. The blocker is the repair and monitor state.\n\n**What needs to happen next**\n\n1. Confirm that the running repair service includes PR 42. Deploy it if needed.\n2. Confirm that the stale record no longer blocks unrelated repositories.\n3. Check which branch the monitor should track. Correct the checkout or the monitor’s recorded branch.\n4. Run the supported recovery command, then restart the monitor.\n5. Confirm that monitoring resumes without `writer_conflict`. Then continue the underlying PR’s merge process.",
+          "score": {
+            "label": "R08",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 0,
+            "terms": 1,
+            "reason": "Preserves separate lock and monitor problems and unperformed recovery. Opens with exclusion mechanics and leaves shared-resource scope unexplained."
+          },
+          "usage": {
+            "input": 258,
+            "output": 196,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 454,
+            "cost": {
+              "input": 0.000516,
+              "output": 0.0019600000000000004,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0024760000000000003
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "69d49c61afd8326cfe5f6c4fb3a2b4b2ef6903659d0aae6a3a50a02fb70dc9c9"
+        },
+        {
+          "case": "auth-rotation",
+          "condition": "without_1",
+          "answer": "Login keeps failing because both hosts use the same OAuth refresh token. When one host refreshes its login, the service replaces that token. The other host then sends the old token and gets `invalid_grant`. The logs support this sequence.\n\nUse a separate device login for the failing host:\n\n1. Stop its automatic login retries.\n2. Remove only its local copy of the shared login credentials. Do not revoke the token at the service.\n3. Run the service’s device login on that host.\n4. Confirm that both hosts can refresh their logins independently.\n\nDo not copy login credentials between hosts again. Keep token values out of logs and messages. Leave the working host’s login unchanged.\n\nNothing has been changed yet.",
+          "score": {
+            "label": "R12",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 1,
+            "reason": "Opens with the supported login cause and preserves all safeguards and unchanged status. OAuth refresh token is only partially explained through the sequence."
+          },
+          "usage": {
+            "input": 247,
+            "output": 149,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 396,
+            "cost": {
+              "input": 0.000494,
+              "output": 0.0014900000000000002,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.001984
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "81f6927b700e59c1b00bb228363e754bb373a38f885760584fe4aed9b7ae7528"
+        },
+        {
+          "case": "validation-ablation",
+          "condition": "without_2",
+          "answer": "Brian, use the new instructions as the working choice. Keep the rule to define terms. Consider merging the “lead with the practical result” rule with the current rule to state the point directly.\n\nThe results favor the new instructions:\n- All six answers kept the required facts, up from four of six.\n- Average length fell from 400 to 320 tokens, a 20% reduction.\n- Removing the term-definition rule led to unexplained jargon in two answers. This supports keeping that rule.\n- Removing the practical-result rule made no observed difference. It may overlap with the current direct-point rule.\n\nEach task ran only once. Repeat the test before making a lasting change. Include tasks where the practical result is not obvious, to check whether that rule adds value.",
+          "score": {
+            "label": "R34",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Practical provisional recommendation leads; all results survive, and possible overlap is distinguished from proof that the rule adds nothing."
+          },
+          "usage": {
+            "input": 259,
+            "output": 158,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 417,
+            "cost": {
+              "input": 0.000518,
+              "output": 0.00158,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.002098
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "deda86e1fd9e213c8d89c12d88a46c8b52747f77ea20c335e4c9580e76f101a8"
+        },
+        {
+          "case": "exact-setting",
+          "condition": "without_0",
+          "answer": "Brian, **leave this setting off until you test a restore**. Free disk space from other files, or move the local backup to an external drive first.\n\n`prune_after_verified_upload=true` tells the tool to:\n1. Upload the backup.\n2. Check the remote checksum—a value used to check that the transferred bytes match.\n3. Delete the local backup if that check passes.\n\nThe check does **not** show that you can restore your files. For example, the uploaded backup could match perfectly, but you could be missing the encryption key needed to open it.\n\nBefore you enable it:\n- Restore from the cloud to a separate location.\n- Check that the files you need are present and open correctly. If you need full-system recovery, test that process too.\n- Store recovery keys somewhere other than this laptop.\n- Keep another independent backup, such as one on an external drive.\n\nThe setting will free local disk space. But with your current setup, it will also leave you dependent on one untested cloud copy.",
+          "score": {
+            "label": "R20",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Leads with restore testing before deletion, explains the checksum, and explicitly balances disk-space relief against having only the cloud copy."
+          },
+          "usage": {
+            "input": 253,
+            "output": 211,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 464,
+            "cost": {
+              "input": 0.0005059999999999999,
+              "output": 0.0021100000000000003,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0026160000000000003
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "72f715c97aca2e6f080a6e14882077040f34c5521db3aef40d9d649c3a0ae899"
+        },
+        {
+          "case": "validation-cache",
+          "condition": "baseline",
+          "answer": "**Do not deploy or keep the patch as written.** Fix the cache design first.\n\nThe staging replay showed a 67% reduction in p95 latency, from 900 ms to 300 ms. But 1,000 requests reused only 20 keys. This favors cache hits. Production has many one-off keys, so this test does not establish the production benefit.\n\nThe main issue is data isolation. The patch caches account-specific responses for five minutes, but uses only the URL as the cache key. Different accounts can request the same URL. One account could receive another account’s response.\n\nBefore deployment:\n- Exclude account-specific responses, or use a cache key that includes all required account and authorization context.\n- Test that responses cannot pass between accounts.\n- Check whether five-minute-old responses are acceptable.\n- Repeat the latency test with realistic key reuse and one-off requests.\n\nKeep the optimization idea, not the current implementation. Deployment has not started, so block it until these issues are resolved.",
+          "score": {
+            "label": "R22",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 1,
+            "reason": "Correctly blocks deployment and preserves the p95 result, workload limitation, and exposure risk. Leaves p95 and some compressed technical language unexplained."
+          },
+          "usage": {
+            "input": 233,
+            "output": 204,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 437,
+            "cost": {
+              "input": 0.000466,
+              "output": 0.00204,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.002506
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "663e9fe23ba734a1192bfcc4a4595d03e6405bf3be5d7e9f33d45239dcc43c05"
+        },
+        {
+          "case": "validation-price",
+          "condition": "without_0",
+          "answer": "Brian, choose **Plan A**. It saves you **$3 per month**.\n\nYou run the job 20 × 30 = **600 times per month**.\n\n- **Plan A:** $10 + (600 × $0.02) = **$22 per month**\n- **Plan B:** **$25 per month**\n\nBoth take the same time. You do not need the extra features.",
+          "score": {
+            "label": "R28",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Leads with Plan A and $3 savings; includes correct run count and costs without claiming a performance benefit."
+          },
+          "usage": {
+            "input": 243,
+            "output": 87,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 330,
+            "cost": {
+              "input": 0.000486,
+              "output": 0.0008700000000000001,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.001356
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "233fc5fe73f227c3cfb4c371ba8edd9d6e27ecfaafa2e823fc70dcbeb11bb090"
+        },
+        {
+          "case": "instruction-results",
+          "condition": "without_0",
+          "answer": "Brian, the updated instructions performed better on these two exercises, but they do not yet show better repair performance. Next, test them in an actual repair workflow with repeated trials.\n\nThe update added four rules:\n- Compare results with the original instructions.\n- Create a real failure that can be repaired.\n- Separate attempted actions from the final state.\n- Exclude unfinished work from efficiency claims.\n\nThe score rose from **11/16 to 15/16**, with **9% more tokens**. Tokens are units of text processed or generated by the model. This shows a trade-off: higher scores on these exercises required more text.\n\nRemoving the failure, observation, or token rule lowered the score that each rule targeted. This supports keeping those three rules. Removing the original-reference rule did not lower its targeted score. These results therefore do not show a separate benefit from that rule.\n\nThe evidence is limited. There was only one answer per condition per exercise. The exercises tested study planning and interpretation of supplied results—not actual repairs. Use the findings to guide the next test, not to claim faster or more successful repairs.",
+          "score": {
+            "label": "R03",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Leads with improved exercise answers rather than proven repair gains. Defines tokens and retains every comparison and evidence limit."
+          },
+          "usage": {
+            "input": 304,
+            "output": 226,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 530,
+            "cost": {
+              "input": 0.0006079999999999999,
+              "output": 0.0022600000000000003,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0028680000000000003
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "1d17903f8df5197444e21f47b1eb7c5daea161aca21426ec7e49d1f3d1a39762"
+        },
+        {
+          "case": "validation-price",
+          "condition": "without_1",
+          "answer": "**Choose Plan A.** It costs $3 less per month.\n\n- Monthly runs: 20 × 30 = **600**\n- Plan A: $10 + (600 × $0.02) = **$22/month**\n- Plan B: **$25/month**\n\nBoth finish in the same time, and you do not need extra features.",
+          "score": {
+            "label": "R29",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Clear recommendation, correct 600-run calculation, $22 and $25 costs, and $3 monthly savings."
+          },
+          "usage": {
+            "input": 235,
+            "output": 96,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 18,
+            "totalTokens": 331,
+            "cost": {
+              "input": 0.00047,
+              "output": 0.0009600000000000001,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.00143
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "0ebfb63a999d8fc8da70dabd4e8c58f4738e6079afd52a7ed6b8e0889f97d0f0"
+        },
+        {
+          "case": "auth-rotation",
+          "condition": "without_0",
+          "answer": "Brian, the remote host needs its own device login. Run the service’s device-login flow on that host. Keep the working host’s login unchanged.\n\nThe logs support this cause:\n1. Both hosts used the same OAuth refresh token. This token lets a host renew access without another interactive login.\n2. One host refreshed access. The service replaced the refresh token.\n3. The other host submitted the old token and received `invalid_grant`, meaning the token was no longer valid.\n\nTo fix this:\n- Stop copying login credentials between hosts.\n- Sign in independently on the failing host.\n- If you must clear credentials first, remove only the failing host’s local credentials. Do not revoke the shared login through the service.\n- Test access on both hosts. Keep token values out of logs and messages.\n\nNothing has been changed yet.",
+          "score": {
+            "label": "R11",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Independent-login advice leads. Defines the refresh token and error while preserving the cause, credential safeguards, and unchanged status."
+          },
+          "usage": {
+            "input": 255,
+            "output": 171,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 426,
+            "cost": {
+              "input": 0.0005099999999999999,
+              "output": 0.0017100000000000001,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.00222
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "eaae99f96805b5c18fbb1ef4b347a26c0ab38329c51951ee2b89b936f9aa40be"
+        },
+        {
+          "case": "exact-setting",
+          "condition": "baseline",
+          "answer": "`prune_after_verified_upload=true` deletes the local backup after the uploaded copy passes a remote checksum check. The check confirms that the transferred bytes match. It does not confirm that you can restore your files.\n\n**Leave it off until you test a restore.** After pruning, the cloud backup is your only copy. A problem with access, encryption keys, or the restore process could make it unusable.\n\nBecause disk space is low:\n1. Free space by removing files you can replace, or move the local backup to an external drive.\n2. Restore from the cloud to a separate location. Confirm that you can decrypt and open important files.\n3. Keep another independent backup of files you cannot replace.\n\nTurn the setting on only if you accept having no local backup. A successful restore test reduces risk, but it does not replace a second independent copy.",
+          "score": {
+            "label": "R18",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Starts with the deletion consequence and explains the byte check, restore limitation, sole-copy risk, and safe disk-space alternatives."
+          },
+          "usage": {
+            "input": 222,
+            "output": 176,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 398,
+            "cost": {
+              "input": 0.000444,
+              "output": 0.00176,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0022040000000000002
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "3cc3b37db115389a3c8cf6a4e0a82c4e4ca32c68b1ade14da3802b9c44c5993a"
+        },
+        {
+          "case": "monitor-lock",
+          "condition": "without_2",
+          "answer": "Brian, the fix is merged, but it is not yet confirmed live. Check the deployment first. Then resolve your monitor’s branch mismatch and run recovery.\n\n**What is happening**\n- The repair service uses a server-wide exclusion claim. One stale `cleanup_uncertain` record blocks writes to unrelated repositories with `writer_conflict`.\n- PR 42 changes exclusion to shared-resource scope. It is merged, but deployment has not been checked.\n- Your PR monitor stopped because its recorded branch differs from the current checkout branch.\n- No recovery command has run.\n- The underlying PR is approved and its checks pass. The current blocker is recovery, not PR review.\n\n**What needs to happen next**\n1. Confirm that the running repair service includes PR 42.\n2. If it does not, deploy the fix before retrying recovery.\n3. Compare the monitor’s recorded branch with the checkout branch. Confirm the intended branch, then align them.\n4. Run the recovery command and restart the monitor.\n5. Confirm that monitoring resumes and unrelated repositories no longer get `writer_conflict` from the stale record.",
+          "score": {
+            "label": "R09",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 1,
+            "reason": "Leads with unconfirmed deployment and separate monitor recovery. Preserves all facts but leaves exclusion-claim and shared-resource terminology partly unexplained."
+          },
+          "usage": {
+            "input": 257,
+            "output": 226,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 483,
+            "cost": {
+              "input": 0.000514,
+              "output": 0.0022600000000000003,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0027740000000000004
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "856e4bf5e48fb8c94c5e9434c7de0265df88a0518700c06ec78bdb406e52cc6b"
+        },
+        {
+          "case": "auth-rotation",
+          "condition": "concrete",
+          "answer": "Brian, the two hosts are sharing one login token. Give the failing host its own device login. Leave the working host’s login unchanged.\n\nThe logs support this sequence:\n1. Both hosts copied the same OAuth refresh token. This token lets a host renew its access.\n2. One host renewed its access. The service replaced the refresh token.\n3. The other host used the old token. The service rejected it with `invalid_grant`.\n\nOn the failing host:\n1. Stop the service or its automatic login retries.\n2. Use the service’s device-login process to create an independent login.\n3. Save the new login credentials only on that host.\n4. Restart the service and check that login and renewal succeed.\n\nDo not copy login credentials between hosts again. Do not revoke the working host’s login or include token values in logs or messages.\n\nNothing has been changed yet.",
+          "score": {
+            "label": "R15",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Leads with shared login and independent-login advice; explains token renewal and rejection while retaining every safeguard and unchanged status."
+          },
+          "usage": {
+            "input": 262,
+            "output": 181,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 443,
+            "cost": {
+              "input": 0.0005239999999999999,
+              "output": 0.0018100000000000002,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.002334
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "5bae7916d598f4104f2fc6c3824f848e65aca46eb0dbf633f0b1efe6fcc42595"
+        },
+        {
+          "case": "auth-rotation",
+          "condition": "baseline",
+          "answer": "Login keeps failing because both hosts use the same OAuth refresh token. When one host refreshes, the service rotates the token. The other host then submits the old token and receives `invalid_grant`. The logs support this sequence.\n\nUse an independent device login for the failing host:\n\n1. Stop its automatic login retries.\n2. Remove only its local copy of the shared credentials. Do not revoke the session at the service.\n3. Start the device-login flow on that host.\n4. Store its new credentials separately. Do not copy or sync them between hosts.\n5. Confirm that both hosts can refresh independently.\n\nDo not print token values in logs or commands. Leave the working host’s credentials unchanged.\n\nNothing has been changed yet.",
+          "score": {
+            "label": "R14",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 1,
+            "reason": "Clear causal opening and complete safe next steps. OAuth refresh token and rotation remain technical shorthand, partly clarified by the old-token sequence."
+          },
+          "usage": {
+            "input": 224,
+            "output": 151,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 375,
+            "cost": {
+              "input": 0.000448,
+              "output": 0.00151,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.001958
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "cf518211f9bf0aafefd2f38e0d5d1b3853a78c6f3fc017ff38578cb132ad6f82"
+        },
+        {
+          "case": "monitor-lock",
+          "condition": "without_0",
+          "answer": "Brian, the code fix is merged, but service recovery is not confirmed. First, check deployment of PR 42. Then resolve your PR monitor’s branch mismatch and run recovery.\n\n### What is happening\n\n- The repair service uses a server-wide exclusion claim. This blocks writers across the server.\n- A stale `cleanup_uncertain` record from one registration causes `writer_conflict` errors for unrelated repositories.\n- PR 42 changes the claim to shared-resource scope. Only work that uses the same resource should conflict.\n- Your PR monitor is stopped because its recorded branch differs from the current checkout branch.\n- The underlying PR is approved, and its checks pass. No recovery command has been run.\n\n### What needs to happen next\n\n1. **Check deployment.** Confirm that the running repair service includes PR 42.\n2. **Resolve the branch mismatch.** Identify the intended branch. Then align the checkout and monitor record through the supported workflow.\n3. **Run recovery.** Use the supported recovery command after the deployment and branch checks.\n4. **Check the result.** Confirm that the monitor resumes and unrelated repositories no longer receive `writer_conflict` from the stale record.",
+          "score": {
+            "label": "R07",
+            "accuracy": 2,
+            "everyday": 1,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Leads with incomplete recovery, separates deployment and branch repair, and explains both blocking scopes despite some technical phrasing."
+          },
+          "usage": {
+            "input": 266,
+            "output": 243,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 509,
+            "cost": {
+              "input": 0.000532,
+              "output": 0.0024300000000000003,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0029620000000000002
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "8a3aae6a93b6b24900db7141b7daf5812da84d9f1f356660f5340dc44825696e"
+        },
+        {
+          "case": "instruction-results",
+          "condition": "without_1",
+          "answer": "The update added four rules for instruction studies:\n\n- Use the original instructions as the reference.\n- Create a real failure that can be repaired.\n- Separate attempted actions from the final state.\n- Leave unfinished work out of efficiency claims.\n\n**The updated instructions scored better on the two exercises:** 15/16, compared with 11/16 for the existing instructions. They also used 9% more tokens, the units used to measure model text. This shows a higher answer score at a higher text cost, not an efficiency gain.\n\nWhen researchers removed the failure, observation, or token rule, the score for that rule’s intended behavior fell. This supports keeping those three rules. Removing the original-reference rule did not lower its targeted score. These tests therefore did not show an added benefit from that rule.\n\n**The evidence is narrow.** Each condition produced only one answer per exercise. The exercises tested study planning and interpretation of supplied results. They did not test an actual repair workflow. The results support better answers on these tasks, but do not establish more reliable repairs or better repair efficiency.\n\nA useful next step is to repeat the tests with more answers and run a complete repair workflow. Measure attempts, final state, and token use separately.",
+          "score": {
+            "label": "R04",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 0,
+            "terms": 2,
+            "reason": "All findings and limits are intact, and tokens are defined. The rule inventory precedes the practical result."
+          },
+          "usage": {
+            "input": 296,
+            "output": 252,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 548,
+            "cost": {
+              "input": 0.000592,
+              "output": 0.00252,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.003112
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "d4688b496588c8cf810eb634e988d0c9e41f5e8b1d104e926e227f28f364f383"
+        },
+        {
+          "case": "validation-ablation",
+          "condition": "without_1",
+          "answer": "The new instructions look better in this small test:\n\n- **Required facts:** All six answers kept them, up from four with the current instructions.\n- **Length:** Average length fell from 400 to 320 tokens, a 20% drop.\n- **Term definitions:** Removing this instruction caused two answers to use unexplained jargon. Keep it.\n- **Practical result first:** Removing this instruction made no observed difference. It may overlap with the current rule to state the point directly.\n\n**Recommendation:** Keep the new instructions, including the rule to define terms. Remove the separate “practical result first” rule for the next test, while keeping “state the point directly.”\n\nRun each task more than once and add more tasks before a full rollout. One run per task is not enough to show how consistent the gains are.",
+          "score": {
+            "label": "R33",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Opens with a bounded positive conclusion and preserves every result, possible directness overlap, and the need for repeated testing."
+          },
+          "usage": {
+            "input": 260,
+            "output": 170,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 430,
+            "cost": {
+              "input": 0.00052,
+              "output": 0.0017000000000000001,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.00222
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "10721a2ce4ce8034e4eb9f634769eb8b59bc73dfc80c0bf930cc47da3d33f1fc"
+        },
+        {
+          "case": "instruction-results",
+          "condition": "concrete",
+          "answer": "Brian, the updated instructions produced stronger answers in these two exercises, at a 9% higher token cost. Keep the update for further testing. Next, test it in an actual repair workflow and repeat each condition.\n\n### What changed\n\nThe update added four rules:\n- Use the original instructions as the reference.\n- Create a real failure that can be repaired.\n- Separate attempted actions from the final state.\n- Exclude unfinished work from efficiency claims.\n\n### What the results mean\n\nThe score rose from **11/16 to 15/16**. The exercises tested study planning and interpretation of supplied results. They did not test actual repairs.\n\nRemoving the failure, observation, or token rule lowered the score that each rule was meant to improve. This supports keeping those three rules.\n\nRemoving the original-reference rule did not lower its targeted score. These results do not show a separate benefit from that rule. They also do not show that it is unnecessary.\n\nThe updated instructions used **9% more tokens**, or units of text processed by the model. This is a cost increase, not evidence of better repair efficiency.\n\nThere was only one answer per condition in each exercise. Repeat the tests to check whether the score gains are consistent. Then measure completed repairs, final state, and token use in a real workflow.",
+          "score": {
+            "label": "R02",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Leads with stronger exercise answers at higher cost. Defines tokens and retains all removal findings and limits on repair claims."
+          },
+          "usage": {
+            "input": 311,
+            "output": 265,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 576,
+            "cost": {
+              "input": 0.0006219999999999999,
+              "output": 0.00265,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0032719999999999997
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "124bb5ae906bb45e21f262a4ecf33c7a88d387273e41e72569ee1018369d3e09"
+        },
+        {
+          "case": "validation-cache",
+          "condition": "without_0",
+          "answer": "Brian, do not deploy this patch as written. Fix the cache key, then test with traffic that matches production.\n\nThe staging result shows that p95 latency fell from 900 ms to 300 ms. This means 95% of requests completed within 300 ms after the patch, compared with 900 ms before it. But the 1,000 requests reused only 20 keys. This favors caching. Production has many one-off keys, so this test does not establish the production benefit.\n\nThe account-specific responses create a release blocker. The cache stores them for five minutes but identifies them only by URL. Two accounts that request the same URL could receive the same cached response. This could expose one account’s data to another.\n\nKeep the caching approach for further work, not the current implementation:\n- Exclude account-specific responses, or use a cache key that separates accounts and all other relevant access boundaries.\n- Test that one account cannot receive another account’s cached data.\n- Repeat the performance test with realistic key reuse and many one-off keys.\n- If those tests pass, use a limited production rollout to measure latency and cache hit rate—the share of requests served from the cache.\n\nDeployment has not started, so block release until these issues are resolved.",
+          "score": {
+            "label": "R24",
+            "accuracy": 2,
+            "everyday": 2,
+            "meaning": 2,
+            "terms": 2,
+            "reason": "Deployment warning leads. Explains p95, account exposure, workload mismatch, and cache hit rate without claiming demonstrated production gains."
+          },
+          "usage": {
+            "input": 264,
+            "output": 254,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 0,
+            "totalTokens": 518,
+            "cost": {
+              "input": 0.0005279999999999999,
+              "output": 0.00254,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.003068
+            }
+          },
+          "stopReason": "stop",
+          "captureSha256": "05cca986a9291a44153e60f453688ae55d8d04f7167d2d0e25ab1dcf50b79a6f"
+        }
+      ]
+    }
+  }
+}

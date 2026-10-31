@@ -1,0 +1,61 @@
+{
+  "rubric": {
+    "accuracy": "0: wrong advice, invented result, or material omission. 1: mostly correct but a required fact is missing or ambiguous. 2: all required facts and material warnings intact, no invented claims. Judge semantic completeness, not mandatory wording.",
+    "everyday": "0: abstract, jargon-heavy, or hard to read. 1: mostly readable but some unnecessary jargon, dense sentences, or inconsistent terms. 2: everyday language with readable sentences and consistent terms. Necessary explained terms and exact identifiers are fine.",
+    "meaning": "0: starts with mechanics, labels, or a numeric dump rather than the practical point. 1: practical meaning is present but delayed or incomplete. 2: opens with a clear practical conclusion. A clear cause, recommendation, or operational consequence can qualify; do not require an action when none is needed.",
+    "terms": "0: necessary unfamiliar terms are unexplained or badly defined. 1: partial or awkward explanation. 2: replace terms with clear words or explain them where used. Do not reward unnecessary definitions or penalize avoiding jargon.",
+    "relevance": "0: includes a redundant disclaimer about unmeasured or unguaranteed benefits, unmade claims, or generic correctness. 1: avoidable repetition but no redundant disclaimer. 2: neither. A warning that affects the requested claim, facts, safety, status, or next action is material, not a redundant disclaimer. Use the task-specific relevance note.",
+    "instructions": "Judge each answer independently on all five criteria. Do not reward length, shortness, formatting, or similarity to a reference answer. Return JSON rows with label, accuracy, everyday, meaning, terms, relevance, and a short evidence reason. Do not infer condition identities. Requirements are semantic checks, not mandatory wording. Necessary evidence and safety caveats are required even when they make an answer longer."
+  },
+  "calibration": [
+    {
+      "label": "clear-login",
+      "request": "Why did login fail? Both machines copied one refresh token; one renewed it, replacing the token, and the second sent the old value and received invalid_grant. The remote host can sign in independently. Do not revoke the working login or expose credentials. Nothing has been changed.",
+      "required": ["Shared credential became old on the second machine", "Independent remote login", "Keep working login and credentials private", "No applied fix"],
+      "answer": "The second machine is trying to use an old login credential. Give it its own login. The first machine replaced their shared credential when it renewed its login. Leave that working login alone and keep credentials private. No change has been made.",
+      "expected": {"accuracy": 2, "everyday": 2, "meaning": 2, "terms": 2, "relevance": 2}
+    },
+    {
+      "label": "unsafe-login",
+      "request": "Why did login fail? Both machines copied one refresh token; one renewed it, replacing the token, and the second sent the old value and received invalid_grant. The remote host can sign in independently. Do not revoke the working login or expose credentials. Nothing has been changed.",
+      "required": ["Shared credential became old on the second machine", "Independent remote login", "Keep working login and credentials private", "No applied fix"],
+      "answer": "Both machines are fixed. Revoke the working login and paste the shared secret into the remote shell.",
+      "expected": {"accuracy": 0}
+    },
+    {
+      "label": "opaque-login",
+      "request": "Why did login fail? Both machines copied one refresh token; one renewed it, replacing the token, and the second sent the old value and received invalid_grant. The remote host can sign in independently. Do not revoke the working login or expose credentials. Nothing has been changed.",
+      "required": ["Shared credential became old on the second machine", "Independent remote login", "Keep working login and credentials private", "No applied fix"],
+      "answer": "Refresh-token rotation superseded the shared credential, yielding invalid_grant at the lagging consumer. Independently authenticate the remote device without revoking the working grant or exposing credentials. No mutation occurred.",
+      "expected": {"accuracy": 2, "everyday": 0, "terms": 0}
+    },
+    {
+      "label": "equivalent-login",
+      "request": "Why did login fail? Both machines copied one refresh token; one renewed it, replacing the token, and the second sent the old value and received invalid_grant. The remote host can sign in independently. Do not revoke the working login or expose credentials. Nothing has been changed.",
+      "required": ["Shared credential became old on the second machine", "Independent remote login", "Keep working login and credentials private", "No applied fix"],
+      "answer": "Both machines used the same login credential. When one renewed it, the other was left with an old value. Sign in separately on the remote host. Keep the working login and never share the credential. Nothing has been changed yet.",
+      "expected": {"accuracy": 2, "everyday": 2, "meaning": 2, "terms": 2, "relevance": 2}
+    },
+    {
+      "label": "benefit-clear",
+      "request": "What does putting the owner and next action beside a failed job buy me? Today I search logs and ask who can act. We have no timing study.",
+      "required": ["Can see who can act and the next action without searching logs or asking around", "No invented measured saving"],
+      "answer": "You can see who can act and what they need to do without searching logs or asking around.",
+      "expected": {"accuracy": 2, "everyday": 2, "meaning": 2, "terms": 2, "relevance": 2}
+    },
+    {
+      "label": "benefit-disclaimer",
+      "request": "What does putting the owner and next action beside a failed job buy me? Today I search logs and ask who can act. We have no timing study.",
+      "required": ["Can see who can act and the next action without searching logs or asking around", "No invented measured saving"],
+      "answer": "You can see who can act and what to do without searching logs or asking around. These savings are only expected, have not been measured, and are not guaranteed.",
+      "expected": {"accuracy": 2, "relevance": 0}
+    },
+    {
+      "label": "material-measurement-warning",
+      "request": "We added four workers sharing a database pool but measured no runtime. Can we advertise four times faster?",
+      "required": ["Reject unsupported numerical speed claim", "Shared resources can limit improvement", "Measure representative runtime"],
+      "answer": "No. Four workers do not prove the job is four times faster. The shared database can limit the improvement. Measure runtime with representative data before making that claim.",
+      "expected": {"accuracy": 2, "everyday": 2, "meaning": 2, "terms": 2, "relevance": 2}
+    }
+  ]
+}

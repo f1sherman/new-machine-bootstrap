@@ -1,0 +1,44 @@
+[
+  {
+    "id": "instruction-results", "split": "development",
+    "request": "Explain what changed and what these results mean. A skill update adds four rules for instruction studies: use the original instructions as the reference, trigger an actual repairable failure, distinguish attempted actions from final state, and exclude unfinished work from efficiency claims. Two exercises asked a model to plan a study and interpret supplied results. Existing instructions scored 11/16; updated instructions scored 15/16 and used 9% more tokens. Removing each of the failure, observation, and token rules reduced its targeted score. Removing the original-reference rule did not reduce its targeted score. One answer per condition per exercise. No actual repair workflow was tested.",
+    "required": ["The update improved advice about running studies, not demonstrated repair success", "15/16 versus 11/16 on two exercises", "9% more tokens, not a saving", "Removing three rules hurt their target areas", "Removing the original-reference rule showed no targeted loss", "Small study does not establish consistent real-world improvement"],
+    "terms": ["ablation", "baseline", "counterfactual"]
+  },
+  {
+    "id": "monitor-lock", "split": "development",
+    "request": "What is happening and what needs to happen next? The repair service uses a server-wide exclusion claim. A stale cleanup_uncertain record from one registration causes writer_conflict for unrelated repositories. PR 42 changes exclusion to shared-resource scope and is merged, but deployment has not been checked. My own PR monitor is stopped because its recorded branch differs from its current checkout branch. No recovery command has been run. The underlying PR is approved and checks pass.",
+    "required": ["An old repair record blocks unrelated repairs", "PR 42 is merged but deployment still needs checking", "The stopped monitor has a separate branch mismatch", "The lock change does not itself recover that monitor", "Checks and approval do not establish monitor recovery"],
+    "terms": ["exclusion", "registration", "writer_conflict", "cleanup_uncertain"]
+  },
+  {
+    "id": "auth-rotation", "split": "development",
+    "request": "Why does login keep failing on the remote host, and what should I do? Two hosts copied the same OAuth refresh token. A refresh rotates the token; the other host later submits the superseded value and gets invalid_grant. The logs support this sequence. The service offers independent device logins. Do not expose token values or revoke the working host's login. Nothing has been changed yet.",
+    "required": ["Both hosts reused the same login credential", "Refreshing replaced it and left the other host with an old value", "Use an independent login for the remote host", "Do not revoke the working login or expose credentials", "No fix has been applied yet"],
+    "terms": ["OAuth", "refresh token", "rotation", "invalid_grant"]
+  },
+  {
+    "id": "exact-setting", "split": "development",
+    "request": "What does this setting do, and should I turn it on? The backup tool setting is prune_after_verified_upload=true. It deletes the local backup only after a remote checksum check passes. That verifies transferred bytes, not whether a full restore works. My laptop is almost out of disk space, and I have never tested a restore. The cloud copy is the only remaining copy after pruning.",
+    "required": ["Keep the exact setting name if quoting the setting", "It deletes the local copy after checking remote bytes", "That check does not prove a working restore", "Recommend a restore check or another copy before deletion", "It frees disk space but leaves only the cloud copy"],
+    "terms": ["pruning", "checksum", "restore"]
+  },
+  {
+    "id": "validation-cache", "split": "validation",
+    "request": "Explain the outcome and whether we should keep the change. A cache patch reduced p95 request latency from 900 ms to 300 ms in a staging replay with 1,000 requests. The replay reused the same 20 keys. The production workload has many one-off keys. No production measurements exist. The patch stores responses for five minutes, including account-specific responses, but the cache key contains only the URL. Deployment has not started.",
+    "required": ["Staging requests were faster, but repeated keys differ from production", "900 ms to 300 ms is the slow-tail measurement, not every request", "URL-only keys can expose one account's response to another", "Do not deploy until account separation is fixed", "No production improvement has been demonstrated"],
+    "terms": ["p95", "latency", "cache key"]
+  },
+  {
+    "id": "validation-price", "split": "validation",
+    "request": "Which option makes sense for me? I run a job 20 times a day. Plan A costs $10 a month plus $0.02 per run. Plan B costs $25 a month with those runs included. Use a 30-day month. Both finish the work in the same time. I do not need other features.",
+    "required": ["600 runs per month", "Plan A costs $22", "Plan B costs $25", "Recommend Plan A for a $3 monthly saving", "No invented performance or feature benefit"],
+    "terms": ["amortization", "marginal cost", "break-even"]
+  },
+  {
+    "id": "validation-ablation", "split": "validation",
+    "request": "Explain the results and your recommendation. We tried a new set of instructions on six tasks. All six answers kept the required facts, compared with four under the current instructions. Average answer length fell from 400 to 320 tokens. Removing the new instruction about defining terms caused two answers to use unexplained jargon. Removing the instruction about leading with the practical result made no observed difference. Each task ran once. The current rules also say to state the point directly.",
+    "required": ["Six of six versus four of six kept required facts", "Answer length fell 20%", "Removing term explanations caused two jargon failures", "Removing practical-result-first showed no difference", "An existing directness rule may overlap, so no difference does not prove uselessness", "Six single runs do not establish universal reliability"],
+    "terms": ["ablation", "redundancy", "statistical significance"]
+  }
+]
