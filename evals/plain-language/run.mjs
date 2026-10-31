@@ -9,15 +9,16 @@ import {fileURLToPath} from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const [stage, destination, selected] = process.argv.slice(2);
-assert.ok(['development', 'confirmation'].includes(stage));
+assert.ok(['development', 'confirmation', 'combined-screen', 'combined-check'].includes(stage));
+const combined = stage.startsWith('combined-');
+const study = combined ? JSON.parse(fs.readFileSync(path.join(here, 'combinations.json'))) : null;
 assert.ok(destination, 'Provide a fresh output directory');
 const output = path.resolve(destination);
 assert.ok(!fs.existsSync(output), 'Never overwrite a run');
 fs.mkdirSync(output, {recursive: true});
 const save = (name, data) => fs.writeFileSync(path.join(output, name), JSON.stringify(data, null, 2) + '\n');
 const hash = data => crypto.createHash('sha256').update(data).digest('hex');
-const opening = fs.readFileSync(path.join(here, '../../roles/common/files/pi/AGENTS.md.d/00-base.md'), 'utf8').split('\n')[0];
-const baseline = opening.split('Writing style: ')[1];
+const baseline = study?.original ?? JSON.parse(fs.readFileSync(path.join(here, 'results.json'))).stages.dev.baseline;
 assert.ok(baseline.startsWith('use ASD-STE100'));
 const components = {
   suggested: ['Use plain English.', 'Explain the practical meaning first.', 'Define technical terms when needed.'],
@@ -31,17 +32,31 @@ if (stage === 'confirmation') {
   conditions = {baseline, [selected]: full(selected)};
   for (let i = 0; i < 3; i++) conditions[`without_${i}`] = baseline + ' ' + components[selected].filter((_, j) => i !== j).join(' ');
 }
-const cases = JSON.parse(fs.readFileSync(path.join(here, 'cases.json')));
+if (combined) {
+  const entries = Object.entries(study.components);
+  const current = entries.map(([, text]) => text).join(' ');
+  if (stage === 'combined-screen') {
+    conditions = {empty: '', original: baseline, current};
+    for (const [id] of entries) conditions[`without_${id}`] = entries.filter(([key]) => key !== id).map(([, text]) => text).join(' ');
+    for (const [id, parts] of Object.entries(study.rewrites)) conditions[id] = parts.join(' ');
+  } else {
+    assert.ok(Object.hasOwn(study.rewrites, selected), 'Name the frozen selected rewrite');
+    const parts = study.rewrites[selected];
+    conditions = {current, [selected]: parts.join(' ')};
+    for (let i = 0; i < parts.length; i++) conditions[`without_${i}`] = parts.filter((_, j) => i !== j).join(' ');
+  }
+}
+const cases = study?.cases ?? JSON.parse(fs.readFileSync(path.join(here, 'cases.json')));
 const names = Object.keys(conditions);
-const matrix = cases.filter(c => stage === 'confirmation' || c.split === 'development').flatMap((c, i) =>
+const matrix = cases.filter(c => ['confirmation', 'combined-check'].includes(stage) || c.split === 'development').flatMap((c, i) =>
   names.map((_, j) => ({case: c.id, condition: names[(i + j) % names.length], file: `${c.id}-${names[(i + j) % names.length]}.json`})));
 const execute = promisify(execFile);
 const manifest = {
-  stage, selected, baseline, components, conditions, cases, matrix,
+  stage, selected, baseline, components: study?.components ?? components, rewrites: study?.rewrites, conditions, cases, matrix,
   common: 'You are a helpful assistant. Answer the user request.',
   model: {provider: 'openai-codex', id: 'gpt-6.1-sol', thinking: 'off'},
   piVersion: (await execute('pi', ['--version'])).stdout.trim(),
-  sources: Object.fromEntries(['run.mjs', 'cases.json', 'README.md'].map(f => [f, hash(fs.readFileSync(path.join(here, f)))]))
+  sources: Object.fromEntries(['run.mjs', ...(combined ? ['combinations.json', 'combination-grading.json', 'COMBINATIONS.md'] : ['cases.json', 'README.md'])].map(f => [f, hash(fs.readFileSync(path.join(here, f)))]))
 };
 save('manifest.json', manifest);
 const receipts = {manifest: hash(fs.readFileSync(path.join(output, 'manifest.json'))), trials: {}};
@@ -88,10 +103,12 @@ const packet = {
     everyday: '0: abstract or jargon-heavy explanation. 1: mostly readable but some needless jargon or compressed technical labels. 2: everyday language throughout; exact identifiers and necessary defined terms are fine.',
     meaning: '0: starts with mechanics, labels, or a numeric dump before explaining the point. 1: main meaning is present but delayed or incomplete. 2: opens with a clear practical conclusion grounded in the facts.',
     terms: '0: necessary unfamiliar terms left unexplained or badly defined. 1: partial or awkward explanations. 2: terms replaced with clear language or explained where used. Do not reward gratuitous definitions or penalize avoiding jargon.',
-    instructions: 'Judge each answer independently. Do not reward shortness, formatting, or resemblance to a reference answer. Return JSON rows with label, accuracy, everyday, meaning, terms, and a short evidence reason. Do not infer condition identities. Required facts are a completeness checklist, not mandatory wording.'
+    instructions: 'Judge each answer independently. Do not reward shortness, formatting, or resemblance to a reference answer. Return JSON rows with label, accuracy, everyday, meaning, terms, and a short evidence reason. Do not infer condition identities. Required facts are a completeness checklist, not mandatory wording.',
+    ...(combined ? JSON.parse(fs.readFileSync(path.join(here, 'combination-grading.json'))).rubric : {})
   },
   rows: records.map((r, i) => ({label: `R${String(i + 1).padStart(2, '0')}`, case: r.case,
-    request: cases.find(c => c.id === r.case).request, required: cases.find(c => c.id === r.case).required, answer: r.answer}))
+    request: cases.find(c => c.id === r.case).request, required: cases.find(c => c.id === r.case).required,
+    ...(combined ? {relevance: cases.find(c => c.id === r.case).relevance} : {}), answer: r.answer}))
 };
 packet.rows.sort((a, b) => hash(a.label + 'plain-language').localeCompare(hash(b.label + 'plain-language')));
 save('packet.json', packet);

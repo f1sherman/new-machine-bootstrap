@@ -4,7 +4,7 @@
 
 Brian understood a practical explanation much more easily than a technical report of the same results. Which short addition to his shared writing guidance best reproduces that clarity without dropping facts or spending unnecessary tokens?
 
-This study tests a standalone writing excerpt, not full deployed agent instructions. The real-world case is paraphrased from the supplied conversation. All other cases are synthetic. No internal service names, credentials, private logs, or conversation identifiers belong in published fixtures.
+This first study tests a standalone writing excerpt, not full deployed agent instructions. The runner pins its historical baseline from `results.json` so later source edits do not silently change the comparison. The real-world case is paraphrased from the supplied conversation. All other cases are synthetic. No internal service names, credentials, private logs, or conversation identifiers belong in published fixtures.
 
 ## Frozen procedure
 
@@ -41,3 +41,15 @@ Replace the final argument with the frozen selected variant. Each output directo
 Review `packet.json` without reading `labels.json` first. Save scored rows separately, then join labels to scores and usage for the report. Report per-case quality, each ablation, input/output/cache tokens, and combined token totals. These are token counts, not dollars. Shared prompt overhead is present in every condition; only matched differences estimate this change's cost. Answers may be longer even when instructions are shorter.
 
 The maintained fixtures protect clarity and factual completeness across explanation, operational status, credentials, deletion, numerical advice, and unfamiliar terminology. This is an opt-in live study, not a deterministic CI test.
+
+## Combined writing-style follow-up
+
+[The follow-up design](COMBINATIONS.md) tests combinations and removals of both existing and new rules. [Its results](COMBINATION-RESULTS.md) explain why the current words were retained and integrated into one Writing style paragraph.
+
+```sh
+f=tmp/plain-language/combinations
+node evals/plain-language/run.mjs combined-screen "$f/screen"
+node evals/plain-language/run.mjs combined-check "$f/check" named
+```
+
+The second command names the frozen selected rewrite from that run. Use fresh output directories. Reproduce selection before using a different rewrite; do not select from reserved-case outcomes.
