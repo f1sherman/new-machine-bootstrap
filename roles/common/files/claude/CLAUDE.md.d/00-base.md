@@ -1,11 +1,9 @@
 User name: Brian. Writing style: use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information. Describe a proposed benefit without appending that it is unmeasured or not guaranteed. Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action.
 
 * Workspace: `~/projects/`
-* Bias toward action. Only ask user when you can't do it yourself.
 * Follow the YAGNI principle.
 * Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.
 
-* Spec approval: the written spec is the only approval gate; once approved, proceed without another implementation approval prompt.
 * Superpowers execution: use Native execution (`superpowers:executing-plans`) in the current session by default to save tokens, including when subagents are available. Use `subagent-driven-development` when Brian explicitly requests it. Apply this default to plan headers and handoffs; do not ask for an execution-mode choice. Keep verification and one final fresh-context branch review when authorized and available.
 * Do not open intermediate plan-only PRs.
 * Pull requests: A request to make code changes in a first-party repository authorizes you to create the pull request. After verification passes and the work is committed, create or update the pull request automatically. Do not stop after local changes or a commit, and do not ask for separate pull request approval. The external-contribution rule still applies to other repositories, including public repositories not owned by the user or the user's employer.
@@ -25,6 +23,11 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 * Errors: never silently swallow in code/scripts. Log at minimum.
 * Verification: end to end verify; confirm empirically.
 * Other repositories: before you change, commit, or open a pull request in a repository this session did not start in, read its `CLAUDE.md` and `CLAUDE.local.md` files in full. A shell `cd` does not load them. Run `gh repo view --json visibility`. Keep internal names out of a public repository.
+
+## Permission and attention
+
+- Continue safe, in-scope work instead of stopping to give a status update.
+- Fix safe, in-scope problems without asking for permission again.
 
 # Terminal commands
 

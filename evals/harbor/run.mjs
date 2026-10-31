@@ -9,12 +9,13 @@ import { jobArguments } from './invocation.mjs';
 const { values: options } = parseArgs({ options: {
   suite: { type: 'string' }, model: { type: 'string' }, trials: { type: 'string', default: '1' }, 'pi-version': { type: 'string' },
   cases: { type: 'string' }, conditions: { type: 'string' }, 'compare-ref': { type: 'string' }, ablate: { type: 'boolean' },
+  'skill-file': { type: 'string' }, 'guidance-file': { type: 'string' },
   mode: { type: 'string', default: 'regression' }, live: { type: 'boolean' }, replay: { type: 'string' },
   harbor: { type: 'string', default: 'tmp/harbor-venv/bin/harbor' }, python: { type: 'string', default: 'tmp/harbor-venv/bin/python' },
   'docker-subnet': { type: 'string' }, output: { type: 'string', default: 'tmp/harbor-evals' }, help: { type: 'boolean' },
 } });
 if (options.help) {
-  console.log('Usage: node evals/harbor/run.mjs --suite command-guidance|session-naming\n  --model provider/model [--cases ids] [--conditions ids] [--trials 1]\n  [--live | --replay tmp/prior-run] [--mode regression|compare]\n  [--ablate] [--compare-ref ref] [--harbor path] [--python path]\n  [--pi-version X.Y.Z] [--docker-subnet CIDR] [--output tmp/fresh-run]\nDefault: stage only. --live makes paid calls. Replay makes no model calls.');
+  console.log('Usage: node evals/harbor/run.mjs --suite command-guidance|session-naming|permission-guidance\n  --model provider/model [--cases ids] [--conditions ids] [--trials 1]\n  [--live | --replay tmp/prior-run] [--mode regression|compare]\n  [--ablate] [--compare-ref ref] [--skill-file path] [--guidance-file path]\n  [--harbor path] [--python path]\n  [--pi-version X.Y.Z] [--docker-subnet CIDR] [--output tmp/fresh-run]\nDefault: stage only. --live makes paid calls. Replay makes no model calls.');
   process.exit(0);
 }
 if (!['regression', 'compare'].includes(options.mode)) throw Error('Unknown --mode');
@@ -35,12 +36,14 @@ const output = localPath(options.output);
 if (fs.existsSync(output)) throw Error('Use a fresh --output to preserve prior evidence');
 const source = options.replay ? localPath(options.replay) : null;
 const prior = source ? readJSON(path.join(source, 'manifest.json')) : null;
-if (prior && (options.suite || options.model || options.cases || options.conditions || options.ablate || options['compare-ref'] || options['pi-version'])) throw Error('Replay uses its frozen manifest; do not override inputs');
+if (prior && (options.suite || options.model || options.cases || options.conditions || options.ablate || options['compare-ref'] || options['pi-version'] || options['skill-file'] || options['guidance-file'])) throw Error('Replay uses its frozen manifest; do not override inputs');
 if (prior && prior.suite !== 'command-guidance') throw Error('Replay is supported only for command-guidance');
 const suite = prior?.suite ?? options.suite;
 const model = prior?.model ?? options.model;
 const trials = prior?.trials ?? Number(options.trials);
-if (!/^(openai|anthropic)\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(model ?? '')) throw Error('Supply an explicit openai/model or anthropic/model');
+if (!/^(openai|anthropic|openai-codex)\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(model ?? '')) throw Error('Supply an explicit openai/model, anthropic/model, or openai-codex/model');
+const piLogin = model.startsWith('openai-codex/');
+if (piLogin && suite !== 'permission-guidance') throw Error('Pi login is supported only for permission-guidance');
 if (!Number.isSafeInteger(trials) || trials < 1) throw Error('--trials must be a positive integer');
 fs.mkdirSync(output, { recursive: true });
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
@@ -71,6 +74,7 @@ if (source) {
   if (!/^\d+\.\d+\.\d+$/.test(piVersion)) throw Error('Use an exact Pi release: --pi-version X.Y.Z');
   manifest = { schemaVersion: 1, model, trials, harborVersion: '0.24.0', piVersion,
     ...(await prepare(suite, { ...options, model, piVersion }, output)) };
+  if (piLogin) Object.assign(manifest, { agent: 'evals.harbor.pi_login:PiLogin', authentication: 'pi-login-access-only' });
   manifest.inputHashes = hashes(path.join(output, 'tasks'));
 }
 if (options.mode === 'regression' && !manifest.variants.some(variant => variant.primary)) throw Error('Regression mode requires the primary guidance/current condition');
@@ -109,9 +113,13 @@ try {
     }
   } else {
     const key = model.startsWith('openai/') ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY';
-    if (!process.env[key]) throw Error(`Live runs require ${key}; host OAuth/config files are not copied`);
+    if (!piLogin && !process.env[key]) throw Error(`Live runs require ${key}, or use openai-codex/model for permission-guidance with Pi login`);
     const env = {};
-    for (const name of ['PATH', 'LANG', 'TERM', 'DOCKER_HOST', key]) if (process.env[name]) env[name] = process.env[name];
+    for (const name of ['PATH', 'LANG', 'TERM', 'DOCKER_HOST', ...(!piLogin ? [key] : [])]) if (process.env[name]) env[name] = process.env[name];
+    if (piLogin) {
+      env.PI_EVAL_HOST_PI = execFileSync('which', ['pi'], { encoding: 'utf8' }).trim();
+      env.PI_EVAL_HOST_AGENT_DIR = path.resolve(process.env.PI_CODING_AGENT_DIR ?? path.join(process.env.HOME, '.pi/agent'));
+    }
     Object.assign(env, { HOME: path.join(output, 'host-home'), XDG_CACHE_HOME: path.join(output, 'host-cache'),
       TMPDIR: path.join(output, 'host-tmp'), DOCKER_CONFIG: path.join(output, 'docker-config'), PYTHONPATH: root, PYTHONDONTWRITEBYTECODE: '1' });
     for (const folder of [env.HOME, env.TMPDIR, env.DOCKER_CONFIG]) fs.mkdirSync(folder, { recursive: true });

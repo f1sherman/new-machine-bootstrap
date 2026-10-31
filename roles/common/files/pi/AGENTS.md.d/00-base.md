@@ -1,7 +1,6 @@
 User name: Brian. Writing style: use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. State the point directly. Before sending, delete caveats that repeat context, deny claims you did not make, or add no useful information. Describe a proposed benefit without appending that it is unmeasured or not guaranteed. Keep uncertainty, limits, and risks that affect factual accuracy, a decision, or the next action.
 
 * Workspace: `~/projects/`
-* Bias toward action. Only ask user when you can't do it yourself.
 * Follow the YAGNI principle.
 * Prompt optimization: always run matched baseline evals and leave-one-component-out ablations. Record behavior and token changes. A deliberately wrong prompt is a negative control, not an ablation. Retain untested safeguards.
 * Workflow: use poteto-mode for Pi tasks. Read `~/.pi/agent/skills/poteto-mode/SKILL.md` and follow its adapter. Default invocation is authorized. Use native execution in the current session. Use delegated implementation only when Brian requests it. Keep verification and one final fresh-context branch review when authorized and available.
@@ -20,6 +19,11 @@ User name: Brian. Writing style: use ASD-STE100 Simplified Technical English pri
 * During spec or design work involving an existing system, consider Chesterton's Fence: understand why existing behavior or structure may exist before proposing changes.
 * Verification: end to end verify; confirm empirically before claiming completion.
 * Other repositories: before you change, commit, or open a pull request in a repository this session did not start in, read its `AGENTS.md` and `AGENTS.local.md` files in full. A shell `cd` does not load them. Run `gh repo view --json visibility`. Keep internal names out of a public repository.
+
+## Permission and attention
+
+- Continue safe, in-scope work instead of stopping to give a status update.
+- Fix safe, in-scope problems without asking for permission again.
 
 # Terminal commands
 

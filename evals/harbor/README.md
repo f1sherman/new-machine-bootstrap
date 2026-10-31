@@ -1,13 +1,14 @@
 # Shared Harbor eval driver
 
 Harbor **0.24.0** owns agent/environment/verifier execution. One driver stages
-both suites, schedules trials, collects evidence, and sets regression exits.
+the suites, schedules trials, collects evidence, and sets regression exits.
 There is no Harbor fork or second live experiment loop.
 
 | Suite | Execution | Verification |
 | --- | --- | --- |
 | [command-guidance](../command-guidance/README.md) | Medium thinking; one response; no tools/context/sessions | Native macOS Ruby/Bash/Zsh sandbox |
 | [session-naming](../session-naming/README.md) | Stock Pi adapter; low thinking; tools and native continuation | Existing hidden behavioral checks and trace grader |
+| [permission-guidance](../permission-guidance/README.md) | Stock Pi adapter; medium thinking; tools and native continuation | Real task artifacts, protected-file snapshots, and native trace checks |
 
 Production guidance, all 18 command prompts, and both naming workflows are
 unchanged. Command generation moves from host scratch to Docker; only Pi's
@@ -16,10 +17,12 @@ incidental CWD section changes to `/workspace`. Command grading stays on macOS.
 ## Requirements
 
 Use Node.js, Ruby (including standard YAML), Python 3.12+, and local Docker with
-Compose. Image installation and live calls need network access. Live runs need
-only the selected `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. No host OAuth, session,
-or agent config files are mounted or copied. See the command suite's additional
-macOS grading requirements.
+Compose. Image installation and live calls need network access. The command and
+naming suites use the selected `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. Permission
+evals also support the existing host Pi login with `openai-codex/model`; no API
+key is needed for that mode. Host sessions, configuration, and refresh credentials
+are never mounted or copied. See the command suite's additional macOS grading
+requirements.
 
 Install Harbor under this checkout's ignored `tmp/`:
 
@@ -71,6 +74,38 @@ credential is forwarded. The driver uses a local Docker socket without changing
 the daemon. If needed, `--docker-subnet CIDR` selects an unused, non-overlapping
 subnet for eval networks only.
 
+### Existing Pi login for permission workflows
+
+Select `--suite permission-guidance --model openai-codex/gpt-6.1-sol` with the
+usual fixed `--skill-file`. Staging needs no authentication. Live execution uses
+the installed host `pi` and its existing agent directory, including an explicit
+`PI_CODING_AGENT_DIR` if set. The driver does not forward API-key variables in
+this mode. It records `authentication: pi-login-access-only` in the manifest.
+
+A narrow stock-Pi subclass asks the host CLI for an access token before each
+user step. Pi owns normal refresh handling on the host. Only the short-lived
+access token, its actual expiry, and an empty refresh placeholder enter a private
+runtime auth file in the container. Tokens never enter command arguments,
+agent options, or environment variables. Temporary host files are private and
+removed after upload; container credentials are removed after each step, with
+container teardown as the fallback after process death. Auth acquisition,
+expiry, and cleanup failures are infrastructure errors. Native tools, session
+continuation, observers, and accounting remain stock.
+
+This mode is only for reviewed cooperative fixtures. The root-running candidate
+can read its runtime bearer; mode 0600 does not prevent that. Do not use it for
+hostile tasks or inputs that require credential isolation from candidate tools.
+Custom endpoints, MCP, and agent-directory overrides inside the container are
+not supported. Only host Pi handles normal login refresh; the wrapper never
+reads or copies the refresh credential.
+
+Auth boundary checks run without real credentials or model calls:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 \
+  tmp/harbor-venv/bin/python -m unittest evals.harbor.test_pi_login
+```
+
 ## Command replay and evidence
 
 Command replay preserves the existing ability to regrade saved responses:
@@ -94,7 +129,8 @@ stderr, assessments, rewards, trajectories, and workspace artifacts. Ignored
 artifacts are not Git-recoverable; preserve them separately when needed.
 
 `report.json` separates primary policy/task outcomes, controls/ablations, and
-infrastructure errors. Regression exits nonzero on any primary failure;
+infrastructure errors. Permission runs preserve task and authority checks separately;
+permission-question quality and document meaning remain manual assessments. Regression exits nonzero on any primary failure;
 `--mode compare` permits policy failures. **Both modes fail on infrastructure
 errors.** Usage covers main-agent input/output/cache only, not total billing.
 Broad-name quality remains a manual assessment.
@@ -110,7 +146,16 @@ PYTHONDONTWRITEBYTECODE=1 \
   tmp/harbor-venv/bin/python -m unittest evals.harbor.test_command
 ```
 
-The last command needs pinned Harbor and macOS. It checks native transport,
+Permission-suite calibration and staging checks need only Python, Node, Ruby,
+and Git; they make no model or Docker calls:
+
+```bash
+python3 -m unittest discover -s evals/permission-guidance \
+  -p 'test_*.py'
+node --test evals/permission-guidance/suite.test.mjs
+```
+
+The Harbor Python command above needs pinned Harbor and macOS. It checks native transport,
 verifier creation, exact prompt serialization, version propagation, frozen
 command grading, evidence failures, command replay, and exits.
 
