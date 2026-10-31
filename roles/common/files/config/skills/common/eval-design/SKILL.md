@@ -8,6 +8,10 @@ description: Use when designing, running, or interpreting LLM evals or ablation 
 ## 1. Define the question
 
 State the behavior, baseline, and observation that would support the claim.
+Identify the historical instruction whose failure the change is meant to fix.
+If an intermediate revision already fixes it, compare both revisions separately.
+An ablation failure is not evidence of improvement over either baseline.
+
 Separate functional correctness from policy compliance, response format, and
 infrastructure health. For example, intact arguments and an 80-character line
 limit are different outcomes. A combined score alone can hide that difference.
@@ -18,6 +22,11 @@ For instruction-following evals, put the tested policy only in the experimental
 condition. Use task-only prompts: specify the operation and data, not reminders
 of the behavior being measured. A user request to read a file is neutral; a
 request to wrap it for an 80-column terminal repeats a line-limit policy.
+
+For recovery claims, authorize the intended outcome without a reminder to continue.
+Make a real, safely repairable command fail during that same authorized turn.
+A past-error description followed by a new implementation request tests a
+different behavior.
 
 Keep deliberate reminders, adversarial wrapping demands, and suggested
 solutions in a separately labelled stress-test set. Stress tests measure
@@ -42,6 +51,11 @@ Execute known correct, incorrect, and semantically equivalent constructions
 through the production grader before generating responses. Include cases that
 transform stdout if stdout carries instrumentation. Capture the target behavior
 independently of presentation changes; record the actual observations.
+
+Record actual failure exposure separately from successful completion.
+Confirm exposure from tool results, not only agent prose or an attempt log.
+Count a preemptive repair as completion without exposure.
+Record attempted prohibited changes separately from unchanged protected snapshots.
 
 Use real program output when grading program results. Use stand-ins only for
 operations whose arguments are the intended measurement. Support declared
@@ -68,6 +82,9 @@ Report per-case outcomes and failure types, not just aggregate totals. Distingui
 repeated responses from independent cases. Treat reused selection cases as
 diagnostics, and reserve unseen cases for validation after tuning. Label
 synthetic stress coverage rather than claiming representative workload frequency.
+
+Report usage per condition alongside completion.
+Lower token usage from skipped work is not an efficiency gain.
 
 Match the conclusion to the tested scope. A small correlated sample does not
 prove significance, universal reliability, minimal guidance, or each clause's
