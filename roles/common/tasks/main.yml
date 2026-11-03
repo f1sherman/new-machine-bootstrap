@@ -838,7 +838,7 @@
 
 - name: Merge model, statusLine, and permissions into Claude settings
   set_fact:
-    merged_settings: "{{ claude_settings | combine({'model': 'sonnet[1m]','effortLevel': 'max', 'statusLine': {'type': 'command', 'command': (ansible_facts['user_dir'] ~ '/.local/bin/claude-statusline') | quote, 'padding': 0}, 'permissions': merged_permissions | combine({'defaultMode': 'acceptEdits'})}, recursive=True) }}"
+    merged_settings: "{{ claude_settings | combine({'model': 'sonnet[1m]', 'effortLevel': 'max', 'statusLine': {'type': 'command', 'command': (ansible_facts['user_dir'] ~ '/.local/bin/claude-statusline') | quote, 'padding': 0}, 'permissions': merged_permissions | combine({'defaultMode': 'acceptEdits'})}, recursive=True) }}"
 
 - name: Write merged Claude settings.json
   copy:
