@@ -42,10 +42,6 @@ completed_file="$state_dir/completed"
 request_file="$requests_dir/$request_id"
 lock_held=0
 
-mkdir -p "$requests_dir" 2>/dev/null || exit 0
-chmod 700 "$state_root" "$state_dir" "$requests_dir" 2>/dev/null || true
-: > "$request_file" || exit 0
-
 lock_owner_snapshot() {
   cat "$lock_owner_file" 2>/dev/null
 }
@@ -69,6 +65,10 @@ terminate() {
 
 trap cleanup EXIT
 trap terminate HUP INT TERM
+
+mkdir -p "$requests_dir" 2>/dev/null || exit 0
+chmod 700 "$state_root" "$state_dir" "$requests_dir" 2>/dev/null || true
+: > "$request_file" || exit 0
 
 latest_request() {
   local path candidate latest=""
