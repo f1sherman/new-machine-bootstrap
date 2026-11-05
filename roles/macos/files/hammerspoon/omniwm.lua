@@ -421,7 +421,7 @@ function M.toggleDownloadsScratchpad()
         finish("Another window owns OmniWM scratchpad slot 1")
         return
       end
-      if scratchpad[1].isVisible then
+      if scratchpad[1].isVisible and scratchpad[1].isFocused then
         M.run({
           "command",
           "scratchpad",
