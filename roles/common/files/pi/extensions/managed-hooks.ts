@@ -88,61 +88,6 @@ function ownsTmuxPane() {
   return inTmux() && Boolean(process.stdout.isTTY);
 }
 
-function currentHerdrTabId() {
-  if (process.env.HERDR_ENV !== "1" || !process.stdout.isTTY) return "";
-  return process.env.HERDR_TAB_ID?.trim() || "";
-}
-
-function currentHerdrWorkspaceId() {
-  if (process.env.HERDR_ENV !== "1" || !process.stdout.isTTY) return "";
-  return process.env.HERDR_WORKSPACE_ID?.trim() || "";
-}
-
-async function execHerdr(pi, args, ctx) {
-  const command = process.env.HERDR_BIN_PATH?.trim() || "herdr";
-  const result = await exec(pi, command, args);
-  if (result.code !== 0 || result.killed) {
-    const category = result.killed ? "timeout" : `exit ${result.code}`;
-    warn(`Herdr label synchronization failed (${args[0]} ${args[1]}): ${category}`);
-    ctx?.ui?.notify?.(
-      `Herdr label synchronization failed (${category}). The Pi session name is unchanged.`,
-      "warning",
-    );
-  }
-  return result;
-}
-
-async function renameCurrentHerdrTab(pi, name, ctx) {
-  const tabId = currentHerdrTabId();
-  if (!tabId) return false;
-  const result = await execHerdr(pi, ["tab", "rename", tabId, name], ctx);
-  return result.code === 0 && !result.killed;
-}
-
-async function renameCurrentHerdrWorkspaceIfSingleTab(pi, name, ctx) {
-  const workspaceId = currentHerdrWorkspaceId();
-  if (!workspaceId) return false;
-  const result = await execHerdr(pi, ["workspace", "get", workspaceId], ctx);
-  if (result.code !== 0 || result.killed) return false;
-
-  let response;
-  try {
-    response = JSON.parse(result.stdout);
-  } catch {
-    return false;
-  }
-  if (response?.result?.workspace?.tab_count !== 1) return false;
-
-  const renamed = await execHerdr(pi, ["workspace", "rename", workspaceId, name], ctx);
-  return renamed.code === 0 && !renamed.killed;
-}
-
-async function renameCurrentHerdrLabels(pi, name, ctx) {
-  const tabRenamed = await renameCurrentHerdrTab(pi, name, ctx);
-  const workspaceRenamed = await renameCurrentHerdrWorkspaceIfSingleTab(pi, name, ctx);
-  return tabRenamed || workspaceRenamed;
-}
-
 function stateFile(key) {
   if (!process.env.TMUX_AGENT_STATE_DIR || !process.env.TMUX_PANE) return undefined;
   return path.join(process.env.TMUX_AGENT_STATE_DIR, `${process.env.TMUX_PANE}.${key}`);
@@ -1182,11 +1127,10 @@ async function canonicalSessionNameStatus(pi) {
 
 async function clearPublishedSessionName(pi, ctx) {
   if (ctx.mode !== "tui") return false;
-  const herdrCleared = await renameCurrentHerdrLabels(pi, "", ctx);
-  if (!ownsTmuxPane()) return herdrCleared;
+  if (!ownsTmuxPane()) return false;
   const status = await canonicalSessionNameStatus(pi);
   if (status.kind !== "non-branch"
-    || !["goal", "manual"].includes(status.source)) return herdrCleared;
+    || !["goal", "manual"].includes(status.source)) return false;
   await exec(pi, "tmux-agent-state", ["clear-task"]);
   const cwd = await boundWorktreePath(pi, ctx?.cwd || "");
   await exec(pi, "tmux-agent-worktree", ["sync-current"], { cwd });
@@ -1487,8 +1431,7 @@ export default function managedHooks(pi) {
     const liveName = ctx?.sessionManager?.getSessionName?.()?.trim() || "";
     if (liveName !== normalizedExpectedName) return false;
 
-    const herdrPublished = await renameCurrentHerdrLabels(pi, normalizedExpectedName, ctx);
-    if (!ownsTmuxPane()) return herdrPublished;
+    if (!ownsTmuxPane()) return false;
     return writeTmuxIdentity(pi, "manual", normalizedExpectedName);
   }
 

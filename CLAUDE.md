@@ -69,7 +69,7 @@ When useful, inspect `/tmp/provision-*.log`; `ls -t /tmp/provision-*.log` lists 
 - macOS-only helper scripts and tools
 
 **Dev Host Role** (`roles/dev_host/`):
-- tmux auto-launch for SSH sessions outside Herdr
+- tmux auto-launch for SSH sessions
 - `~/projects` workspace setup
 - project trust configuration for Claude
 
@@ -171,7 +171,7 @@ ansible-playbook playbook.yml --check
 - Debian-based host
 - passwordless sudo required
 - headless/SSH-focused environment
-- tmux attaches automatically for interactive SSH logins outside Herdr
+- tmux attaches automatically for interactive SSH logins
 
 **Shared**:
 - Existing configurations are backed up before overwrite

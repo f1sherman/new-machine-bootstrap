@@ -446,13 +446,15 @@
     path: '{{ ansible_facts["user_dir"] }}/Library/LaunchAgents/com.user.ghostty-layout-save.plist'
     state: absent
 
-- name: Remove obsolete Ghostty layout helper scripts
+- name: Remove obsolete terminal helper scripts
   file:
     path: '{{ ansible_facts["user_dir"] }}/.local/bin/{{ item }}'
     state: absent
   loop:
     - ghostty-layout-save
     - ghostty-layout-reconcile
+    - herdr-launch
+    - herdr-tab
 
 - name: Stat obsolete Ghostty session manifest LaunchAgent plist
   stat:
