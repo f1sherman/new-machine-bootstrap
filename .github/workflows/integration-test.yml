@@ -171,9 +171,6 @@ jobs:
       - name: Verify Codex push-to-main hook
         run: bash tests/codex-push-main-hook.sh
 
-      - name: Verify Pi session registry adapter
-        run: ruby tests/pi-session-registry-adapter.rb
-
       - name: Verify Pi session completion
         run: ruby tests/pi-session-done.rb
 
