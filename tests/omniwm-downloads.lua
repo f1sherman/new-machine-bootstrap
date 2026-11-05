@@ -392,8 +392,59 @@ for _, failureCase in ipairs(recoveryFailures) do
   assertEqual(1, failedRecovery.done, failureCase[1] .. " failure completes once")
 end
 
+package.loaded.omniwm_cheatsheet = {new = function() return {toggle = function() end} end}
+hs = {
+  logger = {new = function() return {i = function() end} end},
+  timer = {doAfter = function() end},
+  hotkey = {bind = function() return {} end},
+  application = {watcher = {new = function() return {start = function() end} end}},
+  urlevent = {openURLWithBundle = function() end},
+}
+local omniwm = require("omniwm")
+local scratchpadWindow = {
+  id = "downloads",
+  app = {bundleId = "com.apple.finder"},
+  scratchpadIndex = 1,
+  isVisible = true,
+  isFocused = false,
+}
+local shortcutNotifications = {}
+omniwm.notify = function(message)
+  table.insert(shortcutNotifications, message)
+end
+omniwm.query = function(_, callback)
+  callback({result = {payload = {windows = {scratchpadWindow}}}}, nil)
+end
+omniwm.poll = function(predicate, _, callback)
+  predicate(function(result, pollError)
+    callback(result or nil, pollError or (not result and "Window did not settle" or nil))
+  end)
+end
+omniwm.run = function(args, callback)
+  if args[1] == "command" and args[2] == "scratchpad" and args[3] == "toggle" then
+    scratchpadWindow.isVisible = not scratchpadWindow.isVisible
+    scratchpadWindow.isFocused = scratchpadWindow.isVisible
+  elseif args[1] == "window" and args[2] == "focus" then
+    scratchpadWindow.isFocused = true
+  else
+    error("Unexpected shortcut command: " .. table.concat(args, " "))
+  end
+  callback(nil, nil)
+end
+
+omniwm.toggleDownloadsScratchpad()
+assertEqual(true, scratchpadWindow.isVisible, "one press keeps background Downloads visible")
+assertEqual(true, scratchpadWindow.isFocused, "one press brings background Downloads forward")
+omniwm.toggleDownloadsScratchpad()
+assertEqual(false, scratchpadWindow.isVisible, "one press hides focused Downloads")
+assertEqual(false, scratchpadWindow.isFocused, "hidden Downloads loses focus")
+omniwm.toggleDownloadsScratchpad()
+assertEqual(true, scratchpadWindow.isVisible, "one press shows hidden Downloads")
+assertEqual(true, scratchpadWindow.isFocused, "shown Downloads receives focus")
+assertEqual(0, #shortcutNotifications, "shortcut transitions finish without errors")
+
 if failures > 0 then
   os.exit(1)
 end
 
-print("PASS: OmniWM Downloads scratchpad assignment and locking cases")
+print("PASS: OmniWM Downloads scratchpad assignment, locking, and shortcut cases")
