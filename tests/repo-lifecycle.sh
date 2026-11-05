@@ -842,11 +842,21 @@ cat >"$HOME/.local/bin/repo-start-check.d/10-owner" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 [[ "$1" == --repo-dir && "$3" == --branch ]]
+printf 'checking owner\n'
 [[ "$2" != "$BB_BOUND_PATH" || "$4" == feature/bb-reused ]]
 EOF
 chmod +x "$HOME/.local/bin/repo-start-check.d/10-owner"
 export BB_BOUND_PATH="$bb_worktree"
-bb_run "$REPO_START_SCRIPT" feature/bb-reused --json >/dev/null
+bb_result="$(bb_run "$REPO_START_SCRIPT" feature/bb-reused --json 2>"$TMPROOT/check-output.err")"
+assert_equals "$(printf '%s' "$bb_result" | ruby -rjson -e 'puts JSON.parse(STDIN.read).fetch("mode")')" \
+  branch "check output does not corrupt BB JSON"
+noisy_check_repo="$(create_repo noisy-check)"
+noisy_result="$(cd "$noisy_check_repo" && "$REPO_START_SCRIPT" --no-worktrees \
+  feature/noisy-check --json 2>"$TMPROOT/noisy-check.err")"
+assert_equals "$(printf '%s' "$noisy_result" | ruby -rjson -e 'puts JSON.parse(STDIN.read).fetch("mode")')" \
+  branch "check output does not change selected mode"
+assert_equals "$(git -C "$noisy_check_repo" branch --show-current)" \
+  feature/noisy-check "check output does not redirect checkout into fresh isolation"
 if bb_run "$REPO_START_SCRIPT" feature/another-pr --json >/dev/null 2>&1; then
   fail_case "preflight blocks BB branch reuse" "owner veto was ignored"
 fi
