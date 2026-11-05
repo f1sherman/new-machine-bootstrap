@@ -126,7 +126,9 @@ affect every matching window, so they are intentionally not configured.
 Press `Escape` or `⌃⌥H` to hide the cheat-sheet panel.
 
 Finder uses OmniWM scratchpad slot 1. Only its managed Downloads window uses
-this behavior. Photos uses its own summon-and-return workflow.
+this behavior. Press `⌃⌥D` to bring Downloads forward when it is hidden or behind
+another window. Press it while Downloads has focus to hide it. Photos uses its
+own summon-and-return workflow.
 
 After OmniWM restarts, Hammerspoon waits up to 30 seconds for OmniWM IPC and
 the restored Finder window. It also waits for an active Downloads shortcut to
