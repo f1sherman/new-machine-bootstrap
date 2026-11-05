@@ -12,7 +12,7 @@ Turn rough ideas into design specs without an interactive question loop.
 
 Start by understanding local context, infer reasonable assumptions, compare
 approaches, write one complete spec, self-review it, then stop for user approval
-before implementation planning.
+before implementation.
 
 <HARD-GATE>
 Do NOT invoke implementation skills, write production code, scaffold projects,
@@ -20,12 +20,10 @@ modify target behavior, or take any implementation action until the written
 spec has been reviewed and approved by the user.
 </HARD-GATE>
 
-## Anti-Pattern: "This Is Too Simple To Need A Design"
+## Scope
 
-Every project goes through this process. A todo list, a single-function utility,
-and a config change all still need a design. Simple projects are where
-unexamined assumptions cause wasted work. The spec can be short, but you must
-write it and get approval.
+Use this workflow for a requested design spec. Scale the spec to the task and
+get the user's approval before implementation.
 
 ## Checklist
 
@@ -41,10 +39,10 @@ Create a task for each item and complete them in order:
 8. **Self-review spec** - fix placeholders, contradictions, ambiguous requirements, and scope drift inline.
 9. **Commit design spec** - commit the spec unless repo instructions say to keep it local.
 10. **User reviews written spec** - ask the user to review the file and approve or request changes.
-11. **Transition to implementation planning** - after approval, write a native implementation plan.
+11. **User approval** - wait for approval before moving to implementation.
 
-The terminal state is a written implementation plan. Do not implement changes
-from this skill.
+The deliverable is the requested design spec. Approval permits implementation
+through poteto-mode and its adapter.
 
 ## Process
 
@@ -58,8 +56,8 @@ Inspect enough local context to avoid generic design:
 - Repo instructions that constrain the work
 
 If the request describes multiple independent subsystems, flag that in the spec
-and define only the first coherent slice. Each slice should get its own spec,
-plan, and implementation cycle.
+and define only the first coherent slice. Keep the requested design focused on
+that slice.
 
 ### Skip Questions By Default
 
@@ -154,7 +152,7 @@ After writing the spec document, review it with fresh eyes:
 
 1. **Placeholder scan:** Remove "TBD", "TODO", incomplete sections, and vague requirements.
 2. **Internal consistency:** Make sure sections do not contradict each other and the architecture matches the feature description.
-3. **Scope check:** Confirm the spec is focused enough for a single implementation plan.
+3. **Scope check:** Confirm the spec is focused enough for one coherent change.
 4. **Ambiguity check:** If a requirement could be read two ways, pick one and make it explicit.
 
 Fix issues inline before asking the user to review the spec.
@@ -163,9 +161,9 @@ Fix issues inline before asking the user to review the spec.
 
 After self-review:
 
-> Spec written to `<path>`. Please review it and let me know if you want changes before I write the implementation plan.
+> Spec written to `<path>`. Please review it and let me know if you want changes before implementation.
 
 Wait for the user's response.
 
 If they request changes, update the spec and self-review again. If they approve,
-write a native implementation plan before making implementation changes.
+proceed with implementation using poteto-mode and its adapter.

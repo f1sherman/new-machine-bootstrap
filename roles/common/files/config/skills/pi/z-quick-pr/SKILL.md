@@ -1,217 +1,36 @@
 ---
 name: z-quick-pr
 description: >
-  Use when a user wants a feature or change taken from rough idea through
-  design, planning, implementation, verification, and pull request, and asks to
-  skip clarifying questions, approvals, or execution-choice prompts.
+  Use when a user wants a change taken through implementation, verification,
+  and pull request without clarifying questions or approval loops.
 ---
 
 # Quick PR
 
-Take a rough request through written spec, implementation plan, execution,
-verification, and pull request without interactive approval loops.
-
-This is the autopilot path. It should proceed directly to pull request when no
-blocking question is required.
-
-<HARD-GATE>
-Do NOT begin implementation until the design spec and implementation plan are complete, self-reviewed, and self-approved.
-Do not create or update a pull request until verification passes and the branch is clean.
-</HARD-GATE>
-
-## Anti-Pattern: "This Is Too Simple To Need A Design"
-
-Every project goes through this process. A todo list, a single-function utility,
-and a config change all still need a design. Simple projects are where
-unexamined assumptions cause wasted work. The spec can be short, but you must
-write it before planning and implementation.
-
-## Checklist
-
-Create a task for each item and complete them in order:
-
-1. **Explore project context** - check files, docs, recent commits, and existing patterns.
-2. **Assess scope** - if the request spans independent subsystems, decompose it and spec only the first coherent slice.
-3. **Silent question pass** - generate and answer likely clarifying questions internally.
-4. **Infer assumptions** - skip clarifying questions unless blocked; write assumptions directly into the spec.
-5. **Compare approaches** - include 2-3 approaches, tradeoffs, and a recommended choice.
-6. **Internal approval pass** - evaluate each design section and revise until it is coherent.
-7. **Write design spec** - save to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` unless the user gave another path.
-8. **Self-review spec** - fix placeholders, contradictions, ambiguous requirements, and scope drift inline.
-9. **Commit design spec** - commit the spec unless repo instructions say to keep it local.
-10. **Self-approve spec** - mark the spec approved internally.
-11. **Write implementation plan** - write a native implementation plan immediately.
-12. **Self-approve plan** - review the plan internally and mark it approved.
-13. **Execute plan** - use native execution in the current session.
-14. **Verify and commit** - run required verification and commit completed work.
-15. **Create pull request** - invoke `pull-request`.
-
-The terminal state is an open or updated pull request handled by `pull-request`.
+Take the request to a verified pull request using poteto-mode and its adapter.
+Use the matched playbook rather than a separate spec-and-plan workflow.
 
 ## Process
 
-### Explore First
+1. Read `~/.pi/agent/skills/poteto-mode/SKILL.md` and follow its adapter.
+2. Inspect repository instructions, relevant files, and existing behavior. Reuse
+   isolation or create the workspace required by repository policy.
+3. Resolve observable questions from evidence. Ask one blocking question only
+   for a missing fact you cannot discover, incompatible product choices, or a
+   security, privacy, credential, destructive, legal, billing, or publication
+   decision that needs authorization. Otherwise make a conservative assumption.
+4. Follow the matched poteto-mode playbook. Create a spec or plan document when
+   the user requests one or that playbook requires it. Preserve repository
+   document paths and ignore rules when creating such a document.
+5. Implement in the current session. Delegate implementation only when the user
+   requests it. Respect repository test policy and verify the affected behavior
+   before claiming success.
+6. Commit completed work and invoke `z-pull-request` from the implementation
+   worktree. Require passing verification and a clean worktree before
+   publication. The PR workflow owns the final fresh-context branch review;
+   do not dispatch a duplicate review. If independent review is unavailable or
+   unauthorized, disclose that limit.
 
-Inspect enough local context to avoid generic design:
-
-- Current file layout and docs
-- Relevant recent commits
-- Existing interfaces, naming, and testing patterns
-- Repo instructions that constrain the work
-
-If the request describes multiple independent subsystems, flag that in the spec
-and define only the first coherent slice. Each slice should get its own spec,
-plan, implementation, and pull request cycle.
-
-### Skip Questions By Default
-
-Do not ask preference, discovery, approach-selection, section-approval,
-spec-approval, plan-approval, implementation-approval, or execution-choice
-questions. Make a conservative assumption and record it.
-
-Ask one blocking question only when proceeding would be unsafe or likely wrong:
-
-- Destructive or irreversible data changes
-- Security, privacy, legal, billing, or credential decisions
-- Two plausible goals require incompatible architectures
-- Missing target system, repo, branch, or file path
-
-If a question is not blocking, do not ask it. Record the assumption instead.
-
-### Silent Question Pass
-
-Before choosing an approach, answer likely clarifying questions internally. Cover
-purpose, users, constraints, success criteria, data ownership, risks, rollout,
-testing, and what should be explicitly out of scope.
-
-Run this pass inline. Identify assumptions, compare plausible approaches, and
-challenge whether the design is coherent. Record important answers as
-assumptions in the spec.
-
-### Compare Approaches
-
-Propose 2-3 different approaches in the spec. Include:
-
-- Tradeoffs
-- Risks
-- Fit with existing project patterns
-- Your recommended option and why
-
-Lead with the recommended option unless another order is clearer.
-
-### Internal Approval Pass
-
-Do the design-section approval loop internally. For each section you would
-normally present for approval, check whether it is complete, coherent, scoped,
-and consistent with the assumptions and chosen approach. If not, revise it
-before writing the final spec.
-
-### Deliver A Written Spec
-
-Write the spec directly. Include:
-
-- Goal and non-goals
-- Assumptions
-- Recommended approach and alternatives considered
-- Architecture, components, and boundaries
-- Data flow, interfaces, and error handling where relevant
-- Testing and verification plan
-- Rollout or migration notes where relevant
-
-Scale the spec to the task. A tiny change can have a tiny spec.
-
-### Design For Isolation And Clarity
-
-Break the system into smaller units with one clear purpose. Each unit should
-communicate through a defined interface and be understandable and testable on
-its own.
-
-For each unit, answer:
-
-- What does it do?
-- How do you use it?
-- What does it depend on?
-
-If someone cannot understand a unit without reading its internals, or cannot
-change internals without breaking consumers, the boundary needs work.
-
-### Working In Existing Codebases
-
-Explore the current structure before proposing changes. Follow existing
-patterns.
-
-Where existing code has problems that affect the work, include targeted
-improvements as part of the design. Do not propose unrelated refactoring.
-
-## Spec Gate
-
-Commit the design spec before planning. Check whether the actual spec path is ignored before committing. Keep ignored files local and do not force-add them.
-
-### Spec Self-Review
-
-After writing the spec document, review it with fresh eyes:
-
-1. **Placeholder scan:** Remove "TBD", "TODO", incomplete sections, and vague requirements.
-2. **Internal consistency:** Make sure sections do not contradict each other and the architecture matches the feature description.
-3. **Scope check:** Confirm the spec is focused enough for a single implementation plan.
-4. **Ambiguity check:** If a requirement could be read two ways, pick one and make it explicit.
-
-Fix issues inline before self-approving the spec.
-
-### Self-Approve The Spec
-
-Do not ask the user to review the spec. Instead, perform the approval check
-internally:
-
-- The spec answers the silent questions or records assumptions.
-- The recommended approach follows existing project patterns.
-- The scope fits one implementation plan.
-- The testing and verification plan is concrete.
-- No blockers require user input.
-
-If any item fails, revise the spec and repeat self-review. When all pass, mark
-the spec as self-approved in your working notes or final spec status, then
-write the native implementation plan immediately.
-
-## Plan And Execution Gate
-
-Write and self-review the implementation plan in the current session. Continue
-with native execution after self-approval. Do not ask for an execution-mode choice.
-
-### Self-Approve The Plan
-
-Do not ask for implementation approval. Do not ask for plan approval.
-
-Review the written plan internally:
-
-- It covers every spec requirement.
-- It uses TDD steps with concrete commands and expected results.
-- It has no placeholders or vague implementation instructions.
-- It follows repo instructions and existing code patterns.
-- It identifies verification needed before PR creation.
-- No blockers require user input.
-
-If any item fails, revise the plan and repeat self-review. When all pass, mark
-the plan approved internally.
-
-### Execute Automatically
-
-Do not ask for implementation approval. Do not ask whether to use subagent or
-sequential execution.
-
-Use native execution in the current session by default, even when subagents are
-available. Use delegated implementation only when the user explicitly requests it.
-
-Follow the implementation plan until the work is complete. Respect repo test
-policy and TDD, keep plan checkboxes current, run verification, and commit
-completed work. Keep one final fresh-context branch review when delegation is
-authorized and available. The PR workflow performs that review. Do not dispatch
-a duplicate review before that gate. Resolve material
-findings and verify fixes before PR creation. If delegation is unavailable or
-unauthorized, disclose the self-review limit.
-
-### Pull Request
-
-After verification passes and work is complete, invoke `pull-request` from the
-implementation worktree. Let that shared workflow review, push, create or update
-the pull request, post proof, and monitor the PR to its terminal state.
+Continue to the pull request without an execution-mode or intermediate approval
+prompt unless a blocking decision requires the user. Keep merge and other
+publication authority separate from this workflow.

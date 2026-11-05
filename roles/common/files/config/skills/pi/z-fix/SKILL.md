@@ -15,7 +15,7 @@ If repo-local instructions require a worktree or a specific helper, use that wor
 If repo-local instructions specify a direct-branch or non-worktree workflow, follow that instead.
 If repo-local instructions are silent, use the repo's normal workflow and do not force a worktree.
 
-Use the required process skills for debugging, planning, implementation, and verification. Verify empirically before claiming success.
+Follow poteto-mode and its adapter for debugging, implementation, and verification. Verify empirically before claiming success.
 
 ## Difficult Bugs
 
