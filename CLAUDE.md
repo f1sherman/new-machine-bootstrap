@@ -106,9 +106,13 @@ This repository is used exclusively by Brian.
 
 ## PR Benefit to Brian
 
-* Include a `## Benefit to Brian` section near the start of every PR description, including documentation and maintenance PRs. Keep it accurate when materially updating a description. Name the task or process Brian uses, what changes for him, and how that saves effort, adds a useful capability, protects him from a concrete risk, or lowers meaningful costs. Connect reliability work to the interruption, recovery work, or loss it avoids. Technical changes alone are not the benefit.
+Dependency-only upgrade PRs do not require a benefit section or benefit categories.
+Determine this scope from the diff, not just the title, author, or labels.
+PRs that also change unrelated behavior retain the requirements below.
 
-* Classify the benefit with exactly one `Primary category` from the table below. Add `Additional categories` only when each has its own concrete explanation. A category label alone is not a benefit. Reliability and maintenance describe the work, not separate benefit categories. Connect them to the effort, loss, or cost avoided.
+* For all other PRs, include a `## Benefit to Brian` section near the start of the description, including documentation and maintenance PRs. Keep it accurate when materially updating a description. Name the task or process Brian uses, what changes for him, and how that saves effort, adds a useful capability, protects him from a concrete risk, or lowers meaningful costs. Connect reliability work to the interruption, recovery work, or loss it avoids. Technical changes alone are not the benefit.
+
+* When the section is required, classify the benefit with exactly one `Primary category` from the table below. Add `Additional categories` only when each has its own concrete explanation. A category label alone is not a benefit. Reliability and maintenance describe the work, not separate benefit categories. Connect them to the effort, loss, or cost avoided.
 
 | Category | Personal outcome |
 | --- | --- |
