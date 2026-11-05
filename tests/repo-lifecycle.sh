@@ -860,13 +860,10 @@ if (cd "$bb_worktree" && "$REPO_START_SCRIPT" --no-worktrees feature/another-pr 
 fi
 assert_equals "$(cat "$bb_worktree/.repo.yml")" \
   'use_worktrees: true' "preflight preserves mode before rejection"
-if (cd "$bb_main" && "$REPO_START_SCRIPT" --use-worktrees --ephemeral \
-    feature/bb-reused >/dev/null 2>&1); then
-  # Same-PR reuse is allowed by this owner.
-  pass_case "preflight permits same-PR linked worktree reuse"
-else
+(cd "$bb_main" && "$REPO_START_SCRIPT" --use-worktrees --ephemeral \
+  feature/bb-reused >/dev/null 2>&1) || \
   fail_case "preflight permits same-PR linked worktree reuse" "same owner was rejected"
-fi
+pass_case "preflight permits same-PR linked worktree reuse"
 new_pr_path="$(cd "$bb_main" && "$REPO_START_SCRIPT" --use-worktrees \
   --ephemeral feature/another-pr --print-path)"
 [[ "$new_pr_path" != "$bb_worktree" ]] || \
