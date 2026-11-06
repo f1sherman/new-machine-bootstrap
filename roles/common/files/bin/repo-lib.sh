@@ -74,6 +74,43 @@ _repo_bb_managed_worktree() {
   esac
 }
 
+# Prints "<id><TAB><title>" for each unarchived BB thread, other than the
+# caller's, whose workspace is this root. Returns 2 when the lookup fails.
+# Set REPO_END_SKIP_BB_THREAD_CHECK=1 to skip.
+_repo_bb_other_threads_using() {
+  local repo_root="$1" physical_root threads
+  [[ "${REPO_END_SKIP_BB_THREAD_CHECK:-}" != "1" ]] || return 0
+  command -v bb >/dev/null 2>&1 || return 0
+  if ! physical_root="$(cd "$repo_root" && pwd -P)"; then
+    printf 'Error: cannot resolve %s; refusing mutation.\n' "$repo_root" >&2
+    return 2
+  fi
+  if ! threads="$(bb thread list --include-hidden --json)"; then
+    printf 'Error: BB thread lookup failed; refusing mutation.\n' >&2
+    printf 'Set REPO_END_SKIP_BB_THREAD_CHECK=1 to skip this check.\n' >&2
+    return 2
+  fi
+  # Paths are read one at a time as raw jq output. Bulk formats such as @tsv
+  # escape backslashes, which would make a real path fail to resolve.
+  local indexes index thread_path
+  if ! indexes="$(printf '%s' "$threads" | jq -r --arg self "${BB_THREAD_ID:-}" '
+    to_entries[]
+    | select(.value.archivedAt == null and .value.id != $self
+        and .value.environmentPath != null)
+    | .key
+  ')"; then
+    printf 'Error: BB thread lookup returned unreadable output; refusing mutation.\n' >&2
+    return 2
+  fi
+  for index in $indexes; do
+    thread_path="$(printf '%s' "$threads" |
+      jq -r --argjson i "$index" '.[$i].environmentPath')" || return 2
+    [[ "$(cd "$thread_path" 2>/dev/null && pwd -P)" == "$physical_root" ]] || continue
+    printf '%s' "$threads" | jq -r --argjson i "$index" \
+      '.[$i] | "\(.id)\t\(.title // .titleFallback // "untitled")"' || return 2
+  done
+}
+
 _worktree_debug() {
   [[ "${WORKTREE_DEBUG:-}" == "1" ]] || return 0
   printf '[worktree] %s\n' "$*" >&2
