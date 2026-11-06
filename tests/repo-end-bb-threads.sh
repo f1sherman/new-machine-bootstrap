@@ -73,6 +73,17 @@ fi
 [[ -d "$WORKTREE" ]] || fail "symlink refusal still removed the worktree"
 printf 'ok  symlinked thread path blocks cleanup\n'
 
+backslash_path="$TMPROOT/back\\slash"
+ln -s "$WORKTREE" "$backslash_path"
+jq -n --arg p "$backslash_path" \
+  '[{id:"thr_other",title:"Backslash",archivedAt:null,environmentPath:$p}]' \
+  >"$TMPROOT/threads.json"
+if run_repo_end >"$TMPROOT/out" 2>"$TMPROOT/err"; then
+  fail "repo-end removed a worktree whose thread path contains a backslash"
+fi
+[[ -d "$WORKTREE" ]] || fail "backslash refusal still removed the worktree"
+printf 'ok  thread path with a backslash blocks cleanup\n'
+
 printf '[{"id":"thr_other","title":"Old","archivedAt":1,"environmentPath":"%s"}]\n' \
   "$WORKTREE" >"$TMPROOT/threads.json"
 run_repo_end >"$TMPROOT/out" 2>"$TMPROOT/err" ||

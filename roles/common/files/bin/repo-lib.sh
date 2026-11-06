@@ -90,21 +90,25 @@ _repo_bb_other_threads_using() {
     printf 'Set REPO_END_SKIP_BB_THREAD_CHECK=1 to skip this check.\n' >&2
     return 2
   fi
-  local candidates id title thread_path
-  if ! candidates="$(printf '%s' "$threads" | jq -r --arg self "${BB_THREAD_ID:-}" '
-    .[]
-    | select(.archivedAt == null and .id != $self and .environmentPath != null)
-    | [.id, (.title // .titleFallback // "untitled"), .environmentPath]
-    | @tsv
+  # Paths are read one at a time as raw jq output. Bulk formats such as @tsv
+  # escape backslashes, which would make a real path fail to resolve.
+  local indexes index thread_path
+  if ! indexes="$(printf '%s' "$threads" | jq -r --arg self "${BB_THREAD_ID:-}" '
+    to_entries[]
+    | select(.value.archivedAt == null and .value.id != $self
+        and .value.environmentPath != null)
+    | .key
   ')"; then
     printf 'Error: BB thread lookup returned unreadable output; refusing mutation.\n' >&2
     return 2
   fi
-  while IFS=$'\t' read -r id title thread_path; do
-    [[ -n "$id" ]] || continue
+  for index in $indexes; do
+    thread_path="$(printf '%s' "$threads" |
+      jq -r --argjson i "$index" '.[$i].environmentPath')" || return 2
     [[ "$(cd "$thread_path" 2>/dev/null && pwd -P)" == "$physical_root" ]] || continue
-    printf '%s\t%s\n' "$id" "$title"
-  done <<<"$candidates"
+    printf '%s' "$threads" | jq -r --argjson i "$index" \
+      '.[$i] | "\(.id)\t\(.title // .titleFallback // "untitled")"' || return 2
+  done
 }
 
 _worktree_debug() {
