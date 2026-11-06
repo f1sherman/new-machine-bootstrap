@@ -74,6 +74,35 @@ _repo_bb_managed_worktree() {
   esac
 }
 
+# Prints "<id><TAB><title>" for each unarchived BB thread, other than the
+# caller's, whose workspace is this root. Returns 2 when the lookup fails.
+# Set REPO_END_SKIP_BB_THREAD_CHECK=1 to skip.
+_repo_bb_other_threads_using() {
+  local repo_root="$1" physical_root threads
+  [[ "${REPO_END_SKIP_BB_THREAD_CHECK:-}" != "1" ]] || return 0
+  command -v bb >/dev/null 2>&1 || return 0
+  if ! physical_root="$(cd "$repo_root" && pwd -P)"; then
+    printf 'Error: cannot resolve %s; refusing mutation.\n' "$repo_root" >&2
+    return 2
+  fi
+  if ! threads="$(bb thread list --include-hidden --json)"; then
+    printf 'Error: BB thread lookup failed; refusing mutation.\n' >&2
+    printf 'Set REPO_END_SKIP_BB_THREAD_CHECK=1 to skip this check.\n' >&2
+    return 2
+  fi
+  printf '%s' "$threads" | jq -r \
+    --arg root "$repo_root" --arg physical "$physical_root" \
+    --arg self "${BB_THREAD_ID:-}" '
+      .[]
+      | select(.archivedAt == null and .id != $self
+          and (.environmentPath == $root or .environmentPath == $physical))
+      | "\(.id)\t\(.title // .titleFallback // "untitled")"
+    ' || {
+    printf 'Error: BB thread lookup returned unreadable output; refusing mutation.\n' >&2
+    return 2
+  }
+}
+
 _worktree_debug() {
   [[ "${WORKTREE_DEBUG:-}" == "1" ]] || return 0
   printf '[worktree] %s\n' "$*" >&2

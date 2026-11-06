@@ -718,6 +718,17 @@ else
   fi
 fi
 
+if [[ "$repo_root" != "$main_path" ]]; then
+  bb_other_threads="$(_repo_bb_other_threads_using "$repo_root")" || exit 1
+  if [[ -n "$bb_other_threads" ]]; then
+    printf 'Error: unarchived BB threads still use this worktree; refusing cleanup:\n' >&2
+    printf '%s\n' "${bb_other_threads//$'\t'/  }" | sed 's/^/  /' >&2
+    printf 'Archive them or move them to another workspace, then run repo-end again.\n' >&2
+    printf 'Set REPO_END_SKIP_BB_THREAD_CHECK=1 to remove the worktree anyway.\n' >&2
+    exit 1
+  fi
+fi
+
 if [[ "$repo_root" == "$main_path" ]]; then
   # Branch mode: HEAD is currently on the feature branch and main_path is
   # the same checkout. Fast-forward the local main ref without switching

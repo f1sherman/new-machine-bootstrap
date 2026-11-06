@@ -138,6 +138,8 @@ and bindings after a PR closes. Creating a fresh worktree does not reuse the cur
 worktree and does not run its checks. Post-setup callbacks in `repo-start.d`
 keep their existing interface.
 
+When the `bb` CLI is installed, `repo-end` refuses to remove a linked worktree while another unarchived BB thread uses it, and names those threads. Set `REPO_END_SKIP_BB_THREAD_CHECK=1` to remove it anyway. `tests/repo-end-bb-threads.sh` covers this check.
+
 `repo-end` calls callbacks with `--phase merge-proof` before cleanup only when built-in proof fails. `repo-end --closed` uses the separate `--phase closed-proof` callback phase after it confirms that the local branch is fully published. For both proof phases, exit `0` means the callback supplied proof, exit `1` means no proof and lets `repo-end` try the next callback, and exit `2+` aborts cleanup. After successful cleanup, callbacks run with `--phase post-cleanup` for notification or sweep behavior.
 
 ## Code Style
