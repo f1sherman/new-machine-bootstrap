@@ -64,6 +64,15 @@ fi
 grep -q 'thr_other' "$TMPROOT/err" || fail "refusal does not name the thread"
 printf 'ok  unarchived thread blocks cleanup\n'
 
+ln -s "$WORKTREE" "$TMPROOT/linked-path"
+printf '[{"id":"thr_other","title":"Linked","archivedAt":null,"environmentPath":"%s"}]\n' \
+  "$TMPROOT/linked-path" >"$TMPROOT/threads.json"
+if run_repo_end >"$TMPROOT/out" 2>"$TMPROOT/err"; then
+  fail "repo-end removed a worktree that a thread reaches through a symlink"
+fi
+[[ -d "$WORKTREE" ]] || fail "symlink refusal still removed the worktree"
+printf 'ok  symlinked thread path blocks cleanup\n'
+
 printf '[{"id":"thr_other","title":"Old","archivedAt":1,"environmentPath":"%s"}]\n' \
   "$WORKTREE" >"$TMPROOT/threads.json"
 run_repo_end >"$TMPROOT/out" 2>"$TMPROOT/err" ||

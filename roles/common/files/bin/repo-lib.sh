@@ -90,17 +90,21 @@ _repo_bb_other_threads_using() {
     printf 'Set REPO_END_SKIP_BB_THREAD_CHECK=1 to skip this check.\n' >&2
     return 2
   fi
-  printf '%s' "$threads" | jq -r \
-    --arg root "$repo_root" --arg physical "$physical_root" \
-    --arg self "${BB_THREAD_ID:-}" '
-      .[]
-      | select(.archivedAt == null and .id != $self
-          and (.environmentPath == $root or .environmentPath == $physical))
-      | "\(.id)\t\(.title // .titleFallback // "untitled")"
-    ' || {
+  local candidates id title thread_path
+  if ! candidates="$(printf '%s' "$threads" | jq -r --arg self "${BB_THREAD_ID:-}" '
+    .[]
+    | select(.archivedAt == null and .id != $self and .environmentPath != null)
+    | [.id, (.title // .titleFallback // "untitled"), .environmentPath]
+    | @tsv
+  ')"; then
     printf 'Error: BB thread lookup returned unreadable output; refusing mutation.\n' >&2
     return 2
-  }
+  fi
+  while IFS=$'\t' read -r id title thread_path; do
+    [[ -n "$id" ]] || continue
+    [[ "$(cd "$thread_path" 2>/dev/null && pwd -P)" == "$physical_root" ]] || continue
+    printf '%s\t%s\n' "$id" "$title"
+  done <<<"$candidates"
 }
 
 _worktree_debug() {
