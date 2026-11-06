@@ -28,6 +28,14 @@ run_repo_start_callbacks() {
   done
 }
 
+check_repo_start() {
+  local check
+  for check in "$HOME/.local/bin/repo-start-check.d/"*; do
+    [[ -f "$check" && -x "$check" ]] || continue
+    "$check" --repo-dir "$1" --branch "$2" >&2 || return 1
+  done
+}
+
 usage() {
   cat <<'EOF'
 Usage: repo-start <branch> [path]
@@ -41,10 +49,13 @@ EOF
 }
 
 resolve_mode() {
-  local explicit_mode="$1" repo_root="$2" ephemeral="$3" mode read_status answer
+  local explicit_mode="$1" repo_root="$2" ephemeral="$3" branch="$4" mode read_status answer
 
   if [[ -n "$explicit_mode" ]]; then
     if [[ "$ephemeral" != "true" ]]; then
+      if [[ "$explicit_mode" == "branch" ]]; then
+        check_repo_start "$repo_root" "$branch" || return 1
+      fi
       _repo_write_mode "$repo_root" "$explicit_mode"
     fi
     printf '%s\n' "$explicit_mode"
@@ -78,6 +89,9 @@ resolve_mode() {
         mode="worktree"
         ;;
     esac
+    if [[ "$mode" == "branch" ]]; then
+      check_repo_start "$repo_root" "$branch" || return 1
+    fi
     _repo_write_mode "$repo_root" "$mode"
     printf '%s\n' "$mode"
     return 0
@@ -224,7 +238,7 @@ main() {
   else
     classifier_status=$?
     [[ "$classifier_status" -eq 1 ]] || return "$classifier_status"
-    mode="$(resolve_mode "$explicit_mode" "$repo_root" "$ephemeral")" || return $?
+    mode="$(resolve_mode "$explicit_mode" "$repo_root" "$ephemeral" "$branch")" || return $?
   fi
 
   if ! "$(_worktree_cmd git)" -C "$repo_root" rev-parse --verify "$start_point" >/dev/null 2>&1; then
@@ -258,6 +272,7 @@ main() {
   fi
 
   if [[ "$mode" == "branch" ]]; then
+    check_repo_start "$repo_root" "$branch" || return 1
     if [[ "$path_explicit" == "true" || -n "$path" ]]; then
       printf 'Error: branch mode does not accept a path\n' >&2
       return 1
@@ -329,6 +344,7 @@ main() {
         return 1
       fi
       path="$existing_branch_path"
+      check_repo_start "$path" "$branch" || return 1
       status="existing"
     else
       if [[ -n "$existing_path_branch" && "$existing_path_branch" != "$branch" ]]; then

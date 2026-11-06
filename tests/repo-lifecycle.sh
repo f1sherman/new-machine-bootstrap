@@ -12,6 +12,9 @@ WORKTREE_DONE_SCRIPT="$BIN_DIR/worktree-done"
 
 TMPROOT="$(mktemp -d)"
 trap 'rm -rf "$TMPROOT"' EXIT
+export HOME="$TMPROOT/home" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+mkdir -p "$HOME"
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_CONFIG_COUNT
 export GIT_AI_SKIP_ALL_HOOKS=1
 export GIT_AUTHOR_NAME=test
 export GIT_AUTHOR_EMAIL=test@example.com
@@ -831,6 +834,54 @@ for mode in unavailable malformed mismatch ruby-failure; do
     feature/bb-reused "BB $mode preserves branch"
 done
 unset BB_TEST_MODE
+
+# A publication owner can veto branch reuse before checkout, including BB's
+# branch-mode shortcut. Fresh isolation must remain available from the parent.
+mkdir -p "$HOME/.local/bin/repo-start-check.d"
+cat >"$HOME/.local/bin/repo-start-check.d/10-owner" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == --repo-dir && "$3" == --branch ]]
+printf 'checking owner\n'
+[[ "$2" != "$BB_BOUND_PATH" || "$4" == feature/bb-reused ]]
+EOF
+chmod +x "$HOME/.local/bin/repo-start-check.d/10-owner"
+export BB_BOUND_PATH="$bb_worktree"
+bb_result="$(bb_run "$REPO_START_SCRIPT" feature/bb-reused --json 2>"$TMPROOT/check-output.err")"
+assert_equals "$(printf '%s' "$bb_result" | ruby -rjson -e 'puts JSON.parse(STDIN.read).fetch("mode")')" \
+  branch "check output does not corrupt BB JSON"
+noisy_check_repo="$(create_repo noisy-check)"
+noisy_result="$(cd "$noisy_check_repo" && "$REPO_START_SCRIPT" --no-worktrees \
+  feature/noisy-check --json 2>"$TMPROOT/noisy-check.err")"
+assert_equals "$(printf '%s' "$noisy_result" | ruby -rjson -e 'puts JSON.parse(STDIN.read).fetch("mode")')" \
+  branch "check output does not change selected mode"
+assert_equals "$(git -C "$noisy_check_repo" branch --show-current)" \
+  feature/noisy-check "check output does not redirect checkout into fresh isolation"
+if bb_run "$REPO_START_SCRIPT" feature/another-pr --json >/dev/null 2>&1; then
+  fail_case "preflight blocks BB branch reuse" "owner veto was ignored"
+fi
+assert_equals "$(git -C "$bb_worktree" branch --show-current)" \
+  feature/bb-reused "preflight keeps BB branch unchanged"
+if git -C "$bb_worktree" show-ref --verify --quiet refs/heads/feature/another-pr; then
+  fail_case "preflight prevents branch creation" "new branch exists"
+fi
+if (cd "$bb_worktree" && "$REPO_START_SCRIPT" --no-worktrees feature/another-pr >/dev/null 2>&1); then
+  fail_case "preflight blocks non-BB branch reuse" "owner veto was ignored"
+fi
+assert_equals "$(cat "$bb_worktree/.repo.yml")" \
+  'use_worktrees: true' "preflight preserves mode before rejection"
+(cd "$bb_main" && "$REPO_START_SCRIPT" --use-worktrees --ephemeral \
+  feature/bb-reused >/dev/null 2>&1) || \
+  fail_case "preflight permits same-PR linked worktree reuse" "same owner was rejected"
+pass_case "preflight permits same-PR linked worktree reuse"
+new_pr_path="$(cd "$bb_main" && "$REPO_START_SCRIPT" --use-worktrees \
+  --ephemeral feature/another-pr --print-path)"
+[[ "$new_pr_path" != "$bb_worktree" ]] || \
+  fail_case "new PR receives fresh isolation" "bound worktree was reused"
+pass_case "new PR receives fresh isolation"
+rm "$HOME/.local/bin/repo-start-check.d/10-owner"
+unset BB_BOUND_PATH
+
 bb_home="$TMPROOT/bb-retention-home"
 mkdir -p "$bb_home/.local/bin/repo-end.d"
 cat >"$bb_bin/gh" <<'EOF'

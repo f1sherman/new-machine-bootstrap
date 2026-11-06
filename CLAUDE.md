@@ -89,7 +89,7 @@ When useful, inspect `/tmp/provision-*.log`; `ls -t /tmp/provision-*.log` lists 
 
 ## Agent Behavior
 - **Do it yourself**: If you can run a command such as `bin/provision` or `git commit`, do it directly instead of asking the user to run it.
-- **Always use worktrees**: Before making changes, create or reuse an isolated worktree with `repo-start <branch>`. Never edit a shared main checkout.
+- **One PR per worktree**: Before editing for a new PR, use `repo-start <branch>` to create a fresh isolated worktree. Reuse a worktree only for follow-up on its original PR, even after that PR closes or merges. In BB, a new-PR fork needs `--new-environment worktree`; a same-PR review or fix can share its environment. Keep the worktree's PR binding intact. Never edit a shared main checkout.
 - **Commit specs and plans unless ignored**: Design specs and implementation plans belong under `docs/superpowers/`. Check the actual document path with `git check-ignore -q` before committing. Keep ignored documents local and never force-add them.
 - **Always finish with a PR**: When work in a worktree is complete and verified, push the branch and open a GitHub pull request. Never merge to `main` locally (do not use `worktree-merge`). After the PR merges, clean up with `repo-end`.
 - **Avoid compatibility inference for minor features**: For small quality-of-life behavior, prefer one explicit marker or setting over fallbacks, heuristics, or migration logic. Keep cleanup tasks when removing known-unwanted managed state, but do not add permanent backwards-compatibility detection unless data loss, security, or clear breakage is likely.
@@ -128,6 +128,15 @@ PRs that also change unrelated behavior retain the requirements below.
 ## Repo Lifecycle Provider Hooks
 
 NMB owns generic `repo-start`/`repo-end` lifecycle helpers. Provider-specific internal forge behavior does not belong in this repo. If a consuming environment needs extra merge proof for a private Git provider, install an executable callback from that consuming repo under `~/.local/bin/repo-end.d`.
+
+`repo-start` runs executable checks in `~/.local/bin/repo-start-check.d`
+before switching branches or reusing a linked worktree. Each receives
+`--repo-dir <target-worktree>` and `--branch <requested-branch>`. Exit `0`
+allows setup; any other exit blocks it before checkout. Use this boundary for
+consumer-owned task or PR bindings. Checks must preserve source files, branches,
+and bindings after a PR closes. Creating a fresh worktree does not reuse the current
+worktree and does not run its checks. Post-setup callbacks in `repo-start.d`
+keep their existing interface.
 
 `repo-end` calls callbacks with `--phase merge-proof` before cleanup only when built-in proof fails. `repo-end --closed` uses the separate `--phase closed-proof` callback phase after it confirms that the local branch is fully published. For both proof phases, exit `0` means the callback supplied proof, exit `1` means no proof and lets `repo-end` try the next callback, and exit `2+` aborts cleanup. After successful cleanup, callbacks run with `--phase post-cleanup` for notification or sweep behavior.
 
