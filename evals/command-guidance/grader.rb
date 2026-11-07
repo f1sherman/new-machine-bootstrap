@@ -74,6 +74,12 @@ module CommandGuidanceEval
   def self.normalize(call, test_case)
     args = call.fetch("args").dup
     args.shift if call.fetch("command") == "cat" && args.first == "--"
+    # kubectl accepts its global namespace flag before or after this get target.
+    if call.fetch("command") == "kubectl" && args[0] == "-n" &&
+        args[2] == "get" && args[3] == "pod" && args.length >= 5 &&
+        !args[4].start_with?("-")
+      args = args[2, 3] + args[0, 2] + args.drop(5)
+    end
     test_case.fetch("options", {}).each do |canonical, aliases|
       args = args.flat_map do |arg|
         option = ([canonical] + aliases).find { |name| arg.start_with?(name + "=") }
@@ -193,7 +199,7 @@ end
 
 if $PROGRAM_NAME == __FILE__
   begin
-    request = JSON.parse(File.read(ARGV.fetch(0)))
+    request = JSON.parse(File.read(ARGV.fetch(0), encoding: "UTF-8"))
     puts JSON.generate(CommandGuidanceEval.evaluate(request))
   rescue StandardError => error
     puts JSON.generate({"infrastructure_error" => "#{error.class}: #{error.message}"})

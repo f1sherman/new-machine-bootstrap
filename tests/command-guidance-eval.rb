@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 require "minitest/autorun"
+require "digest"
 require_relative "../evals/command-guidance/grader"
 
 class CommandGuidanceEvalTest < Minitest::Test
@@ -50,6 +51,15 @@ class CommandGuidanceEvalTest < Minitest::Test
     assert grade("kubectl get pod example \\\n  -o jsonpath='{.metadata.name}'", calls).fetch("pass")
   end
 
+  def test_accepts_kubectl_global_namespace_before_get
+    calls = [{"command" => "kubectl", "args" => ["get", "pod", "example", "-n", "production", "-o", "jsonpath={.metadata.name}"]}]
+    command = "kubectl -n production get pod example -o 'jsonpath={.metadata.name}'"
+    assert grade(command, calls).fetch("pass")
+    refute grade(command.sub("production", "staging"), calls).fetch("pass")
+    after_separator = [{"command" => "kubectl", "args" => ["get", "pod", "--", "-n", "production"]}]
+    refute grade("kubectl -n production get pod --", after_separator).fetch("pass")
+  end
+
   def test_rejects_literal_newline_inside_path
     refute grade("cat '/tmp/rendered/\n  service/config.yaml'").fetch("pass")
   end
@@ -92,7 +102,7 @@ class CommandGuidanceEvalTest < Minitest::Test
   end
 
   def native_grade(response, settled: true, tool_event: false,
-                   usage: {"input" => 9, "output" => 4}, actual_prompt: "fixture")
+                   usage: {"input" => 9, "output" => 4}, actual_prompt: "fixture", env: {})
     message = {"role" => "assistant", "stopReason" => "stop",
                "content" => [{"type" => "text", "text" => response}],
                "usage" => usage, "provider" => "fixture", "model" => "fixture"}
@@ -114,7 +124,7 @@ class CommandGuidanceEvalTest < Minitest::Test
       File.write(input, JSON.generate(request))
       stdout, stderr, status = CommandGuidanceEval.capture(
         [RbConfig.ruby, File.join(CommandGuidanceEval::ROOT,
-          "evals/command-guidance/grader.rb"), input], cwd: dir)
+          "evals/command-guidance/grader.rb"), input], cwd: dir, env: env)
       yield stdout, stderr, status, request
     end
   end
@@ -128,6 +138,13 @@ class CommandGuidanceEvalTest < Minitest::Test
       result.fetch("grade").fetch("shells").each_value do |detail|
         assert_equal [{"command" => "cat", "args" => ["/tmp/rendered/service/config.yaml"]}], detail.fetch("calls")
       end
+    end
+  end
+
+  def test_native_stream_accepts_unicode_under_c_locale
+    native_grade("Café\n```sh\ncat /tmp/rendered/service/config.yaml\n```", env: {"LANG" => "C", "LC_ALL" => "C"}) do |out, err, status|
+      assert status.success?, err
+      assert JSON.parse(out).fetch("grade").fetch("pass")
     end
   end
 
@@ -170,6 +187,60 @@ class CommandGuidanceEvalTest < Minitest::Test
     native_grade("```sh\ncat /tmp/rendered/service/config.yaml\n```", actual_prompt: "different task") do |out, _, status|
       refute status.success?, "a response to a different task must not be graded as this case"
       assert_match(/prompt/, JSON.parse(out).fetch("infrastructure_error"))
+    end
+  end
+
+  def test_host_replay_rejects_tampered_and_incomplete_evidence
+    root = CommandGuidanceEval::ROOT
+    scratch = File.join(root, "tmp")
+    FileUtils.mkdir_p(scratch)
+    Dir.mktmpdir("command-host-test-", scratch) do |dir|
+      source = File.join(dir, "source")
+      FileUtils.mkdir_p(source)
+      system = "fixture system"
+      prompt = "fixture prompt"
+      item = {"id" => "fixture", "prompt" => "fixture", "calls" => [
+        {"command" => "cat", "args" => ["/tmp/rendered/service/config.yaml"]}
+      ]}
+      events = [
+        {"type" => "message_end", "message" => {"role" => "system", "sections" => {"preamble" => system}}},
+        {"type" => "message_end", "message" => {"role" => "user", "content" => [{"type" => "text", "text" => prompt}]}},
+        {"type" => "message_end", "message" => {"role" => "assistant", "stopReason" => "stop",
+          "provider" => "openai-codex", "model" => "fixture", "usage" => {"input" => 1, "output" => 1},
+          "content" => [{"type" => "text", "text" => "```sh\ncat /tmp/rendered/service/config.yaml\n```"}]}},
+        {"type" => "agent_settled"}
+      ].map { |entry| JSON.generate(entry) }.join("\n")
+      item["prompt"] = "fixture"
+      prompt = item["prompt"] + "\nReturn only one shell code block with all required commands. Do not execute anything."
+      event_rows = events.lines.map { |line| JSON.parse(line) }
+      event_rows[1]["message"]["content"][0]["text"] = prompt
+      events = event_rows.map { |entry| JSON.generate(entry) }.join("\n")
+      record = JSON.generate({"status" => "complete", "events" => events})
+      manifest = {"version" => 1, "model" => {"provider" => "openai-codex", "id" => "fixture", "thinking" => "medium"},
+        "common" => "fixture ", "cases" => [item], "conditions" => {"guidance" => "system"},
+        "matrix" => [{"case" => "fixture", "condition" => "guidance", "file" => "fixture-guidance.json"}],
+        "parallel" => 1, "sources" => {"grader" => Digest::SHA256.file(File.join(root, "evals/command-guidance/grader.rb")).hexdigest}}
+      write_source = lambda do |data|
+        bytes = JSON.generate(data)
+        File.write(File.join(source, "manifest.json"), bytes)
+        File.write(File.join(source, "receipts.json"), JSON.generate({"manifest" => Digest::SHA256.hexdigest(bytes),
+          "trials" => {"fixture-guidance.json" => Digest::SHA256.hexdigest(record)}}))
+      end
+      File.write(File.join(source, "fixture-guidance.json"), record)
+      write_source.call(manifest)
+      runner = File.join(root, "evals/command-guidance/host-study.mjs")
+      _out, err, status = Open3.capture3("node", runner, "--replay", source, "--output", File.join(dir, "valid"), chdir: root)
+      assert status.success?, err
+      assert JSON.parse(File.read(File.join(dir, "valid/report.json"))).first.fetch("pass")
+      File.write(File.join(source, "fixture-guidance.json"), "tampered")
+      _out, err, status = Open3.capture3("node", runner, "--replay", source, "--output", File.join(dir, "tampered"), chdir: root)
+      refute status.success?
+      assert_includes err, "Trial receipt mismatch"
+      manifest["matrix"] = []
+      write_source.call(manifest)
+      _out, err, status = Open3.capture3("node", runner, "--replay", source, "--output", File.join(dir, "incomplete"), chdir: root)
+      refute status.success?
+      assert_includes err, "Invalid trial matrix"
     end
   end
 
