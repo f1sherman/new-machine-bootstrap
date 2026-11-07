@@ -42,7 +42,7 @@ Create a task for each item and complete them in order:
 11. **User approval** - wait for approval before moving to implementation.
 
 The deliverable is the requested design spec. Approval permits implementation
-through poteto-mode and its adapter.
+in the current session under repository policy.
 
 ## Process
 
@@ -166,4 +166,4 @@ After self-review:
 Wait for the user's response.
 
 If they request changes, update the spec and self-review again. If they approve,
-proceed with implementation using poteto-mode and its adapter.
+proceed with implementation in the current session under repository policy.
