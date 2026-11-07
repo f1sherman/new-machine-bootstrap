@@ -36,7 +36,9 @@ node evals/plain-language/run.mjs development tmp/plain-language/dev
 node evals/plain-language/run.mjs confirmation tmp/plain-language/check suggested
 ```
 
-Replace the final argument with the frozen selected variant. Each output directory must be new. A run freezes exact prompts, source hashes, model settings, CLI version, order, and grading rubric. It retains JSON event streams, answers, usage, stop reasons, and infrastructure failures with SHA-256 receipts. Incomplete calls are not model-quality failures or passes. Do not retry a generated answer to improve its score.
+Replace the final argument with the frozen selected variant. Set
+`PLAIN_LANGUAGE_MODEL=gpt-6.1-terra` to use Terra instead of the default Sol
+model. Each output directory must be new. A run freezes exact prompts, source hashes, model settings, CLI version, order, and grading rubric. It retains JSON event streams, answers, usage, stop reasons, and infrastructure failures with SHA-256 receipts. Incomplete calls are not model-quality failures or passes. Do not retry a generated answer to improve its score.
 
 Review `packet.json` without reading `labels.json` first. Save scored rows separately, then join labels to scores and usage for the report. Report per-case quality, each ablation, input/output/cache tokens, and combined token totals. These are token counts, not dollars. Shared prompt overhead is present in every condition; only matched differences estimate this change's cost. Answers may be longer even when instructions are shorter.
 
@@ -44,7 +46,7 @@ The maintained fixtures protect clarity and factual completeness across explanat
 
 ## Combined writing-style follow-up
 
-[The follow-up design](COMBINATIONS.md) tests combinations and removals of both existing and new rules. [Its results](COMBINATION-RESULTS.md) explain why the current words were retained and integrated into one Writing style paragraph.
+[The follow-up design](COMBINATIONS.md) tests combinations and removals of both existing and new rules. [Its results](COMBINATION-RESULTS.md) explain why the current words were retained and integrated into one Writing style paragraph. [The Terra study](TERRA-RESULTS.md) repeats the component comparison on Terra.
 
 ```sh
 f=tmp/plain-language/combinations

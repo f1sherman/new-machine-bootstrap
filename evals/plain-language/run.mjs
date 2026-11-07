@@ -54,7 +54,7 @@ const execute = promisify(execFile);
 const manifest = {
   stage, selected, baseline, components: study?.components ?? components, rewrites: study?.rewrites, conditions, cases, matrix,
   common: 'You are a helpful assistant. Answer the user request.',
-  model: {provider: 'openai-codex', id: 'gpt-6.1-sol', thinking: 'off'},
+  model: {provider: 'openai-codex', id: process.env.PLAIN_LANGUAGE_MODEL || 'gpt-6.1-sol', thinking: 'off'},
   piVersion: (await execute('pi', ['--version'])).stdout.trim(),
   sources: Object.fromEntries(['run.mjs', ...(combined ? ['combinations.json', 'combination-grading.json', 'COMBINATIONS.md'] : ['cases.json', 'README.md'])].map(f => [f, hash(fs.readFileSync(path.join(here, f)))]))
 };
