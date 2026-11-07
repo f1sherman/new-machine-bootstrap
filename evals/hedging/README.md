@@ -72,8 +72,9 @@ node evals/hedging/run.mjs --output tmp/hedging-validation \
   --split validation --live
 ```
 
-Use `--pi /absolute/path/to/pi` to select another CLI binary. A fresh output
-directory is required. Exit status is nonzero for infrastructure errors or a
+Use `--pi /absolute/path/to/pi` to select another CLI binary, or `--model`
+to select another model on `openai-codex` for both generation and grading. A
+fresh output directory is required. Exit status is nonzero for infrastructure errors or a
 candidate failure; control and ablation failures remain visible but do not fail
 the candidate gate.
 

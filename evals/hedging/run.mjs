@@ -13,7 +13,7 @@ const options = {};
 for (let i = 2; i < process.argv.length; i++) {
   const key = process.argv[i];
   if (key === '--live') options.live = true;
-  else if (['--output', '--split', '--replay', '--regrade', '--pi'].includes(key)) {
+  else if (['--output', '--split', '--replay', '--regrade', '--pi', '--model'].includes(key)) {
     const value = process.argv[++i];
     if (!value || value.startsWith('--')) throw new Error('Missing value: ' + key);
     options[key.slice(2)] = value;
@@ -104,7 +104,7 @@ for (const [i, c] of cases.filter(c => c.split === split).entries()) {
 const manifest = {
   version: 1, split, cases, conditions, matrix,
   scope: 'Standalone production writing excerpt, not full deployed instructions. One sample per task and condition. Validation tasks are excluded from development.',
-  model: {provider: 'openai-codex', id: 'gpt-6.1-sol', reasoning: 'off'},
+  model: {provider: 'openai-codex', id: options.model || 'gpt-6.1-sol', reasoning: 'off'},
   runtime: {pi: options.pi || 'pi', version: (await promisify(execFile)(options.pi || 'pi', ['--version'])).stdout.trim()},
   common: 'You are a helpful assistant. Answer the user request.',
   grader: {system: judgeSystem, calibration},
