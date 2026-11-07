@@ -48,5 +48,7 @@ tool_versions:
     pi_chord: 1.1.0
 
   pi_packages:
+    # renovate: datasource=npm depName=pi-goal
+    goal: 0.1.7
     # renovate: datasource=npm depName=pi-session-manager
     session_manager: 0.1.0
