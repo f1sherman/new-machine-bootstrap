@@ -174,8 +174,11 @@ try{
   }else if(options.live){
     if(!options['ai-module']||!options['auth-file'])throw new Error('--ai-module and --auth-file are required');
     const {getModel,completeSimple}=await import(pathToFileURL(path.resolve(options['ai-module'])).href);
-    const require=createRequire(path.resolve(options['ai-module'],'../../package.json'));
-    const {Type}=await import(pathToFileURL(require.resolve('typebox')).href);
+    let Type;
+    if(!previous?.manifest.tools){
+      const require=createRequire(path.resolve(options['ai-module'],'../../package.json'));
+      ({Type}=await import(pathToFileURL(require.resolve('typebox')).href));
+    }
     const auth=JSON.parse(fs.readFileSync(path.resolve(options['auth-file']),'utf8'))[manifest.model.provider];
     if(auth?.type!=='oauth'||!auth.access||auth.expires<=Date.now())throw new Error('An already valid OAuth credential is required; this runner never refreshes it');
     const model=getModel(manifest.model.provider,manifest.model.id);
