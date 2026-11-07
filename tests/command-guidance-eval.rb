@@ -198,7 +198,7 @@ class CommandGuidanceEvalTest < Minitest::Test
       source = File.join(dir, "source")
       FileUtils.mkdir_p(source)
       system = "fixture system"
-      prompt = "fixture prompt"
+      prompt = "fixture\nReturn only one shell code block with all required commands. Do not execute anything."
       item = {"id" => "fixture", "prompt" => "fixture", "calls" => [
         {"command" => "cat", "args" => ["/tmp/rendered/service/config.yaml"]}
       ]}
@@ -210,11 +210,6 @@ class CommandGuidanceEvalTest < Minitest::Test
           "content" => [{"type" => "text", "text" => "```sh\ncat /tmp/rendered/service/config.yaml\n```"}]}},
         {"type" => "agent_settled"}
       ].map { |entry| JSON.generate(entry) }.join("\n")
-      item["prompt"] = "fixture"
-      prompt = item["prompt"] + "\nReturn only one shell code block with all required commands. Do not execute anything."
-      event_rows = events.lines.map { |line| JSON.parse(line) }
-      event_rows[1]["message"]["content"][0]["text"] = prompt
-      events = event_rows.map { |entry| JSON.generate(entry) }.join("\n")
       record = JSON.generate({"status" => "complete", "events" => events})
       manifest = {"version" => 1, "model" => {"provider" => "openai-codex", "id" => "fixture", "thinking" => "medium"},
         "common" => "fixture ", "cases" => [item], "conditions" => {"guidance" => "system"},
