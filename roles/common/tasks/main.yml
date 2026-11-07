@@ -1490,6 +1490,20 @@
   failed_when: pi_session_manager_plugin_linux.rc != 0
   when: ansible_facts["os_family"] == "Debian"
 
+- name: Install pi-goal plugin for pi-coding-agent
+  command: >-
+    {{ mise_bin }} exec node@{{ tool_versions.runtimes.node }} --
+    pi install npm:pi-goal@{{ tool_versions.pi_packages.goal }}
+  register: pi_goal_plugin
+  until: pi_goal_plugin.rc == 0
+  retries: 2
+  delay: 5
+  environment:
+    PATH: "{{ ansible_facts['user_dir'] }}/.local/bin:{{ ansible_facts['env']['PATH'] }}"
+  changed_when: "'already installed' not in pi_goal_plugin.stdout"
+  failed_when: pi_goal_plugin.rc != 0
+  when: ansible_facts["os_family"] in ["Darwin", "Debian"]
+
 - name: Remove retired OpenAI server compaction package for Pi (macOS)
   shell: |
     set -euo pipefail
