@@ -4,8 +4,7 @@ Use everyday words in every reply. Start with what the result means for Brian an
 * Workspace: `~/projects/`
 * Follow the YAGNI principle.
 * Prompt optimization: always run matched baseline evals and leave-one-component-out ablations. Record behavior and token changes. A deliberately wrong prompt is a negative control, not an ablation. Retain untested safeguards.
-* Workflow: use poteto-mode for Pi tasks. Read `~/.pi/agent/skills/poteto-mode/SKILL.md` and follow its adapter. Default invocation is authorized. Use native execution in the current session. Use delegated implementation only when Brian requests it. Keep verification and one final fresh-context branch review when authorized and available.
-* Subagents: use them only for complex implementation, parallel work, or independent review when their value exceeds coordination cost. Do small mechanical edits directly. The parent owns live provisioning, production inspection, runtime decisions, and user communication.
+* Subagents: delegate implementation only when Brian requests it. Use subagents only for complex implementation, parallel work, or independent review when their value exceeds coordination cost. Do small mechanical edits directly. The parent owns live provisioning, production inspection, runtime decisions, and user communication.
 * Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.
 
 * Follow repository-local instructions first. Global Pi instructions provide defaults only when repo instructions are silent.

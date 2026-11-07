@@ -7,20 +7,20 @@ description: >
 
 # Quick PR
 
-Take the request to a verified pull request using poteto-mode and its adapter.
-Use the matched playbook rather than a separate spec-and-plan workflow.
+Take the request to a verified pull request using native execution.
+Follow repository policy without a separate default spec-and-plan workflow.
 
 ## Process
 
-1. Read `~/.pi/agent/skills/poteto-mode/SKILL.md` and follow its adapter.
+1. Follow the current user request and repository workflow.
 2. Inspect repository instructions, relevant files, and existing behavior. Reuse
    isolation or create the workspace required by repository policy.
 3. Resolve observable questions from evidence. Ask one blocking question only
    for a missing fact you cannot discover, incompatible product choices, or a
    security, privacy, credential, destructive, legal, billing, or publication
    decision that needs authorization. Otherwise make a conservative assumption.
-4. Follow the matched poteto-mode playbook. Create a spec or plan document when
-   the user requests one or that playbook requires it. Preserve repository
+4. Create a spec or plan document when the user requests one or repository
+   policy requires it. Preserve repository
    document paths and ignore rules when creating such a document.
 5. Implement in the current session. Delegate implementation only when the user
    requests it. Respect repository test policy and verify the affected behavior
