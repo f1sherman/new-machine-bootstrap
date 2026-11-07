@@ -63,6 +63,27 @@ optional arguments, requested budgets, and tool-enabled behavior remain untested
 matched the repository file byte for byte. BB's project command catalog for the
 Pi provider listed `z-suggest-goal`. A fresh independent review found no issues.
 
-Local raw prompts, responses, usage, and session references are captured in
-`.pi/subagents/suggest-goal-eval.json` and the native subagent artifacts. They
-are excluded from Git because they include machine-local runtime context.
+## Rerunnable suite and isolated follow-up
+
+The [checked-in suite](../../../evals/suggest-goal/README.md) includes tasks,
+grading criteria, a generator that reads the current skill, frozen full/baseline/
+ablation conditions, rerun commands, and sanitized actual responses with ratings.
+The original paired responses are preserved in `records/initial-native.json`.
+Private paths, encrypted reasoning, and infrastructure trailers are omitted;
+actual answer text and failed cases are retained.
+
+A separate isolated follow-up ran both cases in independent model calls, with
+no ambient project guidance. All 12 generations completed. The full skill
+passed 2/2; empty policy passed 0/2; without guard, selection, and format each
+passed 1/2; without drafting passed 0/2. Several variants wrapped a refusal in
+`/goal`, which would still create a goal. The empty baseline also described
+completed work as a goal. These failures are included, not rerolled.
+
+No case passed in every condition, so no all-condition token comparison is
+supported. The original successful-pair comparison above remains historical
+and is not compared with the new isolated calls. See
+`evals/suggest-goal/records/isolated-before.json` for the captured answers and
+ratings, and use the existing report command to recompute the summary.
+
+Unreviewed provider responses and private runtime state remain in ignored local
+audit files. Their sensitive fields are not needed to rerun or grade the suite.

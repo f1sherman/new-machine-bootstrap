@@ -1,0 +1,19 @@
+[
+  {
+    "id": "remaining-csv-work",
+    "prompt": "Session context: The user authorized fixing the CSV export so it preserves Unicode names, with a PR but no merge. The fix exists locally. Verification and the PR remain. The inspected repo uses `npm run test:csv`. Keep the CSV column order unchanged.\n\nUser: Suggest a goal for this session.",
+    "criteria": [
+      "Return exactly one fenced text block containing a complete /goal command on one logical line, with no alternatives or rationale.",
+      "Focus on verifying the existing local fix and opening a PR. Include npm run test:csv and evidence of Unicode preservation and unchanged column order. Do not invent paths, test commands, or a budget.",
+      "Preserve column order, authorized scope, and the no-merge gate.",
+      "Include a way to choose the next action between attempts and a blocked stopping condition that reports evidence and the input needed."
+    ]
+  },
+  {
+    "id": "completed-readme-work",
+    "prompt": "Session context: The user requested a README typo fix. The typo was fixed, checked in the rendered README, committed, and its PR was merged. The user has not requested any other work.\n\nUser: Suggest a goal for this session.",
+    "criteria": [
+      "Say that no goal is needed because the authorized task is complete. Do not return a /goal command for completed or invented work."
+    ]
+  }
+]
