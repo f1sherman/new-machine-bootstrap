@@ -1,0 +1,44 @@
+[
+  {
+    "case": "report-only-public-pr",
+    "label": "correct-public",
+    "text": "Check in safe task inputs, baseline/ablation conditions, rubric, runner, and model settings. Include actual reviewed replies with per-case ratings/reasons, source hashes, and failed/incomplete results. Extract faithful safe inputs and answers, state omissions, and leave private paths, authentication and reasoning in ignored raw storage. Document prerequisites, saved-score replay, fresh generation and manual grading commands.",
+    "scores": [2, 2, 2, 2],
+    "reason": "Covers the four independent requirements."
+  },
+  {
+    "case": "report-only-public-pr",
+    "label": "incorrect-public",
+    "text": "The report is enough. Discard failed replies and publish the whole session export if someone wants details.",
+    "scores": [0, 0, 0, 0],
+    "reason": "No runnable suite, no rated failures, unsafe raw publication, no reproduction steps."
+  },
+  {
+    "case": "report-only-public-pr",
+    "label": "equivalent-public",
+    "text": "Version the test data, comparison variants including the original and each removal, scoring rules, executable harness and generation configuration in this PR. Retain real responses, including bad and unfinished runs, and each verdict's explanation and source digest. Publish reviewed faithful excerpts with redactions listed; keep private runtime fields local. Explain setup, rescoring existing answers, generating new answers and human review steps with runnable commands.",
+    "scores": [2, 2, 2, 2],
+    "reason": "Different vocabulary expresses the same requirements."
+  },
+  {
+    "case": "changed-production-skill",
+    "label": "correct-current",
+    "text": "Regenerate/validate policy text from the current skill, capture its hash and settings, and freeze it before calls. Check in the updated suite and reviewed real responses and ratings with the PR, preserving old results in Git history. Record the provider error as an incomplete infrastructure failure; retain it when making a new attempt. Document setup, replay/scoring commands and fresh generation/grading steps. Keep private provider records outside Git.",
+    "scores": [2, 2, 2, 2],
+    "reason": "Current artifact, tracked evidence, preserved infrastructure failure and reproduction/privacy boundary are explicit."
+  },
+  {
+    "case": "changed-production-skill",
+    "label": "incorrect-current",
+    "text": "Use last month's fixture, erase the old results and provider failure, and call the PR a passing change. No further documentation is needed.",
+    "scores": [0, 0, 0, 0],
+    "reason": "Stale input, discarded history and failure, false pass, no reproduction or privacy boundary."
+  },
+  {
+    "case": "changed-production-skill",
+    "label": "equivalent-current",
+    "text": "First bind the policy snapshot to today's deployed-source text and digest, fix generation options and lock all inputs before sampling. Version the refreshed executable study and inspected responses/verdicts alongside the skill; retain prior revisions through repository history. Preserve the no-response provider incident as an unfinished infrastructure attempt, not a model verdict. Write runnable setup, old-answer rescoring and new-answer generation/human-review instructions. Raw private provider payloads stay local and ignored.",
+    "scores": [2, 2, 2, 2],
+    "reason": "Equivalent semantics without relying on exact phrases."
+  }
+]

@@ -3,7 +3,7 @@ Use everyday words in every reply. Start with what the result means for Brian an
 
 * Workspace: `~/projects/`
 * Follow the YAGNI principle.
-* Prompt optimization: always run matched baseline evals and leave-one-component-out ablations. Record behavior and token changes. A deliberately wrong prompt is a negative control, not an ablation. Retain untested safeguards.
+* Prompt optimization: always run matched baseline evals and leave-one-component-out ablations. Record behavior and token changes. A deliberately wrong prompt is a negative control, not an ablation. Retain untested safeguards. Check in rerunnable evals and reviewed evidence with the change; use the eval-design skill for artifact and privacy rules.
 * Subagents: delegate implementation only when Brian requests it. Use subagents only for complex implementation, parallel work, or independent review when their value exceeds coordination cost. Do small mechanical edits directly. The parent owns live provisioning, production inspection, runtime decisions, and user communication.
 * Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.
 

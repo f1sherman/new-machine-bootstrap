@@ -74,9 +74,34 @@ conditions, preserving superseded scores; do not reroll inconvenient outputs.
 
 Keep only cases, controls, and grader tests with ongoing regression value in
 the maintained suite. Use Git history for past experiments and rejected variants.
-Store raw run evidence separately from the fixtures.
+Store raw provider records in ignored audit storage, separate from reviewed
+tracked evidence.
 
-## 6. Bound the conclusion
+## 6. Check in rerunnable evals
+
+Check in task inputs, baseline and ablation conditions, grading criteria or
+code, model settings, and the runner with the change they measure. Reuse an
+existing runner when it fits. A report or ignored session file is not a
+rerunnable suite.
+
+Include reviewed actual answers or observations, per-case ratings and reasons,
+and source hashes. Preserve failed and incomplete runs as well as passes.
+Keep superseded results in Git history; do not substitute summaries for the
+answers being graded.
+
+Use public-safe task data. If runtime records contain private context, publish
+safe extracts of the actual inputs and answers with each omission stated.
+Keep credentials, private paths, and provider reasoning out of Git. Private
+fields are a reason to separate artifacts, not omit the whole suite. If safe
+extraction cannot preserve the evidence, report the blocker instead of
+publishing private data or claiming reproducibility.
+
+Document commands to replay saved scores and run fresh responses against the
+current production artifact, including prerequisites and manual grading steps.
+Generate or validate policy fixtures from that artifact so a rerun cannot
+silently test an old copy. Freeze the generated fixture before model calls.
+
+## 7. Bound the conclusion
 
 Report per-case outcomes and failure types, not just aggregate totals. Distinguish
 repeated responses from independent cases. Treat reused selection cases as
