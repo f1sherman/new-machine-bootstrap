@@ -4,7 +4,7 @@ Use everyday words in every reply. Start with what the result means for Brian an
 * Workspace: `~/projects/`
 * Follow the YAGNI principle.
 * Prompt optimization: always run matched baseline evals and leave-one-component-out ablations. Record behavior and token changes. A deliberately wrong prompt is a negative control, not an ablation. Retain untested safeguards.
-* Workflow: use native execution in the current session. Use pstack, including poteto-mode and its bundled skills, only when Brian explicitly requests a pstack workflow for the current task. Agents must not select it automatically or invoke it through another skill without that request. Use delegated implementation only when Brian requests it. Keep verification and one final fresh-context branch review when authorized and available.
+* Workflow: use native execution in the current session. Use delegated implementation only when Brian requests it. Keep verification and one final fresh-context branch review when authorized and available.
 * Subagents: use them only for complex implementation, parallel work, or independent review when their value exceeds coordination cost. Do small mechanical edits directly. The parent owns live provisioning, production inspection, runtime decisions, and user communication.
 * Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.
 
