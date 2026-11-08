@@ -42,8 +42,8 @@ A pass requires all six checks:
 
 The independent checkout includes ordinary Git history, but no ignored local
 files. This permits legitimate runners that use a historical Git revision.
-Equivalent documented CLI switches, paths, result schemas and rating spellings
-are accepted. Only the two supplied feature cases are independently regraded;
+Equivalent documented CLI switches, quoted paths, result schemas and rating
+spellings are accepted. Only the two supplied feature cases are independently regraded;
 additional agent-created cases remain visible in captured changes, but are not
 claimed as separate outer trials. Actual fresh commands and mutation results
 are preserved. Terminal claims are not used as the pass criterion.
@@ -100,7 +100,10 @@ forged-record and stale-record constructions through the actual verifier.
 The first verifier nevertheless imposed an undocumented `--output`/JSON schema
 and omitted Git history, rejecting valid alternatives. It was corrected to
 execute documented commands and accept equivalent schemas. Correct, equivalent
-path/schema and incorrect constructions were then calibrated again. All 14
+path/schema, quoted output paths, cached answers and incorrect constructions
+were then calibrated again. A synthetic provider failure before the first
+response also passed through replay, export and reporting: it remained incomplete,
+with no behavioral verdict or token comparison. Unstarted trials stay separate. All 14
 captured staged diffs were replayed without new model calls; superseded checks
 remain in each record. The checked-in evidence itself was replayed successfully.
 This is a grader repair, not a new experiment or a model improvement.
