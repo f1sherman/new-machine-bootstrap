@@ -16,6 +16,8 @@ Use the conversation and any arguments to identify the current user-approved tas
 
 Write one self-contained `/goal` command. Name the desired outcome, concrete completion evidence, scope and constraints, how to choose the next action between attempts, and when to stop as blocked with evidence and the input needed. Use verified commands and paths; do not invent them. Preserve approval gates. Include a token budget only if Brian requested one.
 
+For multi-step work, include a persistent Markdown progress checklist in the proposed goal. Reuse the task's existing plan; otherwise use a new file under `docs/superpowers/goals/`, subject to repository rules. Tell the executing agent to update it after each verified step, with completed checkboxes, evidence, blockers, and the next action. Draft these instructions only; do not create or change the file now.
+
 ## Return the suggestion
 
 Return one fenced `text` block containing the complete command on one logical line. Keep it concise enough to review. Include `/goal` so Brian can paste the whole block without adding a prefix. Omit alternatives, rationale, and follow-up offers unless Brian asks for them.

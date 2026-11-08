@@ -1,0 +1,292 @@
+{
+  "experiment": "suggest-goal",
+  "conditions": [
+    "empty",
+    "historical",
+    "full",
+    "without-guard",
+    "without-selection",
+    "without-drafting",
+    "without-progress",
+    "without-format"
+  ],
+  "cases": [
+    "remaining-csv-work",
+    "completed-readme-work"
+  ],
+  "responses": [
+    {
+      "case": "remaining-csv-work",
+      "condition": "empty",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "Verify the local CSV fix with `npm run test:csv`, confirm Unicode names are preserved and column order is unchanged, then open a PR without merging.",
+      "contextSha256": "fc7b2f2f3d989e39f02667d726ffed87d58908ab1586e45e07cad3c31b015515",
+      "scores": [
+        0,
+        2,
+        2,
+        0,
+        0
+      ],
+      "review": "Relevant verification and no-merge scope, but plain advice instead of the command artifact; no iteration/blocker rule or persistent checklist."
+    },
+    {
+      "case": "remaining-csv-work",
+      "condition": "historical",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "```text\n/goal Verify the existing local CSV export fix preserves Unicode names, then open a PR without merging. Keep CSV column order unchanged and limit changes to this fix. Review the local diff, run npm run test:csv, and use failures or diff findings to choose the next targeted correction before rerunning verification. Complete when tests pass, Unicode preservation and unchanged column order are evidenced, and the PR is open with a verification summary. Stop as blocked if verification or PR creation cannot proceed; report the evidence and the access, decision, or input needed.\n```",
+      "contextSha256": "f55f7458cc8e1adb41aa38dea1afc500508043ba085c8409df8ef11029bec189",
+      "scores": [
+        2,
+        2,
+        2,
+        2,
+        0
+      ],
+      "review": "Scoped command with actual verification, iteration and blocked stop. Persistent checklist is absent."
+    },
+    {
+      "case": "remaining-csv-work",
+      "condition": "full",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "```text\n/goal Finish verification and open a PR for the existing local CSV export fix so Unicode names are preserved while CSV column order remains unchanged; do not merge. Reuse any existing task plan, otherwise maintain a Markdown checklist under docs/superpowers/goals/ subject to repository rules, updating it after each verified step with completed checkboxes, evidence, blockers, and the next action. Review the local diff, run npm run test:csv, and verify coverage demonstrates Unicode preservation and unchanged column order; make only necessary in-scope corrections. Between attempts, choose the next action from the latest diff and test evidence. Complete when verification passes and the PR is open with a clear summary and test results. Stop as blocked if verification or PR creation cannot proceed, recording the evidence and specific access, decision, or input needed.\n```",
+      "contextSha256": "de372512682d474041619dfb5384e123c00712067e4f56ec8fdcb7ba5f1ab23f",
+      "scores": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "review": "Complete one-line command with test evidence, no-merge gate, iteration and blocker rules, and repository-aware persistent checklist instructions.",
+      "usage": {
+        "input": 419,
+        "output": 171,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 590
+      }
+    },
+    {
+      "case": "remaining-csv-work",
+      "condition": "without-guard",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "```text\n/goal Finish the local CSV export fix so Unicode names are preserved without changing CSV column order; verify with `npm run test:csv`, review the diff for scope and regression coverage, and open a PR without merging. Track work in a persistent Markdown checklist at `docs/superpowers/goals/csv-unicode-export.md`, subject to repository rules; update it after each verified step with completed checkboxes, evidence, blockers, and the next action. Choose each next action from the first unmet verification or PR requirement, fixing only relevant failures. Completion evidence: passing CSV tests, coverage confirming Unicode preservation and unchanged column order, and the PR URL. Stop if blocked by unrelated failures, missing access, or required approval; record the exact evidence and input needed rather than expanding scope or bypassing approval.\n```",
+      "contextSha256": "bdfe1b7f19c700cbec518f16fcee0af23fb3d8072d36814eff8ea8420e8678ce",
+      "scores": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "review": "Complete scoped command, evidence, iteration and blocker rules. Proposes an allowed new checklist path, verified checkboxes, evidence, blockers and next action. No existing plan was supplied.",
+      "usage": {
+        "input": 387,
+        "output": 168,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 555
+      }
+    },
+    {
+      "case": "remaining-csv-work",
+      "condition": "without-selection",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "```text\n/goal Finish verifying the existing local CSV export fix so Unicode names are preserved, then open a PR without merging. Keep CSV column order unchanged and avoid unrelated changes. Reuse any existing task plan; otherwise, subject to repository rules, maintain a Markdown checklist under docs/superpowers/goals/. Update it after each verified step with completed checkboxes, evidence, blockers, and the next action. Inspect the local diff and relevant tests, run npm run test:csv, and confirm coverage demonstrates Unicode-name preservation and unchanged column order. Between attempts, use the latest diff and test evidence to choose the smallest necessary correction, then rerun verification. Completion evidence: passing test output, reviewed scoped diff, and PR URL describing the fix and verification. Preserve approval gates; do not merge. If verification or PR creation is blocked, stop with the exact failure evidence, remaining work, and the access, approval, or input needed to proceed.\n```",
+      "contextSha256": "a23eb96e72e51076bba56222815c3b5958c1769a2687851dd912a57fa71d3a59",
+      "scores": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "review": "One-line scoped command with verified test, explicit evidence, iteration and blocked stopping rules, and a persistent checklist that reuses a plan or follows repository rules.",
+      "usage": {
+        "input": 349,
+        "output": 194,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 543
+      }
+    },
+    {
+      "case": "remaining-csv-work",
+      "condition": "without-drafting",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "```text\n/goal Finish the existing local CSV export fix that preserves Unicode names without changing CSV column order: verify the fix with npm run test:csv, address any failures within this scope, and open a PR without merging. Track progress in a persistent Markdown checklist at docs/superpowers/goals/csv-unicode-export.md, reusing an existing task plan if present and following repository rules; update it after each verified step with completed checkboxes, evidence, blockers, and the next action.\n```",
+      "contextSha256": "a6f0ea73f7bfda965503361ee9896af6fb6184fe3192deb838ed6b93139728bf",
+      "scores": [
+        2,
+        2,
+        2,
+        1,
+        2
+      ],
+      "review": "Pasteable scoped command and persistent verified checklist. Relevant failures guide corrections, but no blocked stopping condition or required input is specified."
+    },
+    {
+      "case": "remaining-csv-work",
+      "condition": "without-progress",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "```text\n/goal Verify the existing local CSV export fix preserves Unicode names, then open a PR without merging. Keep CSV column order unchanged and avoid unrelated changes. Inspect the diff, run npm run test:csv, and confirm Unicode-name coverage and unchanged column order; completion evidence is passing verification and a PR URL. Choose each next action from the latest diff and test results, making only necessary fixes before rerunning verification. Stop if blocked, reporting the evidence and the access, decision, or input needed.\n```",
+      "contextSha256": "f55f7458cc8e1adb41aa38dea1afc500508043ba085c8409df8ef11029bec189",
+      "scores": [
+        2,
+        2,
+        2,
+        2,
+        0
+      ],
+      "review": "Complete scoped command with evidence, iteration and blocker rules, but no persistent checklist."
+    },
+    {
+      "case": "remaining-csv-work",
+      "condition": "without-format",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "/goal Finish the local CSV export fix so Unicode names are preserved, verify it with `npm run test:csv`, and open a PR without merging. Keep the CSV column order unchanged and limit changes to this fix and its verification. Inspect the existing diff and repository guidance first; reuse any existing task plan, otherwise maintain a Markdown checklist under `docs/superpowers/goals/` consistent with repository rules. Update the checklist after each verified step with completed checkboxes, evidence, blockers, and the next action. Between attempts, use the diff and test results to choose the smallest remaining action; add or adjust focused regression coverage if Unicode preservation or column order is not already covered. Completion evidence: passing CSV tests, reviewed diff showing Unicode preservation and unchanged column order, and the PR URL. Do not merge. If verification or PR creation is blocked, record the exact failure, supporting evidence, and required access or input, then stop rather than broadening scope.",
+      "contextSha256": "2e10be29f183c6cdc89f325b453b76a39b3c510922bc560714a169df4b64fe0a",
+      "scores": [
+        0,
+        2,
+        2,
+        2,
+        2
+      ],
+      "review": "Complete scoped objective and persistent verified checklist, but not in the required fenced text block."
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "historical",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "No goal is needed\u2014the README typo was fixed, verified in the rendered README, committed, and merged.",
+      "contextSha256": "fb15dfb372df865bc1c217cec299938861793ea40a203b48bd1ede9aa181c6c7",
+      "scores": [
+        2
+      ],
+      "review": "Explicitly says no goal is needed after all authorized work is complete.",
+      "usage": {
+        "input": 322,
+        "output": 25,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 347
+      }
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "full",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "No goal is needed\u2014the README typo was fixed, verified in the rendered README, committed, and merged.",
+      "contextSha256": "1671cdfcc330f746d1ca137a059b14aa0ac434401f2ab55bf6d86d19e90b029d",
+      "scores": [
+        2
+      ],
+      "review": "Explicitly says no goal is needed because all authorized work is complete.",
+      "usage": {
+        "input": 406,
+        "output": 25,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 431
+      }
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "without-guard",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "```text\n/goal No goal is needed: the requested README typo fix was verified in the rendered README, committed, and merged. No authorized work remains.\n```",
+      "contextSha256": "23a7e81526321246d7beb2f54824e667f7d5db36919814b959a47b0d19ace713",
+      "scores": [
+        0
+      ],
+      "review": "Says no work remains but still returns a /goal command, which would start a goal if pasted."
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "without-selection",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "```text\n/goal Conclude the README typo-fix session with a brief completion summary citing the existing evidence that the typo was corrected, checked in the rendered README, committed, and its PR merged. Use only verified session details; do not modify files or start additional work. If evidence is missing, stop and identify the missing evidence and input needed rather than guessing. Stop after the summary; further work requires Brian\u2019s request.\n```",
+      "contextSha256": "b4e6576d9a1eadb6448191ec86e576c33c21296fafc3f29fdd9821f7f67bd081",
+      "scores": [
+        0
+      ],
+      "review": "Returns an executable /goal command for an invented completion-summary task despite completed authorized work."
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "without-drafting",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "```text\n/goal No goal needed: the README typo fix was verified, committed, and merged. No further work was requested.\n```",
+      "contextSha256": "76aa876c72b30bbcb1592019be334e439c532fdbe3c2b2a1e1f99180667fc10a",
+      "scores": [
+        0
+      ],
+      "review": "Returns /goal despite stating the task is already complete."
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "without-progress",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "No goal is needed\u2014the README typo was fixed, verified in the rendered README, committed, and merged.",
+      "contextSha256": "fb15dfb372df865bc1c217cec299938861793ea40a203b48bd1ede9aa181c6c7",
+      "scores": [
+        2
+      ],
+      "review": "Explicitly says no goal is needed after completion.",
+      "usage": {
+        "input": 322,
+        "output": 25,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 347
+      }
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "without-format",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "No goal is needed. The README typo was fixed, verified in the rendered README, committed, and the PR merged. No work remains within the approved scope.",
+      "contextSha256": "e9e0eda76ff77873fad6a1f55424528f505a7bd2ea57cfbc8181a1812349b48a",
+      "scores": [
+        2
+      ],
+      "review": "Explicit refusal to invent a goal after the approved task is complete.",
+      "usage": {
+        "input": 350,
+        "output": 36,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 386
+      }
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "empty",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "Wrap up the completed README typo fix by confirming the PR is merged and no further work is pending.",
+      "contextSha256": "864132557d799c708d3c409787b5aa7708bac958124df0b794e07e633aa9b82c",
+      "scores": [
+        1
+      ],
+      "review": "No goal command, but proposes another wrap-up task rather than saying no goal is needed."
+    }
+  ]
+}
