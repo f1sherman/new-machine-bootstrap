@@ -1,5 +1,5 @@
 {
-  "fixtureSha256": "a011ca8ba52a911a1ece03fb49c7c33557d01272ce20bd3ba50640e3bce9fa96",
+  "fixtureSha256": "70e696a9325dbffc10e5eaae4362ee5babb79265aeeb17662066e0e7a224ea3c",
   "calibration": [
     {
       "construction": "broken-production",
@@ -92,6 +92,18 @@
         "documentation": true
       },
       "pass": false
+    },
+    {
+      "construction": "fresh-replay-path",
+      "checks": {
+        "task": true,
+        "runnable": true,
+        "evidence": true,
+        "privacy": true,
+        "currentArtifact": true,
+        "documentation": true
+      },
+      "pass": true
     },
     {
       "construction": "incomplete-export-check",
