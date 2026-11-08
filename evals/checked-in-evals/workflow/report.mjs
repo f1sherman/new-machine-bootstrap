@@ -14,14 +14,16 @@ const manifest=JSON.parse(fs.readFileSync(path.join(directory,'manifest.json')))
 const results=JSON.parse(fs.readFileSync(path.join(directory,'results.json')));
 const conditions=Object.keys(manifest.conditions);
 const cases=manifest.cases.map(row=>row.id);
-assert.equal(results.length,conditions.length*cases.length,'Incomplete matrix');
+assert.ok(results.length<=conditions.length*cases.length,'Unexpected extra trials');
 const counts={};
 for(const condition of conditions) {
   const rows=results.filter(row=>row.condition===condition);
-  assert.deepEqual(rows.map(row=>row.case).sort(),[...cases].sort(),'Duplicate or missing case');
+  assert.equal(new Set(rows.map(row=>row.case)).size,rows.length,'Duplicate case');
+  assert.ok(rows.every(row=>cases.includes(row.case)),'Unknown case');
   counts[condition]={passes:rows.filter(row=>row.complete && row.pass).length,
     failures:rows.filter(row=>row.complete && !row.pass).length,
-    incomplete:rows.filter(row=>!row.complete).length};
+    incomplete:rows.filter(row=>!row.complete).length,
+    unstarted:cases.length-rows.length};
 }
 const successfulConditions=conditions.filter(condition=>counts[condition].passes===cases.length);
 const matchedSuccessfulTokens={};

@@ -1,5 +1,5 @@
 {
-  "fixtureSha256": "514c4e85ec616712586ec4bc765e35bb67f8612fac3b54048c11fc3fa3375f44",
+  "fixtureSha256": "845a6ab4049c6f29a0428e4fca0ed4c8ff67f39bf30e11b8beba05c6f5b21286",
   "calibration": [
     {
       "construction": "cached-answers",
@@ -62,6 +62,15 @@
       "pass": false
     },
     {
+      "construction": "incomplete-export-check",
+      "checks": {
+        "preserved": true,
+        "notBehavioralFailure": true,
+        "noTokenMetrics": true
+      },
+      "pass": true
+    },
+    {
       "construction": "private-raw-export",
       "checks": {
         "task": true,
@@ -72,6 +81,18 @@
         "documentation": true
       },
       "pass": false
+    },
+    {
+      "construction": "quoted-output",
+      "checks": {
+        "task": true,
+        "runnable": true,
+        "evidence": true,
+        "privacy": true,
+        "currentArtifact": true,
+        "documentation": true
+      },
+      "pass": true
     },
     {
       "construction": "report-only",

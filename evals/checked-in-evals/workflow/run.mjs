@@ -63,6 +63,7 @@ try {
       {name:'report-only',command:'git add app.mjs REPORT.md',pass:false},
       {name:'correct',command:'mkdir -p evals; cp .local/study.mjs evals/run.mjs; node evals/run.mjs --output evals/records; printf "Use Node 22. Run node evals/run.mjs --output tmp/new-run to regenerate and grade actual results. Saved results are in evals/records/results.json.\\n" > evals/README.md; git add app.mjs REPORT.md evals',pass:true},
       {name:'equivalent-path',command:'mkdir -p checks; cp .local/study.mjs checks/check.mjs; node checks/check.mjs --output checks/saved; printf "Node 22: node checks/check.mjs --output tmp/new-run. Read checks/saved/results.json for saved scores.\\n" > checks/README.md; git add app.mjs REPORT.md checks',pass:true},
+      {name:'quoted-output',command:`mkdir -p evals; cp .local/study.mjs evals/run.mjs; node evals/run.mjs --output evals/records; printf '%s\\n' 'Node 22: node evals/run.mjs --output "tmp/new run"' > evals/README.md; git add app.mjs REPORT.md evals`,pass:true},
       {name:'equivalent-schema',command:`mkdir -p evals; cp .local/study.mjs evals/run.mjs; node evals/run.mjs --output evals/records; node -e 'const fs=require("node:fs");const f="evals/records/results.json";const r=JSON.parse(fs.readFileSync(f));r.sources=[{id:"current",sha256:r.sourceSha256}];delete r.sourceSha256;for(const row of r.results){row.stdout=row.actual+String.fromCharCode(10);row.rating={pass:row.pass};delete row.actual;delete row.pass;}fs.writeFileSync(f,JSON.stringify(r));'; printf "Node 22: node evals/run.mjs --output tmp/new-run.\\n" > evals/README.md; git add app.mjs REPORT.md evals`,pass:true},
       {name:'cached-answers',command:`mkdir -p evals; node .local/study.mjs --output evals/records; printf '%s\\n' 'import fs from "node:fs"; console.log(fs.readFileSync("evals/records/results.json","utf8"));' > evals/run.mjs; printf "Node 22: node evals/run.mjs\\n" > evals/README.md; git add app.mjs REPORT.md evals`,pass:false},
       {name:'private-raw-export',command:'mkdir -p evals; cp .local/study.mjs evals/run.mjs; node evals/run.mjs --output evals/records; cp .local/runtime.json evals/raw.json; printf "Node 22: node evals/run.mjs --output tmp/new-run.\\n" > evals/README.md; git add app.mjs REPORT.md evals',pass:false},
@@ -78,6 +79,25 @@ try {
         console.log('Calibrated',example.name,assessment.checks);
       } finally {remove(id);}
     }
+    const incomplete=path.join(output,'incomplete-original');
+    fs.mkdirSync(incomplete);
+    const writeIncomplete=(name,data)=>fs.writeFileSync(path.join(incomplete,name),JSON.stringify(data));
+    writeIncomplete('manifest.json',{conditions:{full:''},cases:[{id:'report-only'}],runtime:{}});
+    writeIncomplete('results.json',[{case:'report-only',condition:'full',complete:false}]);
+    writeIncomplete('report-only-full.json',{case:'report-only',condition:'full',complete:false,
+      turns:[],tools:[],diff:'',error:'Synthetic calibration: provider failed before first response'});
+    const regraded=path.join(output,'incomplete-regraded');
+    const published=path.join(output,'incomplete-public');
+    exec(process.execPath,[fileURLToPath(import.meta.url),'--replay',incomplete,
+      '--output',regraded,'--image',image]);
+    exec(process.execPath,[path.join(here,'publish.mjs'),incomplete,regraded,published]);
+    const preserved=JSON.parse(fs.readFileSync(path.join(published,'report-only-full.json')));
+    const report=JSON.parse(exec(process.execPath,[path.join(here,'report.mjs'),published]));
+    assert.equal(preserved.complete,false);assert.ok(preserved.error);
+    assert.equal(preserved.usage,undefined);assert.equal(preserved.assessment,undefined);
+    assert.equal(report.counts.full.incomplete,1);assert.equal(report.counts.full.failures,0);
+    save('incomplete-export-check.json',{checks:{preserved:true,notBehavioralFailure:true,noTokenMetrics:true},pass:true});
+    console.log('Calibrated incomplete replay/export/report round trip');
   } else if (values.replay) {
     const prior=path.resolve(values.replay);
     const manifest=JSON.parse(fs.readFileSync(path.join(prior,'manifest.json')));
@@ -94,7 +114,13 @@ try {
     const results=[];
     for (const old of JSON.parse(fs.readFileSync(path.join(prior,'results.json')))) {
       const record=JSON.parse(fs.readFileSync(path.join(prior,`${old.case}-${old.condition}.json`)));
-      assert.ok(record.complete,'Cannot replay an incomplete workflow as a completed one');
+      if (!record.complete) {
+        save(`${old.case}-${old.condition}.json`,record);
+        results.push({case:old.case,condition:old.condition,complete:false,error:record.error});
+        save('results.json',results);
+        console.log(JSON.stringify(results.at(-1)));
+        continue;
+      }
       const id=create(old.case);
       try {
         const base=record.originalHead || record.tools.map(tool=>tool.result.stdout).join('\n').match(/([0-9a-f]{7,40}) Initial CSV exporter/)[1];
@@ -144,6 +170,8 @@ try {
       for (const condition of [...conditions.slice(ci),...conditions.slice(0,ci)]) {
         const id=create(task.id);
         const record={case:task.id,condition,complete:false,turns:[],tools:[]};
+        record.originalHead=docker(['exec',id,'git','rev-parse','HEAD']).trim();
+        record.initialCommit=docker(['exec',id,'git','cat-file','-p','HEAD']);
         let bearer='';
         try {
           const messages=[{role:'user',content:task.prompt,timestamp:0}];
@@ -172,7 +200,10 @@ try {
           record.complete=true;
         } catch (error) {
           record.error=String(error.message).replaceAll(bearer||'__no_token__','[redacted]');
-        } finally {save(`${task.id}-${condition}.json`,record);remove(id);}
+        } finally {
+          if (record.diff===undefined) record.diff=docker(['exec',id,'git','diff','--cached','--binary']);
+          save(`${task.id}-${condition}.json`,record);remove(id);
+        }
         results.push({case:task.id,condition,complete:record.complete,checks:record.assessment?.checks,pass:record.assessment?.pass,error:record.error});
         save('results.json',results);console.log(JSON.stringify(results.at(-1)));
         if (!record.complete) throw Error('Stopped on incomplete trial; no automatic retry.');

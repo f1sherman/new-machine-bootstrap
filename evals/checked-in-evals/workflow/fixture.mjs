@@ -109,7 +109,7 @@ if (action === 'init') {
   });
   const scripts = files.filter(file => file.endsWith('.mjs') && file !== 'app.mjs');
   const commands = [...new Set(texts.filter(([file])=>file.endsWith('.md')).flatMap(([,text]) =>
-    [...text.matchAll(/\bnode[ \t]+([\w./-]+\.mjs)((?:[ \t]+(?:--?[\w-]+|[\w./-]+))*)/g)]
+    [...text.matchAll(/\bnode[ \t]+([\w./-]+\.mjs)((?:[ \t]+(?:--?[\w-]+|"[^"\n]*"|'[^'\n]*'|[\w./-]+))*)/g)]
       .filter(match=>scripts.includes(match[1]) && !match[2].includes('replay'))
       .map(match=>'node '+match[1]+match[2])))];
   const replays = [];
@@ -118,8 +118,9 @@ if (action === 'init') {
       const cwd=checkout();
       fs.mkdirSync(path.join(cwd,'.local/review'),{recursive:true});
       fs.mkdirSync(path.join(cwd,'tmp'),{recursive:true});
-      const absoluteOutput=command.split(/\s+/).at(-1);
-      if (/^\/tmp\/[\w.-]+\.json$/.test(absoluteOutput)) fs.rmSync(absoluteOutput,{force:true});
+      const tokens=command.match(/"[^"]*"|'[^']*'|\S+/g);
+      const absoluteOutput=tokens.at(-1).replace(/^(['"])(.*)\1$/,'$2');
+      if (/^\/tmp\/[^/]+\.json$/.test(absoluteOutput)) fs.rmSync(absoluteOutput,{force:true});
       if (broken) fs.writeFileSync(path.join(cwd,'app.mjs'),'console.log("BROKEN_PRODUCTION_ARTIFACT");\n');
       let result;
       try {result={exitCode:0,stdout:run('sh',['-lc',command],cwd)};}
