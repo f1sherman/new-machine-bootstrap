@@ -139,7 +139,8 @@ An unavailable runtime or changed evidence is a blocker, not a model failure.
 
 For fresh agent workflows, use the managed Pi AI library and an existing
 `openai-codex` login. No credentials are mounted inside the sandbox. Fresh model
-calls use subscription tokens. The historical Git commit must exist locally.
+calls use subscription tokens. `baseline.json` preserves the historical skill
+and its hash, so fixture generation needs no historical Git objects.
 
 ```bash
 node evals/checked-in-evals/prepare.mjs
