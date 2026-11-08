@@ -114,10 +114,18 @@ if (action === 'init') {
   };
   const evidence = records.some(({data}) => currentEvidence(data));
   const scripts = files.filter(file => file.endsWith('.mjs') && file !== 'app.mjs');
-  const commands = [...new Set(texts.filter(([file])=>file.endsWith('.md')).flatMap(([,text]) =>
-    [...text.matchAll(/\bnode[ \t]+([\w./-]+\.mjs)((?:[ \t]+(?:--?[\w-]+|"[^"\n]*"|'[^'\n]*'|[\w./-]+))*)/g)]
+  const commands = [...new Set(texts.filter(([file])=>file.endsWith('.md')).flatMap(([,text]) => {
+    const documentation=text.replace(/\\\r?\n[ \t]*/g,' ');
+    const outputOptions=[...documentation.matchAll(/`(--output[ \t]+(?:"[^"\n]*"|'[^'\n]*'|[\w./-]+))`/g)]
+      .map(match=>match[1]);
+    return [...documentation.matchAll(/\bnode[ \t]+([\w./-]+\.mjs)((?:[ \t]+(?:--?[\w-]+|"[^"\n]*"|'[^'\n]*'|[\w./-]+))*)/g)]
       .filter(match=>scripts.includes(path.normalize(match[1])) && !/(?:^|\s)--replay(?:\s|$)/.test(match[2]))
-      .map(match=>'node '+match[1]+match[2])))];
+      .flatMap(match=> {
+        const command='node '+match[1]+match[2];
+        if (/(?:^|\s)--output(?:\s|$)/.test(match[2])) return [command];
+        return [command,...outputOptions.map(option=>command+' '+option)];
+      });
+  }))];
   const replays = [];
   for (const command of commands) {
     const execute = broken => {

@@ -1,6 +1,18 @@
 {
-  "fixtureSha256": "70e696a9325dbffc10e5eaae4362ee5babb79265aeeb17662066e0e7a224ea3c",
+  "fixtureSha256": "e42ce42e7e1db56294a841a6f483189c060a999e46859cffe35dc6c219fd88f4",
   "calibration": [
+    {
+      "construction": "broken-escaping",
+      "checks": {
+        "task": false,
+        "runnable": true,
+        "evidence": true,
+        "privacy": true,
+        "currentArtifact": true,
+        "documentation": true
+      },
+      "pass": false
+    },
     {
       "construction": "broken-production",
       "checks": {
@@ -17,13 +29,25 @@
       "construction": "cached-answers",
       "checks": {
         "task": true,
-        "runnable": true,
+        "runnable": false,
         "evidence": true,
         "privacy": true,
         "currentArtifact": false,
         "documentation": true
       },
       "pass": false
+    },
+    {
+      "construction": "continued-command",
+      "checks": {
+        "task": true,
+        "runnable": true,
+        "evidence": true,
+        "privacy": true,
+        "currentArtifact": true,
+        "documentation": true
+      },
+      "pass": true
     },
     {
       "construction": "correct",
@@ -163,6 +187,30 @@
       "pass": false
     },
     {
+      "construction": "separate-output-option",
+      "checks": {
+        "task": true,
+        "runnable": true,
+        "evidence": true,
+        "privacy": true,
+        "currentArtifact": true,
+        "documentation": true
+      },
+      "pass": true
+    },
+    {
+      "construction": "smoke-only-runner",
+      "checks": {
+        "task": true,
+        "runnable": false,
+        "evidence": true,
+        "privacy": true,
+        "currentArtifact": false,
+        "documentation": true
+      },
+      "pass": false
+    },
+    {
       "construction": "stale-record",
       "checks": {
         "task": true,
@@ -175,6 +223,22 @@
       "pass": false
     }
   ],
+  "runtimeConfigurationCalibration": {
+    "calibration": "Synthetic SDK and auth stub; no model calls",
+    "selectedSettings": {
+      "provider": "synthetic",
+      "id": "settings-probe",
+      "reasoning": "low",
+      "maxTokens": 321
+    },
+    "observedSettings": {
+      "provider": "synthetic",
+      "id": "settings-probe",
+      "reasoning": "low",
+      "maxTokens": 321
+    },
+    "pass": true
+  },
   "publicReplay": [
     {
       "case": "report-only",
