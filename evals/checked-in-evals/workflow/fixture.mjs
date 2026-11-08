@@ -114,7 +114,7 @@ if (action === 'init') {
   const scripts = files.filter(file => file.endsWith('.mjs') && file !== 'app.mjs');
   const commands = [...new Set(texts.filter(([file])=>file.endsWith('.md')).flatMap(([,text]) =>
     [...text.matchAll(/\bnode[ \t]+([\w./-]+\.mjs)((?:[ \t]+(?:--?[\w-]+|"[^"\n]*"|'[^'\n]*'|[\w./-]+))*)/g)]
-      .filter(match=>scripts.includes(match[1]) && !match[2].includes('replay'))
+      .filter(match=>scripts.includes(path.normalize(match[1])) && !match[2].includes('replay'))
       .map(match=>'node '+match[1]+match[2])))];
   const replays = [];
   for (const command of commands) {
