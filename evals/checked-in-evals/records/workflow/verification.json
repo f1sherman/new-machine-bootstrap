@@ -1,5 +1,5 @@
 {
-  "fixtureSha256": "bb0172d06708430835ceaa3c4bb1f10384b568ffab4b8c4d52b2f1ca2d122368",
+  "fixtureSha256": "a011ca8ba52a911a1ece03fb49c7c33557d01272ce20bd3ba50640e3bce9fa96",
   "calibration": [
     {
       "construction": "broken-production",
@@ -27,6 +27,18 @@
     },
     {
       "construction": "correct",
+      "checks": {
+        "task": true,
+        "runnable": true,
+        "evidence": true,
+        "privacy": true,
+        "currentArtifact": true,
+        "documentation": true
+      },
+      "pass": true
+    },
+    {
+      "construction": "dot-relative-path",
       "checks": {
         "task": true,
         "runnable": true,
