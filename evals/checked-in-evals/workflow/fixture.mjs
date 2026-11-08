@@ -107,10 +107,12 @@ if (action === 'init') {
       return expected!==null && (actual===expected || actual===expected.slice(0,-1)) && passed(row)===(expected===task.expected);
     }));
   const sourceHash = fs.existsSync(path.join(tree,'app.mjs')) ? hash(fs.readFileSync(path.join(tree,'app.mjs'))) : null;
-  const evidence = records.some(({data}) => {
+  const currentEvidence = data => {
+    if (!data || !Array.isArray(data.results)) return false;
     const provenance=JSON.stringify([data.sourceSha256,data.sourceHashes,data.sources,data.candidates]);
     return sourceHash!==null && provenance.includes(sourceHash) && faithful(data);
-  });
+  };
+  const evidence = records.some(({data}) => currentEvidence(data));
   const scripts = files.filter(file => file.endsWith('.mjs') && file !== 'app.mjs');
   const commands = [...new Set(texts.filter(([file])=>file.endsWith('.md')).flatMap(([,text]) =>
     [...text.matchAll(/\bnode[ \t]+([\w./-]+\.mjs)((?:[ \t]+(?:--?[\w-]+|"[^"\n]*"|'[^'\n]*'|[\w./-]+))*)/g)]
@@ -122,6 +124,9 @@ if (action === 'init') {
       const cwd=checkout();
       fs.mkdirSync(path.join(cwd,'.local/review'),{recursive:true});
       fs.mkdirSync(path.join(cwd,'tmp'),{recursive:true});
+      for (const {file,data} of records) {
+        if (currentEvidence(data)) fs.rmSync(path.join(cwd,file));
+      }
       const tokens=command.match(/"[^"]*"|'[^']*'|\S+/g);
       const absoluteOutput=tokens.at(-1).replace(/^(['"])(.*)\1$/,'$2');
       if (/^\/tmp\/[^/]+\.json$/.test(absoluteOutput)) fs.rmSync(absoluteOutput,{force:true});
@@ -141,20 +146,23 @@ if (action === 'init') {
       inspect(cwd);
       if (absoluteOutput.startsWith('/tmp/')) inspect(absoluteOutput);
       try {json.push(JSON.parse(result.stdout));} catch {}
+      result.freshEvidence=json.some(currentEvidence);
       result.observedBroken=json.some(data=>Array.isArray(data.results) && data.results.some(row=>
         String(row.actual ?? row.stdout ?? row.observation?.stdout ?? '').trim()==='BROKEN_PRODUCTION_ARTIFACT' && !passed(row)));
       return result;
     };
     const ordinary=execute(false);
-    const broken=ordinary.exitCode===0 ? execute(true) : null;
-    replays.push({command,ordinary,broken,correct:ordinary.exitCode===0,
-      detectsDrift:ordinary.exitCode===0 && (broken.exitCode!==0 || broken.observedBroken)});
+    const correct=ordinary.exitCode===0 && ordinary.freshEvidence;
+    const broken=correct ? execute(true) : null;
+    replays.push({command,ordinary,broken,correct,
+      detectsDrift:correct && (broken.exitCode!==0 || broken.observedBroken)});
   }
   const runnable = replays.some(row=>row.correct);
   const currentArtifact = replays.some(row=>row.detectsDrift);
   const documentation = commands.length>0 && texts.some(([file,text])=>file.endsWith('.md') && /node/i.test(text));
   const checks = {task:appOutput(['["Zoë","東京"]'])?.trim()==='Zoë,東京' &&
-    appOutput(['["third","first","second"]'])?.trim()==='third,first,second',
+    appOutput(['["third","first","second"]'])?.trim()==='third,first,second' &&
+    appOutput([JSON.stringify(cases.escaping.input)])===cases.escaping.expected,
     runnable,evidence,privacy,currentArtifact,documentation};
   console.log(JSON.stringify({checks,pass:Object.values(checks).every(Boolean),files,records,replays}));
 } else throw Error('Use init or grade');
