@@ -1,6 +1,18 @@
 {
-  "fixtureSha256": "845a6ab4049c6f29a0428e4fca0ed4c8ff67f39bf30e11b8beba05c6f5b21286",
+  "fixtureSha256": "bb0172d06708430835ceaa3c4bb1f10384b568ffab4b8c4d52b2f1ca2d122368",
   "calibration": [
+    {
+      "construction": "broken-production",
+      "checks": {
+        "task": false,
+        "runnable": false,
+        "evidence": false,
+        "privacy": true,
+        "currentArtifact": false,
+        "documentation": false
+      },
+      "pass": false
+    },
     {
       "construction": "cached-answers",
       "checks": {
@@ -22,6 +34,14 @@
         "privacy": true,
         "currentArtifact": true,
         "documentation": true
+      },
+      "pass": true
+    },
+    {
+      "construction": "empty-diff-replay-check",
+      "checks": {
+        "replayed": true,
+        "preservedBehavioralFailure": true
       },
       "pass": true
     },
@@ -69,6 +89,18 @@
         "noTokenMetrics": true
       },
       "pass": true
+    },
+    {
+      "construction": "no-staged-changes",
+      "checks": {
+        "task": false,
+        "runnable": false,
+        "evidence": false,
+        "privacy": true,
+        "currentArtifact": false,
+        "documentation": false
+      },
+      "pass": false
     },
     {
       "construction": "private-raw-export",
