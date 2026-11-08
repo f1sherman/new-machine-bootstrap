@@ -50,7 +50,13 @@ node evals/eval-design/run.mjs token-reporting \
   --sdk-module "$f"
 ```
 
-Choose a new output directory for each authorized run. The runner freezes inputs and runtime hashes before the first model call, preserves all responses, stops on an incomplete generation, and never retries automatically. Failures retain the failing stage and a credential-safe diagnostic. Raw output must stay gitignored. Access credentials remain in memory; bearer values are not logged or saved.
+Choose a new output directory for each authorized run. To use another model on
+the same login provider, add `--model openai-codex/gpt-6.1-terra`. The selected
+model is recorded in the frozen manifest. The runner freezes inputs and runtime
+hashes before the first model call, preserves all responses, stops on an
+incomplete generation, and never retries automatically. Failures retain the
+failing stage and a credential-safe diagnostic. Raw output must stay gitignored.
+Access credentials remain in memory; bearer values are not logged or saved.
 
 Have a fresh reviewer read `tmp/eval-design-fresh/review-packet.md`, without the manifest or condition names. Save its JSON ratings with one `label`, `scores`, and `reason` per answer. Then publish the scored view and build the report:
 
