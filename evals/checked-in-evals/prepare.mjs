@@ -27,15 +27,15 @@ const keys = Object.keys(conditions);
 const experiment = {
   version: 1,
   id: 'checked-in-evals',
-  scope: 'Two synthetic, tool-free advice cases. Standalone eval-design skill bodies; no ambient policy. Does not measure skill discovery, file edits, publication, or live privacy enforcement.',
+  scope: 'Tool-enabled local Git workflows. Standalone eval-design bodies without ambient policy. Grades actual staged artifacts, clean-index execution, source mutation, and synthetic private-marker exclusion. No live forge publication.',
   source: {path: skillPath, sha256: crypto.createHash('sha256').update(source).digest('hex'), baselineCommit},
-  systemPrefix: 'You are a helpful technical assistant. Answer the user in at most 350 words.\n\n',
+  systemPrefix: 'You are a coding assistant working in an isolated local repository. Complete the user task using the available shell tool.\n\n',
   model: {provider: 'openai-codex', id: 'gpt-6.1-sol', reasoning: 'medium', maxTokens: 4000},
   conditions,
   cases,
   order: cases.flatMap((task, index) => [...keys.slice(index), ...keys.slice(0, index)]
     .map(condition => ({case: task.id, condition}))),
-  grading: 'Manual semantic review: 0 missing/incorrect, 1 partial/ambiguous, 2 complete. Score each criterion independently. A completed call is not a passing answer; pass requires all criteria to score 2. Record infrastructure failures separately.'
+  grading: 'Execute workflow/fixture.mjs against the real staged Git index. Require correct task output, faithful passing/failing observations, no synthetic private markers, documented runnable entry point, independent replay from index-only checkout, and detection of a deliberately broken current production artifact. Terminal prose is not a grade. Record infrastructure failures separately.'
 };
 fs.writeFileSync(new URL('../eval-design/experiments/checked-in-evals.json', import.meta.url),
   JSON.stringify(experiment, null, 2) + '\n');

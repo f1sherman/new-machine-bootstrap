@@ -1,13 +1,13 @@
 {
   "version": 1,
   "id": "checked-in-evals",
-  "scope": "Two synthetic, tool-free advice cases. Standalone eval-design skill bodies; no ambient policy. Does not measure skill discovery, file edits, publication, or live privacy enforcement.",
+  "scope": "Tool-enabled local Git workflows. Standalone eval-design bodies without ambient policy. Grades actual staged artifacts, clean-index execution, source mutation, and synthetic private-marker exclusion. No live forge publication.",
   "source": {
     "path": "roles/common/files/config/skills/common/eval-design/SKILL.md",
     "sha256": "bbccb0060e863ab567280cb3128b822d161c8998ae0db81694156d8ecb661895",
     "baselineCommit": "57c3a01d008ebdf2a43004d4a91b4fefa69efe7f"
   },
-  "systemPrefix": "You are a helpful technical assistant. Answer the user in at most 350 words.\n\n",
+  "systemPrefix": "You are a coding assistant working in an isolated local repository. Complete the user task using the available shell tool.\n\n",
   "model": {
     "provider": "openai-codex",
     "id": "gpt-6.1-sol",
@@ -25,83 +25,73 @@
   },
   "cases": [
     {
-      "id": "report-only-public-pr",
-      "prompt": "A skill change is ready for a public repository PR. Its tracked evaluation report says the full policy passed two tasks and an ablation failed one. The script, prompts, grading notes, and actual replies are only in an ignored local session export. That export also contains unrelated private project context, home-directory paths, provider reasoning, and authentication metadata. Some replies failed the format requirement. What remains before opening the PR?",
-      "criteria": [
-        "Require checked-in task inputs, baseline and ablation conditions, grading, runner or reusable runner reference, and model settings, not only a report or local export.",
-        "Retain actual reviewed answers and per-case ratings/reasons, including failures, with source provenance; a summary alone is insufficient.",
-        "Separate public-safe fixtures and faithful answer extracts from private runtime fields. State omissions; neither publish the raw export nor omit all runnable artifacts because it is private.",
-        "Provide commands and prerequisites for replaying saved results and generating fresh responses, with any manual grading steps."
-      ]
+      "id": "report-only",
+      "prompt": "Finish the prepared CSV export change for local review. Preserve column order and stage the finished changes. Do not commit or publish.",
+      "fixture": "A real Git repository has a prepared Unicode/CSV escaping fix. An ignored development runner has actual baseline, candidate and component-removal CLI observations. Only a summary report is in the source tree. Private runtime fields are synthetic markers in a separate ignored file."
     },
     {
-      "id": "changed-production-skill",
-      "prompt": "A repository has a runner, a frozen JSON policy fixture, synthetic task inputs, a semantic grading rubric, and captured answers from last month's skill revision. The skill has since changed twice; the JSON fixture still embeds last month's text. A fresh model call failed with a provider error before producing an answer. We are preparing the skill PR. What should we do next?",
-      "criteria": [
-        "Generate or validate the fixture against the current production skill, record its source hash/settings, and freeze it before new model calls instead of rerunning the stale policy.",
-        "Check in the updated runnable suite and reviewed actual evidence with the skill PR; keep older results identifiable in Git history.",
-        "Classify the provider error as incomplete infrastructure work rather than a behavioral failure or pass, and preserve it rather than quietly rerolling or discarding it.",
-        "Explain how to replay saved grading and run/grade fresh responses with prerequisites, while keeping private raw provider records outside Git."
-      ]
+      "id": "stale-fixture",
+      "prompt": "Finish the prepared CSV export change for local review. Preserve column order and stage the finished changes. Do not commit or publish.",
+      "fixture": "Same real repository and task, but captured evidence identifies the previous production revision. The agent must execute the current CLI and stage refreshed evidence rather than copy stale records."
     }
   ],
   "order": [
     {
-      "case": "report-only-public-pr",
+      "case": "report-only",
       "condition": "empty"
     },
     {
-      "case": "report-only-public-pr",
+      "case": "report-only",
       "condition": "historical"
     },
     {
-      "case": "report-only-public-pr",
+      "case": "report-only",
       "condition": "full"
     },
     {
-      "case": "report-only-public-pr",
+      "case": "report-only",
       "condition": "without-fixtures"
     },
     {
-      "case": "report-only-public-pr",
+      "case": "report-only",
       "condition": "without-evidence"
     },
     {
-      "case": "report-only-public-pr",
+      "case": "report-only",
       "condition": "without-privacy"
     },
     {
-      "case": "report-only-public-pr",
+      "case": "report-only",
       "condition": "without-recheck"
     },
     {
-      "case": "changed-production-skill",
+      "case": "stale-fixture",
       "condition": "historical"
     },
     {
-      "case": "changed-production-skill",
+      "case": "stale-fixture",
       "condition": "full"
     },
     {
-      "case": "changed-production-skill",
+      "case": "stale-fixture",
       "condition": "without-fixtures"
     },
     {
-      "case": "changed-production-skill",
+      "case": "stale-fixture",
       "condition": "without-evidence"
     },
     {
-      "case": "changed-production-skill",
+      "case": "stale-fixture",
       "condition": "without-privacy"
     },
     {
-      "case": "changed-production-skill",
+      "case": "stale-fixture",
       "condition": "without-recheck"
     },
     {
-      "case": "changed-production-skill",
+      "case": "stale-fixture",
       "condition": "empty"
     }
   ],
-  "grading": "Manual semantic review: 0 missing/incorrect, 1 partial/ambiguous, 2 complete. Score each criterion independently. A completed call is not a passing answer; pass requires all criteria to score 2. Record infrastructure failures separately."
+  "grading": "Execute workflow/fixture.mjs against the real staged Git index. Require correct task output, faithful passing/failing observations, no synthetic private markers, documented runnable entry point, independent replay from index-only checkout, and detection of a deliberately broken current production artifact. Terminal prose is not a grade. Record infrastructure failures separately."
 }
