@@ -1,13 +1,14 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
-import {execFileSync} from 'node:child_process';
 
 const root = new URL('../../', import.meta.url);
 const skillPath = 'roles/common/files/config/skills/common/eval-design/SKILL.md';
-const baselineCommit = '57c3a01d008ebdf2a43004d4a91b4fefa69efe7f';
-const historical = execFileSync('git', ['show', `${baselineCommit}:${skillPath}`],
-  {cwd: root, encoding: 'utf8'});
+const baseline = JSON.parse(fs.readFileSync(new URL('./baseline.json', import.meta.url)));
+assert.equal(baseline.path, skillPath);
+assert.equal(crypto.createHash('sha256').update(baseline.text).digest('hex'), baseline.sha256);
+const baselineCommit = baseline.commit;
+const historical = baseline.text;
 const source = fs.readFileSync(new URL(skillPath, root), 'utf8');
 const body = source.replace(/^---\n[\s\S]*?\n---\n/, '').trim();
 const section = body.split('## 6. Check in rerunnable evals\n\n')[1]?.split('\n\n## 7.')[0];
