@@ -10,6 +10,8 @@ enforcement. No goal or checklist file is created while drafting.
 ## Checked-in evidence
 
 - `cases.json` contains the tasks and semantic grading criteria.
+- `baseline.json` stores the original skill and its hash. Generation needs no
+  historical Git objects, including after a squash merge.
 - `prepare.mjs` reads the current production skill and builds the full condition,
   an empty-policy control, the pre-checklist skill, and five leave-one-paragraph-out
   ablations.
@@ -100,7 +102,7 @@ makes no all-condition token comparison. The completed-task refusal passed for
 both full and historical: full used 431 total tokens versus historical's 347,
 an increase of 84. Full and without-progress have the same comparison on this
 case. On the shared successful CSV case only, full used 590 tokens, without
- guard 555, and without selection 543. Full versus without-format shared only
+guard 555, and without selection 543. Full versus without-format shared only
 the completed case: 431 versus 386. Without drafting had no successful matched
 case. These one-case comparisons do not estimate long-running goal costs.
 

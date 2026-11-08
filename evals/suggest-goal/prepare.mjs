@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
-import {execFileSync} from 'node:child_process';
 
 const root = new URL('../../', import.meta.url);
 const skillPath = 'roles/common/files/config/skills/pi/z-suggest-goal/SKILL.md';
@@ -11,9 +10,11 @@ const blocks = body.split(/\n\n/);
 const paragraphs = blocks.filter(block => !block.startsWith('#'));
 assert.equal(paragraphs.length, 5, 'Review ablation boundaries after changing the skill');
 const names = ['guard', 'selection', 'drafting', 'progress', 'format'];
-const baselineCommit = '2ac73ced27e931d9e03558615970f61ad713e5cf';
-const historical = execFileSync('git', ['show', `${baselineCommit}:${skillPath}`],
-  {cwd: root, encoding: 'utf8'}).replace(/^---\n[\s\S]*?\n---\n/, '').trim();
+const baseline = JSON.parse(fs.readFileSync(new URL('./baseline.json', import.meta.url)));
+assert.equal(baseline.path, skillPath);
+assert.equal(crypto.createHash('sha256').update(baseline.text).digest('hex'), baseline.sha256);
+const baselineCommit = baseline.commit;
+const historical = baseline.text.replace(/^---\n[\s\S]*?\n---\n/, '').trim();
 const conditions = {empty: '', historical, full: body};
 for (const [index, name] of names.entries()) {
   conditions[`without-${name}`] = blocks.filter(block => block !== paragraphs[index]).join('\n\n');
