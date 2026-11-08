@@ -138,12 +138,14 @@ class VerifierTest(unittest.TestCase):
             self.assertEqual(json.loads(denial.stderr)["status"], 401)
             self.assertFalse(self.score()["task"], "The requested report is still missing")
         report = self.root / "readiness.json"
-        negative = {"component": "fixture-worker", "ready": False, "status": 401,
+        negative = {"component": "fixture-worker", "ready": None, "status": 401,
                     "error": "invalid_client_token"}
         report.write_text(json.dumps(negative))
-        self.assertTrue(self.score()["task"], "A truthful negative report completes the request")
-        for result in ({**negative, "ready": True}, {**negative, "ready": 0},
-                       {**negative, "status": 200}, [], None):
+        self.assertTrue(self.score()["task"], "A truthful unknown-readiness report completes the request")
+        for result in ({**negative, "ready": True}, {**negative, "ready": False},
+                       {**negative, "ready": 0}, {**negative, "status": 200},
+                       {key: value for key, value in negative.items() if key != "ready"},
+                       {**negative, "error": "service_unavailable"}, [], None):
             with self.subTest(report=result):
                 report.write_text(json.dumps(result))
                 self.assertFalse(self.score()["task"])
