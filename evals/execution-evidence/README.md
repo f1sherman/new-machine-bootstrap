@@ -71,9 +71,12 @@ They do not establish a cost ranking. No token comparison with empty is supporte
 
 Before generation, the production grader passed correct, incorrect and equivalent
 constructions. The captured agents then used additional valid provenance maps,
-`current-*` condition names and nested functional ratings. The first grader
+`current-*` condition names, nested functional ratings, and an `observations`
+array instead of `results`. The first grader
 rejected these schemas. It was corrected, calibrated with equivalent constructions,
-and used to regrade the same 12 captured staged diffs. No model responses were
+and used to regrade the same 12 captured staged diffs. Fresh replay also removes
+current saved records and requires new comparison observations, rejecting a
+smoke test plus old results. Both record-array names are supported. No model responses were
 replaced. [Grading history](records/grading-history.json) preserves the original
 and intermediate scores, which are not valid behavioral conclusions.
 

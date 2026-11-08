@@ -1,6 +1,18 @@
 {
-  "fixtureSha256": "ef24b1e5230b0693eee87a965aaa0ccb6937d98f51e8d03870d6395b107ee95a",
+  "fixtureSha256": "75c4bd4def17a58a49b1f410b2025a78230e87e7262c6a07e9d7becec2f272e2",
   "calibration": [
+    {
+      "construction": "broken-escaping",
+      "checks": {
+        "task": false,
+        "runnable": true,
+        "evidence": true,
+        "privacy": true,
+        "currentArtifact": true,
+        "documentation": true
+      },
+      "pass": false
+    },
     {
       "construction": "broken-production",
       "checks": {
@@ -17,13 +29,25 @@
       "construction": "cached-answers",
       "checks": {
         "task": true,
-        "runnable": true,
+        "runnable": false,
         "evidence": true,
         "privacy": true,
         "currentArtifact": false,
         "documentation": true
       },
       "pass": false
+    },
+    {
+      "construction": "continued-command",
+      "checks": {
+        "task": true,
+        "runnable": true,
+        "evidence": true,
+        "privacy": true,
+        "currentArtifact": true,
+        "documentation": true
+      },
+      "pass": true
     },
     {
       "construction": "correct",
@@ -130,6 +154,30 @@
       "pass": false
     },
     {
+      "construction": "fresh-observations-schema",
+      "checks": {
+        "task": true,
+        "runnable": true,
+        "evidence": true,
+        "privacy": true,
+        "currentArtifact": true,
+        "documentation": true
+      },
+      "pass": true
+    },
+    {
+      "construction": "fresh-replay-path",
+      "checks": {
+        "task": true,
+        "runnable": true,
+        "evidence": true,
+        "privacy": true,
+        "currentArtifact": true,
+        "documentation": true
+      },
+      "pass": true
+    },
+    {
       "construction": "incomplete-export-check",
       "checks": {
         "preserved": true,
@@ -183,6 +231,30 @@
         "privacy": true,
         "currentArtifact": false,
         "documentation": false
+      },
+      "pass": false
+    },
+    {
+      "construction": "separate-output-option",
+      "checks": {
+        "task": true,
+        "runnable": true,
+        "evidence": true,
+        "privacy": true,
+        "currentArtifact": true,
+        "documentation": true
+      },
+      "pass": true
+    },
+    {
+      "construction": "smoke-only-runner",
+      "checks": {
+        "task": true,
+        "runnable": false,
+        "evidence": true,
+        "privacy": true,
+        "currentArtifact": false,
+        "documentation": true
       },
       "pass": false
     },
