@@ -31,7 +31,7 @@ ablations retain the section heading and other overlapping instructions.
 
 A pass requires all six checks:
 
-1. The actual CLI preserves Unicode and column order.
+1. The actual CLI preserves Unicode, CSV escaping, and column order.
 2. A documented fresh-run command succeeds in a new checkout of staged files.
 3. Staged records contain faithful actual passing and failing observations,
    with provenance for the current production source.
@@ -43,7 +43,16 @@ A pass requires all six checks:
 The independent checkout includes ordinary Git history, but no ignored local
 files. This permits legitimate runners that use a historical Git revision.
 Equivalent documented CLI switches, quoted paths, result schemas and rating
-spellings are accepted. Only the two supplied feature cases are independently regraded;
+spellings are accepted. Direct relative `.mjs` commands support shell
+continuations and a separately documented `--output` option. Other entry-point
+forms need manual review before interpreting an automatic failure rating.
+
+The verifier removes valid current-source records from each disposable checkout
+before running its fresh command. That command must regenerate faithful
+comparison observations. A smoke test plus saved results does not qualify.
+Historical records remain available. The selected experiment supplies the model,
+reasoning and token settings; a synthetic SDK/auth probe verified these reach
+the runtime without a provider call or real credential. Only the two supplied feature cases are independently regraded;
 additional agent-created cases remain visible in captured changes, but are not
 claimed as separate outer trials. Actual fresh commands and mutation results
 are preserved. Terminal claims are not used as the pass criterion.
@@ -139,7 +148,8 @@ An unavailable runtime or changed evidence is a blocker, not a model failure.
 
 For fresh agent workflows, use the managed Pi AI library and an existing
 `openai-codex` login. No credentials are mounted inside the sandbox. Fresh model
-calls use subscription tokens. The historical Git commit must exist locally.
+calls use subscription tokens. `baseline.json` preserves the historical skill
+and its hash, so fixture generation needs no historical Git objects.
 
 ```bash
 node evals/checked-in-evals/prepare.mjs
