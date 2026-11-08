@@ -29,8 +29,9 @@ for (const row of results) {
   const raw=read(original,file);
   const revised=read(regraded,file);
   const record={case:row.case,condition:row.condition,complete:row.complete,
-    initialResponseTimestamp:raw.turns?.[0]?.response.timestamp,
-    originalHead:revised.originalHead ?? raw.originalHead,initialCommit:raw.initialCommit,
+    initialResponseTimestamp:raw.initialResponseTimestamp ?? raw.turns?.[0]?.response.timestamp,
+    originalHead:revised.originalHead ?? raw.originalHead,
+    initialCommit:revised.initialCommit ?? raw.initialCommit,
     terminal:raw.terminal,tools:raw.tools ?? [],diff:raw.diff,error:raw.error,
     assessment:revised.assessment ? {checks:revised.assessment.checks,pass:revised.assessment.pass,
       files:revised.assessment.files,replays:revised.assessment.replays} : undefined,

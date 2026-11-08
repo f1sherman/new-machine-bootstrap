@@ -61,6 +61,8 @@ try {
   if (values.calibrate) {
     const examples = [
       {name:'report-only',command:'git add app.mjs REPORT.md',pass:false},
+      {name:'no-staged-changes',command:'true',pass:false},
+      {name:'broken-production',command:`printf '%s\\n' 'throw Error("fixture defect");' > app.mjs; git add app.mjs REPORT.md`,pass:false},
       {name:'correct',command:'mkdir -p evals; cp .local/study.mjs evals/run.mjs; node evals/run.mjs --output evals/records; printf "Use Node 22. Run node evals/run.mjs --output tmp/new-run to regenerate and grade actual results. Saved results are in evals/records/results.json.\\n" > evals/README.md; git add app.mjs REPORT.md evals',pass:true},
       {name:'equivalent-path',command:'mkdir -p checks; cp .local/study.mjs checks/check.mjs; node checks/check.mjs --output checks/saved; printf "Node 22: node checks/check.mjs --output tmp/new-run. Read checks/saved/results.json for saved scores.\\n" > checks/README.md; git add app.mjs REPORT.md checks',pass:true},
       {name:'quoted-output',command:`mkdir -p evals; cp .local/study.mjs evals/run.mjs; node evals/run.mjs --output evals/records; printf '%s\\n' 'Node 22: node evals/run.mjs --output "tmp/new run"' > evals/README.md; git add app.mjs REPORT.md evals`,pass:true},
@@ -98,6 +100,24 @@ try {
     assert.equal(report.counts.full.incomplete,1);assert.equal(report.counts.full.failures,0);
     save('incomplete-export-check.json',{checks:{preserved:true,notBehavioralFailure:true,noTokenMetrics:true},pass:true});
     console.log('Calibrated incomplete replay/export/report round trip');
+    const emptyOriginal=path.join(output,'empty-original');
+    fs.mkdirSync(emptyOriginal);
+    const id=create('report-only');
+    let initialCommit,originalHead;
+    try {
+      initialCommit=docker(['exec',id,'git','cat-file','-p','HEAD']);
+      originalHead=docker(['exec',id,'git','rev-parse','HEAD']).trim();
+    } finally {remove(id);}
+    fs.copyFileSync(path.join(incomplete,'manifest.json'),path.join(emptyOriginal,'manifest.json'));
+    fs.writeFileSync(path.join(emptyOriginal,'results.json'),JSON.stringify([{case:'report-only',condition:'full',complete:true}]));
+    fs.writeFileSync(path.join(emptyOriginal,'report-only-full.json'),JSON.stringify({case:'report-only',condition:'full',complete:true,
+      initialCommit,originalHead,tools:[],turns:[],diff:'',terminal:'Synthetic calibration: finished with no staged changes'}));
+    const emptyReplay=path.join(output,'empty-replayed');
+    exec(process.execPath,[fileURLToPath(import.meta.url),'--replay',emptyOriginal,'--output',emptyReplay,'--image',image]);
+    const emptyResult=JSON.parse(fs.readFileSync(path.join(emptyReplay,'results.json')))[0];
+    assert.equal(emptyResult.complete,true);assert.equal(emptyResult.pass,false);
+    save('empty-diff-replay-check.json',{checks:{replayed:true,preservedBehavioralFailure:true},pass:true});
+    console.log('Calibrated completed empty-diff replay');
   } else if (values.replay) {
     const prior=path.resolve(values.replay);
     const manifest=JSON.parse(fs.readFileSync(path.join(prior,'manifest.json')));
@@ -125,9 +145,15 @@ try {
       try {
         const base=record.originalHead || record.tools.map(tool=>tool.result.stdout).join('\n').match(/([0-9a-f]{7,40}) Initial CSV exporter/)[1];
         const tree=docker(['exec',id,'git','rev-parse','HEAD^{tree}']).trim();
-        const end=Math.floor((record.initialResponseTimestamp || record.turns[0].response.timestamp)/1000)+5;
+        const timestampHint=record.initialResponseTimestamp || record.turns?.[0]?.response.timestamp;
+        const end=Math.floor(timestampHint/1000)+5;
         let original;
-        for(let timestamp=end-900;timestamp<=end;timestamp++) {
+        if(record.initialCommit) {
+          const text=record.initialCommit;
+          original={text,digest:crypto.createHash('sha1').update(`commit ${Buffer.byteLength(text)}\0${text}`).digest('hex')};
+          assert.ok(original.digest.startsWith(base),'Original commit metadata changed');
+        }
+        for(let timestamp=end-900;!original && timestamp<=end;timestamp++) {
           const text=`tree ${tree}\nauthor Fixture <fixture@example.invalid> ${timestamp} +0000\ncommitter Fixture <fixture@example.invalid> ${timestamp} +0000\n\nInitial CSV exporter\n`;
           const digest=crypto.createHash('sha1').update(`commit ${Buffer.byteLength(text)}\0${text}`).digest('hex');
           if(digest.startsWith(base)) {original={text,digest};break;}
@@ -136,11 +162,11 @@ try {
         exec('docker',['exec','-i',id,'git','hash-object','-t','commit','-w','--stdin'],{input:original.text});
         docker(['exec',id,'git','reset','--hard',original.digest]);
         docker(['exec',id,'git','clean','-fd']);
-        exec('docker',['exec','-i',id,'git','apply','--index','--binary','-'],{input:record.diff});
+        if (record.diff) exec('docker',['exec','-i',id,'git','apply','--index','--binary','-'],{input:record.diff});
         const assessment=grade(id);
         const replay={case:old.case,condition:old.condition,complete:true,assessment,
           supersededAssessment:record.assessment,diff:record.diff,terminal:record.terminal,
-          tools:record.tools,originalHead:original.digest};
+          tools:record.tools,originalHead:original.digest,initialCommit:original.text};
         save(`${old.case}-${old.condition}.json`,replay);
         results.push({case:old.case,condition:old.condition,complete:true,checks:assessment.checks,pass:assessment.pass});
         save('results.json',results);console.log(JSON.stringify(results.at(-1)));

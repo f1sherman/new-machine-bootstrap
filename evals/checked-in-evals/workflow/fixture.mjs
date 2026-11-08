@@ -87,6 +87,10 @@ if (action === 'init') {
     try { const data=JSON.parse(text); return Array.isArray(data.results) ? [{file,data}] : []; }
     catch { return []; }
   });
+  const appOutput = args => {
+    try {return run('node',['app.mjs',...args],tree);}
+    catch(error) {if(Number.isInteger(error.status)) return null; throw error;}
+  };
   const cases = {unicode:{input:['Zoë','東京'],expected:'Zoë,東京\n'},
     escaping:{input:['Lee, Sam','say "hi"'],expected:'"Lee, Sam","say ""hi"""\n'}};
   const alias = name => ['default','current-default'].includes(name) ? 'full' :
@@ -99,13 +103,13 @@ if (action === 'init') {
       const row=data.results.find(row=>row.case===id && alias(row.condition)===condition);
       if (!row) return false;
       const actual=row.stdout ?? row.observation?.stdout ?? row.actual;
-      const expected=run('node',['app.mjs',JSON.stringify(task.input),condition],tree);
-      return (actual===expected || actual===expected.slice(0,-1)) && passed(row)===(expected===task.expected);
+      const expected=appOutput([JSON.stringify(task.input),condition]);
+      return expected!==null && (actual===expected || actual===expected.slice(0,-1)) && passed(row)===(expected===task.expected);
     }));
-  const sourceHash = hash(fs.readFileSync(path.join(tree,'app.mjs')));
+  const sourceHash = fs.existsSync(path.join(tree,'app.mjs')) ? hash(fs.readFileSync(path.join(tree,'app.mjs'))) : null;
   const evidence = records.some(({data}) => {
     const provenance=JSON.stringify([data.sourceSha256,data.sourceHashes,data.sources,data.candidates]);
-    return provenance.includes(sourceHash) && faithful(data);
+    return sourceHash!==null && provenance.includes(sourceHash) && faithful(data);
   });
   const scripts = files.filter(file => file.endsWith('.mjs') && file !== 'app.mjs');
   const commands = [...new Set(texts.filter(([file])=>file.endsWith('.md')).flatMap(([,text]) =>
@@ -149,8 +153,8 @@ if (action === 'init') {
   const runnable = replays.some(row=>row.correct);
   const currentArtifact = replays.some(row=>row.detectsDrift);
   const documentation = commands.length>0 && texts.some(([file,text])=>file.endsWith('.md') && /node/i.test(text));
-  const checks = {task:run('node',['app.mjs','["Zoë","東京"]'],tree).trim()==='Zoë,東京' &&
-    run('node',['app.mjs','["third","first","second"]'],tree).trim()==='third,first,second',
+  const checks = {task:appOutput(['["Zoë","東京"]'])?.trim()==='Zoë,東京' &&
+    appOutput(['["third","first","second"]'])?.trim()==='third,first,second',
     runnable,evidence,privacy,currentArtifact,documentation};
   console.log(JSON.stringify({checks,pass:Object.values(checks).every(Boolean),files,records,replays}));
 } else throw Error('Use init or grade');
