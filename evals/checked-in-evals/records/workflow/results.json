@@ -1,0 +1,198 @@
+[
+  {
+    "case": "report-only",
+    "condition": "empty",
+    "complete": true,
+    "checks": {
+      "task": true,
+      "runnable": false,
+      "evidence": false,
+      "privacy": true,
+      "currentArtifact": false,
+      "documentation": false
+    },
+    "pass": false
+  },
+  {
+    "case": "report-only",
+    "condition": "historical",
+    "complete": true,
+    "checks": {
+      "task": true,
+      "runnable": false,
+      "evidence": false,
+      "privacy": true,
+      "currentArtifact": false,
+      "documentation": false
+    },
+    "pass": false
+  },
+  {
+    "case": "report-only",
+    "condition": "full",
+    "complete": true,
+    "checks": {
+      "task": true,
+      "runnable": true,
+      "evidence": true,
+      "privacy": true,
+      "currentArtifact": true,
+      "documentation": true
+    },
+    "pass": true
+  },
+  {
+    "case": "report-only",
+    "condition": "without-fixtures",
+    "complete": true,
+    "checks": {
+      "task": true,
+      "runnable": true,
+      "evidence": true,
+      "privacy": true,
+      "currentArtifact": true,
+      "documentation": true
+    },
+    "pass": true
+  },
+  {
+    "case": "report-only",
+    "condition": "without-evidence",
+    "complete": true,
+    "checks": {
+      "task": true,
+      "runnable": true,
+      "evidence": true,
+      "privacy": true,
+      "currentArtifact": true,
+      "documentation": true
+    },
+    "pass": true
+  },
+  {
+    "case": "report-only",
+    "condition": "without-privacy",
+    "complete": true,
+    "checks": {
+      "task": true,
+      "runnable": true,
+      "evidence": true,
+      "privacy": true,
+      "currentArtifact": true,
+      "documentation": true
+    },
+    "pass": true
+  },
+  {
+    "case": "report-only",
+    "condition": "without-recheck",
+    "complete": true,
+    "checks": {
+      "task": true,
+      "runnable": true,
+      "evidence": true,
+      "privacy": true,
+      "currentArtifact": true,
+      "documentation": true
+    },
+    "pass": true
+  },
+  {
+    "case": "stale-fixture",
+    "condition": "historical",
+    "complete": true,
+    "checks": {
+      "task": true,
+      "runnable": false,
+      "evidence": false,
+      "privacy": true,
+      "currentArtifact": false,
+      "documentation": false
+    },
+    "pass": false
+  },
+  {
+    "case": "stale-fixture",
+    "condition": "full",
+    "complete": true,
+    "checks": {
+      "task": true,
+      "runnable": true,
+      "evidence": true,
+      "privacy": true,
+      "currentArtifact": true,
+      "documentation": true
+    },
+    "pass": true
+  },
+  {
+    "case": "stale-fixture",
+    "condition": "without-fixtures",
+    "complete": true,
+    "checks": {
+      "task": true,
+      "runnable": true,
+      "evidence": true,
+      "privacy": true,
+      "currentArtifact": true,
+      "documentation": true
+    },
+    "pass": true
+  },
+  {
+    "case": "stale-fixture",
+    "condition": "without-evidence",
+    "complete": true,
+    "checks": {
+      "task": true,
+      "runnable": true,
+      "evidence": true,
+      "privacy": true,
+      "currentArtifact": true,
+      "documentation": true
+    },
+    "pass": true
+  },
+  {
+    "case": "stale-fixture",
+    "condition": "without-privacy",
+    "complete": true,
+    "checks": {
+      "task": true,
+      "runnable": true,
+      "evidence": true,
+      "privacy": true,
+      "currentArtifact": true,
+      "documentation": true
+    },
+    "pass": true
+  },
+  {
+    "case": "stale-fixture",
+    "condition": "without-recheck",
+    "complete": true,
+    "checks": {
+      "task": true,
+      "runnable": true,
+      "evidence": true,
+      "privacy": true,
+      "currentArtifact": true,
+      "documentation": true
+    },
+    "pass": true
+  },
+  {
+    "case": "stale-fixture",
+    "condition": "empty",
+    "complete": true,
+    "checks": {
+      "task": true,
+      "runnable": false,
+      "evidence": false,
+      "privacy": true,
+      "currentArtifact": false,
+      "documentation": false
+    },
+    "pass": false
+  }
+]

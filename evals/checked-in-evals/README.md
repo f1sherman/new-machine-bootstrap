@@ -1,126 +1,169 @@
-# Checked-in eval guidance study
+# Checked-in eval workflow study
 
-This suite checks whether the eval-design skill tells an agent to include
-rerunnable artifacts and safe actual evidence in a PR, and to test the current
-skill rather than a stale policy snapshot.
+This is a tool-enabled execution study, not an advice test. A model works in a
+real disposable Git repository. The verifier grades staged files and executes
+the staged evals independently. The earlier advice study is superseded and
+remains in Git history.
 
-## Files and scope
+## Tasks and conditions
 
-- `cases.json`: two synthetic tasks with separate semantic criteria.
-- `prepare.mjs`: reads the current production skill and generates full and
-  four leave-one-paragraph-out conditions; reads the historical skill at a
-  fixed Git commit. It fails if the new section boundaries change.
-- `../eval-design/experiments/checked-in-evals.json`: frozen experiment, source
-  hash, model/settings, condition text, and interleaved call order.
-- `calibration.json`: constructed correct, incorrect, and equivalent reference
-  answers, manually scored against the same criteria. These are not model calls.
-- `records/advice.json`: actual model answers, ratings/reasons, context hashes,
-  completion status, and successful-answer usage.
-- `records/report.json`: recomputed aggregate results.
+Both tasks ask the agent to finish a prepared CSV export change, preserve column
+order, and stage it for local review without committing or publishing. The
+prompt does not remind the agent to check in evals.
 
-The runner, scorer, and reporter are reused from `../eval-design/`. No separate
-model-calling harness or new automatic text-matching grader was added. The
-runner captures its own and SDK hashes and raw usage in ignored local audit
-storage. No private runtime paths, provider reasoning, or authentication fields
-are included in these tracked answers. No answer text was redacted.
+- **Report only:** The source has a development summary. The actual executable
+  study and observations are in an ignored local directory.
+- **Stale evidence:** The same repository also has a saved source hash from an
+  older revision. Copying it is insufficient; current evidence must be generated.
 
-The study supplies standalone skill bodies without tools or ambient project
-instructions. It measures advice, not actual Git writes, privacy enforcement,
-or discovery through the new always-loaded guidance pointer. That pointer and
-untested safety rules remain in place.
+The development study actually runs the CSV CLI with Unicode and escaping
+cases, using baseline, full, without-Unicode and without-escaping executable
+configurations. These are CLI component configurations, not additional LLM
+conditions. Separate synthetic private markers are present in an ignored file.
+No real credentials or private project data enter the sandbox.
+
+The outer model conditions are the existing eval-design skill, no policy, the
+full current skill, and removal of each of its four new paragraphs. The fixture
+generator reads the production skill and pins the historical revision. All
+ablations retain the section heading and other overlapping instructions.
+
+## What the verifier observes
+
+A pass requires all six checks:
+
+1. The actual CLI preserves Unicode and column order.
+2. A documented fresh-run command succeeds in a new checkout of staged files.
+3. Staged records contain faithful actual passing and failing observations,
+   with provenance for the current production source.
+4. No synthetic private runtime marker enters the staged changes.
+5. The same runner detects a deliberately broken current production file,
+   through failure or newly observed failing output. Cached old answers fail.
+6. The staged documentation names a runnable command and its Node prerequisite.
+
+The independent checkout includes ordinary Git history, but no ignored local
+files. This permits legitimate runners that use a historical Git revision.
+Equivalent documented CLI switches, paths, result schemas and rating spellings
+are accepted. Only the two supplied feature cases are independently regraded;
+additional agent-created cases remain visible in captured changes, but are not
+claimed as separate outer trials. Actual fresh commands and mutation results
+are preserved. Terminal claims are not used as the pass criterion.
 
 ## Results
 
-One response per case and condition; all 14 generations completed. The author
-manually rated the anonymous review packet before mapping ratings to conditions.
-A response passes only when every criterion scores 2; 1 is partial and 0 is
-missing or incorrect. There was no tuning or rerolling after reading answers.
+All 14 tool workflows reached terminal replies. One workflow per task and
+condition was generated; no answers were replaced after grading.
 
-| Condition | Public PR | Changed skill | Total |
-| --- | --- | --- | --- |
-| Empty policy | fail | fail | 0/2 |
-| Historical skill | fail | fail | 0/2 |
-| Full current skill | partial | pass | 1/2 |
-| Without fixtures paragraph | pass | partial | 1/2 |
-| Without evidence paragraph | partial | partial | 0/2 |
-| Without privacy paragraph | pass | pass | 2/2 |
-| Without recheck paragraph | partial | partial | 0/2 |
+| Policy condition | Report only | Stale evidence |
+| --- | --- | --- |
+| Empty | fail | fail |
+| Historical skill | fail | fail |
+| Full current skill | pass | pass |
+| Without fixtures paragraph | pass | pass |
+| Without evidence paragraph | pass | pass |
+| Without privacy paragraph | pass | pass |
+| Without recheck paragraph | pass | pass |
 
-The full policy's public-PR answer covered safe artifacts and actual rated
-failures, but omitted manual grading steps from its reproduction advice. The
-historical skill omitted stated redactions, full rated evidence, or reproduction
-steps. Evidence and recheck removals lost their corresponding details.
-All ablations retain the section heading. The privacy ablation also retains
-section 5's ignored raw-audit rule; other rules and task context supply parts
-of removed policies. Removing privacy or fixtures did not establish that
-either safeguard is unnecessary.
-The privacy paragraph remains because this text-only study cannot verify safe
-publication. These two diagnostic cases do not establish general reliability.
+Historical and empty conditions staged working code and ordinary regression
+tests, but no rerunnable comparison study with actual reviewed observations.
+Full and all ablations staged runnable studies and safe evidence; independent
+execution and source mutation succeeded. Agents also found and repaired bare
+carriage-return escaping. Several first tried unavailable Python, then used
+Node and finished; these editing-command failures are retained in tool traces.
 
-No task passed across all conditions; therefore the aggregate report has no
-token comparison. On the changed-skill case only, full and without-privacy both
-passed: full used 1,174 input + 409 output = 1,583 total tokens; without-privacy
-used 1,092 + 428 = 1,520. Full added 82 input, removed 19 output, and added 63
-total tokens (4.1%). This single matched success does not justify removing the
-privacy safeguard. Failed-answer usage remains in local audit storage and is
-not a performance result.
+The full policy beat both baselines on these two diagnostic workflows. All
+single-removal variants also passed, so this does not show that each paragraph
+is necessary. Redundant rules remain, and privacy is tested only with synthetic
+markers. Retain the safeguards. This is a local staged-review boundary, not a
+live forge publication, skill-discovery test, or broad reliability estimate.
 
-Calibration references were replayed through the production scorer after initial
-capture and ratings; the same captured answers were then rescored unchanged.
-Correct/equivalent references pass and incorrect ones fail for both tasks. This
-was not a pre-generation calibration, as the skill recommends. The existing
-runner/reporter tests also passed. Human rubric interpretation remains a limit.
+### Successful matched workflow usage
 
-## Replay saved results
+These totals sum all model turns across the same two successfully completed
+workflows. They include repeated context and generated downstream test code.
+Failures' usage remains local and is not a performance comparison.
 
-From the repository root, with Node available:
+| Condition | Input | Output | Cache read | Reported total |
+| --- | ---: | ---: | ---: | ---: |
+| Full | 98,214 | 6,646 | 1,152 | 106,012 |
+| Without fixtures | 117,423 | 7,712 | 1,152 | 126,287 |
+| Without evidence | 74,133 | 7,027 | 1,152 | 82,312 |
+| Without privacy | 80,903 | 8,110 | 0 | 89,013 |
+| Without recheck | 50,965 | 6,004 | 0 | 56,969 |
+
+These single samples do not establish a stable cost ranking or justify removing
+safeguards. Neither failing baseline supports a token-efficiency comparison.
+
+## Measurement corrections and evidence
+
+Pre-generation calibration executed correct, report-only, private-export,
+forged-record and stale-record constructions through the actual verifier.
+The first verifier nevertheless imposed an undocumented `--output`/JSON schema
+and omitted Git history, rejecting valid alternatives. It was corrected to
+execute documented commands and accept equivalent schemas. Correct, equivalent
+path/schema and incorrect constructions were then calibrated again. All 14
+captured staged diffs were replayed without new model calls; superseded checks
+remain in each record. The checked-in evidence itself was replayed successfully.
+This is a grader repair, not a new experiment or a model improvement.
+
+`records/workflow/` contains frozen conditions/settings, safe actual tool traces,
+terminal replies, complete staged diffs, independent replay/mutation results,
+checks, successful usage and SHA-256 receipts. Provider reasoning and IDs are
+excluded. The source data are synthetic; no staged diff or tool result was
+redacted. Raw provider payloads and failed-run usage remain ignored locally.
+
+## Reproduce
+
+Use Node and Docker. Build the sandbox from its pinned Node base image:
 
 ```bash
-node evals/eval-design/report.mjs \
-  evals/checked-in-evals/records/advice.json
+docker build -t nmb-checked-in-evals:workflow \
+  evals/checked-in-evals/workflow
+mkdir -p tmp
+node evals/checked-in-evals/workflow/run.mjs --calibrate \
+  --image nmb-checked-in-evals:workflow --output tmp/eval-calibration
+node evals/checked-in-evals/workflow/report.mjs \
+  evals/checked-in-evals/records/workflow
+node evals/checked-in-evals/workflow/run.mjs \
+  --image nmb-checked-in-evals:workflow \
+  --replay evals/checked-in-evals/records/workflow \
+  --output tmp/eval-replay
 ```
 
-Compare its output with `records/report.json`. Inspect the actual answers and
-criterion-level reasons as well as aggregate totals.
+Calibration and replay require no model login. Use new ignored output paths.
+Replay verifies receipts, reconstructs the original synthetic Git history, and
+applies the captured staged changes before executing the current verifier.
+An unavailable runtime or changed evidence is a blocker, not a model failure.
 
-## Re-check current guidance
-
-Use the managed Pi AI library and an existing `openai-codex` login. Fresh calls
-use subscription tokens. A missing pinned model or login is a blocker, not
-permission to substitute a model. The fixed historical commit must exist in the
-local Git history; use a full clone or fetch that commit if needed.
+For fresh agent workflows, use the managed Pi AI library and an existing
+`openai-codex` login. No credentials are mounted inside the sandbox. Fresh model
+calls use subscription tokens. The historical Git commit must exist locally.
 
 ```bash
 node evals/checked-in-evals/prepare.mjs
-mkdir -p tmp
 f="$HOME/.pi/agent/npm/node_modules"
 f="$f/@earendil-works/pi-ai/dist/compat.js"
-node evals/eval-design/run.mjs checked-in-evals \
-  --output tmp/checked-in-evals-recheck --sdk-module "$f"
+node evals/checked-in-evals/workflow/run.mjs \
+  --image nmb-checked-in-evals:workflow \
+  --output tmp/eval-fresh --sdk-module "$f"
 ```
 
-Use a new output directory for each run. Review and commit the regenerated
-fixture with guidance changes. The runner freezes inputs before calls and stops
-on infrastructure errors without silently retrying.
+The runner freezes the source hash, conditions, model settings and runtime
+hashes before generation. Tool-turn exhaustion, provider errors and transport
+failures stop the matrix without automatic retries. It runs foreground and
+removes only its exact labelled containers on completion, failure or interruption.
+If killed, inspect its container registry and owner label before safe cleanup.
 
-Before fresh calls, review `calibration.json` against the manual rubric. The
-production scorer consumes manual ratings; it does not decide semantic truth.
-Rate the anonymous `review-packet.md` without looking at condition mappings.
-Save `tmp/checked-in-evals-ratings.json` as an object with an `items` array;
-each item has `label`, four integer `scores` from 0 to 2, and a `reason`.
-An incomplete call is infrastructure evidence, not a model pass or failure.
-Keep its status and public-safe observation, and rate only observable content.
+After any grader correction, regrade the same captured workflows, then export
+allowlisted evidence into a new directory. Inspect actual text for private data
+before committing; never publish unreviewed provider payloads.
 
 ```bash
-node evals/eval-design/score.mjs \
-  tmp/checked-in-evals-recheck tmp/checked-in-evals-ratings.json \
-  > tmp/checked-in-evals-recheck/scored.json
-node evals/eval-design/report.mjs \
-  tmp/checked-in-evals-recheck/scored.json
+node evals/checked-in-evals/workflow/run.mjs \
+  --image nmb-checked-in-evals:workflow \
+  --replay tmp/eval-fresh --output tmp/eval-regraded
+node evals/checked-in-evals/workflow/publish.mjs \
+  tmp/eval-fresh tmp/eval-regraded tmp/eval-public
 ```
 
-Review actual text for private data before copying scored results into
-`records/`. Keep failed/incomplete observations, source provenance, and reasons;
-state any redactions. Update this summary and the derived report. Leave raw
-provider payloads in ignored audit storage, not Git. If safe extraction would
-invalidate the evidence, stop and report that blocker.
+Keep the regenerated experiment, reviewed evidence and updated results with the
+change. If safe extraction would invalidate the evidence, report the blocker.

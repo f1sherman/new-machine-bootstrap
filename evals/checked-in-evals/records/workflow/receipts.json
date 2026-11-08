@@ -1,0 +1,19 @@
+{
+  "manifest.json": "4eb50a3d60d7488eaabee35d02ba211befbf1f676fa049785d222f02c59b6966",
+  "report-only-empty.json": "507a36a794534c2508d33ed397b2f89a16068e7098ee2c3b1c33351d75de5c3e",
+  "report-only-historical.json": "ccc980de6423d20d9a360e583318b3586f1ed4e2bd68789f2d38268a161eaef5",
+  "report-only-full.json": "badd971365184283bcffa48190cfc9d60e810b0dc1b787c9cd69cb11a31f4249",
+  "report-only-without-fixtures.json": "f1c0b9b2b0fc9d279ff0a97651d05590233a7b24e76e16dd53d05659e744b38c",
+  "report-only-without-evidence.json": "ce54a967a1ad7bf87c60a5f343576e4e3d2919b2e01c96f4ce51d9273b743877",
+  "report-only-without-privacy.json": "8d00f55bfff4fed04e3ca729f9057b4bdd234f5fc689bab15fab23aca110674a",
+  "report-only-without-recheck.json": "58bd9fe0af542bb20e9b1c6893e9a87e35908b1db6b1aaa59c9caac1c55676ba",
+  "stale-fixture-historical.json": "cea24c3cd0e2a88d37a8592f591f9364540937a978d0386f35f9c0927ab214fb",
+  "stale-fixture-full.json": "6e95797c923c7d363ec9af180b25dc1195cedc10ddb5a854cc470c08cfff83cf",
+  "stale-fixture-without-fixtures.json": "e7d4940fb4ea160d744ec539bd73eb61934d80bc5a455afc43e6dc4124e721ae",
+  "stale-fixture-without-evidence.json": "ff781612ceafcc15956c4e7d998439eb1c8f396d245131b2857252f5fb9f18e5",
+  "stale-fixture-without-privacy.json": "798d2e5c5c5446248c98f4e894a438cb1f2ad5accd095acd5ca2cfa531ebd1ca",
+  "stale-fixture-without-recheck.json": "0df1e17d62272de285d146079add7f9aca7f2af25cc6b1ad9ea34b9a2e8a53c5",
+  "stale-fixture-empty.json": "35a488d5de708b8dd3bc31264d7c41620b6a41317bae267205b202d7972add1f",
+  "results.json": "9ee512e755f8d7d83ffe04c4b819531b182d536bb5b0dce90bb7d047ef449171",
+  "verification.json": "b3966b20eee843d9e47f686e8bc65b8824a24e6ba7ed30f23ea2b0d24cd11586"
+}
