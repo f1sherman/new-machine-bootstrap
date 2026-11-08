@@ -1,0 +1,524 @@
+[
+  {
+    "stage": "execution-evidence-captured",
+    "fixtureSha256": "a011ca8ba52a911a1ece03fb49c7c33557d01272ce20bd3ba50640e3bce9fa96",
+    "results": [
+      {
+        "case": "report-only",
+        "condition": "empty",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": false,
+          "evidence": false,
+          "privacy": true,
+          "currentArtifact": false,
+          "documentation": false
+        },
+        "pass": false
+      },
+      {
+        "case": "report-only",
+        "condition": "historical",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": false,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": false
+      },
+      {
+        "case": "report-only",
+        "condition": "full",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "report-only",
+        "condition": "without-task",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "report-only",
+        "condition": "without-observation",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": false,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": false
+      },
+      {
+        "case": "report-only",
+        "condition": "without-boundary",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "historical",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": false,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": false
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "full",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "without-task",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": false,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": false
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "without-observation",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "without-boundary",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": false,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": false
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "empty",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": false,
+          "evidence": false,
+          "privacy": true,
+          "currentArtifact": false,
+          "documentation": false
+        },
+        "pass": false
+      }
+    ]
+  },
+  {
+    "stage": "execution-evidence-regraded",
+    "fixtureSha256": "f77e3714bd9fafb4bcdacaa6a61949b2cba720222ec0765f2545db62bfd160f6",
+    "results": [
+      {
+        "case": "report-only",
+        "condition": "empty",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": false,
+          "evidence": false,
+          "privacy": true,
+          "currentArtifact": false,
+          "documentation": false
+        },
+        "pass": false
+      },
+      {
+        "case": "report-only",
+        "condition": "historical",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": false,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": false
+      },
+      {
+        "case": "report-only",
+        "condition": "full",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "report-only",
+        "condition": "without-task",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "report-only",
+        "condition": "without-observation",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "report-only",
+        "condition": "without-boundary",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "historical",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "full",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "without-task",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "without-observation",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "without-boundary",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "empty",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": false,
+          "evidence": false,
+          "privacy": true,
+          "currentArtifact": false,
+          "documentation": false
+        },
+        "pass": false
+      }
+    ]
+  },
+  {
+    "stage": "execution-evidence-final-regrade",
+    "fixtureSha256": "ef24b1e5230b0693eee87a965aaa0ccb6937d98f51e8d03870d6395b107ee95a",
+    "results": [
+      {
+        "case": "report-only",
+        "condition": "empty",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": false,
+          "evidence": false,
+          "privacy": true,
+          "currentArtifact": false,
+          "documentation": false
+        },
+        "pass": false
+      },
+      {
+        "case": "report-only",
+        "condition": "historical",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "report-only",
+        "condition": "full",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "report-only",
+        "condition": "without-task",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "report-only",
+        "condition": "without-observation",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "report-only",
+        "condition": "without-boundary",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "historical",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "full",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "without-task",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "without-observation",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "without-boundary",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": true,
+          "evidence": true,
+          "privacy": true,
+          "currentArtifact": true,
+          "documentation": true
+        },
+        "pass": true
+      },
+      {
+        "case": "stale-fixture",
+        "condition": "empty",
+        "complete": true,
+        "checks": {
+          "task": true,
+          "runnable": false,
+          "evidence": false,
+          "privacy": true,
+          "currentArtifact": false,
+          "documentation": false
+        },
+        "pass": false
+      }
+    ]
+  }
+]

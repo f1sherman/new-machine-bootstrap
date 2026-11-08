@@ -1,0 +1,18 @@
+{
+  "manifest.json": "2ffb19b250cac540771485b7241e82e2028c5dc0da78924671a39e4700bbfba6",
+  "report-only-empty.json": "2954bb07001f8413a9723f23edadaa19afca762ffb00d548195187d1e28af930",
+  "report-only-historical.json": "383a7b52451f940fe50b3c0a89ef16ccf2b67ed35ff04cdd9961507e72ebe299",
+  "report-only-full.json": "8816b393997e45d985899af3e01bab7a52950e91acdbfa72f4ffe94fd6fd0416",
+  "report-only-without-task.json": "b6aa8e906159e15818142cfec00c894d5d5e70d1a0c22dff83a272e9152b9dee",
+  "report-only-without-observation.json": "3c2f6dd05a467cba46b4cdccf0cff38690babb89effd78179249e0098bda706a",
+  "report-only-without-boundary.json": "aace72fb7806256f4dc3a49fd48e8786093e766fe7e0c18bc710c5aa76577605",
+  "stale-fixture-historical.json": "18053346e3a6fcc805d28822bfd8bc7f416cfbf8c54b3e0ca294319f91e40e79",
+  "stale-fixture-full.json": "92970b2fea86264c90bb26d445c8f1799ceaf9f4d47382f27c6ad5a44f34532f",
+  "stale-fixture-without-task.json": "7a1598b1a67bbd9829a5b139e2f1f57cddf7e649a04384b524fda60873174a41",
+  "stale-fixture-without-observation.json": "db2a7e5ffff821ed4e26c1e56bf3cf68a181ddc9932971cdd35cd822fa776cc0",
+  "stale-fixture-without-boundary.json": "69b465c14745b329c035a294f5d7befb9d742b6807d3743c93cab9127fc23433",
+  "stale-fixture-empty.json": "671007b117014b68c6d3d41cba2bfe0ec82d752e193c891aa7aa4ab0ed8f0865",
+  "results.json": "2a0dda4d33eecee3fca8a432b37f91482352ab277459d04279f95a6eeacd6f0e",
+  "verification.json": "e1f11c72d3200fb917b184f210b77005f4b98bfff045e94e49d0efdd8aeb3f16",
+  "grading-history.json": "8d403e12d047af25583e8ba420d657d28e0b404475fd3cecc1fc4cf66bea7c8d"
+}

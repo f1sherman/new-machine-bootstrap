@@ -93,10 +93,15 @@ if (action === 'init') {
   };
   const cases = {unicode:{input:['Zoë','東京'],expected:'Zoë,東京\n'},
     escaping:{input:['Lee, Sam','say "hi"'],expected:'"Lee, Sam","say ""hi"""\n'}};
-  const alias = name => ['default','current-default'].includes(name) ? 'full' :
-    ['original-default','historical-default'].includes(name) ? 'baseline' : name;
+  const alias = name => {
+    const normalized=name?.replace(/^current-/,'');
+    if (normalized==='default') return 'full';
+    if (['original-default','historical-default'].includes(normalized)) return 'baseline';
+    return normalized;
+  };
   const passed = row => typeof row.pass==='boolean' ? row.pass :
     typeof row.rating?.pass==='boolean' ? row.rating.pass :
+    typeof row.rating?.functional==='boolean' ? row.rating.functional :
     typeof row.rating==='string' ? row.rating==='pass' : row.rating?.type==='pass';
   const faithful = data => Object.entries(cases).every(([id,task]) =>
     ['baseline','full','without-unicode','without-escaping'].every(condition => {
@@ -108,7 +113,7 @@ if (action === 'init') {
     }));
   const sourceHash = fs.existsSync(path.join(tree,'app.mjs')) ? hash(fs.readFileSync(path.join(tree,'app.mjs'))) : null;
   const evidence = records.some(({data}) => {
-    const provenance=JSON.stringify([data.sourceSha256,data.sourceHashes,data.sources,data.candidates]);
+    const provenance=JSON.stringify([data.sourceSha256,data.sourceHashes,data.hashes,data.sources,data.candidates,data.settings?.conditions]);
     return sourceHash!==null && provenance.includes(sourceHash) && faithful(data);
   });
   const scripts = files.filter(file => file.endsWith('.mjs') && file !== 'app.mjs');
