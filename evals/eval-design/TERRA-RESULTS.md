@@ -41,7 +41,30 @@ It also does not measure safety in a live agent or authorize guidance removal.
 A further study needs current full-session context and independently calibrated
 scoring, especially for the token-reporting criterion.
 
-Raw provider responses, frozen inputs, hashes, usage, and the anonymous review
-packet remain in this worktree's ignored `tmp/terra-skill-pilot/`. Preserve them
-before retiring the worktree. The checked-in scored record contains synthetic
-answers and excludes usage for all failed responses.
+## Token-reporting experiment
+
+A separate existing experiment tested the historical token-reporting candidate,
+its baseline, the removal of its reporting lesson, and an empty-policy control.
+Each condition answered three synthetic cases once. All 12 generations
+completed. The task owner reviewed the anonymous packet against the frozen
+criteria before inspecting condition labels. The candidate passed 3/3 cases;
+the baseline, removal, and empty control each passed 1/3. In the overlapping-
+and disjoint-success cases, all three non-candidate responses reported token
+figures or totals containing failed responses. Each condition passed the
+all-successful case.
+
+On that single matched passing case, input/output tokens were 951/111 for the
+candidate, 936/122 for baseline, 917/110 without the reporting lesson, and
+103/118 for the empty control. These are model-reported tokens, not total billed
+cost, and one case does not establish a general saving. This writing-only
+experiment supports retaining the reporting lesson in its tested historical
+context; it does not establish full deployed-session behavior. The
+[scored responses](records/terra-token-reporting.json) and generated
+[report](records/terra-token-reporting-report.json) record the review and
+comparisons.
+
+Raw provider responses, frozen inputs, hashes, usage, and anonymous review
+packets remain in this worktree's ignored `tmp/terra-skill-pilot/` and
+`tmp/terra-token-reporting/`. Preserve them before retiring the worktree. The
+checked-in scored records contain synthetic answers and omit usage for failed
+responses.
