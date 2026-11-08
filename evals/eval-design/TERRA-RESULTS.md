@@ -57,8 +57,10 @@ On that single matched passing case, input/output tokens were 951/111 for the
 candidate, 936/122 for baseline, 917/110 without the reporting lesson, and
 103/118 for the empty control. These are model-reported tokens, not total billed
 cost, and one case does not establish a general saving. This writing-only
-experiment supports retaining the reporting lesson in its tested historical
-context; it does not establish full deployed-session behavior. The
+experiment supports retaining the reporting lesson in this text-only context.
+The candidate matched the installed `eval-design` skill byte for byte when
+checked after the run. The skill is loaded on demand; this does not establish
+full deployed-session behavior or evaluate the global startup instruction. The
 [scored responses](records/terra-token-reporting.json) and generated
 [report](records/terra-token-reporting-report.json) record the review and
 comparisons.
