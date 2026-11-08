@@ -1,16 +1,17 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
-import {execFileSync} from 'node:child_process';
 
 const root = new URL('../../', import.meta.url);
 const skillPath = 'roles/common/files/config/skills/common/eval-design/SKILL.md';
-const baselineCommit = '6053232bf1ac42fbac400903e553ca0df97f5ef6';
+const baseline = JSON.parse(fs.readFileSync(new URL('./baseline.json', import.meta.url)));
+assert.equal(baseline.path, skillPath);
+assert.equal(crypto.createHash('sha256').update(baseline.text).digest('hex'), baseline.sha256);
+const baselineCommit = baseline.commit;
 const strip = source => source.replace(/^---\n[\s\S]*?\n---\n/, '').trim();
 const source = fs.readFileSync(new URL(skillPath, root), 'utf8');
 const body = strip(source);
-const previous = strip(execFileSync('git', ['show', `${baselineCommit}:${skillPath}`],
-  {cwd: root, encoding: 'utf8'}));
+const previous = strip(baseline.text);
 const section = body.split('## Exercise the real workflow\n\n')[1]?.split('\n\n## 4.')[0];
 assert.ok(section, 'Review policy boundaries after changing the skill');
 const components = section.split('\n\n');

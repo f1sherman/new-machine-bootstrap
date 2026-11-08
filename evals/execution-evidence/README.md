@@ -10,6 +10,8 @@ not the outcome being graded.
 `prepare.mjs` freezes the current production skill and removes each of the new
 section's three paragraphs in turn. Historical is the complete skill from
 `6053232bf1ac42fbac400903e553ca0df97f5ef6` (#757). Empty contains no skill.
+`baseline.json` preserves that original skill and its hash without requiring the
+intermediate branch's Git objects after a squash merge.
 Every condition has the same neutral task, tools, model settings and verifier.
 The always-loaded Pi reminder is not in this isolated comparison.
 
