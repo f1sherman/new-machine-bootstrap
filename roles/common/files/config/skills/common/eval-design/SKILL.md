@@ -45,6 +45,22 @@ For each ablation, record what was removed and what remains implicit in other
 rules, examples, or prompts. A null result under redundant instructions does
 not establish that a rule is useless.
 
+## Exercise the real workflow
+
+Use representative work as the task. For coding guidance, let the agent inspect,
+change, and test a real repository through tools. Exercise the production artifact
+that the change affects, rather than asking what the agent would recommend doing.
+
+Grade observed actions, files, and execution results independently of the agent's
+completion claim. An answer about running tests is not a test run. Text-only
+output is sufficient when that text is the actual product, such as a drafted
+command; inspect the produced text against the task's requirements.
+
+Use a disposable environment or the closest safe execution boundary. Preserve
+approval gates. If execution is unavailable, report the evidence gap and blocker.
+Advice-only and meta-evals can be diagnostics, but cannot verify a claim about
+completed real-world behavior.
+
 ## 4. Verify the measurement
 
 Execute known correct, incorrect, and semantically equivalent constructions
