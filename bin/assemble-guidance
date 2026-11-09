@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export LC_ALL=C
+
+usage() {
+  echo 'Usage: bin/assemble-guidance [--check] FRAGMENTS OUTPUT [...]' >&2
+  exit 1
+}
+
+check=false
+if [[ ${1:-} == --check ]]; then
+  check=true
+  shift
+fi
+(( $# >= 2 && $# % 2 == 0 )) || usage
+
+shopt -s nullglob
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+while (( $# )); do
+  fragments=$1
+  output=$2
+  shift 2
+  files=("$fragments"/*.md)
+  if (( ${#files[@]} == 0 )); then
+    echo "No guidance fragments found in $fragments" >&2
+    exit 1
+  fi
+  for file in "${files[@]}"; do
+    content="$(<"$file")"
+    case "$file" in
+      *.space.md) printf '%s ' "$content" ;;
+      *.blank.md) printf '%s\n\n' "$content" ;;
+      *) printf '%s\n' "$content" ;;
+    esac
+  done > "$tmp"
+  if "$check"; then
+    cmp -s "$tmp" "$output" || {
+      echo "Guidance is out of date: $output" >&2
+      exit 1
+    }
+  else
+    cp "$tmp" "$output"
+  fi
+done

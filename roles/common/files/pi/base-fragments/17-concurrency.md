@@ -1,0 +1,1 @@
+* Concurrent sessions: a project name or working directory does not prove exclusive ownership. When multiple agent sessions can use one checkout, treat its files and persistent agent state as shared. Prefer one checkout or linked worktree for each session.

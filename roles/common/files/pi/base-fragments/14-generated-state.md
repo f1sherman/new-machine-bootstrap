@@ -1,0 +1,1 @@
+* Generated agent state is updated in place. Do not use `repo-start`, `repo-end`, branches, worktrees, commits, or pull requests for state maintenance. This rule applies under `~/.claude/projects`, `~/.codex/sessions`, `~/.codex/archived_sessions`, `~/.codex/memories`, and `~/.pi/agent/sessions`. Main-worktree protection still applies to source repositories.

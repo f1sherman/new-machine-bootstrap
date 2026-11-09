@@ -1575,6 +1575,22 @@
     state: directory
     mode: '0700'
 
+- name: Check generated Pi base guidance
+  tags:
+    - agent-guidance
+    - pi-guidance
+  command:
+    argv:
+      - '{{ playbook_dir }}/bin/assemble-guidance'
+      - --check
+      - '{{ playbook_dir }}/roles/common/files/pi/base-fragments'
+      - '{{ playbook_dir }}/roles/common/files/pi/AGENTS.md.d/00-base.md'
+  delegate_to: localhost
+  become: false
+  run_once: true
+  check_mode: false
+  changed_when: false
+
 - name: Install base pi-coding-agent global AGENTS fragment
   tags:
     - agent-guidance
