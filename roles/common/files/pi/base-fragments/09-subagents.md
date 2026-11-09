@@ -1,0 +1,1 @@
+* Subagents: delegate implementation only when Brian requests it. Use subagents only for complex implementation, parallel work, or independent review when their value exceeds coordination cost. Do small mechanical edits directly. The parent owns live provisioning, production inspection, runtime decisions, and user communication.

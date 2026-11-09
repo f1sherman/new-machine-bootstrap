@@ -1,0 +1,18 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+root = File.expand_path('..', __dir__)
+fragments = File.join(root, 'roles/common/files/pi/base-fragments')
+output = File.join(root, 'roles/common/files/pi/AGENTS.md.d/00-base.md')
+files = Dir.glob(File.join(fragments, '*.md')).sort
+abort 'No Pi guidance fragments found' if files.empty?
+content = files.map { |file| File.binread(file) }.join
+
+case ARGV
+when []
+  File.binwrite(output, content)
+when ['--check']
+  abort 'Pi base guidance is out of date; run bin/assemble-pi-base' unless File.binread(output) == content
+else
+  abort 'Usage: bin/assemble-pi-base [--check]'
+end

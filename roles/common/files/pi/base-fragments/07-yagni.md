@@ -1,0 +1,1 @@
+* Follow the YAGNI principle.

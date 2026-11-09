@@ -1,0 +1,1 @@
+* Prompt optimization: always run matched baseline evals and leave-one-component-out ablations. Record behavior and token changes. A deliberately wrong prompt is a negative control, not an ablation. Retain untested safeguards.

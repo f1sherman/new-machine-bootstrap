@@ -1,0 +1,1 @@
+* Source workspace cleanup: `repo-end` after integration; `--closed` only for fully published, closed-unmerged PRs. Preserve unpublished changes absent from main; never publish to discard. Use owner retirement for managed worktrees. Check help/state before declaring a blocker.
