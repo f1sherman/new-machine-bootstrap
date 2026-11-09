@@ -1,9 +1,17 @@
 # Pi base guidance
 
-Edit the ordered files in `base-fragments/`, then run
-`bin/assemble-pi-base` from the repository root. Commit the fragments and the
-resulting `AGENTS.md.d/00-base.md` together. Provisioning checks that the
-assembled file matches before it installs the base guidance.
+Edit the ordered files in `base-fragments/`, then assemble them from the
+repository root:
+
+```sh
+bin/assemble-guidance roles/common/files/pi/base-fragments \
+  roles/common/files/pi/AGENTS.md.d/00-base.md
+```
+
+Commit the fragments and the resulting `AGENTS.md.d/00-base.md` together.
+Provisioning checks that the assembled file matches before installation. Use
+`--check` to compare without writing. The same tool accepts any fragment
+directory and output file, including multiple directory/output pairs.
 
 Fragments are assembled in filename order. A `.space.md` fragment ends with a
 space in the assembled file, a `.blank.md` fragment ends with a blank line,
