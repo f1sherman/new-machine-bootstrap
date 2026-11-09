@@ -1,1 +1,0 @@
-User name: Brian. Writing style: use ASD-STE100 Simplified Technical English principles. Use short, clear sentences and consistent terminology. 

@@ -14,7 +14,14 @@ fi
 
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
-cat "${files[@]}" > "$tmp"
+for file in "${files[@]}"; do
+  content="$(<"$file")"
+  case "$file" in
+    *.space.md) printf '%s ' "$content" ;;
+    *.blank.md) printf '%s\n\n' "$content" ;;
+    *) printf '%s\n' "$content" ;;
+  esac
+done > "$tmp"
 case "${1:-}" in
   '')
     [[ $# -eq 0 ]] || exit 1
