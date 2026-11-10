@@ -7,7 +7,7 @@ require 'open3'
 require 'yaml'
 
 root = File.expand_path('..', __dir__)
-manifest = YAML.safe_load_file(File.join(root, 'evals/guidance-coverage.yml'))
+manifest = YAML.safe_load(File.read(File.join(root, 'evals/guidance-coverage.yml')))
 abort 'Unsupported coverage manifest version' unless manifest.fetch('version') == 1
 fragment_dir = File.join(root, manifest.fetch('fragment_directory'))
 source = File.join(root, manifest.fetch('assembled_source'))
