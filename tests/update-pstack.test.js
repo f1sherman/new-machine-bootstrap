@@ -30,6 +30,9 @@ function fixture(fn) {
     write(source, `pstack/skills/${name}/SKILL.md`, `# ${name}\n`);
   }
   write(source, 'pstack/skills/how/references/detail.md', 'support\n');
+  write(source, 'pstack/skills/statechart/scripts/test/upload.mmd', 'fixture\n');
+  write(source, 'pstack/skills/poteto-mode/scripts/watch-pr/cli.test.ts', 'test\n');
+  write(source, 'pstack/skills/poteto-mode/scripts/watch-pr/runtime.ts', 'runtime\n');
   write(source, 'pstack/skills/how/scripts/run', '#!/bin/sh\nprintf ok\n');
   chmodSync(path.join(source, 'pstack/skills/how/scripts/run'), 0o755);
   write(source, 'pstack/LICENSE', 'MIT fixture\n');
@@ -83,6 +86,10 @@ test('copies the exact pin with complete support files and executable modes', ()
   assert.equal(statSync(f.generated('skills/how/scripts/run')).mode & 0o777, 0o755);
   assert.equal(readFileSync(f.generated('external/control-cli/SKILL.md'), 'utf8'), '# control-cli\n');
   assert.equal(readFileSync(f.generated('external/control-cli/references/detail.md'), 'utf8'), 'terminal support\n');
+  assert.equal(existsSync(f.generated('skills/statechart/scripts/test')), false);
+  assert.equal(existsSync(f.generated('skills/poteto-mode/scripts/watch-pr/cli.test.ts')), false);
+  assert.equal(readFileSync(f.generated('skills/poteto-mode/scripts/watch-pr/runtime.ts'), 'utf8'), 'runtime\n');
+  assert.doesNotMatch(readFileSync(f.generated('SHA256SUMS'), 'utf8'), /cli\.test\.ts|upload\.mmd/);
   assert.equal(existsSync(f.generated('assets')), false);
   assert.equal(existsSync(f.generated('other')), false);
   pass(f.run('--check'));

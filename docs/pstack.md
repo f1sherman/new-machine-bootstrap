@@ -118,8 +118,9 @@ Inspect them and their dependencies before any authorized execution.
   `control-cli` links.
 
 The three local entries and both selected dependencies are discoverable.
-The complete pstack skills, support files, agent briefs, documentation, and MIT
-license remain unchanged outside skill discovery. The updater records source
+The pstack runtime skills, support files, agent briefs, documentation, and MIT
+license remain outside skill discovery. Selected upstream-only tests and fixtures
+are omitted. The updater records source
 provenance, SHA256 checksums, and modes for both packages. It does not install
 the rest of `cursor-team-kit` or any Cursor services.
 
@@ -155,11 +156,12 @@ bin/update-pstack
 bin/update-pstack --check
 ```
 
-The updater fetches the exact SHA, validates the selected complete paths,
-rejects symlinks and unsupported entries, preserves executable modes, and
-replaces the generated snapshot. Git export attributes cannot omit or rewrite
-selected files. The checked `patches/pstack-statechart-safety.patch` then protects
-nested output files and replaces timing assumptions in upstream race tests.
+The updater fetches the exact SHA, selects runtime paths, rejects symlinks and
+unsupported entries, preserves executable modes, and replaces the generated
+snapshot. Its explicit exclusions omit upstream-only tests and fixtures. Git
+export attributes cannot omit or rewrite selected files. The checked
+`patches/pstack-statechart-safety.patch` protects nested output files; NMB's
+statechart safety tests remain in `tests/pstack-statechart-safety.test.mjs`.
 Regeneration stops before publication if that patch no longer applies. The
 provenance names the patch; checksums cover the patched files. Remove the patch
 when a pinned upstream revision supplies these fixes. A lock serializes updater runs. A failed replacement restores
