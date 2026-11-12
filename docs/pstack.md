@@ -118,8 +118,9 @@ Inspect them and their dependencies before any authorized execution.
   `control-cli` links.
 
 The three local entries and both selected dependencies are discoverable.
-The complete pstack skills, support files, agent briefs, documentation, and MIT
-license remain unchanged outside skill discovery. The updater records source
+The pstack runtime skills, support files, agent briefs, documentation, and MIT
+license remain outside skill discovery. Selected upstream-only tests and fixtures
+are omitted. The updater records source
 provenance, SHA256 checksums, and modes for both packages. It does not install
 the rest of `cursor-team-kit` or any Cursor services.
 
@@ -155,14 +156,16 @@ bin/update-pstack
 bin/update-pstack --check
 ```
 
-The updater fetches the exact SHA, validates the selected complete paths,
-rejects symlinks and unsupported entries, preserves executable modes, and
-replaces the generated snapshot. Git export attributes cannot omit or rewrite
-selected files. The checked `patches/pstack-statechart-safety.patch` then protects
-nested output files and replaces timing assumptions in upstream race tests.
-Regeneration stops before publication if that patch no longer applies. The
-provenance names the patch; checksums cover the patched files. Remove the patch
-when a pinned upstream revision supplies these fixes. A lock serializes updater runs. A failed replacement restores
+The updater fetches the exact SHA, selects runtime paths, rejects symlinks and
+unsupported entries, preserves executable modes, and replaces the generated
+snapshot. Its explicit exclusions omit upstream-only tests and fixtures. Git
+export attributes cannot omit or rewrite selected files. The checked
+The pinned statechart runtime writes only to a new or empty output folder and
+publishes output by rename. NMB's tests in `tests/pstack-statechart-safety.test.mjs`
+check that nested user files and symlink targets remain untouched. The updater
+retains `patches/pstack-statechart-safety.patch` only for older pins with the
+`statechart.mjs` entry point. Its source checksum blocks unreviewed changes to
+that older runtime; the current TypeScript runtime needs no local patch. A lock serializes updater runs. A failed replacement restores
 the previous snapshot. If restoration fails or the process is killed, the backup
 stays beside the vendor tree and subsequent runs stop for recovery instead of
 deleting it. Removed upstream files cannot linger. Check

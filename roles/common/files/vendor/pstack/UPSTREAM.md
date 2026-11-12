@@ -6,7 +6,7 @@
 - Commit: `5866df557357d005b3c0c9d3da0d9e739b4bdde3` (both packages).
 - Branch tracked by Renovate: `main`.
 - License: MIT, preserved in `LICENSE`.
-- Selected complete pstack paths: `skills/`, `agents/`, `docs/`, `README.md`, `LICENSE`.
+- Selected pstack paths: `skills/`, `agents/`, `docs/`, `README.md`, `LICENSE`, except the explicitly excluded upstream tests and fixtures in `bin/update-pstack`.
 - Selected cursor-team-kit paths: `skills/deslop/`, `skills/control-cli/`, and `LICENSE`, mapped to `external/deslop/`, `external/control-cli/`, and `external/LICENSE`.
 - Excluded: plugin registration, top-level assets, dormant automations, `.gitignore`.
 - Content modifications: none. Executable bits are preserved.
