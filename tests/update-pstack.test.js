@@ -95,6 +95,40 @@ test('copies the exact pin with complete support files and executable modes', ()
   pass(f.run('--check'));
 }));
 
+test('new pins omit script tests by pattern without removing runtime assets', () => fixture((f) => {
+  pass(f.run());
+  const omitted = [
+    'scripts/new.test.ts', 'scripts/nested/new.spec.js',
+    'scripts/new.test-helper.ts', 'scripts/types.compile.ts',
+    'scripts/test/fixture.json', 'scripts/tests/nested/input.txt',
+    'scripts/__tests__/example.mmd',
+  ];
+  const retained = [
+    'SKILL.md', 'references/new.test.ts', 'scripts/runtime.ts',
+    'scripts/fixtures/input.json', 'scripts/contest/example.txt',
+    'scripts/test-runner.ts', 'scripts/compile.ts',
+  ];
+  for (const source of ['pstack/skills/new-skill', 'cursor-team-kit/skills/control-cli']) {
+    for (const name of [...omitted, ...retained]) write(f.source, `${source}/${name}`, 'support\n');
+  }
+  write(f.source, 'pstack/skills/principle-test-behavior-not-implementation/SKILL.md', 'principle\n');
+  f.pin(f.commit());
+  pass(f.run());
+  const sums = readFileSync(f.generated('SHA256SUMS'), 'utf8');
+  for (const target of ['skills/new-skill', 'external/control-cli']) {
+    for (const name of omitted) {
+      assert.equal(existsSync(f.generated(`${target}/${name}`)), false, name);
+      assert.equal(sums.includes(`  ${target}/${name}\n`), false, name);
+    }
+    for (const name of retained) {
+      assert.equal(readFileSync(f.generated(`${target}/${name}`), 'utf8'), 'support\n', name);
+      assert.equal(sums.includes(`  ${target}/${name}\n`), true, name);
+    }
+  }
+  assert.equal(readFileSync(f.generated('skills/principle-test-behavior-not-implementation/SKILL.md'), 'utf8'), 'principle\n');
+  pass(f.run('--check'));
+}));
+
 test('preserves raw selected files despite upstream export attributes', () => fixture((f) => {
   write(f.source, 'pstack/.gitattributes', 'skills/how/references/detail.md export-ignore\nskills/how/references/raw.md export-subst\n');
   write(f.source, 'pstack/skills/how/references/raw.md', '$Format:%H$\n');
