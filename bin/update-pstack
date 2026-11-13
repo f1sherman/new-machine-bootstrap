@@ -24,6 +24,7 @@ EXCLUDED = {
     "skills/poteto-mode/scripts/watch-pr/fakes.test-helper.ts",
     "skills/poteto-mode/scripts/watch-pr/github.test.ts",
     "skills/poteto-mode/scripts/watch-pr/policy.test.ts",
+    "skills/poteto-mode/scripts/watch-pr/types.compile.ts",
 }
 EXCLUDED_DIR = PurePosixPath("skills/statechart/scripts/test")
 REQUIRED = {
