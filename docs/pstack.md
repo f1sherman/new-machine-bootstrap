@@ -164,12 +164,15 @@ named `test`, `tests`, or `__tests__`, plus files matching `*.test.*`, `*.spec.*
 and the selected dependencies. New matching tests are omitted on every update.
 Other fixtures, assets, and files outside script directories remain selected.
 Unusually named tests still need review. Git export attributes cannot omit or
-rewrite selected files. The checked
-`patches/pstack-statechart-safety.patch` protects nested output files; NMB's
-statechart safety tests remain in `tests/pstack-statechart-safety.test.mjs`.
-Regeneration stops before publication if that patch no longer applies. The
-provenance names the patch; checksums cover the patched files. Remove the patch
-when a pinned upstream revision supplies these fixes. A lock serializes updater runs. A failed replacement restores
+rewrite selected files.
+
+The pinned statechart runtime writes only to a new or empty output folder and
+publishes output by rename. NMB's tests in `tests/pstack-statechart-safety.test.mjs`
+check that nested user files and symlink targets remain untouched. The updater
+retains `patches/pstack-statechart-safety.patch` only for older pins with the
+`statechart.mjs` entry point. Its source checksum blocks unreviewed changes to
+that older runtime; the current TypeScript runtime needs no local patch.
+A lock serializes updater runs. A failed replacement restores
 the previous snapshot. If restoration fails or the process is killed, the backup
 stays beside the vendor tree and subsequent runs stop for recovery instead of
 deleting it. Removed upstream files cannot linger. Check
