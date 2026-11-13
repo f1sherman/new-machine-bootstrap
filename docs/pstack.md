@@ -158,8 +158,13 @@ bin/update-pstack --check
 
 The updater fetches the exact SHA, selects runtime paths, rejects symlinks and
 unsupported entries, preserves executable modes, and replaces the generated
-snapshot. Its explicit exclusions omit upstream-only tests and fixtures. Git
-export attributes cannot omit or rewrite selected files. The checked
+snapshot. Under each selected skill's `scripts/` directory, it omits directories
+named `test`, `tests`, or `__tests__`, plus files matching `*.test.*`, `*.spec.*`,
+`*.test-helper.*`, or `*.compile.ts`. These case-sensitive rules apply to pstack
+and the selected dependencies. New matching tests are omitted on every update.
+Other fixtures, assets, and files outside script directories remain selected.
+Unusually named tests still need review. Git export attributes cannot omit or
+rewrite selected files. The checked
 `patches/pstack-statechart-safety.patch` protects nested output files; NMB's
 statechart safety tests remain in `tests/pstack-statechart-safety.test.mjs`.
 Regeneration stops before publication if that patch no longer applies. The

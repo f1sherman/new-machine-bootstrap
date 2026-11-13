@@ -6,8 +6,9 @@
 - Commit: `ab69380dd50ee47d426b35cb8369cffdddafc218` (both packages).
 - Branch tracked by Renovate: `main`.
 - License: MIT, preserved in `LICENSE`.
-- Selected pstack paths: `skills/`, `agents/`, `docs/`, `README.md`, `LICENSE`, except the explicitly excluded upstream tests and fixtures in `bin/update-pstack`.
+- Selected pstack paths: `skills/`, `agents/`, `docs/`, `README.md`, `LICENSE`, except upstream script tests selected by the rules below.
 - Selected cursor-team-kit paths: `skills/deslop/`, `skills/control-cli/`, and `LICENSE`, mapped to `external/deslop/`, `external/control-cli/`, and `external/LICENSE`.
+- Excluded script tests (pstack and selected dependencies): under `skills/<skill>/scripts/`, directories `test/`, `tests/`, `__tests__/` and files `*.test.*`, `*.spec.*`, `*.test-helper.*`, `*.compile.ts`. Other fixtures and assets are retained.
 - Excluded: plugin registration, top-level assets, dormant automations, `.gitignore`.
 - Content modifications: `patches/pstack-statechart-safety.patch` protects nested output files. Executable bits are preserved.
 - SHA256SUMS covers selected files after local patches, not local provenance.

@@ -93,7 +93,6 @@ fd511a0c01f522e0c781ddd8eccea0e91697a0856c6e6a3261de78a6a0287c72  skills/poteto-
 2d4823aeea788acab258ec60eb52e7b9e3a23a6649850af128d6ada5c33d7778  skills/poteto-mode/scripts/watch-pr/policy.ts
 2b709e86628d5b8fdb61f860e60ababc342b0626c67576305442cf548283a604  skills/poteto-mode/scripts/watch-pr/render.ts
 1ecccc72320b086c63ce3f73c959896fd747363e63553b3b1136296ea4069e45  skills/poteto-mode/scripts/watch-pr/tsconfig.json
-621af4c9a664fbf699a9737efccdc248abb416df8819c9dc5f824beae2b9b1d6  skills/poteto-mode/scripts/watch-pr/types.compile.ts
 daa66c56220bae084c18cc6d3b0a2c66c0e72206d298e40973b44ee085ce16d2  skills/poteto-mode/scripts/watch-pr/types.ts
 d955603be6cc0e8b8ffcec722f635192b2261410b1f2929abea94480e47eb5d4  skills/poteto-mode/scripts/watch-pr/watch-pr
 06be04b38346ded24ce761d373726f98cd9b9737f20ec98214e88b5f08f521b8  skills/poteto-mode/scripts/worktree-audit.sh
