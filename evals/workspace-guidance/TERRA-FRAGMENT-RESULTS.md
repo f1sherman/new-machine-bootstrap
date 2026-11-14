@@ -83,8 +83,8 @@ receipts. The live run's six receipts replayed with the same pair summary. All
 seven owned containers, including the isolation probe, were recorded removed.
 
 Raw trial responses, tool traces, judge responses, usage, and receipts remain in
-the ignored `tmp/cleanup-pilot-terra-01` directory of this worktree. Preserve
-that evidence before retiring the worktree. The files were checked for the
+the ignored `tmp/cleanup-pilot-terra-01` directory of the original
+`sandboxed-fragment-eval` worktree. Preserve that evidence before retiring it. The files were checked for the
 current access credential and none was found. Do not publish raw evidence
 without a separate privacy review.
 
