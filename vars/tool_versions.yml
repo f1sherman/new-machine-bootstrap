@@ -16,7 +16,7 @@ tool_versions:
     # renovate: datasource=github-releases depName=ajeetdsouza/zoxide
     zoxide: v0.10.0
     # renovate: datasource=github-releases depName=BarutSRB/OmniWM
-    omniwm: v0.7.6
+    omniwm: v0.8.0
 
   git_commits:
     # Renovate tracks the main branch digest; generation uses this exact SHA.
