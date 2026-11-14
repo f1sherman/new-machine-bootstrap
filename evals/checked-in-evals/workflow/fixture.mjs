@@ -124,11 +124,11 @@ if (action === 'init') {
     const documentation=text.replace(/\\\r?\n[ \t]*/g,' ');
     const outputOptions=[...documentation.matchAll(/`(--output[ \t]+(?:"[^"\n]*"|'[^'\n]*'|[\w./-]+))`/g)]
       .map(match=>match[1]);
-    return [...documentation.matchAll(/\bnode[ \t]+([\w./-]+\.(?:mjs|js))((?:[ \t]+(?:--?[\w-]+|"[^"\n]*"|'[^'\n]*'|[\w./-]+))*)/g)]
+    return [...documentation.matchAll(/\bnode[ \t]+([\w./-]+\.(?:mjs|js))((?:[ \t]+(?:--?[\w-]+(?:=(?:"[^"\n]*"|'[^'\n]*'|[\w./-]+))?|"[^"\n]*"|'[^'\n]*'|[\w./-]+))*)/g)]
       .filter(match=>scripts.includes(path.normalize(match[1])) && !/(?:^|\s)--replay(?:\s|$)/.test(match[2]))
       .flatMap(match=> {
         const command='node '+match[1]+match[2];
-        if (/(?:^|\s)--output(?:\s|$)/.test(match[2])) return [command];
+        if (/(?:^|\s)--output(?:[=\s]|$)/.test(match[2])) return [command];
         return [command,...outputOptions.map(option=>command+' '+option)];
       });
   }))];
@@ -142,7 +142,7 @@ if (action === 'init') {
         if (currentEvidence(data)) fs.rmSync(path.join(cwd,file));
       }
       const tokens=command.match(/"[^"]*"|'[^']*'|\S+/g);
-      const absoluteOutput=tokens.at(-1).replace(/^(['"])(.*)\1$/,'$2');
+      const absoluteOutput=tokens.at(-1).replace(/^--output=/,'').replace(/^(['"])(.*)\1$/,'$2');
       if (/^\/tmp\/[^/]+\.json$/.test(absoluteOutput)) fs.rmSync(absoluteOutput,{force:true});
       if (broken) fs.writeFileSync(path.join(cwd,'app.mjs'),'console.log("BROKEN_PRODUCTION_ARTIFACT");\n');
       let result;
