@@ -47,7 +47,11 @@ the intermediate checks remain in the results. A separate stale-source runner
 exposed an absolute-output collision that could falsely pass drift detection.
 Each replay now gets its own output path, including when later options follow;
 valid and stale-source examples were calibrated. Regrading all 26 workflows
-again changed no checks.
+again changed no checks. A later review found that unquoted prose after a
+command could be treated as an argument. Calibration now covers a strict runner
+followed by `to rerun`, and all 26 saved workflows were regraded without a
+change in their checks. Other undocumented command forms may require manual
+review.
 
 ## Run
 

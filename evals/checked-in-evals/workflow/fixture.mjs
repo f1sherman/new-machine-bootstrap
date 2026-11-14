@@ -127,9 +127,15 @@ if (action === 'init') {
     return [...documentation.matchAll(/\bnode((?:[ \t]+--[\w-]+(?:=[\w./-]+)?)*)[ \t]+([\w./-]+\.(?:mjs|js))((?:[ \t]+(?:--?[\w-]+(?:=(?:"[^"\n]*"|'[^'\n]*'|[\w./-]+))?|"[^"\n]*"|'[^'\n]*'|[\w./-]+))*)/g)]
       .filter(match=>scripts.includes(path.normalize(match[2])) && !/(?:^|\s)--replay(?:\s|$)/.test(match[3]))
       .flatMap(match=> {
-        const command='node'+match[1]+' '+match[2]+match[3];
-        if (/(?:^|\s)--output(?:[=\s]|$)/.test(match[3])) return [command];
-        return [command,...outputOptions.map(option=>command+' '+option)];
+        const prefix='node'+match[1]+' '+match[2];
+        const args=match[3];
+        const beforeProse=args.replace(/\s+to\s+(?:rerun|run|reproduce|repeat|recheck|verify)\b.*$/i,'');
+        const variants=[...new Set([args,beforeProse])];
+        return variants.flatMap(variant=> {
+          const command=prefix+variant;
+          if (/(?:^|\s)--output(?:[=\s]|$)/.test(variant)) return [command];
+          return [command,...outputOptions.map(option=>command+' '+option)];
+        });
       });
   }))];
   const replays = [];
