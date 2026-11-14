@@ -119,12 +119,12 @@ if (action === 'init') {
     return sourceHash!==null && provenance.includes(sourceHash) && faithful(data);
   };
   const evidence = records.some(({data}) => currentEvidence(data));
-  const scripts = files.filter(file => file.endsWith('.mjs') && file !== 'app.mjs');
+  const scripts = files.filter(file => /\.(?:mjs|js)$/.test(file) && file !== 'app.mjs');
   const commands = [...new Set(texts.filter(([file])=>file.endsWith('.md')).flatMap(([,text]) => {
     const documentation=text.replace(/\\\r?\n[ \t]*/g,' ');
     const outputOptions=[...documentation.matchAll(/`(--output[ \t]+(?:"[^"\n]*"|'[^'\n]*'|[\w./-]+))`/g)]
       .map(match=>match[1]);
-    return [...documentation.matchAll(/\bnode[ \t]+([\w./-]+\.mjs)((?:[ \t]+(?:--?[\w-]+|"[^"\n]*"|'[^'\n]*'|[\w./-]+))*)/g)]
+    return [...documentation.matchAll(/\bnode[ \t]+([\w./-]+\.(?:mjs|js))((?:[ \t]+(?:--?[\w-]+|"[^"\n]*"|'[^'\n]*'|[\w./-]+))*)/g)]
       .filter(match=>scripts.includes(path.normalize(match[1])) && !/(?:^|\s)--replay(?:\s|$)/.test(match[2]))
       .flatMap(match=> {
         const command='node '+match[1]+match[2];

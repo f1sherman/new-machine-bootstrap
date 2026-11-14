@@ -39,7 +39,10 @@ It therefore rejected a valid positional-output runner. We added a calibrated
 case for that representation, reran all existing grader controls, and regraded
 all saved responses in both rounds without new model calls. The original grades
 remain beside corrected grades. Earlier calibration failure while constructing
-that new fixture was fixed before the complete calibration passed.
+that new fixture was fixed before the complete calibration passed. Independent
+review also found that `.js` runners were rejected. After adding and calibrating
+that equivalent form, all 26 captured workflows were regraded again; no grade
+changed.
 
 ## Run
 
