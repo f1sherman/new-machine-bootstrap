@@ -1,0 +1,111 @@
+# Initial mapping only. An unlisted fragment has not yet been mapped.
+# Records refer to frozen study commits, not to whatever is on the default branch.
+version: 1
+fragment_directory: roles/common/files/pi/base-fragments
+assembled_source: roles/common/files/pi/AGENTS.md.d/00-base.md
+studies:
+  workspace-terra:
+    case_file: evals/workspace-guidance/cases.json
+    case_sha256: a6d8dc6a9111e028ed338224741165d63bbaa9723f577cd53ea14fc3d4f2bd04
+    record: https://github.com/f1sherman/new-machine-bootstrap/blob/fd8a343f9758dd3f3ac9be79c053647ffecef591/evals/workspace-guidance/TERRA-RESULTS.md
+    source_sha256: 90196177616f7559422414c354dc08c2ffad868eaf22cccd7f3fbaa5e593496a
+    model: openai-codex/gpt-6.1-terra
+    limitation: Excerpt and skill study; not full native Pi. Does not cover all safeguards.
+    coverage:
+      - fragment: 12-workspace-setup.md
+        relationship: direct
+        conditions: [guided, no_setup]
+        cases: [handoff]
+      - fragment: 13-workspace-cleanup.md
+        relationship: direct
+        conditions: [guided, no_cleanup]
+        cases: [unpublished]
+      - fragment: 12-workspace-setup.md
+        relationship: combined
+        conditions: [guided, empty]
+        cases: [handoff, unpublished, agent-state]
+      - fragment: 13-workspace-cleanup.md
+        relationship: combined
+        conditions: [guided, empty]
+        cases: [handoff, unpublished, agent-state]
+      - fragment: 14-generated-state.md
+        relationship: background
+        conditions: [guided]
+        cases: [agent-state]
+        limitation: The exception remains present; the study does not remove it.
+  hedging-terra:
+    case_file: evals/hedging/cases.json
+    case_sha256: 959c1877c9dc83591cccef7527dccb155eed472ed4999c5353d930672b37fb6f
+    record: https://github.com/f1sherman/new-machine-bootstrap/blob/e81ea57d0e50780aee7f70c7547890869751f6d5/evals/hedging/TERRA-RESULTS.md
+    source_sha256: 90196177616f7559422414c354dc08c2ffad868eaf22cccd7f3fbaa5e593496a
+    model: openai-codex/gpt-6.1-terra
+    limitation: Standalone excerpt; one response per case; model-family judge.
+    coverage:
+      - fragment: 01-direct-writing.space.md
+        relationship: direct
+        conditions: [candidate, no_direct]
+        cases: [review-value, example-edit, startup-benefit, handoff-benefit, short-benefit, failed-restore, performance-claim, unverified-deployment]
+      - fragment: 02-caveat-removal.space.md
+        relationship: combined
+        conditions: [candidate, no_context]
+        cases: [review-value, example-edit, startup-benefit, handoff-benefit, short-benefit, failed-restore, performance-claim, unverified-deployment]
+        limitation: The removal also removes benefit wording.
+      - fragment: 03-benefit-wording.space.md
+        relationship: combined
+        conditions: [candidate, no_context]
+        cases: [review-value, example-edit, startup-benefit, handoff-benefit, short-benefit, failed-restore, performance-claim, unverified-deployment]
+        limitation: The removal also removes caveat wording.
+      - fragment: 04-material-uncertainty.md
+        relationship: direct
+        conditions: [candidate, no_material]
+        cases: [review-value, example-edit, startup-benefit, handoff-benefit, short-benefit, failed-restore, performance-claim, unverified-deployment]
+  writing-components-terra:
+    case_file: evals/plain-language/combinations.json
+    case_sha256: 6cf52941ba75bc960f857a34a564fb29fa39b997d22ccb9a80baa1966d11c155
+    record: https://github.com/f1sherman/new-machine-bootstrap/blob/e81ea57d0e50780aee7f70c7547890869751f6d5/evals/plain-language/TERRA-RESULTS.md
+    source_sha256: 90196177616f7559422414c354dc08c2ffad868eaf22cccd7f3fbaa5e593496a
+    model: openai-codex/gpt-6.1-terra
+    limitation: Standalone excerpt; one response per case; judge scores corrected after review.
+    coverage:
+      - fragment: 00-writing-style.space.md
+        relationship: direct
+        conditions: [current, without_ste]
+        cases: [instruction-results, monitor-lock, auth-rotation, proposal-benefit, unsupported-speedup, edit-terminology]
+        limitation: Removes the named standard, not the entire fragment.
+      - fragment: 00-writing-style.space.md
+        relationship: direct
+        conditions: [current, without_short]
+        cases: [instruction-results, monitor-lock, auth-rotation, proposal-benefit, unsupported-speedup, edit-terminology]
+        limitation: Removes the short and consistent wording, not the entire fragment.
+      - fragment: 05-plain-language.blank.md
+        relationship: direct
+        conditions: [current, without_everyday]
+        cases: [instruction-results, monitor-lock, auth-rotation, proposal-benefit, unsupported-speedup, edit-terminology]
+        limitation: Removes everyday wording, not the entire fragment.
+      - fragment: 05-plain-language.blank.md
+        relationship: direct
+        conditions: [current, without_meaning]
+        cases: [instruction-results, monitor-lock, auth-rotation, proposal-benefit, unsupported-speedup, edit-terminology]
+        limitation: Removes practical meaning first, not the entire fragment.
+      - fragment: 05-plain-language.blank.md
+        relationship: direct
+        conditions: [current, without_terms]
+        cases: [instruction-results, monitor-lock, auth-rotation, proposal-benefit, unsupported-speedup, edit-terminology]
+        limitation: Removes term explanations, not the entire fragment.
+      - fragment: 01-direct-writing.space.md
+        relationship: direct
+        conditions: [current, without_direct]
+        cases: [instruction-results, monitor-lock, auth-rotation, proposal-benefit, unsupported-speedup, edit-terminology]
+      - fragment: 02-caveat-removal.space.md
+        relationship: direct
+        conditions: [current, without_caveats]
+        cases: [instruction-results, monitor-lock, auth-rotation, proposal-benefit, unsupported-speedup, edit-terminology]
+        limitation: Other caveat guidance remained.
+      - fragment: 03-benefit-wording.space.md
+        relationship: direct
+        conditions: [current, without_benefits]
+        cases: [instruction-results, monitor-lock, auth-rotation, proposal-benefit, unsupported-speedup, edit-terminology]
+      - fragment: 04-material-uncertainty.md
+        relationship: direct
+        conditions: [current, without_uncertainty]
+        cases: [instruction-results, monitor-lock, auth-rotation, proposal-benefit, unsupported-speedup, edit-terminology]
