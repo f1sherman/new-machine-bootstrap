@@ -58,7 +58,7 @@
             "evidence": false,
             "privacy": true,
             "currentArtifact": false,
-            "documentation": false
+            "documentation": true
           },
           "pass": false,
           "originalChecks": {
@@ -69,7 +69,15 @@
             "currentArtifact": false,
             "documentation": false
           },
-          "originalPass": false
+          "originalPass": false,
+          "intermediateChecks": {
+            "task": true,
+            "runnable": false,
+            "evidence": false,
+            "privacy": true,
+            "currentArtifact": false,
+            "documentation": false
+          }
         },
         {
           "case": "report-only",
@@ -388,7 +396,7 @@
             "evidence": false,
             "privacy": true,
             "currentArtifact": false,
-            "documentation": false
+            "documentation": true
           },
           "pass": false,
           "originalChecks": {
@@ -399,7 +407,15 @@
             "currentArtifact": false,
             "documentation": false
           },
-          "originalPass": false
+          "originalPass": false,
+          "intermediateChecks": {
+            "task": true,
+            "runnable": false,
+            "evidence": false,
+            "privacy": true,
+            "currentArtifact": false,
+            "documentation": false
+          }
         },
         {
           "case": "report-only",
@@ -411,7 +427,7 @@
             "evidence": false,
             "privacy": true,
             "currentArtifact": false,
-            "documentation": false
+            "documentation": true
           },
           "pass": false,
           "originalChecks": {
@@ -422,7 +438,15 @@
             "currentArtifact": false,
             "documentation": false
           },
-          "originalPass": false
+          "originalPass": false,
+          "intermediateChecks": {
+            "task": true,
+            "runnable": false,
+            "evidence": false,
+            "privacy": true,
+            "currentArtifact": false,
+            "documentation": false
+          }
         },
         {
           "case": "report-only",
@@ -687,7 +711,7 @@
             "evidence": false,
             "privacy": true,
             "currentArtifact": false,
-            "documentation": false
+            "documentation": true
           },
           "pass": false,
           "originalChecks": {
@@ -698,7 +722,15 @@
             "currentArtifact": false,
             "documentation": false
           },
-          "originalPass": false
+          "originalPass": false,
+          "intermediateChecks": {
+            "task": true,
+            "runnable": false,
+            "evidence": false,
+            "privacy": true,
+            "currentArtifact": false,
+            "documentation": false
+          }
         }
       ],
       "matchedSuccessfulTokens": {

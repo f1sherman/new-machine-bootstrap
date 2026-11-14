@@ -40,9 +40,10 @@ case for that representation, reran all existing grader controls, and regraded
 all saved responses in both rounds without new model calls. The original grades
 remain beside corrected grades. Earlier calibration failure while constructing
 that new fixture was fixed before the complete calibration passed. Independent
-review also found that `.js` runners and `--output=value` were rejected. After
-adding and calibrating both forms, all 26 captured workflows were regraded
-again; no grade changed.
+review also found rejected `.js` runners, `--output=value`, and Node options
+before the script. After calibration and regrading all 26 workflows, four
+previously missed documentation checks passed. No overall pass outcome changed;
+the intermediate checks remain in the results.
 
 ## Run
 
