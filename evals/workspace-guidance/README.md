@@ -75,7 +75,9 @@ node evals/workspace-guidance/run.mjs --live --build \
   --output tmp/workspace-live
 ```
 
-Use a fresh output directory for each run. Save raw responses, usage, commands,
+Use `--model gpt-6.1-terra` to select Terra instead of the default model on
+`openai-codex`. Generation and judging use the selected model. Use a fresh
+output directory for each run. Save raw responses, usage, commands,
 guard denials, execution traces, snapshots, and judge replies. `report.json`
 contains every assessment. `receipts.json` binds the input manifest and each
 trial to its bytes. Replay verifies those receipts and grades the same evidence;
