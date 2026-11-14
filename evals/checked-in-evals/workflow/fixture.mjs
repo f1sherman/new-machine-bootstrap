@@ -142,11 +142,18 @@ if (action === 'init') {
         if (currentEvidence(data)) fs.rmSync(path.join(cwd,file));
       }
       const tokens=command.match(/"[^"]*"|'[^']*'|\S+/g);
-      const absoluteOutput=tokens.at(-1).replace(/^--output=/,'').replace(/^(['"])(.*)\1$/,'$2');
-      if (/^\/tmp\/[^/]+\.json$/.test(absoluteOutput)) fs.rmSync(absoluteOutput,{force:true});
+      const lastToken=tokens.at(-1);
+      let absoluteOutput=lastToken.replace(/^--output=/,'').replace(/^(['"])(.*)\1$/,'$2');
+      let replayCommand=command;
+      if (absoluteOutput.startsWith('/tmp/')) {
+        const isolatedOutput=`/tmp/index-output-${serial++}${absoluteOutput.endsWith('.json') ? '.json' : ''}`;
+        const replacement=lastToken.replace(absoluteOutput,isolatedOutput);
+        replayCommand=command.slice(0,command.lastIndexOf(lastToken))+replacement;
+        absoluteOutput=isolatedOutput;
+      }
       if (broken) fs.writeFileSync(path.join(cwd,'app.mjs'),'console.log("BROKEN_PRODUCTION_ARTIFACT");\n');
       let result;
-      try {result={exitCode:0,stdout:run('sh',['-lc',command],cwd)};}
+      try {result={exitCode:0,stdout:run('sh',['-lc',replayCommand],cwd)};}
       catch(error) {result={exitCode:error.status,stdout:String(error.stdout||''),stderr:String(error.stderr||'')};}
       const json=[];
       const inspect = file => {

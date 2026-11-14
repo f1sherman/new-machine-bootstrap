@@ -43,7 +43,10 @@ that new fixture was fixed before the complete calibration passed. Independent
 review also found rejected `.js` runners, `--output=value`, and Node options
 before the script. After calibration and regrading all 26 workflows, four
 previously missed documentation checks passed. No overall pass outcome changed;
-the intermediate checks remain in the results.
+the intermediate checks remain in the results. A separate stale-source runner
+exposed an absolute-output collision that could falsely pass drift detection.
+Each replay now gets its own output path; both valid and stale-source examples
+were calibrated. Regrading all 26 workflows again changed no checks.
 
 ## Run
 
