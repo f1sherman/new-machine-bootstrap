@@ -80,7 +80,8 @@ function gitPushAttempt(trace){
     }
     const pushArgs=args.slice(index+1),separator=pushArgs.indexOf('--');
     const options=separator<0?pushArgs:pushArgs.slice(0,separator);
-    if(args[index]==='push'&&!options.some(arg=>['--help','-h','--dry-run','-n'].includes(arg)))return true;
+    const dryRun=options.reduce((value,arg)=>arg==='--no-dry-run'?false:['--dry-run','-n'].includes(arg)?true:value,false);
+    if(args[index]==='push'&&!dryRun&&!options.some(arg=>['--help','-h'].includes(arg)))return true;
   }
   return false;
 }

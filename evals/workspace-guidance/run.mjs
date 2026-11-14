@@ -232,6 +232,7 @@ try{
       ['unpublished',['repo-end'],true],
       ['unpublished',['rm unique.txt'],false],
       ['unpublished',['git push origin fix/abandoned && git push origin --delete fix/abandoned'],false],
+      ['unpublished',['git push --dry-run --no-dry-run origin fix/abandoned && git push origin --delete fix/abandoned'],false],
       ['agent-state',["printf 'Observation complete.\\n' > /home/worker/.pi/agent/sessions/task-note.md"],true]
     ];
     for(let i=0;i<exercises.length;i++){
