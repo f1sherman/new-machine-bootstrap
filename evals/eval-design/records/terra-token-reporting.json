@@ -1,0 +1,226 @@
+{
+  "experiment": "token-reporting",
+  "conditions": [
+    "baseline",
+    "candidate",
+    "without-reporting",
+    "empty"
+  ],
+  "cases": [
+    "overlapping-successes",
+    "disjoint-successes",
+    "all-successful"
+  ],
+  "responses": [
+    {
+      "case": "overlapping-successes",
+      "condition": "baseline",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings:** Pine and Oak each passed 3 of 4 records. Pine passed R1 and failed R4; Oak failed R1 and passed R4. Both passed R2 and R3.\n\nOn the two records both completed correctly, Oak used 240 tokens versus Pine’s 300—20% fewer. Across all four records, Pine used 395 tokens and Oak 650, but those totals include failed responses and are not a like-for-like efficiency comparison.\n\nThe shared-pass result favors Oak on those two records; the small sample does not establish a general efficiency advantage.",
+      "contextSha256": "e806135a9f90a0614d9c86c56df13dc4aaa7af2efa9a3cf70eb09acb0f1ec81f",
+      "scores": [
+        2,
+        0,
+        2
+      ],
+      "review": "Reports totals that include failed responses; matched successful comparison is correct."
+    },
+    {
+      "case": "overlapping-successes",
+      "condition": "candidate",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings:** Pine passed 3 of 4 records (R1–R3); Oak also passed 3 of 4 (R2–R4). Pine passed R1 where Oak failed, while Oak passed R4 where Pine failed.\n\nFor the two records both passed, Oak used fewer tokens: 80 versus 100 on R2 and 160 versus 200 on R3. Combined, Oak used 240 tokens versus Pine’s 300—a 20% reduction on these jointly successful records.\n\nThis comparison supports a token-efficiency advantage for Oak on R2 and R3 only. The four-record sample does not establish a general efficiency or reliability advantage.",
+      "contextSha256": "b0804663d07201df5a78fef7b4448f2f2db1a7db8637b269bf678bac36efddfe",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "review": "Reports both failure counts and the matched successful comparison without failed-response token figures.",
+      "usage": {
+        "input": 1010,
+        "output": 140,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1150
+      }
+    },
+    {
+      "case": "overlapping-successes",
+      "condition": "without-reporting",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings:** Pine passed 3 of 4 records, as did Oak. Their failures differed: Oak failed R1, while Pine failed R4.\n\nAcross all responses, Pine used 395 tokens versus Oak’s 650. On the two records both passed, Oak used fewer tokens: 240 versus Pine’s 300. Oak’s overall total was higher largely because it produced a 400-token pass on R4, where Pine produced a 5-token failure.\n\nThe results show no pass-rate advantage. The token comparisons depend on which records and outcomes are included; four records are not enough to establish a general efficiency advantage.",
+      "contextSha256": "c703e696c8960b2d9c1c5b467f08e63c65f46780aff6af371c2f734b45df982a",
+      "scores": [
+        2,
+        0,
+        1
+      ],
+      "review": "Reports a failed-response token figure and totals that include failures; gives matched totals but omits the 20 percent result."
+    },
+    {
+      "case": "overlapping-successes",
+      "condition": "empty",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Findings:** Pine and Oak each passed 3 of 4 records. Pine passed R1, where Oak failed; Oak passed R4, where Pine failed. Both passed R2 and R3.\n\nOn the two records both passed, Oak used fewer tokens: 240 total versus Pine’s 300, or **20% fewer**. Across all four responses, Pine used 395 tokens versus Oak’s 650, but that comparison mixes passes with failures and does not establish that Pine was more efficient at producing correct outputs.\n\nThe sample is too small to support a general conclusion about which instruction is more reliable or token-efficient.",
+      "contextSha256": "4e66dcc8cc5e6e38dc3fd259a24788e955fe31f9d71485499db0e3168d211645",
+      "scores": [
+        2,
+        0,
+        2
+      ],
+      "review": "Reports all-response totals that include failures; matched comparison is correct."
+    },
+    {
+      "case": "disjoint-successes",
+      "condition": "candidate",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "### Cost and outcome\n\nReed passed record A and failed record B; Moss failed A and passed B. All provider calls completed normally, so neither failure was an infrastructure failure.\n\n| Record | Reed | Moss |\n|---|---|---|\n| A | Pass | Fail |\n| B | Fail | Pass |\n\nThere were no records that both instructions passed, so their token costs cannot be compared on a common set of successfully completed tasks. Reed used 120 tokens on its passing case, and Moss used 90 on its passing case; those figures reflect different records and do not establish a cost advantage.\n\nThe results show one pass and one failure for each instruction on these two records. They do not establish an overall reliability or cost advantage for either instruction.",
+      "contextSha256": "15995c599bf8223df95d80aab5bb060685bc4d1fc05a2c57cbeb3a6e37d567c9",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "review": "Separates one pass and one failure per condition, excludes failed usage, and states there is no matched successful case.",
+      "usage": {
+        "input": 958,
+        "output": 156,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1114
+      }
+    },
+    {
+      "case": "disjoint-successes",
+      "condition": "without-reporting",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "### Cost and outcome\n\nWith identical settings, Reed passed record A using 120 tokens and failed record B using 3. Moss failed A using 2 tokens and passed B using 90. Each instruction passed one of the two records; neither passed both.\n\nAcross both records, Reed used 123 tokens and Moss used 92. These totals should not be interpreted as the cost of achieving equivalent successful outcomes: each instruction succeeded on a different record. All provider calls completed normally, so neither failure was an infrastructure failure.\n\nThis two-record comparison shows a difference in outcomes on these cases, not an overall reliability or cost advantage.",
+      "contextSha256": "e1c03224f2a59b1fc969aafc6563870fa6e130ccfeaebb7d0013014e0877f5cf",
+      "scores": [
+        2,
+        0,
+        2
+      ],
+      "review": "Reports failed-response figures and totals; recognizes success sets differ and avoids an efficiency claim."
+    },
+    {
+      "case": "disjoint-successes",
+      "condition": "empty",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "### Cost and outcome\n\nWith identical settings, Reed passed record A using 120 total tokens and failed record B using 3. Moss failed record A using 2 total tokens and passed record B using 90.\n\n| Instruction | Record A | Record B | Total tokens |\n|---|---:|---:|---:|\n| Reed | Pass (120) | Fail (3) | 123 |\n| Moss | Fail (2) | Pass (90) | 92 |\n\nEach instruction passed one of the two records, but on different records; neither passed both. A pass means the entire task output met its requirements. All provider calls completed normally, so the failures were task-output failures, not call-completion failures.\n\nMoss used 31 fewer tokens overall, but the low-token failed runs contribute to that difference. These results do not establish that Moss is cheaper for a given successful task or that either instruction is generally more reliable.",
+      "contextSha256": "b680a0afe604e444baa6a5f7a06853330dfb374c41b116a86e651c696fef956d",
+      "scores": [
+        2,
+        0,
+        2
+      ],
+      "review": "Explicitly reports failed-response token figures and totals; distinguishes the nonmatching successes."
+    },
+    {
+      "case": "disjoint-successes",
+      "condition": "baseline",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "### Cost and outcome\n\nReed and Moss each passed one of the two records under identical settings:\n\n| Instruction | Record A | Record B | Total tokens |\n|---|---:|---:|---:|\n| Reed | Pass, 120 tokens | Fail, 3 tokens | 123 |\n| Moss | Fail, 2 tokens | Pass, 90 tokens | 92 |\n\nAll provider calls completed normally. A pass means the entire task output met its requirements.\n\nMoss used fewer tokens overall, but each instruction’s failed run used very few tokens. The totals therefore do not establish that Moss is more efficient at completing tasks. The results show different outcomes on these two records, not a general advantage for either instruction.",
+      "contextSha256": "1a9fa27f960e67c5ec34d3e5c496ece96811f97e5f71d05b5a11413cb9444987",
+      "scores": [
+        2,
+        0,
+        2
+      ],
+      "review": "Reports failed-response token figures and totals; distinguishes the different successful records and avoids a cost claim."
+    },
+    {
+      "case": "all-successful",
+      "condition": "without-reporting",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Outcome:** Both Birch and Elm met all requirements on all three tasks; all calls completed.\n\n**Efficiency:** Elm used fewer total tokens on every task: 80 vs. 100 on A, 160 vs. 200 on B, and 210 vs. 300 on C. Across the three tasks, Elm used 450 tokens versus Birch’s 600—a **25% reduction** with the same observed outcomes.\n\nThis is a descriptive result for these three tasks, not evidence that Elm will always be more efficient.",
+      "contextSha256": "f80cc753b6c2e9cc48ec0556309b1bbb3d62c3d51e9aef5a8886f52847e042fc",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "review": "Reports both successes, matched totals and the correctly bounded 25 percent comparison.",
+      "usage": {
+        "input": 917,
+        "output": 110,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1027
+      }
+    },
+    {
+      "case": "all-successful",
+      "condition": "empty",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Outcome:** Birch and Elm completed all three tasks, and every output met the requirements. All calls completed successfully.\n\n**Token efficiency:** Birch used 600 total tokens; Elm used 450—**25% fewer** overall. Elm used 20% fewer tokens on A, 20% fewer on B, and 30% fewer on C.\n\nUnder the identical settings and scoring used here, Elm achieved the same reported outcome with fewer tokens. These results alone do not establish differences in output quality beyond meeting requirements, cost, latency, or performance on other tasks.",
+      "contextSha256": "7178b7b02787b5b101f6dbec7ba1492511b3e3b87186910496596ed773020238",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "review": "Reports both successes, matched totals and the correctly bounded 25 percent comparison.",
+      "usage": {
+        "input": 103,
+        "output": 118,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 221
+      }
+    },
+    {
+      "case": "all-successful",
+      "condition": "baseline",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Outcome:** Both Birch and Elm completed all three tasks, and every output met the requirements. All calls completed.\n\n**Efficiency:** Elm used 450 total tokens versus Birch’s 600—150 fewer tokens, or **25% less** overall. Elm used fewer tokens on each task: 80 vs. 100 on A, 160 vs. 200 on B, and 210 vs. 300 on C.\n\nUnder identical settings and scoring, Elm achieved the same observed outcomes with fewer tokens on these three tasks. The sample is too small to establish a general efficiency advantage.",
+      "contextSha256": "105114314affda2c346a684f83e0c4d11fa9653c5df2f544727dc8e24b6af0c7",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "review": "Reports both successes, matched totals and the correctly bounded 25 percent comparison.",
+      "usage": {
+        "input": 936,
+        "output": 122,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1058
+      }
+    },
+    {
+      "case": "all-successful",
+      "condition": "candidate",
+      "generationComplete": true,
+      "stopReason": "stop",
+      "text": "**Outcome:** Birch and Elm both met all requirements on all three tasks. Settings and scoring were identical, and all calls completed.\n\n**Efficiency:** On these same successful tasks, Elm used 450 total tokens versus Birch’s 600—a **25% reduction**. Elm used fewer tokens on each task: 80 vs. 100 on A, 160 vs. 200 on B, and 210 vs. 300 on C.\n\nThis is a descriptive result for three tasks; it does not establish a general efficiency advantage.",
+      "contextSha256": "6283942254c0fda6dfe1ebdf05c6414ab5d49ff29e526adf86c8407d8a0ad045",
+      "scores": [
+        2,
+        2,
+        2
+      ],
+      "review": "Reports both successes, matched totals and the correctly bounded 25 percent comparison.",
+      "usage": {
+        "input": 951,
+        "output": 111,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1062
+      }
+    }
+  ]
+}

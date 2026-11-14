@@ -7,12 +7,17 @@ import {parseArgs} from 'node:util';
 import {pathToFileURL} from 'node:url';
 
 const {values, positionals} = parseArgs({allowPositionals: true, options: {
-  output: {type: 'string'}, 'sdk-module': {type: 'string'}
+  output: {type: 'string'}, 'sdk-module': {type: 'string'}, model: {type: 'string'}
 }});
 const name = positionals[0];
 assert.ok(/^[a-z-]+$/.test(name || '') && values.output && values['sdk-module'],
-  'Usage: node run.mjs <experiment> --output <new-directory> --sdk-module <compat.js>');
+  'Usage: node run.mjs <experiment> --output <new-directory> --sdk-module <compat.js> [--model provider/model]');
 const experiment = JSON.parse(fs.readFileSync(new URL(`./experiments/${name}.json`, import.meta.url)));
+if (values.model) {
+  const match = /^(openai-codex)\/([A-Za-z0-9][A-Za-z0-9._-]*)$/.exec(values.model);
+  assert.ok(match, 'Model must use the openai-codex provider');
+  experiment.model = {...experiment.model, provider: match[1], id: match[2]};
+}
 const output = path.resolve(values.output);
 const relative = path.relative(process.cwd(), output);
 assert.ok(relative && relative !== '..' && !relative.startsWith('../') && !path.isAbsolute(relative),
