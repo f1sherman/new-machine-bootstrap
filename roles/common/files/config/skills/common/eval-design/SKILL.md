@@ -76,7 +76,24 @@ Keep only cases, controls, and grader tests with ongoing regression value in
 the maintained suite. Use Git history for past experiments and rejected variants.
 Store raw run evidence separately from the fixtures.
 
-## 6. Bound the conclusion
+## 6. Keep runnable evidence
+
+Check in task inputs, baseline and ablation conditions, grading criteria or
+code, model settings, and the runner with the change they measure. Reuse an
+existing runner when it fits. A report or temporary file is not a runnable suite.
+
+Check in reviewed actual observations, per-case ratings and reasons, source
+hashes, and matched token totals. Preserve failed and incomplete runs as well as
+passes. Verify the observations against actual workflow execution, not advice.
+
+Keep detailed traces in temporary private storage during grading and review.
+They may expire afterward; disclose when original runs cannot be regraded.
+Keep credentials, private data, and provider reasoning out of Git.
+
+Document commands to run fresh comparisons against the current production
+artifact. Freeze generated fixtures before model calls and retain safety controls.
+
+## 7. Bound the conclusion
 
 Report per-case outcomes and failure types, not just aggregate totals. Distinguish
 repeated responses from independent cases. Treat reused selection cases as
