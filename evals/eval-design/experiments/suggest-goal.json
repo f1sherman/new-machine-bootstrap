@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "id": "suggest-goal",
+  "scope": "Tool-free skill-body study. Fresh calls, no ambient project instructions. Manual semantic grading.",
+  "source": {
+    "path": "roles/common/files/config/skills/pi/z-suggest-goal/SKILL.md",
+    "sha256": "6d1327c3720c5ea2c78d27610f9caa2212e4caae825114a3c901dd123926f631",
+    "baselineCommit": "2ac73ced27e931d9e03558615970f61ad713e5cf"
+  },
+  "systemPrefix": "You are a helpful assistant. Respond to the user using the supplied session context.\n\n",
+  "model": {
+    "provider": "openai-codex",
+    "id": "gpt-6.1-sol",
+    "reasoning": "medium",
+    "maxTokens": 3000
+  },
+  "conditions": {
+    "empty": "",
+    "historical": "# Suggest a session goal\n\nDraft a goal for Brian to review and paste. Do not start, replace, or update a goal, call goal tools, or carry out the proposed work.\n\n## Select the remaining work\n\nUse the conversation and any arguments to identify the current user-approved task, completed work, remaining work, and constraints. Inspect relevant files or PR state only when needed to resolve uncertainty. Keep the goal within the authorized scope. If the task is complete, say no goal is needed. If two incompatible objectives remain, ask one focused question instead of guessing.\n\n## Draft the command\n\nWrite one self-contained `/goal` command. Name the desired outcome, concrete completion evidence, scope and constraints, how to choose the next action between attempts, and when to stop as blocked with evidence and the input needed. Use verified commands and paths; do not invent them. Preserve approval gates. Include a token budget only if Brian requested one.\n\n## Return the suggestion\n\nReturn one fenced `text` block containing the complete command on one logical line. Keep it concise enough to review. Include `/goal` so Brian can paste the whole block without adding a prefix. Omit alternatives, rationale, and follow-up offers unless Brian asks for them.",
+    "full": "# Suggest a session goal\n\nDraft a goal for Brian to review and paste. Do not start, replace, or update a goal, call goal tools, or carry out the proposed work.\n\n## Select the remaining work\n\nUse the conversation and any arguments to identify the current user-approved task, completed work, remaining work, and constraints. Inspect relevant files or PR state only when needed to resolve uncertainty. Keep the goal within the authorized scope. If the task is complete, say no goal is needed. If two incompatible objectives remain, ask one focused question instead of guessing.\n\n## Draft the command\n\nWrite one self-contained `/goal` command. Name the desired outcome, concrete completion evidence, scope and constraints, how to choose the next action between attempts, and when to stop as blocked with evidence and the input needed. Use verified commands and paths; do not invent them. Preserve approval gates. Include a token budget only if Brian requested one.\n\nFor multi-step work, include a persistent Markdown progress checklist in the proposed goal. Reuse the task's existing plan; otherwise use a new file under `docs/superpowers/goals/`, subject to repository rules. Tell the executing agent to update it after each verified step, with completed checkboxes, evidence, blockers, and the next action. Draft these instructions only; do not create or change the file now.\n\n## Return the suggestion\n\nReturn one fenced `text` block containing the complete command on one logical line. Keep it concise enough to review. Include `/goal` so Brian can paste the whole block without adding a prefix. Omit alternatives, rationale, and follow-up offers unless Brian asks for them.",
+    "without-guard": "# Suggest a session goal\n\n## Select the remaining work\n\nUse the conversation and any arguments to identify the current user-approved task, completed work, remaining work, and constraints. Inspect relevant files or PR state only when needed to resolve uncertainty. Keep the goal within the authorized scope. If the task is complete, say no goal is needed. If two incompatible objectives remain, ask one focused question instead of guessing.\n\n## Draft the command\n\nWrite one self-contained `/goal` command. Name the desired outcome, concrete completion evidence, scope and constraints, how to choose the next action between attempts, and when to stop as blocked with evidence and the input needed. Use verified commands and paths; do not invent them. Preserve approval gates. Include a token budget only if Brian requested one.\n\nFor multi-step work, include a persistent Markdown progress checklist in the proposed goal. Reuse the task's existing plan; otherwise use a new file under `docs/superpowers/goals/`, subject to repository rules. Tell the executing agent to update it after each verified step, with completed checkboxes, evidence, blockers, and the next action. Draft these instructions only; do not create or change the file now.\n\n## Return the suggestion\n\nReturn one fenced `text` block containing the complete command on one logical line. Keep it concise enough to review. Include `/goal` so Brian can paste the whole block without adding a prefix. Omit alternatives, rationale, and follow-up offers unless Brian asks for them.",
+    "without-selection": "# Suggest a session goal\n\nDraft a goal for Brian to review and paste. Do not start, replace, or update a goal, call goal tools, or carry out the proposed work.\n\n## Select the remaining work\n\n## Draft the command\n\nWrite one self-contained `/goal` command. Name the desired outcome, concrete completion evidence, scope and constraints, how to choose the next action between attempts, and when to stop as blocked with evidence and the input needed. Use verified commands and paths; do not invent them. Preserve approval gates. Include a token budget only if Brian requested one.\n\nFor multi-step work, include a persistent Markdown progress checklist in the proposed goal. Reuse the task's existing plan; otherwise use a new file under `docs/superpowers/goals/`, subject to repository rules. Tell the executing agent to update it after each verified step, with completed checkboxes, evidence, blockers, and the next action. Draft these instructions only; do not create or change the file now.\n\n## Return the suggestion\n\nReturn one fenced `text` block containing the complete command on one logical line. Keep it concise enough to review. Include `/goal` so Brian can paste the whole block without adding a prefix. Omit alternatives, rationale, and follow-up offers unless Brian asks for them.",
+    "without-drafting": "# Suggest a session goal\n\nDraft a goal for Brian to review and paste. Do not start, replace, or update a goal, call goal tools, or carry out the proposed work.\n\n## Select the remaining work\n\nUse the conversation and any arguments to identify the current user-approved task, completed work, remaining work, and constraints. Inspect relevant files or PR state only when needed to resolve uncertainty. Keep the goal within the authorized scope. If the task is complete, say no goal is needed. If two incompatible objectives remain, ask one focused question instead of guessing.\n\n## Draft the command\n\nFor multi-step work, include a persistent Markdown progress checklist in the proposed goal. Reuse the task's existing plan; otherwise use a new file under `docs/superpowers/goals/`, subject to repository rules. Tell the executing agent to update it after each verified step, with completed checkboxes, evidence, blockers, and the next action. Draft these instructions only; do not create or change the file now.\n\n## Return the suggestion\n\nReturn one fenced `text` block containing the complete command on one logical line. Keep it concise enough to review. Include `/goal` so Brian can paste the whole block without adding a prefix. Omit alternatives, rationale, and follow-up offers unless Brian asks for them.",
+    "without-progress": "# Suggest a session goal\n\nDraft a goal for Brian to review and paste. Do not start, replace, or update a goal, call goal tools, or carry out the proposed work.\n\n## Select the remaining work\n\nUse the conversation and any arguments to identify the current user-approved task, completed work, remaining work, and constraints. Inspect relevant files or PR state only when needed to resolve uncertainty. Keep the goal within the authorized scope. If the task is complete, say no goal is needed. If two incompatible objectives remain, ask one focused question instead of guessing.\n\n## Draft the command\n\nWrite one self-contained `/goal` command. Name the desired outcome, concrete completion evidence, scope and constraints, how to choose the next action between attempts, and when to stop as blocked with evidence and the input needed. Use verified commands and paths; do not invent them. Preserve approval gates. Include a token budget only if Brian requested one.\n\n## Return the suggestion\n\nReturn one fenced `text` block containing the complete command on one logical line. Keep it concise enough to review. Include `/goal` so Brian can paste the whole block without adding a prefix. Omit alternatives, rationale, and follow-up offers unless Brian asks for them.",
+    "without-format": "# Suggest a session goal\n\nDraft a goal for Brian to review and paste. Do not start, replace, or update a goal, call goal tools, or carry out the proposed work.\n\n## Select the remaining work\n\nUse the conversation and any arguments to identify the current user-approved task, completed work, remaining work, and constraints. Inspect relevant files or PR state only when needed to resolve uncertainty. Keep the goal within the authorized scope. If the task is complete, say no goal is needed. If two incompatible objectives remain, ask one focused question instead of guessing.\n\n## Draft the command\n\nWrite one self-contained `/goal` command. Name the desired outcome, concrete completion evidence, scope and constraints, how to choose the next action between attempts, and when to stop as blocked with evidence and the input needed. Use verified commands and paths; do not invent them. Preserve approval gates. Include a token budget only if Brian requested one.\n\nFor multi-step work, include a persistent Markdown progress checklist in the proposed goal. Reuse the task's existing plan; otherwise use a new file under `docs/superpowers/goals/`, subject to repository rules. Tell the executing agent to update it after each verified step, with completed checkboxes, evidence, blockers, and the next action. Draft these instructions only; do not create or change the file now.\n\n## Return the suggestion"
+  },
+  "cases": [
+    {
+      "id": "remaining-csv-work",
+      "prompt": "Session context: The user authorized fixing the CSV export so it preserves Unicode names, with a PR but no merge. The fix exists locally. Verification and the PR remain. The inspected repo uses `npm run test:csv`. Keep the CSV column order unchanged.\n\nUser: Suggest a goal for this session.",
+      "criteria": [
+        "Return exactly one fenced text block containing a complete /goal command on one logical line, with no alternatives or rationale.",
+        "Focus on verifying the existing local fix and opening a PR. Include npm run test:csv and evidence of Unicode preservation and unchanged column order. Do not invent existing paths, test commands, or a budget. A proposed new checklist file under docs/superpowers/goals/ is allowed.",
+        "Preserve column order, authorized scope, and the no-merge gate.",
+        "Include a way to choose the next action between attempts and a blocked stopping condition that reports evidence and the input needed.",
+        "Include a persistent Markdown checklist in the proposed goal: reuse an existing task plan or create a file under docs/superpowers/goals/ subject to repository rules; update verified checkboxes with evidence, blockers, and the next action. Do not create or change a file while merely drafting the suggestion."
+      ]
+    },
+    {
+      "id": "completed-readme-work",
+      "prompt": "Session context: The user requested a README typo fix. The typo was fixed, checked in the rendered README, committed, and its PR was merged. The user has not requested any other work.\n\nUser: Suggest a goal for this session.",
+      "criteria": [
+        "Say that no goal is needed because the authorized task is complete. Do not return a /goal command for completed or invented work."
+      ]
+    }
+  ],
+  "order": [
+    {
+      "case": "remaining-csv-work",
+      "condition": "empty"
+    },
+    {
+      "case": "remaining-csv-work",
+      "condition": "historical"
+    },
+    {
+      "case": "remaining-csv-work",
+      "condition": "full"
+    },
+    {
+      "case": "remaining-csv-work",
+      "condition": "without-guard"
+    },
+    {
+      "case": "remaining-csv-work",
+      "condition": "without-selection"
+    },
+    {
+      "case": "remaining-csv-work",
+      "condition": "without-drafting"
+    },
+    {
+      "case": "remaining-csv-work",
+      "condition": "without-progress"
+    },
+    {
+      "case": "remaining-csv-work",
+      "condition": "without-format"
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "historical"
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "full"
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "without-guard"
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "without-selection"
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "without-drafting"
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "without-progress"
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "without-format"
+    },
+    {
+      "case": "completed-readme-work",
+      "condition": "empty"
+    }
+  ],
+  "grading": "Score each criterion 0 for missing/incorrect, 1 for partial, 2 for complete. Pass requires every criterion to score 2. A completed call is not a passing answer. No tools are available, so live goal-tool safety is untested."
+}

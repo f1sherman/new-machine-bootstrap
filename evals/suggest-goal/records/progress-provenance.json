@@ -1,0 +1,20 @@
+{
+  "source": {
+    "path": "roles/common/files/config/skills/pi/z-suggest-goal/SKILL.md",
+    "sha256": "6d1327c3720c5ea2c78d27610f9caa2212e4caae825114a3c901dd123926f631",
+    "baselineCommit": "2ac73ced27e931d9e03558615970f61ad713e5cf"
+  },
+  "experimentSha256": "be12809939ac1c2567a0ab0e0e15955593c9806de1ad4658a01d7a2def7094a5",
+  "sdkSha256": "df55dca273cb2a7053187b7b29d0fe5b91966a5099ab02d2efe38bb31c3f9738",
+  "runnerSha256": "a475a3bb1a89fe57f2214079cbab80e4927d29e3f66987f1541246e1cdc4ced8",
+  "scorerSha256": "020b31c524f50554b6e17db9d01d3ef1be393e6fc33d0487fc731a7a2876a11b",
+  "reporterSha256": "ea47624cafaf1c57b3dfd219b7d70a85fcbcff38089b3e4ca4104ef32f10454e",
+  "answersSha256": "1b74df8af73169f0282cf8290141736163a6ee719b267d7567fa9bc71da30eaa",
+  "omissions": [
+    "Absolute SDK and audit paths",
+    "Provider IDs and reasoning",
+    "Raw provider records",
+    "Failed-answer usage"
+  ],
+  "grading": "Author reviewed the anonymous output packet before inspecting condition labels. Drafted text is the requested product; no tools or live goal execution are tested."
+}

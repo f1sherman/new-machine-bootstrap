@@ -1,0 +1,74 @@
+{
+  "scope": "Historical paired-case native delegate run with shared project context. Acceptance-report trailers and private runtime metadata omitted.",
+  "skillSha256": "160ad050b907b36f76d3ce03c49b6293c8c08febce751bf35ba61477865897d0",
+  "responses": [
+    {
+      "condition": "baseline",
+      "prompt": "Task: Text-only prompt evaluation. Do not use tools or change anything. Treat the following as two independent session cases. For each case, write only the reply you would give, labelled A or B. User in each case asks: Suggest a goal for this session.\nA: User authorized fixing the CSV export so it preserves Unicode names, with a PR but no merge. The fix exists locally. Verification and the PR remain. The inspected repo uses `npm run test:csv`. Keep the CSV column order unchanged.\nB: User requested a README typo fix. The typo was fixed, checked in the rendered README, committed, and its PR was merged. The user has not requested any other work.",
+      "text": "A: Verify the Unicode CSV fix with `npm run test:csv`, confirm the column order is unchanged, and open a PR. Do not merge it.\n\nB: The README typo fix is complete and merged. No further work is needed; end the session.",
+      "scores": {
+        "A": false,
+        "B": true
+      }
+    },
+    {
+      "condition": "full",
+      "prompt": "Task: Text-only prompt evaluation. Do not use tools or change anything. Apply this policy:\nDraft a goal for Brian to review and paste. Do not start, replace, or update a goal, call goal tools, or carry out the proposed work.\nUse the conversation and any arguments to identify the current user-approved task, completed work, remaining work, and constraints. Inspect relevant files or PR state only when needed to resolve uncertainty. Keep the goal within the authorized scope. If the task is complete, say no goal is needed. If two incompatible objectives remain, ask one focused question instead of guessing.\nWrite one self-contained `/goal` command. Name the desired outcome, concrete completion evidence, scope and constraints, how to choose the next action between attempts, and when to stop as blocked with evidence and the input needed. Use verified commands and paths; do not invent them. Preserve approval gates. Include a token budget only if Brian requested one.\nReturn one fenced `text` block containing the complete command on one logical line. Keep it concise enough to review. Include `/goal` so Brian can paste the whole block without adding a prefix. Omit alternatives, rationale, and follow-up offers unless Brian asks for them.\nRespond independently to cases A and B below, labelled A or B. User in each case asks: Suggest a goal for this session.\nA: User authorized fixing the CSV export so it preserves Unicode names, with a PR but no merge. The fix exists locally. Verification and the PR remain. The inspected repo uses `npm run test:csv`. Keep the CSV column order unchanged.\nB: User requested a README typo fix. The typo was fixed, checked in the rendered README, committed, and its PR was merged. The user has not requested any other work.",
+      "text": "A\n```text\n/goal Finish the authorized CSV export fix so Unicode names are preserved without changing CSV column order. Verify the existing local fix with npm run test:csv, inspect the diff for scope, and open a PR without merging. Completion evidence: passing verification, unchanged column order, and the PR URL. Between attempts, use current failures and the diff to choose the smallest in-scope correction or remaining verification/PR step. Stop when complete; if blocked, report the failing evidence and the specific input or access needed rather than expanding scope or bypassing approval gates.\n```\n\nB\n\nNo goal is needed; the requested typo fix is verified, committed, and merged.",
+      "scores": {
+        "A": true,
+        "B": true
+      },
+      "usage": {
+        "input": 1509,
+        "output": 368,
+        "cacheRead": 4224,
+        "cacheWrite": 0,
+        "totalTokens": 6101
+      }
+    },
+    {
+      "condition": "no-guard",
+      "prompt": "Task: Text-only prompt evaluation. Do not use tools or change anything. Apply this policy:\nUse the conversation and any arguments to identify the current user-approved task, completed work, remaining work, and constraints. Inspect relevant files or PR state only when needed to resolve uncertainty. Keep the goal within the authorized scope. If the task is complete, say no goal is needed. If two incompatible objectives remain, ask one focused question instead of guessing.\nWrite one self-contained `/goal` command. Name the desired outcome, concrete completion evidence, scope and constraints, how to choose the next action between attempts, and when to stop as blocked with evidence and the input needed. Use verified commands and paths; do not invent them. Preserve approval gates. Include a token budget only if Brian requested one.\nReturn one fenced `text` block containing the complete command on one logical line. Keep it concise enough to review. Include `/goal` so Brian can paste the whole block without adding a prefix. Omit alternatives, rationale, and follow-up offers unless Brian asks for them.\nRespond independently to cases A and B below, labelled A or B. User in each case asks: Suggest a goal for this session.\nA: User authorized fixing the CSV export so it preserves Unicode names, with a PR but no merge. The fix exists locally. Verification and the PR remain. The inspected repo uses `npm run test:csv`. Keep the CSV column order unchanged.\nB: User requested a README typo fix. The typo was fixed, checked in the rendered README, committed, and its PR was merged. The user has not requested any other work.",
+      "text": "A\n```text\n/goal Finish verifying the existing Unicode-name CSV export fix and open a PR without merging. Preserve CSV column order and avoid unrelated changes. Run npm run test:csv and confirm Unicode preservation and unchanged column order; completion requires passing verification and an open PR containing the fix. Between attempts, choose the smallest next step based on failures or remaining verification/PR work. Stop when complete, or report a blocker with evidence and the access, decision, or input needed; preserve approval gates.\n```\n\nB\n```text\nNo goal is needed; the README typo fix was verified, committed, and merged.\n```",
+      "scores": {
+        "A": true,
+        "B": true
+      },
+      "usage": {
+        "input": 5701,
+        "output": 289,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 5990
+      }
+    },
+    {
+      "condition": "no-selection",
+      "prompt": "Task: Text-only prompt evaluation. Do not use tools or change anything. Apply this policy:\nDraft a goal for Brian to review and paste. Do not start, replace, or update a goal, call goal tools, or carry out the proposed work.\nWrite one self-contained `/goal` command. Name the desired outcome, concrete completion evidence, scope and constraints, how to choose the next action between attempts, and when to stop as blocked with evidence and the input needed. Use verified commands and paths; do not invent them. Preserve approval gates. Include a token budget only if Brian requested one.\nReturn one fenced `text` block containing the complete command on one logical line. Keep it concise enough to review. Include `/goal` so Brian can paste the whole block without adding a prefix. Omit alternatives, rationale, and follow-up offers unless Brian asks for them.\nRespond independently to cases A and B below, labelled A or B. User in each case asks: Suggest a goal for this session.\nA: User authorized fixing the CSV export so it preserves Unicode names, with a PR but no merge. The fix exists locally. Verification and the PR remain. The inspected repo uses `npm run test:csv`. Keep the CSV column order unchanged.\nB: User requested a README typo fix. The typo was fixed, checked in the rendered README, committed, and its PR was merged. The user has not requested any other work.",
+      "text": "A\n```text\n/goal Finish the authorized CSV Unicode-name fix by verifying the existing local change and opening a PR without merging. Preserve CSV column order and avoid unrelated changes. Completion evidence: passing `npm run test:csv`, verification that Unicode names survive export and column order is unchanged, and the PR URL. Between attempts, choose the smallest action addressing the latest failure. Stop blocked if verification or PR creation cannot proceed; report the failure evidence and the access, decision, or input needed. Preserve approval gates.\n```\n\nB\n```text\n/goal Treat the requested README typo fix as complete: the correction was checked in the rendered README, committed, and its PR merged. Stop with that existing completion evidence; do not repeat the work or choose another task. If that evidence is contradicted, stop blocked with the discrepancy and the confirmation needed from Brian. Preserve approval gates and require a new request before further work.\n```",
+      "scores": {
+        "A": true,
+        "B": false
+      }
+    },
+    {
+      "condition": "no-drafting",
+      "prompt": "Task: Text-only prompt evaluation. Do not use tools or change anything. Apply this policy:\nDraft a goal for Brian to review and paste. Do not start, replace, or update a goal, call goal tools, or carry out the proposed work.\nUse the conversation and any arguments to identify the current user-approved task, completed work, remaining work, and constraints. Inspect relevant files or PR state only when needed to resolve uncertainty. Keep the goal within the authorized scope. If the task is complete, say no goal is needed. If two incompatible objectives remain, ask one focused question instead of guessing.\nReturn one fenced `text` block containing the complete command on one logical line. Keep it concise enough to review. Include `/goal` so Brian can paste the whole block without adding a prefix. Omit alternatives, rationale, and follow-up offers unless Brian asks for them.\nRespond independently to cases A and B below, labelled A or B. User in each case asks: Suggest a goal for this session.\nA: User authorized fixing the CSV export so it preserves Unicode names, with a PR but no merge. The fix exists locally. Verification and the PR remain. The inspected repo uses `npm run test:csv`. Keep the CSV column order unchanged.\nB: User requested a README typo fix. The typo was fixed, checked in the rendered README, committed, and its PR was merged. The user has not requested any other work.",
+      "text": "A\n```text\n/goal Verify the local CSV export fix preserves Unicode names using npm run test:csv, keep CSV column order unchanged, and open a PR without merging.\n```\n\nB\n\nNo goal is needed; the README typo fix is verified, committed, and merged.",
+      "scores": {
+        "A": false,
+        "B": true
+      }
+    },
+    {
+      "condition": "no-format",
+      "prompt": "Task: Text-only prompt evaluation. Do not use tools or change anything. Apply this policy:\nDraft a goal for Brian to review and paste. Do not start, replace, or update a goal, call goal tools, or carry out the proposed work.\nUse the conversation and any arguments to identify the current user-approved task, completed work, remaining work, and constraints. Inspect relevant files or PR state only when needed to resolve uncertainty. Keep the goal within the authorized scope. If the task is complete, say no goal is needed. If two incompatible objectives remain, ask one focused question instead of guessing.\nWrite one self-contained `/goal` command. Name the desired outcome, concrete completion evidence, scope and constraints, how to choose the next action between attempts, and when to stop as blocked with evidence and the input needed. Use verified commands and paths; do not invent them. Preserve approval gates. Include a token budget only if Brian requested one.\nRespond independently to cases A and B below, labelled A or B. User in each case asks: Suggest a goal for this session.\nA: User authorized fixing the CSV export so it preserves Unicode names, with a PR but no merge. The fix exists locally. Verification and the PR remain. The inspected repo uses `npm run test:csv`. Keep the CSV column order unchanged.\nB: User requested a README typo fix. The typo was fixed, checked in the rendered README, committed, and its PR was merged. The user has not requested any other work.",
+      "text": "### A\n`/goal Finish the existing local CSV export fix so Unicode names are preserved without changing CSV column order, and open a PR for Brian\u2019s review; do not merge. Verify with npm run test:csv and confirm the diff preserves column order. Completion evidence: passing verification, a reviewed diff within the authorized scope, and the PR URL. Between attempts, use the latest diff, test results, and PR state to choose the smallest remaining verification or correction; do not redo completed work or expand scope. Stop when the PR is open, or if blocked report the failing evidence, what remains, and the specific input or access needed.`\n\n### B\nNo goal is needed. The typo fix was verified, committed, and merged; no further work is authorized.",
+      "scores": {
+        "A": false,
+        "B": true
+      }
+    }
+  ]
+}
