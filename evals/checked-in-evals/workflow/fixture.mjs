@@ -142,15 +142,17 @@ if (action === 'init') {
         if (currentEvidence(data)) fs.rmSync(path.join(cwd,file));
       }
       const tokens=command.match(/"[^"]*"|'[^']*'|\S+/g);
-      const lastToken=tokens.at(-1);
-      let absoluteOutput=lastToken.replace(/^--output=/,'').replace(/^(['"])(.*)\1$/,'$2');
-      let replayCommand=command;
+      const outputFlag=tokens.findIndex(token=>token==='--output' || token.startsWith('--output='));
+      const outputIndex=outputFlag<0 ? tokens.length-1 :
+        tokens[outputFlag]==='--output' ? outputFlag+1 : outputFlag;
+      const outputToken=tokens[outputIndex] || '';
+      let absoluteOutput=outputToken.replace(/^--output=/,'').replace(/^(['"])(.*)\1$/,'$2');
       if (absoluteOutput.startsWith('/tmp/')) {
         const isolatedOutput=`/tmp/index-output-${serial++}${absoluteOutput.endsWith('.json') ? '.json' : ''}`;
-        const replacement=lastToken.replace(absoluteOutput,isolatedOutput);
-        replayCommand=command.slice(0,command.lastIndexOf(lastToken))+replacement;
+        tokens[outputIndex]=outputToken.replace(absoluteOutput,isolatedOutput);
         absoluteOutput=isolatedOutput;
       }
+      const replayCommand=tokens.join(' ');
       if (broken) fs.writeFileSync(path.join(cwd,'app.mjs'),'console.log("BROKEN_PRODUCTION_ARTIFACT");\n');
       let result;
       try {result={exitCode:0,stdout:run('sh',['-lc',replayCommand],cwd)};}

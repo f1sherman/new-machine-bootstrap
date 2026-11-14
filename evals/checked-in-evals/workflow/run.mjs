@@ -97,6 +97,9 @@ try {
       {name:'positional-output-condition-provenance',command:`mkdir -p evals; cp .local/study.mjs evals/run.mjs; node -e 'const fs=require("node:fs");const f="evals/run.mjs",q=String.fromCharCode(39);let s=fs.readFileSync(f,"utf8");s=s.replace("process.argv[process.argv.indexOf("+q+"--output"+q+") + 1]", "process.argv[2]").replace("!process.argv.includes("+q+"--output"+q+") || !output", "!output").replace("sourceSha256:crypto.createHash("+q+"sha256"+q+").update(fs.readFileSync("+q+"app.mjs"+q+")).digest("+q+"hex"+q+"),", "").replace("runtime:process.version,cases,conditions,results", "runtime:process.version,cases,conditions:[{id:"+q+"full"+q+",sourceSha256:crypto.createHash("+q+"sha256"+q+").update(fs.readFileSync("+q+"app.mjs"+q+")).digest("+q+"hex"+q+")}],results");fs.writeFileSync(f,s)'; node evals/run.mjs evals/records; printf 'Node 22: node evals/run.mjs tmp/new-run\\n' > evals/README.md; git add app.mjs REPORT.md evals`,pass:true},
       {name:'stale-record',kind:'stale-fixture',command:'mkdir -p evals; cp .local/study.mjs evals/run.mjs; cp -R .local/captured evals/records; printf "Node 22: node evals/run.mjs --output tmp/new-run.\\n" > evals/README.md; git add app.mjs REPORT.md evals',pass:false}
     ];
+    const staleOutput=examples.find(example=>example.name==='absolute-output-stale-source');
+    examples.push({...staleOutput,name:'absolute-output-before-option',
+      command:staleOutput.command.replace('/tmp/fresh-run','/tmp/fresh-run --verbose')});
     for (const example of examples) {
       const id=create(example.kind||'report-only');
       try {
