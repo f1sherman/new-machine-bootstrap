@@ -19,8 +19,9 @@ one-shell-code-block output contract is identical across conditions.
 
 Generated commands execute in Bash and Zsh. Argument cases use harmless stand-ins
 and an independent call log. Program cases use real stdout, including native
-`cat`, jq, and awk. Only declared option aliases are normalized. This measures
-argument traces and sample program output, not arbitrary CLI semantic equivalence.
+`cat`, jq, and awk. Declared option aliases and the global `kubectl -n` option
+before `get pod` are normalized. This measures argument traces and sample program
+output, not arbitrary CLI semantic equivalence.
 
 The shared Harbor driver writes `report.json` with per-trial combined, functional,
 and line-limit/heredoc policy outcomes. A combined pass requires all checks.
@@ -64,6 +65,42 @@ ignored output. Replay requires a fresh destination and the frozen manifest;
 it regrades captured responses without credentials or model calls. Freeze
 inputs/settings before comparing conditions; do not reroll policy failures.
 Historical archives and one-off runners are not maintained here.
+
+## Host Pi comparison
+
+`host-study.mjs` runs the same task-only prompts through an authenticated host
+Pi CLI with tools, sessions, context files, extensions, and skills disabled.
+The existing grader executes generated commands in its macOS sandbox. It adds
+one-component removals of the current guidance and an empty control. This is a
+standalone excerpt study; the incidental working-directory section differs from
+the container driver. See [Terra results](TERRA-RESULTS.md).
+
+Stage without model calls, then run a fresh study:
+
+```bash
+node evals/command-guidance/host-study.mjs --output tmp/host-stage
+node evals/command-guidance/host-study.mjs --live --output tmp/host-live
+```
+
+The default model is `openai-codex/gpt-6.1-terra`. Use `--model` to select
+another model on that provider. Each run requires a fresh output under `tmp/`.
+The runner saves the frozen inputs, raw streams, grader output, and receipts.
+It never executes generated commands outside the existing grader. Failed and
+incomplete trials are retained; no automatic retry replaces a response.
+
+Replay captured responses with the same grader, or regrade them with the current
+grader after a deliberate correction. Neither mode calls a model:
+
+```bash
+node evals/command-guidance/host-study.mjs --replay tmp/host-live \
+  --output tmp/host-replay
+node evals/command-guidance/host-study.mjs --regrade tmp/host-live \
+  --output tmp/host-regraded
+```
+
+Replay refuses a changed grader. Regrade records both grader hashes and retains
+prior assessments. Both modes validate the manifest, trial matrix, and receipts;
+a receipt is an integrity check, not a signature.
 
 ## Safety and requirements
 
