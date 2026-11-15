@@ -19,6 +19,12 @@ The example parent model is a run setting, not an installed pstack choice. Each 
 
 The grader checks actual recorded calls: discovery without save for setup; exactly one configured-model spawn for saved dispatch; resolution followed by no spawn/save for stale dispatch. A missing resolve fails the mechanism criterion even if the model safely abstains. Assertions validate known good/bad observations and reject malformed measurement data before requests start. Native tool schema validation remains active. All requested trials must finish; a timeout, model failure or missing response aborts as incomplete, not a behavioral failure. Raw streams, inputs, model usage and attempted calls remain in the private output directory. Grading does not establish recommendation quality, complete confirmation behavior, or general authorization safety.
 
+## Results: 2026-11-15
+
+After the upstream `how` brief moved into its skill file, the runner failed with `ENOENT` before its first trial. The runner now supplies that skill file without the deleted template. The adapter points to the same brief and retains its read-only and model-selection safeguards.
+
+With `openai-codex/gpt-6.1-sol`, medium thinking, all 15 trials completed. The baseline and candidate passed all three cases. Both used the updated upstream skill; the baseline adapter still named the deleted template, which this grader does not check. The minus-setup ablation passed all three cases. The minus-dispatch ablation passed setup but failed both dispatch cases; the empty-policy control failed all three. Total reported tokens for the three passing cases were 105,440 baseline, 89,339 candidate, and 90,752 minus-setup. The candidate used 16,101 fewer tokens than baseline; one trial per case does not establish a reliable savings. Failed cases are excluded from token comparisons. Raw streams are in the private run directory and may expire.
+
 ## Results: 2026-10-19
 
 Parent: openai-codex/gpt-6.1-sol, medium thinking. Fifteen trials completed for the initial candidate, followed by fifteen for the final candidate after adding explicit two-entry initial panel guidance and grader self-checks. All streams are retained separately. A preceding runner attempt failed on UTF-8 encoding before any model trial; the runner now explicitly decodes replay text as UTF-8. No unfavorable trial was selectively rerun.
