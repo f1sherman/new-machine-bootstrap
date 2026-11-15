@@ -86,10 +86,11 @@ References: the vendored pstack `poteto-mode/playbooks/eval.md` and
 Every requested trial is complete, incomplete, or a scored behavioral failure.
 Infrastructure errors, missing native evidence, and malformed verifier output
 are incomplete, never passes. Preserve earlier rows if a later trial fails.
-Never reroll a behavioral failure. Keep development failures and label them;
-fixing a grader does not justify regenerating an unfavorable candidate answer.
-Use Harbor's verifier-only regrade against saved artifacts when repairing a
-verifier, preserving original scores and the new verifier's identity.
+Never reroll a behavioral failure to replace it in the same study. Keep and
+label development failures while reviewing the study. Fixing a grader does not
+justify regenerating an unfavorable candidate answer. While artifacts remain
+available, use Harbor's verifier-only regrade and record both the original
+scores and the new verifier's identity.
 
 Read every candidate's tools, results, and final reply before publishing a
 conclusion. Keep raw transcripts, usage, frozen inputs, native results, and
@@ -97,7 +98,10 @@ receipts under the ignored output directory. Use `--audit` to check the saved
 run without Docker or inference. It verifies evidence; it is not regrading.
 Review raw material for secrets and private content before publication. Check
 in a concise, reviewed results record with input hashes and remaining limits.
-Ignored evidence is not Git-recoverable: preserve it before worktree retirement.
+Raw evidence is temporary, not a permanent archive. Keep it in the ignored
+`tmp/` directory through review and any needed regrading. It need not be copied
+or retained when the worktree is retired. A later rerun is a new sample, not a
+replay of the original trial. Record any exception that requires retention.
 
 Report behavior by case and condition. Compare tokens only for matched trials
 that both succeeded. Keep failure usage in raw audit artifacts, not savings
