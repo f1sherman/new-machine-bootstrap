@@ -1,5 +1,9 @@
 # Workspace guidance eval
 
+For new fragment work, use the [native pilot](native/README.md) and follow the
+[shared eval rules](../README.md). The runner documented below is the unchanged
+legacy host-model-loop study, not the native execution standard.
+
 Tests the shared Pi setup and cleanup guidance. It does not start Pi, register
 PR repair, deploy anything, or touch real abandoned work.
 

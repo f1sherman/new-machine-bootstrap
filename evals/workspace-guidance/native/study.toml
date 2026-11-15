@@ -1,0 +1,12 @@
+schema_version = 1
+guidance_dir = "../../../roles/common/files/pi/base-fragments"
+fragment = "13-workspace-cleanup.md"
+tasks = "tasks"
+
+[[assets]]
+source = "../../../roles/common/files/bin/repo-end"
+destination = "environment/repo-end"
+
+[[assets]]
+source = "../../../roles/common/files/bin/repo-lib.sh"
+destination = "environment/repo-lib.sh"
