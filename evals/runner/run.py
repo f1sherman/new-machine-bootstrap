@@ -38,6 +38,9 @@ def hashes(folder):
 
 
 def compile_guidance(directory, output, assembler):
+    if not any(directory.glob("*.md")):
+        output.write_text("")
+        return ""
     subprocess.run([str(assembler), str(directory), str(output)], check=True)
     return output.read_text()
 
@@ -51,7 +54,7 @@ def stage(study_file, output, model, trials):
     guidance = (source / study["guidance_dir"]).resolve()
     tasks = (source / study["tasks"]).resolve()
     fragment = study["fragment"]
-    if Path(fragment).name != fragment or not (guidance / fragment).is_file():
+    if Path(fragment).name != fragment or not fragment.endswith(".md") or not (guidance / fragment).is_file():
         raise ValueError("fragment must name a file in guidance_dir")
     hashes(guidance)
     hashes(tasks)

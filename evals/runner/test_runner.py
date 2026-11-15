@@ -32,6 +32,13 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual((output / 'empty.md').read_text(), '')
             self.assertEqual({row['case'] for row in manifest['matrix']}, {'write-a-note', 'edit-a-note'})
             self.assertNotEqual(manifest['matrix'][0]['condition'], manifest['matrix'][6]['condition'])
+            (guidance / '01-one.md').unlink()
+            single = root / 'single'
+            single.mkdir()
+            stage(study, single, 'openai/model', 1)
+            self.assertEqual((single / 'current.md').read_text(), 'Second rule.\n')
+            self.assertEqual((single / 'without.md').read_text(), '')
+            (guidance / '01-one.md').write_text('First rule.\n')
             # A changed frozen task cannot retain the same input identity.
             before = manifest['task_hashes']
             (output / 'tasks/current/write-a-note/instruction.md').write_text('Different task')
