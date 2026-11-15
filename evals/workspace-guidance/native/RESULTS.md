@@ -33,8 +33,13 @@ clean state, rather than partial main content. Its shallow command-string push
 check was removed instead of presenting it as a complete shell parser. A
 verifier-only Harbor regrade ran against **all six saved candidates**, with no
 new agent answers. All pass/fail outcomes stayed the same. That evidence is in
-`tmp/native-final-regrade`; the original results remain unchanged. Intact and
-removed-work cases exercised the real grader in separate containers. Transient
+`tmp/native-verified-regrade`; the original results remain unchanged. Intact and
+removed-work cases exercised the real grader in separate containers. A second
+review found candidate Git filters could run during status inspection. The
+verifier now replaces executable Git configuration and rejects unsafe metadata
+links. An injected clean-filter command did not execute, and all six saved
+candidates retained their original outcomes after another verifier-only regrade.
+A relocated copy of the confirmation also passed offline audit. Transient
 changes later reversed remain outside the automated checks.
 
 The earlier complete matrix in `tmp/native-confirmation-02` had the same 2/2,

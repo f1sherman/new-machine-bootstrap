@@ -37,8 +37,8 @@ def hashes(folder):
     return result
 
 
-def compile_guidance(directory, output):
-    subprocess.run([str(ROOT / "bin/assemble-guidance"), str(directory), str(output)], check=True)
+def compile_guidance(directory, output, assembler):
+    subprocess.run([str(assembler), str(directory), str(output)], check=True)
     return output.read_text()
 
 
@@ -79,12 +79,13 @@ def stage(study_file, output, model, trials):
     without = output / "without-fragment"
     shutil.copytree(frozen / "guidance", without)
     (without / fragment).unlink()
-    current = compile_guidance(frozen / "guidance", output / "current.md")
+    assembler = frozen / "assemble-guidance"
+    current = compile_guidance(frozen / "guidance", output / "current.md", assembler)
     removed_dir = output / "removed-fragment"
     removed_dir.mkdir()
     shutil.copy2(frozen / "guidance" / fragment, removed_dir / fragment)
-    removed = compile_guidance(removed_dir, output / "removed.md")
-    alternate = compile_guidance(without, output / "without.md")
+    removed = compile_guidance(removed_dir, output / "removed.md", assembler)
+    alternate = compile_guidance(without, output / "without.md", assembler)
     if current.count(removed) != 1 or current.replace(removed, "", 1) != alternate:
         raise ValueError("Ablation changes more than the selected fragment")
     (output / "empty.md").write_text("")
@@ -106,6 +107,9 @@ def stage(study_file, output, model, trials):
         for variant in variants:
             task = output / "tasks" / variant / case
             shutil.copytree(frozen / "tasks" / case, task)
+            if any((task / directory / "docker-compose.yaml").exists()
+                   for directory in ("environment", "tests")):
+                raise ValueError("Task Compose overrides require a shared runner capability change")
             config_file = task / "task.toml"
             config = tomllib.loads(config_file.read_text())
             if "steps" in config:
@@ -179,7 +183,8 @@ def collect(job, row):
     if any(value is None for value in usage.values()):
         raise ValueError("Incomplete native agent usage")
     return {**row, "status": "complete", "passed": all(rewards.values()),
-            "checks": rewards, "usage": usage, "evidence": str(file.parent)}
+            "checks": rewards, "usage": usage,
+            "evidence": str(file.parent.relative_to(job.parent.parent))}
 
 
 def summarize(rows):
@@ -221,7 +226,10 @@ def audit(output):
     for index, row in enumerate(report["results"]):
         planned = manifest["matrix"][index]
         job = output / "jobs" / f"run-{index}-{manifest['owner'][:8]}"
-        if collect(job, planned) != row:
+        actual = collect(job, planned)
+        # The saved location is a navigation hint, not a scoring input. Older
+        # reports used host-absolute paths; relocation must not invalidate them.
+        if actual != {**row, "evidence": actual["evidence"]}:
             raise ValueError("Report differs from native evidence")
     if report["errors"] or len(report["results"]) != len(manifest["matrix"]):
         raise ValueError("Run is incomplete")

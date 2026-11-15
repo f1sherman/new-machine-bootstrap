@@ -42,6 +42,13 @@ class RunnerTests(unittest.TestCase):
             other.mkdir()
             with self.assertRaisesRegex(ValueError, 'networking'):
                 stage(study, other, 'openai/model', 1)
+            (root / 'tasks/write-a-note/task.toml').write_text('schema_version = "1.4"\n')
+            (root / 'tasks/write-a-note/environment/docker-compose.yaml').write_text(
+                'services:\n  main:\n    network_mode: host\n')
+            compose = root / 'compose'
+            compose.mkdir()
+            with self.assertRaisesRegex(ValueError, 'Compose overrides'):
+                stage(study, compose, 'openai/model', 1)
 
     def test_native_evidence_and_successful_pair_gates(self):
         with tempfile.TemporaryDirectory() as folder:

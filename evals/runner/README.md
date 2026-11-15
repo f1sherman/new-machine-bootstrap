@@ -156,7 +156,8 @@ errors. It exits nonzero for an incomplete run or any current-guidance failure.
 
 The output directory includes frozen source files, generated tasks, exact
 condition text, `manifest.json`, Harbor jobs, `report.json`, `summary.json`, and
-hash receipts. Main-agent native usage includes cached input; it does not measure
+hash receipts. New reports use relative evidence paths, so copied runs remain
+auditable after worktree retirement. Main-agent native usage includes cached input; it does not measure
 all future billing or a hidden judge. The summary includes only matched passes.
 Raw usage remains available for failures in the native audit evidence.
 

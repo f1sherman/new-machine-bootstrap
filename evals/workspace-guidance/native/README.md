@@ -42,8 +42,9 @@ image. Dependency/fixture setup occurs before restricted execution.
 
 ## Checks and limits
 
-The separate, networkless verifier inspects sanitized artifacts. It reads Git
-state with hooks and fsmonitor disabled. The expected commits come from the
+The separate, networkless verifier inspects sanitized artifacts. It replaces candidate Git configuration in its disposable copy, blocks metadata
+symlinks/common-directory redirects, and disables hooks, fsmonitor, global
+configuration, and replacement objects before reading state. The expected commits come from the
 fixed author/date/content in `environment/setup.sh`, not candidate claims.
 It checks final branch/worktree, main, and local remote state. Native session
 logs identify observed tool calls for manual review, not a shell-parser score.
