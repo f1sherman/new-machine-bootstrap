@@ -156,8 +156,8 @@ errors. It exits nonzero for an incomplete run or any current-guidance failure.
 
 The output directory includes frozen source files, generated tasks, exact
 condition text, `manifest.json`, Harbor jobs, `report.json`, `summary.json`, and
-hash receipts. New reports use relative evidence paths, so copied runs remain
-auditable after worktree retirement. Main-agent native usage includes cached input; it does not measure
+hash receipts. Relative evidence paths allow audit of a copied run if retention
+is needed. Main-agent native usage includes cached input; it does not measure
 all future billing or a hidden judge. The summary includes only matched passes.
 Raw usage remains available for failures in the native audit evidence.
 
@@ -165,8 +165,10 @@ Keep raw output private until reviewed. The foreground process owns each
 sequential Harbor job; Harbor deletes its agent, sidecar, and verifier containers
 on completion/error. If the process or host dies, inspect the recorded Harbor
 trial config and exact Compose project labels before cleanup. Do not prune
-Docker, delete another run's resources, or retire a worktree with the only copy
-of ignored evidence. Runtime images remain cached; deleting them is not required.
+Docker or delete another run's resources. Raw evidence is temporary under the
+[eval retention rules](../README.md#evidence-and-decisions); it need not be
+copied before worktree retirement. Runtime images remain cached; deleting them
+is not required.
 
 Current scope is single-step native Pi on Linux Docker with OpenAI inference and
 deterministic separate verifiers. Multi-step sessions, another agent/provider,

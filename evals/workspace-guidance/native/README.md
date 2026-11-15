@@ -71,7 +71,7 @@ tmp/harbor-venv/bin/python -m evals.runner.run --study "$f" \
   --output tmp/native-cleanup --live
 ```
 
-Use a fresh output directory. Keep all incomplete trials and all scored failures.
-Preserve the ignored confirmation, development, extension-proof, and regrade
-directories before retiring the worktree. Do not publish raw sessions without a
-separate privacy review.
+Use a fresh output directory. Keep incomplete trials and scored failures during
+review; do not replace them with retries. After review, raw output is temporary
+under the [eval retention rules](../../README.md#evidence-and-decisions). Do not
+publish raw sessions without a separate privacy review.

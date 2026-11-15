@@ -90,17 +90,16 @@ The selected cleanup fragment SHA-256 was
 `ea86eb89f587c0fd033d38c8e01972aef64ec08bd26388cfee9d16ed30aeb150`.
 
 Development directories `tmp/native-live-01` through `08`, and
-`tmp/native-confirmation-01`, remain preserved. They exposed image naming,
+`tmp/native-confirmation-01`, were retained during review. They exposed image naming,
 Harbor API-version, proxy-probe, file-transfer privilege, artifact-path, verifier
 ownership, and deleted-working-directory defects. Those incomplete workflows
 are not passing trials. No behavioral failure was replaced with a retry; later
 confirmation is a separate run with repaired infrastructure.
 
-The old host-model-loop evidence remains in Git history and the original
-`sandboxed-fragment-eval` worktree's ignored output. It does not validate this
-native route. Preserve all raw evidence before worktree retirement. Raw native
-sessions and access credentials require privacy review before any publication.
-The checked-in record contains only reviewed summaries and hashes.
+The old host-model-loop evidence does not validate this native route. Raw
+outputs are temporary under the [eval retention rules](../../README.md#evidence-and-decisions).
+Raw native sessions and access credentials require privacy review before any
+publication. This record contains reviewed summaries and hashes.
 
 ## Remaining boundaries
 
