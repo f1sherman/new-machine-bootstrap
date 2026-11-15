@@ -155,6 +155,9 @@ When the `bb` CLI is installed, `repo-end` refuses to remove a linked worktree w
 
 ## Testing
 
+Before adding, changing, running, or migrating guidance evals, read
+[`evals/README.md`](evals/README.md) and follow its shared-runner contract.
+
 **Local macOS Testing**:
 ```bash
 bin/setup

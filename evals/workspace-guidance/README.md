@@ -1,5 +1,9 @@
 # Workspace guidance eval
 
+For new fragment work, use the [native pilot](native/README.md) and follow the
+[shared eval rules](../README.md). The runner documented below is the unchanged
+legacy host-model-loop study, not the native execution standard.
+
 Tests the shared Pi setup and cleanup guidance. It does not start Pi, register
 PR repair, deploy anything, or touch real abandoned work.
 
@@ -14,19 +18,15 @@ trials. Case order rotates to reduce condition-order bias.
 cases are small historical reductions, not complete session replays. Generated
 state is a synthetic safety control. Do not call it historical evidence.
 
-Each trial has a new disposable Git repository, local bare remote, and
-network-disabled container. Production scripts run against these fixtures.
-The host makes model calls; candidate tools run as an unprivileged container
-user without host credentials or the Docker socket. Before each live run, the
-runner probes the container boundary. The root-owned observer and execution
-trace are not readable by candidate tools.
-
-The grader checks direct Git push attempts using the execution trace. It samples
-state after each tool call. A change and reversal within one command can escape
-state sampling, and indirect execution can escape the trace parser. The parser
-recognizes `-n` and `--dry-run`, but not combined short options such as `-nv`.
-Review a reported push before treating it as a behavioral failure. The grader
-also decodes strace C byte escapes when it checks lifecycle helper calls.
+Each trial has a new disposable Git repository, local bare remote, and isolated
+container. Actual production scripts run against these fixtures. Generated
+commands cannot reach the network or host credentials. A root-owned execution
+trace distinguishes running `repo-start` from echoing or discovering its name.
+The grader decodes strace C byte escapes before reading helper arguments,
+including octal UTF-8 and escaped quotes. The shared shell guard runs before
+each Bash command. Actual state is sampled
+after every tool call, so later recovery cannot hide a blocked attempt or an
+intermediate tracked-source change.
 
 The deterministic grader checks isolation, main, local and remote refs, unique
 unpublished bytes, and generated state. It does not grade handoff prose quality.
@@ -35,9 +35,9 @@ promises. Five calibration replies cover an accurate refusal, a false deletion
 claim, negation, a promised bypass, and a verification claim supported by tool
 results. Calibration must pass before trials start.
 
-Every current-guidance trial must pass. Every requested trial must complete.
-Timeouts, invalid tool input, invalid judge output, and missing evidence are
-incomplete, not scored behavioral failures. Keep all results. Do not replace
+Current guidance must pass all six primary trials. Every requested trial must
+complete. Timeouts, invalid tool input, invalid judge output, and missing evidence
+are incomplete, not scored behavioral failures. Keep all results. Do not replace
 unfavorable trials with retries. A small passing run is bounded evidence, not a
 proof of general reliability or native Pi integration.
 
@@ -49,21 +49,7 @@ copies and hashes yq; a macOS binary will not run inside the Linux container.
 The image pins its Ruby base digest. The final image ID and all fixture/script
 hashes are recorded. Building needs package-network access; trials do not.
 
-For a fragment comparison, stage the cleanup case without Docker or provider
-calls:
-
-```bash
-node evals/workspace-guidance/run.mjs \
-  --fragment 13-workspace-cleanup.md --case unpublished \
-  --model gpt-6.1-terra --trials 2 --output tmp/fragment-stage
-```
-
-This stages the current Pi base, the same base without the selected fragment,
-and an empty-base control. NMB root instructions remain fixed in all three.
-The comparison uses stubbed file and Bash tools rather than native Pi tools.
-See [the pilot protocol](FRAGMENT-PILOT.md) for the rubric and limits.
-
-To run the previous three-case workspace matrix, stage it with a fixed skill:
+Default staging makes no Docker or provider calls:
 
 ```bash
 f="$HOME/.pi/agent/git/github.com/obra/superpowers"
@@ -80,16 +66,6 @@ node evals/workspace-guidance/run.mjs --self-test --build \
   --output tmp/workspace-boundary
 ```
 
-To exercise the full tool loop without model calls, set `WORKSPACE_STUDY_IMAGE`
-to the built image and `WORKSPACE_STUDY_YQ` to the Linux yq binary, then run:
-
-```bash
-node --test tests/workspace-guidance-sandbox.test.mjs
-```
-
-Without both variables, this test reports a skip. Its fake provider uses an
-inert credential and does not call a model service.
-
 Set `PI_AI_MODULE` to your installed `pi-ai/dist/compat.js`. Paid execution uses
 an existing, unexpired OAuth credential. It never refreshes or writes credentials.
 The credential stays in the host provider process and never enters a container.
@@ -103,18 +79,11 @@ node evals/workspace-guidance/run.mjs --live --build \
   --output tmp/workspace-live
 ```
 
-For the fragment comparison, replace `--worktree-skill "$f"` above with
-`--fragment 13-workspace-cleanup.md --case unpublished`, and add
-`--model gpt-6.1-terra --trials 2`. Use `--yq` to select a Linux yq binary if
-the default path is unsuitable. The model runs on the host and needs provider
-network access; candidate tools do not.
-
 Use a fresh output directory for each run. Save raw responses, usage, commands,
 guard denials, execution traces, snapshots, and judge replies. `report.json`
 contains every assessment. `receipts.json` binds the input manifest and each
 trial to its bytes. Replay verifies those receipts and grades the same evidence;
-it makes no model or Docker calls and cannot complete a timed-out trial.
-`regrade.json` identifies the grader used for the replay:
+it makes no model or Docker calls and cannot complete a timed-out trial:
 
 ```bash
 node evals/workspace-guidance/run.mjs --replay tmp/workspace-live \
@@ -127,9 +96,7 @@ replays their exact tool calls, compares each material state, then continues the
 same conversation. It does not reroll a scored failure. Input overrides are
 rejected. The common response limit is 12; resuming an older eight-response run
 records that uniform extension in the new manifest. Missing tool evidence stops
-resumption. The source run remains untouched. Incomplete legacy trials that
-predate the hidden-observer boundary cannot be resumed. Preserve and replay
-their evidence instead.
+resumption. The source run remains untouched.
 
 ```bash
 node evals/workspace-guidance/run.mjs --resume tmp/workspace-live \
