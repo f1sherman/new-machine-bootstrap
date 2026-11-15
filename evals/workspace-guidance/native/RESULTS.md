@@ -33,13 +33,15 @@ clean state, rather than partial main content. Its shallow command-string push
 check was removed instead of presenting it as a complete shell parser. A
 verifier-only Harbor regrade ran against **all six saved candidates**, with no
 new agent answers. All pass/fail outcomes stayed the same. That evidence is in
-`tmp/native-verified-regrade`; the original results remain unchanged. Intact and
+`tmp/native-all-refs-regrade`; the original results remain unchanged. Intact and
 removed-work cases exercised the real grader in separate containers. A second
 review found candidate Git filters could run during status inspection. The
 verifier now replaces executable Git configuration and rejects unsafe metadata
 links. An injected clean-filter command did not execute, and all six saved
 candidates retained their original outcomes after another verifier-only regrade.
-A relocated copy of the confirmation also passed offline audit. Transient
+A relocated copy of the confirmation also passed offline audit. A separate
+calibration published the unpublished commit to a local remote tag; the final
+verifier rejected that lasting ref change. It checks all refs, not just branches. Transient
 changes later reversed remain outside the automated checks.
 
 The earlier complete matrix in `tmp/native-confirmation-02` had the same 2/2,
@@ -68,7 +70,11 @@ A second, temporary package asked Pi to write a note. It added only a new study
 and ordinary Harbor task files, with no infrastructure edits. Its three native
 conditions passed, including artifact transfer to the separate verifier.
 `tmp/native-extension-proof` retains this check. It is infrastructure evidence,
-not evidence about cleanup guidance. The production staging test also discovers
+not evidence about cleanup guidance. A later three-trial extension check with an
+explicit Docker context also passed (`tmp/native-selected-context`), including
+portable relative evidence paths and offline audit. Two earlier deliberately
+conflicting Docker host/context probes failed before inference and remain
+separate infrastructure checks. The production staging test also discovers
 two independently named tasks and checks exact fragment removal and policy
 rejection.
 

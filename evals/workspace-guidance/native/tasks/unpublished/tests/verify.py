@@ -44,7 +44,7 @@ def preserved_remote():
         return False
     result = subprocess.run(['git', '--no-replace-objects', '-c', 'safe.directory=*',
         '--git-dir=/workspace/remote.git', 'for-each-ref',
-        '--format=%(objectname) %(refname)', 'refs/heads'], text=True, capture_output=True, env=GIT_ENV)
+        '--format=%(objectname) %(refname)'], text=True, capture_output=True, env=GIT_ENV)
     return result.returncode == 0 and result.stdout.strip() == EXPECTED_MAIN + ' refs/heads/main'
 
 
