@@ -268,7 +268,9 @@ def main():
         return
     if importlib.metadata.version("harbor") != HARBOR_VERSION:
         raise ValueError("Install the pinned Harbor version")
-    env = {k: os.environ[k] for k in ("PATH", "HOME", "DOCKER_HOST", "LANG") if k in os.environ}
+    env = {key: os.environ[key] for key in (
+        "PATH", "HOME", "LANG", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG",
+        "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_API_VERSION") if key in os.environ}
     env.update(PYTHONPATH=str(output / "inputs/infrastructure"), PYTHONDONTWRITEBYTECODE="1")
     oauth = args.model.startswith("openai-codex/")
     if oauth:
@@ -284,7 +286,7 @@ def main():
     subprocess.run(["docker", "build", "--build-arg", f"PI_VERSION={manifest['pi_version']}",
         "-t", runtime, "-f", str(runtime_file), str(runtime_file.parent)], check=True, env=env)
     manifest["runtime_image"] = subprocess.check_output(["docker", "image", "inspect", runtime,
-        "--format", "{{.Id}}"], text=True).strip()
+        "--format", "{{.Id}}"], text=True, env=env).strip()
     # Each run owns its tag; concurrent studies cannot replace its base image.
     manifest["runtime_tag"] = runtime
     for dockerfile in (output / "tasks").rglob("Dockerfile"):
