@@ -1,0 +1,5 @@
+{
+  "program": "awk",
+  "input": "active 4\ninactive 7\nactive 9\n",
+  "stdout": "13\n"
+}

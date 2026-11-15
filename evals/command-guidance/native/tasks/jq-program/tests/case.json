@@ -1,0 +1,5 @@
+{
+  "program": "jq",
+  "input": "{\"items\":[{\"ready\":true,\"metadata\":{\"name\":\"alpha\"}},{\"ready\":false,\"metadata\":{\"name\":\"beta\"}},{\"ready\":true,\"metadata\":{\"name\":\"gamma\"}}]}",
+  "stdout": "alpha\ngamma\n"
+}

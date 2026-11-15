@@ -1,0 +1,14 @@
+{
+  "calls": [
+    {
+      "command": "tool",
+      "args": [
+        "--message",
+        "Production application configuration archive for the remote environment release channel."
+      ]
+    }
+  ],
+  "options": {
+    "--message": []
+  }
+}

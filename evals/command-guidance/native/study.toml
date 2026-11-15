@@ -1,0 +1,12 @@
+schema_version = 1
+guidance_dir = "../../../roles/common/files/pi/base-fragments"
+fragment = "24-terminal-commands.md"
+tasks = "tasks"
+
+[[assets]]
+source = "verify.py"
+destination = "tests/verify.py"
+
+[[assets]]
+source = "capture.py"
+destination = "environment/capture.py"
