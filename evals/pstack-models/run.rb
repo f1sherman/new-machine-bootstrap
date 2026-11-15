@@ -35,7 +35,6 @@ user_tasks.each do |test_case, task|
     upstream=File.join(root,'roles/common/files/vendor/pstack')
     files={'ADAPTER.md'=>policy,'MODEL-SETUP.md'=>File.read(File.join(source,'MODEL-SETUP.md')),
       'SKILL.md'=>File.read(File.join(upstream,'skills',test_case=='setup' ? 'setup-pstack':'how','SKILL.md')),
-      'explainer-prompt.md'=>File.read(File.join(upstream,'skills/how/references/explainer-prompt.md')),
       'link-managed-skill-tree'=>File.read(File.join(root,'roles/common/files/bin/link-managed-skill-tree'))}
     fixture={files:files,roles:roles,catalog:test_case=='stale' ? 'Available models in this session registry: fixture/fast.':'Available models in this session registry: fixture/fast, fixture/deep.',profile:test_case=='setup' ? nil:profile,resolution:test_case=='stale' ? {error:'model_unavailable'}:{status:'configured',selections:[{model:'fixture/deep'}]}}
     input=File.join(output,"#{name}-input.json")

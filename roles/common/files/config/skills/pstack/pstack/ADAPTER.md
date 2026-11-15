@@ -34,7 +34,7 @@ The local setup guide owns profile schema, budget handling and confirmation. Do 
 
 Separate agents provide separate contexts, not model diversity. When a panel uses the same model, state that fact and never claim multi-model consensus. If the user explicitly requires distinct models, discover available choices and report a blocker only if that requirement cannot be met.
 
-For Pi, discover native agents and use a read-only agent such as `reviewer` for `how` explorers and explainers. A role name in an upstream skill is a prompt responsibility, not a required installed agent name. For a narrow `how` task, fill `references/explainer-prompt.md` without explorer findings and give the chosen agent the question, repository path, this adapter, and read-only scope. Follow the installed orchestration rules for multiple delegates. A parent's delegated brief already assigns the role: an explainer executes it directly rather than recursively spawning another explainer.
+For Pi, discover native agents and use a read-only agent such as `reviewer` for the `how` explainer. A role name in an upstream skill is a prompt responsibility, not a required installed agent name. Give the chosen agent the question, the brief in `skills/how/SKILL.md`, repository path, this adapter, and read-only scope. Follow the installed orchestration rules for multiple delegates. A parent's delegated brief already assigns the role: an explainer executes it directly rather than recursively spawning another explainer.
 
 | Upstream concept | Native mapping |
 | --- | --- |
