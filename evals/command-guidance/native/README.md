@@ -1,4 +1,9 @@
-# Native terminal-fragment reassessment (revision 1)
+# Native terminal-fragment reassessment
+
+The pre-inference design and original harness are preserved at commit
+`d05cc2ee668b89a2d53ed65c263460dc2d4a2306`. The design below is unchanged;
+execution instructions now use the shared command template and calibration
+launcher. `RESULTS.md` separates the original trials from verifier-only regrading.
 
 ## Benefit to Brian
 
@@ -80,7 +85,10 @@ confirmation is unnecessary, keep them unrun and spend no additional inference.
 ## Grading and safety boundary
 
 `study.toml` is consumed by `evals.runner.run`, not a package-specific model loop.
-Task-local shared assets install the same verifier and harmless argument stubs.
+The shared command template supplies one Dockerfile, task settings, grading
+entry point, argument stubs, and execution safeguards. Study assets supply only
+the terminal-specific verifier and calibration cases. Individual cases contain
+instructions, grading data, and any input fixture or build-time setup script.
 Dependencies are installed at image build time. Candidate fixtures contain no
 checks, labels, alternative guidance, or real services. The native agent remains
 in Harbor's restricted UID1001 container with only the inference hostname allowed.
@@ -105,8 +113,9 @@ forms and cat's optional `--`; not arbitrary CLI semantics. Stub stdout is not
 real curl/tool behavior, and no request reaches a real service. The prior PR760
 excerpt/component results are case history only, not native full-base evidence.
 
-`calibrate.sh` builds the pinned shared runtime and exercises the actual grader
-in a disposable networkless container: correct, wrong, equivalent-safe answers
+The shared `evals.runner.calibrate` launcher builds the pinned runtime and each
+assembled task, then exercises its actual grader in a separate disposable
+networkless calibration container: correct, wrong, equivalent-safe answers
 for every case; stdout-transforming pipelines; separate width/heredoc failures;
 UID/capability/privilege checks; denied reads/writes of criteria/results; denied
 network; and the actual verifier entry point with a synthetic native session.
@@ -118,7 +127,9 @@ From this checkout, install the pinned Harbor environment as documented in
 `../../runner/README.md`, then:
 
 ```bash
-evals/command-guidance/native/calibrate.sh tmp/terminal-calibration
+f=evals/command-guidance/native/study.toml
+tmp/harbor-venv/bin/python -m evals.runner.calibrate --study "$f" \
+  --output tmp/terminal-calibration
 
 tmp/harbor-venv/bin/python -m evals.runner.run \
   --study evals/command-guidance/native/study.toml \

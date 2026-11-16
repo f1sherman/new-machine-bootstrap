@@ -15,11 +15,15 @@ All commands remained functionally correct, including the overlong ones.
 
 ## Frozen launch and execution
 
+These hashes describe the original launch and harness preserved at
+`d05cc2ee668b89a2d53ed65c263460dc2d4a2306`, not the later shared-infrastructure
+refactor. Its separate verifier-only evidence is recorded below.
+
 - Source/branch: `e42527005c21267267eb1b117a67e3250f4e34e1`, `reassess-terminal-fragment`.
 - Launch prompt revision: **1**, preserved at
   `d05cc2ee668b89a2d53ed65c263460dc2d4a2306:evals/fragment-reassessment.md`.
-  The current file is revision 2 for the next assignment; it is not the prompt
-  used for these trials.
+  The current file is revision 3 for future child assignments; it is not the
+  prompt used for these trials.
 - Prompt SHA256: `0beccffdce44095c6e2e1ba3003f850a3bf273d69d6c67ae846a4a33ba3fbe01`.
 - Inventory SHA256: `6cb2413a3103642e06b0077087ed101ce2fbb03485d996efa99bef01f702de8d`.
   This hashes Python `json.dumps(fragment_hash_mapping, sort_keys=True)` with
@@ -228,6 +232,65 @@ For the next reusable prompt revision:
 
 Parent review confirmed all 36 terminal answers and native tool calls against
 these outcomes, repeated calibration in `tmp/terminal-parent-calibration`, and
-passed the offline audit and runner tests. The reusable prompt is now revision 2
-with the corrections above; the original launch hash remains revision 1.
-No production change, extra inference, other fragment, or provisioning followed.
+passed the offline audit and runner tests. The original launch hash remains
+revision 1. The current revision 3 gives direct instructions without a historical
+lessons section, and assigns future execution to one BB child thread/worktree
+per fragment. No production change, extra inference, other fragment, or
+provisioning followed.
+
+## Shared infrastructure refactor and verifier-only confirmation
+
+The current package uses `evals/runner/templates/commands` for its Dockerfile,
+task settings, grading entry point, argument capture, terminal-response parsing,
+and protected command execution. Template defaults are overlaid by case files,
+then study assets. The 18 repeated Dockerfile/settings/entry-point files are gone;
+path-spaces now has a small build-time fixture setup script. Case instructions,
+expected observations, presentation checks, and the keep decision are unchanged.
+A common calibration launcher shares staging and runtime building with live runs.
+
+The extracted executor uses a trusted child bootstrap for privilege dropping
+instead of `preexec_fn` alongside a reader thread. This avoids unsafe work between
+fork and exec in a multithreaded verifier. Generated shell still runs with the
+same UID, limits, no-new-privileges, scratch, and process-group timeout policy.
+
+Confirmation performed without new inference:
+
+- `tmp/terminal-shared-calibration-v2/`: all six assembled cases passed correct,
+  wrong, and equivalent constructions, actual grader entry points, and shared
+  boundary probes. The probes also confirmed the three-second timeout.
+- `tmp/terminal-shared-regrade-v1/`: pinned Harbor regraded all **36 original
+  saved candidates** with the extracted verifier. Every named check matched
+  its original score: current **10/12**, without **6/12**, empty **6/12**.
+  Original raw evidence and scores were not modified.
+- The foreground regrade driver reached its 600-second tool timeout after 34
+  collected results. Trial 34 had no result and no surviving owner process.
+  Its two exact project-labelled containers and network were removed; the
+  incomplete attempt remains recorded. A bounded foreground recovery regraded
+  the final two saved answers under distinct names. No candidate was regenerated.
+- `tmp/shared-template-extension-calibration-v2/`: an independent one-case
+  package used the same template and launcher without changing infrastructure.
+  Correct and equivalent outputs passed; wrong output failed; boundary probes
+  and the actual verifier entry point passed.
+- The existing cleanup package staged successfully without a template. Three
+  shared-runner tests and the original saved-run audit passed.
+- Calibration v1 passed before adding owner-labelled containers, bounded
+  calibration calls, and exact-container cleanup to the launcher. V2 repeated
+  both packages with those controls. No owner-labelled containers remained.
+  Both versions used the same command executor and grading logic.
+
+Refactor identities (SHA256):
+
+| Input or result | SHA256 |
+| --- | --- |
+| Current study.toml | `55eb4d65fe4b24154f066d42ee9d1cd9e7f49f379f55bd01b4fef66677f45ee4` |
+| Terminal verify.py | `fc1358b20461095b77098c9b802aacf9d23e45fd7982147f46423f47b2026d70` |
+| Shared command_sandbox.py | `f49d664b7ba716cff97bce2d1d460ca0344fbf41d2921075639f0af6c76cae0b` |
+| Shared command Dockerfile | `b82d371342c13911672b05d1687a490b2e2ecee3891b3df98aeae8888ebbfee6` |
+| Calibration v2 manifest | `3d0382b02aa3a7580f7e522a3969510e8673f46007467d2f8ddbe94d44be47f7` |
+| Calibration v2 results | `21dcc67fc107b9cfa3367dbc11f4c309e9d4345d3e60c0f38bde4310aad46017` |
+| Regrade v1 report | `79b9f6b4ea769006d481ecb5c3ead1c131354a16094b20828f138065e1aa9aab` |
+
+The original native sessions remain the only paid sample. This refactor verifies
+new task assembly and grading of those answers; it is not a new model comparison
+or proof that future candidate trajectories will be identical. Prompt revision 3
+is assignment text, not a change to the candidate guidance tested here.

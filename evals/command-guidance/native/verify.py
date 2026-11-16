@@ -1,91 +1,9 @@
-"""Execute copy-paste answers without verifier authority, in the networkless verifier."""
-import ctypes
+"""Grade terminal-command meaning and presentation using the shared sandbox."""
 import json
-import os
 from pathlib import Path
 import re
-import resource
-import signal
-import subprocess
-import tempfile
-import threading
 
-
-UID = 1001
-
-
-def restrict_child():
-    os.setgroups([])
-    os.setgid(UID)
-    os.setuid(UID)
-    # PR_SET_NO_NEW_PRIVS, including for setuid binaries in the image.
-    assert ctypes.CDLL(None).prctl(38, 1, 0, 0, 0) == 0
-    resource.setrlimit(resource.RLIMIT_CPU, (2, 2))
-    resource.setrlimit(resource.RLIMIT_FSIZE, (1024 * 1024, 1024 * 1024))
-    resource.setrlimit(resource.RLIMIT_NPROC, (32, 32))
-    resource.setrlimit(resource.RLIMIT_AS, (256 * 1024 * 1024, 256 * 1024 * 1024))
-    os.umask(0o077)
-
-
-def protect_verifier():
-    assert os.getuid() == 0
-    for name in ('/tests', '/logs', '/workspace'):
-        path = Path(name)
-        assert path.is_dir() and not path.is_symlink()
-        os.chown(path, 0, 0)
-        path.chmod(0o700)
-    # No credential is installed in this fresh verifier image.
-    assert not Path('/home/worker/.pi/agent/auth.json').exists()
-
-
-def execute(command, case, shell):
-    with tempfile.TemporaryDirectory(prefix='commands-') as directory:
-        scratch = Path(directory)
-        if case.get('program') in ('jq', 'awk'):
-            (scratch / ('input.json' if case['program'] == 'jq' else 'input.txt')).write_text(case['input'])
-        os.chown(scratch, UID, UID)
-        scratch.chmod(0o700)
-        read_fd, write_fd = os.pipe()
-        records = bytearray()
-
-        def collect():
-            with os.fdopen(read_fd, 'rb') as stream:
-                while chunk := stream.read(4096):
-                    if len(records) < 65536:
-                        records.extend(chunk[:65536 - len(records)])
-
-        reader = threading.Thread(target=collect, daemon=True)
-        reader.start()
-        env = {'HOME': '/home/eval', 'PATH': '/usr/bin:/bin',
-               'TMPDIR': directory, 'TMPPREFIX': directory + '/zsh', 'LC_ALL': 'C.UTF-8'}
-        if 'calls' in case:
-            env['PATH'] = '/opt/command-stubs:' + env['PATH']
-        env['COMMAND_CAPTURE_FD'] = str(write_fd)
-        # Output files are root-owned, unlinked, and never in candidate scratch.
-        with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
-            process = subprocess.Popen(['/bin/' + shell, '-f', '-eu', '-c', command],
-                cwd=scratch, env=env, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr,
-                pass_fds=(write_fd,), preexec_fn=restrict_child, start_new_session=True)
-            os.close(write_fd)
-            timed_out = False
-            try:
-                process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                timed_out = True
-            finally:
-                try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                process.wait()
-            reader.join(timeout=2)
-            assert not reader.is_alive(), 'Capture pipe did not close'
-            stdout.seek(0)
-            stderr.seek(0)
-            return {'status': process.returncode, 'timeout': timed_out,
-                    'stdout': stdout.read().decode(errors='replace'),
-                    'stderr': stderr.read().decode(errors='replace'),
-                    'calls': [json.loads(line) for line in records.decode().splitlines()]}
+from command_sandbox import execute, protect_verifier, terminal_response
 
 
 def normalize(call, case):
@@ -116,9 +34,12 @@ def grade(response, case):
     checks['line_limit'] = all(len(line) <= 80 for line in command.splitlines())
     # Conservative syntax screen; manual review distinguishes literal << data.
     checks['no_heredoc'] = '<<' not in command
+    files = {}
+    if case.get('program') in ('jq', 'awk'):
+        files['input.json' if case['program'] == 'jq' else 'input.txt'] = case['input']
     successful = []
     for shell in ('bash', 'zsh'):
-        observed = execute(command, case, shell)
+        observed = execute(command, shell, files=files, capture='calls' in case)
         details['shells'][shell] = observed
         valid = observed['status'] == 0 and not observed['timeout'] and not observed['stderr']
         if 'calls' in case:
@@ -129,18 +50,6 @@ def grade(response, case):
         successful.append(bool(valid))
     checks['task'] = all(successful)
     return details
-
-
-def terminal_response():
-    sessions = list(Path('/logs/agent/pi/sessions').glob('*.jsonl'))
-    assert len(sessions) == 1, 'Expected one native session'
-    messages = [entry['message'] for line in sessions[0].read_text().splitlines()
-                if (entry := json.loads(line)).get('type') == 'message']
-    assistants = [m for m in messages if m.get('role') == 'assistant']
-    assert assistants and assistants[-1].get('stopReason') == 'stop', 'No terminal response'
-    content = assistants[-1]['content']
-    assert not any(p.get('type') == 'toolCall' for p in content), 'Unfinished tool call'
-    return ''.join(p['text'] for p in content if p.get('type') == 'text')
 
 
 if __name__ == '__main__':

@@ -4,8 +4,9 @@ Use the [shared runner](runner/README.md) for new fragment evals and migrations.
 Legacy runners remain historical evidence until migrated. They do not meet the
 new execution contract merely because they already use Docker or Harbor.
 When launching a child to reassess a fragment, use
-[the reassessment prompt](fragment-reassessment.md) and refresh its inventory and
-lessons before the next launch.
+[the reassessment prompt](fragment-reassessment.md). Keep coordination in the
+parent thread and give each future fragment its own child thread and worktree.
+Refresh the inventory and incorporate reviewed process changes before launch.
 
 ## Execution contract
 
@@ -33,8 +34,12 @@ lessons before the next launch.
 
 Each package has a `study.toml`, a README with the question and decision rule,
 and ordinary Harbor tasks. `study.toml` points to a guidance-fragment directory,
-one selected fragment, and the task directory. Optional assets copy versioned
-production files into task builds. Paths are relative to the study file.
+one selected fragment, and the task directory. An optional template supplies
+common task files; case files override it, then optional assets install shared
+or study-specific helpers. Paths are relative to the study file. Use shared
+Dockerfiles and task defaults when they fit instead of copying them per case.
+The shared calibration launcher exercises each assembled verifier without
+inference; see the runner documentation.
 
 A fragment can have multiple studies. Different studies can reuse the same
 Harbor tasks. A single study removes exactly one fragment. This gives direct

@@ -122,14 +122,23 @@ tasks/
     tests/...checks...
 ```
 
-Copy the *shape*, not the workspace case's behavior. The runner discovers every
-task subdirectory. There is no suite registry or eval-name branch.
+The runner discovers every task subdirectory. There is no suite registry or
+eval-name branch. Prefer a shared template to repeating the layout above. A
+study can set `template = "../../runner/templates/commands"` to use the common
+command-task Dockerfile, settings, grading entry point, argument stand-ins,
+and protected execution helper. Each case then needs only its instruction,
+grading data, and optional environment fixtures.
 
 `study.toml` contains `schema_version = 1`, `guidance_dir`, `fragment`, and
-`tasks`. Optional `[[assets]]` entries contain `source` and `destination`.
-Assets are copied into each task before hashing; destinations stay inside the
-task. Use these for real production helpers rather than stale copies.
-See [the cleanup study](../workspace-guidance/native/study.toml).
+`tasks`. Optional `template` names a directory containing task defaults. Staging
+copies the template into every case, overlays case files, then applies optional
+`[[assets]]` entries with `source` and `destination`. Files are replaced, not
+merged internally. Template and assembled inputs are frozen and hashed;
+destinations stay inside the task. The same networking and identity gates apply
+after assembly, including to template files. Use assets for shared or
+study-specific helpers rather than stale copies.
+See [the command study](../command-guidance/native/study.toml) for a template,
+or [the cleanup study](../workspace-guidance/native/study.toml) for a custom task.
 
 Each task is standard Harbor format. The environment Dockerfile starts with
 `FROM nmb-eval-runtime`; it adds only the case's fixture/dependencies. Build the
@@ -151,6 +160,51 @@ supporting detail. Missing checks or missing native usage are infrastructure
 errors. A valid zero is a behavioral failure, not a reason to retry. The runner
 runs all conditions despite behavioral failures, but stops on infrastructure
 errors. It exits nonzero for an incomplete run or any current-guidance failure.
+
+## Command tasks and calibration
+
+The [command template](templates/commands) adds Zsh to the shared runtime. It
+copies case environment files into `/workspace` and runs an optional trusted
+`environment/setup.sh` at build time. This is fixture setup, not a candidate
+hook. A harmless `tool` stand-in is available to the native agent. The verifier
+can put the template's cat/curl/tool stand-ins on its PATH to measure arguments
+without making real requests. Checks and calibration code stay outside the
+agent image.
+
+Study `tests/verify.py` imports `command_sandbox` for protected paths, native
+terminal-response parsing, and bounded unprivileged execution. Call
+`protect_verifier()` before generated execution. `execute(command, shell,
+files=..., capture=...)` returns status, timeout, stdout, stderr, and argument
+records. It uses fresh scratch, UID1001, no-new-privileges, CPU/file/process/memory
+limits, a three-second timeout, and process-group cleanup. A trusted child
+bootstrap drops privileges before executing the shell; root does not evaluate
+the generated program. The helper is for cooperative fixtures, not hostile
+programs needing immutable traces or stronger container isolation.
+
+Supply a trusted Python `tests/calibrate.py` in each assembled task, directly
+or through an asset. It receives the case directory name as its argument and
+must exit nonzero on a failed check and print one JSON result on success.
+Command calibrators can call `calibrate_boundary()` to check identity, protected
+paths, denied networking, root recovery, and timeout handling through the actual
+execution helper. Keep correct/wrong/equivalent constructions in the study.
+
+```bash
+f=evals/command-guidance/native/study.toml
+tmp/harbor-venv/bin/python -m evals.runner.calibrate --study "$f" \
+  --output tmp/command-calibration
+```
+
+Calibration uses the same staging and runtime builder as live execution. It
+builds each case's task image, then a separate calibration image that adds only
+that case's tests. Containers run with no network, no host mounts, and no
+candidate credentials. No agent or inference client starts. Frozen inputs,
+image IDs, per-case results, and build logs stay in the output directory.
+Calibration output is not a paid run and is not accepted by `--audit`.
+The foreground launcher owns each uniquely named container and labels it with
+`nmb.eval.owner`. Task/calibration image builds have a 600-second limit; each
+calibration script has a 120-second limit. The launcher attempts exact-container
+cleanup on exit. After a killed launcher, inspect that run's owner label and
+image tags before cleanup; never prune unrelated Docker resources.
 
 ## Outputs and ownership
 

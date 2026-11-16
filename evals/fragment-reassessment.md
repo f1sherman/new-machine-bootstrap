@@ -1,96 +1,65 @@
-# One-fragment child assignment
+# Reassess one guidance fragment
 
-Prompt revision: 2. This thread's parent orchestrates one fragment at a time.
-Before each launch, refresh the fragment inventory and open work, then update
-this prompt with lessons from the previous child. Record the launch revision,
-prompt hash, source commit, inventory hash, and selected fragment hash in the
-study record. Hash the sorted filename-to-SHA256 mapping with Python
-`json.dumps(mapping, sort_keys=True)`, default separators, and no trailing newline;
-keep the metadata-file hash separate. Verify every individual fragment hash.
-Changes to the inventory or fragment invalidate stale assumptions.
-Existing evals and fragments without evals use the same reassessment process.
+Prompt revision: 3.
 
-## Launch inputs
+## Parent launch
 
-The parent supplies the fragment, isolated worktree, source ref, prior work,
-and execution bound. Read the repository instructions, `evals/README.md`,
-`evals/runner/README.md`, and the installed `eval-design` skill before work.
-Use the supplied worktree; leave production guidance unchanged for parent review.
+Keep orchestration in the parent thread. Launch one BB child thread with its own
+worktree for each future fragment. Supply the fragment, source ref, current
+inventory, open related work, and execution bound. Set a timeout that covers
+setup, the full matrix, and review. Complete parent review of one fragment's
+disposition before selecting the next.
 
-## Assignment
+## Child assignment
 
-1. Identify each material rule, the original problem, and the concrete harm or
-   effort it avoids. Inspect history, existing evals, and overlapping safeguards.
-   Distinguish obsolete requirements from behavior the model may now supply.
-2. Reuse useful cases, not historical conclusions. Existing coverage is not
-   proof of necessity on the selected model. Add missing cases with organic
-   tasks that do not restate the tested policy. Label historical reductions,
-   synthetic cases, and stress cases. Map cases to rules and mark uncovered rules.
-3. Before paid generation, freeze the cases, grading rules, repetitions,
-   decision criteria, run limit, and known limits. Reserve fresh cases if tuning
-   or a removal recommendation could require confirmation. Validate the actual
-   grader against correct, incorrect, and equivalent safe behavior first.
-4. Use the shared native-agent runner with `openai-codex/gpt-6.1-terra`, medium
-   reasoning. Compare the complete current guidance, the same guidance with
-   only this fragment removed, and the empty-guidance control. Keep all other
-   inputs matched. Native Pi's built-in prompt remains in every condition.
-5. Preserve a neutral final-answer format contract across conditions. Inspect
-   every candidate's actual tools, outputs, and terminal reply; native agents
-   can execute a request before returning the requested copy-paste answer. Apply
-   presentation rules to that answer, not to internal tool commands. Report
-   task success, policy compliance, and infrastructure failures separately.
-   Regrade captured answers after grader repairs; preserve superseded scores.
-   Behavioral failures are results, not retry requests. Compare tokens only
-   for matched successful tasks; record the native cache-count convention.
-6. Recommend keep, remove, revise, or inconclusive for this fragment. State
-   which rules the evidence covers. No observed difference under redundant
-   safeguards is not proof of uselessness. Retain untested safeguards. Describe
-   any proposed revision without editing production guidance. If a tested
-   revision is authorized later, it needs its own matched comparison and fresh
-   confirmation cases. A bounded inconclusive result is a valid completion.
-7. Before launching, choose a registered job or foreground command and set a
-   child timeout that covers setup, the full matrix, and result review. Keep
-   process ownership attached to that mechanism. On timeout, inspect the exact
-   run owner and process before recovery; collect existing trials rather than
-   starting duplicate inference. Launch no untracked shell background process.
-8. Deliver runnable eval files and a reviewed study record. Include the frozen
-   design, per-case observations, disposition, limits, verification commands,
-   temporary evidence paths, and lessons for the next launch prompt. Check in
-   no credentials, private traces, or provider reasoning. Raw evidence stays
-   in ignored `tmp/` through review and needed regrading; it may expire afterward.
+Read the repository instructions, `evals/README.md`, `evals/runner/README.md`,
+and the installed `eval-design` skill. Use the supplied worktree.
 
-The child may implement task-local fixtures and grading. If required execution
-or isolation is absent, return a precise shared-capability blocker to the parent.
-Use no private replacement runner, weaker isolation, or suite-name dispatch.
-Generated commands must execute as an unprivileged user inside an isolated
-container, not on the host or as verifier root. Protect grading criteria and
-observations from the generated program. Verify the boundary before inference.
+1. Verify the source ref, fragment inventory, and related work. Record the source
+   commit, prompt revision and hash, selected fragment hash, and inventory hash.
+   Compute the inventory hash from the filename-to-SHA256 mapping with Python
+   `json.dumps(mapping, sort_keys=True)`, default separators, no trailing newline.
+   Record any metadata-file hash separately. Stop if launch inputs have changed.
+2. Identify every material rule, the problem it prevents, and overlapping
+   safeguards. Inspect history and existing evals. Reuse useful cases rather
+   than historical conclusions. Label reused, synthetic, and stress cases;
+   map them to rules and mark gaps. Keep tasks free of tested-policy reminders.
+3. Freeze cases, checks, repetitions, decision criteria, execution limits, and
+   known limits before paid generation. Reserve fresh confirmation cases when
+   removal or authorized tuning could require them. Calibrate correct, wrong,
+   and equivalent safe behavior through the actual grader before inference.
+4. Use shared task templates, the native-agent runner, and calibration launcher.
+   Keep fixtures and behavior checks study-specific. Return a precise shared
+   capability blocker if execution or isolation is missing; keep infrastructure
+   changes under parent review rather than building a private replacement.
+   Run generated code unprivileged inside the isolated container. Check that
+   grading criteria, results, artifacts, and calibration fixtures are protected.
+   Capture arguments independently of stdout and check real program output.
+5. Run `openai-codex/gpt-6.1-terra` with medium reasoning. Match complete current
+   guidance, that guidance minus exactly this fragment, and empty guidance.
+   Keep Pi's built-in prompt and all other inputs fixed. Keep execution attached
+   to a foreground command or registered job. On timeout, inspect the existing
+   run owner and process before recovery; collect existing trials without
+   duplicate inference. Behavioral failures remain results, not retry requests.
+6. Inspect every candidate's tools, results, and final reply. Grade actual
+   behavior and state, not claims. Apply presentation rules to the returned
+   copy-paste answer rather than internal tool commands. Report task success,
+   policy compliance, and infrastructure errors separately. Accept equivalent
+   safe behavior, including refusals where allowed. Regrade saved answers after
+   grader repairs and retain original scores. Compare native tokens only on
+   matched successful trials; cached input is already included in input.
+7. Recommend keep, remove, revise, or inconclusive. State which rules the
+   evidence covers. Retain untested safeguards. A null difference under
+   overlapping rules does not justify removal. Keep guided failures visible.
+   Use fresh confirmation only when the decision needs it. A tested revision
+   needs separate authorization, matched comparisons, and fresh confirmation.
+8. Commit runnable fixtures and a reviewed record with the frozen design,
+   hashes, per-case observations, disposition, limits, verification, and temporary
+   evidence paths. Keep credentials, private traces, and provider reasoning out
+   of Git. Keep raw evidence in ignored `tmp/` through review and needed regrading;
+   permanent retention is not required. Return the commit, evidence, and any
+   needed changes to shared tools or assignment instructions to the parent.
 
-Calibrate argument traces independently of stdout, and check real program
-stdout separately. Protect grading criteria, result paths, native artifacts,
-and calibration fixtures before generated execution. Verify the actual separate
-verifier's privilege/network policy rather than inferring it from the agent's.
-Keep guided failures as adherence gaps. Use no holdout calls when existing
-matched failures already support keeping the fragment. Distinguish exposure to
-a rule from merely allowing syntax that could exercise it.
-
-The parent owns final acceptance, publication, production inspection, deployment,
-and cleanup. Commit the verified deliverables and return the commit and evidence;
-the parent opens the single PR for this assignment. Start no other fragment,
-merge nothing, run no provisioning, and spawn no further children.
-
-## Prior lessons retained from revision 1
-
-- Retention is temporary. Keep reviewed results and runnable fixtures in Git,
-  rather than requiring raw archives before worktree retirement.
-- Native agent execution is required. A host-side model loop or host verifier
-  is not an equivalent migration. Prove the replacement verifier before paid
-  trials; useful cases can survive even when the old runner cannot.
-- Check actual protected state and command behavior, not shallow string matches
-  or assistant claims. The cleanup pilot exposed executable Git filters, missed
-  remote tags, detached HEAD, and tracked edits hidden by index flags.
-- Validate equivalent safe answers. A refusal without tool calls is not by
-  itself a policy failure. Missing evidence and execution errors stay incomplete.
-- Keep child publication under the parent. Before arming a PR monitor, match
-  the owning thread's checkout and branch to the PR; a different worktree can
-  leave automatic repair blocked even when passive observation starts.
+Leave production guidance unchanged. The parent owns acceptance, publication,
+production inspection, deployment, and cleanup. Start no other fragment, spawn
+no children, push nothing, open no PR, merge nothing, and run no provisioning.

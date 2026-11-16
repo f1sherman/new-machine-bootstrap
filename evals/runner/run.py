@@ -48,7 +48,7 @@ def compile_guidance(directory, output, assembler):
 def stage(study_file, output, model, trials):
     study = tomllib.loads(study_file.read_text())
     required = {"schema_version", "guidance_dir", "fragment", "tasks"}
-    if not required <= set(study) or set(study) - required - {"assets"} or study["schema_version"] != 1:
+    if not required <= set(study) or set(study) - required - {"assets", "template"} or study["schema_version"] != 1:
         raise ValueError("Study requires schema_version=1, guidance_dir, fragment, tasks")
     source = study_file.parent
     guidance = (source / study["guidance_dir"]).resolve()
@@ -60,7 +60,18 @@ def stage(study_file, output, model, trials):
     hashes(tasks)
     frozen = output / "inputs"
     shutil.copytree(guidance, frozen / "guidance")
-    shutil.copytree(tasks, frozen / "tasks")
+    if "template" in study:
+        template = source / study["template"]
+        hashes(template)
+        shutil.copytree(template, frozen / "template")
+        for task in sorted(tasks.iterdir()):
+            if not task.is_dir():
+                raise ValueError("Task entries must be directories")
+            destination = frozen / "tasks" / task.name
+            shutil.copytree(frozen / "template", destination)
+            shutil.copytree(task, destination, dirs_exist_ok=True)
+    else:
+        shutil.copytree(tasks, frozen / "tasks")
     infrastructure = frozen / "infrastructure/evals"
     shutil.copytree(ROOT / "evals/runner", infrastructure / "runner", ignore=shutil.ignore_patterns("__pycache__"))
     (infrastructure / "harbor").mkdir()
@@ -241,6 +252,29 @@ def audit(output):
     print("Verified receipts, inputs, native results, and summary; no Docker or model calls")
 
 
+def docker_environment():
+    return {key: os.environ[key] for key in (
+        "PATH", "HOME", "LANG", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG",
+        "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_API_VERSION") if key in os.environ}
+
+
+def build_runtime(output, manifest, env):
+    runtime = "nmb-eval-runtime:" + manifest["owner"]
+    runtime_file = output / "inputs/infrastructure/evals/runner/Dockerfile"
+    with (output / "runtime-build.log").open("w") as log:
+        subprocess.run(["docker", "build", "--build-arg", f"PI_VERSION={manifest['pi_version']}",
+            "-t", runtime, "-f", str(runtime_file), str(runtime_file.parent)],
+            check=True, env=env, stdout=log, stderr=subprocess.STDOUT)
+    manifest["runtime_image"] = subprocess.check_output(["docker", "image", "inspect", runtime,
+        "--format", "{{.Id}}"], text=True, env=env).strip()
+    # Each run owns its tag; concurrent studies cannot replace its base image.
+    manifest["runtime_tag"] = runtime
+    for dockerfile in (output / "tasks").rglob("Dockerfile"):
+        dockerfile.write_text(dockerfile.read_text().replace("FROM nmb-eval-runtime\n", "FROM " + runtime + "\n", 1))
+    manifest["task_hashes"] = hashes(output / "tasks")
+    save(output / "manifest.json", manifest)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--audit", type=Path)
@@ -271,9 +305,7 @@ def main():
         return
     if importlib.metadata.version("harbor") != HARBOR_VERSION:
         raise ValueError("Install the pinned Harbor version")
-    env = {key: os.environ[key] for key in (
-        "PATH", "HOME", "LANG", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG",
-        "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_API_VERSION") if key in os.environ}
+    env = docker_environment()
     env.update(PYTHONPATH=str(output / "inputs/infrastructure"), PYTHONDONTWRITEBYTECODE="1")
     oauth = args.model.startswith("openai-codex/")
     if oauth:
@@ -284,18 +316,7 @@ def main():
     host_tmp = output / "host-tmp"
     host_tmp.mkdir()
     env["TMPDIR"] = str(host_tmp)
-    runtime = "nmb-eval-runtime:" + manifest["owner"]
-    runtime_file = output / "inputs/infrastructure/evals/runner/Dockerfile"
-    subprocess.run(["docker", "build", "--build-arg", f"PI_VERSION={manifest['pi_version']}",
-        "-t", runtime, "-f", str(runtime_file), str(runtime_file.parent)], check=True, env=env)
-    manifest["runtime_image"] = subprocess.check_output(["docker", "image", "inspect", runtime,
-        "--format", "{{.Id}}"], text=True, env=env).strip()
-    # Each run owns its tag; concurrent studies cannot replace its base image.
-    manifest["runtime_tag"] = runtime
-    for dockerfile in (output / "tasks").rglob("Dockerfile"):
-        dockerfile.write_text(dockerfile.read_text().replace("FROM nmb-eval-runtime\n", "FROM " + runtime + "\n", 1))
-    manifest["task_hashes"] = hashes(output / "tasks")
-    save(output / "manifest.json", manifest)
+    build_runtime(output, manifest, env)
     report = {"results": [], "errors": []}
     save(output / "report.json", report)
     harbor = str(Path(sys.executable).parent / "harbor")
