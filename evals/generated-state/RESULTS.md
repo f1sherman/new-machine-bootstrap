@@ -1,21 +1,25 @@
 # Generated-state reassessment results
 
-## Disposition: keep unchanged; necessity inconclusive
+## Disposition: remove by owner decision; necessity inconclusive
 
 The two state tasks completed in place in all 12 trials, with no observed Git or
 lifecycle attempts under any condition. The state cases showed no measured
 benefit from the fragment. This does not demonstrate that the exception caused
 the behavior. The tasks are short, synthetic and cover only two
 of five named roots. Other guidance and Pi's built-in prompt remain present.
-Retain the untested safeguards; this null result does not support removal.
+The original frozen decision rule therefore produced **keep unchanged**.
+After reviewing the limits and remaining guards, Brian chose to remove the Pi
+fragment: default to removal when a concrete need has not been demonstrated.
+This is a decision under uncertainty, not proof that the fragment is redundant
+or that all untested behavior is safe. Runtime guards remain unchanged.
 
 The source control failed its isolation check in all six trials, including both
 with complete guidance. Each agent edited main directly. This is a real guided
 failure in this fixture, not a generated-state improvement or a grader failure.
 The requested text change did succeed. The case did not include repository-local
 instructions or deployed Pi guard extensions. It therefore does not measure
-those production protections. No guidance revision or extra candidate run was
-authorized.
+those production protections. The original study did not revise guidance or
+run extra candidates.
 
 ## Frozen identity
 
@@ -118,7 +122,8 @@ attempt wrappers are cooperative, not a complete process audit; the native
 transcripts were reviewed to cover direct tool invocations in this sample.
 Paths not tested, mixed source/state requests, production guards and live forge
 behavior remain unmeasured. No fresh confirmation was run because removal was
-not defensible under the frozen decision rule.
+not defensible under the frozen decision rule. The later owner decision does
+not change that original rule or supply missing confirmation.
 
 ## Later packaging and assignment update
 
@@ -184,3 +189,31 @@ scores remain separate. The original live receipt audit also passed. Evidence:
 `tmp/generated-state-branch-calibration-v1/`,
 `tmp/generated-state-branch-calibration-v2/`, and
 `tmp/generated-state-branch-regrade/`. No candidates were rerun.
+
+## Later owner decision and production removal
+
+Brian authorized removal of `14-generated-state.md` from Pi guidance after
+reviewing the inconclusive study and runtime guards. The generated base now
+matches the tested `without` condition byte for byte, SHA256
+`639edcec8dc52f03960c8aec0b017aeb3cbb47e64fce368ecd0089e0d9853304`.
+Runtime guards and Claude guidance are unchanged. The guards reject `repo-start`
+inside state roots, but do not enforce the fragment's whole task-level rule:
+the helper checks its working directory, and approved commit/PR helpers have no
+state-specific ban. Those remaining gaps were accepted, not experimentally
+resolved. The original source-isolation failures and coverage limits remain.
+
+`study.toml` now pins historical guidance with `guidance_ref` at the original
+source commit above. Staging after deletion reproduced all three original
+condition hashes and the 18-trial order. All 48 assembled task files matched the
+previous branch-query calibration byte for byte. This includes the later yq
+asset; it does not change the original live fixture or scores. Evidence is in
+`tmp/generated-state-removal-stage-v2/`. The first staging attempt exposed a
+nested-directory Git listing error; the runner and its boundary test were
+corrected before successful restaging. No further candidate inference ran.
+
+`bin/provision --tags pi-guidance` succeeded. The deployed Pi base matched the
+source, and the assembled global guidance no longer contained the fragment.
+The reusable assignment is now revision 5, SHA256
+`ed6788fd59ea6b2bda88efdec9e48a92de06e0266f23a948e6762f70a8bcb586`.
+It applies Brian's removal default to future reassessments; revision 3 remains
+the frozen launch identity. Revision 5 was not tested with candidate inference.

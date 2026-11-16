@@ -20,12 +20,24 @@ built-in prompt and other guidance, especially source setup and PR rules, overla
 with this fragment. The fixture installs the production lifecycle helpers and
 agent-state path guard; those can block an attempt without preventing it.
 
-Decision is **keep** if coverage is insufficient for removal, irrespective of a
-null result. An observed reduction in lifecycle attempts supports the in-place
-rule for these cases, not all paths or tools. A source-control regression is a
-separate result. A removal recommendation requires broader coverage, a plausible
-non-overlap argument and fresh confirmation; this design does not meet that bar,
-so no confirmation is planned. No revision is authorized.
+The frozen decision rule was **keep** if coverage was insufficient for removal,
+irrespective of a null result. An observed reduction in lifecycle attempts would
+support the in-place rule for these cases, not all paths or tools. A source-control
+regression was a separate result. A removal recommendation required broader
+coverage, a plausible non-overlap argument and fresh confirmation; this design
+did not meet that bar, so no confirmation was run.
+
+## Later owner decision
+
+Brian chose to remove the Pi fragment after reviewing the inconclusive result
+and guard coverage. Future reassessments default to removal without a
+demonstrated concrete need. This decision does not prove redundancy or safety
+for untested behavior. Runtime guards and Claude guidance remain unchanged.
+See [the results](RESULTS.md) for the original observations and remaining gaps.
+
+The study now pins `guidance_ref` to its original source commit. Its full,
+fragment-removed, and empty conditions remain the original comparison even after
+the production fragment is deleted. No additional candidate inference was run.
 
 ## Frozen design
 

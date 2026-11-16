@@ -130,7 +130,13 @@ and protected execution helper. Each case then needs only its instruction,
 grading data, and optional environment fixtures.
 
 `study.toml` contains `schema_version = 1`, `guidance_dir`, `fragment`, and
-`tasks`. Optional `template` names a directory containing task defaults. Staging
+`tasks`. Optional `guidance_ref` is a full 40-character Git commit SHA from the
+study's repository. It freezes `guidance_dir` from that commit instead of the
+working tree, so a study still runs after its fragment leaves production. The
+runner rejects mutable references and archived symlinks. The `current`,
+`without`, and `empty` labels then describe that historical baseline, not today's
+production guidance. All condition files and frozen inputs are still hashed.
+Optional `template` names a directory containing task defaults. Staging
 copies the template into every case, overlays case files, then applies optional
 `[[assets]]` entries with `source` and `destination`. Files are replaced, not
 merged internally. Template and assembled inputs are frozen and hashed;

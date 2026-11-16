@@ -1,5 +1,6 @@
 schema_version = 1
 guidance_dir = "../../roles/common/files/pi/base-fragments"
+guidance_ref = "47cb4252bf50a149f95d3eb00b83fd5a97da1f7c"
 fragment = "14-generated-state.md"
 tasks = "tasks"
 template = "../runner/templates/commands"

@@ -1,6 +1,6 @@
 # Reassess one guidance fragment
 
-Prompt revision: 4.
+Prompt revision: 5.
 
 ## Parent launch
 
@@ -52,10 +52,13 @@ and the installed `eval-design` skill. Use the supplied worktree.
    grader repairs and retain original scores. Compare native tokens only on
    matched successful trials; cached input is already included in input.
 7. Recommend keep, remove, revise, or inconclusive. State which rules the
-   evidence covers. Retain untested safeguards. A null difference under
-   overlapping rules does not justify removal. Keep guided failures visible.
-   Use fresh confirmation only when the decision needs it. A tested revision
-   needs separate authorization, matched comparisons, and fresh confirmation.
+   evidence covers. Default to removal when the study does not demonstrate a
+   concrete need for the fragment. Report untested behavior, overlapping guards,
+   and remaining risks; a null difference is not proof of redundancy or safety.
+   Distinguish an observed benefit from a choice under uncertainty. Keep guided
+   failures visible. Use fresh confirmation only when the decision needs it.
+   A tested revision needs separate authorization, matched comparisons, and
+   fresh confirmation. The parent approves production changes.
 8. Commit runnable fixtures and a reviewed record with the frozen design,
    hashes, per-case observations, disposition, limits, verification, and temporary
    evidence paths. Keep credentials, private traces, and provider reasoning out
