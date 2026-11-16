@@ -1,6 +1,0 @@
-schema_version = "1.4"
-artifacts = ["/workspace", "/home/worker/.claude/projects", "/home/worker/.codex/memories", "/logs/agent/pi/sessions"]
-[agent]
-timeout_sec = 300
-[verifier]
-timeout_sec = 120

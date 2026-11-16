@@ -1,6 +1,6 @@
 # Reassess one guidance fragment
 
-Prompt revision: 3.
+Prompt revision: 4.
 
 ## Parent launch
 
@@ -29,9 +29,12 @@ and the installed `eval-design` skill. Use the supplied worktree.
    removal or authorized tuning could require them. Calibrate correct, wrong,
    and equivalent safe behavior through the actual grader before inference.
 4. Use shared task templates, the native-agent runner, and calibration launcher.
-   Keep fixtures and behavior checks study-specific. Return a precise shared
-   capability blocker if execution or isolation is missing; keep infrastructure
-   changes under parent review rather than building a private replacement.
+   Build missing study-specific fixtures, behavior checks, and calibration
+   checks. An older package without `tests/calibrate.py` is not a shared
+   capability blocker. Stop paid trials on setup failure; continue safe setup
+   diagnosis and repairs. Return a precise shared capability blocker if
+   execution or isolation is missing; keep infrastructure changes under parent
+   review rather than building a private replacement.
    Run generated code unprivileged inside the isolated container. Check that
    grading criteria, results, artifacts, and calibration fixtures are protected.
    Capture arguments independently of stdout and check real program output.

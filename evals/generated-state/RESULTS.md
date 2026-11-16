@@ -1,10 +1,11 @@
 # Generated-state reassessment results
 
-## Disposition: keep
+## Disposition: keep unchanged; necessity inconclusive
 
 The two state tasks completed in place in all 12 trials, with no observed Git or
-lifecycle attempts under any condition. This does not demonstrate that the
-exception caused the behavior. The tasks are short, synthetic and cover only two
+lifecycle attempts under any condition. The state cases showed no measured
+benefit from the fragment. This does not demonstrate that the exception caused
+the behavior. The tasks are short, synthetic and cover only two
 of five named roots. Other guidance and Pi's built-in prompt remain present.
 Retain the untested safeguards; this null result does not support removal.
 
@@ -114,3 +115,21 @@ transcripts were reviewed to cover direct tool invocations in this sample.
 Paths not tested, mixed source/state requests, production guards and live forge
 behavior remain unmeasured. No fresh confirmation was run because removal was
 not defensible under the frozen decision rule.
+
+## Later packaging and assignment update
+
+After the study, the three identical task settings files were replaced with one
+study asset. The assembled package was calibrated again: all three cases passed.
+All 45 assembled task files matched the corrected pre-packaging calibration
+byte for byte, including each case's settings, artifact list and verifier.
+Staging also reproduced the 18-trial order and all three original condition
+hashes. Evidence is in `tmp/generated-state-packaging-calibration/` and
+`tmp/generated-state-packaging-stage/`; the calibration manifest SHA256 is
+`a1987c62915c0b4d798e7fe058878b4965580fbf23a2f330d6b3b7fc326f2b4b`.
+No further candidate inference was run.
+
+The reusable assignment was separately updated to revision 4 for the next
+study. Its SHA256 is
+`8c937ea5e49cc7ac95d19d27cf5ab237dc38945f17d11390d09d643c62bfc1ca`.
+Revision 3 and its launch hash above remain the identity of this study. The
+revision 4 instructions were not evaluated with candidate inference.

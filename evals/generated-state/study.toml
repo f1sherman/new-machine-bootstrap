@@ -5,6 +5,10 @@ tasks = "tasks"
 template = "../runner/templates/commands"
 
 [[assets]]
+source = "task.toml"
+destination = "task.toml"
+
+[[assets]]
 source = "setup.sh"
 destination = "environment/setup.sh"
 
