@@ -49,7 +49,9 @@ from stdout; they invoke real local Git and the production lifecycle helpers,
 except the local gh stand-in. A tool call that invokes a direct binary path,
 uses another alias, or modifies and then restores refs can evade that wrapper.
 Native session calls, results, and final replies must therefore be reviewed for
-every trial. Attempt logs are cooperative, not tamper-proof. Report tool
+every trial. The branch parser recognizes read-only query modes and operands,
+and treats explicit mutation options as attempts. Unsupported forms require
+manual review. Attempt logs are cooperative, not tamper-proof. Report tool
 attempts, final state and task success separately; an unrecorded attempt is not
 proof no attempt occurred. The verifier neutralizes copied Git config, disables
 hooks, fsmonitor and replacement objects, and rejects Git metadata symlinks
@@ -61,7 +63,10 @@ image build time from `vars/tool_versions.yml`. Its correct source construction
 runs the production `repo-start` as the worker; the equivalent construction uses
 Git directly. The wrong state construction both updates the file and attempts
 repo-start with stdout redirected, so it separately validates the attempt check.
-The wrong source construction edits main. Calibration also probes
+State calibration runs `git branch --list main` and `git branch --contains HEAD`
+before safe edits. It also attempts branch creation and deletion with redirected
+output, and checks the resulting state and attempt log. The wrong source
+construction edits main. Calibration also probes
 unprivileged execution, protected verifier files and network denial through the
 shared boundary helper. Candidates run in the native shared runner's restricted
 container; the verifier is separate and networkless.

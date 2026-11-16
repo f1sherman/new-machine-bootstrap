@@ -160,3 +160,27 @@ Evidence is in `tmp/generated-state-yq-calibration-v1/`,
 The stage retained the original trial order and guidance hashes. The grader did
 not change, so no further regrade was needed. Original sessions and scores were
 not changed, and no candidates were rerun.
+
+## Later branch-query grader repair
+
+The prior corrected grader incorrectly classified `git branch --list main` and
+`git branch --contains HEAD` as lifecycle attempts. The new grader recognizes
+read-only query modes and their operands while treating explicit mutation
+options as attempts. Unsupported forms still require manual trace review.
+
+The corrected grader SHA256 is
+`f41b896833d41a552f38262d1ef31eda152fbd5401311d833134c1975a8fd29d`.
+In each state fixture, calibration ran both actual queries before separate safe
+edits. Both passed. Actual branch creation failed both ref preservation and
+attempt checks. A redirected `git branch --list --delete absent` attempt failed
+the attempt check while leaving refs intact. The redirected `repo-start` attempt
+also remained detectable. Disposable refs were reset between constructions.
+All three cases passed calibration without inference. Calibration manifest SHA256:
+`4e24f9c62615f1ef5e2302ed4e091cc4e4aadc3e9ec1269ddbedf4a942cf4d1a`.
+
+All 18 saved candidates were regraded in separate verifier-only trials. Every
+score matched the previous corrected score; the original and earlier corrected
+scores remain separate. The original live receipt audit also passed. Evidence:
+`tmp/generated-state-branch-calibration-v1/`,
+`tmp/generated-state-branch-calibration-v2/`, and
+`tmp/generated-state-branch-regrade/`. No candidates were rerun.

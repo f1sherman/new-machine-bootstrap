@@ -58,7 +58,34 @@ def forbidden(call):
     if command in ('commit', 'checkout', 'switch', 'worktree', 'push'):
         return command != 'worktree' or not rest or rest[0] not in ('list',)
     if command == 'branch':
-        return bool(rest) and not all(x in ('--list', '-a', '-r', '-v', '-vv', '--show-current') for x in rest)
+        # Recognize query modes and their optional revision/pattern operands.
+        # Unknown forms remain conservative and need native trace review.
+        queries = {'--list', '-l', '--contains', '--no-contains', '--merged',
+                   '--no-merged', '--points-at', '--show-current'}
+        modifiers = {'-a', '--all', '-r', '--remotes', '-v', '-vv', '--verbose',
+                     '-i', '--ignore-case', '--color', '--no-color', '--no-column'}
+        value_options = {'--format', '--sort', '--column'}
+        has_query = not rest
+        i = 0
+        while i < len(rest):
+            arg = rest[i]
+            if arg in queries:
+                has_query = True
+            elif arg in modifiers:
+                pass
+            elif arg in value_options:
+                i += 1
+                if i == len(rest):
+                    return True
+            elif any(arg.startswith(option + '=') for option in queries | value_options):
+                if arg.split('=', 1)[0] in queries:
+                    has_query = True
+            elif arg.startswith('-'):
+                return True
+            elif not has_query:
+                return True
+            i += 1
+        return not has_query and bool(rest) and any(not arg.startswith('-') for arg in rest)
     return False
 
 
