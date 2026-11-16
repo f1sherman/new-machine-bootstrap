@@ -16,7 +16,10 @@ All commands remained functionally correct, including the overlong ones.
 ## Frozen launch and execution
 
 - Source/branch: `e42527005c21267267eb1b117a67e3250f4e34e1`, `reassess-terminal-fragment`.
-- Prompt revision: **1**, preserved in `evals/fragment-reassessment.md`.
+- Launch prompt revision: **1**, preserved at
+  `d05cc2ee668b89a2d53ed65c263460dc2d4a2306:evals/fragment-reassessment.md`.
+  The current file is revision 2 for the next assignment; it is not the prompt
+  used for these trials.
 - Prompt SHA256: `0beccffdce44095c6e2e1ba3003f850a3bf273d69d6c67ae846a4a33ba3fbe01`.
 - Inventory SHA256: `6cb2413a3103642e06b0077087ed101ce2fbb03485d996efa99bef01f702de8d`.
   This hashes Python `json.dumps(fragment_hash_mapping, sort_keys=True)` with
@@ -223,5 +226,8 @@ For the next reusable prompt revision:
    timeout recovery must inspect/adopt the exact existing owner before any new
    calls. This recovery amendment does not rewrite prompt revision 1 or its hash.
 
-Parent review/simplification and the single PR remain outstanding. No push, PR,
-monitor, merge, cleanup, other fragment, or child-agent launch was performed.
+Parent review confirmed all 36 terminal answers and native tool calls against
+these outcomes, repeated calibration in `tmp/terminal-parent-calibration`, and
+passed the offline audit and runner tests. The reusable prompt is now revision 2
+with the corrections above; the original launch hash remains revision 1.
+No production change, extra inference, other fragment, or provisioning followed.

@@ -3,6 +3,9 @@
 Use the [shared runner](runner/README.md) for new fragment evals and migrations.
 Legacy runners remain historical evidence until migrated. They do not meet the
 new execution contract merely because they already use Docker or Harbor.
+When launching a child to reassess a fragment, use
+[the reassessment prompt](fragment-reassessment.md) and refresh its inventory and
+lessons before the next launch.
 
 ## Execution contract
 

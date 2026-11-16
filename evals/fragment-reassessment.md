@@ -1,10 +1,13 @@
 # One-fragment child assignment
 
-Prompt revision: 1. This thread's parent orchestrates one fragment at a time.
+Prompt revision: 2. This thread's parent orchestrates one fragment at a time.
 Before each launch, refresh the fragment inventory and open work, then update
 this prompt with lessons from the previous child. Record the launch revision,
 prompt hash, source commit, inventory hash, and selected fragment hash in the
-study record. Changes to the inventory or fragment invalidate stale assumptions.
+study record. Hash the sorted filename-to-SHA256 mapping with Python
+`json.dumps(mapping, sort_keys=True)`, default separators, and no trailing newline;
+keep the metadata-file hash separate. Verify every individual fragment hash.
+Changes to the inventory or fragment invalidate stale assumptions.
 Existing evals and fragments without evals use the same reassessment process.
 
 ## Launch inputs
@@ -31,7 +34,10 @@ Use the supplied worktree; leave production guidance unchanged for parent review
    reasoning. Compare the complete current guidance, the same guidance with
    only this fragment removed, and the empty-guidance control. Keep all other
    inputs matched. Native Pi's built-in prompt remains in every condition.
-5. Inspect every candidate's actual tools, outputs, and terminal reply. Report
+5. Preserve a neutral final-answer format contract across conditions. Inspect
+   every candidate's actual tools, outputs, and terminal reply; native agents
+   can execute a request before returning the requested copy-paste answer. Apply
+   presentation rules to that answer, not to internal tool commands. Report
    task success, policy compliance, and infrastructure failures separately.
    Regrade captured answers after grader repairs; preserve superseded scores.
    Behavioral failures are results, not retry requests. Compare tokens only
@@ -42,7 +48,12 @@ Use the supplied worktree; leave production guidance unchanged for parent review
    any proposed revision without editing production guidance. If a tested
    revision is authorized later, it needs its own matched comparison and fresh
    confirmation cases. A bounded inconclusive result is a valid completion.
-7. Deliver runnable eval files and a reviewed study record. Include the frozen
+7. Before launching, choose a registered job or foreground command and set a
+   child timeout that covers setup, the full matrix, and result review. Keep
+   process ownership attached to that mechanism. On timeout, inspect the exact
+   run owner and process before recovery; collect existing trials rather than
+   starting duplicate inference. Launch no untracked shell background process.
+8. Deliver runnable eval files and a reviewed study record. Include the frozen
    design, per-case observations, disposition, limits, verification commands,
    temporary evidence paths, and lessons for the next launch prompt. Check in
    no credentials, private traces, or provider reasoning. Raw evidence stays
@@ -55,12 +66,20 @@ Generated commands must execute as an unprivileged user inside an isolated
 container, not on the host or as verifier root. Protect grading criteria and
 observations from the generated program. Verify the boundary before inference.
 
+Calibrate argument traces independently of stdout, and check real program
+stdout separately. Protect grading criteria, result paths, native artifacts,
+and calibration fixtures before generated execution. Verify the actual separate
+verifier's privilege/network policy rather than inferring it from the agent's.
+Keep guided failures as adherence gaps. Use no holdout calls when existing
+matched failures already support keeping the fragment. Distinguish exposure to
+a rule from merely allowing syntax that could exercise it.
+
 The parent owns final acceptance, publication, production inspection, deployment,
 and cleanup. Commit the verified deliverables and return the commit and evidence;
 the parent opens the single PR for this assignment. Start no other fragment,
 merge nothing, run no provisioning, and spawn no further children.
 
-## Lessons carried into revision 1
+## Prior lessons retained from revision 1
 
 - Retention is temporary. Keep reviewed results and runnable fixtures in Git,
   rather than requiring raw archives before worktree retirement.
