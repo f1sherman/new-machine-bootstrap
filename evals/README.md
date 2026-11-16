@@ -34,7 +34,10 @@ Refresh the inventory and incorporate reviewed process changes before launch.
 
 Each package has a `study.toml`, a README with the question and decision rule,
 and ordinary Harbor tasks. `study.toml` points to a guidance-fragment directory,
-one selected fragment, and the task directory. An optional template supplies
+one selected fragment, and the task directory. An optional full-commit
+`guidance_ref` pins historical guidance after a fragment leaves production;
+condition labels then refer to that frozen baseline, not today's guidance.
+An optional template supplies
 common task files; case files override it, then optional assets install shared
 or study-specific helpers. Paths are relative to the study file. Use shared
 Dockerfiles and task defaults when they fit instead of copying them per case.
@@ -116,7 +119,10 @@ that both succeeded. Keep failure usage in raw audit artifacts, not savings
 reports. Harbor input tokens include its cached-input count; do not add cache
 again. State the usage scope and distinguish candidate and judge costs.
 
-Retain untested safeguards. A small study, a null result with redundant rules,
-or an empty control is not permission to remove guidance. A passing runner
-check is not a passing guidance study, and an eval link is not coverage proof.
-Migrate one fragment at a time. Record its disposition before selecting the next.
+For this fragment-reassessment program, default to recommending removal when
+there is no demonstrated concrete need. Report coverage gaps, overlapping guards,
+and remaining risks. A small study, null result, or empty control does not prove
+redundancy or safety; distinguish the evidence from the parent's removal decision.
+Only the parent approves production changes. A passing runner check is not a
+passing guidance study, and an eval link is not coverage proof. Migrate one
+fragment at a time. Record its disposition before selecting the next.

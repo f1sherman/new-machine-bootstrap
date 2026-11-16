@@ -6,6 +6,7 @@ import importlib.metadata
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -45,21 +46,49 @@ def compile_guidance(directory, output, assembler):
     return output.read_text()
 
 
+def freeze_guidance(source, guidance, destination, ref=None):
+    if ref is None:
+        hashes(guidance)
+        shutil.copytree(guidance, destination)
+        return
+    if not isinstance(ref, str) or not re.fullmatch(r"[0-9a-f]{40}", ref):
+        raise ValueError("guidance_ref must be a full Git commit SHA")
+    command = ["git", "--no-replace-objects", "-C", str(source)]
+    repo = Path(subprocess.check_output(command + ["rev-parse", "--show-toplevel"], text=True).strip())
+    relative = guidance.relative_to(repo)
+    if subprocess.check_output(command + ["cat-file", "-t", ref], text=True).strip() != "commit":
+        raise ValueError("guidance_ref must identify a commit")
+    entries = subprocess.check_output(command + ["ls-tree", "--full-tree", "-rz", ref + ":" + relative.as_posix()])
+    destination.mkdir(parents=True)
+    for entry in entries.split(b"\0"):
+        if not entry:
+            continue
+        metadata, filename = entry.split(b"\t", 1)
+        mode, kind, oid = metadata.decode().split()
+        path = Path(filename.decode())
+        if mode not in ("100644", "100755") or kind != "blob" or path.is_absolute() or ".." in path.parts:
+            raise ValueError("Pinned guidance must contain regular files inside its directory")
+        target = destination / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(subprocess.check_output(command + ["cat-file", "blob", oid]))
+
+
 def stage(study_file, output, model, trials):
     study = tomllib.loads(study_file.read_text())
     required = {"schema_version", "guidance_dir", "fragment", "tasks"}
-    if not required <= set(study) or set(study) - required - {"assets", "template"} or study["schema_version"] != 1:
+    if not required <= set(study) or set(study) - required - {"assets", "template", "guidance_ref"} or study["schema_version"] != 1:
         raise ValueError("Study requires schema_version=1, guidance_dir, fragment, tasks")
     source = study_file.parent
     guidance = (source / study["guidance_dir"]).resolve()
     tasks = (source / study["tasks"]).resolve()
     fragment = study["fragment"]
-    if Path(fragment).name != fragment or not fragment.endswith(".md") or not (guidance / fragment).is_file():
+    if Path(fragment).name != fragment or not fragment.endswith(".md"):
         raise ValueError("fragment must name a file in guidance_dir")
-    hashes(guidance)
     hashes(tasks)
     frozen = output / "inputs"
-    shutil.copytree(guidance, frozen / "guidance")
+    freeze_guidance(source, guidance, frozen / "guidance", study.get("guidance_ref"))
+    if not (frozen / "guidance" / fragment).is_file():
+        raise ValueError("fragment must name a file in guidance_dir at the selected ref")
     if "template" in study:
         template = source / study["template"]
         hashes(template)

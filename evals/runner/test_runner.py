@@ -1,6 +1,8 @@
 """Exercise staging and evidence gates without Docker, inference, or credentials."""
 import json
+import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 
@@ -56,6 +58,56 @@ class RunnerTests(unittest.TestCase):
             compose.mkdir()
             with self.assertRaisesRegex(ValueError, 'Compose overrides'):
                 stage(study, compose, 'openai/model', 1)
+
+    def test_pinned_guidance_survives_fragment_removal(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            env = {'PATH': os.environ['PATH'], 'HOME': folder,
+                   'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull}
+
+            def git(*args):
+                return subprocess.check_output(['git', '-C', folder, *args], env=env, text=True).strip()
+
+            git('init', '-q', '-b', 'main')
+            git('config', 'user.name', 'Fixture')
+            git('config', 'user.email', 'fixture@example.test')
+            (root / 'pieces').mkdir()
+            (root / 'pieces/01-one.md').write_text('First rule.\n')
+            fragment = root / 'pieces/02-two.md'
+            fragment.write_text('Second rule.\n')
+            git('add', 'pieces')
+            git('-c', 'commit.gpgsign=false', 'commit', '-qm', 'Original guidance')
+            ref = git('rev-parse', 'HEAD')
+            fragment.unlink()
+            (root / 'pieces/01-one.md').write_text('Changed after study.\n')
+            task = root / 'tasks/any-case'
+            (task / 'environment').mkdir(parents=True)
+            (task / 'environment/Dockerfile').write_text('FROM nmb-eval-runtime\n')
+            (task / 'task.toml').write_text('schema_version = "1.4"\n')
+            (task / 'instruction.md').write_text('Save a note.\n')
+            (root / 'nested').mkdir()
+            study = root / 'nested/study.toml'
+
+            def run(ref, name):
+                study.write_text('schema_version = 1\nguidance_dir = "../pieces"\n'
+                    'fragment = "02-two.md"\ntasks = "../tasks"\n'
+                    f'guidance_ref = "{ref}"\n')
+                output = root / name
+                output.mkdir()
+                return output, stage(study, output, 'openai/model', 1)
+
+            output, manifest = run(ref, 'pinned')
+            self.assertEqual((output / 'current.md').read_text(), 'First rule.\nSecond rule.\n')
+            self.assertEqual((output / 'without.md').read_text(), 'First rule.\n')
+            self.assertEqual((output / 'inputs/guidance/02-two.md').read_text(), 'Second rule.\n')
+            self.assertEqual(hashes(output / 'inputs'), manifest['input_hashes'])
+            with self.assertRaisesRegex(ValueError, 'full Git commit SHA'):
+                run('main', 'mutable-ref')
+            (root / 'pieces/unsafe.md').symlink_to('01-one.md')
+            git('add', 'pieces')
+            git('-c', 'commit.gpgsign=false', 'commit', '-qm', 'Unsafe archived link')
+            with self.assertRaisesRegex(ValueError, 'regular files'):
+                run(git('rev-parse', 'HEAD'), 'unsafe-ref')
 
     def test_template_defaults_overrides_and_frozen_inputs(self):
         with tempfile.TemporaryDirectory() as folder:

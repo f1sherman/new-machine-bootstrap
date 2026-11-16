@@ -1,0 +1,46 @@
+schema_version = 1
+guidance_dir = "../../roles/common/files/pi/base-fragments"
+guidance_ref = "47cb4252bf50a149f95d3eb00b83fd5a97da1f7c"
+fragment = "14-generated-state.md"
+tasks = "tasks"
+template = "../runner/templates/commands"
+
+[[assets]]
+source = "task.toml"
+destination = "task.toml"
+
+[[assets]]
+source = "../../vars/tool_versions.yml"
+destination = "environment/tool_versions.yml"
+
+[[assets]]
+source = "setup.sh"
+destination = "environment/setup.sh"
+
+[[assets]]
+source = "command-wrapper"
+destination = "environment/command-wrapper"
+
+[[assets]]
+source = "verify.py"
+destination = "tests/verify.py"
+
+[[assets]]
+source = "calibrate.py"
+destination = "tests/calibrate.py"
+
+[[assets]]
+source = "../../roles/common/files/bin/repo-start"
+destination = "environment/repo-start.real"
+
+[[assets]]
+source = "../../roles/common/files/bin/repo-end"
+destination = "environment/repo-end.real"
+
+[[assets]]
+source = "../../roles/common/files/bin/repo-lib.sh"
+destination = "environment/repo-lib.sh"
+
+[[assets]]
+source = "../../roles/common/files/bin/agent-state-path"
+destination = "environment/agent-state-path"
