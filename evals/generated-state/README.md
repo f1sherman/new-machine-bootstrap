@@ -56,9 +56,12 @@ hooks, fsmonitor and replacement objects, and rejects Git metadata symlinks
 before inspecting Git state. It does not execute candidate hooks or code.
 
 Calibration executes known correct, wrong and equivalent outcomes through the
-same assessment code. The wrong state construction both updates the file and
-attempts repo-start with stdout redirected, so it separately validates the
-attempt check. The wrong source construction edits main. Calibration also probes
+same assessment code. The current fixture installs the pinned mikefarah/yq at
+image build time from `vars/tool_versions.yml`. Its correct source construction
+runs the production `repo-start` as the worker; the equivalent construction uses
+Git directly. The wrong state construction both updates the file and attempts
+repo-start with stdout redirected, so it separately validates the attempt check.
+The wrong source construction edits main. Calibration also probes
 unprivileged execution, protected verifier files and network denial through the
 shared boundary helper. Candidates run in the native shared runner's restricted
 container; the verifier is separate and networkless.

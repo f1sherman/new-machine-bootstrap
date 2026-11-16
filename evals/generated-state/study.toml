@@ -9,6 +9,10 @@ source = "task.toml"
 destination = "task.toml"
 
 [[assets]]
+source = "../../vars/tool_versions.yml"
+destination = "environment/tool_versions.yml"
+
+[[assets]]
 source = "setup.sh"
 destination = "environment/setup.sh"
 

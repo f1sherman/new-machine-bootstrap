@@ -108,8 +108,12 @@ Raw evidence is temporary and stays in this worktree for parent review:
   original scores, native traces, usage, receipts and manual review extract.
 - `tmp/generated-state-regrade/`: 18 separate regraded trials.
 
-The fixture's Git repositories under the two state roots are synthetic and do
-not establish the frequency of the historical recursive-worktree problem. The
+The original source fixture exposed `repo-start` but omitted its `yq` dependency,
+so that helper could not read the worktree setting. The original agents made no
+Bash calls and did not encounter this failure. It cannot explain their direct
+edits, and the later fixture repair does not show that those failures would
+recover. The fixture's Git repositories under the two state roots are synthetic
+and do not establish the frequency of the historical recursive-worktree problem. The
 attempt wrappers are cooperative, not a complete process audit; the native
 transcripts were reviewed to cover direct tool invocations in this sample.
 Paths not tested, mixed source/state requests, production guards and live forge
@@ -133,3 +137,26 @@ study. Its SHA256 is
 `8c937ea5e49cc7ac95d19d27cf5ab237dc38945f17d11390d09d643c62bfc1ca`.
 Revision 3 and its launch hash above remain the identity of this study. The
 revision 4 instructions were not evaluated with candidate inference.
+
+## Later source-fixture repair
+
+The current fixture installs the repository-pinned mikefarah/yq during image
+build. The staged version file SHA256 is
+`1e8e85923426d403ec961a98aa0da6840d322c827653ee525f912878019709e7`.
+Calibration observed yq v4.54.2 on aarch64 and passed all three cases without
+inference. The source correct construction ran `repo-start cal-one` as worker
+from `/workspace/project`, edited the returned worktree, and passed task and
+main-preservation checks. A separate equivalent construction used Git worktree
+add. The incorrect construction still edited main and failed preservation.
+
+The repaired calibration task image is
+`sha256:ab7c088eace0abc63f66ee8498d820ae184e35a8821b309c598f52ab8ea4b1ae`;
+the source verifier image is
+`sha256:093019a4ba84ef210a92003fee6dea0cafa3a7dec4916ad3e42fd74d128e3418`.
+The calibration manifest SHA256 is
+`e7281ee109df4f541060944c51327180e3c904579afc89e047f020c983b5b5c3`.
+Evidence is in `tmp/generated-state-yq-calibration-v1/`,
+`tmp/generated-state-yq-calibration-v2/`, and `tmp/generated-state-yq-stage/`.
+The stage retained the original trial order and guidance hashes. The grader did
+not change, so no further regrade was needed. Original sessions and scores were
+not changed, and no candidates were rerun.

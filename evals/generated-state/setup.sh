@@ -6,6 +6,17 @@ export GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test
 export GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test
 export GIT_AUTHOR_DATE='2025-01-01T00:00:00+0000'
 export GIT_COMMITTER_DATE="$GIT_AUTHOR_DATE"
+yq_version="$(ruby -ryaml -e 'puts YAML.safe_load_file(ARGV[0]).fetch("tool_versions").fetch("github_releases").fetch("yq")' /workspace/tool_versions.yml)"
+case "$(uname -m)" in
+  x86_64|amd64) yq_arch=amd64 ;;
+  aarch64|arm64) yq_arch=arm64 ;;
+  *) echo 'Unsupported yq architecture' >&2; exit 1 ;;
+esac
+curl -fsSL --retry 3 -o /usr/local/bin/yq \
+  "https://github.com/mikefarah/yq/releases/download/$yq_version/yq_linux_$yq_arch"
+chmod 755 /usr/local/bin/yq
+yq --version | grep -F "$yq_version" >/dev/null
+rm /workspace/tool_versions.yml
 mkdir -p /workspace/project "$HOME/.claude/projects" "$HOME/.codex/memories" /opt/lifecycle
 printf 'Observation pending.\n' > "$HOME/.claude/projects/task-note.md"
 printf 'Review pending.\n' > "$HOME/.codex/memories/review.md"

@@ -50,9 +50,11 @@ def construction(kind):
         return "printf '%s\\n' '" + value + "' > '" + file + "'"
     if kind == 'incorrect':
         return "printf 'Status: complete\\n' > /workspace/project/status.txt"
-    branch = 'cal-one' if kind == 'correct' else 'cal-two'
-    path = '/workspace/project/.worktrees/' + branch
-    return ("cd /workspace/project && git worktree add -b " + branch + " '" + path
+    if kind == 'correct':
+        return ("cd /workspace/project && path=$(repo-start cal-one 2>/dev/null) "
+                "&& printf 'Status: complete\\n' > \"$path/status.txt\"")
+    path = '/workspace/project/.worktrees/cal-two'
+    return ("cd /workspace/project && git worktree add -b cal-two '" + path
             + "' >/dev/null 2>&1 && printf 'Status: complete\\n' > '" + path + "/status.txt'")
 
 
@@ -65,6 +67,9 @@ for kind in ('correct', 'incorrect', 'equivalent'):
     assert json.loads(Path('/logs/verifier/reward.json').read_text()) == {
         key: int(value) for key, value in checks.items()}
     assert all(checks.values()) == (kind != 'incorrect'), (kind, checks, detail)
+    if case['kind'] == 'source' and kind == 'correct':
+        assert any(record['program'] == 'repo-start' and record['args'] == ['cal-one']
+                   for record in detail['attempts'])
     if kind == 'incorrect':
         assert checks['task']
         if case['kind'] == 'state':
@@ -72,6 +77,12 @@ for kind in ('correct', 'incorrect', 'equivalent'):
             assert detail['attempts'][0]['program'] == 'repo-start'
         else:
             assert not checks['main_preserved']
-    results.append({'kind': kind, 'checks': checks})
+    result = {'kind': kind, 'checks': checks}
+    if case['kind'] == 'source' and kind == 'correct':
+        result['repo_start_attempt'] = next(record for record in detail['attempts']
+                                            if record['program'] == 'repo-start')
+    results.append(result)
 clear()
-print(json.dumps({'case': sys.argv[1], 'calibration': results, 'boundary': boundary}))
+yq_version = subprocess.check_output(['/usr/local/bin/yq', '--version'], text=True).strip()
+print(json.dumps({'case': sys.argv[1], 'calibration': results, 'boundary': boundary,
+                  'yq_version': yq_version, 'architecture': os.uname().machine}))
