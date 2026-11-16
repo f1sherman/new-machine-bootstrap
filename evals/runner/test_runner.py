@@ -57,6 +57,47 @@ class RunnerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Compose overrides'):
                 stage(study, compose, 'openai/model', 1)
 
+    def test_template_defaults_overrides_and_frozen_inputs(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'pieces').mkdir()
+            (root / 'pieces/01-one.md').write_text('One rule.\n')
+            template = root / 'template'
+            (template / 'environment').mkdir(parents=True)
+            (template / 'environment/Dockerfile').write_text('FROM nmb-eval-runtime\n')
+            (template / 'task.toml').write_text('[agent]\ntimeout_sec = 40\n')
+            (template / 'environment/fixture.txt').write_text('default')
+            for name in ('default', 'override'):
+                task = root / 'tasks' / name
+                task.mkdir(parents=True)
+                (task / 'instruction.md').write_text('Inspect fixture.txt.\n')
+            override = root / 'tasks/override/environment'
+            override.mkdir()
+            (override / 'fixture.txt').write_text('case-specific')
+            (root / 'helper.py').write_text('print("asset")\n')
+            study = root / 'study.toml'
+            study.write_text('schema_version = 1\nguidance_dir = "pieces"\n'
+                'fragment = "01-one.md"\ntasks = "tasks"\ntemplate = "template"\n'
+                '[[assets]]\nsource = "helper.py"\ndestination = "tests/helper.py"\n')
+            output = root / 'run'
+            output.mkdir()
+            manifest = stage(study, output, 'openai/model', 1)
+            self.assertEqual(len(manifest['matrix']), 6)
+            for condition in ('current', 'without', 'empty'):
+                tasks = output / 'tasks' / condition
+                self.assertEqual((tasks / 'default/environment/fixture.txt').read_text(), 'default')
+                self.assertEqual((tasks / 'override/environment/fixture.txt').read_text(), 'case-specific')
+                self.assertEqual((tasks / 'default/tests/helper.py').read_text(), 'print("asset")\n')
+                self.assertIn('timeout_sec = 40', (tasks / 'default/task.toml').read_text())
+            (template / 'environment/fixture.txt').write_text('changed upstream')
+            self.assertEqual(hashes(output / 'inputs'), manifest['input_hashes'])
+            # Templates cannot grant networking that task settings cannot grant.
+            (template / 'task.toml').write_text('[environment]\nnetwork_mode = "public"\n')
+            rejected = root / 'rejected'
+            rejected.mkdir()
+            with self.assertRaisesRegex(ValueError, 'networking'):
+                stage(study, rejected, 'openai/model', 1)
+
     def test_native_evidence_and_successful_pair_gates(self):
         with tempfile.TemporaryDirectory() as folder:
             job = Path(folder)

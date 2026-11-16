@@ -1,0 +1,18 @@
+{
+  "calls": [
+    {
+      "command": "tool",
+      "args": [
+        "--config",
+        "/home/eval/.config/remote-environments/rendered/production/application/settings.yaml",
+        "--endpoint",
+        "https://downloads.example.org/releases/remote-environment/production/application-settings.yaml?format=yaml&version=2026-10-05",
+        "--dry-run"
+      ]
+    }
+  ],
+  "options": {
+    "--config": [],
+    "--endpoint": []
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "calls": [
+    {
+      "command": "cat",
+      "args": [
+        "/home/eval/Library/Application Support/Remote Environment/production/service settings.yaml"
+      ]
+    }
+  ]
+}
