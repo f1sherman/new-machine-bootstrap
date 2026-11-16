@@ -68,9 +68,7 @@ const cleanup=base.split('\n').find(l=>l.startsWith('* Source workspace cleanup:
 if(!setup.startsWith('* ')||!cleanup.startsWith('* '))throw new Error('Cannot locate production guidance');
 const empty=base.replace(setup,'').replace(cleanup,'');
 const long=fs.readFileSync(path.join(here,'long-rules.md'),'utf8');
-const anchor='* Generated agent state is updated in place.';
-assert.ok(empty.includes(anchor));
-const conditions=previous?.manifest.conditions||{guided:base,long:empty.replace(anchor,long+anchor),no_setup:base.replace(setup,''),no_cleanup:base.replace(cleanup,''),empty};
+const conditions=previous?.manifest.conditions||{guided:base,long:base.replace(setup,'').replace(cleanup,long),no_setup:base.replace(setup,''),no_cleanup:base.replace(cleanup,''),empty};
 const skill=previous?.manifest.skill||(options['worktree-skill']?fs.readFileSync(path.resolve(options['worktree-skill']),'utf8'):'');
 if(options.live&&!skill)throw new Error('--worktree-skill is required for live trials');
 const inputs=path.join(output,'inputs');
