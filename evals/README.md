@@ -10,6 +10,14 @@ Refresh the inventory and incorporate reviewed process changes before launch.
 
 ## Execution contract
 
+Test normal user tasks through the full agent workflow, not only its final
+answer. Start with a representative repository snapshot and the request the
+user would actually make. Let the agent discover context, load skills, use
+native tools and reach the authorized observable outcome. Record which real
+tasks and failure modes the sample covers and what it leaves out. Supplied
+context followed by a drafting request is a component diagnostic, even when
+run in a container. Report those results separately from workflow trials.
+
 - Run the actual agent, including its model client and native tools, inside the
   task container. A host-side conversation loop with sandboxed tools is not an
   equivalent implementation.
@@ -115,6 +123,14 @@ Raw evidence is temporary, not a permanent archive. Keep it in the ignored
 `tmp/` directory through review and any needed regrading. It need not be copied
 or retained when the worktree is retired. A later rerun is a new sample, not a
 replay of the original trial. Record any exception that requires retention.
+
+Attach a readable PR report: findings and coverage limits first, shared base
+cases and settings next, then exact variant changes and compact per-trial
+results. Use stable IDs and verify that the changes reconstruct the frozen
+inputs. Put actual outputs and original criterion scores/reasons in a readable
+appendix, with repeated material stored once. Keep raw audit data and controller
+source out of the main reading path. Verify the uploaded format opens as a
+readable document; a correct checksum does not establish this.
 
 Report behavior by case and condition. Compare tokens only for matched trials
 that both succeeded. Keep failure usage in raw audit artifacts, not savings

@@ -4,7 +4,7 @@ Use everyday words in every reply. Start with what the result means for Brian an
 * Workspace: `~/projects/`
 * Follow the YAGNI principle.
 * Prompt optimization: always run matched baseline evals and leave-one-component-out ablations. Record behavior and token changes. A deliberately wrong prompt is a negative control, not an ablation. Retain untested safeguards.
-* Eval models: Terra medium runs candidates; Sol xhigh handles all non-deterministic judging, including calibration. Deterministic checks use code, not a model. Read the `eval-design` skill before designing, running, or interpreting evals.
+* Eval models: Terra medium runs candidates; Sol xhigh handles all non-deterministic judging, including calibration. Deterministic checks use code, not a model. Default to full-harness sandbox workflows; label text-only tests as component diagnostics. Read the `eval-design` skill before designing, running, or interpreting evals.
 * Subagents: delegate implementation only when Brian requests it. Use subagents only for complex implementation, parallel work, or independent review when their value exceeds coordination cost. Do small mechanical edits directly. The parent owns live provisioning, production inspection, runtime decisions, and user communication.
 * Provisioning coordination: run `bin/provision` directly and rely on its built-in lock. Do not send routine provision start, completion, hold, or release messages over the agent mesh, and do not reply to informational provisioning status messages.
 
