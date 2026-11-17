@@ -29,6 +29,14 @@ and a real TLS response from the inference host. A TCP handshake alone is not a
 sufficient check: the transparent proxy can accept TCP before rejecting TLS.
 Failure stops execution before an inference credential is installed.
 
+At live-run admission, the runner resolves the selected inference hostname to
+one IPv4 address and records it. It installs that hostname mapping in the task
+and egress sidecar. This avoids Harbor's embedded-DNS forwarding failure
+([upstream issue](https://github.com/harbor-framework/harbor/issues/3312)) without
+allowing another destination or weakening SNI filtering. TLS still checks the
+hostname. The mapping is fixed for the run; endpoint address changes can make a
+long run incomplete. Staging and offline calibration do not resolve it.
+
 Only `api.openai.com` is allowed for `openai/model`; only `chatgpt.com` is
 allowed for `openai-codex/model`. This is a hostname allowlist, not a restriction
 to a particular API path. DNS and the sidecar's internal traffic support that
@@ -136,6 +144,12 @@ working tree, so a study still runs after its fragment leaves production. The
 runner rejects mutable references and archived symlinks. The `current`,
 `without`, and `empty` labels then describe that historical baseline, not today's
 production guidance. All condition files and frozen inputs are still hashed.
+Optional `guidance_target` selects `AGENTS.md` (default) or
+`skills/NAME/SKILL.md` beneath the native agent directory. No other paths are
+accepted, including credential paths. For skill studies, put fixed global
+instructions and other production skills in the image. The empty condition then
+empties only the selected skill, not the fixed global instruction stack.
+
 Optional `template` names a directory containing task defaults. Staging
 copies the template into every case, overlays case files, then applies optional
 `[[assets]]` entries with `source` and `destination`. Files are replaced, not
@@ -156,8 +170,12 @@ repository instructions in the fixture, not the runner.
 Tasks may set agent/verifier timeouts, within the runner's bounds. They cannot
 choose agent users, network destinations, mounted host files, or substitute an
 agent adapter. The runner installs current, one-fragment-removed, and empty
-conditions in separate fresh native sessions, rotating their order. Maximum
-agent turns are 12; the same budget applies to every condition. Native Pi's tool
+conditions in separate fresh native sessions, rotating their order. The default maximum
+is 12 agent turns. `--max-turns` accepts 1–80; `--thinking` accepts `medium`
+or `xhigh`. Task agent timeouts are capped at 900 seconds. The same settings
+apply to every condition and are frozen in the manifest. `--conditions` selects
+a distinct subset of `current`, `without`, and `empty`; use all three for a
+candidate comparison and `--conditions current` for a fixed judge or calibration. Native Pi's tool
 contract and built-in prompt stay fixed.
 
 Checks live in `tests/`, available only to the separate verifier. They write
@@ -230,8 +248,13 @@ Docker or delete another run's resources. Raw evidence is temporary under the
 copied before worktree retirement. Runtime images remain cached; deleting them
 is not required.
 
-Current scope is single-step native Pi on Linux Docker with OpenAI inference and
-deterministic separate verifiers. Multi-step sessions, another agent/provider,
-semantic judges, and external simulated services require shared capability work,
-not per-eval exceptions. Existing legacy suites remain available on their own
+Current scope is single-session native Pi on Linux Docker with OpenAI inference
+and deterministic separate verifiers. Semantic judgments can run as separate
+ordinary native-agent tasks using [the judgment template](templates/judgment).
+Its offline verifier checks the schema and exact excerpts, not judgment quality;
+calibrate meaning separately with frozen correct/wrong/equivalent documents.
+Run judges with Sol at xhigh, blind treatment labels, and keep their results and
+usage separate from candidate workflow checks. This does not add an inline judge,
+a host-side conversation loop, or multi-step-session support. Task images may
+include disposable external-effect recorders without changing network policy. Existing legacy suites remain available on their own
 pinned runners until migrated and empirically verified.

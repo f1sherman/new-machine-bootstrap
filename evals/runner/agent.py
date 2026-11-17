@@ -1,10 +1,12 @@
 """Preinstalled native Pi; Harbor owns execution, logs, and lifecycle."""
+import ipaddress
 import json
 import os
 from pathlib import Path
 
 from harbor.agents.installed.pi import Pi
 from evals.harbor.pi_login import access_credential
+from evals.runner.run import guidance_target
 
 
 class SandboxedPi(Pi):
@@ -16,6 +18,14 @@ class SandboxedPi(Pi):
                 or self.model_connection.user_supplied_base_url is not None
                 or self.mcp_servers or self.options.config or self.options.model_api):
             raise ValueError("Only the standard OpenAI inference providers are supported")
+        address = os.environ.get('EVAL_INFERENCE_ADDRESS')
+        if address:
+            address = str(ipaddress.IPv4Address(address))
+            host = 'chatgpt.com' if self.model_name.startswith('openai-codex/') else 'api.openai.com'
+            result = await self.exec_as_root(environment,
+                command=f"printf '\\n{address} {host}\\n' >> /etc/hosts", cwd='/')
+            if result.return_code:
+                raise RuntimeError('Cannot install frozen inference hostname')
         # This is executed through Harbor in the agent's network namespace.
         probe = await self.exec_as_agent(environment, command="""python3 - <<'PY'
 import json, os, subprocess
@@ -49,8 +59,11 @@ PY""", env={"INFERENCE_HOST": "chatgpt.com" if self.model_name.startswith("opena
         if prepared.return_code:
             raise RuntimeError("Cannot prepare isolated Pi configuration")
         guidance = Path(os.environ["EVAL_GUIDANCE_FILE"]).read_text()
+        target = guidance_target(os.environ.get("EVAL_GUIDANCE_TARGET", "AGENTS.md"))
+        # Harbor uses a separate configuration directory for its turn extension.
+        # Global context and skills remain in the normal HOME discovery paths.
         await self._upload_config_text(environment, content=guidance,
-            remote_path="/home/worker/.pi/agent/AGENTS.md", filename="AGENTS.md")
+            remote_path="/home/worker/.pi/agent/" + target, filename=Path(target).name)
 
     async def run(self, instruction, environment, context):
         auth_path = "/home/worker/.pi/agent/auth.json"

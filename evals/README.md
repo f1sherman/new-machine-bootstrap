@@ -64,7 +64,8 @@ fragment, and an empty-guidance control. The runner assembles the files with
 The empty control still receives Pi's built-in prompt. Fixed repository context,
 when needed, belongs in the task fixture and stays identical across conditions.
 The selected guidance is installed at the native Pi agent's global `AGENTS.md`
-path. No fragment IDs, study labels, or grading rules are added to that text.
+path by default. A study can instead select the bounded `skills/NAME/SKILL.md`
+target while keeping global instructions and other skills fixed in the image. No fragment IDs, study labels, or grading rules are added to that text.
 
 ## Design and grading rules
 
@@ -93,8 +94,10 @@ non-deterministic judge, including calibration, uses `openai-codex/gpt-6.1-sol`
 at `xhigh` effort. Deterministic verifiers use code and no model. Record candidate
 and judge settings separately. Calibrate semantic judges, blind condition/model
 labels, and inspect all outputs against their decisions. A new judge backend is
-a shared capability, not a reason to create a second agent loop. The current shared runner supports
-deterministic Harbor verifiers, not paid semantic judges or multi-step sessions.
+a shared capability, not a reason to create a second agent loop. The shared runner supports deterministic Harbor verifiers and separate native
+judge tasks. Use the shared judgment template for paid semantic judgments; its
+schema verifier does not establish semantic correctness. Multi-step sessions
+remain unsupported.
 
 These rules adopt pstack's organic tasks, blinded judgments, transcript review,
 and small verifiable units. pstack's multi-model arena is a separate question

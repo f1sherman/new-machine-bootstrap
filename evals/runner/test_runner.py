@@ -6,10 +6,19 @@ import subprocess
 import tempfile
 import unittest
 
-from evals.runner.run import stage, summarize, collect, hashes
+from evals.runner.run import stage, summarize, collect, hashes, guidance_target
 
 
 class RunnerTests(unittest.TestCase):
+    def test_guidance_cannot_replace_credentials_or_escape_agent_directory(self):
+        for path in ('auth.json', '../auth.json', '/tmp/auth.json',
+                     'skills/x/../../auth.json', 'skills/../SKILL.md',
+                     'skills/x/other.md', 'skills//SKILL.md'):
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                guidance_target(path)
+        self.assertEqual(guidance_target('skills/example/SKILL.md'), 'skills/example/SKILL.md')
+        self.assertEqual(guidance_target('AGENTS.md'), 'AGENTS.md')
+
     def test_new_packages_and_cases_need_no_runner_changes(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tomllib
@@ -73,11 +74,23 @@ def freeze_guidance(source, guidance, destination, ref=None):
         target.write_bytes(subprocess.check_output(command + ["cat-file", "blob", oid]))
 
 
-def stage(study_file, output, model, trials):
+def guidance_target(value):
+    if value == "AGENTS.md" or re.fullmatch(r"skills/[a-z0-9][a-z0-9_-]*/SKILL\.md", value):
+        return value
+    raise ValueError("guidance_target must be AGENTS.md or skills/NAME/SKILL.md")
+
+
+def stage(study_file, output, model, trials, *, conditions=("current", "without", "empty"),
+          thinking="medium", max_turns=12):
     study = tomllib.loads(study_file.read_text())
     required = {"schema_version", "guidance_dir", "fragment", "tasks"}
-    if not required <= set(study) or set(study) - required - {"assets", "template", "guidance_ref"} or study["schema_version"] != 1:
+    if not required <= set(study) or set(study) - required - {"assets", "template", "guidance_ref", "guidance_target"} or study["schema_version"] != 1:
         raise ValueError("Study requires schema_version=1, guidance_dir, fragment, tasks")
+    install_target = guidance_target(study.get("guidance_target", "AGENTS.md"))
+    if not conditions or len(set(conditions)) != len(conditions) or set(conditions) - {"current", "without", "empty"}:
+        raise ValueError("Select distinct current, without, or empty conditions")
+    if thinking not in ("medium", "xhigh") or not 1 <= max_turns <= 80:
+        raise ValueError("Use medium/xhigh thinking and 1 to 80 native turns")
     source = study_file.parent
     guidance = (source / study["guidance_dir"]).resolve()
     tasks = (source / study["tasks"]).resolve()
@@ -140,11 +153,11 @@ def stage(study_file, output, model, trials):
         'puts YAML.safe_load(File.read(ARGV[0])).fetch("tool_versions").fetch("runtimes").fetch("pi_coding_agent")',
         str(ROOT / "vars/tool_versions.yml")], text=True).strip()
     matrix = []
-    variants = ("current", "without", "empty")
+    variants = tuple(conditions)
     for repeat in range(trials):
         for index, case in enumerate(cases):
-            for offset in range(3):
-                variant = variants[(offset + repeat + index) % 3]
+            for offset in range(len(variants)):
+                variant = variants[(offset + repeat + index) % len(variants)]
                 matrix.append({"case": case, "condition": variant, "repeat": repeat})
     for case in cases:
         for variant in variants:
@@ -166,7 +179,7 @@ def stage(study_file, output, model, trials):
             agent = config.setdefault("agent", {})
             if set(agent) - {"timeout_sec"}:
                 raise ValueError("Task agent settings may contain only timeout_sec")
-            agent.update(user="worker", timeout_sec=min(agent.get("timeout_sec", 180), 300))
+            agent.update(user="worker", timeout_sec=min(agent.get("timeout_sec", 180), 900))
             verifier = config.setdefault("verifier", {})
             if set(verifier) - {"timeout_sec"}:
                 raise ValueError("Task verifier settings may contain only timeout_sec")
@@ -183,6 +196,7 @@ def stage(study_file, output, model, trials):
         "security_opt": ["no-new-privileges:true"], "pids_limit": 128}}})
     manifest = {"schema_version": 1, "owner": str(uuid.uuid4()), "model": model,
         "pi_version": pi_version, "harbor_version": HARBOR_VERSION, "fragment": fragment,
+        "guidance_target": install_target, "thinking": thinking, "max_turns": max_turns,
         "inference_host": host, "matrix": matrix, "input_hashes": hashes(frozen),
         "task_hashes": hashes(output / "tasks"),
         "condition_hashes": {name: digest(output / f"{name}.md") for name in variants},
@@ -312,6 +326,10 @@ def main():
     parser.add_argument("--trials", type=int, default=2)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--live", action="store_true")
+    parser.add_argument("--conditions", nargs="+", choices=("current", "without", "empty"),
+                        default=("current", "without", "empty"))
+    parser.add_argument("--thinking", choices=("medium", "xhigh"), default="medium")
+    parser.add_argument("--max-turns", type=int, default=12)
     args = parser.parse_args()
     if args.audit:
         if args.study or args.model or args.output or args.live:
@@ -328,7 +346,8 @@ def main():
     if not output.is_relative_to(ROOT / "tmp"):
         parser.error("Keep evidence under this checkout's ignored tmp/")
     output.mkdir(parents=True, exist_ok=False)
-    manifest = stage(args.study.resolve(), output, args.model, args.trials)
+    manifest = stage(args.study.resolve(), output, args.model, args.trials,
+                     conditions=args.conditions, thinking=args.thinking, max_turns=args.max_turns)
     print(f"Staged {len(manifest['matrix'])} trials at {output}", flush=True)
     if not args.live:
         return
@@ -345,6 +364,17 @@ def main():
     host_tmp = output / "host-tmp"
     host_tmp.mkdir()
     env["TMPDIR"] = str(host_tmp)
+    # Docker's embedded DNS forwarding can be blocked by the upstream sidecar.
+    # Freeze only the already-allowed inference hostname, in both namespaces.
+    # No additional egress or DNS destination is permitted.
+    address = socket.getaddrinfo(manifest['inference_host'], 443, socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
+    manifest['inference_address'] = address
+    restrictions = json.loads((output / 'restrictions.json').read_text())
+    restrictions['services']['harbor-docker-egress-control-sidecar'] = {
+        'extra_hosts': [manifest['inference_host'] + ':' + address]}
+    save(output / 'restrictions.json', restrictions)
+    manifest['restrictions_sha256'] = digest(output / 'restrictions.json')
+    env['EVAL_INFERENCE_ADDRESS'] = address
     build_runtime(output, manifest, env)
     report = {"results": [], "errors": []}
     save(output / "report.json", report)
@@ -352,10 +382,12 @@ def main():
     for index, row in enumerate(manifest["matrix"]):
         job = f"run-{index}-{manifest['owner'][:8]}"
         env["EVAL_GUIDANCE_FILE"] = str(output / (row["condition"] + ".md"))
+        env["EVAL_GUIDANCE_TARGET"] = manifest["guidance_target"]
         command = [harbor, "run", "--path", str(output / "tasks" / row["condition"] / row["case"]),
             "--agent", "evals.runner.agent:SandboxedPi", "--model", args.model,
             "--agent-kwarg", "skip_install=true", "--agent-kwarg", f"version={manifest['pi_version']}",
-            "--agent-kwarg", "thinking=medium", "--agent-kwarg", "max_turns=12",
+            "--agent-kwarg", f"thinking={manifest['thinking']}",
+            "--agent-kwarg", f"max_turns={manifest['max_turns']}",
             "--agent-env", "PI_TELEMETRY=0", "--agent-env", "PI_SKIP_VERSION_CHECK=1",
             "--n-attempts", "1", "--n-concurrent", "1", "--max-retries", "0",
             "--jobs-dir", str(output / "jobs"), "--job-name", job,
