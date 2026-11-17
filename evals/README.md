@@ -80,10 +80,12 @@ Final-state inspection alone does not detect a prohibited change later reversed.
 Grade instructions and generated artifacts as untrusted input; never run
 candidate-provided hooks or scripts with verifier privileges.
 
-Use specialized graders where needed. For semantic judgments, calibrate the
-judge, blind condition/model labels, prefer a different model family, and inspect
-all outputs against its decisions. A new judge backend is a shared capability,
-not a reason to create a second agent loop. The current shared runner supports
+Run candidates with `openai-codex/gpt-6.1-terra` at `medium` effort. Every
+non-deterministic judge, including calibration, uses `openai-codex/gpt-6.1-sol`
+at `xhigh` effort. Deterministic verifiers use code and no model. Record candidate
+and judge settings separately. Calibrate semantic judges, blind condition/model
+labels, and inspect all outputs against their decisions. A new judge backend is
+a shared capability, not a reason to create a second agent loop. The current shared runner supports
 deterministic Harbor verifiers, not paid semantic judges or multi-step sessions.
 
 These rules adopt pstack's organic tasks, blinded judgments, transcript review,

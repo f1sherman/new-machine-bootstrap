@@ -5,6 +5,17 @@ description: Use when designing, running, or interpreting LLM evals or ablation 
 
 # Eval design
 
+## Model roles
+
+Run eval candidates with `openai-codex/gpt-6.1-terra`, `medium` effort.
+Use `openai-codex/gpt-6.1-sol`, `xhigh` effort for every judgment that needs
+model interpretation, including judge calibration. Deterministic checks run in
+code and use no model. Keep candidate and judge settings separate in the runner
+and record both in the frozen manifest. If the harness cannot use these settings,
+report the blocker rather than substitute a model or effort level. Preserve
+historical results with their original settings; a new judge produces a separate
+regrade, not replacement evidence.
+
 ## 1. Define the question
 
 State the behavior, baseline, and observation that would support the claim.
@@ -92,6 +103,15 @@ Keep credentials, private data, and provider reasoning out of Git.
 
 Document commands to run fresh comparisons against the current production
 artifact. Freeze generated fixtures before model calls and retain safety controls.
+
+For every PR containing or relying on evals, attach a downloadable case-by-case
+report and link it from the PR description. Include the exact case inputs, every
+tested condition (policy, model, effort, tools and limits), each repetition's
+actual output, and its original score and reason for each criterion. Include
+baselines, ablations, controls, calibrations, failures and incomplete attempts.
+Name unavailable evidence and redactions explicitly; never reconstruct missing
+results or expose secrets or provider reasoning. Aggregate scores and links to
+raw JSON alone do not replace this report.
 
 ## 7. Bound the conclusion
 
