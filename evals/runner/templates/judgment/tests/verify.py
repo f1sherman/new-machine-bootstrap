@@ -40,9 +40,14 @@ def main():
     path = Path('/workspace/assessment.json')
     if path.is_symlink() or path.stat().st_size > 1024 * 1024:
         raise ValueError('Invalid assessment artifact')
-    rubric = json.loads(Path('/tests/criteria.json').read_text())
+    # A separate verifier rebuilds the frozen task image. These are its baked
+    # inputs, not captured outputs; do not declare reference inputs as artifacts.
+    artifact = Path('/workspace/artifact')
+    rubric = parse((artifact / 'rubric.json').read_text())
+    if not isinstance(rubric, dict) or not rubric:
+        raise ValueError('Invalid frozen rubric')
     value = validate(parse(path.read_text()), rubric,
-                     Path('/tests/document.md').read_text())
+                     (artifact / 'document.md').read_text())
     Path('/logs/verifier/assessment.json').write_text(json.dumps(value, indent=2))
     Path('/logs/verifier/reward.json').write_text('{"valid_judgment": 1}\n')
 

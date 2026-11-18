@@ -82,6 +82,45 @@ not merely its type or marker text in the printed command. The native probe and
 network enforcement were not executed in this diagnostic. It does not establish
 a transient network cause, model quality or a new successful native recovery.
 
+## Frozen-input verifier diagnostic
+
+The judgment verifier now loads its reference document and rubric from the fresh
+verifier image's frozen inputs, rather than separate test copies. The three
+synthetic cases below execute the exact before/after verifier bytes in a
+networkless container with UID1001, no capabilities, a read-only root and bounded
+64 KiB verifier output. Reference inputs and assessments are read-only binds in
+this diagnostic, not baked files. No model or credential is used.
+
+Shared input: document `Reference: new document.\n`, rubric
+`{"clarity":"State the task clearly."}`. Every assessment has criterion
+`clarity`, status `met`, reason `Synthetic format-only diagnostic.`, and the
+single excerpt shown. These supplied labels are not semantic judgments.
+
+| Case | Obsolete test document / criterion IDs | Assessment excerpt | Original acceptance | Corrected acceptance |
+| --- | --- | --- | --- | --- |
+| J001 | `Reference: old document.\n` / `clarity` | `new document` | false | true |
+| J002 | `Reference: old document.\n` / `clarity` | `old document` | true | false |
+| J003 | Same document as frozen input / `obsolete` | `new document` | false | true |
+
+All six expected results matched. J001 and J003 show stale-copy false rejection;
+J002 shows stale-copy false acceptance. The first attempt stopped before verifier
+execution because the host umask made synthetic fixture files unreadable to
+UID1001. It remains retained; a separate attempt made only its new public-data
+fixtures readable. Exact assessments, original errors, results and source hashes
+are in the [six-run record](../../docs/superpowers/records/2026-11-18-native-judgment-input-boundary.json).
+No old semantic labels were changed. This diagnostic checks input provenance
+and quote/schema admission, not whether a model's conclusions are correct.
+
+## Native final-turn diagnostic
+
+A real one-turn native baseline reproduced the final-answer abort in Harbor
+0.26.0. A separate corrected run finished normally and passed the receipt audit.
+Both returned `READY.` with identical token counts. The
+[two-trial report](../../docs/superpowers/records/2026-11-18-native-turn-boundary.md)
+contains the frozen request, settings, actual output, source/image/trace hashes
+and separate callback checks. This is lifecycle evidence, not PR-workflow or
+model-quality evidence.
+
 ## Evidence limits
 
 Private captured-failure replay and earlier native recovery evidence remain with

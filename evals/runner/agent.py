@@ -10,6 +10,27 @@ from evals.runner.run import guidance_target, TLS_TIMEOUT_MARKER
 
 
 class SandboxedPi(Pi):
+    @staticmethod
+    def _build_max_turns_extension(max_turns):
+        # Harbor 0.26.0 aborts even a final answer at turn_end. Abort an excess
+        # turn before its request instead; keep the native lifecycle and prompt.
+        return f"""export default function (pi: any) {{
+  const maxTurns = {max_turns};
+  let startedTurns = 0;
+
+  pi.on("before_agent_start", (event: any) => ({{
+    systemPrompt: `${{event.systemPrompt}}\\n\\nYou have a hard budget of ${{maxTurns}} model turns. Complete the task and provide your final answer within that budget.`,
+  }}));
+
+  pi.on("turn_start", (_event: any, ctx: any) => {{
+    if (startedTurns >= maxTurns) {{
+      ctx.abort();
+    }}
+    startedTurns += 1;
+  }});
+}}
+"""
+
     async def install(self, environment):
         raise RuntimeError("Build Pi into the image and use skip_install=true")
 

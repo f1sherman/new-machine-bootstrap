@@ -210,7 +210,11 @@ or `xhigh`. Task agent timeouts are capped at 900 seconds. The same settings
 apply to every condition and are frozen in the manifest. `--conditions` selects
 a distinct subset of `current`, `without`, and `empty`; use all three for a
 candidate comparison and `--conditions current` for a fixed judge or calibration. Native Pi's tool
-contract and built-in prompt stay fixed.
+contract and built-in prompt stay fixed. A narrow adapter correction for Harbor
+0.26.0 aborts an excess turn at `turn_start`, not a completed final answer at
+`turn_end`; the injected budget instruction is unchanged. The
+[native boundary record](../../docs/superpowers/records/2026-11-18-native-turn-boundary.md)
+separates live final-answer proof from callback-only over-budget checks.
 
 Checks live in `tests/`, available only to the separate verifier. They write
 `/logs/verifier/reward.json` with named binary checks. Use `assessment.json` for
@@ -287,6 +291,10 @@ and deterministic separate verifiers. Semantic judgments can run as separate
 ordinary native-agent tasks using [the judgment template](templates/judgment).
 Its offline verifier checks the schema and exact excerpts, not judgment quality;
 calibrate meaning separately with frozen correct/wrong/equivalent documents.
+The verifier reads the document and rubric from `/workspace/artifact` in its
+fresh frozen task image, the same initial inputs the judge receives. Do not
+declare those reference inputs as captured artifacts. Independently maintained
+`tests/document.md` or `tests/criteria.json` copies are not used.
 The parser rejects duplicate JSON keys. `met` and `contradicted` judgments need
 at least one exact document excerpt; omission/uncertainty can use an empty list.
 Missing or malformed judge output is incomplete measurement, not a scored
