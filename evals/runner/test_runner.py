@@ -23,11 +23,14 @@ class RunnerTests(unittest.TestCase):
         for mode in ('--audit', '--resume-unstarted'):
             for setting in (('--max-turns', '1'), ('--conditions', 'current'),
                             ('--thinking', 'medium'), ('--trials', '1'), ('--model', '')):
-                with self.subTest(mode=mode, setting=setting), \
-                        patch('sys.argv', ['run', mode, frozen, *setting]), \
-                        patch('evals.runner.run.audit', side_effect=AssertionError('Unexpected evidence access')) as audit, \
-                        patch('evals.runner.run.subprocess.run') as jobs, \
-                        redirect_stderr(io.StringIO()):
+                with (
+                    self.subTest(mode=mode, setting=setting),
+                    patch('sys.argv', ['run', mode, frozen, *setting]),
+                    patch('evals.runner.run.audit',
+                          side_effect=AssertionError('Unexpected evidence access')) as audit,
+                    patch('evals.runner.run.subprocess.run') as jobs,
+                    redirect_stderr(io.StringIO()),
+                ):
                     with self.assertRaises(SystemExit) as error:
                         main()
                     self.assertEqual(error.exception.code, 2)
