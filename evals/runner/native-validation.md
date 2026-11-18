@@ -166,8 +166,11 @@ records do not prove host enforcement. The adapter no longer runs this second
 resource-loader pass.
 
 The current adapter checks Pi's normalized skill metadata in native
-`before_agent_start`. Staging freezes the current skill name from its YAML
-header. Nonempty conditions must load that name from the target file; empty
+`before_agent_start`. Staging freezes the current YAML header. Before credential
+upload, Pi's own frontmatter parser resolves the name with Node preloads and
+compile-cache writes disabled. It does not load resources or extensions.
+Nonempty conditions must load that name from the target file and advertise its
+location in the effective prompt; hidden skills are refused. Empty
 controls must load no skill with that name, including alternate discovery roots.
 A mismatch emits `EVAL_SKILL_DISCOVERY_REFUSED` and uses native cancellation
 before any provider request. This check runs after access-only credential upload;
@@ -198,6 +201,32 @@ Every valid fixture request contains the unchanged budget instruction. Four
 prior incomplete or refuted diagnostic attempts remain identified in the
 record. These are native component checks, not live-provider or PR-workflow
 reliability results.
+
+A [later admission replay](../../docs/superpowers/records/2026-11-18-native-discovery-admission.json)
+repeats those eleven native cases and adds four. It uses the same CLI, fixture
+transport, settings and limits. All fifteen matched the specified observations.
+No inference or semantic judge ran.
+
+| Added boundary | Captured observation | Corrected observation |
+| --- | --- | --- |
+| Hidden skill | 1 request; target absent from prompt | 0 requests; discovery refused |
+| YAML name `on` | Ruby staging rejects valid native metadata | Header preserved; native name `on`; 1 request; `READY.` |
+| Missing name | Not run | Native directory fallback `example`; 1 request; `READY.` |
+
+The hidden-skill pair uses captured revision `1db6a61e`; earlier duplicate-load
+and excess-turn comparisons retain `f77047c4`. Every accepted request retains
+the unchanged budget. The name parser's output is recorded separately and
+checked against the guard name. This does not exercise whole `configure()`,
+credential export, Harbor or a live provider. The earlier wrong module-path
+attempt remains incomplete in the record.
+
+The same record includes twenty command-admission replays: both audit and
+recovery, five explicit settings, captured and corrected controllers. The
+settings are `--max-turns 1`, `--conditions current`, `--thinking medium`,
+`--trials 1`, and `--model ""`. Each captured command reaches the evidence-open
+recorder. Each corrected command exits 2 before opening evidence. The recorder
+stops execution before real audit or paid recovery. Three incomplete report
+assembly attempts remain listed; none used inference.
 
 The offline calibration launcher now stages only `current`. A standalone
 single-fragment skill previously failed its unused ablation's frontmatter guard;

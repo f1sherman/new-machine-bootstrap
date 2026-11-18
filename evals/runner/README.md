@@ -131,7 +131,9 @@ tmp/harbor-venv/bin/python -m evals.runner.run \
   --resume-unstarted tmp/cleanup-live
 ```
 
-This is an explicit once-only recovery, not an automatic retry. It audits the
+This is an explicit once-only recovery, not an automatic retry. Recovery and
+read-only audit commands reject explicit trial-setting flags, even when their
+values match defaults. Recovery uses the original frozen settings. It audits the
 incomplete run and completed prefix first, requires the same frozen input
 hashes, inference address and runtime image, and resumes the next planned row.
 It keeps the failed setup job and copies the original report, summary and
@@ -214,9 +216,11 @@ or `xhigh`. Task agent timeouts are capped at 900 seconds. The same settings
 apply to every condition and are frozen in the manifest. `--conditions` selects
 a distinct subset of `current`, `without`, and `empty`. Skill-targeted ablations
 must retain byte-identical frontmatter so discovery does not silently remove the
-whole skill. Staging freezes the current skill name from its YAML header. At
-native startup, a nonempty condition must load that name from its target file;
-an empty condition must load no skill with that name from any discovery root.
+whole skill. Staging freezes the current YAML header. Before credential upload,
+Pi's own parser resolves its name without loading resources or extensions. At
+native startup, a nonempty condition must load that name from its target file
+and advertise that file in the effective prompt; hidden skills are refused. An
+empty condition must load no skill with that name from any discovery root.
 This uses Pi's normal resource loading once, including ignore rules, settings
 and project trust. The check runs after access-only credential upload but before
 the first provider request; refusal stays incomplete, not a recoverable setup
@@ -228,7 +232,9 @@ contract and built-in prompt stay fixed. A narrow adapter correction for Harbor
 [native boundary record](../../docs/superpowers/records/2026-11-18-native-turn-boundary.md)
 separates live final-answer proof from callback checks. The later
 [native startup record](../../docs/superpowers/records/2026-11-18-native-startup-boundary.json)
-checks excess continuation through the actual CLI with inert transport.
+checks excess continuation through the actual CLI with inert transport. The
+[later admission record](../../docs/superpowers/records/2026-11-18-native-discovery-admission.json)
+adds hidden-skill refusal, native YAML compatibility, and explicit-limit refusal.
 
 Checks live in `tests/`, available only to the separate verifier. They write
 `/logs/verifier/reward.json` with named binary checks. Use `assessment.json` for

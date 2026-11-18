@@ -135,17 +135,13 @@ def stage(study_file, output, model, trials, *, conditions=("current", "without"
     hashes(frozen)
     assembler = frozen / "assemble-guidance"
     current = compile_guidance(frozen / "guidance", output / "current.md", assembler)
-    skill_name = None
+    skill_header = None
     header = None
     if install_target != 'AGENTS.md':
         header = re.match(r'\A---\r?\n.*?\r?\n---(?:\r?\n|$)', current, re.DOTALL)
         if not header:
             raise ValueError('Skill guidance requires frontmatter')
-        metadata = ''.join(header.group().splitlines(keepends=True)[1:-1])
-        skill_name = json.loads(subprocess.check_output(['ruby', '-ryaml', '-rjson', '-e',
-            'data = YAML.safe_load(STDIN.read); name = data.fetch("name", ARGV[0]); '
-            'abort "Skill name must be a nonempty string" unless name.is_a?(String) && !name.empty?; '
-            'puts JSON.generate(name)', Path(install_target).parent.name], input=metadata, text=True))
+        skill_header = header.group()
     if 'without' in conditions:
         without = output / "without-fragment"
         shutil.copytree(frozen / "guidance", without)
@@ -212,7 +208,7 @@ def stage(study_file, output, model, trials, *, conditions=("current", "without"
         "security_opt": ["no-new-privileges:true"], "pids_limit": 128}}})
     manifest = {"schema_version": 1, "owner": str(uuid.uuid4()), "model": model,
         "pi_version": pi_version, "harbor_version": HARBOR_VERSION, "fragment": fragment,
-        "guidance_target": install_target, "guidance_skill_name": skill_name,
+        "guidance_target": install_target, "guidance_skill_header": skill_header,
         "thinking": thinking, "max_turns": max_turns,
         "inference_host": host, "matrix": matrix, "input_hashes": hashes(frozen),
         "task_hashes": hashes(output / "tasks"),
@@ -416,21 +412,23 @@ def main():
                         help="Once, recover a failed precredential TLS probe; never replace a model draw")
     parser.add_argument("--study", type=Path)
     parser.add_argument("--model")
-    parser.add_argument("--trials", type=int, default=2)
+    parser.add_argument("--trials", type=int)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--live", action="store_true")
-    parser.add_argument("--conditions", nargs="+", choices=("current", "without", "empty"),
-                        default=("current", "without", "empty"))
-    parser.add_argument("--thinking", choices=("medium", "xhigh"), default="medium")
-    parser.add_argument("--max-turns", type=int, default=12)
+    parser.add_argument("--conditions", nargs="+", choices=("current", "without", "empty"))
+    parser.add_argument("--thinking", choices=("medium", "xhigh"))
+    parser.add_argument("--max-turns", type=int)
     args = parser.parse_args()
+    trial_overrides = any(value is not None for value in
+                          (args.trials, args.conditions, args.thinking, args.max_turns))
+    supplied_run_inputs = any(value is not None for value in (args.study, args.model, args.output))
     if args.audit:
-        if args.study or args.model or args.output or args.live or args.resume_unstarted:
+        if supplied_run_inputs or trial_overrides or args.live or args.resume_unstarted:
             parser.error("Audit accepts only --audit")
         audit(args.audit.resolve())
         return
     if args.resume_unstarted:
-        if args.study or args.model or args.output or args.live:
+        if supplied_run_inputs or trial_overrides or args.live:
             parser.error('Recovery accepts only --resume-unstarted')
         output = args.resume_unstarted.resolve()
         if not output.is_relative_to(ROOT / 'tmp'):
@@ -450,9 +448,13 @@ def main():
         parser.error("Supply --study, --model, and --output")
     if not args.model.startswith(("openai/", "openai-codex/")) or len(args.model.split("/")) != 2:
         parser.error("Use openai/model or openai-codex/model")
-    if not 1 <= args.trials <= 10:
-        parser.error("Use 1 to 10 repetitions")
     if not args.resume_unstarted:
+        args.trials = 2 if args.trials is None else args.trials
+        args.conditions = ('current', 'without', 'empty') if args.conditions is None else args.conditions
+        args.thinking = 'medium' if args.thinking is None else args.thinking
+        args.max_turns = 12 if args.max_turns is None else args.max_turns
+        if not 1 <= args.trials <= 10:
+            parser.error("Use 1 to 10 repetitions")
         output = args.output.resolve()
         if not output.is_relative_to(ROOT / "tmp"):
             parser.error("Keep evidence under this checkout's ignored tmp/")
@@ -513,6 +515,8 @@ def main():
             row = {**row, 'job_name': job}
         env["EVAL_GUIDANCE_FILE"] = str(output / (row["condition"] + ".md"))
         env["EVAL_GUIDANCE_TARGET"] = manifest["guidance_target"]
+        env["EVAL_GUIDANCE_SKILL_HEADER"] = manifest.get('guidance_skill_header') or ''
+        # Older frozen adapters consume the original name field on recovery.
         env["EVAL_GUIDANCE_SKILL_NAME"] = manifest.get('guidance_skill_name') or ''
         command = [harbor, "run", "--path", str(output / "tasks" / row["condition"] / row["case"]),
             "--agent", "evals.runner.agent:SandboxedPi", "--model", args.model,

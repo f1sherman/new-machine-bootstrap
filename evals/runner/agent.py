@@ -23,7 +23,8 @@ class SandboxedPi(Pi):
       const skills = event.systemPromptOptions?.skills;
       const named = Array.isArray(skills) ? skills.filter((skill: any) => skill.name === expected.name) : null;
       if (!named || (expected.present
-          ? !named.some((skill: any) => skill.filePath === expected.file)
+          ? !named.some((skill: any) => skill.filePath === expected.file && !skill.disableModelInvocation)
+              || !event.systemPrompt.includes(`<location>${{expected.file}}</location>`)
           : named.length > 0)) {{
         console.error("EVAL_SKILL_DISCOVERY_REFUSED");
         ctx.abort();
@@ -103,9 +104,30 @@ PY""", env={"INFERENCE_HOST": "chatgpt.com" if self.model_name.startswith("opena
             remote_path="/home/worker/.pi/agent/" + target, filename=Path(target).name)
         self._guidance_guard = None
         if target != 'AGENTS.md':
-            name = os.environ.get('EVAL_GUIDANCE_SKILL_NAME')
-            if not name:
-                raise ValueError('Skill conditions require a frozen skill name')
+            header = os.environ.get('EVAL_GUIDANCE_SKILL_HEADER')
+            if not header:
+                raise ValueError('Skill conditions require a frozen skill header')
+            # Use Pi's YAML rules without loading resources or running preloads.
+            parsed = await self.exec_as_agent(environment, command="""node --input-type=module - <<'JS'
+import { parseFrontmatter } from '/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/utils/frontmatter.js';
+try {
+  const { frontmatter } = parseFrontmatter(process.env.EVAL_SKILL_HEADER);
+  const name = typeof frontmatter.name === 'string' && frontmatter.name
+    ? frontmatter.name : process.env.EVAL_SKILL_FALLBACK;
+  process.stdout.write(JSON.stringify(name));
+} catch {
+  console.error('EVAL_SKILL_HEADER_INVALID');
+  process.exitCode = 2;
+}
+JS""", env={'EVAL_SKILL_HEADER': header, 'EVAL_SKILL_FALLBACK': Path(target).parent.name,
+            'NODE_OPTIONS': '', 'NODE_DISABLE_COMPILE_CACHE': '1'})
+            if parsed.return_code:
+                if parsed.return_code == 2 and parsed.stderr.strip() == 'EVAL_SKILL_HEADER_INVALID':
+                    raise ValueError('Frozen skill header is invalid')
+                raise RuntimeError('Native skill metadata parser failed')
+            name = json.loads(parsed.stdout)
+            if not isinstance(name, str) or not name:
+                raise ValueError('Native skill name is invalid')
             # Inspect native startup metadata, after its one resource load. Do not
             # initialize extensions in a separate live-workspace preflight.
             self._guidance_guard = {'file': '/home/worker/.pi/agent/' + target,

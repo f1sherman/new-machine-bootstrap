@@ -1,6 +1,8 @@
 """Exercise staging and evidence gates without Docker, inference, or credentials."""
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import redirect_stderr
 import hashlib
+import io
 from importlib.util import module_from_spec, spec_from_file_location
 import json
 import os
@@ -9,12 +11,29 @@ import subprocess
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
-from evals.runner.run import (stage, summarize, collect, hashes, guidance_target,
+from evals.runner.run import (ROOT, main, stage, summarize, collect, hashes, guidance_target,
                              unstarted_setup_failure, claim_setup_recovery, seal, TLS_TIMEOUT_MARKER)
 
 
 class RunnerTests(unittest.TestCase):
+    def test_audit_and_recovery_reject_explicit_run_limits_before_access(self):
+        frozen = str(ROOT / 'tmp/recovery-command-must-not-be-read')
+        for mode in ('--audit', '--resume-unstarted'):
+            for setting in (('--max-turns', '1'), ('--conditions', 'current'),
+                            ('--thinking', 'medium'), ('--trials', '1'), ('--model', '')):
+                with self.subTest(mode=mode, setting=setting), \
+                        patch('sys.argv', ['run', mode, frozen, *setting]), \
+                        patch('evals.runner.run.audit', side_effect=AssertionError('Unexpected evidence access')) as audit, \
+                        patch('evals.runner.run.subprocess.run') as jobs, \
+                        redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit) as error:
+                        main()
+                    self.assertEqual(error.exception.code, 2)
+                    audit.assert_not_called()
+                    jobs.assert_not_called()
+
     def test_guidance_cannot_replace_credentials_or_escape_agent_directory(self):
         for path in ('auth.json', '../auth.json', '/tmp/auth.json',
                      'skills/x/../../auth.json', 'skills/../SKILL.md',
