@@ -149,7 +149,7 @@ comparison. A body-only removal is still admitted. Native-loader observations:
 | Header removed by original stager | 0 | 0 |
 
 The current and body-removed skill retain the exact same name and description.
-The adapter also checks installed Pi discovery after upload and before
+Earlier adapter versions tried to check discovery after upload and before
 credentials. The initial [three-case preflight record](../../docs/superpowers/records/2026-11-18-native-skill-preflight.json)
 checked the target directory directly. A later review showed that this missed
 root `.ignore` rules. A later [four-case record](../../docs/superpowers/records/2026-11-18-native-effective-skill-preflight.json)
@@ -157,23 +157,57 @@ covered default roots and ignore rules, but its lower-level parser still missed
 settings exclusions. An earlier diagnostic omitted the required `skillPaths`
 argument and is retained; no model ran.
 
-The current command uses Pi's runtime resource loader and native noninteractive
-project-trust resolver. Its [nine-case record](../../docs/superpowers/records/2026-11-18-native-runtime-skill-preflight.json)
-checks current/body-removed discovery, missing descriptions, ignored skills,
-global and trusted-project exclusions, and denied or unanswered project trust.
-All nine match the expected results. Public inputs remain read-only; bounded
-writable container memory holds native trust locks. The resolver receives inert
-JSON-mode no-UI replies. Extra configured skill paths and dynamic session
-resource hooks were not exercised. Empty controls skip discovery; fixed
-current-only studies do not validate an unselected ablation. These are command
-boundaries, not full native-agent runs.
+A subsequent resource-loader command used native settings and project trust.
+Its [nine-case record](../../docs/superpowers/records/2026-11-18-native-runtime-skill-preflight.json)
+matched the specified observations, but review found that loading resources also
+initializes extensions. Running it in the live workspace could change trial
+state, and the adapter did not check its exit status. Those direct-command
+records do not prove host enforcement. The adapter no longer runs this second
+resource-loader pass.
+
+The current adapter checks Pi's normalized skill metadata in native
+`before_agent_start`. Staging freezes the current skill name from its YAML
+header. Nonempty conditions must load that name from the target file; empty
+controls must load no skill with that name, including alternate discovery roots.
+A mismatch emits `EVAL_SKILL_DISCOVERY_REFUSED` and uses native cancellation
+before any provider request. This check runs after access-only credential upload;
+a rejected condition stays incomplete and cannot use precredential recovery.
+It does not police later resource changes or prove the agent reads the skill.
+
+The [native startup record](../../docs/superpowers/records/2026-11-18-native-startup-boundary.json)
+uses the actual pinned CLI, provider implementation and native resource loading.
+Its external WebSocket responses and credential are inert fixtures. No real
+model or Harbor job runs. A startup extension records initialization; a separate
+fixture requests one more turn with runnable context.
+
+| Boundary | Provider sends | Initializations | Outcome |
+| --- | ---: | ---: | --- |
+| Captured excess turn | 1 | 1 | Native cancellation |
+| Current excess turn | 1 | 1 | Native cancellation |
+| Captured current with preflight | 1 | 2 | `READY.` |
+| Captured empty without preflight | 1 | 1 | `READY.` |
+| Current / body removed | 1 each | 1 each | `READY.` |
+| Missing description / ignored / disabled | 0 each | 1 each | Discovery refused |
+| Empty | 1 | 1 | `READY.` |
+| Empty with alternate skill copy | 0 | 1 | Discovery refused |
+
+These eleven cases match their specified observations. The original expectation
+of two sends through native continuation was refuted: a direct-provider replay
+had bypassed normal native abort handling. No hard-exit budget change remains.
+Every valid fixture request contains the unchanged budget instruction. Four
+prior incomplete or refuted diagnostic attempts remain identified in the
+record. These are native component checks, not live-provider or PR-workflow
+reliability results.
 
 The offline calibration launcher now stages only `current`. A standalone
 single-fragment skill previously failed its unused ablation's frontmatter guard;
 the same synthetic fixture now reaches its calibration script in a networkless
 container. The [launcher record](../../docs/superpowers/records/2026-11-18-native-current-only-calibration.json)
 keeps both outcomes and earlier incomplete diagnostic attempts. It does not
-measure semantic verifier quality.
+measure semantic verifier quality. A further [captured-source replay](../../docs/superpowers/records/2026-11-18-native-current-only-fragment.json)
+shows why all ablation construction and validation must be conditional: repeated
+fragment text previously rejected a current-only study. The corrected stager
+admits the same fixture without constructing `without`.
 The old stager bytes were captured before correction; only their relocated
 repository-root binding was supplied for this diagnostic. No model was used.
 This checks discovery, not whether an agent chooses to read the skill.

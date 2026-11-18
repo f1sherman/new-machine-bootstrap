@@ -10,17 +10,30 @@ from evals.runner.run import guidance_target, TLS_TIMEOUT_MARKER
 
 
 class SandboxedPi(Pi):
-    @staticmethod
-    def _build_max_turns_extension(max_turns):
-        # Harbor 0.26.0 aborts even a final answer at turn_end. Abort an excess
-        # turn before its request instead; keep the native lifecycle and prompt.
+    def _build_max_turns_extension(self, max_turns):
+        # Keep normal native abort handling and the completed final answer.
+        # Inspect skills during startup, not a second resource-loader pass.
         return f"""export default function (pi: any) {{
   const maxTurns = {max_turns};
+  const expected = {json.dumps(self._guidance_guard)};
   let startedTurns = 0;
 
-  pi.on("before_agent_start", (event: any) => ({{
-    systemPrompt: `${{event.systemPrompt}}\\n\\nYou have a hard budget of ${{maxTurns}} model turns. Complete the task and provide your final answer within that budget.`,
-  }}));
+  pi.on("before_agent_start", (event: any, ctx: any) => {{
+    if (expected) {{
+      const skills = event.systemPromptOptions?.skills;
+      const named = Array.isArray(skills) ? skills.filter((skill: any) => skill.name === expected.name) : null;
+      if (!named || (expected.present
+          ? !named.some((skill: any) => skill.filePath === expected.file)
+          : named.length > 0)) {{
+        console.error("EVAL_SKILL_DISCOVERY_REFUSED");
+        ctx.abort();
+        return;
+      }}
+    }}
+    return {{
+      systemPrompt: `${{event.systemPrompt}}\\n\\nYou have a hard budget of ${{maxTurns}} model turns. Complete the task and provide your final answer within that budget.`,
+    }};
+  }});
 
   pi.on("turn_start", (_event: any, ctx: any) => {{
     if (startedTurns >= maxTurns) {{
@@ -88,30 +101,15 @@ PY""", env={"INFERENCE_HOST": "chatgpt.com" if self.model_name.startswith("opena
         # Global context and skills remain in the normal HOME discovery paths.
         await self._upload_config_text(environment, content=guidance,
             remote_path="/home/worker/.pi/agent/" + target, filename=Path(target).name)
-        if target != 'AGENTS.md' and guidance:
-            # Use the installed parser before credentials or paid inference.
-            await self.exec_as_agent(environment, command="""node --input-type=module - <<'JS'
-import { DefaultResourceLoader, SettingsManager, ProjectTrustStore } from '/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/index.js';
-import { resolveProjectTrusted } from '/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/project-trust.js';
-const file = process.env.EVAL_SKILL_FILE;
-const cwd = process.cwd();
-const agentDir = '/home/worker/.pi/agent';
-const settingsManager = SettingsManager.create(cwd, agentDir, {projectTrusted: false});
-const loader = new DefaultResourceLoader({cwd, agentDir, settingsManager});
-await loader.reload({resolveProjectTrust: ({extensionsResult}) => resolveProjectTrusted({
-  cwd, extensionsResult, trustStore: new ProjectTrustStore(agentDir),
-  defaultProjectTrust: settingsManager.getDefaultProjectTrust(),
-  projectTrustContext: {cwd, mode: 'json', hasUI: false, ui: {
-    select: async () => undefined, confirm: async () => false,
-    input: async () => undefined, notify: () => {},
-  }},
-})});
-if (settingsManager.drainErrors().length) throw new Error('Cannot read skill discovery settings');
-const { skills } = loader.getSkills();
-if (!skills.some(skill => skill.filePath === file)) {
-  throw new Error('Expected skill is not discoverable');
-}
-JS""", env={'EVAL_SKILL_FILE': '/home/worker/.pi/agent/' + target})
+        self._guidance_guard = None
+        if target != 'AGENTS.md':
+            name = os.environ.get('EVAL_GUIDANCE_SKILL_NAME')
+            if not name:
+                raise ValueError('Skill conditions require a frozen skill name')
+            # Inspect native startup metadata, after its one resource load. Do not
+            # initialize extensions in a separate live-workspace preflight.
+            self._guidance_guard = {'file': '/home/worker/.pi/agent/' + target,
+                                    'name': name, 'present': bool(guidance)}
 
     async def run(self, instruction, environment, context):
         auth_path = "/home/worker/.pi/agent/auth.json"

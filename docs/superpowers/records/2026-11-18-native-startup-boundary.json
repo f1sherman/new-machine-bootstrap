@@ -1,0 +1,372 @@
+{
+  "scope": "Actual pinned native Pi CLI and Codex provider; inert WebSocket responses and a synthetic in-memory credential, networkless UID1001, no real inference. Not Harbor or a live provider run.",
+  "complete": true,
+  "rows": [
+    {
+      "case": "baseline-excess",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true
+        },
+        "initializations": 1
+      },
+      "native_aborted": true,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "last_assistant": {
+        "stop_reason": "aborted",
+        "text": ""
+      },
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": true,
+        "resource_preflight": false,
+        "adapter": "captured"
+      }
+    },
+    {
+      "case": "fixed-excess",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true
+        },
+        "initializations": 1
+      },
+      "native_aborted": true,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "last_assistant": {
+        "stop_reason": "aborted",
+        "text": ""
+      },
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": true,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      }
+    },
+    {
+      "case": "baseline-current-init",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true
+        },
+        "initializations": 2
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 2,
+      "skill_refused": false,
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      },
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\nUse the extra rule.\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": true,
+        "adapter": "captured"
+      }
+    },
+    {
+      "case": "baseline-empty-init",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true
+        },
+        "initializations": 1
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      },
+      "inputs": {
+        "skill_text": "",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "captured"
+      }
+    },
+    {
+      "case": "current",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true
+        },
+        "initializations": 1
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      },
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\nUse the extra rule.\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      }
+    },
+    {
+      "case": "without-body",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true
+        },
+        "initializations": 1
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      },
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      }
+    },
+    {
+      "case": "missing-description",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 0,
+          "sockets": 0
+        },
+        "initializations": 1
+      },
+      "native_aborted": true,
+      "expected_sends": 0,
+      "expected_initializations": 1,
+      "skill_refused": true,
+      "last_assistant": {
+        "stop_reason": "aborted",
+        "text": ""
+      },
+      "inputs": {
+        "skill_text": "---\nname: example\n---\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      }
+    },
+    {
+      "case": "ignored",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 0,
+          "sockets": 0
+        },
+        "initializations": 1
+      },
+      "native_aborted": true,
+      "expected_sends": 0,
+      "expected_initializations": 1,
+      "skill_refused": true,
+      "last_assistant": {
+        "stop_reason": "aborted",
+        "text": ""
+      },
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "ignored": true,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      }
+    },
+    {
+      "case": "global-disabled",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 0,
+          "sockets": 0
+        },
+        "initializations": 1
+      },
+      "native_aborted": true,
+      "expected_sends": 0,
+      "expected_initializations": 1,
+      "skill_refused": true,
+      "last_assistant": {
+        "stop_reason": "aborted",
+        "text": ""
+      },
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {
+          "skills": [
+            "-skills/example/SKILL.md"
+          ]
+        },
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      }
+    },
+    {
+      "case": "empty",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true
+        },
+        "initializations": 1
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      },
+      "inputs": {
+        "skill_text": "",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      }
+    },
+    {
+      "case": "empty-fallback-copy",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 0,
+          "sockets": 0
+        },
+        "initializations": 1
+      },
+      "native_aborted": true,
+      "expected_sends": 0,
+      "expected_initializations": 1,
+      "skill_refused": true,
+      "last_assistant": {
+        "stop_reason": "aborted",
+        "text": ""
+      },
+      "inputs": {
+        "skill_text": "",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\nUse the extra rule.\n",
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      }
+    }
+  ],
+  "runtime_image_sha256": "sha256:2ced8d3dfe8edcc03bb362c027d093c3399bd909d94bdb205ce0c61e169ec30f",
+  "pi_version": "1.5.2",
+  "candidate": "openai-codex/gpt-6.1-terra, medium; transport responses are fixtures, not inference",
+  "native_invocation": "pi --mode json -p --provider openai-codex --model gpt-6.1-terra --thinking medium -e /fixture/budget.ts 'Reply with READY.'",
+  "permissions": {
+    "uid": 1001,
+    "network": "none",
+    "capabilities": "none",
+    "no_new_privileges": true,
+    "root_filesystem": "read-only",
+    "input_mounts": "read-only",
+    "writable_tmpfs_bytes": {
+      "tmp": 33554432,
+      "home": 33554432,
+      "workspace": 8388608
+    },
+    "memory_bytes": 536870912,
+    "cpus": 1,
+    "pids": 128
+  },
+  "source_sha256": {
+    "evals/runner/agent.py": "1187ce38bb70b3b56575fd4972cab7da71d6130a8a0ff75ae248b5dd2fffe0d6",
+    "evals/runner/run.py": "4c01e3886813048577d33157661bf183ac4c87474514d025d8b77e023a5a2b31"
+  },
+  "baseline_agent_sha256": "6a3324021a548a03986ab2d188f6793a1a04379c3e8bf4bc0d976cafed033e82",
+  "baseline_revision": "f77047c4",
+  "transport_fixture": "import {writeFileSync} from 'node:fs';\nlet sends = 0, sockets = 0;\nglobalThis.WebSocket = class extends EventTarget {\n  static OPEN = 1;\n  readyState = 0;\n  constructor() {\n    super(); sockets++;\n    queueMicrotask(() => { this.readyState = 1; this.dispatchEvent(new Event('open')); });\n  }\n  send(body) {\n    if (JSON.parse(body).type !== 'response.create') throw Error('Unexpected fixture request');\n    if (sends >= 4) throw Error('Fixture request ceiling');\n    sends++;\n    writeFileSync('/workspace/transport-count.json', JSON.stringify({sends, sockets,\n      budget_instruction_present: JSON.stringify(JSON.parse(body)).includes('You have a hard budget of 1 model turns.')}));\n    const id = 'fixture-' + sends;\n    const item = {id, type:'message', role:'assistant', status:'completed',\n      content:[{type:'output_text', text:'READY.', annotations:[]}]};\n    const events = [\n      {type:'response.created', response:{id, status:'in_progress', output:[]}},\n      {type:'response.output_item.added', output_index:0,\n       item:{...item, status:'in_progress', content:[]}},\n      {type:'response.content_part.added', output_index:0, content_index:0, item_id:id,\n       part:{type:'output_text', text:'', annotations:[]}},\n      {type:'response.output_text.delta', output_index:0, content_index:0, item_id:id, delta:'READY.'},\n      {type:'response.output_text.done', output_index:0, content_index:0, item_id:id, text:'READY.'},\n      {type:'response.output_item.done', output_index:0, item},\n      {type:'response.completed', response:{id, status:'completed', output:[item],\n       usage:{input_tokens:1, output_tokens:1}}},\n    ];\n    queueMicrotask(() => { for (const event of events) this.dispatchEvent(\n      new MessageEvent('message', {data: JSON.stringify(event)})); });\n  }\n  close() { this.readyState = 3; }\n};\nconst fixtureSocket = globalThis.WebSocket;\nObject.defineProperty(globalThis, 'WebSocket', {configurable:true,\n  get:() => fixtureSocket, set:() => {}});\n",
+  "startup_extension": "import {appendFileSync} from 'node:fs';\nexport default function(pi: any) {\n  appendFileSync('/workspace/startup-count', 'initialized\\n');\n  if (process.env.FORCE_CONTINUATION === '1') {\n    pi.on('turn_end', (event: any) => event.outcome === 'completed' ? {\n      entries: [{type:'custom_message',customType:'fixture',content:'Continue the fixture.',display:false}],\n      continue: true,\n    } : undefined);\n  }\n}\n",
+  "prior_attempts": [
+    {
+      "id": "native-1",
+      "outcome": "Incomplete fixture: API-key override did not provide OAuth auth; no request. Cleanup matcher also rejected lowercase no-such-object output after container removal."
+    },
+    {
+      "id": "native-2",
+      "outcome": "Incomplete fixture: CLI bootstrap replaced the inert WebSocket; networkless connection failed, no successful provider request. No real credential or inference."
+    },
+    {
+      "id": "native-3",
+      "outcome": "Fixture requested continuation without runnable new context; native code refused it after one inert request."
+    },
+    {
+      "id": "native-4",
+      "outcome": "With runnable continuation, native code sent one inert request and aborted. Frozen expectation of two requests was refuted. The separate final diagnostic freezes one as the native expectation; no hard-exit budget change was retained."
+    }
+  ],
+  "finding_scope": "A direct-provider replay reported a second send with an already-aborted signal. This did not reproduce through the supported native CLI: captured and corrected adapters both send once and abort excess continuation. The skill preflight defects did reproduce. No live provider continuation, Harbor lifecycle or host credential export is proved here."
+}

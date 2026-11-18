@@ -133,23 +133,34 @@ def stage(study_file, output, model, trials, *, conditions=("current", "without"
                 raise ValueError("Assets must be regular files")
             shutil.copy2(asset_source, target)
     hashes(frozen)
-    without = output / "without-fragment"
-    shutil.copytree(frozen / "guidance", without)
-    (without / fragment).unlink()
     assembler = frozen / "assemble-guidance"
     current = compile_guidance(frozen / "guidance", output / "current.md", assembler)
-    removed_dir = output / "removed-fragment"
-    removed_dir.mkdir()
-    shutil.copy2(frozen / "guidance" / fragment, removed_dir / fragment)
-    removed = compile_guidance(removed_dir, output / "removed.md", assembler)
-    alternate = compile_guidance(without, output / "without.md", assembler)
-    if current.count(removed) != 1 or current.replace(removed, "", 1) != alternate:
-        raise ValueError("Ablation changes more than the selected fragment")
-    if install_target != 'AGENTS.md' and 'without' in conditions:
+    skill_name = None
+    header = None
+    if install_target != 'AGENTS.md':
         header = re.match(r'\A---\r?\n.*?\r?\n---(?:\r?\n|$)', current, re.DOTALL)
-        if not header or not alternate.startswith(header.group()):
+        if not header:
+            raise ValueError('Skill guidance requires frontmatter')
+        metadata = ''.join(header.group().splitlines(keepends=True)[1:-1])
+        skill_name = json.loads(subprocess.check_output(['ruby', '-ryaml', '-rjson', '-e',
+            'data = YAML.safe_load(STDIN.read); name = data.fetch("name", ARGV[0]); '
+            'abort "Skill name must be a nonempty string" unless name.is_a?(String) && !name.empty?; '
+            'puts JSON.generate(name)', Path(install_target).parent.name], input=metadata, text=True))
+    if 'without' in conditions:
+        without = output / "without-fragment"
+        shutil.copytree(frozen / "guidance", without)
+        (without / fragment).unlink()
+        removed_dir = output / "removed-fragment"
+        removed_dir.mkdir()
+        shutil.copy2(frozen / "guidance" / fragment, removed_dir / fragment)
+        removed = compile_guidance(removed_dir, output / "removed.md", assembler)
+        alternate = compile_guidance(without, output / "without.md", assembler)
+        if current.count(removed) != 1 or current.replace(removed, "", 1) != alternate:
+            raise ValueError("Ablation changes more than the selected fragment")
+        if header and not alternate.startswith(header.group()):
             raise ValueError('Skill ablation must preserve its frontmatter unchanged')
-    (output / "empty.md").write_text("")
+    if 'empty' in conditions:
+        (output / "empty.md").write_text("")
     cases = sorted(p.name for p in (frozen / "tasks").iterdir() if p.is_dir())
     if not cases:
         raise ValueError("No Harbor tasks")
@@ -201,7 +212,8 @@ def stage(study_file, output, model, trials, *, conditions=("current", "without"
         "security_opt": ["no-new-privileges:true"], "pids_limit": 128}}})
     manifest = {"schema_version": 1, "owner": str(uuid.uuid4()), "model": model,
         "pi_version": pi_version, "harbor_version": HARBOR_VERSION, "fragment": fragment,
-        "guidance_target": install_target, "thinking": thinking, "max_turns": max_turns,
+        "guidance_target": install_target, "guidance_skill_name": skill_name,
+        "thinking": thinking, "max_turns": max_turns,
         "inference_host": host, "matrix": matrix, "input_hashes": hashes(frozen),
         "task_hashes": hashes(output / "tasks"),
         "condition_hashes": {name: digest(output / f"{name}.md") for name in variants},
@@ -501,6 +513,7 @@ def main():
             row = {**row, 'job_name': job}
         env["EVAL_GUIDANCE_FILE"] = str(output / (row["condition"] + ".md"))
         env["EVAL_GUIDANCE_TARGET"] = manifest["guidance_target"]
+        env["EVAL_GUIDANCE_SKILL_NAME"] = manifest.get('guidance_skill_name') or ''
         command = [harbor, "run", "--path", str(output / "tasks" / row["condition"] / row["case"]),
             "--agent", "evals.runner.agent:SandboxedPi", "--model", args.model,
             "--agent-kwarg", "skip_install=true", "--agent-kwarg", f"version={manifest['pi_version']}",
