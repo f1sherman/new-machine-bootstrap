@@ -284,8 +284,8 @@ def audit(output, *, require_complete=True):
     report = json.loads((output / "report.json").read_text())
     for index, row in enumerate(report["results"]):
         planned = manifest["matrix"][index]
-        job_name = row.get('job_name', f"run-{index}-{manifest['owner'][:8]}")
         expected_job = f"run-{index}-{manifest['owner'][:8]}"
+        job_name = row.get('job_name', expected_job)
         if job_name not in (expected_job, expected_job + '-setup-recovery'):
             raise ValueError('Invalid saved job name')
         job = output / 'jobs' / job_name
@@ -310,6 +310,7 @@ def unstarted_setup_failure(job):
         raise ValueError('Expected one failed setup result')
     error = results[0].get('exception_info') or {}
     logs = list(job.rglob('trial.log'))
+    trial_log = logs[0].read_text() if len(logs) == 1 else ''
     # Match the failed assertion's output, not the probe source printed above it.
     # The same command contains security assertions that must never be retried.
     tls_timeout = re.search(
@@ -320,8 +321,7 @@ def unstarted_setup_failure(job):
     if (error.get('exception_type') != 'NetworkConnectionError'
             or not tls_timeout
             or list(job.rglob('pi.txt')) or list(job.rglob('pi/sessions/*.jsonl'))
-            or len(logs) != 1 or 'auth.json' in logs[0].read_text()
-            or 'pi --print' in logs[0].read_text()
+            or len(logs) != 1 or 'auth.json' in trial_log or 'pi --print' in trial_log
             or any((results[0].get('agent_result') or {}).get(k)
                    for k in ('n_input_tokens', 'n_output_tokens', 'n_cache_tokens'))):
         raise ValueError('Recovery requires a failed precredential TLS probe with no native session')

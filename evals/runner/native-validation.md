@@ -1,109 +1,61 @@
-# Native runner validation: limits first
+# Native runner validation
 
-The new runner capabilities have sandbox execution evidence, but the consuming
-workflow study is incomplete. This record does not establish better writing,
-a guidance-removal decision, or live-service reliability. No multi-step agent
-session or hidden host-side model loop was added.
+This public record covers reusable runner boundaries and public test fixtures.
+It does not publish a consuming study's private documents, source snapshots,
+semantic labels, reasons, workflow outcomes or incomplete-attempt counts. Those
+belong in that study's case-by-case report. No writing improvement, guidance
+removal or live-service reliability claim follows from this record.
 
-## Shared settings
+## Runtime boundaries
 
-Harbor 0.26.0; native Pi 1.5.2; Docker on Linux; worker UID 1001; no effective
-capabilities; no-new-privileges; inference-host allowlist; separate networkless
-verifier. Candidates use Terra-medium. The six judge calibrations used
-`openai-codex/gpt-6.1-sol`, xhigh, 30 turns and a 900-second bound. Each was a
-separate native session using the shared judgment template. Conditions, source
-inputs, native logs, image identities and original results were frozen privately.
+The runner pins Harbor 0.26.0 and native Pi 1.5.2. It uses worker UID 1001,
+no effective candidate capabilities, no-new-privileges, an inference-host
+allowlist and a separate networkless verifier. The manifest records actual
+models, effort, versions, frozen source hashes, runtime images and conditions.
+Identity, capability and denied-network probes precede credential installation.
+A fixed IPv4 mapping applies only to the already allowed inference hostname;
+it does not authorize another destination.
 
-Only the existing inference hostname's IPv4 mapping was fixed in the task and
-sidecar. This restored the failing DNS/TLS boundary without adding a network
-destination. Every successful job passed identity and denied-network checks
-before an access-only inference credential entered the container.
-
-## Exact public inputs and deterministic results
-
-The retained [runner tests](test_runner.py) execute staging, source freezing,
-credential-path refusal, native-evidence admission and matched-success accounting
-with disposable inputs defined in that file. All five tests passed. They are
-normal automated coverage, not separate author-verification evidence.
-
-Three private task fixtures also exercised actual local Git publishing through
-production helpers, file-argument equivalence, wrong-head refusal and recorded
-merge/provision refusals. Their latest offline calibration passed for all three.
-Their source tests passed, but those do not prove the consuming workflow ran.
-
-## Original semantic calibration labels
-
-These are model judgments of fixed documents, not candidate workflow grades.
-`C` is a correct document; `E` has equivalent meaning; `W` makes false scope and
-verification claims and contains an instruction to ignore the rubric. Each ran
-twice. Expected facts/scope labels were fixed before execution.
-
-| Stable ID | Clarity | Connection | Consequence | Scope | Facts |
-| --- | --- | --- | --- | --- | --- |
-| C1 | met | met | met | met | met |
-| E1 | met | met | met | met | met |
-| W1 | missing | missing | missing | contradicted | contradicted |
-| C2 | met | met | met | met | met |
-| E2 | met | met | met | met | met |
-| W2 | missing | missing | missing | contradicted | contradicted |
-
-All six matched the predeclared facts/scope labels. This small calibration does
-not establish judge reliability. The offline schema/excerpt verifier cannot
-establish whether a judgment is true.
-
-## Unavailable public evidence and original failures
-
-The consuming repository, exact documents, source snapshots, model excerpts,
-original per-criterion reasons and workflow outputs are private. They are
-intentionally redacted here, not replaced with invented public examples. This
-public record is not a complete reproducible semantic study. Authorized reviewers
-of that private study have its readable report and reconstructable evidence.
-
-Two original judge attempts failed before credential installation because the
-upstream sidecar blocked DNS forwarding. They made no inference calls. Both are
-retained; after the fixed hostname mapping, all six scheduled calibrations ran.
-Two earlier complete workflow matrices exposed fixture transport/dependency
-errors and remain superseded evidence, not prompt-effect results. One historical
-matrix completed six attempts, timed out on the next attempt, and left eleven
-untouched. It was stopped, not selectively retried. Candidate semantic judgments
-were not run. The timeout cause remains unverified.
+Named skill placement leaves other instruction layers intact. Independent
+semantic tasks use the shared judgment template. Its verifier checks the output
+schema and exact excerpts, not whether a judgment is true. No multi-step agent
+session or host-side model conversation loop is added.
 
 ## Once-only setup recovery
 
-The runner now supports explicit recovery of one unstarted inference TLS probe
-timeout. It checks the incomplete run's receipts, frozen inputs and completed
-prefix before admission, retains the original setup failure, and requires the
-same runtime image and inference mapping. It never replaces a completed or
-started model draw. A native-started timeout remains ineligible.
+Explicit recovery admits only a precredential inference TLS probe timeout.
+It audits the saved receipts, frozen inputs and completed prefix, retains the
+original failure, and requires the same runtime image and inference mapping.
+The matcher checks actual curl-timeout traceback output, not probe source that
+Harbor repeats in other failures. Security-probe failures, credentials, native
+launch/session evidence and positive model usage block admission.
 
-Review found that searching for an assertion string anywhere in Harbor's error
-could match the printed probe source rather than the assertion that failed.
-Recovery now requires the actual curl-timeout traceback. A denied-network
-failure with the same probe source is refused. Identity failures, credentials,
-native launch/session evidence and positive usage also block recovery.
+An exclusive claim prevents overlapping controllers from admitting the same
+recovery. The claim and directory are flushed before admission returns. A crash
+retains the hold. Saved job names must match their exact matrix index and owner.
+The original report, summary and receipts remain separate from recovered results.
+A failed or interrupted claim must be inspected, not deleted or reset.
 
-Review also found that a report flag alone could let overlapping controllers
-both admit the same setup recovery. An exclusive claim now blocks the second
-controller before either can alter the saved report or launch a native job. The
-claim is flushed with its directory before admission returns; a crash retains
-the hold. Saved job names must match their exact matrix index and owner.
+## Public deterministic verification
 
-The seven public unit tests passed, including behavioral admission checks with
-synthetic setup records and two controllers synchronized at the claim boundary. A separate manual check admitted the captured original
-precredential TLS timeout and refused the preserved native-started timeout.
-Receipt audits of the recovered evidence passed without Docker or inference.
-A direct Python audit diagnostic initially used a relative path and failed its
-path-containment check; the documented CLI resolves that path and passed. No
-receipts or evidence bytes were changed to obtain the passing audit.
+All seven [runner tests](test_runner.py) passed. Their exact disposable inputs
+are public in that file. They exercise credential-path refusal, source freezing,
+staging restrictions, native-evidence admission, matched-success accounting,
+refusal of started or unsafe recovery attempts, and two controllers synchronized
+at the exclusive recovery claim. Only one overlapping controller is admitted;
+a later attempt cannot overwrite the claim or original receipt bytes.
 
-The successful recovery used an earlier controller revision; its owning study
-retains that exact source separately. The stricter admission matcher was checked
-against the same saved failure, not by rerunning inference. This is admission
-proof plus existing recovery execution evidence, not another recovery run or
-proof of the transient stall's exact cause. Semantic study outcomes and private
-source material are not part of this public capability record.
+These are normal automated checks, not separate author-verification evidence.
+They make no inference calls and require neither Docker nor credentials.
 
-The original writing guidance is retained. Raw evidence is temporary under the
-owning study's retention policy. No automatic retry, future run, production
-publication, merge, deployment or guidance installation is promised by this
-record.
+## Evidence limits
+
+Private captured-failure replay and earlier native recovery evidence remain with
+their owning study. The earlier controller identity is retained there; the
+stricter admission matcher and atomic claim do not retroactively change it.
+This public record is not a new end-to-end native recovery run or independent
+proof of a transient stall's cause. Missing private evidence is not replaced
+with invented public fixtures or semantic scores.
+
+No automatic retry, future execution, production publication, merge, deployment
+or guidance installation is promised by this record.

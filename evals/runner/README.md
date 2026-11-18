@@ -136,8 +136,8 @@ receipts to `before-setup-recovery-*.json`. The recovered row names its separate
 An exclusive, flushed `setup-recovery.json` claim is saved before changing the
 report or launching that job. Overlapping controllers cannot both claim the same
 recovery. A failed or interrupted recovery must be inspected, not reset or
-resumed again. Do not delete its marker,
-reseal altered evidence, or create a new directory to replace a started draw.
+resumed again. Do not delete its marker, reseal altered evidence, or create a
+new directory to replace a started draw.
 
 An audit verifies original bytes and native observations, not model quality or
 independence. Recovery does not prove the exact cause of a transient network
