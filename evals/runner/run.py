@@ -145,6 +145,10 @@ def stage(study_file, output, model, trials, *, conditions=("current", "without"
     alternate = compile_guidance(without, output / "without.md", assembler)
     if current.count(removed) != 1 or current.replace(removed, "", 1) != alternate:
         raise ValueError("Ablation changes more than the selected fragment")
+    if install_target != 'AGENTS.md':
+        header = re.match(r'\A---\r?\n.*?\r?\n---(?:\r?\n|$)', current, re.DOTALL)
+        if not header or not alternate.startswith(header.group()):
+            raise ValueError('Skill ablation must preserve its frontmatter unchanged')
     (output / "empty.md").write_text("")
     cases = sorted(p.name for p in (frozen / "tasks").iterdir() if p.is_dir())
     if not cases:

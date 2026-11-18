@@ -93,7 +93,8 @@ PY""", env={"INFERENCE_HOST": "chatgpt.com" if self.model_name.startswith("opena
         auth_path = "/home/worker/.pi/agent/auth.json"
         oauth = self.model_name.startswith("openai-codex/")
         if oauth:
-            credential = await access_credential()
+            # Cover the 900-second trial cap plus Pi's five-minute refresh window.
+            credential = await access_credential(minimum_seconds=1200)
             await self._upload_config_text(environment, content=json.dumps(credential),
                 remote_path=auth_path, filename="auth.json")
         try:

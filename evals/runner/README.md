@@ -93,8 +93,9 @@ tmp/harbor-venv/bin/python -m evals.runner.run --study "$f" \
 ```
 
 For execution, use a new output directory and add `--live`. The OAuth provider
-uses the existing host Pi login. Only an access bearer with at least five minutes
-remaining enters the container. The host Pi CLI owns its normal login refresh;
+uses the existing host Pi login. Only an access bearer with at least twenty
+minutes remaining enters the container: the full 900-second trial cap plus Pi's
+five-minute refresh window. The host Pi CLI owns its normal login refresh;
 the adapter removes the container auth file after the bounded run. For the API
 provider, supply `OPENAI_API_KEY` through the process environment instead.
 Credentials must never be written into a study, image, command argument, or
@@ -208,7 +209,10 @@ conditions in separate fresh native sessions, rotating their order. The default 
 is 12 agent turns. `--max-turns` accepts 1–80; `--thinking` accepts `medium`
 or `xhigh`. Task agent timeouts are capped at 900 seconds. The same settings
 apply to every condition and are frozen in the manifest. `--conditions` selects
-a distinct subset of `current`, `without`, and `empty`; use all three for a
+a distinct subset of `current`, `without`, and `empty`. Skill-targeted ablations
+must retain byte-identical frontmatter so discovery does not silently remove the
+whole skill. The empty condition remains a deliberate missing-skill control.
+Use all three for a
 candidate comparison and `--conditions current` for a fixed judge or calibration. Native Pi's tool
 contract and built-in prompt stay fixed. A narrow adapter correction for Harbor
 0.26.0 aborts an excess turn at `turn_start`, not a completed final answer at

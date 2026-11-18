@@ -121,6 +121,52 @@ contains the frozen request, settings, actual output, source/image/trace hashes
 and separate callback checks. This is lifecycle evidence, not PR-workflow or
 model-quality evidence.
 
+## Discovery and credential-lifetime diagnostics
+
+A public two-fragment skill used this exact header and the body
+`Use the extra rule.\n`:
+
+```yaml
+---
+name: example
+description: Use for the public boundary fixture.
+---
+```
+
+The original stager accepted header removal. Pi 1.5.2's real skill loader then
+loaded no skill, although the body remained. The updated stager refuses that
+comparison. A body-only removal is still admitted. Native-loader observations:
+
+| Variant | Expected skills | Observed skills |
+| --- | --- | --- |
+| Current | 1 | 1 |
+| Body removed | 1 | 1 |
+| Header removed by original stager | 0 | 0 |
+
+The current and body-removed skill retain the exact same name and description.
+The old stager bytes were captured before correction; only their relocated
+repository-root binding was supplied for this diagnostic. No model was used.
+This checks discovery, not whether an agent chooses to read the skill.
+
+Credential export now requests twenty minutes for a runner trial: its maximum
+900 seconds plus Pi's five-minute refresh window. Legacy callers retain their
+five-minute default. The production helper was executed against an inert async
+host-process boundary and a fixed clock. A dummy bearer existed only in memory;
+no real login, refresh token, credential file or model was used.
+
+| ID | Minimum / remaining seconds | Export request | Expected / observed |
+| --- | --- | --- | --- |
+| A001 | 300 / 301 | `5m` | accepted / accepted |
+| A002 | 1200 / 1201 | `20m` | accepted / accepted |
+| A003 | 1200 / 1199 | `20m` | refused / refused |
+
+The [exact boundary record](../../docs/superpowers/records/2026-11-18-native-discovery-lifetime.json)
+contains the skill inputs, loader outputs, thresholds and source hashes. This
+credential diagnostic checks the export request and local expiry admission. It
+does not prove a fresh live twenty-minute export or provider refresh. The native
+final-turn trials above preceded this lifetime correction; their original
+source/image identities remain unchanged.
+
 ## Evidence limits
 
 Private captured-failure replay and earlier native recovery evidence remain with
