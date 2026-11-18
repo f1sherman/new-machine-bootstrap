@@ -120,7 +120,10 @@ same matrix. The only supported recovery is one precredential inference TLS
 probe timeout, before native launch, authentication installation, session logs
 or any model usage. A denied-network or identity failure is not eligible. The
 runner matches the actual timeout assertion output, not the probe source that
-Harbor repeats in every failure message.
+Harbor repeats in every failure message. New probes emit a distinct timeout
+marker only for curl exit 28 with no HTTP response, after the security probes
+pass. Frozen older probes still use their actual zero-byte curl-timeout
+traceback; eligibility does not depend on the elapsed-millisecond digits.
 
 ```bash
 tmp/harbor-venv/bin/python -m evals.runner.run \
@@ -284,6 +287,8 @@ and deterministic separate verifiers. Semantic judgments can run as separate
 ordinary native-agent tasks using [the judgment template](templates/judgment).
 Its offline verifier checks the schema and exact excerpts, not judgment quality;
 calibrate meaning separately with frozen correct/wrong/equivalent documents.
+The parser rejects duplicate JSON keys. `met` and `contradicted` judgments need
+at least one exact document excerpt; omission/uncertainty can use an empty list.
 Run judges with Sol at xhigh, blind treatment labels, and keep their results and
 usage separate from candidate workflow checks. This does not add an inline judge,
 a host-side conversation loop, or multi-step-session support. Task images may

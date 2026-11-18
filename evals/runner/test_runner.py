@@ -1,6 +1,7 @@
 """Exercise staging and evidence gates without Docker, inference, or credentials."""
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
+from importlib.util import module_from_spec, spec_from_file_location
 import json
 import os
 from pathlib import Path
@@ -10,7 +11,7 @@ import threading
 import unittest
 
 from evals.runner.run import (stage, summarize, collect, hashes, guidance_target,
-                             unstarted_setup_failure, claim_setup_recovery)
+                             unstarted_setup_failure, claim_setup_recovery, TLS_TIMEOUT_MARKER)
 
 
 class RunnerTests(unittest.TestCase):
@@ -178,6 +179,14 @@ class RunnerTests(unittest.TestCase):
             log.write_text('Sandbox TLS probe failed before credential installation.\n')
             saved.write_text(json.dumps(result))
             unstarted_setup_failure(job)
+            for message in (result['exception_info']['exception_message'].replace('15000', '15037'),
+                            result['exception_info']['exception_message'].replace(
+                                'curl: (28) Operation timed out after 15000 milliseconds with 0 bytes received',
+                                TLS_TIMEOUT_MARKER)):
+                changed = {**result, 'exception_info': {**result['exception_info'], 'exception_message': message}}
+                saved.write_text(json.dumps(changed))
+                unstarted_setup_failure(job)
+            saved.write_text(json.dumps(result))
             for name in ('agent/pi.txt', 'agent/pi/sessions/native.jsonl'):
                 path = job / name
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -204,9 +213,11 @@ class RunnerTests(unittest.TestCase):
                 with self.subTest(message=message), self.assertRaises(ValueError):
                     unstarted_setup_failure(job)
             # Probe source contains the TLS assertion even for a security failure.
-            changed['exception_info']['exception_message'] = original['exception_info']['exception_message'].replace(
-                'AssertionError: curl: (28) Operation timed out after 15000 milliseconds with 0 bytes received',
-                'AssertionError: Unexpected network access: https://example.com')
+            changed['exception_info']['exception_message'] = (
+                f"Command contains raise AssertionError('{TLS_TIMEOUT_MARKER}')\n" +
+                original['exception_info']['exception_message'].replace(
+                    'AssertionError: curl: (28) Operation timed out after 15000 milliseconds with 0 bytes received',
+                    'AssertionError: Unexpected network access: https://example.com'))
             saved.write_text(json.dumps(changed))
             with self.assertRaises(ValueError):
                 unstarted_setup_failure(job)
@@ -238,6 +249,38 @@ class RunnerTests(unittest.TestCase):
                 claim_setup_recovery(output)
             self.assertEqual((output / 'setup-recovery.json').read_bytes(), saved)
             self.assertEqual((output / 'receipts.json').read_bytes(), original)
+
+    def test_judgments_refuse_ambiguous_and_unquoted_claims(self):
+        path = Path(__file__).parent / 'templates/judgment/tests/verify.py'
+        spec = spec_from_file_location('judgment_verifier', path)
+        verifier = module_from_spec(spec)
+        spec.loader.exec_module(verifier)
+        document = 'The workflow remains inactive.'
+        row = {'status': 'met', 'reason': 'The document limits activation.',
+               'excerpts': [document]}
+        value = {'criteria': {'scope': row}}
+        self.assertEqual(verifier.validate(verifier.parse(json.dumps(value)), ['scope'], document), value)
+        for status in ('met', 'contradicted'):
+            unquoted = {'criteria': {'scope': {**row, 'status': status, 'excerpts': []}}}
+            with self.subTest(status=status), self.assertRaisesRegex(ValueError, 'exact excerpt'):
+                verifier.validate(unquoted, ['scope'], document)
+        for status in ('missing', 'uncertain'):
+            omitted = {'criteria': {'scope': {**row, 'status': status, 'excerpts': []}}}
+            self.assertEqual(verifier.validate(omitted, ['scope'], document), omitted)
+        for duplicate in ('{"criteria":{},"criteria":{}}',
+                          '{"criteria":{"scope":{},"scope":{}}}',
+                          '{"criteria":{"scope":{"status":"met","status":"missing"}}}'):
+            with self.subTest(duplicate=duplicate), self.assertRaisesRegex(ValueError, 'Duplicate'):
+                verifier.parse(duplicate)
+        with self.assertRaises(ValueError):
+            verifier.parse('{"criteria":')
+        with self.assertRaises(ValueError):
+            verifier.validate({**value, 'publish': True}, ['scope'], document)
+        with self.assertRaises(ValueError):
+            verifier.validate(value, ['another-criterion'], document)
+        unsupported = {'criteria': {'scope': {**row, 'excerpts': ['An invented excerpt.']}}}
+        with self.assertRaisesRegex(ValueError, 'Unsupported excerpt'):
+            verifier.validate(unsupported, ['scope'], document)
 
     def test_native_evidence_and_successful_pair_gates(self):
         with tempfile.TemporaryDirectory() as folder:

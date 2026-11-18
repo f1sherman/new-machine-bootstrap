@@ -6,7 +6,7 @@ from pathlib import Path
 
 from harbor.agents.installed.pi import Pi
 from evals.harbor.pi_login import access_credential
-from evals.runner.run import guidance_target
+from evals.runner.run import guidance_target, TLS_TIMEOUT_MARKER
 
 
 class SandboxedPi(Pi):
@@ -44,10 +44,13 @@ for url in ('https://example.com', 'https://1.1.1.1',
 r = subprocess.run(['curl', '--silent', '--show-error', '--max-time', '15',
                     '--output', '/dev/null', '--write-out', '%{http_code}',
                     'https://' + os.environ['INFERENCE_HOST'] + '/'], capture_output=True, text=True)
+if r.returncode == 28 and r.stdout in ('', '000'):
+    raise AssertionError(os.environ['TLS_TIMEOUT_MARKER'])
 assert r.returncode == 0 and r.stdout.isdigit() and int(r.stdout) > 0, r.stderr
 print(json.dumps({'uid': os.getuid(), 'blocked': ['example.com', 'direct-ip', 'metadata', 'docker-host'],
                   'inference_tls': True, 'capabilities': 0, 'no_new_privileges': True}))
-PY""", env={"INFERENCE_HOST": "chatgpt.com" if self.model_name.startswith("openai-codex/") else "api.openai.com"})
+PY""", env={"INFERENCE_HOST": "chatgpt.com" if self.model_name.startswith("openai-codex/") else "api.openai.com",
+           "TLS_TIMEOUT_MARKER": TLS_TIMEOUT_MARKER})
         if probe.return_code != 0:
             raise RuntimeError("Sandbox preflight failed: " + (probe.stderr or probe.stdout or ""))
         (self.logs_dir / "boundary.json").write_text(probe.stdout)

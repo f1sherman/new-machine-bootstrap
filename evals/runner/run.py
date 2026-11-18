@@ -18,6 +18,7 @@ import toml
 
 ROOT = Path(__file__).resolve().parents[2]
 HARBOR_VERSION = "0.26.0"
+TLS_TIMEOUT_MARKER = 'EVAL_PRECREDENTIAL_TLS_TIMEOUT'
 
 
 def digest(file):
@@ -316,7 +317,7 @@ def unstarted_setup_failure(job):
     tls_timeout = re.search(
         r"\nstdout: Traceback \(most recent call last\):\n"
         r'  File "<stdin>", line \d+, in <module>\n'
-        r'AssertionError: curl: \(28\) Operation timed out after 1500\d milliseconds with 0 bytes received\n'
+        rf'AssertionError: (?:{TLS_TIMEOUT_MARKER}|curl: \(28\) Operation timed out after \d+ milliseconds with 0 bytes received)\n'
         r'\n+stderr: None\Z', error.get('exception_message', ''))
     if (error.get('exception_type') != 'NetworkConnectionError'
             or not tls_timeout
@@ -442,11 +443,12 @@ def main():
     address = (manifest['inference_address'] if args.resume_unstarted else
                socket.getaddrinfo(manifest['inference_host'], 443, socket.AF_INET, socket.SOCK_STREAM)[0][4][0])
     manifest['inference_address'] = address
-    restrictions = json.loads((output / 'restrictions.json').read_text())
-    restrictions['services']['harbor-docker-egress-control-sidecar'] = {
-        'extra_hosts': [manifest['inference_host'] + ':' + address]}
-    save(output / 'restrictions.json', restrictions)
-    manifest['restrictions_sha256'] = digest(output / 'restrictions.json')
+    if not args.resume_unstarted:
+        restrictions = json.loads((output / 'restrictions.json').read_text())
+        restrictions['services']['harbor-docker-egress-control-sidecar'] = {
+            'extra_hosts': [manifest['inference_host'] + ':' + address]}
+        save(output / 'restrictions.json', restrictions)
+        manifest['restrictions_sha256'] = digest(output / 'restrictions.json')
     env['EVAL_INFERENCE_ADDRESS'] = address
     if args.resume_unstarted:
         image = subprocess.check_output(['docker', 'image', 'inspect', manifest['runtime_tag'],

@@ -3,6 +3,17 @@ import json
 from pathlib import Path
 
 
+def parse(text):
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('Duplicate judgment key')
+            result[key] = value
+        return result
+    return json.loads(text, object_pairs_hook=unique_object)
+
+
 def validate(value, criteria, document):
     if not isinstance(value, dict) or set(value) != {'criteria'}:
         raise ValueError('Expected only criteria')
@@ -18,6 +29,8 @@ def validate(value, criteria, document):
             raise ValueError('Missing explanation')
         if not isinstance(row['excerpts'], list) or any(not isinstance(s, str) or not s or s not in document for s in row['excerpts']):
             raise ValueError('Unsupported excerpt')
+        if row['status'] in ('met', 'contradicted') and not row['excerpts']:
+            raise ValueError('A supported or contradictory claim needs an exact excerpt')
     return value
 
 
@@ -26,7 +39,7 @@ def main():
     if path.is_symlink() or path.stat().st_size > 1024 * 1024:
         raise ValueError('Invalid assessment artifact')
     rubric = json.loads(Path('/tests/criteria.json').read_text())
-    value = validate(json.loads(path.read_text()), rubric,
+    value = validate(parse(path.read_text()), rubric,
                      Path('/tests/document.md').read_text())
     Path('/logs/verifier/assessment.json').write_text(json.dumps(value, indent=2))
     Path('/logs/verifier/reward.json').write_text('{"valid_judgment": 1}\n')

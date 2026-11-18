@@ -27,23 +27,29 @@ Explicit recovery admits only a precredential inference TLS probe timeout.
 It audits the saved receipts, frozen inputs and completed prefix, retains the
 original failure, and requires the same runtime image and inference mapping.
 The matcher checks actual curl-timeout traceback output, not probe source that
-Harbor repeats in other failures. Security-probe failures, credentials, native
+Harbor repeats in other failures. New probes emit a distinct marker after the
+security checks, only for curl exit 28 without an HTTP response. Frozen earlier
+probes retain their actual zero-byte curl-timeout traceback; elapsed milliseconds
+do not determine eligibility. Security-probe failures, credentials, native
 launch/session evidence and positive model usage block admission.
 
 An exclusive claim prevents overlapping controllers from admitting the same
 recovery. The claim and directory are flushed before admission returns. A crash
 retains the hold. Saved job names must match their exact matrix index and owner.
-The original report, summary and receipts remain separate from recovered results.
+Recovery reuses the audited restrictions file without writing it. The original
+report, summary and receipts remain separate from recovered results.
 A failed or interrupted claim must be inspected, not deleted or reset.
 
 ## Public deterministic verification
 
-All seven [runner tests](test_runner.py) passed. Their exact disposable inputs
+All eight [runner tests](test_runner.py) passed. Their exact disposable inputs
 are public in that file. They exercise credential-path refusal, source freezing,
 staging restrictions, native-evidence admission, matched-success accounting,
 refusal of started or unsafe recovery attempts, and two controllers synchronized
 at the exclusive recovery claim. Only one overlapping controller is admitted;
-a later attempt cannot overwrite the claim or original receipt bytes.
+a later attempt cannot overwrite the claim or original receipt bytes. Judgment
+parsing refuses duplicate keys and unquoted positive/contradictory claims, while
+retaining empty excerpts for omissions and uncertainty.
 
 These are normal automated checks, not separate author-verification evidence.
 They make no inference calls and require neither Docker nor credentials.
