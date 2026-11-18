@@ -6,6 +6,25 @@ semantic labels, reasons, workflow outcomes or incomplete-attempt counts. Those
 belong in that study's case-by-case report. No writing improvement, guidance
 removal or live-service reliability claim follows from this record.
 
+## Open limits
+
+This record does not establish general runner reliability:
+
+- Judge model and effort remain caller-selected. Set both explicitly; the
+  semantic-judge command uses Sol at `xhigh`. Selecting Sol alone still inherits
+  the generic `medium` default. Audit records settings but does not enforce a
+  semantic role.
+- Final skill visibility is checked as text, not authenticated prompt structure.
+  A complete quoted skill-list section can still confuse that check. The cases
+  below cover the stated startup shapes, not arbitrary quoted prompt wrappers
+  or later prompt/payload rewrites.
+- Recovery binds the shared runtime image, not rebuilt per-case task and
+  verifier image IDs. A rebuild can change an installed package. Do not treat
+  recovery across a task-image rebuild as a frozen-environment comparison.
+
+Keep a new paid matrix held until its actual frame and image identities meet
+its study contract. The records below remain useful bounded diagnostics.
+
 ## Runtime boundaries
 
 The runner pins Harbor 0.26.0 and native Pi 1.5.2. It uses worker UID 1001,
@@ -42,7 +61,7 @@ A failed or interrupted claim must be inspected, not deleted or reset.
 
 ## Public deterministic verification
 
-All nine [runner tests](test_runner.py) passed. Their exact disposable inputs
+All ten [runner tests](test_runner.py) passed. Their exact disposable inputs
 are public in that file. They exercise credential-path refusal, source freezing,
 staging restrictions, native-evidence admission, matched-success accounting,
 refusal of started or unsafe recovery attempts, and two controllers synchronized

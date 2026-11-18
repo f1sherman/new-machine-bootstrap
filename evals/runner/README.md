@@ -1,6 +1,9 @@
 # Shared native-agent runner
 
 Read [the eval rules](../README.md) before adding or migrating an eval.
+Read the [open validation limits](native-validation.md#open-limits) before a paid
+matrix or setup recovery. Judge roles are not enforced automatically; quoted
+prompt sections and rebuilt per-case images remain outside the verified boundary.
 
 ## Architecture
 
