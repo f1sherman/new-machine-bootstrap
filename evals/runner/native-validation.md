@@ -169,13 +169,17 @@ The current adapter checks Pi's normalized skill metadata in native
 `before_agent_start`. Staging freezes the current YAML header. Before credential
 upload, Pi's own frontmatter parser resolves the name with Node preloads and
 compile-cache writes disabled. It does not load resources or extensions.
-Nonempty conditions must load that name from the target file and advertise its
-location in the effective prompt; hidden skills are refused. Empty
-controls must load no skill with that name, including alternate discovery roots.
-A mismatch emits `EVAL_SKILL_DISCOVERY_REFUSED` and uses native cancellation
-before any provider request. This check runs after access-only credential upload;
-a rejected condition stays incomplete and cannot use precredential recovery.
-It does not police later resource changes or prove the agent reads the skill.
+Nonempty conditions must load that name from the target file; hidden skills are
+refused. Empty controls must load no skill with that name, including alternate
+discovery roots. At `turn_start`, after all startup hooks, a second guard checks
+the final prompt's native skill advertisement and unchanged budget instruction.
+It matches names with Pi's formatter and associates the name with its file in
+one skill block. Empty controls must contain no selected-name advertisement.
+Mismatches emit `EVAL_SKILL_DISCOVERY_REFUSED` or `EVAL_FINAL_PROMPT_REFUSED`
+and use native cancellation before any provider request. These checks run after
+access-only credential upload; refusal stays incomplete and cannot use
+precredential recovery. Later context/provider-payload rewrites and resource
+changes are outside this check. It does not prove the agent reads the skill.
 
 The [native startup record](../../docs/superpowers/records/2026-11-18-native-startup-boundary.json)
 uses the actual pinned CLI, provider implementation and native resource loading.
@@ -227,6 +231,25 @@ settings are `--max-turns 1`, `--conditions current`, `--thinking medium`,
 recorder. Each corrected command exits 2 before opening evidence. The recorder
 stops execution before real audit or paid recovery. Three incomplete report
 assembly attempts remain listed; none used inference.
+
+A [final-startup replay](../../docs/superpowers/records/2026-11-18-native-final-prompt-boundary.json)
+repeats all fifteen native cases and adds seven late-hook cases. All twenty-two
+matched their specified outcomes, with no inference or semantic judge.
+
+| Later startup change | Captured `dd749501` | Corrected |
+| --- | --- | --- |
+| Replace whole prompt | 1 request; skill and budget absent | 0 requests; final prompt refused |
+| Remove only skill list | 1 request; skill absent, budget retained | 0 requests; final prompt refused |
+| Retain skill and budget, append note | Not run | 1 request; `READY.` |
+| Inject selected-name advertisement into empty control | 1 request | 0 requests; final prompt refused |
+
+The original fifteen rows retain their outcomes. Corrected cases initialize the
+designated startup extension once. The first late-hook fixture returned the
+unsupported `forceSystemPrompt` result field, so native Pi ignored it. That
+incomplete attempt remains recorded, including the unexpected request and five
+unstarted cases. The corrected fixture uses `systemPrompt`; production guard
+bytes were unchanged between those attempts. This checks the final startup
+prompt, not later context or serialized provider-payload rewrites.
 
 The offline calibration launcher now stages only `current`. A standalone
 single-fragment skill previously failed its unused ablation's frontmatter guard;

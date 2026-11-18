@@ -13,9 +13,13 @@ class SandboxedPi(Pi):
     def _build_max_turns_extension(self, max_turns):
         # Keep normal native abort handling and the completed final answer.
         # Inspect skills during startup, not a second resource-loader pass.
-        return f"""export default function (pi: any) {{
+        return f"""import {{ formatSkillsForPrompt }} from '@earendil-works/pi-coding-agent';
+export default function (pi: any) {{
   const maxTurns = {max_turns};
   const expected = {json.dumps(self._guidance_guard)};
+  const budgetInstruction = `You have a hard budget of ${{maxTurns}} model turns. Complete the task and provide your final answer within that budget.`;
+  const nameTag = expected ? formatSkillsForPrompt([{{name: expected.name,
+    description: "", filePath: expected.file}} as any]).match(/<name>[\\s\\S]*?<\\/name>/)[0] : null;
   let startedTurns = 0;
 
   pi.on("before_agent_start", (event: any, ctx: any) => {{
@@ -24,7 +28,6 @@ class SandboxedPi(Pi):
       const named = Array.isArray(skills) ? skills.filter((skill: any) => skill.name === expected.name) : null;
       if (!named || (expected.present
           ? !named.some((skill: any) => skill.filePath === expected.file && !skill.disableModelInvocation)
-              || !event.systemPrompt.includes(`<location>${{expected.file}}</location>`)
           : named.length > 0)) {{
         console.error("EVAL_SKILL_DISCOVERY_REFUSED");
         ctx.abort();
@@ -32,11 +35,23 @@ class SandboxedPi(Pi):
       }}
     }}
     return {{
-      systemPrompt: `${{event.systemPrompt}}\\n\\nYou have a hard budget of ${{maxTurns}} model turns. Complete the task and provide your final answer within that budget.`,
+      systemPrompt: `${{event.systemPrompt}}\\n\\n${{budgetInstruction}}`,
     }};
   }});
 
   pi.on("turn_start", (_event: any, ctx: any) => {{
+    // Startup hooks have finished. Match the final native advertisement.
+    const prompt = ctx.getSystemPrompt();
+    const blocks = prompt.match(/<skill>[\\s\\S]*?<\\/skill>/g) || [];
+    const named = expected && blocks.filter((block: string) => block.includes(nameTag));
+    const invalidSkill = expected && (expected.present
+      ? !named.some((block: string) => block.includes(`<location>${{expected.file}}</location>`))
+      : named.length > 0);
+    if (!prompt.includes(budgetInstruction) || invalidSkill) {{
+      console.error("EVAL_FINAL_PROMPT_REFUSED");
+      ctx.abort();
+      return;
+    }}
     if (startedTurns >= maxTurns) {{
       ctx.abort();
     }}

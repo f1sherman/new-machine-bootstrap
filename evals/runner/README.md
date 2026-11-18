@@ -219,10 +219,13 @@ must retain byte-identical frontmatter so discovery does not silently remove the
 whole skill. Staging freezes the current YAML header. Before credential upload,
 Pi's own parser resolves its name without loading resources or extensions. At
 native startup, a nonempty condition must load that name from its target file
-and advertise that file in the effective prompt; hidden skills are refused. An
-empty condition must load no skill with that name from any discovery root.
-This uses Pi's normal resource loading once, including ignore rules, settings
-and project trust. The check runs after access-only credential upload but before
+and advertise that file in the final startup prompt; hidden skills are refused.
+An empty condition must load no skill with that name from any discovery root or
+advertise that name after startup hooks. At `turn_start`, every condition must
+retain the unchanged budget instruction. These checks use Pi's normal resource
+loading once, including ignore rules, settings and project trust. Later context
+and provider-payload rewrites are outside this guard. The check runs after
+access-only credential upload but before
 the first provider request; refusal stays incomplete, not a recoverable setup
 timeout. Use all three conditions for a candidate comparison and
 `--conditions current` for a fixed judge. Native Pi's tool
@@ -235,6 +238,8 @@ separates live final-answer proof from callback checks. The later
 checks excess continuation through the actual CLI with inert transport. The
 [later admission record](../../docs/superpowers/records/2026-11-18-native-discovery-admission.json)
 adds hidden-skill refusal, native YAML compatibility, and explicit-limit refusal.
+The [final-startup record](../../docs/superpowers/records/2026-11-18-native-final-prompt-boundary.json)
+checks changes made by later startup hooks.
 
 Checks live in `tests/`, available only to the separate verifier. They write
 `/logs/verifier/reward.json` with named binary checks. Use `assessment.json` for
