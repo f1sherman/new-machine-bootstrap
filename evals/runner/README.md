@@ -216,7 +216,8 @@ or `xhigh`. Task agent timeouts are capped at 900 seconds. The same settings
 apply to every condition and are frozen in the manifest. `--conditions` selects
 a distinct subset of `current`, `without`, and `empty`. Skill-targeted ablations
 must retain byte-identical frontmatter so discovery does not silently remove the
-whole skill. Staging freezes the current YAML header. Before credential upload,
+whole skill. Staging freezes the current YAML header, including an optional
+UTF-8 byte-order mark. Before credential upload,
 Pi's own parser resolves its name without loading resources or extensions. At
 native startup, a nonempty condition must load that name from its target file
 and advertise that file in the final startup prompt; hidden skills are refused.
@@ -239,7 +240,10 @@ checks excess continuation through the actual CLI with inert transport. The
 [later admission record](../../docs/superpowers/records/2026-11-18-native-discovery-admission.json)
 adds hidden-skill refusal, native YAML compatibility, and explicit-limit refusal.
 The [final-startup record](../../docs/superpowers/records/2026-11-18-native-final-prompt-boundary.json)
-checks changes made by later startup hooks.
+checks changes made by later startup hooks. The
+[skill-section record](../../docs/superpowers/records/2026-11-18-native-skill-section-boundary.json)
+separates real skill-list entries from free-standing examples and checks headers
+with a byte-order mark.
 
 Checks live in `tests/`, available only to the separate verifier. They write
 `/logs/verifier/reward.json` with named binary checks. Use `assessment.json` for

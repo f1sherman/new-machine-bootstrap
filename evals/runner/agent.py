@@ -42,7 +42,8 @@ export default function (pi: any) {{
   pi.on("turn_start", (_event: any, ctx: any) => {{
     // Startup hooks have finished. Match the final native advertisement.
     const prompt = ctx.getSystemPrompt();
-    const blocks = prompt.match(/<skill>[\\s\\S]*?<\\/skill>/g) || [];
+    const sections = prompt.match(/<available_skills>[\\s\\S]*?<\\/available_skills>/g) || [];
+    const blocks = sections.flatMap((section: string) => section.match(/<skill>[\\s\\S]*?<\\/skill>/g) || []);
     const named = expected && blocks.filter((block: string) => block.includes(nameTag));
     const invalidSkill = expected && (expected.present
       ? !named.some((block: string) => block.includes(`<location>${{expected.file}}</location>`))

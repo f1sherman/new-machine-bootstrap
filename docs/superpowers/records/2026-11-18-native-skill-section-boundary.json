@@ -1,0 +1,189 @@
+{
+  "scope": "Actual pinned native Pi CLI and Codex provider; inert WebSocket responses and a synthetic in-memory credential, networkless UID1001, no real inference. Not Harbor or a live provider run.",
+  "runtime_image_sha256": "sha256:2ced8d3dfe8edcc03bb362c027d093c3399bd909d94bdb205ce0c61e169ec30f",
+  "pi_version": "1.5.2",
+  "candidate": "openai-codex/gpt-6.1-terra, medium; transport responses are fixtures, not inference",
+  "native_invocation": "pi --mode json -p --provider openai-codex --model gpt-6.1-terra --thinking medium -e /fixture/budget.ts 'Reply with READY.'",
+  "permissions": {
+    "uid": 1001,
+    "network": "none",
+    "capabilities": "none",
+    "no_new_privileges": true,
+    "root_filesystem": "read-only",
+    "input_mounts": "read-only",
+    "writable_tmpfs_bytes": {
+      "tmp": 33554432,
+      "home": 33554432,
+      "workspace": 8388608
+    },
+    "memory_bytes": 536870912,
+    "cpus": 1,
+    "pids": 128
+  },
+  "complete": true,
+  "inference_calls": 0,
+  "shared_base_record": "2026-11-18-native-final-prompt-boundary.json",
+  "base_native_cases_repeated": 22,
+  "base_outcomes_unchanged": true,
+  "new_native_rows": [
+    {
+      "case": "baseline-quoted-example",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true,
+          "skill_location_present": true,
+          "native_skill_list_present": false
+        },
+        "initializations": 1,
+        "parsed_name": null
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "budget_refused": false,
+      "final_prompt_refused": false,
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "late_hook": "export default function(pi: any) { pi.on(\"before_agent_start\", (event: any) => ({systemPrompt: event.systemPrompt.replace(/<available_skills>[\\s\\S]*?<\\/available_skills>/g, \"\") + \"\\n<project_context>Example only: <skill><name>example</name><location>/home/worker/.pi/agent/skills/example/SKILL.md</location></skill></project_context>\"})); }\n",
+        "adapter": "captured-53263013"
+      },
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      }
+    },
+    {
+      "case": "quoted-example",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 0,
+          "sockets": 0
+        },
+        "initializations": 1,
+        "parsed_name": "example"
+      },
+      "native_aborted": true,
+      "expected_sends": 0,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "budget_refused": false,
+      "final_prompt_refused": true,
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "late_hook": "export default function(pi: any) { pi.on(\"before_agent_start\", (event: any) => ({systemPrompt: event.systemPrompt.replace(/<available_skills>[\\s\\S]*?<\\/available_skills>/g, \"\") + \"\\n<project_context>Example only: <skill><name>example</name><location>/home/worker/.pi/agent/skills/example/SKILL.md</location></skill></project_context>\"})); }\n",
+        "adapter": "corrected"
+      },
+      "last_assistant": {
+        "stop_reason": "aborted",
+        "text": ""
+      }
+    },
+    {
+      "case": "native-and-example",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true,
+          "skill_location_present": true,
+          "native_skill_list_present": true
+        },
+        "initializations": 1,
+        "parsed_name": "example"
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "budget_refused": false,
+      "final_prompt_refused": false,
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "late_hook": "export default function(pi: any) { pi.on(\"before_agent_start\", (event: any) => ({systemPrompt: event.systemPrompt + \"\\n<project_context>Example only: <skill><name>example</name><location>/home/worker/.pi/agent/skills/example/SKILL.md</location></skill></project_context>\"})); }\n",
+        "adapter": "corrected"
+      },
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      }
+    },
+    {
+      "case": "bom",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true,
+          "skill_location_present": true,
+          "native_skill_list_present": true
+        },
+        "initializations": 1,
+        "parsed_name": "on"
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "budget_refused": false,
+      "final_prompt_refused": false,
+      "inputs": {
+        "skill_text": "\ufeff---\nname: on\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "late_hook": null,
+        "adapter": "corrected"
+      },
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      }
+    }
+  ],
+  "staging": {
+    "header": "\ufeff---\nname: on\ndescription: Use for the public boundary fixture.\n---\n",
+    "body": "Use the extra rule.\n",
+    "conditions": [
+      "current"
+    ],
+    "rows": [
+      {
+        "adapter": "captured-53263013",
+        "complete": false,
+        "error": "Skill guidance requires frontmatter"
+      },
+      {
+        "adapter": "corrected",
+        "complete": true,
+        "header_and_text_bytes_preserved": true
+      }
+    ]
+  },
+  "transport_fixture": "import {writeFileSync} from 'node:fs';\nlet sends = 0, sockets = 0;\nglobalThis.WebSocket = class extends EventTarget {\n  static OPEN = 1;\n  readyState = 0;\n  constructor() {\n    super(); sockets++;\n    queueMicrotask(() => { this.readyState = 1; this.dispatchEvent(new Event('open')); });\n  }\n  send(body) {\n    if (JSON.parse(body).type !== 'response.create') throw Error('Unexpected fixture request');\n    if (sends >= 4) throw Error('Fixture request ceiling');\n    sends++;\n    writeFileSync('/workspace/transport-count.json', JSON.stringify({sends, sockets,\n      budget_instruction_present: JSON.stringify(JSON.parse(body)).includes('You have a hard budget of 1 model turns.'),\n      skill_location_present: JSON.stringify(JSON.parse(body)).includes('/home/worker/.pi/agent/skills/example/SKILL.md'),\n      native_skill_list_present: JSON.stringify(JSON.parse(body)).includes('<available_skills>')}));\n    const id = 'fixture-' + sends;\n    const item = {id, type:'message', role:'assistant', status:'completed',\n      content:[{type:'output_text', text:'READY.', annotations:[]}]};\n    const events = [\n      {type:'response.created', response:{id, status:'in_progress', output:[]}},\n      {type:'response.output_item.added', output_index:0,\n       item:{...item, status:'in_progress', content:[]}},\n      {type:'response.content_part.added', output_index:0, content_index:0, item_id:id,\n       part:{type:'output_text', text:'', annotations:[]}},\n      {type:'response.output_text.delta', output_index:0, content_index:0, item_id:id, delta:'READY.'},\n      {type:'response.output_text.done', output_index:0, content_index:0, item_id:id, text:'READY.'},\n      {type:'response.output_item.done', output_index:0, item},\n      {type:'response.completed', response:{id, status:'completed', output:[item],\n       usage:{input_tokens:1, output_tokens:1}}},\n    ];\n    queueMicrotask(() => { for (const event of events) this.dispatchEvent(\n      new MessageEvent('message', {data: JSON.stringify(event)})); });\n  }\n  close() { this.readyState = 3; }\n};\nconst fixtureSocket = globalThis.WebSocket;\nObject.defineProperty(globalThis, 'WebSocket', {configurable:true,\n  get:() => fixtureSocket, set:() => {}});\n",
+  "source_sha256": {
+    "evals/runner/agent.py": "ad1c73bb00dba3e52dd05f733b8d36ee0f76eac156a7f7efb294af0207adff1c",
+    "evals/runner/run.py": "496f2cc74684daabe7d86285e8da2f9dd10e77935cecfb65538972f399edd1aa"
+  },
+  "baseline_sha256": {
+    "agent.py": "3d00b02d545ca9f806f9baf9c72e5e5546cf3d1bca553681bddc99e32f3c6f82",
+    "run.py": "6b8b03333dddcca7da05a337b047d6c7cfa1dca0d1fbf7746e52fd97aef2de3c"
+  },
+  "limits": [
+    "Same native component boundary as the shared base; no model, Harbor or host credential export.",
+    "The guard matches skill blocks within available_skills sections. It does not prove that a model reads or follows guidance.",
+    "Later context and provider-payload rewrites remain outside this check."
+  ],
+  "findings": [
+    "A free-standing quoted skill example no longer substitutes for the removed skill list.",
+    "A real skill list remains accepted beside a quoted example.",
+    "UTF-8 byte-order marks remain frozen unchanged; native parser and loader preserve the name on."
+  ]
+}

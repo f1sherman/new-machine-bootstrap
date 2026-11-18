@@ -174,7 +174,7 @@ refused. Empty controls must load no skill with that name, including alternate
 discovery roots. At `turn_start`, after all startup hooks, a second guard checks
 the final prompt's native skill advertisement and unchanged budget instruction.
 It matches names with Pi's formatter and associates the name with its file in
-one skill block. Empty controls must contain no selected-name advertisement.
+one skill block inside an `available_skills` section. Empty controls must contain no selected-name advertisement.
 Mismatches emit `EVAL_SKILL_DISCOVERY_REFUSED` or `EVAL_FINAL_PROMPT_REFUSED`
 and use native cancellation before any provider request. These checks run after
 access-only credential upload; refusal stays incomplete and cannot use
@@ -250,6 +250,17 @@ incomplete attempt remains recorded, including the unexpected request and five
 unstarted cases. The corrected fixture uses `systemPrompt`; production guard
 bytes were unchanged between those attempts. This checks the final startup
 prompt, not later context or serialized provider-payload rewrites.
+
+The [skill-section replay](../../docs/superpowers/records/2026-11-18-native-skill-section-boundary.json)
+repeats those twenty-two cases unchanged and adds four. A quoted, free-standing
+`skill` example admitted one request with the captured guard even after the real
+skill list was removed. The corrected guard refuses that case before a request.
+A real skill list beside the same example still returns `READY.`. A skill with
+a UTF-8 byte-order mark also returns `READY.` with native name `on`; captured
+staging rejects its header, while corrected staging preserves all input bytes.
+All twenty-six native observations and both staging observations match their
+specified outcomes. This is syntax/discovery evidence, not semantic guidance
+quality or later provider-payload enforcement.
 
 The offline calibration launcher now stages only `current`. A standalone
 single-fragment skill previously failed its unused ablation's frontmatter guard;

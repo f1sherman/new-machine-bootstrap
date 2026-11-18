@@ -138,7 +138,7 @@ def stage(study_file, output, model, trials, *, conditions=("current", "without"
     skill_header = None
     header = None
     if install_target != 'AGENTS.md':
-        header = re.match(r'\A---\r?\n.*?\r?\n---(?:\r?\n|$)', current, re.DOTALL)
+        header = re.match(r'\A\ufeff?---\r?\n.*?\r?\n---(?:\r?\n|$)', current, re.DOTALL)
         if not header:
             raise ValueError('Skill guidance requires frontmatter')
         skill_header = header.group()
