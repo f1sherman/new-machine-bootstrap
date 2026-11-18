@@ -1,12 +1,16 @@
 """Exercise staging and evidence gates without Docker, inference, or credentials."""
+from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
 import unittest
 
-from evals.runner.run import stage, summarize, collect, hashes, guidance_target
+from evals.runner.run import (stage, summarize, collect, hashes, guidance_target,
+                             unstarted_setup_failure, claim_setup_recovery)
 
 
 class RunnerTests(unittest.TestCase):
@@ -158,6 +162,82 @@ class RunnerTests(unittest.TestCase):
             rejected.mkdir()
             with self.assertRaisesRegex(ValueError, 'networking'):
                 stage(study, rejected, 'openai/model', 1)
+
+    def test_recovery_cannot_reroll_started_or_unsafe_trials(self):
+        with tempfile.TemporaryDirectory() as folder:
+            job = Path(folder)
+            result = {'task_name': 'fixture', 'exception_info': {
+                'exception_type': 'NetworkConnectionError',
+                'exception_message': "Command failed: assert r.returncode == 0\n"
+                    'stdout: Traceback (most recent call last):\n'
+                    '  File "<stdin>", line 17, in <module>\n'
+                    'AssertionError: curl: (28) Operation timed out after 15000 milliseconds with 0 bytes received\n'
+                    '\n\nstderr: None'}, 'agent_result': None}
+            saved = job / 'result.json'
+            log = job / 'trial.log'
+            log.write_text('Sandbox TLS probe failed before credential installation.\n')
+            saved.write_text(json.dumps(result))
+            unstarted_setup_failure(job)
+            for name in ('agent/pi.txt', 'agent/pi/sessions/native.jsonl'):
+                path = job / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('native evidence')
+                with self.subTest(name=name), self.assertRaises(ValueError):
+                    unstarted_setup_failure(job)
+                path.unlink()
+            for marker in ('auth.json', 'pi --print'):
+                log.write_text(marker)
+                with self.subTest(marker=marker), self.assertRaises(ValueError):
+                    unstarted_setup_failure(job)
+            log.write_text('preflight failed')
+            original = json.loads(saved.read_text())
+            for field in ('n_input_tokens', 'n_output_tokens', 'n_cache_tokens'):
+                changed = {**original, 'agent_result': {field: 1}}
+                saved.write_text(json.dumps(changed))
+                with self.subTest(field=field), self.assertRaises(ValueError):
+                    unstarted_setup_failure(job)
+            for message in ('Unexpected network access: https://example.com',
+                            'assert r.returncode == 0', 'AssertionError: uid mismatch'):
+                changed = json.loads(json.dumps(original))
+                changed['exception_info']['exception_message'] = message
+                saved.write_text(json.dumps(changed))
+                with self.subTest(message=message), self.assertRaises(ValueError):
+                    unstarted_setup_failure(job)
+            # Probe source contains the TLS assertion even for a security failure.
+            changed['exception_info']['exception_message'] = original['exception_info']['exception_message'].replace(
+                'AssertionError: curl: (28) Operation timed out after 15000 milliseconds with 0 bytes received',
+                'AssertionError: Unexpected network access: https://example.com')
+            saved.write_text(json.dumps(changed))
+            with self.assertRaises(ValueError):
+                unstarted_setup_failure(job)
+
+    def test_setup_recovery_admits_one_overlapping_controller(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder)
+            original = b'{"original": "receipts"}\n'
+            (output / 'receipts.json').write_bytes(original)
+            ready = threading.Barrier(2)
+
+            def claim():
+                ready.wait(timeout=5)
+                try:
+                    claim_setup_recovery(output)
+                    return 'admitted'
+                except ValueError as error:
+                    self.assertIn('already claimed', str(error))
+                    return 'blocked'
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                futures = [pool.submit(claim) for _ in range(2)]
+                self.assertCountEqual([future.result(timeout=5) for future in futures],
+                                      ['admitted', 'blocked'])
+            saved = (output / 'setup-recovery.json').read_bytes()
+            self.assertEqual(json.loads(saved)['original_receipts_sha256'],
+                             hashlib.sha256(original).hexdigest())
+            with self.assertRaisesRegex(ValueError, 'already claimed'):
+                claim_setup_recovery(output)
+            self.assertEqual((output / 'setup-recovery.json').read_bytes(), saved)
+            self.assertEqual((output / 'receipts.json').read_bytes(), original)
 
     def test_native_evidence_and_successful_pair_gates(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -259,12 +259,14 @@ def summarize(rows):
 
 def seal(output):
     files = [output / "manifest.json", output / "report.json", output / "summary.json"]
+    files += [output / 'setup-recovery.json']
+    files += sorted(output.glob('before-setup-recovery-*.json'))
     files += sorted((output / "jobs").rglob("*")) if (output / "jobs").exists() else []
     save(output / "receipts.json", {str(file.relative_to(output)): digest(file)
          for file in files if file.is_file()})
 
 
-def audit(output):
+def audit(output, *, require_complete=True):
     receipts = json.loads((output / "receipts.json").read_text())
     for name, expected in receipts.items():
         file = (output / name).resolve()
@@ -282,17 +284,67 @@ def audit(output):
     report = json.loads((output / "report.json").read_text())
     for index, row in enumerate(report["results"]):
         planned = manifest["matrix"][index]
-        job = output / "jobs" / f"run-{index}-{manifest['owner'][:8]}"
+        job_name = row.get('job_name', f"run-{index}-{manifest['owner'][:8]}")
+        expected_job = f"run-{index}-{manifest['owner'][:8]}"
+        if job_name not in (expected_job, expected_job + '-setup-recovery'):
+            raise ValueError('Invalid saved job name')
+        job = output / 'jobs' / job_name
         actual = collect(job, planned)
+        if 'job_name' in row:
+            actual['job_name'] = job_name
         # The saved location is a navigation hint, not a scoring input. Older
         # reports used host-absolute paths; relocation must not invalidate them.
         if actual != {**row, "evidence": actual["evidence"]}:
             raise ValueError("Report differs from native evidence")
-    if report["errors"] or len(report["results"]) != len(manifest["matrix"]):
+    if require_complete and (report["errors"] or len(report["results"]) != len(manifest["matrix"])):
         raise ValueError("Run is incomplete")
     if summarize(report["results"]) != json.loads((output / "summary.json").read_text()):
         raise ValueError("Summary differs from native evidence")
-    print("Verified receipts, inputs, native results, and summary; no Docker or model calls")
+    print("Verified receipts, inputs, recorded native results, and summary; no Docker or model calls")
+
+
+def unstarted_setup_failure(job):
+    results = [json.loads(p.read_text()) for p in job.rglob('result.json')]
+    results = [result for result in results if 'task_name' in result]
+    if len(results) != 1:
+        raise ValueError('Expected one failed setup result')
+    error = results[0].get('exception_info') or {}
+    logs = list(job.rglob('trial.log'))
+    # Match the failed assertion's output, not the probe source printed above it.
+    # The same command contains security assertions that must never be retried.
+    tls_timeout = re.search(
+        r"\nstdout: Traceback \(most recent call last\):\n"
+        r'  File "<stdin>", line \d+, in <module>\n'
+        r'AssertionError: curl: \(28\) Operation timed out after 1500\d milliseconds with 0 bytes received\n'
+        r'\n+stderr: None\Z', error.get('exception_message', ''))
+    if (error.get('exception_type') != 'NetworkConnectionError'
+            or not tls_timeout
+            or list(job.rglob('pi.txt')) or list(job.rglob('pi/sessions/*.jsonl'))
+            or len(logs) != 1 or 'auth.json' in logs[0].read_text()
+            or 'pi --print' in logs[0].read_text()
+            or any((results[0].get('agent_result') or {}).get(k)
+                   for k in ('n_input_tokens', 'n_output_tokens', 'n_cache_tokens'))):
+        raise ValueError('Recovery requires a failed precredential TLS probe with no native session')
+
+
+def claim_setup_recovery(output):
+    # Claim once before changing the saved report or starting any native job.
+    # A crash leaves the claim held; a second controller must not reroll it.
+    try:
+        fd = os.open(output / 'setup-recovery.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        raise ValueError('Setup recovery already claimed; preserve evidence and inspect') from None
+    with os.fdopen(fd, 'w') as stream:
+        json.dump({'original_receipts_sha256': digest(output / 'receipts.json'),
+                   'controller_sha256': digest(Path(__file__))}, stream)
+        stream.write('\n')
+        stream.flush()
+        os.fsync(stream.fileno())
+    directory = os.open(output, os.O_RDONLY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
 
 
 def docker_environment():
@@ -321,6 +373,8 @@ def build_runtime(output, manifest, env):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--audit", type=Path)
+    parser.add_argument("--resume-unstarted", type=Path,
+                        help="Once, recover a failed precredential TLS probe; never replace a model draw")
     parser.add_argument("--study", type=Path)
     parser.add_argument("--model")
     parser.add_argument("--trials", type=int, default=2)
@@ -332,25 +386,43 @@ def main():
     parser.add_argument("--max-turns", type=int, default=12)
     args = parser.parse_args()
     if args.audit:
-        if args.study or args.model or args.output or args.live:
+        if args.study or args.model or args.output or args.live or args.resume_unstarted:
             parser.error("Audit accepts only --audit")
         audit(args.audit.resolve())
         return
-    if not args.study or not args.model or not args.output:
+    if args.resume_unstarted:
+        if args.study or args.model or args.output or args.live:
+            parser.error('Recovery accepts only --resume-unstarted')
+        output = args.resume_unstarted.resolve()
+        if not output.is_relative_to(ROOT / 'tmp'):
+            parser.error("Keep evidence under this checkout's ignored tmp/")
+        audit(output, require_complete=False)
+        manifest = json.loads((output / 'manifest.json').read_text())
+        report = json.loads((output / 'report.json').read_text())
+        index = len(report['results'])
+        if report.get('recovered_setup_errors') or len(report['errors']) != 1 or index >= len(manifest['matrix']):
+            raise ValueError('Recover one unstarted setup failure at most once')
+        planned = manifest['matrix'][index]
+        if any(report['errors'][0].get(k) != v for k, v in planned.items()):
+            raise ValueError('Failed setup does not match the next planned trial')
+        unstarted_setup_failure(output / 'jobs' / f"run-{index}-{manifest['owner'][:8]}")
+        args.model = manifest['model']
+    elif not args.study or not args.model or not args.output:
         parser.error("Supply --study, --model, and --output")
     if not args.model.startswith(("openai/", "openai-codex/")) or len(args.model.split("/")) != 2:
         parser.error("Use openai/model or openai-codex/model")
     if not 1 <= args.trials <= 10:
         parser.error("Use 1 to 10 repetitions")
-    output = args.output.resolve()
-    if not output.is_relative_to(ROOT / "tmp"):
-        parser.error("Keep evidence under this checkout's ignored tmp/")
-    output.mkdir(parents=True, exist_ok=False)
-    manifest = stage(args.study.resolve(), output, args.model, args.trials,
-                     conditions=args.conditions, thinking=args.thinking, max_turns=args.max_turns)
-    print(f"Staged {len(manifest['matrix'])} trials at {output}", flush=True)
-    if not args.live:
-        return
+    if not args.resume_unstarted:
+        output = args.output.resolve()
+        if not output.is_relative_to(ROOT / "tmp"):
+            parser.error("Keep evidence under this checkout's ignored tmp/")
+        output.mkdir(parents=True, exist_ok=False)
+        manifest = stage(args.study.resolve(), output, args.model, args.trials,
+                         conditions=args.conditions, thinking=args.thinking, max_turns=args.max_turns)
+        print(f"Staged {len(manifest['matrix'])} trials at {output}", flush=True)
+        if not args.live:
+            return
     if importlib.metadata.version("harbor") != HARBOR_VERSION:
         raise ValueError("Install the pinned Harbor version")
     env = docker_environment()
@@ -362,12 +434,13 @@ def main():
     else:
         env["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
     host_tmp = output / "host-tmp"
-    host_tmp.mkdir()
+    host_tmp.mkdir(exist_ok=bool(args.resume_unstarted))
     env["TMPDIR"] = str(host_tmp)
     # Docker's embedded DNS forwarding can be blocked by the upstream sidecar.
     # Freeze only the already-allowed inference hostname, in both namespaces.
     # No additional egress or DNS destination is permitted.
-    address = socket.getaddrinfo(manifest['inference_host'], 443, socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
+    address = (manifest['inference_address'] if args.resume_unstarted else
+               socket.getaddrinfo(manifest['inference_host'], 443, socket.AF_INET, socket.SOCK_STREAM)[0][4][0])
     manifest['inference_address'] = address
     restrictions = json.loads((output / 'restrictions.json').read_text())
     restrictions['services']['harbor-docker-egress-control-sidecar'] = {
@@ -375,12 +448,29 @@ def main():
     save(output / 'restrictions.json', restrictions)
     manifest['restrictions_sha256'] = digest(output / 'restrictions.json')
     env['EVAL_INFERENCE_ADDRESS'] = address
-    build_runtime(output, manifest, env)
-    report = {"results": [], "errors": []}
+    if args.resume_unstarted:
+        image = subprocess.check_output(['docker', 'image', 'inspect', manifest['runtime_tag'],
+            '--format', '{{.Id}}'], text=True, env=env).strip()
+        if image != manifest['runtime_image']:
+            raise ValueError('Frozen runtime image changed')
+        claim_setup_recovery(output)
+        for name in ('report.json', 'summary.json', 'receipts.json'):
+            shutil.copy2(output / name, output / ('before-setup-recovery-' + name))
+        report['recovered_setup_errors'] = report['errors']
+        report['errors'] = []
+    else:
+        build_runtime(output, manifest, env)
+        report = {"results": [], "errors": []}
     save(output / "report.json", report)
+    first = len(report['results'])
     harbor = str(Path(sys.executable).parent / "harbor")
     for index, row in enumerate(manifest["matrix"]):
+        if index < first:
+            continue
         job = f"run-{index}-{manifest['owner'][:8]}"
+        if args.resume_unstarted and index == first:
+            job += '-setup-recovery'
+            row = {**row, 'job_name': job}
         env["EVAL_GUIDANCE_FILE"] = str(output / (row["condition"] + ".md"))
         env["EVAL_GUIDANCE_TARGET"] = manifest["guidance_target"]
         command = [harbor, "run", "--path", str(output / "tasks" / row["condition"] / row["case"]),

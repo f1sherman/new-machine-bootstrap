@@ -63,10 +63,45 @@ Two original judge attempts failed before credential installation because the
 upstream sidecar blocked DNS forwarding. They made no inference calls. Both are
 retained; after the fixed hostname mapping, all six scheduled calibrations ran.
 Two earlier complete workflow matrices exposed fixture transport/dependency
-errors and remain superseded evidence, not prompt-effect results. The latest
+errors and remain superseded evidence, not prompt-effect results. One historical
 matrix completed six attempts, timed out on the next attempt, and left eleven
 untouched. It was stopped, not selectively retried. Candidate semantic judgments
 were not run. The timeout cause remains unverified.
+
+## Once-only setup recovery
+
+The runner now supports explicit recovery of one unstarted inference TLS probe
+timeout. It checks the incomplete run's receipts, frozen inputs and completed
+prefix before admission, retains the original setup failure, and requires the
+same runtime image and inference mapping. It never replaces a completed or
+started model draw. A native-started timeout remains ineligible.
+
+Review found that searching for an assertion string anywhere in Harbor's error
+could match the printed probe source rather than the assertion that failed.
+Recovery now requires the actual curl-timeout traceback. A denied-network
+failure with the same probe source is refused. Identity failures, credentials,
+native launch/session evidence and positive usage also block recovery.
+
+Review also found that a report flag alone could let overlapping controllers
+both admit the same setup recovery. An exclusive claim now blocks the second
+controller before either can alter the saved report or launch a native job. The
+claim is flushed with its directory before admission returns; a crash retains
+the hold. Saved job names must match their exact matrix index and owner.
+
+The seven public unit tests passed, including behavioral admission checks with
+synthetic setup records and two controllers synchronized at the claim boundary. A separate manual check admitted the captured original
+precredential TLS timeout and refused the preserved native-started timeout.
+Receipt audits of the recovered evidence passed without Docker or inference.
+A direct Python audit diagnostic initially used a relative path and failed its
+path-containment check; the documented CLI resolves that path and passed. No
+receipts or evidence bytes were changed to obtain the passing audit.
+
+The successful recovery used an earlier controller revision; its owning study
+retains that exact source separately. The stricter admission matcher was checked
+against the same saved failure, not by rerunning inference. This is admission
+proof plus existing recovery execution evidence, not another recovery run or
+proof of the transient stall's exact cause. Semantic study outcomes and private
+source material are not part of this public capability record.
 
 The original writing guidance is retained. Raw evidence is temporary under the
 owning study's retention policy. No automatic retry, future run, production

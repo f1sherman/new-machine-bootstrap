@@ -113,6 +113,37 @@ For verifier repairs, use pinned Harbor's `harbor trials regrade --help` with th
 recorded trial and a staged corrected task. Regrade creates new evidence without
 rerunning the agent. Review the new and original scores together.
 
+## Recover one unstarted TLS setup failure
+
+A completed model failure or a native-started timeout cannot be retried in the
+same matrix. The only supported recovery is one precredential inference TLS
+probe timeout, before native launch, authentication installation, session logs
+or any model usage. A denied-network or identity failure is not eligible. The
+runner matches the actual timeout assertion output, not the probe source that
+Harbor repeats in every failure message.
+
+```bash
+tmp/harbor-venv/bin/python -m evals.runner.run \
+  --resume-unstarted tmp/cleanup-live
+```
+
+This is an explicit once-only recovery, not an automatic retry. It audits the
+incomplete run and completed prefix first, requires the same frozen input
+hashes, inference address and runtime image, and resumes the next planned row.
+It keeps the failed setup job and copies the original report, summary and
+receipts to `before-setup-recovery-*.json`. The recovered row names its separate
+`-setup-recovery` job; previous candidate outputs and budgets are unchanged.
+An exclusive, flushed `setup-recovery.json` claim is saved before changing the
+report or launching that job. Overlapping controllers cannot both claim the same
+recovery. A failed or interrupted recovery must be inspected, not reset or
+resumed again. Do not delete its marker,
+reseal altered evidence, or create a new directory to replace a started draw.
+
+An audit verifies original bytes and native observations, not model quality or
+independence. Recovery does not prove the exact cause of a transient network
+stall. Record the controller revision used for recovery separately from the
+original frozen infrastructure. Keep both when interpreting a resumed study.
+
 ## Add an eval without changing infrastructure
 
 Create a new directory containing:
