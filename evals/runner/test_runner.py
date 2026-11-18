@@ -237,7 +237,7 @@ class RunnerTests(unittest.TestCase):
             claim_setup_recovery(output)
             for name in ('report.json', 'summary.json', 'receipts.json'):
                 (output / ('before-setup-recovery-' + name)).write_bytes((output / name).read_bytes())
-            (output / 'report.json').write_text('{"recovered": true}\n')
+            (output / 'report.json').write_text('{"recovered_setup_errors": []}\n')
             seal(output)
             receipt = (output / 'receipts.json').read_bytes()
             for replacement in (None, 'changed failed result\n'):
@@ -248,6 +248,16 @@ class RunnerTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'Recovery origin evidence changed'):
                     seal(output)
                 self.assertEqual((output / 'receipts.json').read_bytes(), receipt)
+            failed.write_text('original failed result\n')
+            seal(output)
+            claim = output / 'setup-recovery.json'
+            saved_claim = claim.read_bytes()
+            claim.unlink()
+            failed.unlink()
+            with self.assertRaisesRegex(ValueError, 'Recovery claim missing'):
+                seal(output)
+            self.assertEqual((output / 'receipts.json').read_bytes(), receipt)
+            claim.write_bytes(saved_claim)
             failed.write_text('original failed result\n')
             seal(output)
             (output / 'before-setup-recovery-receipts.json').write_text('{}\n')

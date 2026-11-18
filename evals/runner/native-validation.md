@@ -49,8 +49,10 @@ refusal of started or unsafe recovery attempts, and two controllers synchronized
 at the exclusive recovery claim. Only one overlapping controller is admitted;
 a later attempt cannot overwrite the claim or original receipt bytes. Sealing
 and auditing also check the preserved receipt digest against the recovery claim
-and recheck every original file. Changed or deleted original failures cannot be
-silently resealed. Judgment
+and recheck every original file. Missing claims, changed failures and deleted
+original files cannot be silently resealed. A historical recovery without a
+claim is not admitted as current claim-bound evidence; retain its original
+controller and historical results rather than retrofitting a claim. Judgment
 parsing refuses duplicate keys and unquoted positive/contradictory claims, while
 retaining empty excerpts for omissions and uncertainty.
 
@@ -148,12 +150,17 @@ comparison. A body-only removal is still admitted. Native-loader observations:
 
 The current and body-removed skill retain the exact same name and description.
 The adapter also runs the installed Pi skill parser after upload and before
-credentials. Its exact production command passed for current and body-removed
-skills, and refused nonempty frontmatter missing a description, inside the
-pinned runtime with no network, privileges, credentials or model. Empty-skill
-controls deliberately skip this check. The [three-case preflight record](../../docs/superpowers/records/2026-11-18-native-skill-preflight.json)
-contains exact inputs and the command hash. This is a command-boundary check,
-not a full native-agent run.
+credentials. The initial [three-case preflight record](../../docs/superpowers/records/2026-11-18-native-skill-preflight.json)
+checked the target directory directly. A later review showed that this missed
+root `.ignore` rules. The corrected default-root discovery command passed for
+current and body-removed skills, and refused missing descriptions and an ignored
+skill, inside the pinned networkless UID1001 runtime. The
+[four-case record](../../docs/superpowers/records/2026-11-18-native-effective-skill-preflight.json)
+contains exact inputs and its command hash. An earlier diagnostic omitted the
+required `skillPaths` argument and is retained; no model ran. Extra configured
+skill paths and plugin-discovered resources were not exercised. Empty controls
+skip discovery; fixed current-only studies do not validate an unselected
+ablation. These are command boundaries, not full native-agent runs.
 The old stager bytes were captured before correction; only their relocated
 repository-root binding was supplied for this diagnostic. No model was used.
 This checks discovery, not whether an agent chooses to read the skill.

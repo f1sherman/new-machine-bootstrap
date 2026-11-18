@@ -215,7 +215,8 @@ apply to every condition and are frozen in the manifest. `--conditions` selects
 a distinct subset of `current`, `without`, and `empty`. Skill-targeted ablations
 must retain byte-identical frontmatter so discovery does not silently remove the
 whole skill. After upload, the installed Pi parser must also discover each
-nonempty skill before credentials or paid inference. The empty condition remains
+nonempty skill in its default-root skill list, including ignore rules, before
+credentials or paid inference. The empty condition remains
 a deliberate missing-skill control.
 Use all three for a
 candidate comparison and `--conditions current` for a fixed judge or calibration. Native Pi's tool

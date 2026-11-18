@@ -145,7 +145,7 @@ def stage(study_file, output, model, trials, *, conditions=("current", "without"
     alternate = compile_guidance(without, output / "without.md", assembler)
     if current.count(removed) != 1 or current.replace(removed, "", 1) != alternate:
         raise ValueError("Ablation changes more than the selected fragment")
-    if install_target != 'AGENTS.md':
+    if install_target != 'AGENTS.md' and 'without' in conditions:
         header = re.match(r'\A---\r?\n.*?\r?\n---(?:\r?\n|$)', current, re.DOTALL)
         if not header or not alternate.startswith(header.group()):
             raise ValueError('Skill ablation must preserve its frontmatter unchanged')
@@ -266,6 +266,9 @@ def audit_recovery_origin(output):
     output = output.resolve()
     claim = output / 'setup-recovery.json'
     if not claim.exists():
+        report = json.loads((output / 'report.json').read_text())
+        if 'recovered_setup_errors' in report or list(output.glob('before-setup-recovery-*.json')):
+            raise ValueError('Recovery claim missing; preserve historical controller evidence')
         return
     original = output / 'before-setup-recovery-receipts.json'
     if (not original.is_file() or digest(original) !=

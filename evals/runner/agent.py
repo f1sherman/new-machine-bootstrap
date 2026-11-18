@@ -91,11 +91,10 @@ PY""", env={"INFERENCE_HOST": "chatgpt.com" if self.model_name.startswith("opena
         if target != 'AGENTS.md' and guidance:
             # Use the installed parser before credentials or paid inference.
             await self.exec_as_agent(environment, command="""node --input-type=module - <<'JS'
-import { loadSkillsFromDir } from '/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/skills.js';
-import { dirname } from 'node:path';
+import { loadSkills } from '/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/skills.js';
 const file = process.env.EVAL_SKILL_FILE;
-const { skills } = loadSkillsFromDir({dir: dirname(file), source: 'eval'});
-if (skills.length !== 1 || skills[0].filePath !== file) {
+const { skills } = loadSkills({cwd: process.cwd(), agentDir: '/home/worker/.pi/agent', includeDefaults: true, skillPaths: []});
+if (!skills.some(skill => skill.filePath === file)) {
   throw new Error('Expected skill is not discoverable');
 }
 JS""", env={'EVAL_SKILL_FILE': '/home/worker/.pi/agent/' + target})
