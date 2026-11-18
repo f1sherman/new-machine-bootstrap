@@ -35,6 +35,8 @@ def validate(value, criteria, document):
 
 
 def main():
+    # Invalid judge output is missing measurement, not a candidate's scored
+    # behavioral failure. Let Harbor retain it as an incomplete trial.
     path = Path('/workspace/assessment.json')
     if path.is_symlink() or path.stat().st_size > 1024 * 1024:
         raise ValueError('Invalid assessment artifact')

@@ -289,6 +289,9 @@ Its offline verifier checks the schema and exact excerpts, not judgment quality;
 calibrate meaning separately with frozen correct/wrong/equivalent documents.
 The parser rejects duplicate JSON keys. `met` and `contradicted` judgments need
 at least one exact document excerpt; omission/uncertainty can use an empty list.
+Missing or malformed judge output is incomplete measurement, not a scored
+candidate failure. The verifier deliberately writes no passing or zero reward
+for it; Harbor retains the failed trial and the controller stops that matrix.
 Run judges with Sol at xhigh, blind treatment labels, and keep their results and
 usage separate from candidate workflow checks. This does not add an inline judge,
 a host-side conversation loop, or multi-step-session support. Task images may

@@ -319,7 +319,7 @@ def unstarted_setup_failure(job):
         r'  File "<stdin>", line \d+, in <module>\n'
         rf'AssertionError: (?:{TLS_TIMEOUT_MARKER}|curl: \(28\) Operation timed out after \d+ milliseconds with 0 bytes received)\n'
         r'\n+stderr: None\Z', error.get('exception_message', ''))
-    if (error.get('exception_type') != 'NetworkConnectionError'
+    if (error.get('exception_type') not in ('NetworkConnectionError', 'NonZeroAgentExitCodeError')
             or not tls_timeout
             or list(job.rglob('pi.txt')) or list(job.rglob('pi/sessions/*.jsonl'))
             or len(logs) != 1 or 'auth.json' in trial_log or 'pi --print' in trial_log

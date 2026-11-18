@@ -54,6 +54,34 @@ retaining empty excerpts for omissions and uncertainty.
 These are normal automated checks, not separate author-verification evidence.
 They make no inference calls and require neither Docker nor credentials.
 
+## Error-classifier integration diagnostic
+
+The updated gate was also checked against Harbor 0.26.0's real
+`Pi._classify_exec_error` method, using its production error patterns and four
+synthetic traces. No agent, Docker container, model or credential was used. This
+is a deterministic component diagnostic, not a native recovery workflow.
+
+All cases use one stdin traceback frame, return code 1, no stderr, a precredential
+trial log, no native session files and no model usage. The command data contains
+the new timeout marker in every case; that command is not executed. Redaction
+and truncation are identity functions for these short, nonsecret inputs. The
+real classifier's result supplies the actual exception type and message to the
+production admission function. Exact inputs, expected results and observations
+are in the [four-case record](../../docs/superpowers/records/2026-11-18-native-recovery-boundary.json).
+
+| ID | Actual assertion output | Harbor failure type | Expected / observed admission |
+| --- | --- | --- | --- |
+| B001 | Zero-byte curl timeout after 15037 milliseconds | NetworkConnectionError | admitted / admitted |
+| B002 | New explicit timeout marker | NonZeroAgentExitCodeError | admitted / admitted |
+| B003 | Unexpected network access | NonZeroAgentExitCodeError | refused / refused |
+| B004 | UID mismatch | NonZeroAgentExitCodeError | refused / refused |
+
+All four expectations matched. The generic failure type can describe either a
+real timeout or a security failure; the gate must inspect the actual traceback,
+not merely its type or marker text in the printed command. The native probe and
+network enforcement were not executed in this diagnostic. It does not establish
+a transient network cause, model quality or a new successful native recovery.
+
 ## Evidence limits
 
 Private captured-failure replay and earlier native recovery evidence remain with

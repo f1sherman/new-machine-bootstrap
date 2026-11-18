@@ -179,11 +179,14 @@ class RunnerTests(unittest.TestCase):
             log.write_text('Sandbox TLS probe failed before credential installation.\n')
             saved.write_text(json.dumps(result))
             unstarted_setup_failure(job)
-            for message in (result['exception_info']['exception_message'].replace('15000', '15037'),
-                            result['exception_info']['exception_message'].replace(
-                                'curl: (28) Operation timed out after 15000 milliseconds with 0 bytes received',
-                                TLS_TIMEOUT_MARKER)):
-                changed = {**result, 'exception_info': {**result['exception_info'], 'exception_message': message}}
+            for message, error_type in (
+                    (result['exception_info']['exception_message'].replace('15000', '15037'),
+                     'NetworkConnectionError'),
+                    (result['exception_info']['exception_message'].replace(
+                        'curl: (28) Operation timed out after 15000 milliseconds with 0 bytes received',
+                        TLS_TIMEOUT_MARKER), 'NonZeroAgentExitCodeError')):
+                changed = {**result, 'exception_info': {**result['exception_info'],
+                           'exception_message': message, 'exception_type': error_type}}
                 saved.write_text(json.dumps(changed))
                 unstarted_setup_failure(job)
             saved.write_text(json.dumps(result))
