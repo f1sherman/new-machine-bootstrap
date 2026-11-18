@@ -1,9 +1,9 @@
 # Official pstack reference snapshot
 
-- Source: https://github.com/cursor/plugins/tree/93b916d4a1e806507e22f4716b352fa91f2b227e/pstack
-- Cleanup dependency: https://github.com/cursor/plugins/tree/93b916d4a1e806507e22f4716b352fa91f2b227e/cursor-team-kit/skills/deslop
-- Terminal harness dependency: https://github.com/cursor/plugins/tree/93b916d4a1e806507e22f4716b352fa91f2b227e/cursor-team-kit/skills/control-cli
-- Commit: `93b916d4a1e806507e22f4716b352fa91f2b227e` (both packages).
+- Source: https://github.com/cursor/plugins/tree/35a90942a7f02e1ebbc2443643179815f2147954/pstack
+- Cleanup dependency: https://github.com/cursor/plugins/tree/35a90942a7f02e1ebbc2443643179815f2147954/cursor-team-kit/skills/deslop
+- Terminal harness dependency: https://github.com/cursor/plugins/tree/35a90942a7f02e1ebbc2443643179815f2147954/cursor-team-kit/skills/control-cli
+- Commit: `35a90942a7f02e1ebbc2443643179815f2147954` (both packages).
 - Branch tracked by Renovate: `main`.
 - License: MIT, preserved in `LICENSE`.
 - Selected pstack paths: `skills/`, `agents/`, `docs/`, `README.md`, `LICENSE`, except upstream script tests selected by the rules below.
