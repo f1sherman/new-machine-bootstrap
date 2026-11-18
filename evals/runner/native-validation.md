@@ -42,12 +42,15 @@ A failed or interrupted claim must be inspected, not deleted or reset.
 
 ## Public deterministic verification
 
-All eight [runner tests](test_runner.py) passed. Their exact disposable inputs
+All nine [runner tests](test_runner.py) passed. Their exact disposable inputs
 are public in that file. They exercise credential-path refusal, source freezing,
 staging restrictions, native-evidence admission, matched-success accounting,
 refusal of started or unsafe recovery attempts, and two controllers synchronized
 at the exclusive recovery claim. Only one overlapping controller is admitted;
-a later attempt cannot overwrite the claim or original receipt bytes. Judgment
+a later attempt cannot overwrite the claim or original receipt bytes. Sealing
+and auditing also check the preserved receipt digest against the recovery claim
+and recheck every original file. Changed or deleted original failures cannot be
+silently resealed. Judgment
 parsing refuses duplicate keys and unquoted positive/contradictory claims, while
 retaining empty excerpts for omissions and uncertainty.
 
@@ -144,6 +147,13 @@ comparison. A body-only removal is still admitted. Native-loader observations:
 | Header removed by original stager | 0 | 0 |
 
 The current and body-removed skill retain the exact same name and description.
+The adapter also runs the installed Pi skill parser after upload and before
+credentials. Its exact production command passed for current and body-removed
+skills, and refused nonempty frontmatter missing a description, inside the
+pinned runtime with no network, privileges, credentials or model. Empty-skill
+controls deliberately skip this check. The [three-case preflight record](../../docs/superpowers/records/2026-11-18-native-skill-preflight.json)
+contains exact inputs and the command hash. This is a command-boundary check,
+not a full native-agent run.
 The old stager bytes were captured before correction; only their relocated
 repository-root binding was supplied for this diagnostic. No model was used.
 This checks discovery, not whether an agent chooses to read the skill.

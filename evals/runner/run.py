@@ -262,7 +262,24 @@ def summarize(rows):
         "usage_scope": "Harbor native main-agent usage. Input includes cache tokens; cache is a subset, not an added total. Failure usage stays in raw evidence only."}
 
 
+def audit_recovery_origin(output):
+    output = output.resolve()
+    claim = output / 'setup-recovery.json'
+    if not claim.exists():
+        return
+    original = output / 'before-setup-recovery-receipts.json'
+    if (not original.is_file() or digest(original) !=
+            json.loads(claim.read_text())['original_receipts_sha256']):
+        raise ValueError('Recovery origin receipts changed')
+    for name, expected in json.loads(original.read_text()).items():
+        saved = 'before-setup-recovery-' + name if name in ('report.json', 'summary.json') else name
+        file = (output / saved).resolve()
+        if not file.is_relative_to(output) or not file.is_file() or digest(file) != expected:
+            raise ValueError('Recovery origin evidence changed: ' + name)
+
+
 def seal(output):
+    audit_recovery_origin(output)
     files = [output / "manifest.json", output / "report.json", output / "summary.json"]
     files += [output / 'setup-recovery.json']
     files += sorted(output.glob('before-setup-recovery-*.json'))
@@ -272,6 +289,8 @@ def seal(output):
 
 
 def audit(output, *, require_complete=True):
+    output = output.resolve()
+    audit_recovery_origin(output)
     receipts = json.loads((output / "receipts.json").read_text())
     for name, expected in receipts.items():
         file = (output / name).resolve()

@@ -88,6 +88,17 @@ PY""", env={"INFERENCE_HOST": "chatgpt.com" if self.model_name.startswith("opena
         # Global context and skills remain in the normal HOME discovery paths.
         await self._upload_config_text(environment, content=guidance,
             remote_path="/home/worker/.pi/agent/" + target, filename=Path(target).name)
+        if target != 'AGENTS.md' and guidance:
+            # Use the installed parser before credentials or paid inference.
+            await self.exec_as_agent(environment, command="""node --input-type=module - <<'JS'
+import { loadSkillsFromDir } from '/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/skills.js';
+import { dirname } from 'node:path';
+const file = process.env.EVAL_SKILL_FILE;
+const { skills } = loadSkillsFromDir({dir: dirname(file), source: 'eval'});
+if (skills.length !== 1 || skills[0].filePath !== file) {
+  throw new Error('Expected skill is not discoverable');
+}
+JS""", env={'EVAL_SKILL_FILE': '/home/worker/.pi/agent/' + target})
 
     async def run(self, instruction, environment, context):
         auth_path = "/home/worker/.pi/agent/auth.json"

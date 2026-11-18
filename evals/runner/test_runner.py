@@ -11,7 +11,7 @@ import threading
 import unittest
 
 from evals.runner.run import (stage, summarize, collect, hashes, guidance_target,
-                             unstarted_setup_failure, claim_setup_recovery, TLS_TIMEOUT_MARKER)
+                             unstarted_setup_failure, claim_setup_recovery, seal, TLS_TIMEOUT_MARKER)
 
 
 class RunnerTests(unittest.TestCase):
@@ -224,6 +224,35 @@ class RunnerTests(unittest.TestCase):
             saved.write_text(json.dumps(changed))
             with self.assertRaises(ValueError):
                 unstarted_setup_failure(job)
+
+    def test_recovery_cannot_reseal_changed_original_evidence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder)
+            for name in ('manifest.json', 'report.json', 'summary.json'):
+                (output / name).write_text('{}\n')
+            failed = output / 'jobs/original/result.json'
+            failed.parent.mkdir(parents=True)
+            failed.write_text('original failed result\n')
+            seal(output)
+            claim_setup_recovery(output)
+            for name in ('report.json', 'summary.json', 'receipts.json'):
+                (output / ('before-setup-recovery-' + name)).write_bytes((output / name).read_bytes())
+            (output / 'report.json').write_text('{"recovered": true}\n')
+            seal(output)
+            receipt = (output / 'receipts.json').read_bytes()
+            for replacement in (None, 'changed failed result\n'):
+                if replacement is None:
+                    failed.unlink()
+                else:
+                    failed.write_text(replacement)
+                with self.assertRaisesRegex(ValueError, 'Recovery origin evidence changed'):
+                    seal(output)
+                self.assertEqual((output / 'receipts.json').read_bytes(), receipt)
+            failed.write_text('original failed result\n')
+            seal(output)
+            (output / 'before-setup-recovery-receipts.json').write_text('{}\n')
+            with self.assertRaisesRegex(ValueError, 'Recovery origin receipts changed'):
+                seal(output)
 
     def test_setup_recovery_admits_one_overlapping_controller(self):
         with tempfile.TemporaryDirectory() as folder:

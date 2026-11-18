@@ -139,7 +139,10 @@ receipts to `before-setup-recovery-*.json`. The recovered row names its separate
 `-setup-recovery` job; previous candidate outputs and budgets are unchanged.
 An exclusive, flushed `setup-recovery.json` claim is saved before changing the
 report or launching that job. Overlapping controllers cannot both claim the same
-recovery. A failed or interrupted recovery must be inspected, not reset or
+recovery. Each seal and audit checks that claim against the saved original
+receipts, then rechecks the original job files and saved report/summary bytes.
+Deletion or alteration cannot be hidden by generating a new receipt list.
+A failed or interrupted recovery must be inspected, not reset or
 resumed again. Do not delete its marker, reseal altered evidence, or create a
 new directory to replace a started draw.
 
@@ -211,7 +214,9 @@ or `xhigh`. Task agent timeouts are capped at 900 seconds. The same settings
 apply to every condition and are frozen in the manifest. `--conditions` selects
 a distinct subset of `current`, `without`, and `empty`. Skill-targeted ablations
 must retain byte-identical frontmatter so discovery does not silently remove the
-whole skill. The empty condition remains a deliberate missing-skill control.
+whole skill. After upload, the installed Pi parser must also discover each
+nonempty skill before credentials or paid inference. The empty condition remains
+a deliberate missing-skill control.
 Use all three for a
 candidate comparison and `--conditions current` for a fixed judge or calibration. Native Pi's tool
 contract and built-in prompt stay fixed. A narrow adapter correction for Harbor
