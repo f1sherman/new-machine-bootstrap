@@ -214,12 +214,11 @@ or `xhigh`. Task agent timeouts are capped at 900 seconds. The same settings
 apply to every condition and are frozen in the manifest. `--conditions` selects
 a distinct subset of `current`, `without`, and `empty`. Skill-targeted ablations
 must retain byte-identical frontmatter so discovery does not silently remove the
-whole skill. After upload, the installed Pi parser must also discover each
-nonempty skill in its default-root skill list, including ignore rules, before
-credentials or paid inference. The empty condition remains
-a deliberate missing-skill control.
-Use all three for a
-candidate comparison and `--conditions current` for a fixed judge or calibration. Native Pi's tool
+whole skill. After upload, Pi's runtime resource loader must also discover each
+nonempty skill before credentials or paid inference. It applies ignore rules,
+resource settings and normal noninteractive project trust. The empty condition
+remains a deliberate missing-skill control. Use all three for a candidate
+comparison and `--conditions current` for a fixed judge. Native Pi's tool
 contract and built-in prompt stay fixed. A narrow adapter correction for Harbor
 0.26.0 aborts an excess turn at `turn_start`, not a completed final answer at
 `turn_end`; the injected budget instruction is unchanged. The
@@ -267,7 +266,8 @@ tmp/harbor-venv/bin/python -m evals.runner.calibrate --study "$f" \
 ```
 
 Calibration uses the same staging and runtime builder as live execution. It
-builds each case's task image, then a separate calibration image that adds only
+stages only `current`, without constructing unused skill ablations. It builds
+each case's task image, then a separate calibration image that adds only
 that case's tests. Containers run with no network, no host mounts, and no
 candidate credentials. No agent or inference client starts. Frozen inputs,
 image IDs, per-case results, and build logs stay in the output directory.

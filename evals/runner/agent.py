@@ -91,9 +91,23 @@ PY""", env={"INFERENCE_HOST": "chatgpt.com" if self.model_name.startswith("opena
         if target != 'AGENTS.md' and guidance:
             # Use the installed parser before credentials or paid inference.
             await self.exec_as_agent(environment, command="""node --input-type=module - <<'JS'
-import { loadSkills } from '/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/skills.js';
+import { DefaultResourceLoader, SettingsManager, ProjectTrustStore } from '/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/index.js';
+import { resolveProjectTrusted } from '/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/project-trust.js';
 const file = process.env.EVAL_SKILL_FILE;
-const { skills } = loadSkills({cwd: process.cwd(), agentDir: '/home/worker/.pi/agent', includeDefaults: true, skillPaths: []});
+const cwd = process.cwd();
+const agentDir = '/home/worker/.pi/agent';
+const settingsManager = SettingsManager.create(cwd, agentDir, {projectTrusted: false});
+const loader = new DefaultResourceLoader({cwd, agentDir, settingsManager});
+await loader.reload({resolveProjectTrust: ({extensionsResult}) => resolveProjectTrusted({
+  cwd, extensionsResult, trustStore: new ProjectTrustStore(agentDir),
+  defaultProjectTrust: settingsManager.getDefaultProjectTrust(),
+  projectTrustContext: {cwd, mode: 'json', hasUI: false, ui: {
+    select: async () => undefined, confirm: async () => false,
+    input: async () => undefined, notify: () => {},
+  }},
+})});
+if (settingsManager.drainErrors().length) throw new Error('Cannot read skill discovery settings');
+const { skills } = loader.getSkills();
 if (!skills.some(skill => skill.filePath === file)) {
   throw new Error('Expected skill is not discoverable');
 }

@@ -30,7 +30,8 @@ def main():
     output.mkdir(parents=True, exist_ok=False)
     # Staging freezes the same task assembly as live execution. This model label
     # only satisfies the staging schema; calibration never starts an agent.
-    manifest = stage(args.study.resolve(), output, 'openai/calibration', 1)
+    manifest = stage(args.study.resolve(), output, 'openai/calibration', 1,
+                     conditions=('current',))
     tasks = sorted((output / 'tasks/current').iterdir())
     for task in tasks:
         if not (task / 'tests/calibrate.py').is_file():

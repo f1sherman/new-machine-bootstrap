@@ -149,18 +149,31 @@ comparison. A body-only removal is still admitted. Native-loader observations:
 | Header removed by original stager | 0 | 0 |
 
 The current and body-removed skill retain the exact same name and description.
-The adapter also runs the installed Pi skill parser after upload and before
+The adapter also checks installed Pi discovery after upload and before
 credentials. The initial [three-case preflight record](../../docs/superpowers/records/2026-11-18-native-skill-preflight.json)
 checked the target directory directly. A later review showed that this missed
-root `.ignore` rules. The corrected default-root discovery command passed for
-current and body-removed skills, and refused missing descriptions and an ignored
-skill, inside the pinned networkless UID1001 runtime. The
-[four-case record](../../docs/superpowers/records/2026-11-18-native-effective-skill-preflight.json)
-contains exact inputs and its command hash. An earlier diagnostic omitted the
-required `skillPaths` argument and is retained; no model ran. Extra configured
-skill paths and plugin-discovered resources were not exercised. Empty controls
-skip discovery; fixed current-only studies do not validate an unselected
-ablation. These are command boundaries, not full native-agent runs.
+root `.ignore` rules. A later [four-case record](../../docs/superpowers/records/2026-11-18-native-effective-skill-preflight.json)
+covered default roots and ignore rules, but its lower-level parser still missed
+settings exclusions. An earlier diagnostic omitted the required `skillPaths`
+argument and is retained; no model ran.
+
+The current command uses Pi's runtime resource loader and native noninteractive
+project-trust resolver. Its [nine-case record](../../docs/superpowers/records/2026-11-18-native-runtime-skill-preflight.json)
+checks current/body-removed discovery, missing descriptions, ignored skills,
+global and trusted-project exclusions, and denied or unanswered project trust.
+All nine match the expected results. Public inputs remain read-only; bounded
+writable container memory holds native trust locks. The resolver receives inert
+JSON-mode no-UI replies. Extra configured skill paths and dynamic session
+resource hooks were not exercised. Empty controls skip discovery; fixed
+current-only studies do not validate an unselected ablation. These are command
+boundaries, not full native-agent runs.
+
+The offline calibration launcher now stages only `current`. A standalone
+single-fragment skill previously failed its unused ablation's frontmatter guard;
+the same synthetic fixture now reaches its calibration script in a networkless
+container. The [launcher record](../../docs/superpowers/records/2026-11-18-native-current-only-calibration.json)
+keeps both outcomes and earlier incomplete diagnostic attempts. It does not
+measure semantic verifier quality.
 The old stager bytes were captured before correction; only their relocated
 repository-root binding was supplied for this diagnostic. No model was used.
 This checks discovery, not whether an agent chooses to read the skill.
