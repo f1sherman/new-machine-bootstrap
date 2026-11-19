@@ -62,6 +62,10 @@ setopt PUSHD_SILENT
 bindkey "^N" down-line-or-search
 bindkey "^P" up-line-or-search
 
+autoload -Uz edit-command-line
+zle -N edit-command-line
+bindkey "^X^E" edit-command-line
+
 autoload -Uz add-zsh-hook
 _prompt_timer_preexec() { _prompt_cmd_start=$EPOCHREALTIME }
 _prompt_timer_precmd() {
