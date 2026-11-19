@@ -101,6 +101,16 @@ Revise the guidance, repair deficient measurement, or remove the unsupported
 change. The established-fragment reassessment rules below do not permit keeping
 unsupported new guidance as a safeguard.
 
+For a rewrite, the `without` condition removes the rule; it does not restore the
+old wording. Run matched candidate and pre-change studies with the same tasks,
+verifiers, image, model settings, limits, and repetitions. Use frozen guidance
+snapshots that differ only in the target wording; `guidance_ref` pins a whole
+snapshot, so verify all untargeted guidance is identical. Compare the two
+`current` conditions for improvement over the old wording, and retain each
+study's ablation and empty control as separate evidence. If the runner cannot
+hold these inputs fixed, report the gap rather than accept a deletion comparison
+as proof that the rewrite improves on the existing rule.
+
 Every requested trial is complete, incomplete, or a scored behavioral failure.
 Infrastructure errors, missing native evidence, and malformed verifier output
 are incomplete, never passes. Preserve earlier rows if a later trial fails.
