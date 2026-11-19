@@ -94,6 +94,13 @@ References: the vendored pstack `poteto-mode/playbooks/eval.md` and
 
 ## Evidence and decisions
 
+Apply the `eval-design` skill's demonstrated-improvement acceptance gate to added
+or changed guidance. Declare its benefit and acceptance criteria before running;
+passing tasks or a tie/null/inconclusive result do not establish added value.
+Revise the guidance, repair deficient measurement, or remove the unsupported
+change. The established-fragment reassessment rules below do not permit keeping
+unsupported new guidance as a safeguard.
+
 Every requested trial is complete, incomplete, or a scored behavioral failure.
 Infrastructure errors, missing native evidence, and malformed verifier output
 are incomplete, never passes. Preserve earlier rows if a later trial fails.
