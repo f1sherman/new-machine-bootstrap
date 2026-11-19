@@ -313,6 +313,16 @@ does not prove a fresh live twenty-minute export or provider refresh. The native
 final-turn trials above preceded this lifetime correction; their original
 source/image identities remain unchanged.
 
+## Whitespace-only excerpts
+
+The production judgment validator now rejects excerpts containing only spaces or
+newlines. Previously, those substrings could support a format-valid `met` or
+`contradicted` label without quoting any words. Seven deterministic synthetic
+cases preserve the before/after outcomes, exact inputs and source hashes in
+[the boundary record](../../docs/superpowers/records/2026-11-18-native-blank-excerpt-boundary.json).
+Valid exact excerpts and empty lists for `missing`/`uncertain` remain accepted.
+This component check used no model calls and does not establish semantic accuracy.
+
 ## Evidence limits
 
 Private captured-failure replay and earlier native recovery evidence remain with

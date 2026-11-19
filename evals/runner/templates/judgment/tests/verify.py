@@ -27,7 +27,7 @@ def validate(value, criteria, document):
             raise ValueError('Unsupported status')
         if not isinstance(row['reason'], str) or not row['reason'].strip():
             raise ValueError('Missing explanation')
-        if not isinstance(row['excerpts'], list) or any(not isinstance(s, str) or not s or s not in document for s in row['excerpts']):
+        if not isinstance(row['excerpts'], list) or any(not isinstance(s, str) or not s.strip() or s not in document for s in row['excerpts']):
             raise ValueError('Unsupported excerpt')
         if row['status'] in ('met', 'contradicted') and not row['excerpts']:
             raise ValueError('A supported or contradictory claim needs an exact excerpt')
