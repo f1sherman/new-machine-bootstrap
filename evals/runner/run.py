@@ -461,8 +461,10 @@ def prebuild(output, log, *, case, roles):
 def build_task_images(output, manifest, env):
     (output / "image-builds").mkdir()
     pins = {}
+    conditions = manifest["condition_hashes"]
+    build_condition = next(iter(conditions))  # Image inputs are identical across conditions.
     for index, case in enumerate(sorted({row["case"] for row in manifest["matrix"]})):
-        context = output / "tasks" / next(iter(manifest["condition_hashes"])) / case / "environment"
+        context = output / "tasks" / build_condition / case / "environment"
         tag = f'nmb-eval-task:{manifest["owner"]}-{index}'
         log_path = f"image-builds/{case}-candidate.log"
         with prebuild(output, log_path, case=case, roles=list(IMAGE_POLICIES)):
@@ -474,7 +476,7 @@ def build_task_images(output, manifest, env):
             image = image_id(tag, env)
         pins[case] = {role: image for role in IMAGE_POLICIES}
     for case, images in pins.items():
-        for condition in manifest["condition_hashes"]:
+        for condition in conditions:
             config_file = output / "tasks" / condition / case / "task.toml"
             config = tomllib.loads(config_file.read_text())
             config["environment"]["docker_image"] = images["candidate"]
