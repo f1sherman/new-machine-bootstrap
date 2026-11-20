@@ -142,9 +142,8 @@ study within the agreed bounds cannot demonstrate a concrete need, including
 when the evidence remains inconclusive. The global default to retain untested
 safeguards does not exempt established prompt text in this program. Report
 coverage gaps, overlapping guards, and remaining risks. Uncertainty does not
-prove redundancy or safety.
-Leave actual runtime guards in place; this decision concerns prompt text only.
-Only the parent decides the fragment's disposition and approves production
-changes. A passing runner check is not a passing guidance study, and an eval
-link is not coverage proof. Migrate one fragment at a time. Record its
-disposition before selecting the next.
+prove redundancy or safety. Leave runtime guards in place.
+
+The parent decides the fragment's disposition and approves production changes.
+A passing runner check is not a passing guidance study, and an eval link is not
+coverage proof. Record each fragment's disposition before selecting the next.
