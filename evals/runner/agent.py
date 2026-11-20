@@ -155,9 +155,10 @@ JS""", env={'EVAL_SKILL_HEADER': header, 'EVAL_SKILL_FALLBACK': Path(target).par
         if oauth:
             # Cover the 900-second trial cap plus Pi's five-minute refresh window.
             credential = await access_credential(minimum_seconds=1200)
-            await self._upload_config_text(environment, content=json.dumps(credential),
-                remote_path=auth_path, filename="auth.json")
         try:
+            if oauth:
+                await self._upload_config_text(environment, content=json.dumps(credential),
+                    remote_path=auth_path, filename="auth.json")
             await super().run(instruction, environment, context)
         finally:
             if oauth:

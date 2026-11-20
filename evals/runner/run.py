@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Stage and run data-defined fragment studies through pinned Harbor."""
 import argparse
+from contextlib import contextmanager
 import hashlib
 import importlib.metadata
 import json
@@ -19,6 +20,14 @@ import toml
 ROOT = Path(__file__).resolve().parents[2]
 HARBOR_VERSION = "0.26.0"
 TLS_TIMEOUT_MARKER = 'EVAL_PRECREDENTIAL_TLS_TIMEOUT'
+
+IMAGE_POLICIES = {"candidate": "allowlist", "verifier": "no-network"}
+PINNED_ENVIRONMENT = "evals.runner.environment:PinnedDocker"
+IMAGE_BUILD_TIMEOUT = 600
+
+
+def is_image_id(value):
+    return isinstance(value, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", value) is not None
 
 
 def digest(file):
@@ -176,8 +185,8 @@ def stage(study_file, output, model, trials, *, conditions=("current", "without"
             task = output / "tasks" / variant / case
             shutil.copytree(frozen / "tasks" / case, task)
             if any((task / directory / "docker-compose.yaml").exists()
-                   for directory in ("environment", "tests")):
-                raise ValueError("Task Compose overrides require a shared runner capability change")
+                   for directory in ("environment", "tests")) or (task / "tests/Dockerfile").exists():
+                raise ValueError("Custom task Compose or verifier images are not supported")
             config_file = task / "task.toml"
             config = tomllib.loads(config_file.read_text())
             if "steps" in config:
@@ -206,7 +215,7 @@ def stage(study_file, output, model, trials, *, conditions=("current", "without"
     save(output / "restrictions.json", {"services": {"main": {
         "cap_drop": ["ALL"], "cap_add": ["CHOWN", "DAC_OVERRIDE", "FOWNER"],
         "security_opt": ["no-new-privileges:true"], "pids_limit": 128}}})
-    manifest = {"schema_version": 1, "owner": str(uuid.uuid4()), "model": model,
+    manifest = {"schema_version": 3, "owner": str(uuid.uuid4()), "model": model,
         "pi_version": pi_version, "harbor_version": HARBOR_VERSION, "fragment": fragment,
         "guidance_target": install_target, "guidance_skill_header": skill_header,
         "thinking": thinking, "max_turns": max_turns,
@@ -218,7 +227,33 @@ def stage(study_file, output, model, trials, *, conditions=("current", "without"
     return manifest
 
 
-def collect(job, row):
+def check_image_proof(trial, expected, sidecar):
+    containers = []
+    for role, policy in IMAGE_POLICIES.items():
+        path = trial / f"{role}-image.json"
+        if not path.is_file():
+            raise ValueError(f"Missing {role} image proof: {path}")
+        proof = json.loads(path.read_text())
+        if not is_image_id(expected[role]) or proof.get("image") != expected[role]:
+            raise ValueError(f"Mismatched {role} image proof: {path}")
+        container = proof.get("container", "")
+        if not isinstance(container, str) or not re.fullmatch(r"[0-9a-f]{64}", container):
+            raise ValueError(f"Invalid {role} container ID: {path}")
+        if proof.get("policy") != policy:
+            raise ValueError(f"Image proof has the wrong Harbor network policy: {path}")
+        containers.append(container)
+        sidecar_container = proof.get("sidecar_container")
+        if (not is_image_id(sidecar) or proof.get("sidecar_image") != sidecar
+                or not isinstance(sidecar_container, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", sidecar_container)
+                or proof.get("network") != f"container:{sidecar_container}"):
+            raise ValueError(f"Missing or mismatched {role} sidecar proof: {path}")
+        containers.append(sidecar_container)
+    if len(set(containers)) != len(containers):
+        raise ValueError("Candidate and verifier image proof must identify separate containers")
+
+
+def collect(job, row, image_pins=None, sidecar=None):
     results = []
     for file in job.rglob("result.json"):
         result = json.loads(file.read_text())
@@ -229,6 +264,8 @@ def collect(job, row):
     file, result = results[0]
     if result.get("exception_info"):
         raise ValueError("Harbor trial failed; inspect " + str(file))
+    if image_pins is not None:
+        check_image_proof(file.parent, image_pins, sidecar)
     rewards = result.get("verifier_result", {}).get("rewards")
     if not rewards or not all(type(value) in (int, float) and value in (0, 1) for value in rewards.values()):
         raise ValueError("Verifier must produce named binary rewards")
@@ -295,11 +332,13 @@ def seal(output):
     files += [output / 'setup-recovery.json']
     files += sorted(output.glob('before-setup-recovery-*.json'))
     files += sorted((output / "jobs").rglob("*")) if (output / "jobs").exists() else []
+    files += sorted((output / "image-builds").glob("*.log"))
+    files += [output / name for name in ("runtime-build.log", "sidecar-build.log")]
     save(output / "receipts.json", {str(file.relative_to(output)): digest(file)
          for file in files if file.is_file()})
 
 
-def audit(output, *, require_complete=True):
+def audit(output):
     output = output.resolve()
     audit_recovery_origin(output)
     receipts = json.loads((output / "receipts.json").read_text())
@@ -308,6 +347,33 @@ def audit(output, *, require_complete=True):
         if not file.is_relative_to(output) or digest(file) != expected:
             raise ValueError("Evidence changed: " + name)
     manifest = json.loads((output / "manifest.json").read_text())
+    report = json.loads((output / "report.json").read_text())
+    if not report["results"] and any(row.get("phase") == "image-prebuild" for row in report["errors"]):
+        raise ValueError("Run is incomplete: image prebuild failed before candidate launch")
+    version = manifest["schema_version"]
+    sidecar = None
+    if version == 3:
+        sidecar = manifest.get("sidecar_image")
+        if not is_image_id(sidecar) or not (output / "inputs/harbor-sidecar/Dockerfile").is_file():
+            raise ValueError("Missing sidecar image pin or frozen source")
+        pins = manifest.get("image_pins")
+        if not isinstance(pins, dict) or pins.keys() != {row["case"] for row in manifest["matrix"]}:
+            raise ValueError("Missing or invalid prebuilt image pins")
+        if "manifest.json" not in receipts:
+            raise ValueError("Missing manifest receipt")
+        for row in manifest["matrix"]:
+            expected = pins[row["case"]]
+            task = output / "tasks" / row["condition"] / row["case"] / "task.toml"
+            config = tomllib.loads(task.read_text())
+            candidate = config["environment"].get("docker_image")
+            verifier = config["verifier"]["environment"].get("docker_image", candidate)
+            if (expected != {"candidate": candidate, "verifier": verifier}
+                    or not all(is_image_id(value) for value in expected.values())):
+                raise ValueError(f"Task configuration does not match prebuilt image pins: {task}")
+    elif version == 1 and "image_pins" not in manifest:
+        pins = None
+    else:
+        raise ValueError("Unknown image evidence contract")
     for directory, key in (("inputs", "input_hashes"), ("tasks", "task_hashes")):
         if hashes(output / directory) != manifest[key]:
             raise ValueError("Frozen inputs changed: " + directory)
@@ -316,7 +382,6 @@ def audit(output, *, require_complete=True):
             raise ValueError("Guidance changed: " + name)
     if digest(output / "restrictions.json") != manifest["restrictions_sha256"]:
         raise ValueError("Sandbox restrictions changed")
-    report = json.loads((output / "report.json").read_text())
     for index, row in enumerate(report["results"]):
         planned = manifest["matrix"][index]
         expected_job = f"run-{index}-{manifest['owner'][:8]}"
@@ -324,62 +389,28 @@ def audit(output, *, require_complete=True):
         if job_name not in (expected_job, expected_job + '-setup-recovery'):
             raise ValueError('Invalid saved job name')
         job = output / 'jobs' / job_name
-        actual = collect(job, planned)
+        actual = collect(job, planned, pins[planned["case"]] if pins is not None else None, sidecar)
+        if pins is not None:
+            for role in IMAGE_POLICIES:
+                path = f'{actual["evidence"]}/{role}-image.json'
+                if path not in receipts:
+                    raise ValueError(f"Missing image receipt: {path}")
         if 'job_name' in row:
             actual['job_name'] = job_name
         # The saved location is a navigation hint, not a scoring input. Older
         # reports used host-absolute paths; relocation must not invalidate them.
         if actual != {**row, "evidence": actual["evidence"]}:
             raise ValueError("Report differs from native evidence")
-    if require_complete and (report["errors"] or len(report["results"]) != len(manifest["matrix"])):
+    if report["errors"] or len(report["results"]) != len(manifest["matrix"]):
         raise ValueError("Run is incomplete")
     if summarize(report["results"]) != json.loads((output / "summary.json").read_text()):
         raise ValueError("Summary differs from native evidence")
+    if pins is None:
+        print("Historical run: actual task and verifier image IDs were not verified")
+    else:
+        print("Verified pinned candidate and verifier image IDs for every trial")
+        print("Verified pinned egress sidecar image IDs and namespaces for both roles")
     print("Verified receipts, inputs, recorded native results, and summary; no Docker or model calls")
-
-
-def unstarted_setup_failure(job):
-    results = [json.loads(p.read_text()) for p in job.rglob('result.json')]
-    results = [result for result in results if 'task_name' in result]
-    if len(results) != 1:
-        raise ValueError('Expected one failed setup result')
-    error = results[0].get('exception_info') or {}
-    logs = list(job.rglob('trial.log'))
-    trial_log = logs[0].read_text() if len(logs) == 1 else ''
-    # Match the failed assertion's output, not the probe source printed above it.
-    # The same command contains security assertions that must never be retried.
-    tls_timeout = re.search(
-        r"\nstdout: Traceback \(most recent call last\):\n"
-        r'  File "<stdin>", line \d+, in <module>\n'
-        rf'AssertionError: (?:{TLS_TIMEOUT_MARKER}|curl: \(28\) Operation timed out after \d+ milliseconds with 0 bytes received)\n'
-        r'\n+stderr: None\Z', error.get('exception_message', ''))
-    if (error.get('exception_type') not in ('NetworkConnectionError', 'NonZeroAgentExitCodeError')
-            or not tls_timeout
-            or list(job.rglob('pi.txt')) or list(job.rglob('pi/sessions/*.jsonl'))
-            or len(logs) != 1 or 'auth.json' in trial_log or 'pi --print' in trial_log
-            or any((results[0].get('agent_result') or {}).get(k)
-                   for k in ('n_input_tokens', 'n_output_tokens', 'n_cache_tokens'))):
-        raise ValueError('Recovery requires a failed precredential TLS probe with no native session')
-
-
-def claim_setup_recovery(output):
-    # Claim once before changing the saved report or starting any native job.
-    # A crash leaves the claim held; a second controller must not reroll it.
-    try:
-        fd = os.open(output / 'setup-recovery.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError:
-        raise ValueError('Setup recovery already claimed; preserve evidence and inspect') from None
-    with os.fdopen(fd, 'w') as stream:
-        json.dump({'original_receipts_sha256': digest(output / 'receipts.json'),
-                   'controller_sha256': digest(Path(__file__))}, stream)
-        stream.write('\n')
-        stream.flush()
-        os.fsync(stream.fileno())
-    directory = os.open(output, os.O_RDONLY)
-    try:
-        os.fsync(directory)
-    finally:
-        os.close(directory)
 
 
 def docker_environment():
@@ -388,15 +419,22 @@ def docker_environment():
         "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_API_VERSION") if key in os.environ}
 
 
+def image_id(image, env):
+    output = subprocess.check_output(["docker", "image", "inspect", image,
+        "--format", "{{.Id}}"], text=True, env=env, timeout=30).strip()
+    if not is_image_id(output):
+        raise ValueError(f"Docker returned no immutable ID for {image}")
+    return output
+
+
 def build_runtime(output, manifest, env):
     runtime = "nmb-eval-runtime:" + manifest["owner"]
     runtime_file = output / "inputs/infrastructure/evals/runner/Dockerfile"
     with (output / "runtime-build.log").open("w") as log:
         subprocess.run(["docker", "build", "--build-arg", f"PI_VERSION={manifest['pi_version']}",
             "-t", runtime, "-f", str(runtime_file), str(runtime_file.parent)],
-            check=True, env=env, stdout=log, stderr=subprocess.STDOUT)
-    manifest["runtime_image"] = subprocess.check_output(["docker", "image", "inspect", runtime,
-        "--format", "{{.Id}}"], text=True, env=env).strip()
+            check=True, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=IMAGE_BUILD_TIMEOUT)
+    manifest["runtime_image"] = image_id(runtime, env)
     # Each run owns its tag; concurrent studies cannot replace its base image.
     manifest["runtime_tag"] = runtime
     for dockerfile in (output / "tasks").rglob("Dockerfile"):
@@ -405,11 +443,68 @@ def build_runtime(output, manifest, env):
     save(output / "manifest.json", manifest)
 
 
+@contextmanager
+def prebuild(output, log, *, case, roles):
+    try:
+        yield
+    except (subprocess.SubprocessError, OSError, ValueError) as error:
+        with (output / log).open("a") as stream:
+            print(f"{type(error).__name__}: {error}", file=stream)
+        save(output / "report.json", {"results": [], "errors": [{
+            "phase": "image-prebuild", "status": "incomplete", "case": case,
+            "roles": roles, "log": log, "error": str(error)}]})
+        save(output / "summary.json", summarize([]))
+        seal(output)
+        raise
+
+
+def build_task_images(output, manifest, env):
+    (output / "image-builds").mkdir()
+    pins = {}
+    for index, case in enumerate(sorted({row["case"] for row in manifest["matrix"]})):
+        context = output / "tasks" / next(iter(manifest["condition_hashes"])) / case / "environment"
+        tag = f'nmb-eval-task:{manifest["owner"]}-{index}'
+        log_path = f"image-builds/{case}-candidate.log"
+        with prebuild(output, log_path, case=case, roles=list(IMAGE_POLICIES)):
+            if image_id(manifest["runtime_tag"], env) != manifest["runtime_image"]:
+                raise ValueError("Frozen runtime image changed before task build")
+            with (output / log_path).open("w") as log:
+                subprocess.run(["docker", "build", "-t", tag, str(context)], env=env,
+                               stdout=log, stderr=subprocess.STDOUT, check=True, timeout=IMAGE_BUILD_TIMEOUT)
+            image = image_id(tag, env)
+        pins[case] = {role: image for role in IMAGE_POLICIES}
+    for case, images in pins.items():
+        for condition in manifest["condition_hashes"]:
+            config_file = output / "tasks" / condition / case / "task.toml"
+            config = tomllib.loads(config_file.read_text())
+            config["environment"]["docker_image"] = images["candidate"]
+            config_file.write_text(toml.dumps(config))
+    manifest["image_pins"] = pins
+    manifest["task_hashes"] = hashes(output / "tasks")
+    save(output / "manifest.json", manifest)
+
+
+def build_sidecar(output, manifest, env):
+    from harbor.environments.docker.docker import DockerEnvironment
+
+    context = output / "inputs/harbor-sidecar"
+    tag = f'nmb-eval-sidecar:{manifest["owner"]}'
+    with prebuild(output, "sidecar-build.log", case=None, roles=["egress-sidecar"]):
+        shutil.copytree(DockerEnvironment._EGRESS_CONTROL_SIDECAR_CONTEXT_PATH, context, symlinks=True)
+        manifest["input_hashes"] = hashes(output / "inputs")
+        save(output / "manifest.json", manifest)
+        with (output / "sidecar-build.log").open("w") as log:
+            subprocess.run(["docker", "build", "-t", tag, str(context)], env=env,
+                           stdout=log, stderr=subprocess.STDOUT, check=True, timeout=IMAGE_BUILD_TIMEOUT)
+        manifest["sidecar_image"] = image_id(tag, env)
+        save(output / "manifest.json", manifest)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--audit", type=Path)
     parser.add_argument("--resume-unstarted", type=Path,
-                        help="Once, recover a failed precredential TLS probe; never replace a model draw")
+                        help=argparse.SUPPRESS)
     parser.add_argument("--study", type=Path)
     parser.add_argument("--model")
     parser.add_argument("--trials", type=int)
@@ -428,42 +523,26 @@ def main():
         audit(args.audit.resolve())
         return
     if args.resume_unstarted:
-        if supplied_run_inputs or trial_overrides or args.live:
-            parser.error('Recovery accepts only --resume-unstarted')
-        output = args.resume_unstarted.resolve()
-        if not output.is_relative_to(ROOT / 'tmp'):
-            parser.error("Keep evidence under this checkout's ignored tmp/")
-        audit(output, require_complete=False)
-        manifest = json.loads((output / 'manifest.json').read_text())
-        report = json.loads((output / 'report.json').read_text())
-        index = len(report['results'])
-        if report.get('recovered_setup_errors') or len(report['errors']) != 1 or index >= len(manifest['matrix']):
-            raise ValueError('Recover one unstarted setup failure at most once')
-        planned = manifest['matrix'][index]
-        if any(report['errors'][0].get(k) != v for k, v in planned.items()):
-            raise ValueError('Failed setup does not match the next planned trial')
-        unstarted_setup_failure(output / 'jobs' / f"run-{index}-{manifest['owner'][:8]}")
-        args.model = manifest['model']
-    elif not args.study or not args.model or not args.output:
+        parser.error("Setup recovery is disabled; preserve the original run")
+    if not args.study or not args.model or not args.output:
         parser.error("Supply --study, --model, and --output")
     if not args.model.startswith(("openai/", "openai-codex/")) or len(args.model.split("/")) != 2:
         parser.error("Use openai/model or openai-codex/model")
-    if not args.resume_unstarted:
-        args.trials = 2 if args.trials is None else args.trials
-        args.conditions = ('current', 'without', 'empty') if args.conditions is None else args.conditions
-        args.thinking = 'medium' if args.thinking is None else args.thinking
-        args.max_turns = 12 if args.max_turns is None else args.max_turns
-        if not 1 <= args.trials <= 10:
-            parser.error("Use 1 to 10 repetitions")
-        output = args.output.resolve()
-        if not output.is_relative_to(ROOT / "tmp"):
-            parser.error("Keep evidence under this checkout's ignored tmp/")
-        output.mkdir(parents=True, exist_ok=False)
-        manifest = stage(args.study.resolve(), output, args.model, args.trials,
-                         conditions=args.conditions, thinking=args.thinking, max_turns=args.max_turns)
-        print(f"Staged {len(manifest['matrix'])} trials at {output}", flush=True)
-        if not args.live:
-            return
+    args.trials = 2 if args.trials is None else args.trials
+    args.conditions = ('current', 'without', 'empty') if args.conditions is None else args.conditions
+    args.thinking = 'medium' if args.thinking is None else args.thinking
+    args.max_turns = 12 if args.max_turns is None else args.max_turns
+    if not 1 <= args.trials <= 10:
+        parser.error("Use 1 to 10 repetitions")
+    output = args.output.resolve()
+    if not output.is_relative_to(ROOT / "tmp"):
+        parser.error("Keep evidence under this checkout's ignored tmp/")
+    output.mkdir(parents=True, exist_ok=False)
+    manifest = stage(args.study.resolve(), output, args.model, args.trials,
+                     conditions=args.conditions, thinking=args.thinking, max_turns=args.max_turns)
+    print(f"Staged {len(manifest['matrix'])} trials at {output}", flush=True)
+    if not args.live:
+        return
     if importlib.metadata.version("harbor") != HARBOR_VERSION:
         raise ValueError("Install the pinned Harbor version")
     env = docker_environment()
@@ -475,49 +554,34 @@ def main():
     else:
         env["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
     host_tmp = output / "host-tmp"
-    host_tmp.mkdir(exist_ok=bool(args.resume_unstarted))
+    host_tmp.mkdir()
     env["TMPDIR"] = str(host_tmp)
     # Docker's embedded DNS forwarding can be blocked by the upstream sidecar.
     # Freeze only the already-allowed inference hostname, in both namespaces.
     # No additional egress or DNS destination is permitted.
-    address = (manifest['inference_address'] if args.resume_unstarted else
-               socket.getaddrinfo(manifest['inference_host'], 443, socket.AF_INET, socket.SOCK_STREAM)[0][4][0])
+    address = socket.getaddrinfo(manifest['inference_host'], 443, socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
     manifest['inference_address'] = address
-    if not args.resume_unstarted:
-        restrictions = json.loads((output / 'restrictions.json').read_text())
-        restrictions['services']['harbor-docker-egress-control-sidecar'] = {
-            'extra_hosts': [manifest['inference_host'] + ':' + address]}
-        save(output / 'restrictions.json', restrictions)
-        manifest['restrictions_sha256'] = digest(output / 'restrictions.json')
+    restrictions = json.loads((output / 'restrictions.json').read_text())
+    restrictions['services']['harbor-docker-egress-control-sidecar'] = {
+        'extra_hosts': [manifest['inference_host'] + ':' + address]}
+    save(output / 'restrictions.json', restrictions)
+    manifest['restrictions_sha256'] = digest(output / 'restrictions.json')
     env['EVAL_INFERENCE_ADDRESS'] = address
-    if args.resume_unstarted:
-        image = subprocess.check_output(['docker', 'image', 'inspect', manifest['runtime_tag'],
-            '--format', '{{.Id}}'], text=True, env=env).strip()
-        if image != manifest['runtime_image']:
-            raise ValueError('Frozen runtime image changed')
-        claim_setup_recovery(output)
-        for name in ('report.json', 'summary.json', 'receipts.json'):
-            shutil.copy2(output / name, output / ('before-setup-recovery-' + name))
-        report['recovered_setup_errors'] = report['errors']
-        report['errors'] = []
-    else:
-        build_runtime(output, manifest, env)
-        report = {"results": [], "errors": []}
+    report = {"results": [], "errors": []}
     save(output / "report.json", report)
-    first = len(report['results'])
+    with prebuild(output, "runtime-build.log", case=None, roles=["runtime"]):
+        build_runtime(output, manifest, env)
+    build_task_images(output, manifest, env)
+    build_sidecar(output, manifest, env)
+    env["NMB_EVAL_SIDECAR_IMAGE"] = manifest["sidecar_image"]
     harbor = str(Path(sys.executable).parent / "harbor")
     for index, row in enumerate(manifest["matrix"]):
-        if index < first:
-            continue
         job = f"run-{index}-{manifest['owner'][:8]}"
-        if args.resume_unstarted and index == first:
-            job += '-setup-recovery'
-            row = {**row, 'job_name': job}
         env["EVAL_GUIDANCE_FILE"] = str(output / (row["condition"] + ".md"))
         env["EVAL_GUIDANCE_TARGET"] = manifest["guidance_target"]
         env["EVAL_GUIDANCE_SKILL_HEADER"] = manifest.get('guidance_skill_header') or ''
-        # Older frozen adapters consume the original name field on recovery.
-        env["EVAL_GUIDANCE_SKILL_NAME"] = manifest.get('guidance_skill_name') or ''
+        pins = manifest["image_pins"][row["case"]]
+        env["NMB_EVAL_IMAGE_PINS"] = json.dumps(pins)
         command = [harbor, "run", "--path", str(output / "tasks" / row["condition"] / row["case"]),
             "--agent", "evals.runner.agent:SandboxedPi", "--model", args.model,
             "--agent-kwarg", "skip_install=true", "--agent-kwarg", f"version={manifest['pi_version']}",
@@ -526,11 +590,11 @@ def main():
             "--agent-env", "PI_TELEMETRY=0", "--agent-env", "PI_SKIP_VERSION_CHECK=1",
             "--n-attempts", "1", "--n-concurrent", "1", "--max-retries", "0",
             "--jobs-dir", str(output / "jobs"), "--job-name", job,
-            "--extra-docker-compose", str(output / "restrictions.json")]
+            "--env", PINNED_ENVIRONMENT, "--extra-docker-compose", str(output / "restrictions.json")]
         try:
             with (output / f"{job}.log").open("w") as log:
                 subprocess.run(command, env=env, check=True, stdout=log, stderr=subprocess.STDOUT)
-            report["results"].append(collect(output / "jobs" / job, row))
+            report["results"].append(collect(output / "jobs" / job, row, pins, manifest["sidecar_image"]))
         except (subprocess.CalledProcessError, ValueError, OSError) as error:
             report["errors"].append({**row, "status": "incomplete", "error": str(error)})
             save(output / "report.json", report)

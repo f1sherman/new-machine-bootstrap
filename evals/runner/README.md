@@ -1,9 +1,9 @@
 # Shared native-agent runner
 
 Read [the eval rules](../README.md) before adding or migrating an eval.
-Read the [open validation limits](native-validation.md#open-limits) before a paid
-matrix or setup recovery. Judge roles are not enforced automatically; quoted
-prompt sections and rebuilt per-case images remain outside the verified boundary.
+Read the [open validation limits](native-validation.md#open-limits) before a
+paid run. Follow `eval-design` for model roles. The runner does not select or
+check effort by role; pass the exact model and effort explicitly.
 
 ## Architecture
 
@@ -54,8 +54,14 @@ not a new general-purpose sandbox implementation. The shared Dockerfile adds
 pinned Pi and common fixture tools. Node's base is digest-pinned; the installed
 Pi version comes from `vars/tool_versions.yml`. Package installation happens at
 build time with ordinary build networking. Trial images extend that runtime.
-Each run owns a distinct runtime tag and records its image ID. Task images and
-Harbor inputs are hashed. The source Dockerfile does not by itself freeze future
+Each run owns a distinct runtime tag and records its image ID. Before launch the runner builds one task image per case and pins it by image
+ID for both roles. The verifier starts a separate fresh container from that
+image. It also pins the Harbor enforcement sidecar image. For each role the
+runner inspects the live container's actual image, the sidecar's actual image
+and the network namespace link before handing control to Harbor. Audit checks
+those observations against the pins and receipts. Historical runs without this
+evidence remain historical. Custom verifier images and Compose files are not
+supported. Harbor inputs are hashed. The source Dockerfile does not by itself freeze future
 apt/npm dependency resolution; the recorded built image identifies that run.
 
 Container root is used by Harbor to upload configuration and collect artifacts.
@@ -91,7 +97,7 @@ Staging uses no Docker, inference, or credential:
 ```bash
 f=evals/workspace-guidance/native/study.toml
 tmp/harbor-venv/bin/python -m evals.runner.run --study "$f" \
-  --model openai-codex/gpt-6.1-terra --trials 2 \
+  --model openai-codex/gpt-6.2-sol --thinking medium --trials 2 \
   --output tmp/cleanup-stage
 ```
 
@@ -117,44 +123,11 @@ For verifier repairs, use pinned Harbor's `harbor trials regrade --help` with th
 recorded trial and a staged corrected task. Regrade creates new evidence without
 rerunning the agent. Review the new and original scores together.
 
-## Recover one unstarted TLS setup failure
+## Setup failures
 
-A completed model failure or a native-started timeout cannot be retried in the
-same matrix. The only supported recovery is one precredential inference TLS
-probe timeout, before native launch, authentication installation, session logs
-or any model usage. A denied-network or identity failure is not eligible. The
-runner matches the actual timeout assertion output, not the probe source that
-Harbor repeats in every failure message. New probes emit a distinct timeout
-marker only for curl exit 28 with no HTTP response, after the security probes
-pass. Frozen older probes still use their actual zero-byte curl-timeout
-traceback; eligibility does not depend on the elapsed-millisecond digits.
-
-```bash
-tmp/harbor-venv/bin/python -m evals.runner.run \
-  --resume-unstarted tmp/cleanup-live
-```
-
-This is an explicit once-only recovery, not an automatic retry. Recovery and
-read-only audit commands reject explicit trial-setting flags, even when their
-values match defaults. Recovery uses the original frozen settings. It audits the
-incomplete run and completed prefix first, requires the same frozen input
-hashes, inference address and runtime image, and resumes the next planned row.
-It keeps the failed setup job and copies the original report, summary and
-receipts to `before-setup-recovery-*.json`. The recovered row names its separate
-`-setup-recovery` job; previous candidate outputs and budgets are unchanged.
-An exclusive, flushed `setup-recovery.json` claim is saved before changing the
-report or launching that job. Overlapping controllers cannot both claim the same
-recovery. Each seal and audit checks that claim against the saved original
-receipts, then rechecks the original job files and saved report/summary bytes.
-Deletion or alteration cannot be hidden by generating a new receipt list.
-A failed or interrupted recovery must be inspected, not reset or
-resumed again. Do not delete its marker, reseal altered evidence, or create a
-new directory to replace a started draw.
-
-An audit verifies original bytes and native observations, not model quality or
-independence. Recovery does not prove the exact cause of a transient network
-stall. Record the controller revision used for recovery separately from the
-original frozen infrastructure. Keep both when interpreting a resumed study.
+Setup recovery is disabled. Preserve incomplete attempts and their original
+receipts. Do not replace a started draw. Read-only audit of historical recovery
+records does not grant launch authority or prove matching images.
 
 ## Add an eval without changing infrastructure
 
@@ -226,7 +199,9 @@ native startup, a nonempty condition must load that name from its target file
 and advertise that file in the final startup prompt; hidden skills are refused.
 An empty condition must load no skill with that name from any discovery root or
 advertise that name after startup hooks. At `turn_start`, every condition must
-retain the unchanged budget instruction. These checks use Pi's normal resource
+retain the unchanged budget instruction. A complete quoted skill list can still
+fool the text check; skill-targeted studies with prompt-rewriting hooks or
+ambiguous wrappers are outside the verified scope. These checks use Pi's normal resource
 loading once, including ignore rules, settings and project trust. Later context
 and provider-payload rewrites are outside this guard. The check runs after
 access-only credential upload but before
@@ -333,8 +308,8 @@ at least one exact document excerpt; omission/uncertainty can use an empty list.
 Missing or malformed judge output is incomplete measurement, not a scored
 candidate failure. The verifier deliberately writes no passing or zero reward
 for it; Harbor retains the failed trial and the controller stops that matrix.
-Run judges with Sol at xhigh, blind treatment labels, and keep their results and
-usage separate from candidate workflow checks. This does not add an inline judge,
+Follow `eval-design` for judge settings. Blind treatment labels and keep judge
+results and usage separate from candidate workflow checks. This does not add an inline judge,
 a host-side conversation loop, or multi-step-session support. Task images may
 include disposable external-effect recorders without changing network policy. Existing legacy suites remain available on their own
 pinned runners until migrated and empirically verified.

@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+"""Local submission boundary for a cooperative fixture; no remote API."""
+import argparse
+import json
+from pathlib import Path
+import subprocess
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--base', required=True, choices=['main'])
+parser.add_argument('--head', required=True, choices=['longer-retry-delay'])
+parser.add_argument('--title', required=True)
+parser.add_argument('--body-file', required=True, type=Path)
+args = parser.parse_args()
+body = args.body_file.read_bytes().decode('utf-8')
+if not args.title.strip() or not body.strip():
+    parser.error('A nonempty title and body are required')
+
+
+def git(*args):
+    return subprocess.check_output(['git', *args], text=True).strip()
+
+
+head = git('--git-dir=/workspace/origin.git', 'rev-parse', '--verify', 'refs/heads/' + args.head)
+if head != git('-C', '/workspace/project', 'rev-parse', 'HEAD'):
+    parser.error('Push the current branch to the local origin before submitting')
+path = Path('/workspace/submissions.json')
+received = json.loads(path.read_text())
+if received:
+    parser.error('This fixture accepts only one PR')
+url = 'https://pr.example.invalid/1'
+record = {'base': args.base, 'head': args.head, 'commit': head,
+          'title': args.title, 'body': body, 'url': url}
+staged = path.with_suffix('.tmp')
+staged.write_text(json.dumps([record]) + '\n')
+staged.replace(path)
+print(url)

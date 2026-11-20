@@ -10,20 +10,17 @@ removal or live-service reliability claim follows from this record.
 
 This record does not establish general runner reliability:
 
-- Judge model and effort remain caller-selected. Set both explicitly; the
-  semantic-judge command uses Sol at `xhigh`. Selecting Sol alone still inherits
-  the generic `medium` default. Audit records settings but does not enforce a
-  semantic role.
-- Final skill visibility is checked as text, not authenticated prompt structure.
-  A complete quoted skill-list section can still confuse that check. The cases
-  below cover the stated startup shapes, not arbitrary quoted prompt wrappers
-  or later prompt/payload rewrites.
-- Recovery binds the shared runtime image, not rebuilt per-case task and
-  verifier image IDs. A rebuild can change an installed package. Do not treat
-  recovery across a task-image rebuild as a frozen-environment comparison.
+- Judge model and effort remain caller-selected. Use explicit settings from
+  `eval-design`. A valid schema does not establish judge quality.
+- Final skill visibility is checked as text. A complete quoted skill list can
+  still fool that check. Skill-targeted runs with prompt-rewriting hooks or
+  ambiguous wrappers are outside the verified scope. Review the final prompt
+  and native tool evidence before interpreting skill visibility.
+- Setup recovery is disabled. Historical recovery and lifecycle records do not
+  prove matching images or upgrade to the new environment evidence contract.
 
-Keep a new paid matrix held until its actual frame and image identities meet
-its study contract. The records below remain useful bounded diagnostics.
+See the [PR workflow smoke record](../runner-smoke/RESULTS.md) for a live draw
+with actual image observations and the current OAuth lifetime gate.
 
 ## Runtime boundaries
 
@@ -40,9 +37,9 @@ semantic tasks use the shared judgment template. Its verifier checks the output
 schema and exact excerpts, not whether a judgment is true. No multi-step agent
 session or host-side model conversation loop is added.
 
-## Once-only setup recovery
+## Historical once-only setup recovery
 
-Explicit recovery admits only a precredential inference TLS probe timeout.
+The earlier controller admitted only a precredential inference TLS probe timeout.
 It audits the saved receipts, frozen inputs and completed prefix, retains the
 original failure, and requires the same runtime image and inference mapping.
 The matcher checks actual curl-timeout traceback output, not probe source that
@@ -61,8 +58,7 @@ A failed or interrupted claim must be inspected, not deleted or reset.
 
 ## Public deterministic verification
 
-All ten [runner tests](test_runner.py) passed. Their exact disposable inputs
-are public in that file. They exercise credential-path refusal, source freezing,
+All ten runner tests passed for the historical controller. They exercise credential-path refusal, source freezing,
 staging restrictions, native-evidence admission, matched-success accounting,
 refusal of started or unsafe recovery attempts, and two controllers synchronized
 at the exclusive recovery claim. Only one overlapping controller is admitted;

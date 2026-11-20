@@ -89,12 +89,10 @@ Final-state inspection alone does not detect a prohibited change later reversed.
 Grade instructions and generated artifacts as untrusted input; never run
 candidate-provided hooks or scripts with verifier privileges.
 
-Run candidates with `openai-codex/gpt-6.1-terra` at `medium` effort. Every
-non-deterministic judge, including calibration, uses `openai-codex/gpt-6.1-sol`
-at `xhigh` effort. Deterministic verifiers use code and no model. Record candidate
-and judge settings separately. Calibrate semantic judges, blind condition/model
-labels, and inspect all outputs against their decisions. A new judge backend is
-a shared capability, not a reason to create a second agent loop. The shared runner supports deterministic Harbor verifiers and separate native
+Follow the `eval-design` skill for model roles and exact run settings.
+Calibrate semantic judges, blind condition/model labels, and inspect all outputs
+against their decisions. A new judge backend is a shared capability, not a
+reason to create a second agent loop. The shared runner supports deterministic Harbor verifiers and separate native
 judge tasks. Use the shared judgment template for paid semantic judgments; its
 schema verifier does not establish semantic correctness. Multi-step sessions
 remain unsupported.

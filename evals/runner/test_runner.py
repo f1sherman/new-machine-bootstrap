@@ -1,7 +1,5 @@
 """Exercise staging and evidence gates without Docker, inference, or credentials."""
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stderr
-import hashlib
 import io
 from importlib.util import module_from_spec, spec_from_file_location
 import json
@@ -9,12 +7,11 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
-import threading
 import unittest
 from unittest.mock import patch
 
 from evals.runner.run import (ROOT, main, stage, summarize, collect, hashes, guidance_target,
-                             unstarted_setup_failure, claim_setup_recovery, seal, TLS_TIMEOUT_MARKER)
+                             check_image_proof)
 
 
 class RunnerTests(unittest.TestCase):
@@ -92,7 +89,7 @@ class RunnerTests(unittest.TestCase):
                 'services:\n  main:\n    network_mode: host\n')
             compose = root / 'compose'
             compose.mkdir()
-            with self.assertRaisesRegex(ValueError, 'Compose overrides'):
+            with self.assertRaisesRegex(ValueError, 'Custom task Compose'):
                 stage(study, compose, 'openai/model', 1)
 
     def test_pinned_guidance_survives_fragment_removal(self):
@@ -186,133 +183,35 @@ class RunnerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'networking'):
                 stage(study, rejected, 'openai/model', 1)
 
-    def test_recovery_cannot_reroll_started_or_unsafe_trials(self):
+    def test_image_evidence_must_match_pins_and_keep_roles_separate(self):
         with tempfile.TemporaryDirectory() as folder:
-            job = Path(folder)
-            result = {'task_name': 'fixture', 'exception_info': {
-                'exception_type': 'NetworkConnectionError',
-                'exception_message': "Command failed: assert r.returncode == 0\n"
-                    'stdout: Traceback (most recent call last):\n'
-                    '  File "<stdin>", line 17, in <module>\n'
-                    'AssertionError: curl: (28) Operation timed out after 15000 milliseconds with 0 bytes received\n'
-                    '\n\nstderr: None'}, 'agent_result': None}
-            saved = job / 'result.json'
-            log = job / 'trial.log'
-            log.write_text('Sandbox TLS probe failed before credential installation.\n')
-            saved.write_text(json.dumps(result))
-            unstarted_setup_failure(job)
-            for message, error_type in (
-                    (result['exception_info']['exception_message'].replace('15000', '15037'),
-                     'NetworkConnectionError'),
-                    (result['exception_info']['exception_message'].replace(
-                        'curl: (28) Operation timed out after 15000 milliseconds with 0 bytes received',
-                        TLS_TIMEOUT_MARKER), 'NonZeroAgentExitCodeError')):
-                changed = {**result, 'exception_info': {**result['exception_info'],
-                           'exception_message': message, 'exception_type': error_type}}
-                saved.write_text(json.dumps(changed))
-                unstarted_setup_failure(job)
-            saved.write_text(json.dumps(result))
-            for name in ('agent/pi.txt', 'agent/pi/sessions/native.jsonl'):
-                path = job / name
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text('native evidence')
-                with self.subTest(name=name), self.assertRaises(ValueError):
-                    unstarted_setup_failure(job)
-                path.unlink()
-            for marker in ('auth.json', 'pi --print'):
-                log.write_text(marker)
-                with self.subTest(marker=marker), self.assertRaises(ValueError):
-                    unstarted_setup_failure(job)
-            log.write_text('preflight failed')
-            original = json.loads(saved.read_text())
-            for field in ('n_input_tokens', 'n_output_tokens', 'n_cache_tokens'):
-                changed = {**original, 'agent_result': {field: 1}}
-                saved.write_text(json.dumps(changed))
-                with self.subTest(field=field), self.assertRaises(ValueError):
-                    unstarted_setup_failure(job)
-            for message in ('Unexpected network access: https://example.com',
-                            'assert r.returncode == 0', 'AssertionError: uid mismatch'):
-                changed = json.loads(json.dumps(original))
-                changed['exception_info']['exception_message'] = message
-                saved.write_text(json.dumps(changed))
-                with self.subTest(message=message), self.assertRaises(ValueError):
-                    unstarted_setup_failure(job)
-            # Probe source contains the TLS assertion even for a security failure.
-            changed['exception_info']['exception_message'] = (
-                f"Command contains raise AssertionError('{TLS_TIMEOUT_MARKER}')\n" +
-                original['exception_info']['exception_message'].replace(
-                    'AssertionError: curl: (28) Operation timed out after 15000 milliseconds with 0 bytes received',
-                    'AssertionError: Unexpected network access: https://example.com'))
-            saved.write_text(json.dumps(changed))
-            with self.assertRaises(ValueError):
-                unstarted_setup_failure(job)
+            trial = Path(folder)
+            task = 'sha256:' + 'a' * 64
+            sidecar = 'sha256:' + 'b' * 64
+            pins = {'candidate': task, 'verifier': task}
+            proof = {}
+            for role, policy, container, side in (('candidate', 'allowlist', '1', '2'),
+                                                   ('verifier', 'no-network', '3', '4')):
+                proof[role] = {'image': task, 'container': container * 64, 'policy': policy,
+                               'sidecar_image': sidecar, 'sidecar_container': side * 64,
+                               'network': 'container:' + side * 64}
+                (trial / f'{role}-image.json').write_text(json.dumps(proof[role]))
+            check_image_proof(trial, pins, sidecar)
+            verifier = trial / 'verifier-image.json'
+            for change in ({'image': sidecar}, {'sidecar_image': task}, {'network': 'bridge'},
+                           {'container': proof['candidate']['container']}):
+                verifier.write_text(json.dumps({**proof['verifier'], **change}))
+                with self.subTest(change=change), self.assertRaises(ValueError):
+                    check_image_proof(trial, pins, sidecar)
+            verifier.unlink()
+            with self.assertRaisesRegex(ValueError, 'Missing verifier image proof'):
+                check_image_proof(trial, pins, sidecar)
 
-    def test_recovery_cannot_reseal_changed_original_evidence(self):
-        with tempfile.TemporaryDirectory() as folder:
-            output = Path(folder)
-            for name in ('manifest.json', 'report.json', 'summary.json'):
-                (output / name).write_text('{}\n')
-            failed = output / 'jobs/original/result.json'
-            failed.parent.mkdir(parents=True)
-            failed.write_text('original failed result\n')
-            seal(output)
-            claim_setup_recovery(output)
-            for name in ('report.json', 'summary.json', 'receipts.json'):
-                (output / ('before-setup-recovery-' + name)).write_bytes((output / name).read_bytes())
-            (output / 'report.json').write_text('{"recovered_setup_errors": []}\n')
-            seal(output)
-            receipt = (output / 'receipts.json').read_bytes()
-            for replacement in (None, 'changed failed result\n'):
-                if replacement is None:
-                    failed.unlink()
-                else:
-                    failed.write_text(replacement)
-                with self.assertRaisesRegex(ValueError, 'Recovery origin evidence changed'):
-                    seal(output)
-                self.assertEqual((output / 'receipts.json').read_bytes(), receipt)
-            failed.write_text('original failed result\n')
-            seal(output)
-            claim = output / 'setup-recovery.json'
-            saved_claim = claim.read_bytes()
-            claim.unlink()
-            failed.unlink()
-            with self.assertRaisesRegex(ValueError, 'Recovery claim missing'):
-                seal(output)
-            self.assertEqual((output / 'receipts.json').read_bytes(), receipt)
-            claim.write_bytes(saved_claim)
-            failed.write_text('original failed result\n')
-            seal(output)
-            (output / 'before-setup-recovery-receipts.json').write_text('{}\n')
-            with self.assertRaisesRegex(ValueError, 'Recovery origin receipts changed'):
-                seal(output)
-
-    def test_setup_recovery_admits_one_overlapping_controller(self):
-        with tempfile.TemporaryDirectory() as folder:
-            output = Path(folder)
-            original = b'{"original": "receipts"}\n'
-            (output / 'receipts.json').write_bytes(original)
-            ready = threading.Barrier(2)
-
-            def claim():
-                ready.wait(timeout=5)
-                try:
-                    claim_setup_recovery(output)
-                    return 'admitted'
-                except ValueError as error:
-                    self.assertIn('already claimed', str(error))
-                    return 'blocked'
-
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                futures = [pool.submit(claim) for _ in range(2)]
-                self.assertCountEqual([future.result(timeout=5) for future in futures],
-                                      ['admitted', 'blocked'])
-            saved = (output / 'setup-recovery.json').read_bytes()
-            self.assertEqual(json.loads(saved)['original_receipts_sha256'],
-                             hashlib.sha256(original).hexdigest())
-            with self.assertRaisesRegex(ValueError, 'already claimed'):
-                claim_setup_recovery(output)
-            self.assertEqual((output / 'setup-recovery.json').read_bytes(), saved)
-            self.assertEqual((output / 'receipts.json').read_bytes(), original)
+    def test_setup_recovery_refuses_even_without_overrides(self):
+        with (patch('sys.argv', ['run', '--resume-unstarted', 'unused']),
+              redirect_stderr(io.StringIO()) as stderr, self.assertRaises(SystemExit)):
+            main()
+        self.assertIn('Setup recovery is disabled', stderr.getvalue())
 
     def test_judgments_refuse_ambiguous_and_unquoted_claims(self):
         path = Path(__file__).parent / 'templates/judgment/tests/verify.py'

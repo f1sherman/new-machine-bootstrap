@@ -7,14 +7,15 @@ description: Use when designing, running, or interpreting LLM evals or ablation 
 
 ## Model roles
 
-Run eval candidates with `openai-codex/gpt-6.1-terra`, `medium` effort.
-Use `openai-codex/gpt-6.1-sol`, `xhigh` effort for every judgment that needs
-model interpretation, including judge calibration. Deterministic checks run in
-code and use no model. Keep candidate and judge settings separate in the runner
-and record both in the frozen manifest. If the harness cannot use these settings,
-report the blocker rather than substitute a model or effort level. Preserve
-historical results with their original settings; a new judge produces a separate
-regrade, not replacement evidence.
+Use the latest Sol at `medium` effort for candidates and the latest Sol at
+`xhigh` effort for semantic judges, including judge calibration. Deterministic
+checks use code and no model. Before launch, resolve “latest Sol” to an exact
+provider/model ID. Pin the ID and effort separately for each role in commands,
+configuration and frozen evidence. Check the effective settings in native
+records; do not assume the runner selects effort by role. Report a blocker if
+the harness cannot use the required settings. A judge schema check does not
+measure judgment quality. Preserve historical results with their original model
+and effort labels; a new judge produces a separate regrade.
 
 ## 1. Define the question
 
