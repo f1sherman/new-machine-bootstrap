@@ -7,9 +7,7 @@ description: Use when designing, running, or interpreting LLM evals or ablation 
 
 ## 1. Define the question
 
-Before running, state the intended benefit, relevant unchanged/pre-change
-baseline, and acceptance criteria that would support the improvement claim.
-Define useful behavior/quality, authorization/safety, and costs separately.
+State the behavior, baseline, and observation that would support the claim.
 Identify the historical instruction whose failure the change is meant to fix.
 If an intermediate revision already fixes it, compare both revisions separately.
 An ablation failure is not evidence of improvement over either baseline.
@@ -109,39 +107,3 @@ Keep raw failure usage in audit artifacts, not performance reports.
 Match the conclusion to the tested scope. A small correlated sample does not
 prove significance, universal reliability, minimal guidance, or each clause's
 value. Report negative and inconclusive results as clearly as improvements.
-
-### Accept guidance only with demonstrated improvement
-
-Accept an added or changed guidance rule only with affirmative, decision-quality
-evidence of a meaningful benefit over the relevant unchanged/pre-change baseline.
-Use matched comparisons and leave-one-component-out ablations; label deliberately
-wrong prompts as negative controls, not ablations. Attribute the benefit to the
-proposed rule, accounting for redundant instructions. Harness repairs, new fixture
-evidence, and rubric changes do not establish the rule's benefit.
-
-Task completion, absolute passing scores, green CI, no observed regression, or a
-finished experiment/report are not added value. A tie, null, or inconclusive
-result does not meet the acceptance gate. Do not recommend merging or installing
-the change as an improvement on those grounds. Evidence must support the actual
-claim in its declared scope, not universal reliability; inadequate evidence still
-means do not accept the change.
-
-If improvement is not established, revise the guidance, repair a genuinely
-deficient eval, or remove the unsupported proposed rule. Keep the investigation
-open until the gate is met or the unsupported change is removed. Preserve
-established safeguards that have not been tested; this does not justify retaining
-an unsupported new addition as a default safeguard.
-
-Repair measurement of the real task or failure: use representative real-world
-cases, correct trusted evidence, calibrated graders, fresh validation, and enough
-discrimination and repetitions for the claim. Preserve original results and
-settings, record the defect and correction, and freeze revised criteria before a
-new comparison. Weaker rubrics, answer leakage, cherry-picked cases or outputs,
-rerolled failures, and post-result criteria changes merely to manufacture success
-are not eval repairs.
-
-Require evidence for each claimed benefit. A clarity rule needs measured clarity
-improvement; another component's workflow repair or raw token fluctuation cannot
-supply it. A declared efficiency change can qualify through measured efficiency
-improvement only with quality and safety preserved. Report these outcomes
-separately.
