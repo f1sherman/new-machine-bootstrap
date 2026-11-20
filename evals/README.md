@@ -94,6 +94,24 @@ References: the vendored pstack `poteto-mode/playbooks/eval.md` and
 
 ## Evidence and decisions
 
+Recommend a new or rewritten instruction only when matched evidence shows a
+meaningful benefit attributable to the instruction over unchanged guidance.
+Define the intended benefit and acceptance criteria before running. Passing
+scores, ties, and inconclusive results do not show added value. An efficiency
+claim also requires preserving task quality and safety. If the change does
+not meet the criteria, revise it, repair deficient measurement, or drop it.
+Calling the proposal a safeguard does not waive the evidence requirement.
+
+For an addition, compare against guidance before the addition. For a rewrite,
+the baseline must contain the prior wording. The `without` condition removes
+the selected fragment; it does not restore the old wording. Run matched studies
+with frozen candidate and prior guidance snapshots that differ only in the
+instruction under test. `guidance_ref` pins the whole snapshot, so check the
+other guidance is identical. Keep tasks, verifiers, image, model settings,
+limits, and repetitions fixed. Compare the two `current` conditions and report
+the ablations and empty controls separately. If some inputs cannot be matched,
+report that gap instead of treating removal as the baseline for improvement.
+
 Every requested trial is complete, incomplete, or a scored behavioral failure.
 Infrastructure errors, missing native evidence, and malformed verifier output
 are incomplete, never passes. Preserve earlier rows if a later trial fails.
@@ -119,10 +137,13 @@ that both succeeded. Keep failure usage in raw audit artifacts, not savings
 reports. Harbor input tokens include its cached-input count; do not add cache
 again. State the usage scope and distinguish candidate and judge costs.
 
-For this fragment-reassessment program, default to recommending removal when
-there is no demonstrated concrete need. Report coverage gaps, overlapping guards,
-and remaining risks. A small study, null result, or empty control does not prove
-redundancy or safety; distinguish the evidence from the parent's removal decision.
-Only the parent approves production changes. A passing runner check is not a
-passing guidance study, and an eval link is not coverage proof. Migrate one
-fragment at a time. Record its disposition before selecting the next.
+For this repository's fragment reassessment, recommend removal when a quality
+study within the agreed bounds cannot demonstrate a concrete need, including
+when the evidence remains inconclusive. The global default to retain untested
+safeguards does not exempt established prompt text in this program. Report
+coverage gaps, overlapping guards, and remaining risks. Uncertainty does not
+prove redundancy or safety. Leave runtime guards in place.
+
+The parent decides the fragment's disposition and approves production changes.
+A passing runner check is not a passing guidance study, and an eval link is not
+coverage proof. Record each fragment's disposition before selecting the next.
