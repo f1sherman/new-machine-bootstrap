@@ -1,0 +1,41 @@
+{
+  "scope": "Public synthetic offline-calibration launcher diagnostic. A complete skill resides in its sole fragment; only current is used. This checks launcher admission/execution, not semantic verifier quality or agent behavior. No credentials/model or inference.",
+  "inputs": {
+    "guidance/00-skill.md": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\nUse the extra rule.\n",
+    "study.toml": "schema_version = 1\nguidance_dir = \"guidance\"\nfragment = \"00-skill.md\"\ntasks = \"tasks\"\nguidance_target = \"skills/example/SKILL.md\"\n",
+    "tasks/example/environment/Dockerfile": "FROM nmb-eval-runtime\nWORKDIR /workspace\n",
+    "tasks/example/instruction.md": "Reply directly.\n",
+    "tasks/example/task.toml": "schema_version = \"1.4\"\n",
+    "tasks/example/tests/calibrate.py": "import json\nprint(json.dumps({\"calibration_boundary_reached\": True}))\n"
+  },
+  "baseline_source_revision": "0f68e21c",
+  "baseline_source_sha256": "623eae4bc5ebd73ae1459d61e9b28d629c638017f22945999982b67d4d3e3648",
+  "corrected_source_sha256": "426a7e82f7ad5539ed04612b074c8c99cd9b59f594c053259cde3740e63c5aa7",
+  "baseline": {
+    "status": "refused",
+    "error": "Skill ablation must preserve its frontmatter unchanged"
+  },
+  "corrected": {
+    "conditions": [
+      "current"
+    ],
+    "result": {
+      "mode": "calibration",
+      "inference_calls": 0,
+      "results": [
+        {
+          "case": "example",
+          "task_image": "sha256:c2a1a9031bf400a756df7d20fb19519734acd31bf611983a802f8a69975737dc",
+          "verifier_image": "sha256:769797a50f8ba85820b5f81c171ab935437e36414d8914b962122abd3268d0db",
+          "observations": {
+            "calibration_boundary_reached": true
+          }
+        }
+      ]
+    }
+  },
+  "earlier_failed_attempts": [
+    "An earlier chained invocation ran before its fixture existed after a preceding discovery diagnostic failed; it started no calibration container/model.",
+    "Initial record assembly read a nonexistent manifest conditions key. That incomplete assembly is retained; this record derives conditions from the frozen matrix."
+  ]
+}

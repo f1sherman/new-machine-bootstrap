@@ -1,0 +1,7 @@
+artifacts = ["/workspace/submissions.json", "/logs/agent/pi/sessions"]
+
+[agent]
+timeout_sec = 900
+
+[verifier]
+timeout_sec = 60

@@ -13,12 +13,14 @@ from harbor.agents.installed.pi import Pi
 AUTH_PATH = "/root/.pi/agent/auth.json"
 
 
-async def access_credential():
+async def access_credential(minimum_seconds=300):
+    if type(minimum_seconds) is not int or minimum_seconds < 300:
+        raise ValueError('Credential lifetime must be at least 300 seconds')
     env = {name: os.environ[name] for name in ("PATH", "HOME") if name in os.environ}
     env.update(PI_CODING_AGENT_DIR=os.environ["PI_EVAL_HOST_AGENT_DIR"], PI_TELEMETRY="0")
     process = await asyncio.create_subprocess_exec(
         os.environ["PI_EVAL_HOST_PI"], "auth", "print-bearer-token",
-        "--provider", "openai-codex", "--min-expiry", "5m",
+        "--provider", "openai-codex", "--min-expiry", f"{math.ceil(minimum_seconds / 60)}m",
         env=env, stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
     )
@@ -35,7 +37,7 @@ async def access_credential():
         payload = bearer.split(".")[1]
         expires = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))["exp"]
         if (type(expires) not in (int, float) or not math.isfinite(expires)
-                or expires < time.time() + 300):
+                or expires < time.time() + minimum_seconds):
             raise ValueError
     except (ValueError, KeyError, IndexError, TypeError, OverflowError, UnicodeError):
         raise RuntimeError("Pi login credential is malformed or expires too soon") from None

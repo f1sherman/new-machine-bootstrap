@@ -1,0 +1,783 @@
+{
+  "scope": "Actual pinned native Pi CLI and Codex provider; inert WebSocket responses and a synthetic in-memory credential, networkless UID1001, no real inference. Not Harbor or a live provider run.",
+  "runtime_image_sha256": "sha256:2ced8d3dfe8edcc03bb362c027d093c3399bd909d94bdb205ce0c61e169ec30f",
+  "pi_version": "1.5.2",
+  "candidate": "openai-codex/gpt-6.1-terra, medium; transport responses are fixtures, not inference",
+  "native_invocation": "pi --mode json -p --provider openai-codex --model gpt-6.1-terra --thinking medium -e /fixture/budget.ts 'Reply with READY.'",
+  "permissions": {
+    "uid": 1001,
+    "network": "none",
+    "capabilities": "none",
+    "no_new_privileges": true,
+    "root_filesystem": "read-only",
+    "input_mounts": "read-only",
+    "writable_tmpfs_bytes": {
+      "tmp": 33554432,
+      "home": 33554432,
+      "workspace": 8388608
+    },
+    "memory_bytes": 536870912,
+    "cpus": 1,
+    "pids": 128
+  },
+  "startup_extension": "import {appendFileSync} from 'node:fs';\nexport default function(pi: any) {\n  appendFileSync('/workspace/startup-count', 'initialized\\n');\n  if (process.env.FORCE_CONTINUATION === '1') {\n    pi.on('turn_end', (event: any) => event.outcome === 'completed' ? {\n      entries: [{type:'custom_message',customType:'fixture',content:'Continue the fixture.',display:false}],\n      continue: true,\n    } : undefined);\n  }\n}\n",
+  "complete": true,
+  "inference_calls": 0,
+  "rows": [
+    {
+      "case": "baseline-excess",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true,
+          "skill_location_present": true
+        },
+        "initializations": 1,
+        "parsed_name": null
+      },
+      "native_aborted": true,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": true,
+        "resource_preflight": false,
+        "adapter": "captured"
+      },
+      "last_assistant": {
+        "stop_reason": "aborted",
+        "text": ""
+      }
+    },
+    {
+      "case": "fixed-excess",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true,
+          "skill_location_present": true
+        },
+        "initializations": 1,
+        "parsed_name": "example"
+      },
+      "native_aborted": true,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": true,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      },
+      "last_assistant": {
+        "stop_reason": "aborted",
+        "text": ""
+      }
+    },
+    {
+      "case": "baseline-current-init",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true,
+          "skill_location_present": true
+        },
+        "initializations": 2,
+        "parsed_name": null
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 2,
+      "skill_refused": false,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\nUse the extra rule.\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": true,
+        "adapter": "captured"
+      },
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      }
+    },
+    {
+      "case": "baseline-empty-init",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true,
+          "skill_location_present": false
+        },
+        "initializations": 1,
+        "parsed_name": null
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "captured"
+      },
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      }
+    },
+    {
+      "case": "current",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true,
+          "skill_location_present": true
+        },
+        "initializations": 1,
+        "parsed_name": "example"
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\nUse the extra rule.\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      },
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      }
+    },
+    {
+      "case": "without-body",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true,
+          "skill_location_present": true
+        },
+        "initializations": 1,
+        "parsed_name": "example"
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      },
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      }
+    },
+    {
+      "case": "missing-description",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 0,
+          "sockets": 0
+        },
+        "initializations": 1,
+        "parsed_name": "example"
+      },
+      "native_aborted": true,
+      "expected_sends": 0,
+      "expected_initializations": 1,
+      "skill_refused": true,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "---\nname: example\n---\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      },
+      "last_assistant": {
+        "stop_reason": "aborted",
+        "text": ""
+      }
+    },
+    {
+      "case": "ignored",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 0,
+          "sockets": 0
+        },
+        "initializations": 1,
+        "parsed_name": "example"
+      },
+      "native_aborted": true,
+      "expected_sends": 0,
+      "expected_initializations": 1,
+      "skill_refused": true,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "ignored": true,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      },
+      "last_assistant": {
+        "stop_reason": "aborted",
+        "text": ""
+      }
+    },
+    {
+      "case": "global-disabled",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 0,
+          "sockets": 0
+        },
+        "initializations": 1,
+        "parsed_name": "example"
+      },
+      "native_aborted": true,
+      "expected_sends": 0,
+      "expected_initializations": 1,
+      "skill_refused": true,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {
+          "skills": [
+            "-skills/example/SKILL.md"
+          ]
+        },
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      },
+      "last_assistant": {
+        "stop_reason": "aborted",
+        "text": ""
+      }
+    },
+    {
+      "case": "empty",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true,
+          "skill_location_present": false
+        },
+        "initializations": 1,
+        "parsed_name": "example"
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      },
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      }
+    },
+    {
+      "case": "empty-fallback-copy",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 0,
+          "sockets": 0
+        },
+        "initializations": 1,
+        "parsed_name": "example"
+      },
+      "native_aborted": true,
+      "expected_sends": 0,
+      "expected_initializations": 1,
+      "skill_refused": true,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\nUse the extra rule.\n",
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      },
+      "last_assistant": {
+        "stop_reason": "aborted",
+        "text": ""
+      }
+    },
+    {
+      "case": "baseline-hidden",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true,
+          "skill_location_present": false
+        },
+        "initializations": 1,
+        "parsed_name": null
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "---\ndisable-model-invocation: true\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "captured-admission-1db6a61e"
+      },
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      }
+    },
+    {
+      "case": "hidden",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 0,
+          "sockets": 0
+        },
+        "initializations": 1,
+        "parsed_name": "example"
+      },
+      "native_aborted": true,
+      "expected_sends": 0,
+      "expected_initializations": 1,
+      "skill_refused": true,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "---\ndisable-model-invocation: true\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      },
+      "last_assistant": {
+        "stop_reason": "aborted",
+        "text": ""
+      }
+    },
+    {
+      "case": "yaml12-on",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true,
+          "skill_location_present": true
+        },
+        "initializations": 1,
+        "parsed_name": "on"
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "---\nname: on\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      },
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      }
+    },
+    {
+      "case": "yaml-name-fallback",
+      "return_code": 0,
+      "observed": {
+        "transport": {
+          "sends": 1,
+          "sockets": 1,
+          "budget_instruction_present": true,
+          "skill_location_present": true
+        },
+        "initializations": 1,
+        "parsed_name": "example"
+      },
+      "native_aborted": false,
+      "expected_sends": 1,
+      "expected_initializations": 1,
+      "skill_refused": false,
+      "budget_refused": false,
+      "inputs": {
+        "skill_text": "---\ndescription: Use for the public boundary fixture.\n---\n",
+        "settings": {},
+        "ignored": false,
+        "fallback_text": null,
+        "force_continuation": false,
+        "resource_preflight": false,
+        "adapter": "corrected"
+      },
+      "last_assistant": {
+        "stop_reason": "stop",
+        "text": "READY."
+      }
+    }
+  ],
+  "source_sha256": {
+    "evals/runner/agent.py": "ef825b1a8c111362edfa3e52a0c40f29f72176cf925d15b81a3e58fb0349bd0c",
+    "evals/runner/run.py": "6b8b03333dddcca7da05a337b047d6c7cfa1dca0d1fbf7746e52fd97aef2de3c"
+  },
+  "captured_source": {
+    "revision": "1db6a61e",
+    "agent_sha256": "1187ce38bb70b3b56575fd4972cab7da71d6130a8a0ff75ae248b5dd2fffe0d6",
+    "run_sha256": "4c01e3886813048577d33157661bf183ac4c87474514d025d8b77e023a5a2b31"
+  },
+  "earlier_baseline": {
+    "revision": "f77047c4",
+    "agent_sha256": "6a3324021a548a03986ab2d188f6793a1a04379c3e8bf4bc0d976cafed033e82"
+  },
+  "transport_fixture": "import {writeFileSync} from 'node:fs';\nlet sends = 0, sockets = 0;\nglobalThis.WebSocket = class extends EventTarget {\n  static OPEN = 1;\n  readyState = 0;\n  constructor() {\n    super(); sockets++;\n    queueMicrotask(() => { this.readyState = 1; this.dispatchEvent(new Event('open')); });\n  }\n  send(body) {\n    if (JSON.parse(body).type !== 'response.create') throw Error('Unexpected fixture request');\n    if (sends >= 4) throw Error('Fixture request ceiling');\n    sends++;\n    writeFileSync('/workspace/transport-count.json', JSON.stringify({sends, sockets,\n      budget_instruction_present: JSON.stringify(JSON.parse(body)).includes('You have a hard budget of 1 model turns.'),\n      skill_location_present: JSON.stringify(JSON.parse(body)).includes('/home/worker/.pi/agent/skills/example/SKILL.md')}));\n    const id = 'fixture-' + sends;\n    const item = {id, type:'message', role:'assistant', status:'completed',\n      content:[{type:'output_text', text:'READY.', annotations:[]}]};\n    const events = [\n      {type:'response.created', response:{id, status:'in_progress', output:[]}},\n      {type:'response.output_item.added', output_index:0,\n       item:{...item, status:'in_progress', content:[]}},\n      {type:'response.content_part.added', output_index:0, content_index:0, item_id:id,\n       part:{type:'output_text', text:'', annotations:[]}},\n      {type:'response.output_text.delta', output_index:0, content_index:0, item_id:id, delta:'READY.'},\n      {type:'response.output_text.done', output_index:0, content_index:0, item_id:id, text:'READY.'},\n      {type:'response.output_item.done', output_index:0, item},\n      {type:'response.completed', response:{id, status:'completed', output:[item],\n       usage:{input_tokens:1, output_tokens:1}}},\n    ];\n    queueMicrotask(() => { for (const event of events) this.dispatchEvent(\n      new MessageEvent('message', {data: JSON.stringify(event)})); });\n  }\n  close() { this.readyState = 3; }\n};\nconst fixtureSocket = globalThis.WebSocket;\nObject.defineProperty(globalThis, 'WebSocket', {configurable:true,\n  get:() => fixtureSocket, set:() => {}});\n",
+  "name_probe": "NODE_OPTIONS='' NODE_DISABLE_COMPILE_CACHE=1 node --input-type=module - >/tmp/parsed-name.json <<'JS'\nimport { parseFrontmatter } from '/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/utils/frontmatter.js';\ntry {\n  const { frontmatter } = parseFrontmatter(process.env.EVAL_SKILL_HEADER);\n  const name = typeof frontmatter.name === 'string' && frontmatter.name\n    ? frontmatter.name : process.env.EVAL_SKILL_FALLBACK;\n  process.stdout.write(JSON.stringify(name));\n} catch {\n  console.error('EVAL_SKILL_HEADER_INVALID');\n  process.exitCode = 2;\n}\nJS",
+  "staging": {
+    "skill_header": "---\nname: on\ndescription: Use for the public boundary fixture.\n---\n",
+    "body": "Use the extra rule.\n",
+    "conditions": [
+      "current"
+    ],
+    "rows": [
+      {
+        "adapter": "captured",
+        "complete": false,
+        "error_category": "CalledProcessError",
+        "stderr": "Skill name must be a nonempty string"
+      },
+      {
+        "adapter": "corrected",
+        "complete": true,
+        "header_preserved": true,
+        "matrix": [
+          {
+            "case": "public-case",
+            "condition": "current",
+            "repeat": 0
+          }
+        ]
+      }
+    ]
+  },
+  "argument_admission": {
+    "fixture": "<repo>/tmp/argument-admission-no-read; no evidence read or inference allowed",
+    "rows": [
+      {
+        "adapter": "captured",
+        "mode": "--audit",
+        "setting": [
+          "--max-turns",
+          "1"
+        ],
+        "evidence_open_attempted": true,
+        "exit_code": null
+      },
+      {
+        "adapter": "captured",
+        "mode": "--audit",
+        "setting": [
+          "--conditions",
+          "current"
+        ],
+        "evidence_open_attempted": true,
+        "exit_code": null
+      },
+      {
+        "adapter": "captured",
+        "mode": "--audit",
+        "setting": [
+          "--thinking",
+          "medium"
+        ],
+        "evidence_open_attempted": true,
+        "exit_code": null
+      },
+      {
+        "adapter": "captured",
+        "mode": "--audit",
+        "setting": [
+          "--trials",
+          "1"
+        ],
+        "evidence_open_attempted": true,
+        "exit_code": null
+      },
+      {
+        "adapter": "captured",
+        "mode": "--audit",
+        "setting": [
+          "--model",
+          ""
+        ],
+        "evidence_open_attempted": true,
+        "exit_code": null
+      },
+      {
+        "adapter": "captured",
+        "mode": "--resume-unstarted",
+        "setting": [
+          "--max-turns",
+          "1"
+        ],
+        "evidence_open_attempted": true,
+        "exit_code": null
+      },
+      {
+        "adapter": "captured",
+        "mode": "--resume-unstarted",
+        "setting": [
+          "--conditions",
+          "current"
+        ],
+        "evidence_open_attempted": true,
+        "exit_code": null
+      },
+      {
+        "adapter": "captured",
+        "mode": "--resume-unstarted",
+        "setting": [
+          "--thinking",
+          "medium"
+        ],
+        "evidence_open_attempted": true,
+        "exit_code": null
+      },
+      {
+        "adapter": "captured",
+        "mode": "--resume-unstarted",
+        "setting": [
+          "--trials",
+          "1"
+        ],
+        "evidence_open_attempted": true,
+        "exit_code": null
+      },
+      {
+        "adapter": "captured",
+        "mode": "--resume-unstarted",
+        "setting": [
+          "--model",
+          ""
+        ],
+        "evidence_open_attempted": true,
+        "exit_code": null
+      },
+      {
+        "adapter": "corrected",
+        "mode": "--audit",
+        "setting": [
+          "--max-turns",
+          "1"
+        ],
+        "evidence_open_attempted": false,
+        "exit_code": 2
+      },
+      {
+        "adapter": "corrected",
+        "mode": "--audit",
+        "setting": [
+          "--conditions",
+          "current"
+        ],
+        "evidence_open_attempted": false,
+        "exit_code": 2
+      },
+      {
+        "adapter": "corrected",
+        "mode": "--audit",
+        "setting": [
+          "--thinking",
+          "medium"
+        ],
+        "evidence_open_attempted": false,
+        "exit_code": 2
+      },
+      {
+        "adapter": "corrected",
+        "mode": "--audit",
+        "setting": [
+          "--trials",
+          "1"
+        ],
+        "evidence_open_attempted": false,
+        "exit_code": 2
+      },
+      {
+        "adapter": "corrected",
+        "mode": "--audit",
+        "setting": [
+          "--model",
+          ""
+        ],
+        "evidence_open_attempted": false,
+        "exit_code": 2
+      },
+      {
+        "adapter": "corrected",
+        "mode": "--resume-unstarted",
+        "setting": [
+          "--max-turns",
+          "1"
+        ],
+        "evidence_open_attempted": false,
+        "exit_code": 2
+      },
+      {
+        "adapter": "corrected",
+        "mode": "--resume-unstarted",
+        "setting": [
+          "--conditions",
+          "current"
+        ],
+        "evidence_open_attempted": false,
+        "exit_code": 2
+      },
+      {
+        "adapter": "corrected",
+        "mode": "--resume-unstarted",
+        "setting": [
+          "--thinking",
+          "medium"
+        ],
+        "evidence_open_attempted": false,
+        "exit_code": 2
+      },
+      {
+        "adapter": "corrected",
+        "mode": "--resume-unstarted",
+        "setting": [
+          "--trials",
+          "1"
+        ],
+        "evidence_open_attempted": false,
+        "exit_code": 2
+      },
+      {
+        "adapter": "corrected",
+        "mode": "--resume-unstarted",
+        "setting": [
+          "--model",
+          ""
+        ],
+        "evidence_open_attempted": false,
+        "exit_code": 2
+      }
+    ]
+  },
+  "limits": [
+    "Native CLI and inert transport only, not Harbor or a live provider.",
+    "The production name-parser command runs with synthetic header input; its output is checked against the startup guard name. Whole configure() and credential export are not exercised.",
+    "The argument replay stops at a recorder on the first attempted audit. It proves refusal order, not a paid recovery.",
+    "Staging captures stderr from the original Ruby subprocess without changing its result."
+  ],
+  "prior_attempts": [
+    {
+      "id": "discovery-admission-v3",
+      "complete": false,
+      "outcome": "Staging and all argument replays passed; report assembly used a wrong transport-fixture path. No inference. Retained; path corrected to the concrete root socket.mjs."
+    },
+    {
+      "id": "discovery-admission-v2",
+      "complete": false,
+      "outcome": "Staging and all argument replays passed; report assembly expected absent enriched inputs in the raw native receipt. No inference. Retained; report now reads concrete fixture files."
+    },
+    {
+      "id": "discovery-admission-v1",
+      "complete": false,
+      "outcome": "Both staging cases completed; argument replay recorder omitted the require_complete keyword. Replay stopped before evidence access or inference. Retained; recorder corrected."
+    },
+    {
+      "id": "native-startup-guard-v6",
+      "complete": false,
+      "outcome": "One captured baseline completed. Corrected setup could not import the parser from the mistaken core path; no corrected native request. Fixed to the installed utils path. Prior attempt retained."
+    }
+  ],
+  "findings": [
+    "The captured hidden-skill case sends once without advertising the target location; the corrected case refuses before any request.",
+    "Current and body-removed cases retain the target advertisement, one extension initialization, and the unchanged turn budget.",
+    "Native YAML name on and the missing-name directory fallback both parse and load successfully.",
+    "Both audit and recovery now reject explicit limits before opening evidence. Frozen recovery settings are not overridden."
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "scope": "Exact production default-root effective-skill discovery command in the pinned runtime, networkless UID1001, no credentials/model. Public global skill tree read-only; no extra skill paths or full agent run.",
+  "prior_attempt": "v2 stopped at an omitted required skillPaths argument; no model ran. Original failed fixture remains intact. v3 supplies the required empty explicit-path list.",
+  "command_sha256": "6f4b81f7cd039572753aeb6f71e7118dff4154f74b499b8421123011b025f596",
+  "rows": [
+    {
+      "case": "current",
+      "skill": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\nUse the extra rule.\n",
+      "skills_ignore": null,
+      "expected_discovery": true,
+      "observed_discovery": true,
+      "return_code": 0
+    },
+    {
+      "case": "without-body",
+      "skill": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+      "skills_ignore": null,
+      "expected_discovery": true,
+      "observed_discovery": true,
+      "return_code": 0
+    },
+    {
+      "case": "missing-description",
+      "skill": "---\nname: example\n---\nUse the extra rule.\n",
+      "skills_ignore": null,
+      "expected_discovery": false,
+      "observed_discovery": false,
+      "return_code": 1
+    },
+    {
+      "case": "ignored",
+      "skill": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\nUse the extra rule.\n",
+      "skills_ignore": "example/\n",
+      "expected_discovery": false,
+      "observed_discovery": false,
+      "return_code": 1
+    }
+  ],
+  "fixed_current_only_intact_skill_admitted": true,
+  "paired_header_removal_refused": true
+}

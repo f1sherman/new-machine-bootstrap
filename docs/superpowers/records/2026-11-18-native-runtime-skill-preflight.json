@@ -1,0 +1,145 @@
+{
+  "scope": "Exact production runtime-resource-loader and native project-trust resolver command in pinned runtime, networkless UID1001; no credentials/model. Read-only public inputs copied to bounded writable agent/project tmpfs for native trust locks; inert JSON-mode no-UI replies. Dynamic session resource-discovery hooks not exercised.",
+  "prior_attempts": [
+    "v1 read-only agent directory prevented native trust locks; unrelated following offline calibration also failed before its missing fixture existed.",
+    "v2 assumed a project resource exclusion would suppress a global skill. Installed Pi applies the exclusion by resource scope; fixture expectation was wrong. No model started."
+  ],
+  "command_sha256": "9671db6d465d043ed7dd0ed52fb00cc1a0f7100780260e9885b8da3188accc11",
+  "complete": true,
+  "rows": [
+    {
+      "case": "current",
+      "skill": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\nUse the extra rule.\n",
+      "project_skill": null,
+      "expected_skill_path": "/home/worker/.pi/agent/skills/example/SKILL.md",
+      "skills_ignore": null,
+      "agent_settings": {},
+      "project_settings": null,
+      "expected_discovery": true,
+      "observed_discovery": true,
+      "return_code": 0,
+      "failure_category": null
+    },
+    {
+      "case": "without-body",
+      "skill": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+      "project_skill": null,
+      "expected_skill_path": "/home/worker/.pi/agent/skills/example/SKILL.md",
+      "skills_ignore": null,
+      "agent_settings": {},
+      "project_settings": null,
+      "expected_discovery": true,
+      "observed_discovery": true,
+      "return_code": 0,
+      "failure_category": null
+    },
+    {
+      "case": "missing-description",
+      "skill": "---\nname: example\n---\nUse the extra rule.\n",
+      "project_skill": null,
+      "expected_skill_path": "/home/worker/.pi/agent/skills/example/SKILL.md",
+      "skills_ignore": null,
+      "agent_settings": {},
+      "project_settings": null,
+      "expected_discovery": false,
+      "observed_discovery": false,
+      "return_code": 1,
+      "failure_category": "target-not-discoverable"
+    },
+    {
+      "case": "ignored",
+      "skill": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+      "project_skill": null,
+      "expected_skill_path": "/home/worker/.pi/agent/skills/example/SKILL.md",
+      "skills_ignore": "example/\n",
+      "agent_settings": {},
+      "project_settings": null,
+      "expected_discovery": false,
+      "observed_discovery": false,
+      "return_code": 1,
+      "failure_category": "target-not-discoverable"
+    },
+    {
+      "case": "global-disabled",
+      "skill": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+      "project_skill": null,
+      "expected_skill_path": "/home/worker/.pi/agent/skills/example/SKILL.md",
+      "skills_ignore": null,
+      "agent_settings": {
+        "skills": [
+          "-skills/example/SKILL.md"
+        ]
+      },
+      "project_settings": null,
+      "expected_discovery": false,
+      "observed_discovery": false,
+      "return_code": 1,
+      "failure_category": "target-not-discoverable"
+    },
+    {
+      "case": "trusted-project",
+      "skill": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+      "project_skill": "---\nname: project-example\ndescription: Use for the public boundary fixture.\n---\n",
+      "expected_skill_path": "/workspace/.pi/skills/project-example/SKILL.md",
+      "skills_ignore": null,
+      "agent_settings": {
+        "defaultProjectTrust": "always"
+      },
+      "project_settings": {},
+      "expected_discovery": true,
+      "observed_discovery": true,
+      "return_code": 0,
+      "failure_category": null
+    },
+    {
+      "case": "trusted-project-disabled",
+      "skill": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+      "project_skill": "---\nname: project-example\ndescription: Use for the public boundary fixture.\n---\n",
+      "expected_skill_path": "/workspace/.pi/skills/project-example/SKILL.md",
+      "skills_ignore": null,
+      "agent_settings": {
+        "defaultProjectTrust": "always"
+      },
+      "project_settings": {
+        "skills": [
+          "-skills/project-example/SKILL.md"
+        ]
+      },
+      "expected_discovery": false,
+      "observed_discovery": false,
+      "return_code": 1,
+      "failure_category": "target-not-discoverable"
+    },
+    {
+      "case": "untrusted-project",
+      "skill": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+      "project_skill": "---\nname: project-example\ndescription: Use for the public boundary fixture.\n---\n",
+      "expected_skill_path": "/workspace/.pi/skills/project-example/SKILL.md",
+      "skills_ignore": null,
+      "agent_settings": {
+        "defaultProjectTrust": "never"
+      },
+      "project_settings": {},
+      "expected_discovery": false,
+      "observed_discovery": false,
+      "return_code": 1,
+      "failure_category": "target-not-discoverable"
+    },
+    {
+      "case": "ask-project",
+      "skill": "---\nname: example\ndescription: Use for the public boundary fixture.\n---\n",
+      "project_skill": "---\nname: project-example\ndescription: Use for the public boundary fixture.\n---\n",
+      "expected_skill_path": "/workspace/.pi/skills/project-example/SKILL.md",
+      "skills_ignore": null,
+      "agent_settings": {},
+      "project_settings": {},
+      "expected_discovery": false,
+      "observed_discovery": false,
+      "return_code": 1,
+      "failure_category": "target-not-discoverable"
+    }
+  ],
+  "runtime_image_sha256": "sha256:2ced8d3dfe8edcc03bb362c027d093c3399bd909d94bdb205ce0c61e169ec30f",
+  "pi_version": "1.5.2",
+  "agent_source_sha256": "6a3324021a548a03986ab2d188f6793a1a04379c3e8bf4bc0d976cafed033e82"
+}

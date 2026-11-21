@@ -1,15 +1,48 @@
 """Exercise staging and evidence gates without Docker, inference, or credentials."""
+from contextlib import redirect_stderr
+import io
+from importlib.util import module_from_spec, spec_from_file_location
 import json
 import os
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from evals.runner.run import stage, summarize, collect, hashes
+from evals.runner.run import (ROOT, main, stage, summarize, collect, hashes, guidance_target,
+                             check_image_proof)
 
 
 class RunnerTests(unittest.TestCase):
+    def test_audit_and_recovery_reject_explicit_run_limits_before_access(self):
+        frozen = str(ROOT / 'tmp/recovery-command-must-not-be-read')
+        for mode in ('--audit', '--resume-unstarted'):
+            for setting in (('--max-turns', '1'), ('--conditions', 'current'),
+                            ('--thinking', 'medium'), ('--trials', '1'), ('--model', '')):
+                with (
+                    self.subTest(mode=mode, setting=setting),
+                    patch('sys.argv', ['run', mode, frozen, *setting]),
+                    patch('evals.runner.run.audit',
+                          side_effect=AssertionError('Unexpected evidence access')) as audit,
+                    patch('evals.runner.run.subprocess.run') as jobs,
+                    redirect_stderr(io.StringIO()),
+                ):
+                    with self.assertRaises(SystemExit) as error:
+                        main()
+                    self.assertEqual(error.exception.code, 2)
+                    audit.assert_not_called()
+                    jobs.assert_not_called()
+
+    def test_guidance_cannot_replace_credentials_or_escape_agent_directory(self):
+        for path in ('auth.json', '../auth.json', '/tmp/auth.json',
+                     'skills/x/../../auth.json', 'skills/../SKILL.md',
+                     'skills/x/other.md', 'skills//SKILL.md'):
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                guidance_target(path)
+        self.assertEqual(guidance_target('skills/example/SKILL.md'), 'skills/example/SKILL.md')
+        self.assertEqual(guidance_target('AGENTS.md'), 'AGENTS.md')
+
     def test_new_packages_and_cases_need_no_runner_changes(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -56,7 +89,7 @@ class RunnerTests(unittest.TestCase):
                 'services:\n  main:\n    network_mode: host\n')
             compose = root / 'compose'
             compose.mkdir()
-            with self.assertRaisesRegex(ValueError, 'Compose overrides'):
+            with self.assertRaisesRegex(ValueError, 'Custom task Compose'):
                 stage(study, compose, 'openai/model', 1)
 
     def test_pinned_guidance_survives_fragment_removal(self):
@@ -149,6 +182,68 @@ class RunnerTests(unittest.TestCase):
             rejected.mkdir()
             with self.assertRaisesRegex(ValueError, 'networking'):
                 stage(study, rejected, 'openai/model', 1)
+
+    def test_image_evidence_must_match_pins_and_keep_roles_separate(self):
+        with tempfile.TemporaryDirectory() as folder:
+            trial = Path(folder)
+            task = 'sha256:' + 'a' * 64
+            sidecar = 'sha256:' + 'b' * 64
+            pins = {'candidate': task, 'verifier': task}
+            proof = {}
+            for role, policy, container, side in (('candidate', 'allowlist', '1', '2'),
+                                                   ('verifier', 'no-network', '3', '4')):
+                proof[role] = {'image': task, 'container': container * 64, 'policy': policy,
+                               'sidecar_image': sidecar, 'sidecar_container': side * 64,
+                               'network': 'container:' + side * 64}
+                (trial / f'{role}-image.json').write_text(json.dumps(proof[role]))
+            check_image_proof(trial, pins, sidecar)
+            verifier = trial / 'verifier-image.json'
+            for change in ({'image': sidecar}, {'sidecar_image': task}, {'network': 'bridge'},
+                           {'container': proof['candidate']['container']}):
+                verifier.write_text(json.dumps({**proof['verifier'], **change}))
+                with self.subTest(change=change), self.assertRaises(ValueError):
+                    check_image_proof(trial, pins, sidecar)
+            verifier.unlink()
+            with self.assertRaisesRegex(ValueError, 'Missing verifier image proof'):
+                check_image_proof(trial, pins, sidecar)
+
+    def test_setup_recovery_refuses_even_without_overrides(self):
+        with (patch('sys.argv', ['run', '--resume-unstarted', 'unused']),
+              redirect_stderr(io.StringIO()) as stderr, self.assertRaises(SystemExit)):
+            main()
+        self.assertIn('Setup recovery is disabled', stderr.getvalue())
+
+    def test_judgments_refuse_ambiguous_and_unquoted_claims(self):
+        path = Path(__file__).parent / 'templates/judgment/tests/verify.py'
+        spec = spec_from_file_location('judgment_verifier', path)
+        verifier = module_from_spec(spec)
+        spec.loader.exec_module(verifier)
+        document = 'The workflow remains inactive.'
+        row = {'status': 'met', 'reason': 'The document limits activation.',
+               'excerpts': [document]}
+        value = {'criteria': {'scope': row}}
+        self.assertEqual(verifier.validate(verifier.parse(json.dumps(value)), ['scope'], document), value)
+        for status in ('met', 'contradicted'):
+            unquoted = {'criteria': {'scope': {**row, 'status': status, 'excerpts': []}}}
+            with self.subTest(status=status), self.assertRaisesRegex(ValueError, 'exact excerpt'):
+                verifier.validate(unquoted, ['scope'], document)
+        for status in ('missing', 'uncertain'):
+            omitted = {'criteria': {'scope': {**row, 'status': status, 'excerpts': []}}}
+            self.assertEqual(verifier.validate(omitted, ['scope'], document), omitted)
+        for duplicate in ('{"criteria":{},"criteria":{}}',
+                          '{"criteria":{"scope":{},"scope":{}}}',
+                          '{"criteria":{"scope":{"status":"met","status":"missing"}}}'):
+            with self.subTest(duplicate=duplicate), self.assertRaisesRegex(ValueError, 'Duplicate'):
+                verifier.parse(duplicate)
+        with self.assertRaises(ValueError):
+            verifier.parse('{"criteria":')
+        with self.assertRaises(ValueError):
+            verifier.validate({**value, 'publish': True}, ['scope'], document)
+        with self.assertRaises(ValueError):
+            verifier.validate(value, ['another-criterion'], document)
+        unsupported = {'criteria': {'scope': {**row, 'excerpts': ['An invented excerpt.']}}}
+        with self.assertRaisesRegex(ValueError, 'Unsupported excerpt'):
+            verifier.validate(unsupported, ['scope'], document)
 
     def test_native_evidence_and_successful_pair_gates(self):
         with tempfile.TemporaryDirectory() as folder:
