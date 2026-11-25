@@ -150,6 +150,11 @@ fi
 # Stage the specified files
 for file in "${files[@]}"; do
     if [[ -e "$file" ]]; then
+        # Already staged with nothing left to stage: git add fails on tracked
+        # files in ignored directories, and there is nothing to add anyway.
+        if ! git diff --cached --quiet -- "$file" && git diff --quiet -- "$file"; then
+            continue
+        fi
         if [[ "$force" == "true" ]] && git check-ignore -q "$file" 2>/dev/null; then
             git add --force -- "$file"
         else
