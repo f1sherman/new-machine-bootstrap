@@ -1,14 +1,24 @@
-# PR workflow smoke result — 2026-11-20
+# Native runner verification
 
-One native Pi candidate completed the synthetic [PR workflow](README.md). It read the fixture skill, inspected the real Git diff, pushed to the local bare repository, and used the local submission tool. The separate verifier graded the tool's accepted receipt, not the final answer.
+On November 20, one native Pi candidate opened a local fixture PR. The runner audited the execution and the images that ran. The original verifier accepted the submission but missed valid wording in its body. The corrected verifier passed the same receipt. This supports using the runner for cooperative local workflows, not production PR acceptance or a guidance comparison.
 
-| Observation | Original checks: submitted / title / change | Corrected checks |
-| --- | --- | --- |
-| Draft only, no submission (offline calibration) | 0 / 0 / 0 | 0 / 0 / 0 |
-| Valid submission and equivalent wording (offline calibration) | 1 / 1 / 1 each | 1 / 1 / 1 each |
-| Single live candidate, `current` | 1 / 1 / 0 | 1 / 1 / 1 |
+## Local PR workflow
 
-The original verifier missed the valid shared-unit wording “from 5 to 30 seconds.” The corrected verifier accepted it in Harbor's verifier-only regrade. The accepted receipt matched byte for byte. No replacement candidate or semantic judge ran. A separate setup attempt stopped before OAuth export or native launch because the baked skill directory had the wrong owner. Its incomplete evidence remains separate.
+**User task:** “Please open a PR for the changes on this branch.”
+
+The fixture diff changes a delivery retry delay from 5 to 30 seconds. Pi ran in Harbor, read the fixture skill, inspected the Git diff, pushed the branch to a local bare repository, and submitted a title and body. Git, Pi, inference and the separate verifier were real. The fixture skill and local submission tool stood in for production PR guidance, review, publication and monitoring. The verifier read the tool's receipt, not Pi's final answer.
+
+The [offline calibration](tasks/open-pr/tests/calibrate.py) ran the actual verifier before inference on the first three cases. It also passed those cases with the corrected verifier. Scores are in the order **submitted / descriptive title / describes change**.
+
+| Case | What happened | Original | Corrected |
+| --- | --- | --- | --- |
+| PR-C1 | Plausible draft with the correct delay change; no submission reached the tool. | 0 / 0 / 0 | 0 / 0 / 0 |
+| PR-C2 | Local tool accepted “Increase retry delay” and a body saying 30 seconds instead of 5 seconds. | 1 / 1 / 1 | 1 / 1 / 1 |
+| PR-C3 | Local tool accepted “Wait longer between retries” and equivalent wording using “five seconds.” | 1 / 1 / 1 | 1 / 1 / 1 |
+| PR-S1 | Setup stopped before OAuth export or native launch. The baked skill directory had the wrong owner. | Incomplete | Not regraded |
+| PR-L1 | One live `current` trial. The tool accepted the intended branch, a descriptive title, and the correct change. The original verifier did not recognize “from 5 to 30 seconds”; the corrected verifier does. | 1 / 1 / 0 | 1 / 1 / 1 |
+
+Harbor regraded PR-L1 with the corrected verifier. The accepted receipt matched byte for byte. No replacement draw or semantic judge ran.
 
 ## Accepted submission
 
@@ -42,4 +52,33 @@ The original run passed offline audit. Docker inspection recorded distinct candi
 | Corrected verifier source | `286101e1ba1a56e5671065fb68961496ecbe86660c712d3233803307e265a1d4` |
 | Regrade live-container image proof | `7fab3fd992d4b2253a0490f8b99ef3ca192653098bf1a1053cc4613d3dc61c76` |
 
-Raw data stays under ignored `tmp/` during review. The run used a synthetic skill, a local origin, and a cooperative receipt recorder. It does not establish production PR acceptance, general skill visibility, semantic judge quality, or behavior in a fragment comparison.
+## Earlier component diagnostics
+
+### Final answer at the turn limit (November 18)
+
+**User task:** `Reply with READY.` Global instruction: `Answer user requests directly.` Both trials used the original Terra settings: `openai-codex/gpt-6.1-terra` at `medium`, Harbor `0.26.0`, Pi `1.5.2`, `current` only, one allowed model turn, and 900-second agent and 60-second verifier caps. Native Pi made real inference requests and used no tools. A separate mechanical verifier emitted a completion marker. It did not grade the answer's meaning.
+
+| Case | Limiter | Final text / stop reason | Native settled state | Collection |
+| --- | --- | --- | --- | --- |
+| TURN-B | Original Harbor limiter | `READY.` / `stop` | Aborted | Incomplete: no terminal response admitted |
+| TURN-A | Corrected adapter | `READY.` / `stop` | Not aborted | Complete; marker reward 1; offline audit passed |
+
+Each trial used 1,152 input and 6 output tokens. The corrected adapter refuses a turn beyond the budget at turn start instead of aborting a completed final answer. Separate inert callback checks at limits 1, 2 and 80 confirmed that the first excess start aborted. These are lifecycle checks, not workflow trials. The live pair predates the new image audit and OAuth lifetime gate.
+
+### Offline checks for the current runner
+
+| Case | What ran | Evidence that matters |
+| --- | --- | --- |
+| SKILL-1 | Native Pi loader and startup checks with fixture credentials and inert transport | Body-only removal kept discovery; removing frontmatter did not. Hidden or missing skills and a selected skill in the empty control triggered refusal. Removing the required startup advertisement or budget refused the request; a free-standing skill example did not replace the native list. |
+| STAGE-1 | Current-only staging and networkless calibration | A standalone skill reached calibration without having to construct an unused ablation. |
+| SCHEMA-1 | Before/after judgment verifier in a networkless container with synthetic inputs | The verifier used the frozen document and rubric, removing stale-copy false accepts and rejects. Blank excerpts no longer satisfy `met` or `contradicted`; exact excerpts and empty lists for `missing` or `uncertain` remain valid. |
+| AUTH-1 | Production credential helper with a fake host process and fixed clock | At a 1,200-second minimum, 1,201 seconds remaining passed and 1,199 failed. The legacy 300-second minimum still accepted 301 seconds remaining. |
+
+No model ran for these offline checks. The [runner tests](../runner/test_runner.py) and [smoke fixtures](README.md) remain runnable.
+
+## Limits
+
+- The smoke used a synthetic skill and a cooperative local recorder. It did not test GitHub acceptance, a guidance ablation or the full OAuth trial duration.
+- Skill visibility is checked as text. A complete quoted skill list can still fool the check. Skill-targeted runs with prompt-rewriting hooks or ambiguous wrappers are outside the verified scope.
+- The runner does not enforce effort by role. A valid judgment schema does not establish judgment quality.
+- Setup recovery is disabled. Historical runs do not gain the new image proof. Raw traces and provider reasoning stay out of this report.

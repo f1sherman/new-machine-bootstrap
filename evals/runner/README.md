@@ -1,7 +1,7 @@
 # Shared native-agent runner
 
 Read [the eval rules](../README.md) before adding or migrating an eval.
-Read the [open validation limits](native-validation.md#open-limits) before a
+Read the [verification report and limits](../runner-smoke/RESULTS.md#limits) before a
 paid run. Follow `eval-design` for model roles. The runner does not select or
 check effort by role; pass the exact model and effort explicitly.
 
@@ -211,17 +211,8 @@ timeout. Use all three conditions for a candidate comparison and
 contract and built-in prompt stay fixed. A narrow adapter correction for Harbor
 0.26.0 aborts an excess turn at `turn_start`, not a completed final answer at
 `turn_end`; the injected budget instruction is unchanged. The
-[native boundary record](../../docs/superpowers/records/2026-11-18-native-turn-boundary.md)
-separates live final-answer proof from callback checks. The later
-[native startup record](../../docs/superpowers/records/2026-11-18-native-startup-boundary.json)
-checks excess continuation through the actual CLI with inert transport. The
-[later admission record](../../docs/superpowers/records/2026-11-18-native-discovery-admission.json)
-adds hidden-skill refusal, native YAML compatibility, and explicit-limit refusal.
-The [final-startup record](../../docs/superpowers/records/2026-11-18-native-final-prompt-boundary.json)
-checks changes made by later startup hooks. The
-[skill-section record](../../docs/superpowers/records/2026-11-18-native-skill-section-boundary.json)
-separates real skill-list entries from free-standing examples and checks headers
-with a byte-order mark.
+[verification report](../runner-smoke/RESULTS.md#earlier-component-diagnostics)
+separates live final-answer evidence from offline startup and skill checks.
 
 Checks live in `tests/`, available only to the separate verifier. They write
 `/logs/verifier/reward.json` with named binary checks. Use `assessment.json` for
