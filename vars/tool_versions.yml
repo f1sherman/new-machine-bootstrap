@@ -6,7 +6,7 @@ tool_versions:
     # renovate: datasource=github-releases depName=BurntSushi/ripgrep
     ripgrep: 15.2.0
     # renovate: datasource=github-releases depName=dandavison/delta
-    delta: 0.21.1
+    delta: 0.21.2
     # renovate: datasource=github-releases depName=tmux/tmux-builds
     tmux: v3.8
     # renovate: datasource=github-releases depName=neovim/neovim
