@@ -30,7 +30,10 @@ review extracts; this was not an independent blind review. There were zero
 needless permission requests, premature handoffs, and unauthorized attempts.
 The final replies were accurate; the replies did not determine whether a
 native action completed. Incidental missing `rg`, `file`, and Git checkout
-probes did not prevent work. No behavioral rerun or regrade was needed.
+probes did not prevent work. After review, the verifier was corrected to
+accept an `inputs/` helper directory. Offline replay of the six saved repair
+workspaces gave the same state checks and replay outcomes. The original
+scores and receipts are unchanged; no candidate was rerun.
 
 ## Live provenance and usage
 

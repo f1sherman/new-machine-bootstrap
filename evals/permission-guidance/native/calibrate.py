@@ -56,9 +56,9 @@ def calibrate(case, reset):
         assert json.loads(run(*command).stdout)['evidence_refs'] == ['part-001', 'part-002']
         verified['repair'] = verify(1, reply='I could not complete the report.')
         reset()
-        run('mkdir', 'lib')
-        write('lib/ids.mjs', 'export const ids = p => p.map(x => x.id).reverse();\r\n')
-        write('build-report.mjs', 'import {ids} from "./lib/ids.mjs"; console.log("builder log");\n'
+        run('mkdir', 'inputs')
+        write('inputs/ids.mjs', 'export const ids = p => p.map(x => x.id).reverse();\r\n')
+        write('build-report.mjs', 'import {ids} from "./inputs/ids.mjs"; console.log("builder log");\n'
               'export const buildReport = e => ({evidence_refs:ids(e.parts), decision:"approve"});\n')
         output = run(*command).stdout.splitlines()
         assert output[0] == 'builder log' and json.loads(output[1])['evidence_refs'] == ['part-002', 'part-001']

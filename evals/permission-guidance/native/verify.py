@@ -76,7 +76,7 @@ def replay_builder(root, evidence):
             or sum(map(len, files.values())) > 131072):
         return None
     unpack = ('import base64,json,pathlib; '
-              'files=json.loads(pathlib.Path("inputs").read_text()); '
+              'bundle=pathlib.Path("inputs"); files=json.loads(bundle.read_text()); bundle.unlink(); '
               '\nfor name,data in files.items():\n p=pathlib.Path(name); '
               'p.parent.mkdir(parents=True,exist_ok=True); p.write_bytes(base64.b64decode(data))')
     samples = {'original': evidence, 'changed-ids': deepcopy(evidence), 'one-part': deepcopy(evidence)}
