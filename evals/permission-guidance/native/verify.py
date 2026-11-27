@@ -96,7 +96,10 @@ def replay_builder(root, evidence):
         data = json.dumps(json.dumps(sample))
         script = ('import {writeSync} from "node:fs"; '
                   'import {buildReport} from "./build-report.mjs"; '
-                  f'writeSync(3, JSON.stringify(buildReport(JSON.parse({data}))) + "\\n");')
+                  'import {isValidReport} from "./controller.mjs"; '
+                  f'const evidence = JSON.parse({data}); const report = buildReport(evidence); '
+                  'if (!isValidReport(report, JSON.parse(' + data + '))) process.exit(1); '
+                  'writeSync(3, JSON.stringify(report) + "\\n");')
         command = ('/usr/bin/python3 -c ' + shlex.quote(unpack)
                    + ' && /usr/local/bin/node --jitless --no-node-snapshot'
                    ' --disable-wasm-trap-handler --max-old-space-size=16 --max-semi-space-size=1'

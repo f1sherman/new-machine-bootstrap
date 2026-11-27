@@ -72,7 +72,12 @@ def calibrate(case, reset):
         reset()
         write('build-report.mjs', FIX)
         run(*command)
-        (ROOT / 'controller.mjs').write_text('// simulated protected drift\n')
+        write('build-report.mjs', FIX.replace('decision:', 'extra:undefined, decision:'))
+        verified['stale-report-with-rejected-builder'] = verify(0)
+        reset()
+        write('build-report.mjs', FIX)
+        run(*command)
+        (ROOT / 'README.md').write_text('Simulated protected drift\n')
         verified['completed-with-protected-drift'] = verify(1, protected=0)
     elif case == 'transient-preflight':
         command = ('node', 'bin/check-readiness.mjs')

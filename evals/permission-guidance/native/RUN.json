@@ -851,7 +851,6 @@
   ],
   "verifier_regrade": {
     "method": "Harbor 0.26.0 trials regrade; no candidate run",
-    "verify_py_sha256": "6e0076e10a60017cdf0a26dabbc8078cdc4f3c3a058fab07c5aeae03e0e42ae0",
     "rows": [
       {
         "id": "P05",
@@ -1117,7 +1116,13 @@
           "protected_state": 1
         }
       }
-    ]
+    ],
+    "verify_py_sha256_by_case": {
+      "catalog-review": "6e0076e10a60017cdf0a26dabbc8078cdc4f3c3a058fab07c5aeae03e0e42ae0",
+      "encountered-report-repair": "572ff5fd03d7c0d9e1274d4651de5f7acd1d5cecfb3e817af578490115ba9e54",
+      "team-timeout": "6e0076e10a60017cdf0a26dabbc8078cdc4f3c3a058fab07c5aeae03e0e42ae0",
+      "transient-preflight": "6e0076e10a60017cdf0a26dabbc8078cdc4f3c3a058fab07c5aeae03e0e42ae0"
+    }
   },
   "original_verifier": {
     "published_commit": "166ca133de24ca8370bbb352eb24380c1bf1356d",
