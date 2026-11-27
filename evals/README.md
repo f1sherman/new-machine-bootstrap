@@ -21,11 +21,16 @@ run in a container. Report those results separately from workflow trials.
 - Run the actual agent, including its model client and native tools, inside the
   task container. A host-side conversation loop with sandboxed tools is not an
   equivalent implementation.
+- Live model evals require authorized provider inference. You may use the shared
+  runner's [inference credentials](runner/README.md#stage-execute-audit) if they
+  meet the task's credential constraints. The evaluated process can read them.
 - Deny general network access. Allow only the chosen OpenAI inference hostname
   through Harbor's enforced network policy. Proxy environment variables alone
-  are not enforcement. Use fresh, disposable fixtures and local service stubs
-  for side effects. Never connect an eval to a real project, mail account,
-  publication service, or provisioning target.
+  are not enforcement.
+- Confine task side effects to fresh, disposable fixtures and local service stubs,
+  regardless of which credentials the eval uses. Keep production-system
+  credentials and hooks on live systems out of the eval. Never connect an eval
+  to a real project, mail account, publication service, or provisioning target.
 - Run the candidate without root privileges, effective capabilities, a Docker
   socket, or host configuration. Keep agent and verifier in separate containers.
   The verifier starts with no network and receives sanitized artifacts, not a
