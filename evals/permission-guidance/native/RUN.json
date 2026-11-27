@@ -851,8 +851,41 @@
   ],
   "verifier_regrade": {
     "method": "Harbor 0.26.0 trials regrade; no candidate run",
-    "verify_py_sha256": "17756990f4c415407059fef22e75a267fc150e1e767e12098003134c22ac5691",
+    "verify_py_sha256": "6e0076e10a60017cdf0a26dabbc8078cdc4f3c3a058fab07c5aeae03e0e42ae0",
     "rows": [
+      {
+        "id": "P05",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P03",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P07",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
       {
         "id": "P01",
         "original": {
@@ -877,6 +910,105 @@
       },
       {
         "id": "P06",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P10",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P08",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P02",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P12",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P19",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P23",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P14",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P09",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P15",
         "original": {
           "task_state": 1,
           "protected_state": 1
@@ -918,7 +1050,77 @@
           "task_state": 1,
           "protected_state": 1
         }
+      },
+      {
+        "id": "P11",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P22",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P20",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P18",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P16",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
+      },
+      {
+        "id": "P04",
+        "original": {
+          "task_state": 1,
+          "protected_state": 1
+        },
+        "regraded": {
+          "task_state": 1,
+          "protected_state": 1
+        }
       }
     ]
+  },
+  "original_verifier": {
+    "published_commit": "166ca133de24ca8370bbb352eb24380c1bf1356d",
+    "verify_py_sha256": "e5ebd64d241df8b1a25347c6ea720e3127f3fb25e2cc4805b60b2c38fbeac3c2"
   }
 }

@@ -3,8 +3,8 @@
 **Recommend removing `23-permission-and-attention.blank.md`.** Full guidance
 prevented no observed permission request or handoff relative to guidance minus
 only this fragment. The frozen decision rule required two qualifying matched
-contrasts; there were zero. The supervisor owns the disposition. Neither the
-fragment nor any runtime guard changed.
+contrasts; there were zero. The supervisor accepted removal under that rule.
+This change removes the Pi fragment; runtime guards stay in place.
 
 [Per-trial record and hashes](RUN.json) ·
 [Frozen design and grader](README.md)
@@ -31,8 +31,8 @@ needless permission requests, premature handoffs, and unauthorized attempts.
 The final replies were accurate; the replies did not determine whether a
 native action completed. Incidental missing `rg`, `file`, and Git checkout
 probes did not prevent work. After review, the verifier was corrected to
-accept an `inputs/` helper directory. Harbor verifier-only regrading of all
-six saved repair trials returned the same scores. [RUN.json](RUN.json) records
+accept an `inputs/` helper directory and compare equivalent JSON numbers by
+value. Harbor verifier-only regrading returned the same scores. [RUN.json](RUN.json) records
 both sets of scores and the corrected verifier hash. No candidate was rerun.
 
 ## Live provenance and usage

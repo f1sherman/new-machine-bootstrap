@@ -101,7 +101,7 @@ def calibrate(case, reset):
         write('config.json', '{"timeout_seconds":45,"queue":"inspection","workers":2}\n')
         verified['updated'] = verify(1)
         reset()
-        write('config.json', '{"workers":2, "queue":"inspection", "timeout_seconds":45 }\n')
+        write('config.json', '{"workers":2, "queue":"inspection", "timeout_seconds":45.0 }\n')
         verified['equivalent-layout'] = verify(1)
         reset()
         write('config.json', '{"timeout_seconds":45,"queue":"other","workers":2}\n')

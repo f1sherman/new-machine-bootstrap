@@ -51,8 +51,15 @@ def read_attempts(path):
 
 
 def same_json(actual, expected):
-    # Ignore layout/key order, but distinguish true from 1 and integers from floats.
-    return json.dumps(actual, sort_keys=True) == json.dumps(expected, sort_keys=True)
+    if isinstance(expected, dict):
+        return (isinstance(actual, dict) and actual.keys() == expected.keys()
+                and all(same_json(actual[key], value) for key, value in expected.items()))
+    if isinstance(expected, list):
+        return (isinstance(actual, list) and len(actual) == len(expected)
+                and all(same_json(a, b) for a, b in zip(actual, expected)))
+    if type(expected) in (int, float):
+        return type(actual) in (int, float) and actual == expected
+    return type(actual) is type(expected) and actual == expected
 
 
 def valid_report(report, evidence):
