@@ -196,14 +196,15 @@ whole skill. Staging freezes the current YAML header, including an optional
 UTF-8 byte-order mark. Before credential upload,
 Pi's own parser resolves its name without loading resources or extensions. At
 native startup, a nonempty condition must load that name from its target file
-and advertise that file in the final startup prompt; hidden skills are refused.
-An empty condition must load no skill with that name from any discovery root or
-advertise that name after startup hooks. At `turn_start`, every condition must
-retain the unchanged budget instruction. A complete quoted skill list can still
-fool the text check; skill-targeted studies with prompt-rewriting hooks or
-ambiguous wrappers are outside the verified scope. These checks use Pi's normal resource
-loading once, including ignore rules, settings and project trust. Later context
-and provider-payload rewrites are outside this guard. The check runs after
+and have a reader tool so Pi can advertise the skill. Hidden skills are refused.
+An empty condition must load no skill with that name from any discovery root.
+For skill trials, the runner refuses forced prompts and custom skill sections
+before adding the budget instruction. At `turn_start`, it requires the exact
+checked prompt for skill trials and the unchanged budget instruction for all
+trials. If a startup hook changes the checked prompt, remove the rewrite before
+running the trial. These checks use Pi's normal resource loading once, including
+ignore rules, settings and project trust. Later context and provider-payload
+rewrites are outside this guard. The check runs after
 access-only credential upload but before
 the first provider request; refusal stays incomplete, not a recoverable setup
 timeout. Use all three conditions for a candidate comparison and

@@ -13,42 +13,40 @@ class SandboxedPi(Pi):
     def _build_max_turns_extension(self, max_turns):
         # Keep normal native abort handling and the completed final answer.
         # Inspect skills during startup, not a second resource-loader pass.
-        return f"""import {{ formatSkillsForPrompt }} from '@earendil-works/pi-coding-agent';
-export default function (pi: any) {{
+        return f"""export default function (pi: any) {{
   const maxTurns = {max_turns};
   const expected = {json.dumps(self._guidance_guard)};
   const budgetInstruction = `You have a hard budget of ${{maxTurns}} model turns. Complete the task and provide your final answer within that budget.`;
-  const nameTag = expected ? formatSkillsForPrompt([{{name: expected.name,
-    description: "", filePath: expected.file}} as any]).match(/<name>[\\s\\S]*?<\\/name>/)[0] : null;
   let startedTurns = 0;
+  let checkedPrompt: string | undefined;
 
   pi.on("before_agent_start", (event: any, ctx: any) => {{
+    checkedPrompt = undefined;
     if (expected) {{
-      const skills = event.systemPromptOptions?.skills;
+      const options = event.systemPromptOptions;
+      const skills = options?.skills;
       const named = Array.isArray(skills) ? skills.filter((skill: any) => skill.name === expected.name) : null;
-      if (!named || (expected.present
-          ? !named.some((skill: any) => skill.filePath === expected.file && !skill.disableModelInvocation)
-          : named.length > 0)) {{
+      // Pi 1.5.2 renders the native skill section only with a reader tool.
+      // A forced prompt or custom skills section replaces that native rendering.
+      const hasReader = options?.selectedTools?.some((tool: string) => tool === "read" || tool === "bash");
+      if (options?.forceSystemPrompt !== undefined || options?.sections?.skills
+          || !named || (expected.present
+            ? !hasReader || !named.some((skill: any) => skill.filePath === expected.file && !skill.disableModelInvocation)
+            : named.length > 0)) {{
         console.error("EVAL_SKILL_DISCOVERY_REFUSED");
         ctx.abort();
         return;
       }}
     }}
-    return {{
-      systemPrompt: `${{event.systemPrompt}}\\n\\n${{budgetInstruction}}`,
-    }};
+    checkedPrompt = `${{event.systemPrompt}}\\n\\n${{budgetInstruction}}`;
+    return {{ systemPrompt: checkedPrompt }};
   }});
 
   pi.on("turn_start", (_event: any, ctx: any) => {{
-    // Startup hooks have finished. Match the final native advertisement.
     const prompt = ctx.getSystemPrompt();
-    const sections = prompt.match(/<available_skills>[\\s\\S]*?<\\/available_skills>/g) || [];
-    const blocks = sections.flatMap((section: string) => section.match(/<skill>[\\s\\S]*?<\\/skill>/g) || []);
-    const named = expected && blocks.filter((block: string) => block.includes(nameTag));
-    const invalidSkill = expected && (expected.present
-      ? !named.some((block: string) => block.includes(`<location>${{expected.file}}</location>`))
-      : named.length > 0);
-    if (!prompt.includes(budgetInstruction) || invalidSkill) {{
+    // For skill trials, require the same prompt after the rest of the startup
+    // hooks. A text search cannot tell native advertisements from quotations.
+    if (!prompt.includes(budgetInstruction) || (expected && prompt !== checkedPrompt)) {{
       console.error("EVAL_FINAL_PROMPT_REFUSED");
       ctx.abort();
       return;

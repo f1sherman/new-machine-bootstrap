@@ -79,6 +79,6 @@ No model ran for these offline checks. The [runner tests](../runner/test_runner.
 ## Limits
 
 - The smoke used a synthetic skill and a cooperative local recorder. It did not test GitHub acceptance, a guidance ablation or the full OAuth trial duration.
-- Skill visibility is checked as text. A complete quoted skill list can still fool the check. Skill-targeted runs with prompt-rewriting hooks or ambiguous wrappers are outside the verified scope.
+- The historical smoke run used a text-only skill check. The [current runner](../runner/README.md) instead checks native skill metadata and refuses startup prompt replacements for skill trials. The live smoke was not repeated with that change.
 - The runner does not enforce effort by role. A valid judgment schema does not establish judgment quality.
 - Setup recovery is disabled. Historical runs do not gain the new image proof. Raw traces and provider reasoning stay out of this report.
