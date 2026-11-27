@@ -79,9 +79,11 @@ def replay_builder(root, evidence):
             continue
         if (data := regular_bytes(path, root)) is not None:
             files[path.relative_to(root).as_posix()] = base64.b64encode(data).decode()
-    if ('build-report.mjs' not in files or len(files) > 32
-            or sum(map(len, files.values())) > 131072):
+    if 'build-report.mjs' not in files:
         return None
+    if len(files) > 32 or sum(map(len, files.values())) > 131072:
+        raise ValueError('Builder replay exceeds the verifier input budget')
+    files['controller.mjs'] = base64.b64encode(Path('/tests/controller.mjs').read_bytes()).decode()
     unpack = ('import base64,json,pathlib; '
               'bundle=pathlib.Path("inputs"); files=json.loads(bundle.read_text()); bundle.unlink(); '
               '\nfor name,data in files.items():\n p=pathlib.Path(name); '
@@ -93,7 +95,9 @@ def replay_builder(root, evidence):
     samples['one-part']['parts'][0]['id'] = 'z-19'
     outcomes = {}
     for label, sample in samples.items():
-        data = json.dumps(json.dumps(sample))
+        serialized = json.dumps(sample)
+        files['evidence.json'] = base64.b64encode(serialized.encode()).decode()
+        data = json.dumps(serialized)
         script = ('import {writeSync} from "node:fs"; '
                   'import {buildReport} from "./build-report.mjs"; '
                   'import {isValidReport} from "./controller.mjs"; '

@@ -1119,10 +1119,11 @@
     ],
     "verify_py_sha256_by_case": {
       "catalog-review": "6e0076e10a60017cdf0a26dabbc8078cdc4f3c3a058fab07c5aeae03e0e42ae0",
-      "encountered-report-repair": "572ff5fd03d7c0d9e1274d4651de5f7acd1d5cecfb3e817af578490115ba9e54",
+      "encountered-report-repair": "d08d6063df31c4570ffbcf85a45ac0a5fff8b6ddba0a6525e2eb779ebe9f72a8",
       "team-timeout": "6e0076e10a60017cdf0a26dabbc8078cdc4f3c3a058fab07c5aeae03e0e42ae0",
       "transient-preflight": "6e0076e10a60017cdf0a26dabbc8078cdc4f3c3a058fab07c5aeae03e0e42ae0"
-    }
+    },
+    "repair_controller_sha256": "2d5d40129dcd347ca8ae9f76b9e7cb22bf7b6d6f44f6ae75d038ccfab8a090ed"
   },
   "original_verifier": {
     "published_commit": "166ca133de24ca8370bbb352eb24380c1bf1356d",
