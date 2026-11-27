@@ -10,6 +10,14 @@ Refresh the inventory and incorporate reviewed process changes before launch.
 
 ## Execution contract
 
+Test normal user tasks through the full agent workflow, not only its final
+answer. Start with a representative repository snapshot and the request the
+user would actually make. Let the agent discover context, load skills, use
+native tools and reach the authorized observable outcome. Record which real
+tasks and failure modes the sample covers and what it leaves out. Supplied
+context followed by a drafting request is a component diagnostic, even when
+run in a container. Report those results separately from workflow trials.
+
 - Run the actual agent, including its model client and native tools, inside the
   task container. A host-side conversation loop with sandboxed tools is not an
   equivalent implementation.
@@ -56,7 +64,8 @@ fragment, and an empty-guidance control. The runner assembles the files with
 The empty control still receives Pi's built-in prompt. Fixed repository context,
 when needed, belongs in the task fixture and stays identical across conditions.
 The selected guidance is installed at the native Pi agent's global `AGENTS.md`
-path. No fragment IDs, study labels, or grading rules are added to that text.
+path by default. A study can instead select the bounded `skills/NAME/SKILL.md`
+target while keeping global instructions and other skills fixed in the image. No fragment IDs, study labels, or grading rules are added to that text.
 
 ## Design and grading rules
 
@@ -80,11 +89,13 @@ Final-state inspection alone does not detect a prohibited change later reversed.
 Grade instructions and generated artifacts as untrusted input; never run
 candidate-provided hooks or scripts with verifier privileges.
 
-Use specialized graders where needed. For semantic judgments, calibrate the
-judge, blind condition/model labels, prefer a different model family, and inspect
-all outputs against its decisions. A new judge backend is a shared capability,
-not a reason to create a second agent loop. The current shared runner supports
-deterministic Harbor verifiers, not paid semantic judges or multi-step sessions.
+Follow the `eval-design` skill for model roles and exact run settings.
+Calibrate semantic judges, blind condition/model labels, and inspect all outputs
+against their decisions. A new judge backend is a shared capability, not a
+reason to create a second agent loop. The shared runner supports deterministic Harbor verifiers and separate native
+judge tasks. Use the shared judgment template for paid semantic judgments; its
+schema verifier does not establish semantic correctness. Multi-step sessions
+remain unsupported.
 
 These rules adopt pstack's organic tasks, blinded judgments, transcript review,
 and small verifiable units. pstack's multi-model arena is a separate question
@@ -131,6 +142,14 @@ Raw evidence is temporary, not a permanent archive. Keep it in the ignored
 `tmp/` directory through review and any needed regrading. It need not be copied
 or retained when the worktree is retired. A later rerun is a new sample, not a
 replay of the original trial. Record any exception that requires retention.
+
+Attach a readable PR report: findings and coverage limits first, shared base
+cases and settings next, then exact variant changes and compact per-trial
+results. Use stable IDs and verify that the changes reconstruct the frozen
+inputs. Put actual outputs and original criterion scores/reasons in a readable
+appendix, with repeated material stored once. Keep raw audit data and controller
+source out of the main reading path. Verify the uploaded format opens as a
+readable document; a correct checksum does not establish this.
 
 Report behavior by case and condition. Compare tokens only for matched trials
 that both succeeded. Keep failure usage in raw audit artifacts, not savings

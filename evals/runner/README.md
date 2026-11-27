@@ -1,6 +1,9 @@
 # Shared native-agent runner
 
 Read [the eval rules](../README.md) before adding or migrating an eval.
+Read the [verification report and limits](../runner-smoke/RESULTS.md#limits) before a
+paid run. Follow `eval-design` for model roles. The runner does not select or
+check effort by role; pass the exact model and effort explicitly.
 
 ## Architecture
 
@@ -29,6 +32,14 @@ and a real TLS response from the inference host. A TCP handshake alone is not a
 sufficient check: the transparent proxy can accept TCP before rejecting TLS.
 Failure stops execution before an inference credential is installed.
 
+At live-run admission, the runner resolves the selected inference hostname to
+one IPv4 address and records it. It installs that hostname mapping in the task
+and egress sidecar. This avoids Harbor's embedded-DNS forwarding failure
+([upstream issue](https://github.com/harbor-framework/harbor/issues/3312)) without
+allowing another destination or weakening SNI filtering. TLS still checks the
+hostname. The mapping is fixed for the run; endpoint address changes can make a
+long run incomplete. Staging and offline calibration do not resolve it.
+
 Only `api.openai.com` is allowed for `openai/model`; only `chatgpt.com` is
 allowed for `openai-codex/model`. This is a hostname allowlist, not a restriction
 to a particular API path. DNS and the sidecar's internal traffic support that
@@ -43,8 +54,14 @@ not a new general-purpose sandbox implementation. The shared Dockerfile adds
 pinned Pi and common fixture tools. Node's base is digest-pinned; the installed
 Pi version comes from `vars/tool_versions.yml`. Package installation happens at
 build time with ordinary build networking. Trial images extend that runtime.
-Each run owns a distinct runtime tag and records its image ID. Task images and
-Harbor inputs are hashed. The source Dockerfile does not by itself freeze future
+Each run owns a distinct runtime tag and records its image ID. Before launch the runner builds one task image per case and pins it by image
+ID for both roles. The verifier starts a separate fresh container from that
+image. It also pins the Harbor enforcement sidecar image. For each role the
+runner inspects the live container's actual image, the sidecar's actual image
+and the network namespace link before handing control to Harbor. Audit checks
+those observations against the pins and receipts. Historical runs without this
+evidence remain historical. Custom verifier images and Compose files are not
+supported. Harbor inputs are hashed. The source Dockerfile does not by itself freeze future
 apt/npm dependency resolution; the recorded built image identifies that run.
 
 Container root is used by Harbor to upload configuration and collect artifacts.
@@ -80,13 +97,14 @@ Staging uses no Docker, inference, or credential:
 ```bash
 f=evals/workspace-guidance/native/study.toml
 tmp/harbor-venv/bin/python -m evals.runner.run --study "$f" \
-  --model openai-codex/gpt-6.1-terra --trials 2 \
+  --model openai-codex/gpt-6.2-sol --thinking medium --trials 2 \
   --output tmp/cleanup-stage
 ```
 
 For execution, use a new output directory and add `--live`. The OAuth provider
-uses the existing host Pi login. Only an access bearer with at least five minutes
-remaining enters the container. The host Pi CLI owns its normal login refresh;
+uses the existing host Pi login. Only an access bearer with at least twenty
+minutes remaining enters the container: the full 900-second trial cap plus Pi's
+five-minute refresh window. The host Pi CLI owns its normal login refresh;
 the adapter removes the container auth file after the bounded run. For the API
 provider, supply `OPENAI_API_KEY` through the process environment instead.
 Credentials must never be written into a study, image, command argument, or
@@ -104,6 +122,12 @@ summary. It cannot finish an incomplete trial or validate a grader's meaning.
 For verifier repairs, use pinned Harbor's `harbor trials regrade --help` with the
 recorded trial and a staged corrected task. Regrade creates new evidence without
 rerunning the agent. Review the new and original scores together.
+
+## Setup failures
+
+Setup recovery is disabled. Preserve incomplete attempts and their original
+receipts. Do not replace a started draw. Read-only audit of historical recovery
+records does not grant launch authority or prove matching images.
 
 ## Add an eval without changing infrastructure
 
@@ -136,6 +160,12 @@ working tree, so a study still runs after its fragment leaves production. The
 runner rejects mutable references and archived symlinks. The `current`,
 `without`, and `empty` labels then describe that historical baseline, not today's
 production guidance. All condition files and frozen inputs are still hashed.
+Optional `guidance_target` selects `AGENTS.md` (default) or
+`skills/NAME/SKILL.md` beneath the native agent directory. No other paths are
+accepted, including credential paths. For skill studies, put fixed global
+instructions and other production skills in the image. The empty condition then
+empties only the selected skill, not the fixed global instruction stack.
+
 Optional `template` names a directory containing task defaults. Staging
 copies the template into every case, overlays case files, then applies optional
 `[[assets]]` entries with `source` and `destination`. Files are replaced, not
@@ -156,9 +186,34 @@ repository instructions in the fixture, not the runner.
 Tasks may set agent/verifier timeouts, within the runner's bounds. They cannot
 choose agent users, network destinations, mounted host files, or substitute an
 agent adapter. The runner installs current, one-fragment-removed, and empty
-conditions in separate fresh native sessions, rotating their order. Maximum
-agent turns are 12; the same budget applies to every condition. Native Pi's tool
-contract and built-in prompt stay fixed.
+conditions in separate fresh native sessions, rotating their order. The default maximum
+is 12 agent turns. `--max-turns` accepts 1–80; `--thinking` accepts `medium`
+or `xhigh`. Task agent timeouts are capped at 900 seconds. The same settings
+apply to every condition and are frozen in the manifest. `--conditions` selects
+a distinct subset of `current`, `without`, and `empty`. Skill-targeted ablations
+must retain byte-identical frontmatter so discovery does not silently remove the
+whole skill. Staging freezes the current YAML header, including an optional
+UTF-8 byte-order mark. Before credential upload,
+Pi's own parser resolves its name without loading resources or extensions. At
+native startup, a nonempty condition must load that name from its target file
+and have a reader tool so Pi can advertise the skill. Hidden skills are refused.
+An empty condition must load no skill with that name from any discovery root.
+For skill trials, the runner refuses forced prompts and custom skill sections
+before adding the budget instruction. At `turn_start`, it requires the exact
+checked prompt for skill trials and the unchanged budget instruction for all
+trials. If a startup hook changes the checked prompt, remove the rewrite before
+running the trial. These checks use Pi's normal resource loading once, including
+ignore rules, settings and project trust. Later context and provider-payload
+rewrites are outside this guard. The check runs after
+access-only credential upload but before
+the first provider request; refusal stays incomplete, not a recoverable setup
+timeout. Use all three conditions for a candidate comparison and
+`--conditions current` for a fixed judge. Native Pi's tool
+contract and built-in prompt stay fixed. A narrow adapter correction for Harbor
+0.26.0 aborts an excess turn at `turn_start`, not a completed final answer at
+`turn_end`; the injected budget instruction is unchanged. The
+[verification report](../runner-smoke/RESULTS.md#earlier-component-diagnostics)
+separates live final-answer evidence from offline startup and skill checks.
 
 Checks live in `tests/`, available only to the separate verifier. They write
 `/logs/verifier/reward.json` with named binary checks. Use `assessment.json` for
@@ -201,7 +256,8 @@ tmp/harbor-venv/bin/python -m evals.runner.calibrate --study "$f" \
 ```
 
 Calibration uses the same staging and runtime builder as live execution. It
-builds each case's task image, then a separate calibration image that adds only
+stages only `current`, without constructing unused skill ablations. It builds
+each case's task image, then a separate calibration image that adds only
 that case's tests. Containers run with no network, no host mounts, and no
 candidate credentials. No agent or inference client starts. Frozen inputs,
 image IDs, per-case results, and build logs stay in the output directory.
@@ -230,8 +286,22 @@ Docker or delete another run's resources. Raw evidence is temporary under the
 copied before worktree retirement. Runtime images remain cached; deleting them
 is not required.
 
-Current scope is single-step native Pi on Linux Docker with OpenAI inference and
-deterministic separate verifiers. Multi-step sessions, another agent/provider,
-semantic judges, and external simulated services require shared capability work,
-not per-eval exceptions. Existing legacy suites remain available on their own
+Current scope is single-session native Pi on Linux Docker with OpenAI inference
+and deterministic separate verifiers. Semantic judgments can run as separate
+ordinary native-agent tasks using [the judgment template](templates/judgment).
+Its offline verifier checks the schema and exact excerpts, not judgment quality;
+calibrate meaning separately with frozen correct/wrong/equivalent documents.
+The verifier reads the document and rubric from `/workspace/artifact` in its
+fresh frozen task image, the same initial inputs the judge receives. Do not
+declare those reference inputs as captured artifacts. Independently maintained
+`tests/document.md` or `tests/criteria.json` copies are not used.
+The parser rejects duplicate JSON keys. `met` and `contradicted` judgments need
+at least one exact document excerpt; omission/uncertainty can use an empty list.
+Missing or malformed judge output is incomplete measurement, not a scored
+candidate failure. The verifier deliberately writes no passing or zero reward
+for it; Harbor retains the failed trial and the controller stops that matrix.
+Follow `eval-design` for judge settings. Blind treatment labels and keep judge
+results and usage separate from candidate workflow checks. This does not add an inline judge,
+a host-side conversation loop, or multi-step-session support. Task images may
+include disposable external-effect recorders without changing network policy. Existing legacy suites remain available on their own
 pinned runners until migrated and empirically verified.
