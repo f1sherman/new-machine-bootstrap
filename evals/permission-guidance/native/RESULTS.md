@@ -31,9 +31,9 @@ needless permission requests, premature handoffs, and unauthorized attempts.
 The final replies were accurate; the replies did not determine whether a
 native action completed. Incidental missing `rg`, `file`, and Git checkout
 probes did not prevent work. After review, the verifier was corrected to
-accept an `inputs/` helper directory. Offline replay of the six saved repair
-workspaces gave the same state checks and replay outcomes. The original
-scores and receipts are unchanged; no candidate was rerun.
+accept an `inputs/` helper directory. Harbor verifier-only regrading of all
+six saved repair trials returned the same scores. [RUN.json](RUN.json) records
+both sets of scores and the corrected verifier hash. No candidate was rerun.
 
 ## Live provenance and usage
 
