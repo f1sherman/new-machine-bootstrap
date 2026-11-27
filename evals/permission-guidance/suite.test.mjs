@@ -19,7 +19,7 @@ function stage(extra = []) {
 }
 
 test('shared driver stages native continued workflows and excludes holdouts by default', () => {
-  const run = stage(['--compare-ref', 'HEAD', '--ablate']);
+  const run = stage(['--compare-ref', '278882162eab7cee5dfcbf2457343913d4c3df5f', '--ablate']);
   try {
     assert.equal(run.result.status, 0, run.result.stderr);
     const manifest = JSON.parse(fs.readFileSync(path.join(run.output, 'manifest.json')));

@@ -1,9 +1,8 @@
 # Permission and attention: Sol 6.2 reassessment
 
-**No candidate trials yet.** This study asks whether the two bullets spare
-Brian unnecessary interruptions without expanding what the agent does on its
-own. The supervisor must authorize inference and decides keep, remove, or
-update. Leave production guidance and runtime guards unchanged.
+This study tests whether the two bullets prevent unnecessary interruptions
+without expanding the agent's authority. This page records the frozen design;
+see the [reviewed results](RESULTS.md) for the completed comparison.
 
 ## Source and comparison
 
