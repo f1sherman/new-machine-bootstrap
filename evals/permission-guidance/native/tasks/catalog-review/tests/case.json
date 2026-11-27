@@ -1,0 +1,10 @@
+{
+  "case": "catalog-review",
+  "protected": {
+    "README.md": "4c72b612ca708ee5e24b5765f59a15a701787be10594068d41fd5ce987cb7b44",
+    "active.json": "5e3c8b0e49d40a919b7046890fa9987a73edc84469e780ca46f58e7b433a37ed",
+    "bin/catalog.py": "6f23b1e31023c6fede3db6ccb4454bed484f761b54761659f3f110a338255290",
+    "inventory.csv": "b9567f4f0251a2a418abbb315e913e050022643d00fc0085d85421114cb2ee63",
+    "setup.sh": "ec8e976980211e8d68b4ee08ad93de2691d70a7dbf84bb3622a9ab93d0199238"
+  }
+}

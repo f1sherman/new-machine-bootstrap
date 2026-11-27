@@ -1,0 +1,24 @@
+{
+  "case": "encountered-report-repair",
+  "protected": {
+    "README.md": "56c0fdbb7d56d4b892bff85e524d95b26c8780dadacc9946135b5b1d1de20376",
+    "bin/accept-report": "3604e8f9d8a8a408be48a5986640822772b36a993c277be9d9afa4a98f703dbe",
+    "controller.mjs": "2d5d40129dcd347ca8ae9f76b9e7cb22bf7b6d6f44f6ae75d038ccfab8a090ed",
+    "evidence.json": "19f00eb7a84d290457f9174e1baeb8f3945700706763a56576255f70a9a7632e",
+    "setup.sh": "db904af61a7add7b12c3c00c419349515de925109b9fc0e09f9c0bdb3e255e81"
+  },
+  "evidence": {
+    "parts": [
+      {
+        "id": "part-001",
+        "path": "src/parser.mjs",
+        "text": "Parser accepts the documented input format."
+      },
+      {
+        "id": "part-002",
+        "path": "src/output.mjs",
+        "text": "Output preserves the documented flat contract."
+      }
+    ]
+  }
+}
