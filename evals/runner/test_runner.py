@@ -262,10 +262,21 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual(len(summarize([baseline, alternative])['successful_matched_usage']), 1)
             alternative['passed'] = False
             self.assertEqual(summarize([baseline, alternative])['successful_matched_usage'], [])
-            events[-1]['aborted'] = True
-            (job / 'agent/pi.txt').write_text('\n'.join(json.dumps(x) for x in events))
-            with self.assertRaisesRegex(ValueError, 'terminal response'):
-                collect(job, plan)
+            message = {'role': 'assistant', 'stopReason': 'toolUse',
+                       'content': [{'type': 'toolCall', 'id': 'call_1', 'name': 'save'}]}
+            finished = {'type': 'turn_end', 'message': message,
+                        'toolResults': [{'role': 'toolResult', 'toolCallId': 'call_1',
+                                         'toolName': 'save', 'isError': True}]}
+            tool_events = [{'type': 'message_end', 'message': message}, finished,
+                           {'type': 'agent_end'}, events[-1]]
+            (job / 'agent/pi.txt').write_text('\n'.join(map(json.dumps, tool_events)))
+            self.assertEqual(collect(job, plan), baseline)
+            for invalid in (events[:-1] + [{'type': 'agent_settled', 'aborted': True}],
+                            tool_events[:-1], tool_events[:-1] + [{'type': 'turn_start'}, events[-1]],
+                            [tool_events[0], {**finished, 'toolResults': []}, *tool_events[2:]]):
+                (job / 'agent/pi.txt').write_text('\n'.join(map(json.dumps, invalid)))
+                with self.assertRaisesRegex(ValueError, 'terminal response'):
+                    collect(job, plan)
             result['exception_info'] = {'exception_message': 'timeout'}
             (job / 'result.json').write_text(json.dumps(result))
             with self.assertRaisesRegex(ValueError, 'trial failed'):

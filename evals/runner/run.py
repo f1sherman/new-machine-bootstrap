@@ -94,9 +94,12 @@ def stage(study_file, output, model, trials, *, conditions=("current", "without"
           thinking="medium", max_turns=12):
     study = tomllib.loads(study_file.read_text())
     required = {"schema_version", "guidance_dir", "fragment", "tasks"}
-    if not required <= set(study) or set(study) - required - {"assets", "template", "guidance_ref", "guidance_target"} or study["schema_version"] != 1:
+    if not required <= set(study) or set(study) - required - {"assets", "template", "guidance_ref", "guidance_target", "pi_mode"} or study["schema_version"] != 1:
         raise ValueError("Study requires schema_version=1, guidance_dir, fragment, tasks")
     install_target = guidance_target(study.get("guidance_target", "AGENTS.md"))
+    pi_mode = study.get("pi_mode", "json")
+    if pi_mode not in ("json", "rpc"):
+        raise ValueError("pi_mode must be json or rpc")
     if not conditions or len(set(conditions)) != len(conditions) or set(conditions) - {"current", "without", "empty"}:
         raise ValueError("Select distinct current, without, or empty conditions")
     if thinking not in ("medium", "xhigh") or not 1 <= max_turns <= 80:
@@ -216,7 +219,7 @@ def stage(study_file, output, model, trials, *, conditions=("current", "without"
         "cap_drop": ["ALL"], "cap_add": ["CHOWN", "DAC_OVERRIDE", "FOWNER"],
         "security_opt": ["no-new-privileges:true"], "pids_limit": 128}}})
     manifest = {"schema_version": 3, "owner": str(uuid.uuid4()), "model": model,
-        "pi_version": pi_version, "harbor_version": HARBOR_VERSION, "fragment": fragment,
+        "pi_version": pi_version, "pi_mode": pi_mode, "harbor_version": HARBOR_VERSION, "fragment": fragment,
         "guidance_target": install_target, "guidance_skill_header": skill_header,
         "thinking": thinking, "max_turns": max_turns,
         "inference_host": host, "matrix": matrix, "input_hashes": hashes(frozen),
@@ -253,6 +256,25 @@ def check_image_proof(trial, expected, sidecar):
         raise ValueError("Candidate and verifier image proof must identify separate containers")
 
 
+def terminal_tool_turn(message, tail):
+    # Pi can settle after a terminating tool, even if the tool reports an error.
+    # Outcome belongs to the verifier; here require the completed native turn.
+    events = [event for event in tail if event.get("type") in
+              ("turn_start", "turn_end", "agent_start", "agent_end", "agent_settled")]
+    if [event["type"] for event in events] != ["turn_end", "agent_end", "agent_settled"]:
+        return False
+    turn = events[0]
+    if message.get("stopReason") != "toolUse" or turn.get("message") != message:
+        return False
+    calls = [(part.get("id"), part.get("name")) for part in message.get("content", [])
+             if part.get("type") == "toolCall"]
+    results = [(result.get("toolCallId"), result.get("toolName"))
+               for result in turn.get("toolResults", []) if result.get("role") == "toolResult"]
+    return (bool(calls) and all(call_id and name for call_id, name in calls)
+            and len({call_id for call_id, _ in calls}) == len(calls) == len(results)
+            and set(calls) == set(results))
+
+
 def collect(job, row, image_pins=None, sidecar=None):
     results = []
     for file in job.rglob("result.json"):
@@ -279,11 +301,14 @@ def collect(job, row, image_pins=None, sidecar=None):
         except ValueError:
             continue
     settled = [event for event in events if event.get("type") == "agent_settled"]
-    messages = [event["message"] for event in events if event.get("type") == "message_end"
-                and event.get("message", {}).get("role") == "assistant"]
-    if (not settled or settled[-1].get("aborted") is not False or not messages
-            or messages[-1].get("stopReason") != "stop"
-            or any(part.get("type") == "toolCall" for part in messages[-1].get("content", []))):
+    messages = [(i, event["message"]) for i, event in enumerate(events)
+                if event.get("type") == "message_end" and event.get("message", {}).get("role") == "assistant"]
+    if not settled or settled[-1].get("aborted") is not False or not messages:
+        raise ValueError("Native agent did not finish with a terminal response")
+    index, message = messages[-1]
+    terminal_text = (message.get("stopReason") == "stop"
+                     and not any(part.get("type") == "toolCall" for part in message.get("content", [])))
+    if not terminal_text and not terminal_tool_turn(message, events[index + 1:]):
         raise ValueError("Native agent did not finish with a terminal response")
     context = result.get("agent_result") or {}
     usage = {name: context.get(name) for name in ("n_input_tokens", "n_output_tokens", "n_cache_tokens")}
@@ -579,6 +604,7 @@ def main():
     harbor = str(Path(sys.executable).parent / "harbor")
     for index, row in enumerate(manifest["matrix"]):
         job = f"run-{index}-{manifest['owner'][:8]}"
+        env["EVAL_PI_MODE"] = manifest["pi_mode"]
         env["EVAL_GUIDANCE_FILE"] = str(output / (row["condition"] + ".md"))
         env["EVAL_GUIDANCE_TARGET"] = manifest["guidance_target"]
         env["EVAL_GUIDANCE_SKILL_HEADER"] = manifest.get('guidance_skill_header') or ''
