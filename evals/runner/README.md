@@ -215,6 +215,16 @@ contract and built-in prompt stay fixed. A narrow adapter correction for Harbor
 [verification report](../runner-smoke/RESULTS.md#earlier-component-diagnostics)
 separates live final-answer evidence from offline startup and skill checks.
 
+Set `pi_mode = "rpc"` in the study when a native extension requires RPC
+mode. The runner sends one `prompt` command and waits for Pi's `agent_settled`
+event. Pi owns tool calls and any continuation before settlement. RPC trials
+require a normal prompt that starts a fresh run. Extension-handled slash
+commands, interactive dialogs, and turns started after settlement are
+unsupported. Shutdown must close the RPC stream within ten seconds. The
+default stays `json` (print mode). A terminating tool may be the final model response in either mode.
+The collector requires the matching tool results and non-aborted settlement;
+the verifier still judges the task outcome, including tool errors.
+
 Checks live in `tests/`, available only to the separate verifier. They write
 `/logs/verifier/reward.json` with named binary checks. Use `assessment.json` for
 supporting detail. Missing checks or missing native usage are infrastructure

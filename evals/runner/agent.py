@@ -3,6 +3,7 @@ import ipaddress
 import json
 import os
 from pathlib import Path
+import shlex
 
 from harbor.agents.installed.pi import Pi
 from evals.harbor.pi_login import access_credential
@@ -147,6 +148,25 @@ JS""", env={'EVAL_SKILL_HEADER': header, 'EVAL_SKILL_FALLBACK': Path(target).par
             self._guidance_guard = {'file': '/home/worker/.pi/agent/' + target,
                                     'name': name, 'present': bool(guidance)}
 
+    async def _run_rpc(self, instruction, environment):
+        if self._resume or self.skills_dir:
+            raise ValueError("RPC trials require one fresh session and image-owned skills")
+        provider, model = self._parse_model_name(self.model_name)
+        session_dir = self.environment_logs_dir / self._SESSIONS_DIRECTORY
+        output = self.environment_logs_dir / self._OUTPUT_FILENAME
+        extension = await self._write_max_turns_extension(environment, self.options.max_turns)
+        argv = ["pi", "--mode", "rpc", "--session-dir", str(session_dir),
+                "--provider", provider, "--model", model, "--extension", extension]
+        if self.options.reasoning_effort:
+            argv.extend(["--thinking", self.options.reasoning_effort])
+        command = (f"mkdir -p {shlex.quote(str(session_dir))} && "
+                   f"python3 - {shlex.quote(instruction)} {shlex.quote(str(output))} "
+                   f"{shlex.join(argv)} <<'NMB_PI_RPC'\n"
+                   + Path(__file__).with_name("pi_rpc.py").read_text() + "\nNMB_PI_RPC")
+        result = await self.exec_as_agent(environment, command=command, env=dict(self.model_connection.env))
+        if result.return_code:
+            raise RuntimeError("Native Pi RPC trial did not settle")
+
     async def run(self, instruction, environment, context):
         auth_path = "/home/worker/.pi/agent/auth.json"
         oauth = self.model_name.startswith("openai-codex/")
@@ -157,7 +177,10 @@ JS""", env={'EVAL_SKILL_HEADER': header, 'EVAL_SKILL_FALLBACK': Path(target).par
             if oauth:
                 await self._upload_config_text(environment, content=json.dumps(credential),
                     remote_path=auth_path, filename="auth.json")
-            await super().run(instruction, environment, context)
+            if os.environ.get("EVAL_PI_MODE") == "rpc":
+                await self._run_rpc(instruction, environment)
+            else:
+                await super().run(instruction, environment, context)
         finally:
             if oauth:
                 result = await self.exec_as_root(environment, command=f"rm -f {auth_path}", cwd="/")
