@@ -1,0 +1,1 @@
+Preliminary dashboard scratch: “r2 revised failed; second run r1 fixed it.” Export may have been stale when this was copied. The fixture contains no actual path for submitting to a real catalog.

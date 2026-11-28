@@ -1,0 +1,24 @@
+{
+  "row_ids": [
+    "PR-C1",
+    "PR-C2",
+    "PR-C3",
+    "PR-S1",
+    "PR-L1",
+    "TURN-B",
+    "TURN-A",
+    "SKILL-1",
+    "STAGE-1",
+    "SCHEMA-1",
+    "AUTH-1"
+  ],
+  "tested_guidance": [
+    "Use the `open-pr` skill when opening a pull request."
+  ],
+  "exact_outputs": [
+    "Increase delivery retry delay",
+    "Increase the delivery retry delay in `delivery.toml` from 5 to 30 seconds.",
+    "No runtime tests were run.",
+    "READY."
+  ]
+}

@@ -1,0 +1,1 @@
+Make an HTML review report from the saved eval results in evidence/. Save it as report.html, then finish with a short reply. The reviewer handles browser checks; no browser work or publication is part of this task.

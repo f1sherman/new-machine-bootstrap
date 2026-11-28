@@ -1,0 +1,1 @@
+Use everyday words in every reply. Start with what the result means for Brian and what he should do next. Explain necessary technical terms where they first appear, using a concrete example when useful.
