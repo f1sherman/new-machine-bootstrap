@@ -41,6 +41,8 @@ for label, text, expected in (
     ('no_output', None, dict.fromkeys(passed, 0)),
     ('known_literals', main, passed),
     ('equivalent_markup', alternate, passed),
+    ('aside_text_boundary', main.replace(f'<p>{all_text[0]}</p>',
+        f'<span>Case</span><aside>{all_text[0]}</aside>'), passed),
     ('missing_row_not_fixed_by_comment', main.replace(all_text[0], '<!-- '+all_text[0]+' -->'),
      passed | {'row_ids': 0}),
     ('altered_guidance', main.replace(html.escape(literals['tested_guidance'][0]), 'Paraphrase.'),

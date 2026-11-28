@@ -6,9 +6,9 @@ import re
 
 REPORT = Path('/workspace/report.html')
 LOGS = Path('/logs/verifier')
-BLOCKS = set('article blockquote br dd details div dl dt figcaption figure footer '
-             'h1 h2 h3 h4 h5 h6 header hr li main ol p pre section summary table '
-             'tbody td th thead tr ul'.split())
+BLOCKS = set('address article aside blockquote br caption dd details dialog div dl dt '
+             'fieldset figcaption figure footer h1 h2 h3 h4 h5 h6 header hgroup hr li '
+             'main menu nav ol p pre search section summary table tbody td tfoot th thead tr ul'.split())
 
 
 class Report(HTMLParser):

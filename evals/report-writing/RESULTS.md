@@ -1,6 +1,6 @@
 # Report-writing guidance: keep the prior wording
 
-**Question:** Does the revised prompt make the case, grading rule, and decision clear without changing the source facts? In two synthetic cases, the revised prompt passed the report rubric in two of four draws, one per case. None of the four reports using prior guidance passed the full rubric. The museum reports under prior wording did not tie the pass rules to each card early enough; both prior catalog reports included usage for failed or incomplete trials. Two revised reports hid effective judge settings in a disclosure. One matched prior report exposed both settings and the operative rules without opening a disclosure, so its revised mate regressed on the method criterion. Keep the prior guidance. These are small, supplied-evidence drafting trials, not a test of hosting, full skill discovery, or a human reader's speed.
+**Question:** Does the revised prompt make the case, grading rule, and decision clear without changing the source facts? In two synthetic cases, the revised prompt passed the report rubric in two of four draws, one per case. None of the four reports using prior guidance passed the full rubric. The museum reports under prior wording did not tie the pass rules to each card early enough; both prior catalog reports included usage for failed or incomplete trials. Two revised reports hid effective judge settings in a disclosure. The matched prior reports put those settings in open text farther down the page. No timed readback was preserved that proves a reader could find the prior settings in one minute without following links. Keep the prior guidance: the evidence does not establish no regression. These are small, supplied-evidence drafting trials, not a test of hosting, full skill discovery, or a human reader's speed.
 
 - **Wording:** [prior](prior/report.md) and [revised](revised/report.md) are the exact frozen excerpts. Deletion keeps the common writing line and removes the reporting text. Empty keeps Pi's built-in context only.
 - **Exact request for both cases:** “Make an HTML review report from the saved eval results in evidence/. Save it as report.html, then finish with a short reply. The reviewer handles browser checks; no browser work or publication is part of this task.”
@@ -17,7 +17,7 @@
 
 ## Matched outcomes
 
-Pass means both the literal checks and the rendered-review rubric passed. Defects are listed in the appendix by stable artifact ID. All 16 rows had valid measurements, although 14 were scored behavior failures. There were no incomplete v5 rows.
+Pass means both the literal checks and the rendered-review rubric passed. Defects are listed in the appendix by stable artifact ID. All 16 native trials completed. Two reports passed the full rubric; each of the other 14 had at least one definite scored defect. Two prior method ratings are unresolved, as noted below.
 
 | Case / repeat | Prior | Revised | Deletion | Empty |
 | --- | --- | --- | --- | --- |
@@ -26,7 +26,7 @@ Pass means both the literal checks and the rendered-review rubric passed. Defect
 | seed-catalog / 1 | [Page-02](#page-02) Fail | [Page-09](#page-09) Fail | [Page-13](#page-13) Fail | [Page-16](#page-16) Fail |
 | seed-catalog / 2 | [Page-15](#page-15) Fail | [Page-07](#page-07) Pass | [Page-11](#page-11) Fail | [Page-14](#page-14) Fail |
 
-**Decision threshold not met.** Each case had a matched full pass repairing a prior defect (museum repeat 1 and catalog repeat 2), and deletion had the same material defects. But catalog repeat 1 regressed on the method criterion: the prior report exposed the effective judge settings and operative rules without opening a drawer; its revised mate did not. The frozen no-regression rule rules out adoption. Keep the existing guidance. A future revision should put effective judge settings beside the visible pass rules; it would need a new matched test.
+**Decision threshold not met.** Each case had a matched full pass repairing a prior defect (museum repeat 1 and catalog repeat 2), and deletion had the same material defects. But two prior-to-revised pairs moved effective judge settings from open text to closed disclosures. We did not preserve a timed no-link readback for the prior reports, so we cannot resolve the method ratings for those pairs or establish the required absence of regressions. Keep the existing guidance. A future revision should put effective judge settings beside the visible pass rules; it would need a new matched test.
 
 ### Successful trial usage
 
@@ -39,7 +39,7 @@ Only two revised reports passed the whole rubric, so there is no matched-success
 
 ## Evidence appendix
 
-Full candidate HTML and native transcripts remain temporary and private. The following excerpts come from rendered copies, with defect reasons and file digests. Where a candidate displayed usage for a failed or incomplete underlying trial, those numbers are omitted here. The literal scores did not change and no candidate reran. The initial author read marked Pages 08 and 09 as full passes. On review, both failed criterion M under the existing closed-drawer readback rule; the scorecard above uses the corrected author ratings. The initial review also failed the catalog prior reports on method for putting grading after the ledger. The rubric requires discoverability without opening details, not a fixed section order. On review both prior catalog reports passed method, but still failed fidelity.
+Full candidate HTML and native transcripts remain temporary and private. The following excerpts come from rendered copies, with defect reasons and file digests. Where a candidate displayed usage for a failed or incomplete underlying trial, those numbers are omitted here. The literal scores did not change and no candidate reran. The initial author read marked Pages 08 and 09 as full passes. On review, both failed criterion M under the existing closed-drawer readback rule; the scorecard above uses the corrected author ratings. The initial review also failed the catalog prior reports on method for putting grading after the ledger. The rubric requires discoverability without opening details, not a fixed section order. On review we confirmed both prior catalog reports expose the settings and rules without opening a drawer, but did not establish one-minute recovery without following links. Their method ratings are unresolved, and both still failed fidelity.
 
 ### Page-01
 
@@ -50,7 +50,7 @@ Full candidate HTML and native transcripts remain temporary and private. The fol
 
 ### Page-02
 
-- seed-catalog, prior, repeat 1. Literal failures: private_usage. Review defects: F. Both pass rules and effective judge settings are reachable from the visible Checks and calibration link with no disclosure required; the report publishes failure and incomplete counts in a drawer.
+- seed-catalog, prior, repeat 1. Literal failures: private_usage. Review defects: F; M unresolved. The report puts both pass rules and effective judge settings in open text after results and inputs. A visible shortcut does not count toward the no-link readback. The report publishes failure and incomplete counts in a drawer.
 - HTML SHA-256: `960fcbc57d2c0bb4b42994f8a98bf0e119b271a142ab1ea12b0e202c13e03e11`.
 
 > Explanation (model): The judge sees the final reply and short reference C09 is skipped because the lot is retired, with exact IDs and no wording or candidate labels. Met requires a link between C09 and its retired status with no claim of submission. Missing means the ID or reason is absent; contradicted means a wrong reason or a claim of submission; uncertain means too ambiguous to decide. All three are scored non-passes. Broken JSON, the judge’s score format, yields no explanation score and leaves the code result intact.
@@ -99,7 +99,7 @@ Full candidate HTML and native transcripts remain temporary and private. The fol
 
 ### Page-09
 
-- seed-catalog, revised, repeat 1. Literal failures: none. Review defects: M. The report preserved the scores and success-only usage, but effective judge model and effort were only in a closed disclosure.
+- seed-catalog, revised, repeat 1. Literal failures: none. Review defects: M. The report preserved the scores and success-only usage, but effective judge model and effort were only in a closed disclosure titled “Judge settings, scoring rules, and practice checks.”
 - HTML SHA-256: `80954fb23b98f8ade7ece91b458ea897055fb48b877dd2116dbc831dd24ebe5d`.
 
 > Regrade: SC-R1’s saved reply was reused. The recorded receipt says the byte fingerprints matched; the raw fingerprint is not available here for an independent check. Neither the candidate nor the recorder was rerun. Both the judge prompt and effort changed, so the study does not isolate their effects.
@@ -141,7 +141,7 @@ Full candidate HTML and native transcripts remain temporary and private. The fol
 
 ### Page-15
 
-- seed-catalog, prior, repeat 2. Literal failures: private_usage. Review defects: F. Both pass rules and effective judge settings are visible under Checks and calibration without a disclosure; failed/incomplete usage appears in a drawer.
+- seed-catalog, prior, repeat 2. Literal failures: private_usage. Review defects: F; M unresolved. Both pass rules and effective settings appear in open text below results; one-minute recovery without following a link is unverified. Failed or incomplete usage appears in a drawer.
 - HTML SHA-256: `8574e160e3dcc8644da201f7cf5c5f4090a96d53a64498dce64ae8bd87bf8b1f`.
 
 > Read preview.json from the recorder. Pass only if the preview flag is true, accepted keys are exactly A17 and B23 with no duplicates, and skipped keys are exactly C09. Key order does not matter. This does not check the explanation or verify the reason in a skipped row.
@@ -153,9 +153,27 @@ Full candidate HTML and native transcripts remain temporary and private. The fol
 
 > Preview artifact (code): preview.json must have preview set to true, accepted keys exactly A17 and B23 without duplicates, and skipped keys exactly C09. It does not check the reason. Calibration matched all three expectations: exact record and reordered keys pass; duplicate B23 fails.
 
+### What readers could see in the catalog pair
+
+Page-02, in open text after the results and source inputs:
+
+> Judge model and effort
+>
+> openai-codex/gpt-6.1-terra, medium with prompt J1 for all originals, xhigh with prompt J2 for the SC-R1 regrade only. Both prompt and effort changed, so this does not isolate their individual effects.
+>
+> Preview (code): All three requirements must hold: preview flag true, accepted keys exactly A17 and B23 with no duplicates, and skipped keys exactly C09. It does not read the final reply or check whether a skipped row’s reason is right.
+
+Page-09, with drawers closed:
+
+> Judge settings, scoring rules, and practice checks
+
+Page-09, only after opening that drawer:
+
+> The original explanation grades for all six trials used openai-codex/gpt-6.1-terra at medium effort (prompt J1). The only corrected grade, SC-R1, used the same model at xhigh effort (prompt J2).
+
 ## Verifier follow-up
 
-The live verifier SHA-256 was `c206ff0036570dc54264fc4d67f1967062133867b81976b11eb0f9bdbe9d59fb`. The checked-in verifier adds rejection of ambiguous duplicate HTML attributes (SHA-256 `d724a0e3c21da77fc75cad3d7e6bf9b8e2f3e342ed53466fd6c8e4f83bf2fd6f`). Its 51 offline calibration vectors passed; a networkless check of all 16 unchanged saved HTML files reproduced every original literal score. These were checks of saved files, not a candidate rerun or a replacement for native audit.
+The live verifier SHA-256 was `c206ff0036570dc54264fc4d67f1967062133867b81976b11eb0f9bdbe9d59fb`. The checked-in verifier rejects duplicate HTML attributes and recognizes standard block boundaries (SHA-256 `4b8538618752c4ad24c42077f65fa6f305a8c1928a7fb74142d2691d12eb5690`). Its 54 offline calibration vectors passed; a networkless check of all 16 unchanged saved HTML files reproduced every original literal score. These were checks of saved files, not a candidate rerun or a replacement for native audit.
 
 ## Run and limits
 
