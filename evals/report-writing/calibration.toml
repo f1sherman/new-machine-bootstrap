@@ -1,0 +1,5 @@
+schema_version = 1
+guidance_dir = "revised"
+fragment = "report.md"
+tasks = "calibration"
+template = "template"

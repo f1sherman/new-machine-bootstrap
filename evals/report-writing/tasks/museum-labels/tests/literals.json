@@ -1,0 +1,21 @@
+{
+  "row_ids": [
+    "MB-P1",
+    "MB-R1",
+    "MC-P1",
+    "MC-R1"
+  ],
+  "tested_guidance": [
+    "Name the object and when it entered the collection.",
+    "Name the object and describe how it entered the collection."
+  ],
+  "exact_outputs": [
+    "Brass river bell, added to the collection in 1931.",
+    "Brass river bell, a gift to the museum.",
+    "Wall clock, from our collection.",
+    "Wall clock, given by a local resident."
+  ],
+  "exact_prompt": [
+    "Write one public label for the object on this index card."
+  ]
+}

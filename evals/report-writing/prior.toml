@@ -1,0 +1,5 @@
+schema_version = 1
+guidance_dir = "prior"
+fragment = "report.md"
+tasks = "tasks"
+template = "template"

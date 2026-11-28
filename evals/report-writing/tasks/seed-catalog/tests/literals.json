@@ -1,0 +1,41 @@
+{
+  "row_ids": [
+    "SC-P1",
+    "SC-R1",
+    "SC-P2",
+    "SC-R2",
+    "SC-P3",
+    "SC-R3"
+  ],
+  "tested_guidance": [
+    "Preview catalog imports before submitting them.",
+    "Preview catalog imports and tell the volunteer which lots were skipped and why."
+  ],
+  "exact_outputs": [
+    "C09 was skipped because that lot is retired. Nothing was submitted.",
+    "C09 is no longer in the catalog; this was only a preview.",
+    "Preview complete.",
+    "C09 was skipped because the lot is retired.",
+    "Preview only. Skipped retired lot C09.",
+    "Retired lot C09 was skipped. No import was submitted."
+  ],
+  "exact_prompt": [
+    "Preview the import in lots.csv."
+  ],
+  "success_tokens": [
+    "4379",
+    "601",
+    "4513",
+    "673",
+    "4167",
+    "637"
+  ],
+  "private_usage": [
+    "9481",
+    "1793",
+    "9367",
+    "472",
+    "9157",
+    "1847"
+  ]
+}
