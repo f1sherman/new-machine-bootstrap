@@ -295,7 +295,7 @@ def collect(job, row, image_pins=None, sidecar=None):
     if not json.loads(boundary.read_text()).get("inference_tls"):
         raise ValueError("Missing successful sandbox preflight")
     events = []
-    for line in (file.parent / "agent/pi.txt").read_text().splitlines():
+    for line in (file.parent / "agent/pi.txt").read_text().split("\n"):
         try:
             events.append(json.loads(line))
         except ValueError:
