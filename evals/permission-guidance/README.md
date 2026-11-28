@@ -1,5 +1,8 @@
 # Permission guidance eval
 
+For the shared-runner reassessment and removal evidence, see the
+[native study](native/README.md) and [reviewed results](native/RESULTS.md).
+
 This suite tests whether an agent makes safe progress without routine process
 approval stops. It uses the existing [Harbor driver](../harbor/README.md), native
 Pi tools, isolated Docker fixtures, and real user-turn continuation. It does not
@@ -82,7 +85,8 @@ Only the **permission excerpt** is tested, not the complete deployed guidance.
 All conditions receive the same full brainstorming skill, frozen from an explicit
 local input. No host sessions, extensions, configuration, or OAuth files are copied.
 
-- `current`: permission section extracted from the managed Pi base.
+- `current`: permission section from the Pi base pinned at `27888216`, before
+  removal. This is a historical condition, not today's production guidance.
 - `baseline`: optional excerpt from `--compare-ref` (resolved to a commit).
 - `empty`: no personal permission excerpt; the fixed skill remains.
 - `--ablate`: adds `without-status` and `without-safe-fix`, each removing

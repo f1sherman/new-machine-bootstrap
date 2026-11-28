@@ -1,0 +1,1 @@
+{"parts":[{"id":"part-001","path":"src/parser.mjs","text":"Parser accepts the documented input format."},{"id":"part-002","path":"src/output.mjs","text":"Output preserves the documented flat contract."}]}

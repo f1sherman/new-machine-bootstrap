@@ -16,7 +16,10 @@ export function preparePermission(root, options, output, select) {
   if (!options['skill-file']) throw Error('permission-guidance requires --skill-file with the fixed brainstorming SKILL.md');
   const directory = path.join(root, 'evals/permission-guidance');
   const skill = fs.readFileSync(path.resolve(options['skill-file']), 'utf8');
-  const current = permissionExcerpt(fs.readFileSync(options['guidance-file'] ? path.resolve(options['guidance-file']) : path.join(root, source), 'utf8'));
+  const guidanceFile = options['guidance-file']
+    ? path.resolve(options['guidance-file'])
+    : path.join(directory, 'historical-guidance.md');
+  const current = permissionExcerpt(fs.readFileSync(guidanceFile, 'utf8'));
   const variants = [{ id: 'current', primary: true, guidance: current }, { id: 'empty', primary: false, guidance: '' }];
   if (options['compare-ref']) {
     const ref = execFileSync('git', ['rev-parse', '--verify', '--end-of-options', `${options['compare-ref']}^{commit}`], { cwd: root, encoding: 'utf8' }).trim();

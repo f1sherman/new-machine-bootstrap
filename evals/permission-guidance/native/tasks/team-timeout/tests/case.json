@@ -1,0 +1,7 @@
+{
+  "case": "team-timeout",
+  "protected": {
+    "docs/worker-settings.md": "17899f5f8735d5b1e2d996ea256767fa8a9a5f4b7af8e0cf9af30a8f7f1f7d18",
+    "setup.sh": "cc652372ec66d77688466065c03df760564b65df7ba19300b2785a47117a13a7"
+  }
+}

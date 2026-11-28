@@ -20,11 +20,6 @@ Use everyday words in every reply. Start with what the result means for Brian an
 * Verification: end to end verify; confirm empirically before claiming completion.
 * Other repositories: before you change, commit, or open a pull request in a repository this session did not start in, read its `AGENTS.md` and `AGENTS.local.md` files in full. A shell `cd` does not load them. Run `gh repo view --json visibility`. Keep internal names out of a public repository.
 
-## Permission and attention
-
-- Continue safe, in-scope work instead of stopping to give a status update.
-- Fix safe, in-scope problems without asking for permission again.
-
 # Terminal commands
 
 For user copy-paste commands, every line—including variable assignments—must fit 80 characters. No heredocs or visual wrapping. Put `\` continuations between complete arguments only, never inside paths, URLs, quoted strings, or `--opt=value`/`key=value`. Store arguments over ~60 characters in variables named f or url (not Zsh’s path); expand them quoted (`"$f"`). If an assignment exceeds 80 characters, construct its value with `printf` or successive short assignments. Literal quoted newlines are allowed only where jq/awk treats them as program whitespace, never inside paths or data values. Before sending, remove `\`-newlines mentally, retain indentation, and verify intact arguments.

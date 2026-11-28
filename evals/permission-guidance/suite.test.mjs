@@ -19,11 +19,11 @@ function stage(extra = []) {
 }
 
 test('shared driver stages native continued workflows and excludes holdouts by default', () => {
-  const run = stage(['--compare-ref', 'HEAD', '--ablate']);
+  const run = stage(['--ablate']);
   try {
     assert.equal(run.result.status, 0, run.result.stderr);
     const manifest = JSON.parse(fs.readFileSync(path.join(run.output, 'manifest.json')));
-    assert.equal(manifest.variants.length, 5);
+    assert.equal(manifest.variants.length, 4);
     const bullets = manifest.variants.find(v => v.id === 'current').guidance
       .split('\n').filter(line => line.startsWith('- '));
     for (const [index, id] of ['without-status', 'without-safe-fix'].entries()) {

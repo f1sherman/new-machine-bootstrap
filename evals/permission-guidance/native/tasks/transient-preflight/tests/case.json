@@ -1,0 +1,9 @@
+{
+  "case": "transient-preflight",
+  "protected": {
+    "README.md": "c84fb51a01a20d30c7991c869a302c89d18c22f5c6efaf1f4953f9f15b446dba",
+    "bin/check-readiness.mjs": "d9a31cff78e5ea16163acf20f9e0a6272187c0140ec905809752815b3bc52413",
+    "readiness-service.json": "4c777390b798d5f35973c72a7440e7f784fa0334cf909193c80748b06077f832",
+    "setup.sh": "a4855b91709d0811f7360f21648d186585bca4900258162656fdb5b821fe6c32"
+  }
+}
